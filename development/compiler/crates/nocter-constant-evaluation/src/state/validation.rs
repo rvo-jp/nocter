@@ -209,7 +209,7 @@ fn operation(program: &Program, plan: &super::Plan, op: &Operation) -> Result<()
     let data = |p: &Place| place(program, plan, p);
     let equal = |a: usize, b: usize| if a == b { Ok(()) } else { Err(INVALID) };
     match op {
-        Operation::None => Ok(()),
+        Operation::None | Operation::BoundsTrap => Ok(()),
         Operation::Literal {
             destination,
             value: v,

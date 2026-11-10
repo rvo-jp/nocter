@@ -529,7 +529,7 @@ impl Retention {
                     self.mark_value(draft, *value)?;
                 }
             }
-            MachineTerminator::Trap | MachineTerminator::Unreachable => {}
+            MachineTerminator::Trap(_) | MachineTerminator::Unreachable => {}
         }
         Ok(())
     }
@@ -635,7 +635,7 @@ fn successors(terminator: &MachineTerminator) -> Vec<MachineBlockId> {
         MachineTerminator::Suspend { resume, .. } => vec![resume.block()],
         MachineTerminator::Return(_)
         | MachineTerminator::Exit(_)
-        | MachineTerminator::Trap
+        | MachineTerminator::Trap(_)
         | MachineTerminator::Unreachable => Vec::new(),
     }
 }
@@ -1211,7 +1211,7 @@ fn remap_terminator(
         MachineTerminator::Exit(value) => {
             MachineTerminator::Exit(value.map(|value| remap.value(value)).transpose()?)
         }
-        MachineTerminator::Trap => MachineTerminator::Trap,
+        MachineTerminator::Trap(kind) => MachineTerminator::Trap(*kind),
         MachineTerminator::Unreachable => MachineTerminator::Unreachable,
     })
 }

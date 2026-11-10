@@ -159,6 +159,11 @@ older address. New selections still read their own current evaluated index. Boun
 reports `IndexOutOfBounds` at that operation and publishes no selected address or result. Failed
 frames release their storage through the same executor recovery as arithmetic/budget failures.
 
+`Operation::BoundsTrap` represents a producer-proven bounds failure after ordinary operand
+evaluation. It reports the same `IndexOutOfBounds` at its own site without a result slot, selected
+address or element payload representation. Executor storage recovery does not synthesize source
+cleanup or a normal continuation after that non-unwinding failure.
+
 Closed-plan tests qualify listed construction/publication, array fields, independent snapshots,
 selected edits, backedge re-execution, cross-frame addresses, exact bounds and failed-budget
 cleanup and indexed Copy snapshots with distinct data/alias result roles. Repetition tests also

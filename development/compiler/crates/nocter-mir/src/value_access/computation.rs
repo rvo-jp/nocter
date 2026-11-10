@@ -305,6 +305,7 @@ impl Builder<'_> {
         operation: &flow::Operation,
     ) -> Result<Box<[Operation]>, Failure> {
         let operation = match *operation {
+            flow::Operation::IndexFailure(_) => Operation::BoundsTrap,
             flow::Operation::Evaluate(id) => return self.evaluate(id).map(Vec::into_boxed_slice),
             flow::Operation::PrepareOperand {
                 expression,

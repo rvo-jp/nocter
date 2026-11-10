@@ -1192,9 +1192,17 @@ pub(crate) fn emit_terminator(
         Arm64SelectedTerminator::Exit(status) => {
             crate::system_primitive_code::emit_exit(function, *status, code)?;
         }
-        Arm64SelectedTerminator::Trap => {
+        Arm64SelectedTerminator::Trap(kind) => {
             code.append(Arm64Instruction::Break {
-                immediate: crate::runtime_trap::Arm64RuntimeTrap::MirTrap.immediate(),
+                immediate: match kind {
+                    nocter_machine::MachineTrap::General => {
+                        crate::runtime_trap::Arm64RuntimeTrap::MirTrap
+                    }
+                    nocter_machine::MachineTrap::Bounds => {
+                        crate::runtime_trap::Arm64RuntimeTrap::Bounds
+                    }
+                }
+                .immediate(),
             });
         }
         Arm64SelectedTerminator::Unreachable => {

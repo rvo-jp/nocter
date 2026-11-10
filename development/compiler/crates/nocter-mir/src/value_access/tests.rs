@@ -455,7 +455,7 @@ fn repeated_storage_checks_the_seed_against_its_homogeneous_result() {
 }
 
 #[test]
-fn array_index_dispositions_survive_freezing_and_unclosed_trap_flags_reject() {
+fn array_index_dispositions_survive_freezing_and_result_producing_trap_flags_reject() {
     for (source, expected) in [
         (
             "func run(): i32 { [20, 42][1] }",
@@ -490,6 +490,50 @@ fn array_index_dispositions_survive_freezing_and_unclosed_trap_flags_reject() {
         *bounds = nocter_model::IndexBoundsCheck::ProvenTrap;
         assert!(matches!(
             validate::program(&program),
+            Err(Failure::InvalidBody(_))
+        ));
+    }
+}
+
+#[test]
+fn proven_bounds_failure_is_a_terminal_action_without_a_selected_result() {
+    let source = "struct Node { next: [Node; 0] }\nfunc run(): i32 { let values: [Node; 0] = []\nlet _ = values[0]\n42 }";
+    let program = lower(source);
+    let body = program.bodies.get(&program.root).unwrap();
+    let (&at, action) = body
+        .actions
+        .iter()
+        .find(|(_, action)| matches!(action.operations.as_ref(), [Operation::BoundsTrap]))
+        .unwrap();
+    assert!(matches!(
+        body.terminators.get(&at.point),
+        Some(Terminator::Unreachable)
+    ));
+    assert!(!operations(body).any(|operation| matches!(operation, Operation::Index { .. })));
+    for mutation in 0..3 {
+        let mut bad = program.clone();
+        let body = bad.bodies.get_mut(&bad.root).unwrap();
+        match mutation {
+            0 => {
+                body.terminators
+                    .insert(at.point, Terminator::Jump(at.point));
+            }
+            1 => {
+                body.actions.get_mut(&at).unwrap().operations =
+                    vec![Operation::BoundsTrap, Operation::BoundsTrap].into();
+            }
+            _ => {
+                body.actions.insert(
+                    Location {
+                        point: at.point,
+                        action: at.action + 1,
+                    },
+                    action.clone(),
+                );
+            }
+        }
+        assert!(matches!(
+            validate::program(&bad),
             Err(Failure::InvalidBody(_))
         ));
     }

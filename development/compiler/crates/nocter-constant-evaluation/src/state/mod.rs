@@ -127,6 +127,8 @@ pub struct Alternative {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Operation {
     None,
+    /// A source-proven terminal bounds failure, after all preceding operand effects.
+    BoundsTrap,
     Literal {
         destination: usize,
         value: Value,

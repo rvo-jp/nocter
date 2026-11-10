@@ -281,10 +281,6 @@ fn private_array_bounds_checks_follow_checking_instead_of_machine_reclassificati
             "func run(): i32 { let index: usize = 1\n[20, 42][index] }",
             crate::MachineIndexCheck::Required,
         ),
-        (
-            "func run(): i32 { [20, 42][2] }",
-            crate::MachineIndexCheck::Required,
-        ),
     ] {
         let program = compile(source);
         let checks: Vec<_> = program
@@ -297,5 +293,56 @@ fn private_array_bounds_checks_follow_checking_instead_of_machine_reclassificati
             })
             .collect();
         assert_eq!(checks, [expected], "{source}");
+    }
+}
+
+#[test]
+fn proven_failure_has_a_bounds_terminator_without_an_element_address_or_layout() {
+    for source in [
+        "func run(): i32 { [20, 42][2] }",
+        "func run(): i32 { let values: [error; 0] = []\nlet _ = values[0]\n42 }",
+        "struct Node { next: [Node; 0] }\nfunc run(): i32 { let values: [Node; 0] = []\nlet _ = values[0]\n42 }",
+    ] {
+        let program = compile(source);
+        assert_eq!(
+            program
+                .functions()
+                .flat_map(|(_, f)| f.body().blocks())
+                .filter(|(_, block)| matches!(
+                    block.terminator(),
+                    crate::MachineTerminator::Trap(crate::MachineTrap::Bounds)
+                ))
+                .count(),
+            1
+        );
+        assert!(
+            program
+                .functions()
+                .flat_map(|(_, f)| f.body().addresses())
+                .flat_map(|(_, address)| address.steps())
+                .all(|step| !matches!(step, crate::MachineAddressStep::Index { .. }))
+        );
+        if source.contains("[error; 0]") || source.contains("[Node; 0]") {
+            let element = program
+                .layouts()
+                .iter()
+                .find_map(|(_, layout)| match layout.kind() {
+                    crate::MachineLayoutKind::FixedArray {
+                        element, length: 0, ..
+                    } => Some(*element),
+                    _ => None,
+                })
+                .unwrap();
+            assert!(program.layouts().get(element).is_none());
+            assert!(
+                program
+                    .functions()
+                    .flat_map(|(_, f)| f.body().operations())
+                    .all(|(_, operation)| !matches!(
+                        operation.kind(),
+                        MachineOperationKind::ReleaseError { .. }
+                    ))
+            );
+        }
     }
 }

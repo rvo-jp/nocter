@@ -121,6 +121,8 @@ pub struct Call {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Operation {
+    /// A terminal source bounds failure; no element payload or selected address exists.
+    BoundsTrap,
     Frozen {
         destination: Place,
         value: nocter_model::FrozenData,

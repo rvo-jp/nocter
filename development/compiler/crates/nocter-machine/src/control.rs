@@ -55,6 +55,13 @@ impl MachineSwitchCase {
     }
 }
 
+/// Non-recoverable termination cause; numeric trap encodings belong to the target.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MachineTrap {
+    General,
+    Bounds,
+}
+
 /// The sole control-transfer instruction of one machine basic block.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MachineTerminator {
@@ -88,7 +95,7 @@ pub enum MachineTerminator {
     },
     Return(Option<MachineValueId>),
     Exit(Option<MachineValueId>),
-    Trap,
+    Trap(MachineTrap),
     Unreachable,
 }
 
@@ -109,7 +116,7 @@ impl MachineTerminator {
             | Self::SwitchTag { .. }
             | Self::Return(_)
             | Self::Exit(_)
-            | Self::Trap
+            | Self::Trap(_)
             | Self::Unreachable => false,
         }
     }

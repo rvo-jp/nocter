@@ -25,22 +25,32 @@ impl Annotation {
     }
 }
 impl Checker<'_, '_> {
-    fn annotation_data_token(&self, token: SyntaxToken) -> Result<TypeId, Failure> {
-        self.require_header(token)?;
-        self.program()
-            .type_named(self.text(token)?)
-            .map_or_else(|| self.reject(Rule::UnknownType, token), Ok)
+    fn annotation_data_token(
+        &self,
+        token: SyntaxToken,
+        metadata_only: bool,
+    ) -> Result<TypeId, Failure> {
+        if !metadata_only {
+            self.require_header(token)?;
+        }
+        let data = if metadata_only {
+            self.program().type_identity_named(self.text(token)?)
+        } else {
+            self.program().type_named(self.text(token)?)
+        };
+        data.map_or_else(|| self.reject(Rule::UnknownType, token), Ok)
     }
     fn annotation_data(
         &mut self,
         ty: &nocter_declaration_lowering::access_declarations::DataTypeSyntax,
+        metadata_only: bool,
     ) -> Result<TypeId, Failure> {
         use nocter_declaration_lowering::access_declarations::DataTypeSyntax;
         match ty {
-            DataTypeSyntax::Named(token) => self.annotation_data_token(*token),
+            DataTypeSyntax::Named(token) => self.annotation_data_token(*token, metadata_only),
             DataTypeSyntax::Array { element, length } => {
                 let length = self.required_length(*length)?;
-                let element = self.annotation_data(element)?;
+                let element = self.annotation_data(element, metadata_only || length == 0)?;
                 self.types
                     .array(element, length)
                     .map_err(|_| Failure::InconsistentSyntax)
@@ -48,7 +58,7 @@ impl Checker<'_, '_> {
             DataTypeSyntax::Tuple(fields) => {
                 let fields = fields
                     .iter()
-                    .map(|field| self.annotation_data(field))
+                    .map(|field| self.annotation_data(field, metadata_only))
                     .collect::<Result<Vec<_>, _>>()?;
                 self.types
                     .tuple(&fields)
@@ -61,14 +71,14 @@ impl Checker<'_, '_> {
             ValueTypeSyntax, value_type_syntax,
         };
         match value_type_syntax(self.syntax(), node).map_err(|_| Failure::InconsistentSyntax)? {
-            ValueTypeSyntax::Data(data) => self.annotation_data(&data).map(Annotation::Data),
+            ValueTypeSyntax::Data(data) => self.annotation_data(&data, false).map(Annotation::Data),
             ValueTypeSyntax::Function(contract) => {
                 let inputs = contract
                     .inputs
                     .iter()
                     .map(|(operation, data)| {
                         Ok(FunctionInput {
-                            data: self.annotation_data(data)?,
+                            data: self.annotation_data(data, false)?,
                             operation: *operation,
                         })
                     })
@@ -76,7 +86,7 @@ impl Checker<'_, '_> {
                 Ok(Annotation::Function(FunctionConstraint {
                     invocation: contract.invocation,
                     inputs,
-                    result: self.annotation_data(&contract.result)?,
+                    result: self.annotation_data(&contract.result, false)?,
                 }))
             }
         }

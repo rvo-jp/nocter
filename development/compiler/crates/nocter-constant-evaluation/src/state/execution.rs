@@ -232,6 +232,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
     fn operation(&mut self, frame: usize, op: &Operation, taken: &[Option<Value>]) -> Result<()> {
         let (destination, value) = match op {
             Operation::None => return Ok(()),
+            Operation::BoundsTrap => return Err(Rule::IndexOutOfBounds),
             Operation::Literal { destination, value } => {
                 (*destination, self.memory.storage.import(value)?)
             }

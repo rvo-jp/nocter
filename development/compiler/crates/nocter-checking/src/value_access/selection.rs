@@ -79,6 +79,14 @@ impl Checker<'_, '_> {
         )
     }
     pub fn field(&self, data: TypeId, token: SyntaxToken) -> Result<ValueField, Failure> {
+        if let Some(record) = self.program().record_identity(data)
+            && !self.program().header_ready(record)
+        {
+            return Err(Failure::RequiredHeader {
+                declaration: record.into(),
+                origin: nocter_syntax::SyntaxOrigin::Token(token),
+            });
+        }
         let schema = self
             .program()
             .data_schema(data)

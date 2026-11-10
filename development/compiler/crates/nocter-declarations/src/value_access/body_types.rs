@@ -34,7 +34,7 @@ impl BodyTypes {
         };
         if fields
             .iter()
-            .any(|&data| !ordinary_data(&self.program, data))
+            .any(|&data| !structural_component(&self.program, data))
         {
             return Err(BodyTypeError::InvalidExtension);
         }
@@ -55,7 +55,7 @@ impl BodyTypes {
     /// # Errors
     /// Rejects an element outside this authority's closed ordinary data domain.
     pub fn array(&mut self, element: TypeId, length: u64) -> Result<TypeId, BodyTypeError> {
-        if !ordinary_data(&self.program, element) {
+        if !structural_component(&self.program, element) {
             return Err(BodyTypeError::InvalidExtension);
         }
         let mut types = self.program.types.transaction();
@@ -292,6 +292,12 @@ fn project_type(
     }
 }
 
+// A descriptor can retain an unready nominal identity under an empty containment edge.
+// Constructing that descriptor grants no payload or Copy evidence for its components.
+fn structural_component(program: &Program, data: TypeId) -> bool {
+    ordinary_data(program, data) || program.record_identity(data).is_some()
+}
+
 fn ordinary_data(program: &Program, data: TypeId) -> bool {
     matches!(
         program.data_schema(data),
@@ -333,9 +339,9 @@ fn replay_types(
                         .and_then(super::Code::result_contract)
                         .is_some_and(|contract| contract.invocation.can_supply(*invocation))
             }
-            TypeKind::Tuple(fields) => fields.iter().all(|data| ordinary_data(body, data)),
+            TypeKind::Tuple(fields) => fields.iter().all(|data| structural_component(body, data)),
             TypeKind::FixedArray { element, length } => {
-                length.closed_value().is_some() && ordinary_data(body, *element)
+                length.closed_value().is_some() && structural_component(body, *element)
             }
             _ => false,
         };

@@ -82,7 +82,7 @@ fn lower_terminator(
         MirTerminator::Exit(value) => Ok(MachineTerminator::Exit(
             value.map(|value| ids.value(value)).transpose()?,
         )),
-        MirTerminator::Trap => Ok(MachineTerminator::Trap),
+        MirTerminator::Trap => Ok(MachineTerminator::Trap(crate::MachineTrap::General)),
         MirTerminator::Unreachable => Ok(MachineTerminator::Unreachable),
     }
 }

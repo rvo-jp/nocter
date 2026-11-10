@@ -179,6 +179,7 @@ impl Context<'_> {
         let integer = RuntimePrimitive::Signed(32);
         let boolean = RuntimePrimitive::Bool;
         match operation {
+            Operation::BoundsTrap => Ok(()),
             Operation::Frozen { destination, value } => {
                 self.place(destination)?;
                 self.frozen(destination.data, value)
@@ -427,6 +428,29 @@ fn validate_body(program: &Program, id: AccessInstanceId, body: &Body) -> Result
         }
         for operation in &action.operations {
             context.operation(operation)?;
+        }
+    }
+    for (&at, action) in &body.actions {
+        if action
+            .operations
+            .iter()
+            .any(|operation| matches!(operation, Operation::BoundsTrap))
+        {
+            context.require(
+                matches!(action.operations.as_ref(), [Operation::BoundsTrap])
+                    && action.call_bindings.is_empty()
+                    && action.alternatives.iter().all(|alternative| {
+                        alternative.before.is_empty()
+                            && alternative.after.is_empty()
+                            && alternative.before_writes.is_empty()
+                            && alternative.after_writes.is_empty()
+                    })
+                    && lengths.get(&at.point) == Some(&(at.action + 1))
+                    && matches!(
+                        body.terminators.get(&at.point),
+                        Some(Terminator::Unreachable)
+                    ),
+            )?;
         }
     }
     validate_control(&context)

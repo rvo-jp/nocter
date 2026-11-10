@@ -7,6 +7,30 @@ use super::{Context, Failure, Result};
 use crate::value_access::IndexAction;
 use nocter_model::{AccessExpressionId, FieldPath, ValueAccessMode as Mode, ValueProjection};
 impl Context<'_, '_> {
+    pub(super) fn index_failure(&self, id: AccessExpressionId) -> Result<()> {
+        let expression = self
+            .typed
+            .body()
+            .expressions()
+            .get(id)
+            .ok_or(Failure::Integrity)?;
+        let crate::value_access::ExpressionKind::Index {
+            base,
+            index,
+            bounds: nocter_model::IndexBoundsCheck::ProvenTrap,
+            ..
+        } = expression.kind
+        else {
+            return Err(Failure::Integrity);
+        };
+        if expression.ty.may_complete() {
+            return Err(Failure::Integrity);
+        }
+        if let Some((region, _)) = self.base_value(self.world.value(base)?)? {
+            self.world.check_lifetime(&region, self.at)?;
+        }
+        self.read(self.world.value(index)?)
+    }
     pub(super) fn index(
         &mut self,
         id: AccessExpressionId,

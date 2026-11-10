@@ -69,6 +69,7 @@ impl Context<'_, '_> {
     }
     pub(super) fn ownership_after(&mut self, operation: &Operation) -> Result<()> {
         match *operation {
+            Operation::IndexFailure(_) => {}
             Operation::BeginEvaluation(id) => self.world.resources.begin(id)?,
             Operation::EndEvaluation(id) => {
                 for holder in self.world.resources.ending(id)? {

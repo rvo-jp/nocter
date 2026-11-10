@@ -18,28 +18,27 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Close guaranteed-trap array selection as a no-result continuation after ordinary base/index
-evaluation, with no fabricated selected address, owner or input. Preserve the non-unwinding trap
-contract and local diagnostics through required execution and native lowering before freezing
-negative bounds facts. Keep normal in-bounds and required checks unchanged.
+Extend the [selection path](compiler/crates/nocter-checking/README.md#array-selection) from complete-value
+access disjointness to one checking-owned source of retained-index facts for initialization and
+resource flow. Separate address formation from complete-payload reads before admitting element
+transfer or restoration. Consume the same selected paths in access checks and the existing ledger;
+do not add a second ownership registry or a separate bounds evaluator.
+The [closed evaluator address mechanism](compiler/crates/nocter-constant-evaluation/README.md#evaluated-array-addresses)
+is an execution consumer, not proof of precise element-state safety. Preserve the evaluated numeric
+index through reservations, aliases and holes; equal recipe keys across a backedge do not establish equal values.
+Element transfer and partial-state admission remain gated until the
+[evaluated-selection closure](design/compiler-realization.md#evaluated-array-selection-closure)
+closes joins, loops and cleanup alongside the ordinary whole-value construction path. A finite
+concrete-path stage must not become a constant-index-only source policy or substitute for retained
+dynamic holes and finite progression summaries.
 
 Qualify actual nontrivial array cleanup effects through the
 [native array consumer](compiler/crates/nocter-machine/README.md#private-array-execution), including
 source error construction. Respect its stated qualification boundary: emitted/image-only cleanup
 is not execution of an owned error graph.
 Preserve homogeneous geometry, payload-free empty arrays and the existing lifecycle ownership;
-do not add N compiler owners, layout fields or generated operations.
-
-Extend the [selection path](compiler/crates/nocter-checking/README.md#array-selection) from complete-value
-access disjointness to one checking-owned source of retained-index facts for initialization and
-resource flow. The [closed evaluator address mechanism](compiler/crates/nocter-constant-evaluation/README.md#evaluated-array-addresses)
-is an execution consumer, not proof of precise element-state safety. Preserve the evaluated numeric
-index through reservations, aliases and holes; equal recipe keys across a backedge do not establish equal values.
-Use the existing canonical address/value storage and shared structural relation, without a second
-ownership registry. Element transfer and partial-state admission remain gated until the
-[evaluated-selection closure](design/compiler-realization.md#evaluated-array-selection-closure)
-closes joins, loops and cleanup alongside the ordinary whole-value construction path. Native
-nontrivial and partial-array cleanup remain separate consumers to close before product admission.
+do not add N compiler owners, layout fields or generated operations. Native nontrivial and partial-array
+cleanup remain separate consumers to close before product admission.
 
 ## Migration Checklist
 

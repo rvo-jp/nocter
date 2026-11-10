@@ -641,7 +641,7 @@ pub enum Arm64SelectedTerminator {
     },
     DeferredReturn(Option<MachineValueId>),
     Exit(Option<Arm64SelectedRegister>),
-    Trap,
+    Trap(nocter_machine::MachineTrap),
     Unreachable,
 }
 
@@ -1560,7 +1560,7 @@ fn select_terminator(
         MachineTerminator::Exit(value) => Ok(Arm64SelectedTerminator::Exit(
             value.map(|value| one_word(values, value)).transpose()?,
         )),
-        MachineTerminator::Trap => Ok(Arm64SelectedTerminator::Trap),
+        MachineTerminator::Trap(kind) => Ok(Arm64SelectedTerminator::Trap(*kind)),
         MachineTerminator::Unreachable => Ok(Arm64SelectedTerminator::Unreachable),
     }
 }

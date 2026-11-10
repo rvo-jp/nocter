@@ -84,9 +84,11 @@ Concrete assembly fields resolve against that same element/count descriptor. Fro
 repeated arrays validate their exact count and actual value edges without count expansion.
 Runtime repetition freezes one schema-counted seed fill above count one; the ordinary resource
 assembly handles count one. Validation checks element identity and owning result storage, without
-inferring Copy or expanding the count. Private indexed results currently reject ProvenTrap until
-their no-result control/resource continuation is qualified; checking retains Required for those
-cases. The [native consumer](../nocter-machine/README.md#private-array-execution) owns executable scope.
+inferring Copy or expanding the count. A result-producing `Index` rejects `ProvenTrap`.
+Guaranteed failure instead freezes a separate `BoundsTrap` with no result slot, element address
+or payload requirement. Validation requires it to be the sole operation of the final action before
+`Unreachable`, without lifecycle effects, call bindings or flag writes; no consumer may execute
+cleanup after that non-unwinding failure. The [native consumer](../nocter-machine/README.md#private-array-execution) owns executable scope.
 
 The [private activation handoff](../../../architecture/pipeline/value-access-declarations.md#private-activation-storage-handoff)
 owns cross-stage ordering and remaining execution obligations.

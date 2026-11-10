@@ -95,3 +95,38 @@ fn an_empty_array_can_retain_an_unavailable_element_identity() {
     );
     assert_eq!(budget.storage_used(), 0);
 }
+
+#[test]
+fn an_explicit_bounds_failure_needs_no_result_payload_and_releases_execution_storage() {
+    let (code, _) = code_ids();
+    let mut plan = literal();
+    plan.slots = Vec::new().into();
+    plan.points = plan.points.map(|_, _| Point {
+        actions: vec![Action {
+            operation: Operation::BoundsTrap,
+            alternatives: vec![Alternative {
+                owned: BTreeMap::new(),
+                before: Box::new([]),
+                after: Box::new([]),
+            }]
+            .into(),
+        }]
+        .into(),
+        terminator: Terminator::Unreachable,
+    });
+    let program = Program::new(
+        [Type::Unavailable],
+        BTreeMap::from([(code.into(), plan)]),
+        BTreeMap::new(),
+    )
+    .unwrap();
+    let mut budget = Budget::new(CompileTimeEvaluationLimits::default());
+    for _ in 0..2 {
+        let error = Executor::new(&program, &mut budget, 0)
+            .evaluate_initializer(code)
+            .unwrap_err();
+        assert_eq!(error.rule, Rule::IndexOutOfBounds);
+        assert!(error.site.is_some());
+        assert_eq!(budget.storage_used(), 0);
+    }
+}

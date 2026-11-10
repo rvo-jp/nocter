@@ -544,7 +544,7 @@ fn terminator_flow(
                 insert_value(body, *value, &mut inputs)?;
             }
         }
-        MachineTerminator::Trap | MachineTerminator::Unreachable => {}
+        MachineTerminator::Trap(_) | MachineTerminator::Unreachable => {}
     }
     Ok((inputs, successors))
 }

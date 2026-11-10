@@ -143,7 +143,9 @@ reload the user's index variable or repeat the source bounds decision. Zero-byte
 materialize their bounds effect whenever checking requires it. Native instruction tests distinguish
 removed proven checks from retained required checks even after scalar constant propagation.
 Existing lifecycle phases retain RHS-first replacement, interruption cleanup, calls and independent
-Copy snapshots.
+Copy snapshots. A private no-result `BoundsTrap` becomes a terminal `MachineTrap::Bounds`
+after the preceding operand effects, without constructing element geometry or a selected pointer.
+The target owns the numeric trap encoding; general MIR failure retains its distinct cause.
 
 `executable::body::repetition` loads the established seed once and emits a counted Machine CFG.
 Its countdown counter is an ordinary SSA block parameter. Fill order has no user callback; the

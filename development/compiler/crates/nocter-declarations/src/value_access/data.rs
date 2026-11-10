@@ -1,5 +1,5 @@
 //! Closed data identity, source-name resolution and payload projection. No source syntax lives here.
-use super::{AggregateForm, DeclarationId, Program, Record};
+use super::{AggregateForm, DeclarationId, Program};
 use nocter_model::{BuiltinType, FieldPath, NominalTypeId, Symbol, SymbolTable, TypeId, TypeKind};
 use std::collections::BTreeMap;
 
@@ -129,12 +129,21 @@ impl Program {
             _ => None,
         }
     }
-    /// Source-name lookup; semantic equality continues to use resolved `TypeId` only.
+    /// Source-name lookup for ready payload data; semantic equality uses resolved `TypeId` only.
     #[must_use]
     pub fn type_named(&self, spelling: &str) -> Option<TypeId> {
+        let data = self.type_identity_named(spelling)?;
+        self.data_schema(data).map(|_| data)
+    }
+    /// Resolve a reserved data identity without granting payload, field or Copy readiness.
+    #[must_use]
+    pub fn type_identity_named(&self, spelling: &str) -> Option<TypeId> {
         match data_reference(&self.symbols, &self.namespace, spelling)? {
             DataReference::Builtin(data) => self.data_type(data),
-            DataReference::Record(id) => self.records.records.get(id).map(Record::data),
+            DataReference::Record(id) => self
+                .types
+                .store()
+                .identity(&super::records::nominal_key(id)),
             DataReference::Tuple(_) | DataReference::Array { .. } => None,
         }
     }

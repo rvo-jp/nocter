@@ -65,7 +65,8 @@ pub(in crate::value_access) fn validate(
                 | flow::Operation::CompoundAssign { value, .. } => check(value)?,
                 // Beginning an interrupted evaluation does not produce its result. Scope exit
                 // cleans initialized holders only; a dead local's known type is no owner.
-                flow::Operation::BeginEvaluation(_)
+                flow::Operation::IndexFailure(_)
+                | flow::Operation::BeginEvaluation(_)
                 | flow::Operation::EndEvaluation(_)
                 | flow::Operation::CancelCall { .. }
                 | flow::Operation::BooleanConstant { .. }

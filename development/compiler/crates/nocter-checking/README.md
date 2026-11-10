@@ -905,13 +905,18 @@ including zero-byte data, without an index-name or loop-generation proof.
 
 Initialization still requires a complete containing array, and base identity stays protected during
 index evaluation. Saved addresses remain the exact execution authority. Checking freezes
-`ProvenInBounds` when an established normal-result singleton is below the normalized array count;
-it otherwise retains `Required`. This uses the [one disposition role](../nocter-model/README.md#structural-projection-relations),
+`ProvenInBounds` when an established normal-result singleton is below the normalized array count,
+and `ProvenTrap` for an empty array or an established singleton at or above that count; other
+indices retain `Required`. This uses the [one disposition role](../nocter-model/README.md#structural-projection-relations),
 not a new bounds evaluator in later stages. The complete base/index evaluation and effects remain,
-including zero-byte selections. A known negative case still requires its check until guaranteed-trap
-flow can close without a supplied value or resource obligation. The closed evaluator continues to
-check actual values under its independent validated-plan contract; native lowering may omit only
-a checking-proven check. Element transfer and partial-state admission still require the
+including zero-byte selections. A guaranteed failure schedules `IndexFailure` only after both
+operands complete and terminates without a selected address, supplied result, Copy obligation,
+call commit or unwinding cleanup. Prior effects, including zero-repetition seed disposal, remain.
+No payload header is requested for an element that is never produced; a later authored member
+selection still requires its structural definition. Empty local annotations retain element identity
+without requiring its payload header. The closed evaluator checks actual values for ordinary
+selection and executes explicit guaranteed failure at its exact source site; native lowering may
+omit only a checking-proven check. Element transfer and partial-state admission still require the
 [evaluated-selection closure](../../../design/compiler-realization.md#evaluated-array-selection-closure).
 Access disjointness does not prove a missing element's identity, restoration or cleanup interval.
 

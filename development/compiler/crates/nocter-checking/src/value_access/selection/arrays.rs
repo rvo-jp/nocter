@@ -73,7 +73,23 @@ impl Checker<'_, '_> {
             Some(Boundary::Value(self.data(BuiltinType::Usize))),
             reachable && self.ty(base).may_complete(),
         )?;
-        self.index_element_headers(element, node)?;
+        let known = self
+            .expressions
+            .get(index)
+            .and_then(crate::value_access::Expression::normal_integer)
+            .and_then(|value| u64::try_from(value).ok());
+        let bounds = match known {
+            _ if array.is_empty() => nocter_model::IndexBoundsCheck::ProvenTrap,
+            Some(index) if index >= array.length() => nocter_model::IndexBoundsCheck::ProvenTrap,
+            Some(_) => nocter_model::IndexBoundsCheck::ProvenInBounds,
+            None => nocter_model::IndexBoundsCheck::Required,
+        };
+        let continues = self.ty(base).may_complete()
+            && self.ty(index).may_complete()
+            && bounds != nocter_model::IndexBoundsCheck::ProvenTrap;
+        if continues {
+            self.index_element_headers(element, node)?;
+        }
         if matches!(
             self.program().data_schema(element),
             Some(PayloadSchema::Function(_))
@@ -81,26 +97,12 @@ impl Checker<'_, '_> {
             return self.reject(Rule::UnsupportedData, node);
         }
         let action = if access.mode() == Mode::Own {
-            if !self.copyable(element) {
+            if continues && !self.copyable(element) {
                 return self.reject(Rule::UnsupportedData, node);
             }
             IndexAction::CopyPayload
         } else {
             IndexAction::Access
-        };
-        let continues = self.ty(base).may_complete() && self.ty(index).may_complete();
-        let bounds = if self
-            .expressions
-            .get(index)
-            .and_then(crate::value_access::Expression::normal_integer)
-            .and_then(|value| u64::try_from(value).ok())
-            .is_some_and(|index| index < array.length())
-        {
-            nocter_model::IndexBoundsCheck::ProvenInBounds
-        } else {
-            // Negative facts need a dedicated trap continuation with no supplied value. Keep
-            // that check required until the complete flow/resource handoff can consume it.
-            nocter_model::IndexBoundsCheck::Required
         };
         self.emit(
             node,

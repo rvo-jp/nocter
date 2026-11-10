@@ -121,6 +121,25 @@ fn replaced_local(
     Ok((place.fields.is_root() && local.access().mode() == Mode::Own).then_some(place.local))
 }
 
+fn index_failure_uses(
+    typed: &TypedQuery,
+    id: AccessExpressionId,
+) -> Result<[(Carrier, bool); 2], IntegrityError> {
+    let ExpressionKind::Index {
+        base,
+        index,
+        bounds: nocter_model::IndexBoundsCheck::ProvenTrap,
+        ..
+    } = typed.body().expressions().get(id).ok_or(INVALID)?.kind
+    else {
+        return Err(INVALID);
+    };
+    Ok([
+        (Carrier::Expression(base), false),
+        (Carrier::Expression(index), false),
+    ])
+}
+
 fn plan(
     typed: &TypedQuery,
     operation: &Operation,
@@ -130,6 +149,9 @@ fn plan(
     let mut definitions = Vec::new();
     let mut releases = Vec::new();
     match operation {
+        Operation::IndexFailure(id) => {
+            uses.extend(index_failure_uses(typed, *id)?);
+        }
         Operation::BeginEvaluation(_) | Operation::EndEvaluation(_) => {}
         Operation::Evaluate(id) => {
             definitions.push(Carrier::Expression(*id));

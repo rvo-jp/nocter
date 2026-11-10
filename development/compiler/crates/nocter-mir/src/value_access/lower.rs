@@ -502,7 +502,8 @@ impl Builder<'_> {
                 let data = self.expression(value)?;
                 self.slot(SlotKey::Predicate(value), data, Storage::Payload)?;
             }
-            Operation::BeginEvaluation(_)
+            Operation::IndexFailure(_)
+            | Operation::BeginEvaluation(_)
             | Operation::EndEvaluation(_)
             | Operation::PrepareArgument { .. }
             | Operation::CommitCall(_)

@@ -390,7 +390,8 @@ fn transfer(
                     remove(state, local, &FieldPath::default(), location)?;
                 }
             }
-            Operation::Forward { .. }
+            Operation::IndexFailure(_)
+            | Operation::Forward { .. }
             | Operation::BeginEvaluation(_)
             | Operation::EndEvaluation(_)
             | Operation::BooleanAnswer { .. }

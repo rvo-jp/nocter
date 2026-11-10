@@ -402,6 +402,7 @@ impl<'a> Builder<'a> {
     }
     fn operation(&mut self, operation: &mir::Operation) -> Result<(), Failure> {
         match operation {
+            mir::Operation::BoundsTrap => return Err(Self::invalid()),
             mir::Operation::Frozen { destination, value } => self.frozen(destination, value)?,
             mir::Operation::Constant { destination, value } => {
                 let value = match value {
@@ -524,6 +525,9 @@ impl<'a> Builder<'a> {
         Ok(())
     }
     fn action(&mut self, action: &mir::Action) -> Result<(), Failure> {
+        if matches!(action.operations.as_ref(), [mir::Operation::BoundsTrap]) {
+            return self.terminate(MachineTerminator::Trap(crate::MachineTrap::Bounds));
+        }
         if action.alternatives.len() == 1 && action.alternatives[0].tests.is_empty() {
             return self.alternative(&action.alternatives[0], action);
         }
@@ -552,7 +556,7 @@ impl<'a> Builder<'a> {
             self.go(join)?;
             self.current = failed;
         }
-        self.terminate(MachineTerminator::Trap)?;
+        self.terminate(MachineTerminator::Trap(crate::MachineTrap::General))?;
         self.current = join;
         Ok(())
     }
@@ -697,6 +701,12 @@ pub(super) fn source<'a>(
             mir::Terminator::Return(place) => MachineTerminator::Return(Some(builder.load(place)?)),
             mir::Terminator::Unreachable => MachineTerminator::Unreachable,
         };
+        if builder.blocks[builder.current.index()].terminator.is_some() {
+            if !matches!(terminator, MachineTerminator::Unreachable) {
+                return Err(Failure::InvalidRoot);
+            }
+            continue;
+        }
         builder.terminate(terminator)?;
     }
     builder.finish(

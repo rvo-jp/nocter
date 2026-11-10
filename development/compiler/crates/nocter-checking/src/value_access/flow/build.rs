@@ -487,6 +487,17 @@ impl Builder<'_> {
                 point = self.expression(index, current)?;
             }
             if let Some(current) = point {
+                if matches!(
+                    self.body.expressions().get(id).ok_or(INVALID)?.kind,
+                    ExpressionKind::Index {
+                        bounds: nocter_model::IndexBoundsCheck::ProvenTrap,
+                        ..
+                    }
+                ) {
+                    self.action(current, Origin::Expression(id), Operation::IndexFailure(id))?;
+                    self.terminate(current, Terminator::Unreachable)?;
+                    return Ok(None);
+                }
                 self.action(current, Origin::Expression(id), Operation::Evaluate(id))?;
             }
         }

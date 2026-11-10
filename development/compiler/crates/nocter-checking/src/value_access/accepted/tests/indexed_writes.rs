@@ -56,6 +56,8 @@ fn read_only_computed_or_invalidated_targets_do_not_gain_storage() {
         "func work(values: [i32; 2]): void { values[0] += 1 }",
         "func work(): void { var values = [1, 2]\nread view = values\nview[0] = 42 }",
         "func work(): void { [1, 2][0] = 42 }",
+        "func work(): void { let values: [i32; 0] = []\nvalues[0] = 42 }",
+        "func work(): void { [(); 0][0] = () }",
     ] {
         let (sources, tree) = input(source);
         assert!(

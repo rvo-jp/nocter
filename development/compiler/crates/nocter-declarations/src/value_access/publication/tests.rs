@@ -70,6 +70,9 @@ fn selected_records_publish_transitive_schemas_without_exposing_unrelated_fields
     );
     assert_eq!(early.data_copyable(key), None);
     assert_eq!(early.type_named("Parent"), None);
+    assert_eq!(early.type_identity_named("Parent"), Some(key));
+    assert_eq!(early.type_identity_named("Missing"), None);
+    assert_eq!(early.type_identity_named("run"), None);
     assert!(early.fields().is_empty());
     let type_count = early.types.store().type_count();
     assert_eq!(

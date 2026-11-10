@@ -264,7 +264,11 @@ schema, independently of invocation. All permitted views belong to the same body
 Tuples and closed fixed-array descriptors use that same body construction authority, including
 within a capture body. Its array constructor takes an established element TypeId and closed
 u64 count; it neither evaluates a count nor expands elements. Empty arrays still require valid
-element data. Ordinary structural data excludes callable witness elements in this bounded model.
+element data. `type_identity_named` resolves the preinterned nominal key independently of
+`type_named` payload readiness. Structural tuple/array descriptors may retain that key without
+granting a payload schema, including nested descriptors beneath a zero-count edge. Actual payload
+construction and selection still require their ready definitions. Ordinary structural data excludes
+callable witness elements in this bounded model.
 Equal header/body array shapes intern as one type. This metadata capability does not admit
 array expressions, resource operations, evaluator array values or native storage.
 Canonical replay remaps nested tuple/array components and every closure-schema data slot with the body

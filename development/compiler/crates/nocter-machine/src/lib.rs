@@ -48,6 +48,7 @@ pub use context::{
 };
 pub use control::{
     MachineBlock, MachineBranchTarget, MachineSwitchCase, MachineSwitchValue, MachineTerminator,
+    MachineTrap,
 };
 pub use data::{MachineData, MachineDataRelocation, MachineDataTable};
 pub use dataflow::{

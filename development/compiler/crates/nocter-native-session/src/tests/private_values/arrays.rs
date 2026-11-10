@@ -141,6 +141,14 @@ fn private_array_bounds_trap_even_when_no_payload_is_read_or_written() {
             "struct Node { next: [Node; 0] }\nfunc run(): i32 { let values: [Node; 0] = []\nread item = values[0]\n42 }",
         ),
         (
+            "array-empty-error-bounds",
+            "func run(): i32 { let values: [error; 0] = []\nlet _ = values[0]\n42 }",
+        ),
+        (
+            "array-computed-noncopy-bounds",
+            "struct Item { value: i32 }\nfunc run(): i32 { let _ = [Item { value: 1 }][1]\n42 }",
+        ),
+        (
             "array-read-bounds",
             "func run(): i32 { let values = [1, 2]\nlet _ = values[2]\n42 }",
         ),
@@ -302,6 +310,27 @@ fn private_structural_array_regions_keep_disjoint_access_and_index_effects() {
         (
             "array-zero-byte-disjoint-inputs",
             "func assign(edit left: void, edit right: void): i32 { left = ()\nright = ()\n42 }\nfunc run(): i32 { var values = [(), ()]\nassign(values[0], values[1]) }",
+        ),
+    ] {
+        let package = TempPackage::new();
+        execute_native_status(&compile(source), &package.0, name, 42);
+    }
+}
+
+#[test]
+fn private_proven_bounds_failure_preserves_earlier_operand_exits_and_effects() {
+    for (name, source) in [
+        (
+            "array-trap-index-return",
+            "func make(edit log: i32): [i32; 0] { log += 1\n[] }\nfunc inner(edit log: i32): i32 { let _ = make(log)[if true { return 41 } else { 0 }]\n0 }\nfunc run(): i32 { var log = 0\nlet result = inner(log)\nresult + log }",
+        ),
+        (
+            "array-trap-base-return",
+            "func run(): i32 { let empty: [i32; 0] = []\nlet _ = (if true { return 42 } else { empty })[0]\n0 }",
+        ),
+        (
+            "array-trap-target-return",
+            "func produce(edit log: i32): i32 { log += 1\n0 }\nfunc inner(edit log: i32): i32 { var empty: [i32; 0] = []\nempty[if true { return 41 } else { 0 }] = produce(log)\n0 }\nfunc run(): i32 { var log = 0\nlet result = inner(log)\nresult + log }",
         ),
     ] {
         let package = TempPackage::new();

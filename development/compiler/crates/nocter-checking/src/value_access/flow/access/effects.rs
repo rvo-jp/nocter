@@ -54,6 +54,7 @@ pub(super) fn apply(
     let before = context.steps.len();
     let operation_state = context.world.resources.condition();
     match operation {
+        Operation::IndexFailure(id) => context.index_failure(*id)?,
         Operation::BeginEvaluation(_) => {}
         Operation::EndEvaluation(id) => context.end_evaluation_access(*id)?,
         Operation::Evaluate(id) => {

@@ -278,6 +278,7 @@ impl Builder<'_, '_> {
                 argument: index,
             } => return self.argument(call, index),
             flow::Operation::CommitCall(id) => return self.call(id),
+            flow::Operation::IndexFailure(_) => plan::Operation::BoundsTrap,
             flow::Operation::BeginEvaluation(_)
             | flow::Operation::EndEvaluation(_)
             | flow::Operation::Assign { .. }

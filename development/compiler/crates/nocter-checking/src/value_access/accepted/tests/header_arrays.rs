@@ -245,3 +245,20 @@ fn runtime_parameters_do_not_become_implicit_inputs_to_header_lengths() {
     assert_eq!(error.code(), "E0340");
     assert_eq!(syntax.text_at(error.primary().span().range()), Some("size"));
 }
+
+#[test]
+fn empty_local_type_metadata_does_not_require_the_unstored_element_header() {
+    let text = "struct Node { payload: [i32; COUNT] }\nconst COUNT: usize = compute()\nconst func compute(): usize { let empty: [(Node, [Node; 1]); 0] = []\n0 }";
+    let unit = accepted(text);
+    assert_eq!(array(&unit, "Node", 0).length(), 0);
+    for source in [
+        "const func compute(): usize { let empty: [Missing; 0] = []\n0 }",
+        "struct Node { payload: [i32; COUNT] }\nconst COUNT: usize = compute()\nconst func compute(): usize { let empty: [Node; 0] = []\nlet _ = empty[0].missing\n0 }",
+    ] {
+        let (sources, tree) = input(source);
+        assert!(
+            SourceUnit::prepare(bound(&sources, &tree)).is_err(),
+            "{source}"
+        );
+    }
+}

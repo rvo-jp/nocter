@@ -30,6 +30,8 @@ pub enum Origin {
 /// Evaluation steps are ordered. Call preparation refers to the already selected typed plan.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Operation {
+    /// The evaluated index is known to fail; no selected value/address or owner is supplied.
+    IndexFailure(AccessExpressionId),
     BeginEvaluation(AccessExpressionId),
     EndEvaluation(AccessExpressionId),
     Evaluate(AccessExpressionId),
