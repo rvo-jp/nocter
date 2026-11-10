@@ -5,33 +5,44 @@ Maintain repository-wide agent instructions only in this file.
 
 ## Working Principles
 
-- Leave enough information in the owning documents for a new session to establish current goals,
-  contracts, implementation limits, remaining work and blockers without conversation records.
-- Keep one authority for each code decision. Derive downstream representations, caches and indexes
-  from it; do not maintain parallel sources of meaning. Prefer a coherent design over a local patch.
-- Keep one authoritative document for each fact or contract. Link to that owner instead of copying
-  the same information into summaries, plans or catalogs.
-- Keep directories and documents current. Git commits and tags are the only history: remove
-  superseded specifications, history directories, chronological ledgers, session logs and completed
-  work reports. Retain rationale and evidence only when they explain a current decision or problem.
-- Commit at coherent, verified boundaries. Inspect `git status --short` before editing and preserve
-  unrelated user changes. Do not stop merely to report progress or combine unrelated work.
-- Question existing code and directory boundaries before extending them. Evaluate them against the
-  user's purpose; their existence alone does not justify retaining them.
-- Review affected code during implementation and before committing. Periodically examine the
-  broader design, duplication and document/directory structure; improve them when concrete benefits
-  outweigh disruption. Avoid superficial churn and unnecessary abstractions.
-- Address bugs when found. Fix a bounded defect and verify its behavior. If a larger redesign is
-  needed, report its impact and record the affected owner and next action in `development/TODO.md`.
-- Periodically check the user's goals and priorities and propose better designs with concrete
-  examples and tradeoffs. Use documented goals for routine decisions; ask when intent is genuinely
-  missing. Do not repeatedly seek approval for delegated work.
-- Before running a test, identify the behavior or risk it must verify and whether that test
-  actually observes it. Question existing assertions and test selection; unrelated passing tests
-  do not establish correctness. Use the smallest sufficient evidence for the affected consumers.
-- Periodically challenge existing rules and procedures, including this file. Revise those that no
-  longer serve the project's goals instead of following them mechanically. Do not weaken a product
-  contract or test expectation merely to obtain a passing result.
+- Keep the necessary current goals, contracts, implementation limits and remaining work in their
+  owning documents so work can continue without session records.
+- Keep one authority for information and responsibility in code. Derive downstream products and
+  avoid unnecessary duplication, complexity and dependencies.
+- Keep one authoritative document for each fact. Refer to its owner instead of independently
+  maintaining copies elsewhere.
+- Directories and documentation normally describe the current state. Git records changes; retain
+  rationale and constraints needed to understand the current design in its owning documents.
+- Commit at logical boundaries, preserving unrelated user changes and separating unrelated work.
+  Continue across small implementation, verification and commit boundaries; progress reports alone
+  are not a reason to stop.
+- Address bugs and design problems when found. Establish their impact and fix tractable problems.
+  Report substantial unresolved changes or decisions requiring the user, with causes and next work.
+- Complete achievable work through implementation, appropriate verification and documentation.
+  Report the cause and remaining work when a problem cannot be resolved.
+- Evaluate user instructions and existing design against the actual goal; neither is automatically
+  correct. Prefer accuracy and logic over agreement.
+
+## Continuous Improvement
+
+At appropriate points before, during and after implementation:
+
+- Reassess the user's goals and requirements against the current design and implementation plan.
+- Examine responsibilities, dependencies, directories, file placement and procedures for a more
+  reasonable structure.
+- Review changes for duplication, inconsistencies, unnecessary complexity and latent defects.
+- Reconcile documentation with implementation and organize documents and directories when useful.
+- Evaluate verification itself: identify missing cases, mistaken assumptions and defects the checks
+  cannot detect, and improve the evidence where necessary.
+- Weigh each improvement's benefit against its added complexity and choose a reasonable design.
+
+## Quality
+
+- Prioritize consistency and quality of the complete product over isolated local success.
+- Do not equate a small patch with quality or omit changes needed to achieve the goal.
+- Favor correctness, consistency, simplicity, maintainability and verifiability.
+- Find root causes rather than adding symptom patches or unnecessary exceptions.
+- Passing existing implementations and checks does not establish that their design is optimal.
 
 ## Task Context and Authorities
 
@@ -54,8 +65,9 @@ architecture contracts and each affected crate's colocated README completely.
   workspace member must have one. Rust source/rustdoc owns exact APIs; manifests own membership
   and dependencies. Architecture documents must not duplicate crate internals.
 - `development/TODO.md` owns remaining work, blockers and unresolved findings. Remove completed entries.
-  `development/design/` holds current unresolved design, not competing specifications or archived
-  decisions.
+  `development/design/` holds current unresolved design, not competing specifications. Retained
+  milestone, review, release-audit and superseded-design records belong under `development/history/`;
+  their catalogs and links remain valid without presenting them as current public guidance.
 
 Do not use an archived compiler, its tests, diagnostics, generated structures, runtime behavior or
 published binaries as a language oracle. Do not restore, copy, port, execute or depend on an archived
