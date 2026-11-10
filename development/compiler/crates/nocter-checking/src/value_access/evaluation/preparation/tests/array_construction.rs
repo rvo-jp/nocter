@@ -4,7 +4,10 @@ use crate::value_access::Rule as BodyRule;
 
 fn rejected(parameters: &str, body: &str) -> BodyRule {
     let text = format!("func run({parameters}): void {{ {body} }}");
-    let (sources, tree) = input(&text);
+    rejected_source(&text)
+}
+fn rejected_source(text: &str) -> BodyRule {
+    let (sources, tree) = input(text);
     let failure = accepted::SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
     let SourceFailure::Checking(Failure::Body {
         failure: BodyFailure::Rejected(error),
@@ -115,4 +118,74 @@ fn a_zero_repetition_seed_keeps_its_required_constant_dependency() {
     );
     assert_eq!(requests.active_depth(), 0);
     assert!(preparation.causes.is_empty());
+}
+
+#[test]
+fn primitive_index_operands_are_checked_before_the_evaluated_selection_gate() {
+    for (parameters, body, rule) in [
+        (
+            "items: [i32; 2], index: usize",
+            "let value = items[index]",
+            BodyRule::UnsupportedData,
+        ),
+        (
+            "items: [i32; 2], index: i32",
+            "let value = items[index]",
+            BodyRule::TypeMismatch,
+        ),
+        (
+            "items: [i32; 2]",
+            "read value = items[missing]",
+            BodyRule::UnknownName,
+        ),
+        (
+            "items: [i32; 2]",
+            "edit value = items[true]",
+            BodyRule::TypeMismatch,
+        ),
+        (
+            "items: [i32; 2]",
+            "let value = items[-1]^",
+            BodyRule::IntegerRange,
+        ),
+        ("items: [i32; 2]", "items[true] = 1", BodyRule::TypeMismatch),
+        ("items: i32", "let value = items[0]", BodyRule::TypeMismatch),
+        (
+            "index: usize",
+            "let value = [1, 2][index]",
+            BodyRule::UnsupportedData,
+        ),
+        (
+            "index: i32",
+            "let value = [1, 2][index]",
+            BodyRule::TypeMismatch,
+        ),
+        (
+            "index: usize",
+            "let value = [][index]",
+            BodyRule::UnknownResultType,
+        ),
+    ] {
+        assert_eq!(rejected(parameters, body), rule, "{parameters}: {body}");
+    }
+    for (index, rule) in [
+        ("true", BodyRule::TypeMismatch),
+        ("0", BodyRule::UnsupportedData),
+    ] {
+        let text = format!(
+            "struct Holder {{ items: [i32; 2] }}\nfunc run(holder: Holder): void {{ let value = holder.items[{index}] }}"
+        );
+        assert_eq!(rejected_source(&text), rule, "{text}");
+    }
+}
+
+#[test]
+fn long_postfix_index_chains_reach_a_local_gate_without_recursive_index_preparation() {
+    for suffix in ["[0]", "[0]^", "[0]()"] {
+        let text = format!("let value = items{}", suffix.repeat(1024));
+        assert_eq!(
+            rejected("take items: [i32; 2]", &text),
+            BodyRule::UnsupportedData
+        );
+    }
 }

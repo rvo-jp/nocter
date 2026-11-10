@@ -10,9 +10,10 @@ use nocter_model::{
     ValueAccessMode as Mode, ValueField,
 };
 use nocter_syntax::{NodeId, NodeKind, SyntaxToken};
+mod arrays;
 
 impl Checker<'_, '_> {
-    fn selection(&self, node: NodeId) -> Result<(NodeId, Vec<SyntaxToken>), Failure> {
+    fn selection(&mut self, node: NodeId) -> Result<(NodeId, Vec<SyntaxToken>), Failure> {
         let mut current = self.unwrap(node)?;
         let mut members = Vec::new();
         loop {
@@ -21,7 +22,7 @@ impl Checker<'_, '_> {
                 && let Some(&suffix) = children.last()
                 && self.kind(suffix)? == NodeKind::IndexSuffix
             {
-                return self.reject(Rule::UnsupportedData, suffix);
+                return self.reject_array_selection(current, true);
             }
             if self.kind(current)? == NodeKind::PostfixExpression
                 && let [base, suffix] = children.as_slice()

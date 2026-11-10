@@ -797,6 +797,26 @@ an occupied destination cannot publish partial changes. Source construction effe
 element selection, evaluator data and native storage still need their combined proofs before the
 array admission gate can open.
 
+## Array Selection Drafts
+
+`selection::arrays` checks primitive bracket operands through the shared member resolver and
+ordinary expression checker before rejecting the unclosed selection product. An existing base
+identifies its resolved place and array data without emitting a complete-array read. A computed
+base uses ordinary value preparation. The index then receives an expected usize value boundary;
+signed variables, booleans, unavailable names and out-of-range literal magnitudes retain their
+ordinary local diagnostics. Value, alias, transfer and assignment syntax use this same draft path.
+User index protocols remain outside the bounded source goal.
+Unclosed postfix chains stop at their first index operation; an iterative walk through member,
+call, grouping and transfer wrappers avoids recursive preparation of nested index drafts.
+
+The draft publishes no element place/value, bounds result or saved-index carrier. Its successful
+operand typing still ends in an explicit unsupported-data rejection. Runtime-selected source
+access therefore remains unadmitted. Close the
+[evaluated-selection obligations](../../../design/compiler-realization.md#evaluated-array-selection-closure)
+over the [shared path relation](../nocter-model/README.md#structural-projection-relations) before
+initialization, access or ownership consumes symbolic selections. Algebraic path equality cannot
+replace that source proof.
+
 ## Concrete Array Resource Frontiers
 
 The ordinary resource ledger accepts closed array payload descriptors for internal ownership

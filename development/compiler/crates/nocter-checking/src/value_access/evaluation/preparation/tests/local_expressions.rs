@@ -388,7 +388,7 @@ fn recognized_array_construction_and_selection_fail_at_the_explicit_body_gate() 
         "let value = items[0].field",
         "let value = items[0]()",
     ] {
-        let text = format!("func run(items: i32): void {{ {operation} }}");
+        let text = format!("func run(items: [i32; 2]): void {{ {operation} }}");
         let (sources, tree) = input(&text);
         let failure = accepted::SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
         assert!(

@@ -77,7 +77,7 @@ impl Checker<'_, '_> {
                     .ok_or(Failure::InconsistentSyntax)?;
                 match self.kind(suffix)? {
                     NodeKind::MemberSuffix => self.member_value(node, reachable)?,
-                    NodeKind::IndexSuffix => return self.reject(Rule::UnsupportedData, suffix),
+                    NodeKind::IndexSuffix => return self.reject_array_selection(node, reachable),
                     NodeKind::CallSuffix => self.call(node, reachable)?,
                     _ => return Err(Failure::InconsistentSyntax),
                 }
