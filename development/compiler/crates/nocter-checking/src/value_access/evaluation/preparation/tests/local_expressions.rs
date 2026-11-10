@@ -326,3 +326,74 @@ fn raised_source_depth_budget_closes_a_deep_constant_chain_without_host_recursio
         Some(&state::Value::integer(42).freeze())
     );
 }
+
+#[test]
+fn repetition_counts_execute_without_granting_seed_or_array_value_admission() {
+    for (count, expected) in [
+        ("6 * 7", 42),
+        ("width()", 42),
+        ("0", 0),
+        ("18446744073709551615", u64::MAX),
+    ] {
+        let text = format!(
+            "const func width(): usize {{ 42 }}\nfunc seed(): i32 {{ 7 }}\nfunc run(): void {{ let values = [seed(); {count}] }}"
+        );
+        let (sources, tree) = input(&text);
+        let headers = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+        let context = headers.bind(bound(&sources, &tree)).unwrap();
+        let root = ValueCodeRoot::Expression(
+            context
+                .body_expressions(owner(&context, "run"))
+                .unwrap()
+                .ids()
+                .next()
+                .unwrap(),
+        );
+        let seed = owner(&context, "seed");
+        let (_, requests, failure) = attempt(context, "run", state::Limits::default());
+        assert!(
+            matches!(&failure, SourceFailure::Checking(Failure::Body { failure: BodyFailure::Rejected(error), .. }) if error.rule() == crate::value_access::Rule::UnsupportedData)
+        );
+        assert_eq!(
+            dependencies::value(&requests, root).unwrap().frozen,
+            state::Value::integer(i128::from(expected)).freeze()
+        );
+        assert!(
+            dependencies::body(&requests, seed).is_none(),
+            "seed execution/checking needs the separate array construction path"
+        );
+    }
+    for (parameters, count, code) in [
+        ("size: usize", "size", "E0421"),
+        ("", "1 / 0", "E0325"),
+        ("", "true", "E0370"),
+    ] {
+        let text = format!("func run({parameters}): void {{ let values = [7; {count}] }}");
+        let (sources, tree) = input(&text);
+        let failure = accepted::SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+        assert_eq!(diagnostic(&failure).code(), code, "{failure:?}");
+    }
+}
+
+#[test]
+fn recognized_array_construction_and_selection_fail_at_the_explicit_body_gate() {
+    for operation in [
+        "let value = []",
+        "let value = [1, 2]",
+        "let value = items[0]",
+        "read value = items[0]",
+        "edit value = items[0]",
+        "let value = items[0]^",
+        "items[0] = 1",
+        "let value = items[0].field",
+        "let value = items[0]()",
+    ] {
+        let text = format!("func run(items: i32): void {{ {operation} }}");
+        let (sources, tree) = input(&text);
+        let failure = accepted::SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+        assert!(
+            matches!(&failure, SourceFailure::Checking(Failure::Body { failure: BodyFailure::Rejected(error), .. }) if error.rule() == crate::value_access::Rule::UnsupportedData),
+            "{operation}: {failure:?}"
+        );
+    }
+}

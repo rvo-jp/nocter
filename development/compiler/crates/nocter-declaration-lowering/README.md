@@ -231,7 +231,9 @@ caller-supplied code/source joins.
 
 `source::expressions` supplies the exact-current `BodyExpressions` catalog on demand for one body.
 It uses the shared type projection to register local array lengths, including nested tuple,
-callback and closure annotations and annotations inside count bodies. Each root receives a
+callback and closure annotations and annotations inside count bodies. Repetition counts use
+syntax's shared seed/count projection; nested seed/count subtrees enter the same traversal.
+Each root receives a
 `ValueExpression` key in that source owner's local domain; no declaration reservation or global
 namespace changes. The node/code reverse index derives from those same roots. Selected sources
 reuse `BodySource`, including its full-body guard, rather than a second byte/ancestry mechanism.

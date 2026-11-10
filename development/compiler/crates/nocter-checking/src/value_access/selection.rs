@@ -18,6 +18,12 @@ impl Checker<'_, '_> {
         loop {
             let children = self.children(current);
             if self.kind(current)? == NodeKind::PostfixExpression
+                && let Some(&suffix) = children.last()
+                && self.kind(suffix)? == NodeKind::IndexSuffix
+            {
+                return self.reject(Rule::UnsupportedData, suffix);
+            }
+            if self.kind(current)? == NodeKind::PostfixExpression
                 && let [base, suffix] = children.as_slice()
                 && self.kind(*suffix)? == NodeKind::MemberSuffix
             {

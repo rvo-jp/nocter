@@ -100,8 +100,8 @@ publishes selected supplier guards with reusable headers. The
 its exact admitted scope. Header qualification does not establish array value operations.
 
 The [local annotation path](../compiler/crates/nocter-checking/README.md#body-local-required-expressions)
-uses the same query for body-owned lengths, while array-bearing bodies remain gated.
-Extend this path to repetition counts and later constant-generic arguments
+uses the same query for body-owned annotation/repetition counts, while array-bearing bodies remain gated.
+Extend this path to later constant-generic arguments
 without reopening ordinary body checking through a competing evaluator or changing the closed
 name/input/field domain. Each required expression needs its own semantic code identity and actual
 source root. Body-local code must retain its real lexical/source owner and remain independent of
@@ -148,8 +148,8 @@ also retains those roots independently of source ownership. The
 preserves them through result applications, plan projection and execution-error locations. Its
 [local required-expression path](../compiler/crates/nocter-checking/README.md#body-local-required-expressions)
 now supplies ordinary lexical checking and full-root dependency scheduling for local array
-annotations, including cycle projection and supplier evidence. Array-bearing body admission and
-repetition remain incomplete. Do not append these roots to the closed header reservation arena: adding an expression
+annotations and repetition counts, including cycle projection and supplier evidence. Array value
+operations remain incomplete. Do not append these roots to the closed header reservation arena: adding an expression
 in one body would otherwise renumber sibling expressions or invalidate an unrelated header query.
 Pair each expression key with its actual root through its enclosing body's source authority.
 An edit may invalidate that body and its expressions, while preserving header slots and unrelated
@@ -180,7 +180,7 @@ and its canonical array/tuple replay; neither a second type store nor a literal-
 needed. Completed required values remain immutable facts in the common dependency query, with
 their ordinary work/storage charges and transitive source requirements.
 
-Extend the source connection to repetition and combined nested structural data/resource proofs.
+Extend the source connection to array value construction/selection and combined nested structural data/resource proofs.
 Preserve qualified local-count source guards, scope exclusions, dead authored requirements,
 budget failures and type/value cycles as those operations become admitted. Keep array
 body/resource/storage admission separate until their combined proofs close. Header-count tests

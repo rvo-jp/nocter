@@ -46,7 +46,7 @@ impl BodyExpressions<'_> {
 }
 
 impl<'source> Context<'source> {
-    /// Register required array-length roots within this body only, without reserving declarations.
+    /// Register array annotation/repetition count roots in this body without reserving declarations.
     /// # Errors
     /// Rejects an unknown/inconsistent body, unsupported type syntax or an exhausted local ID domain.
     pub fn body_expressions(
@@ -60,8 +60,22 @@ impl<'source> Context<'source> {
             .ok_or(SourceMismatch::InconsistentSyntax)?;
         let mut roots = Vec::new();
         let mut nodes = BTreeMap::new();
-        let mut pending = vec![root];
-        while let Some(node) = pending.pop() {
+        let mut pending = vec![(root, false)];
+        while let Some((node, required)) = pending.pop() {
+            if required {
+                let code = ValueExpression {
+                    owner,
+                    slot: u32::try_from(roots.len())
+                        .map_err(|_| SourceMismatch::InconsistentSyntax)?,
+                };
+                let locator = projection
+                    .locator(SyntaxOrigin::Node(node))
+                    .ok_or(SourceMismatch::InconsistentSyntax)?;
+                if nodes.insert(node, code).is_some() {
+                    return Err(SourceMismatch::InconsistentSyntax);
+                }
+                roots.push((code, locator));
+            }
             if syntax
                 .tree()
                 .node(node)
@@ -73,23 +87,14 @@ impl<'source> Context<'source> {
                     .map_err(|_| SourceMismatch::InconsistentSyntax)?;
                 let mut lengths = Vec::new();
                 ty.length_expressions(&mut lengths);
-                for &length in &lengths {
-                    let code = ValueExpression {
-                        owner,
-                        slot: u32::try_from(roots.len())
-                            .map_err(|_| SourceMismatch::InconsistentSyntax)?,
-                    };
-                    let locator = projection
-                        .locator(SyntaxOrigin::Node(length))
-                        .ok_or(SourceMismatch::InconsistentSyntax)?;
-                    if nodes.insert(length, code).is_some() {
-                        return Err(SourceMismatch::InconsistentSyntax);
-                    }
-                    roots.push((code, locator));
-                }
                 // The shared type projection already visited nested data/callable types. Only
                 // the count bodies can contain additional local annotations of their own.
-                pending.extend(lengths.into_iter().rev());
+                pending.extend(lengths.into_iter().rev().map(|length| (length, true)));
+            } else if let Some((seed, count)) =
+                nocter_syntax::array_repetition_parts(syntax.tree(), node)
+            {
+                pending.push((count, true));
+                pending.push((seed, false));
             } else {
                 pending.extend(
                     syntax
@@ -98,7 +103,7 @@ impl<'source> Context<'source> {
                         .iter()
                         .rev()
                         .filter_map(|child| match child {
-                            SyntaxElement::Node(node) => Some(*node),
+                            SyntaxElement::Node(node) => Some((*node, false)),
                             _ => None,
                         }),
                 );

@@ -117,7 +117,9 @@ fn postfix_in(parser: &mut Parser<'_>, allow_braces: bool) -> Expression {
     let mut left = primary(parser, allow_braces);
     while parser.at_punctuation(Punctuation::LeftParen)
         || parser.at_punctuation(Punctuation::Dot)
-        || (parser.at_punctuation(Punctuation::Caret) && previous_is_joint(parser))
+        || ((parser.at_punctuation(Punctuation::Caret)
+            || parser.at_punctuation(Punctuation::LeftBracket))
+            && previous_is_joint(parser))
     {
         let marker = parser.precede(left.completed);
         if parser.eat_punctuation(Punctuation::Caret) {
@@ -134,6 +136,17 @@ fn postfix_in(parser: &mut Parser<'_>, allow_braces: bool) -> Expression {
                 parser.expect_name();
             }
             parser.complete(suffix, NodeKind::MemberSuffix);
+        } else if parser.eat_punctuation(Punctuation::LeftBracket) {
+            if parser.enter_nesting() {
+                parser.eat_newlines();
+                expression(parser, newline::Boundary::Delimited);
+                parser.eat_newlines();
+                parser.expect_punctuation(Punctuation::RightBracket);
+                parser.leave_nesting();
+            } else {
+                parser.recover_balanced(Punctuation::LeftBracket, Punctuation::RightBracket);
+            }
+            parser.complete(suffix, NodeKind::IndexSuffix);
         } else {
             parser.bump();
             if parser.enter_nesting() {
@@ -162,6 +175,9 @@ fn argument(parser: &mut Parser<'_>) {
 }
 
 fn primary(parser: &mut Parser<'_>, allow_braces: bool) -> Expression {
+    if parser.at_punctuation(Punctuation::LeftBracket) {
+        return array(parser);
+    }
     if parser.at_punctuation(Punctuation::LeftParen) {
         if allow_braces
             && let Some((completed, _)) =
@@ -191,7 +207,11 @@ fn primary(parser: &mut Parser<'_>, allow_braces: bool) -> Expression {
                 TokenKind::Eof
                     | TokenKind::Newline
                     | TokenKind::Punctuation(
-                        Punctuation::RightParen | Punctuation::RightBrace | Punctuation::Comma
+                        Punctuation::RightParen
+                            | Punctuation::RightBrace
+                            | Punctuation::RightBracket
+                            | Punctuation::Comma
+                            | Punctuation::Semicolon
                     )
             ) {
                 parser.missing(ExpectedSyntax::Expression);
@@ -209,6 +229,43 @@ fn primary(parser: &mut Parser<'_>, allow_braces: bool) -> Expression {
         record_value(parser, completed)
     } else {
         Expression { completed }
+    }
+}
+
+fn array(parser: &mut Parser<'_>) -> Expression {
+    let marker = parser.start();
+    parser.bump();
+    if !parser.enter_nesting() {
+        parser.recover_balanced(Punctuation::LeftBracket, Punctuation::RightBracket);
+        return Expression {
+            completed: parser.complete(marker, NodeKind::ArrayLiteral),
+        };
+    }
+    parser.eat_newlines();
+    let mut kind = NodeKind::ArrayLiteral;
+    if !parser.at_punctuation(Punctuation::RightBracket) {
+        expression(parser, newline::Boundary::Delimited);
+        parser.eat_newlines();
+        if parser.eat_punctuation(Punctuation::Semicolon) {
+            kind = NodeKind::ArrayRepeatLiteral;
+            parser.eat_newlines();
+            expression(parser, newline::Boundary::Delimited);
+            parser.eat_newlines();
+        } else {
+            while parser.eat_punctuation(Punctuation::Comma) {
+                parser.eat_newlines();
+                if parser.at_punctuation(Punctuation::RightBracket) || parser.at(TokenKind::Eof) {
+                    break;
+                }
+                expression(parser, newline::Boundary::Delimited);
+                parser.eat_newlines();
+            }
+        }
+    }
+    parser.expect_punctuation(Punctuation::RightBracket);
+    parser.leave_nesting();
+    Expression {
+        completed: parser.complete(marker, kind),
     }
 }
 

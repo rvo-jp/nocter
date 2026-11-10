@@ -1,5 +1,18 @@
 use crate::{Keyword, NodeId, NodeKind, Punctuation, SyntaxToken, SyntaxTree, TokenKind};
 
+/// Select the seed and count expression roots of one syntactic array repetition.
+/// This proves structural roles only, without completeness, type or evaluation evidence.
+#[must_use]
+pub fn array_repetition_parts(tree: &SyntaxTree, array: NodeId) -> Option<(NodeId, NodeId)> {
+    if tree.node(array)?.kind() != NodeKind::ArrayRepeatLiteral {
+        return None;
+    }
+    let mut expressions = crate::direct_node_iter(tree, array, NodeKind::Expression);
+    let seed = expressions.next()?;
+    let count = expressions.next()?;
+    expressions.next().is_none().then_some((seed, count))
+}
+
 /// Returns the declaration-name token defined by the grammar for one declaration node.
 ///
 /// This is the shared syntactic authority for discovery locators, semantic lowering, and source

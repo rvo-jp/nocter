@@ -735,7 +735,7 @@ publishing its closure-body catalog. Capture/body edits invalidate the enclosing
 
 ## Body-Local Required Expressions
 
-`required` captures a local array annotation's length request at its ordinary checking site.
+`required` captures a local array annotation or repetition's count request at its ordinary checking site.
 It pairs the source owner's registered `ValueExpression` root with the names of active enclosing
 bindings. The catalog supplies source identity, not lexical availability. A fresh ordinary
 `Checker` checks the selected expression with an expected usize result, no formal inputs or
@@ -761,13 +761,16 @@ those value prerequisites, rather than treating the typed call's proof as a comp
 Cycle diagnostics distinguish expression bodies/values from enclosing declarations; execution
 failures retain actual expression/helper sites and the shared work, depth and storage limits.
 
-Qualification covers source annotations, nested requests, surrounding lexical/control exclusions,
+Qualification covers source annotations and repetition counts, nested requests, surrounding lexical/control exclusions,
 supplier changes, dead authored calls and mixed body/value cycles. Successful count computation
 does not admit array-bearing body data: the separate array value/resource/storage gate still
 rejects it before flow. Complete Unit publication still requires every declared body and required
 value; partially completed count facts cannot publish a Unit. Count values are not exposed as
-named constants or runtime-callable bodies. Repetition, array construction and selection, resource
-transitions, evaluator array data and native storage remain integration work.
+named constants or runtime-callable bodies. List/repetition construction and bracket selection
+have explicit authored rejection gates. Repetition count preparation does not check or execute
+the seed: once-only seed evaluation, including at zero count, requires the combined construction
+proof. Array value construction/selection, resource transitions, evaluator array data and native
+storage remain integration work.
 
 ## Frozen Body Input Channels
 

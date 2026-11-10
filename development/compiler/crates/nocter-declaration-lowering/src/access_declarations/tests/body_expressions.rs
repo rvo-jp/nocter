@@ -126,3 +126,22 @@ fn body_expression_guards_follow_the_lexical_owner_and_rebind_after_sibling_edit
         Err(SourceMismatch::ChangedAuthority)
     ));
 }
+
+#[test]
+fn repetition_counts_share_the_catalog_with_annotations_and_nested_seed_counts() {
+    let source = "func run(): void { let values: [i32; annotation()] = [seed(); count()]\nlet nested = [[seed(); inner()]; if true { let local: [i32; inside()] = missing\n1 } else { 0 }] }";
+    let (sources, tree) = input(source, ParseGoal::V2CoreUnit);
+    let query = Query::prepare(bound(&sources, &tree)).unwrap();
+    let context = query.bind(bound(&sources, &tree)).unwrap();
+    let owner = code(&context, "run");
+    let catalog = context.body_expressions(owner).unwrap();
+    let roots = catalog
+        .ids()
+        .map(|id| text(&context, &catalog.source(id).unwrap()))
+        .collect::<Vec<_>>();
+    assert_eq!(&roots[..3], ["annotation()", "count()", "inner()"]);
+    assert!(roots[3].starts_with("if true"));
+    assert_eq!(roots[4], "inside()");
+    assert_eq!(roots.len(), 5);
+    assert_eq!(context.program().codes().len(), 1);
+}

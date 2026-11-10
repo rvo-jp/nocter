@@ -355,3 +355,77 @@ fn fixed_array_type_recovery_preserves_tokens_without_admitting_slices_or_missin
     assert!(parsed.has_errors());
     super::super::snapshots::assert_token_projection(&parsed, "array type depth");
 }
+
+#[test]
+fn array_values_keep_lists_repetition_and_joint_indices_structurally_distinct() {
+    for text in [
+        "func f(): void { let empty = []\nlet one = [1,]\nlet many = [[1, 2], [3, 4]]\nlet repeated = [make(); count(1, 2) + 3]\nlet selected = repeated[index()]^.field }",
+        "func f(): void { let value = [\nmake()\n;\nif true { 1 } else { 2 }\n]\nvalue[\nchoose(1, 2)\n] }",
+        "func f(): void { if [Item { value: 1 }; 2][0].value == 1 {} }",
+        "func f(): void { let action = (seed;): i32 { 0 }\nlet values = [action; count()] }",
+    ] {
+        let parsed = tree(text, ParseGoal::V2CoreUnit);
+        assert!(!parsed.has_errors(), "{text}: {:?}", parsed.diagnostics());
+        for (id, _) in parsed
+            .nodes()
+            .filter(|(_, node)| node.kind() == NodeKind::ArrayRepeatLiteral)
+        {
+            let (seed, count) = crate::array_repetition_parts(&parsed, id).unwrap();
+            assert_ne!(seed, count);
+            assert!(
+                parsed.node(seed).unwrap().range().end()
+                    < parsed.node(count).unwrap().range().start()
+            );
+        }
+        super::super::snapshots::assert_token_projection(&parsed, text);
+    }
+    let parsed = tree(
+        "func f(): void { [1; count()][index()]^ }",
+        ParseGoal::V2CoreUnit,
+    );
+    for (kind, count) in [
+        (NodeKind::ArrayRepeatLiteral, 1),
+        (NodeKind::IndexSuffix, 1),
+        (NodeKind::TransferExpression, 1),
+        (NodeKind::CallSuffix, 2),
+    ] {
+        assert_eq!(
+            parsed
+                .nodes()
+                .filter(|(_, node)| node.kind() == kind)
+                .count(),
+            count,
+            "{kind:?}"
+        );
+    }
+}
+
+#[test]
+fn array_value_recovery_rejects_mixed_delimiters_spread_and_spaced_indexing() {
+    for text in [
+        "func f(): void { [; 2] }",
+        "func f(): void { [1;] }",
+        "func f(): void { [1; 2,] }",
+        "func f(): void { [1, 2; 3] }",
+        "func f(): void { [1; 2; 3] }",
+        "func f(): void { [1 2] }",
+        "func f(): void { [...items] }",
+        "func f(): void { [name: value] }",
+        "func f(): void { items[] }",
+        "func f(): void { items[1, 2] }",
+        "func f(): void { items [0] }",
+        "func f(): void { [1; count() }",
+    ] {
+        let parsed = tree(text, ParseGoal::V2CoreUnit);
+        assert!(parsed.has_errors(), "{text}");
+        super::super::snapshots::assert_token_projection(&parsed, text);
+    }
+    let text = format!(
+        "func f(): void {{ {}0{} }}",
+        "[".repeat(500),
+        "; 0]".repeat(500)
+    );
+    let parsed = tree(&text, ParseGoal::V2CoreUnit);
+    assert!(parsed.has_errors());
+    super::super::snapshots::assert_token_projection(&parsed, "array value depth");
+}

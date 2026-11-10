@@ -59,6 +59,13 @@ impl Checker<'_, '_> {
             NodeKind::TupleExpression => {
                 self.tuple_value(node, hint.map(Boundary::Value), reachable)?
             }
+            NodeKind::ArrayRepeatLiteral => {
+                let (_, count) = nocter_syntax::array_repetition_parts(self.syntax().tree(), node)
+                    .ok_or(Failure::InconsistentSyntax)?;
+                self.required_length(count)?;
+                return self.reject(Rule::UnsupportedData, node);
+            }
+            NodeKind::ArrayLiteral => return self.reject(Rule::UnsupportedData, node),
             NodeKind::UnaryExpression => self.unary(node, hint, reachable)?,
             NodeKind::LogicalOrExpression
             | NodeKind::LogicalAndExpression
@@ -71,10 +78,11 @@ impl Checker<'_, '_> {
                     .children(node)
                     .last()
                     .ok_or(Failure::InconsistentSyntax)?;
-                if self.kind(suffix)? == NodeKind::MemberSuffix {
-                    self.member_value(node, reachable)?
-                } else {
-                    self.call(node, reachable)?
+                match self.kind(suffix)? {
+                    NodeKind::MemberSuffix => self.member_value(node, reachable)?,
+                    NodeKind::IndexSuffix => return self.reject(Rule::UnsupportedData, suffix),
+                    NodeKind::CallSuffix => self.call(node, reachable)?,
+                    _ => return Err(Failure::InconsistentSyntax),
                 }
             }
             NodeKind::IfExpression => {

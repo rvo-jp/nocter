@@ -38,6 +38,10 @@ package or discovery code. It does not resolve names or apply semantic rules.
   fixed-array recognition. Array lengths use the ordinary private expression parser, retaining one
   expression root under `FixedArrayType`; this recognizes source without normalizing a length or
   granting an array schema. Dynamic slice types remain outside this goal.
+  Array lists, repetitions and joint bracket indexing retain distinct nodes in the same goal.
+  `array_repetition_parts` supplies the seed/count source roles to lowering and checking without
+  interpreting either expression. Delimiter-owned newlines and nesting limits apply equally to
+  these values; mixed list/repetition forms, spreads and spaced indexing have no fallback.
   Tuples have at least two components, while `()` is only the unit expression. Tuple member suffixes
   retain integer tokens without interpreting their positions. Declaration/type/field lookup remains semantic work. Its lexical
   profile retires old modifier words and reserves `throw` without changing released `SourceFile`
