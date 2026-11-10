@@ -235,7 +235,7 @@ fn lower_projection(
                 state,
                 source,
                 MachineIndex::Value(context.ids.value(index)?),
-                machine_index_check(bounds),
+                bounds,
             )?;
         }
         MirProjectionKind::OptionalPayload => {
@@ -380,14 +380,6 @@ fn lower_index(
     });
     state.current_view = false;
     Ok(())
-}
-
-const fn machine_index_check(check: nocter_mir::MirIndexBoundsCheck) -> crate::MachineIndexCheck {
-    match check {
-        nocter_mir::MirIndexBoundsCheck::Required => crate::MachineIndexCheck::Required,
-        nocter_mir::MirIndexBoundsCheck::ProvenInBounds => crate::MachineIndexCheck::ProvenInBounds,
-        nocter_mir::MirIndexBoundsCheck::ProvenTrap => crate::MachineIndexCheck::ProvenTrap,
-    }
 }
 
 fn push_outcome_offset(

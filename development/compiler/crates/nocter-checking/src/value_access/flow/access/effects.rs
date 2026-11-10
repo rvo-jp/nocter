@@ -347,6 +347,7 @@ impl Context<'_, '_> {
                 base,
                 index,
                 action,
+                ..
             } => self.index(id, base, index, action),
             ExpressionKind::Select {
                 source,

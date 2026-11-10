@@ -139,6 +139,7 @@ pub enum Operation {
         index: Place,
         destination: Place,
         copy: bool,
+        bounds: nocter_model::IndexBoundsCheck,
     },
     /// Copy the established seed into the homogeneous result; count belongs to its schema.
     Repeat {

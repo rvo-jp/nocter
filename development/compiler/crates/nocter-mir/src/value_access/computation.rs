@@ -111,11 +111,13 @@ impl Builder<'_> {
                 base,
                 index,
                 action,
+                bounds,
             } => Operation::Index {
                 base: self.value(base)?,
                 index: self.value(index)?,
                 destination,
                 copy: action == nocter_checking::value_access::IndexAction::CopyPayload,
+                bounds,
             },
             ExpressionKind::Repeat { seed } => return self.repetition(seed, destination),
             ExpressionKind::Place(place) => {

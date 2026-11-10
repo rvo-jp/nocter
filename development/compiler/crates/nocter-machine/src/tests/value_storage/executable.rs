@@ -265,3 +265,37 @@ fn complete_array_cleanup_shares_one_finite_reverse_traversal_and_element_helper
     assert_eq!(counts[0], counts[1]);
     assert!(counts[0] < 30);
 }
+
+#[test]
+fn private_array_bounds_checks_follow_checking_instead_of_machine_reclassification() {
+    for (source, expected) in [
+        (
+            "func run(): i32 { [20, 42][1] }",
+            crate::MachineIndexCheck::ProvenInBounds,
+        ),
+        (
+            "func select(values: [i32; 2], index: usize): i32 { values[index] }\nfunc run(): i32 { select([20, 42], 1) }",
+            crate::MachineIndexCheck::Required,
+        ),
+        (
+            "func run(): i32 { let index: usize = 1\n[20, 42][index] }",
+            crate::MachineIndexCheck::Required,
+        ),
+        (
+            "func run(): i32 { [20, 42][2] }",
+            crate::MachineIndexCheck::Required,
+        ),
+    ] {
+        let program = compile(source);
+        let checks: Vec<_> = program
+            .functions()
+            .flat_map(|(_, function)| function.body().addresses())
+            .flat_map(|(_, address)| address.steps())
+            .filter_map(|step| match step {
+                crate::MachineAddressStep::Index { check, .. } => Some(*check),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(checks, [expected], "{source}");
+    }
+}

@@ -31,7 +31,8 @@ pub use attachment_family::AttachmentFamily;
 pub use closure_sequence::{ClosureSequence, ClosureSequenceIter, UnknownClosureSequenceId};
 pub use constant::{ConstantValue, FrozenValue, GenericApplication, GenericValue, UsizeTerm};
 pub use field_path::{
-    FieldPath, IndexRelation, PathRelation, ValueField, ValuePath, ValueProjection,
+    FieldPath, IndexBoundsCheck, IndexRelation, PathRelation, ValueField, ValuePath,
+    ValueProjection,
 };
 pub use id::{
     AccessBlockId, AccessCodeId, AccessExpressionId, AccessFieldId, AccessFlowPointId,

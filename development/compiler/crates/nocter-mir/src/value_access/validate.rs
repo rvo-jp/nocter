@@ -233,6 +233,7 @@ impl Context<'_> {
                 index,
                 destination,
                 copy,
+                bounds,
             } => {
                 self.place(base)?;
                 self.place(index)?;
@@ -253,6 +254,7 @@ impl Context<'_> {
                     .ok_or_else(|| self.invalid())?;
                 self.require(
                     self.primitive(index.data, RuntimePrimitive::Usize)
+                        && *bounds != nocter_model::IndexBoundsCheck::ProvenTrap
                         && destination.data == element
                         && destination.projections.is_empty()
                         && slot.storage

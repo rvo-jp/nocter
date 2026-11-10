@@ -17,6 +17,15 @@ impl<I> From<AccessFieldId> for ValueProjection<I> {
 /// Concrete component-key domain for declaration-validated projections, independent of index recipes.
 pub type ValueField = ValueProjection<u64>;
 
+/// Disposition of one source-visible bounds check. Checking is the sole semantic producer;
+/// consumers preserve the decision rather than strengthening it from constants or layout.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum IndexBoundsCheck {
+    Required,
+    ProvenInBounds,
+    ProvenTrap,
+}
+
 /// Established relation between two evaluated indices in the caller's exact proof context.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum IndexRelation {

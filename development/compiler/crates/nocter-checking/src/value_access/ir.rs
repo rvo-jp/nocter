@@ -303,6 +303,7 @@ pub enum ExpressionKind {
         base: AccessExpressionId,
         index: AccessExpressionId,
         action: IndexAction,
+        bounds: nocter_model::IndexBoundsCheck,
     },
     Place(AccessPlaceId),
     Move(AccessPlaceId),

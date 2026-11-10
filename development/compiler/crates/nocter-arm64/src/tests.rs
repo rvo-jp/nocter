@@ -2677,3 +2677,5 @@ fn program_layout_rejects_incomplete_and_foreign_identities() {
         Err(crate::Arm64ProgramError::UnknownData(foreign))
     );
 }
+
+mod private_bounds;

@@ -18,6 +18,11 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
+Close guaranteed-trap array selection as a no-result continuation after ordinary base/index
+evaluation, with no fabricated selected address, owner or input. Preserve the non-unwinding trap
+contract and local diagnostics through required execution and native lowering before freezing
+negative bounds facts. Keep normal in-bounds and required checks unchanged.
+
 Qualify actual nontrivial array cleanup effects through the
 [native array consumer](compiler/crates/nocter-machine/README.md#private-array-execution), including
 source error construction. Respect its stated qualification boundary: emitted/image-only cleanup

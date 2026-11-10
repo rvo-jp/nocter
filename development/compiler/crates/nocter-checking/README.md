@@ -904,9 +904,15 @@ logical identity. This permits independent field access for both equal and disti
 including zero-byte data, without an index-name or loop-generation proof.
 
 Initialization still requires a complete containing array, and base identity stays protected during
-index evaluation. Saved addresses remain the exact execution authority; scalar result facts do not
-replace them or authorize omission of bounds checks. Element transfer and partial-state admission
-still require the [evaluated-selection closure](../../../design/compiler-realization.md#evaluated-array-selection-closure).
+index evaluation. Saved addresses remain the exact execution authority. Checking freezes
+`ProvenInBounds` when an established normal-result singleton is below the normalized array count;
+it otherwise retains `Required`. This uses the [one disposition role](../nocter-model/README.md#structural-projection-relations),
+not a new bounds evaluator in later stages. The complete base/index evaluation and effects remain,
+including zero-byte selections. A known negative case still requires its check until guaranteed-trap
+flow can close without a supplied value or resource obligation. The closed evaluator continues to
+check actual values under its independent validated-plan contract; native lowering may omit only
+a checking-proven check. Element transfer and partial-state admission still require the
+[evaluated-selection closure](../../../design/compiler-realization.md#evaluated-array-selection-closure).
 Access disjointness does not prove a missing element's identity, restoration or cleanup interval.
 
 Source tests qualify saved aliases after index mutation, loop re-execution, read reservation versus
@@ -923,7 +929,8 @@ RHS/target cleanup, loop re-execution, maximum-count sparse Copy snapshots, zero
 bounds and read-only/overlapping target rejection. Structural-region tests cover known disjoint
 inputs, unknown indices separated by later fields/elements, read siblings, reserved-input effects,
 conditional singleton results with effects/exits, unproved overlap, whole-parent invalidation and
-zero-byte logical identity. Required bounds failure reports E0325 without
+zero-byte logical identity. Disposition cases cover literals, named constants, conditional
+singletons, interrupted indices, unknown inputs and maximum-size bounds. Required bounds failure reports E0325 without
 publishing a value. Compile-time selection also reaches the [common native
 consumer](../../../architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
 when its frozen result is scalar. The [native array consumer](../nocter-machine/README.md#private-array-execution)

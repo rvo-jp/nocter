@@ -60,3 +60,23 @@ fn lower_fixture(fixture: &CompilerFixture, tests: bool) -> MachineProgram {
     };
     MachineProgram::lower(&lower_executable(executable).unwrap()).unwrap()
 }
+
+/// The private value-access product enters the same Machine/target consumer as other programs.
+pub(crate) fn lower_value_machine(source: &str) -> MachineProgram {
+    use nocter_checking::value_access::accepted::SourceUnit;
+    use nocter_runtime_contract::RuntimeAbiIdentity;
+    use nocter_target_program::value_access::{InstanceProgram, lifecycle};
+    use std::sync::Arc;
+    let fixture = nocter_test_support::ValueSourceFixture::new(source);
+    let unit = Arc::new(SourceUnit::prepare(fixture.syntax()).unwrap().into_unit());
+    let root = unit
+        .program()
+        .resolve(unit.program().symbols().get("run").unwrap())
+        .unwrap();
+    let instances = Arc::new(InstanceProgram::prepare(unit, root).unwrap());
+    let lifecycle = lifecycle::Program::prepare(instances).unwrap();
+    let mir =
+        nocter_mir::value_access::Program::lower(&lifecycle, RuntimeAbiIdentity::Arm64DarwinV1)
+            .unwrap();
+    nocter_machine::value_access::lower(&mir).unwrap()
+}

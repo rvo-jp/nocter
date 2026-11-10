@@ -60,26 +60,7 @@ pub struct MirProjection {
     ty: TypeId,
 }
 
-/// Bounds-check disposition frozen by semantic checking.
-///
-/// MIR validates and transports this value. It does not strengthen a required check from value or
-/// control-flow inspection.
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub enum MirIndexBoundsCheck {
-    Required,
-    ProvenInBounds,
-    ProvenTrap,
-}
-
-impl From<nocter_checking::IndexBoundsCheck> for MirIndexBoundsCheck {
-    fn from(check: nocter_checking::IndexBoundsCheck) -> Self {
-        match check {
-            nocter_checking::IndexBoundsCheck::Required => Self::Required,
-            nocter_checking::IndexBoundsCheck::ProvenInBounds => Self::ProvenInBounds,
-            nocter_checking::IndexBoundsCheck::ProvenTrap => Self::ProvenTrap,
-        }
-    }
-}
+pub use nocter_model::IndexBoundsCheck as MirIndexBoundsCheck;
 
 impl MirProjection {
     #[must_use]

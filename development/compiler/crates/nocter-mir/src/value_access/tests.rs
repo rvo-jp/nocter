@@ -453,3 +453,44 @@ fn repeated_storage_checks_the_seed_against_its_homogeneous_result() {
         Err(Failure::InvalidBody(_))
     ));
 }
+
+#[test]
+fn array_index_dispositions_survive_freezing_and_unclosed_trap_flags_reject() {
+    for (source, expected) in [
+        (
+            "func run(): i32 { [20, 42][1] }",
+            nocter_model::IndexBoundsCheck::ProvenInBounds,
+        ),
+        (
+            "func select(values: [i32; 2], index: usize): i32 { values[index] }\nfunc run(): i32 { select([20, 42], 1) }",
+            nocter_model::IndexBoundsCheck::Required,
+        ),
+    ] {
+        let mut program = lower(source);
+        let checks: Vec<_> = program
+            .bodies
+            .values()
+            .flat_map(operations)
+            .filter_map(|operation| match operation {
+                Operation::Index { bounds, .. } => Some(*bounds),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(checks, [expected]);
+        let operation = program
+            .bodies
+            .values_mut()
+            .flat_map(|body| body.actions.values_mut())
+            .flat_map(|action| action.operations.iter_mut())
+            .find(|operation| matches!(operation, Operation::Index { .. }))
+            .unwrap();
+        let Operation::Index { bounds, .. } = operation else {
+            unreachable!()
+        };
+        *bounds = nocter_model::IndexBoundsCheck::ProvenTrap;
+        assert!(matches!(
+            validate::program(&program),
+            Err(Failure::InvalidBody(_))
+        ));
+    }
+}

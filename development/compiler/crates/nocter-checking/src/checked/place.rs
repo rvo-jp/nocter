@@ -21,16 +21,7 @@ pub enum PlaceAccess {
     Borrowed(BorrowCapability),
 }
 
-/// Checked disposition of one source-visible indexing bounds check.
-///
-/// Checking is the sole semantic producer. Later stages may preserve this decision but must not
-/// infer a stronger disposition from constants, layout, or generated instructions.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum IndexBoundsCheck {
-    Required,
-    ProvenInBounds,
-    ProvenTrap,
-}
+pub use nocter_model::IndexBoundsCheck;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PlaceProjection {

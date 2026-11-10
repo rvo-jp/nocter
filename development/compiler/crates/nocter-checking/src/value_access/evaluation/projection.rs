@@ -1,7 +1,8 @@
 //! Project one already checked graph and its resource alternatives; no source/ownership decisions.
+mod arrays;
 use super::super::{
-    ArgumentAction, Binary, BoundaryAction, ExpressionKind, IndexAction, Referent, SelectionAction,
-    Statement, flow,
+    ArgumentAction, Binary, BoundaryAction, ExpressionKind, Referent, SelectionAction, Statement,
+    flow,
 };
 use flow::resources::{Holder, Step};
 use nocter_constant_evaluation::{
@@ -395,25 +396,12 @@ impl Builder<'_, '_> {
                 destination,
                 value: plan::Value::unit(),
             },
-            ExpressionKind::Repeat { seed } => {
-                let Some(nocter_declarations::value_access::PayloadSchema::Array(array)) =
-                    self.program.data_schema(self.data(id)?)
-                else {
-                    return Err(INVALID);
-                };
-                if array.length() > 1 {
-                    plan::Operation::Repeat {
-                        destination,
-                        source: self.value(seed)?,
-                    }
-                } else {
-                    plan::Operation::None
-                }
-            }
+            ExpressionKind::Repeat { seed } => self.repeat_operation(id, seed, destination)?,
             ExpressionKind::Index {
                 base,
                 index,
                 action,
+                ..
             } => self.index_operation(destination, base, index, action)?,
             ExpressionKind::Place(place) => plan::Operation::Alias {
                 destination,
@@ -492,28 +480,7 @@ impl Builder<'_, '_> {
             SelectionAction::MovePayload => return Err(INVALID),
         })
     }
-    fn index_operation(
-        &mut self,
-        destination: usize,
-        base: AccessExpressionId,
-        index: AccessExpressionId,
-        action: IndexAction,
-    ) -> Result<plan::Operation> {
-        let base = self.value(base)?;
-        let index = self.value(index)?;
-        Ok(match action {
-            IndexAction::Access => plan::Operation::Index {
-                destination,
-                base,
-                index,
-            },
-            IndexAction::CopyPayload => plan::Operation::IndexCopy {
-                destination,
-                base,
-                index,
-            },
-        })
-    }
+
     fn static_views(&self) -> Box<[(usize, nocter_model::ValueStatic)]> {
         self.query
             .typed()

@@ -13,6 +13,7 @@ impl Builder<'_> {
         index: &mir::Place,
         destination: &mir::Place,
         copy: bool,
+        bounds: MachineIndexCheck,
     ) -> Result<(), Failure> {
         let Some(MachineLayoutKind::FixedArray {
             element,
@@ -54,7 +55,7 @@ impl Builder<'_> {
                 index: MachineIndex::Value(index),
                 stride,
                 bound: MachineIndexBound::Fixed(length),
-                check: MachineIndexCheck::Required,
+                check: bounds,
             }],
         ));
         // Materialize even a zero-sized Copy selection: its required bounds effect survives.

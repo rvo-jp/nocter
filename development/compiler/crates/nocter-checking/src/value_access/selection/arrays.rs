@@ -89,6 +89,19 @@ impl Checker<'_, '_> {
             IndexAction::Access
         };
         let continues = self.ty(base).may_complete() && self.ty(index).may_complete();
+        let bounds = if self
+            .expressions
+            .get(index)
+            .and_then(crate::value_access::Expression::normal_integer)
+            .and_then(|value| u64::try_from(value).ok())
+            .is_some_and(|index| index < array.length())
+        {
+            nocter_model::IndexBoundsCheck::ProvenInBounds
+        } else {
+            // Negative facts need a dedicated trap continuation with no supplied value. Keep
+            // that check required until the complete flow/resource handoff can consume it.
+            nocter_model::IndexBoundsCheck::Required
+        };
         self.emit(
             node,
             value_type(
@@ -104,6 +117,7 @@ impl Checker<'_, '_> {
                 base,
                 index,
                 action,
+                bounds,
             },
         )
     }

@@ -425,8 +425,9 @@ impl<'a> Builder<'a> {
                 index,
                 destination,
                 copy,
+                bounds,
             } => {
-                self.index(base, index, destination, *copy)?;
+                self.index(base, index, destination, *copy, *bounds)?;
             }
             mir::Operation::Repeat {
                 source,

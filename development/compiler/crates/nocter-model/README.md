@@ -27,6 +27,8 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
 - deterministic symbols and package identities
 - structural type interning and projections
 - one builtin numeric profile and its mathematical integer bounds, independent of host word size
+- one source-visible index-check disposition, reexported by checking, MIR and Machine rather than
+  copied into separate enum definitions or conversion classifiers
 - future function-witness keys pairing a concrete declaration, symbolic formal input or symbolic
   result family or selected call application with an invocation view; projection preserves them
   without source names or runtime layout. Applications pair caller/operation/callee identities.
@@ -92,3 +94,8 @@ activation and stable-value context; this model does not create snapshots, track
 perform branch reasoning or admit runtime-selected source places. The
 [selection closure](../../../design/compiler-realization.md#evaluated-array-selection-closure)
 owns those remaining integration obligations.
+
+`IndexBoundsCheck` transports Required, ProvenInBounds or ProvenTrap from checking. It grants no
+schema or index fact by itself. Consumers must preserve the selected disposition rather than
+strengthen it from a constant representation or target layout; each product separately qualifies
+the continuations it can realize. The model does not derive or execute those proofs.

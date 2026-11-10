@@ -136,11 +136,14 @@ stride, geometry and direct/indirect transport. Resolving a logical `ValueField:
 checked offset from that descriptor, without an element-sized layout map.
 
 `executable::body::arrays` materializes each evaluated index into a saved checked address. It uses
-the common required Machine index step, then stores the pointer for an access result or snapshots
-the selected Copy payload. Later uses and assignments consume that saved pointer; they do not
+the common Machine index step with the transported checking disposition, then stores the pointer
+for an access result or snapshots the selected Copy payload. Later uses and assignments consume
+that saved pointer; they do not
 reload the user's index variable or repeat the source bounds decision. Zero-byte selections still
-materialize their required bounds effect. Existing lifecycle phases retain RHS-first replacement,
-interruption cleanup, calls and independent Copy snapshots.
+materialize their bounds effect whenever checking requires it. Native instruction tests distinguish
+removed proven checks from retained required checks even after scalar constant propagation.
+Existing lifecycle phases retain RHS-first replacement, interruption cleanup, calls and independent
+Copy snapshots.
 
 `executable::body::repetition` loads the established seed once and emits a counted Machine CFG.
 Its countdown counter is an ordinary SSA block parameter. Fill order has no user callback; the

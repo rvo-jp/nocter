@@ -286,6 +286,7 @@ fn expression_uses(
             base,
             index,
             action,
+            ..
         } => {
             uses.push((
                 Carrier::Expression(base),

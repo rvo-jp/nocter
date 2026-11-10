@@ -136,7 +136,7 @@ impl FunctionLowerer<'_> {
                     path.push(
                         MirProjectionKind::DynamicIndex {
                             index,
-                            bounds: (*bounds).into(),
+                            bounds: *bounds,
                         },
                         ty,
                     );
@@ -152,7 +152,7 @@ impl FunctionLowerer<'_> {
                         &mut path,
                         *index,
                         receiver_coercion,
-                        (*bounds).into(),
+                        *bounds,
                         ty,
                     )?;
                 }
