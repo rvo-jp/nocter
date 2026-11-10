@@ -75,6 +75,14 @@ projection, primitive-operation and flag integrity before publication. It does n
 ownership analysis. The common Machine consumer lowers these closed bodies without a released
 MirProgram conversion.
 
+Evaluated primitive array selection freezes one `Index` operation with its base, numeric index,
+selected data and established access-versus-Copy result role. Validation checks the homogeneous
+runtime shape, usize index, element identity and destination storage form; it does not grant Copy.
+Concrete assembly fields resolve against that same element/count descriptor. Frozen listed and
+repeated arrays validate their exact count and actual value edges without count expansion.
+Runtime repetition construction retains an explicit `UnsupportedRepetition` gate. The
+[native consumer](../nocter-machine/README.md#private-array-execution) owns executable scope.
+
 The [private activation handoff](../../../architecture/pipeline/value-access-declarations.md#private-activation-storage-handoff)
 owns cross-stage ordering and remaining execution obligations.
 Private array interval cleanup remains outside this stored-body boundary and rejects explicitly;

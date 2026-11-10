@@ -18,6 +18,12 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
+Close runtime repetition construction, empty-array representation and nontrivial array cleanup
+through the [native array consumer](compiler/crates/nocter-machine/README.md#private-array-execution).
+Preserve one seed evaluation, homogeneous geometry and finite generated loops; do not expand N
+compiler owners, layout fields or generated operations. Empty logical arrays must not force an
+unavailable element payload or inherit the released zero-count alignment rule without examination.
+
 Connect general evaluated selections to one checking-owned source of retained-index facts for
 initialization, access and resource flow. The [selection path](compiler/crates/nocter-checking/README.md#array-selection)
 conservatively covers a complete containing array; the [closed evaluator address mechanism](compiler/crates/nocter-constant-evaluation/README.md#evaluated-array-addresses)

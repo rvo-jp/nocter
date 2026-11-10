@@ -2,8 +2,7 @@
 mod executable;
 use std::{fmt::Write as _, sync::Arc};
 
-use nocter_checking::value_access::accepted::Unit;
-use nocter_declaration_lowering::access_declarations;
+use nocter_checking::value_access::accepted::SourceUnit;
 use nocter_model::{BuiltinType, TypeId, ValueInputOperation};
 use nocter_runtime_contract::{
     RuntimeAbiIdentity, RuntimeEnvironment, RuntimeType, RuntimeValueSignature,
@@ -18,8 +17,7 @@ use crate::{
 };
 
 fn close(fixture: &ValueSourceFixture) -> InstanceProgram {
-    let headers = access_declarations::Query::prepare(fixture.syntax()).unwrap();
-    let unit = Arc::new(Unit::prepare(&headers.bind(fixture.syntax()).unwrap()).unwrap());
+    let unit = Arc::new(SourceUnit::prepare(fixture.syntax()).unwrap().into_unit());
     let root = unit
         .program()
         .resolve(unit.program().symbols().get("run").unwrap())

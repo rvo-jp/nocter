@@ -624,9 +624,9 @@ fn required_initializers_are_not_function_values_or_runtime_instance_roots() {
 }
 
 #[test]
-fn whole_array_instances_and_lifecycles_close_before_the_explicit_storage_gate() {
+fn empty_array_storage_retains_its_explicit_gate() {
     for source in [
-        "func pass(take values: [i32; 2]): [i32; 2] { values^ }\nfunc run(): [i32; 2] { pass([1, 2]) }",
+        "func run(): [i32; 0] { [] }",
         "struct Node { next: [Node; 0] }\nfunc run(): Node { Node { next: [] } }",
     ] {
         let fixture = ValueSourceFixture::new(source);
@@ -647,4 +647,39 @@ fn whole_array_instances_and_lifecycles_close_before_the_explicit_storage_gate()
             Some(nocter_declarations::value_access::PayloadSchema::Array(_))
         ));
     }
+}
+
+#[test]
+fn nonempty_array_storage_keeps_one_homogeneous_element_and_count() {
+    let fixture = ValueSourceFixture::new(
+        "func pass(take values: [i32; 2]): [i32; 2] { values^ }\nfunc run(): [i32; 2] { pass([1, 2]) }",
+    );
+    let unit = accepted(&fixture);
+    let root = callable(&unit, "run");
+    let graph = InstanceProgram::prepare(unit, root).unwrap();
+    let runtime = storage::prepare(
+        &graph,
+        nocter_runtime_contract::RuntimeAbiIdentity::Arm64DarwinV1,
+    )
+    .unwrap();
+    let arrays: Vec<_> = runtime
+        .types()
+        .iter()
+        .filter_map(|(id, shape)| match shape {
+            nocter_runtime_contract::RuntimeType::FixedArray { element, length } => {
+                Some((id, *element, *length))
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(arrays.len(), 1);
+    let (id, element, length) = arrays[0];
+    assert_eq!(length, 2);
+    assert_eq!(
+        runtime.types().get(element),
+        Some(&nocter_runtime_contract::RuntimeType::Primitive(
+            nocter_runtime_contract::RuntimePrimitive::Signed(32)
+        ))
+    );
+    assert!(runtime.type_representations().get(id).is_none());
 }

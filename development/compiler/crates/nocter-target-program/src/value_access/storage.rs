@@ -89,7 +89,18 @@ pub fn prepare(
         }
         let invalid = || Failure::InvalidPayload(data);
         let kind = match program.data_schema(data).ok_or_else(invalid)? {
-            PayloadSchema::Array(_) => return Err(Failure::UnsupportedArray(data)),
+            PayloadSchema::Array(array) => {
+                if array.is_empty() {
+                    // Empty logical arrays need no element payload. Do not demand that payload
+                    // through the released layout rule until their v2 representation is closed.
+                    return Err(Failure::UnsupportedArray(data));
+                }
+                pending.insert(array.element());
+                RuntimeType::FixedArray {
+                    element: array.element(),
+                    length: array.length(),
+                }
+            }
             PayloadSchema::Builtin(builtin) => match builtin {
                 BuiltinType::Bool => RuntimeType::Primitive(RuntimePrimitive::Bool),
                 BuiltinType::I32 => RuntimeType::Primitive(RuntimePrimitive::Signed(32)),

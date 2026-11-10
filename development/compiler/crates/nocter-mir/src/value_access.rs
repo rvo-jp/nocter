@@ -133,6 +133,13 @@ pub enum Operation {
         source: Place,
         destination: Place,
     },
+    /// Check and capture one evaluated element address, or snapshot its selected Copy payload.
+    Index {
+        base: Place,
+        index: Place,
+        destination: Place,
+        copy: bool,
+    },
     Storage(Effect),
     Unary {
         operation: crate::MirUnaryOperation,
@@ -242,6 +249,7 @@ impl Body {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Failure {
     Storage(storage::Failure),
+    UnsupportedRepetition(TypeId),
     InvalidBody(AccessInstanceId),
 }
 

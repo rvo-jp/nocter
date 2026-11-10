@@ -1,8 +1,7 @@
 //! Actual private source lowering and integrity mutations; no substitute source interpreter.
 use super::*;
 use crate::{MirArithmeticCheck, MirBinaryOperation};
-use nocter_checking::value_access::accepted::Unit;
-use nocter_declaration_lowering::access_declarations;
+use nocter_checking::value_access::accepted::SourceUnit;
 use nocter_model::{MirLocalId, ValueInputOperation};
 use nocter_target_program::value_access::InstanceProgram;
 use nocter_test_support::ValueSourceFixture;
@@ -10,8 +9,7 @@ use std::sync::Arc;
 
 fn lower(source: &str) -> Program {
     let fixture = ValueSourceFixture::new(source);
-    let headers = access_declarations::Query::prepare(fixture.syntax()).unwrap();
-    let unit = Arc::new(Unit::prepare(&headers.bind(fixture.syntax()).unwrap()).unwrap());
+    let unit = Arc::new(SourceUnit::prepare(fixture.syntax()).unwrap().into_unit());
     let root = unit
         .program()
         .resolve(unit.program().symbols().get("run").unwrap())
@@ -353,4 +351,79 @@ fn static_views_are_not_call_inputs_and_global_shapes_are_validated_once() {
     let mut program = lower("static DATA: i32 = 42\nfunc run(): i32 { DATA }");
     program.bodies.get_mut(&program.root).unwrap().statics = Box::new([]);
     assert!(validate::program(&program).is_err());
+}
+
+#[test]
+fn evaluated_index_destination_role_is_validated_before_publication() {
+    for (source, expected) in [
+        (
+            "func run(): i32 { var values = [40, 7]\nvalues[0] += 2\nvalues[0] }",
+            false,
+        ),
+        ("func run(): i32 { [40, 42][1] }", true),
+    ] {
+        let mut program = lower(source);
+        let body = program.bodies.get_mut(&program.root).unwrap();
+        let operation = body
+            .actions
+            .values_mut()
+            .flat_map(|a| a.operations.iter_mut())
+            .find(|op| matches!(op, Operation::Index { .. }))
+            .unwrap();
+        let Operation::Index { copy, .. } = operation else {
+            unreachable!()
+        };
+        assert_eq!(*copy, expected);
+        *copy = !*copy;
+        assert!(matches!(
+            validate::program(&program),
+            Err(Failure::InvalidBody(_))
+        ));
+    }
+}
+
+#[test]
+fn frozen_array_schema_rejects_wrong_counts_and_element_types() {
+    for value in [
+        nocter_model::FrozenData::new(vec![
+            nocter_model::FrozenNode::Scalar(nocter_model::ConstantValue::Integer(1)),
+            nocter_model::FrozenNode::Repeated {
+                element: 0,
+                length: std::num::NonZeroU64::new(3).unwrap(),
+                replacements: Box::new([]),
+            },
+        ])
+        .unwrap(),
+        nocter_model::FrozenData::new(vec![
+            nocter_model::FrozenNode::Scalar(nocter_model::ConstantValue::Bool(true)),
+            nocter_model::FrozenNode::Repeated {
+                element: 0,
+                length: std::num::NonZeroU64::new(2).unwrap(),
+                replacements: Box::new([]),
+            },
+        ])
+        .unwrap(),
+    ] {
+        let mut program = lower("const DATA: [i32; 2] = [1; 2]\nfunc run(): i32 { DATA[0] }");
+        let operation = program
+            .bodies
+            .get_mut(&program.root)
+            .unwrap()
+            .actions
+            .values_mut()
+            .flat_map(|action| action.operations.iter_mut())
+            .find(|op| matches!(op, Operation::Frozen { .. }))
+            .unwrap();
+        let Operation::Frozen {
+            value: original, ..
+        } = operation
+        else {
+            unreachable!()
+        };
+        *original = value;
+        assert!(matches!(
+            validate::program(&program),
+            Err(Failure::InvalidBody(_))
+        ));
+    }
 }

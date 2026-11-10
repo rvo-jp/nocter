@@ -11,7 +11,7 @@ use nocter_checking::value_access::{
     ArgumentAction, BoundaryAction, ExpressionKind, Referent, SelectionAction, Statement, flow,
 };
 use nocter_model::{AccessExpressionId, ValueAccessMode};
-use nocter_target_program::value_access::{Environment, storage};
+use nocter_target_program::value_access::Environment;
 
 impl Builder<'_> {
     fn value(&mut self, id: AccessExpressionId) -> Result<Place, Failure> {
@@ -107,12 +107,18 @@ impl Builder<'_> {
                 destination,
                 value: Constant::Zero,
             },
-            ExpressionKind::Index { base, .. } => {
-                // Runtime array geometry is gated by the storage owner before MIR. Keep an
-                // explicit unsupported-shape failure if this operation reaches lowering.
-                return Err(Failure::Storage(storage::Failure::UnsupportedArray(
-                    self.expression(base)?,
-                )));
+            ExpressionKind::Index {
+                base,
+                index,
+                action,
+            } => Operation::Index {
+                base: self.value(base)?,
+                index: self.value(index)?,
+                destination,
+                copy: action == nocter_checking::value_access::IndexAction::CopyPayload,
+            },
+            ExpressionKind::Repeat { .. } => {
+                return Err(Failure::UnsupportedRepetition(destination.data));
             }
             ExpressionKind::Place(place) => {
                 let source = self.selected(place, destination.data)?;
@@ -162,22 +168,11 @@ impl Builder<'_> {
                 source,
                 fields,
                 action: action @ (SelectionAction::CopyPayload | SelectionAction::Access),
-            } => {
-                let source = self.component(source, &fields, destination.data)?;
-                if action == SelectionAction::Access {
-                    Self::alias(source, destination.slot)
-                } else {
-                    Operation::Copy {
-                        source,
-                        destination,
-                    }
-                }
-            }
+            } => self.selected_component(source, &fields, destination, action)?,
             ExpressionKind::Move(_)
             | ExpressionKind::Closure { .. }
             | ExpressionKind::AdaptFunction { .. }
             | ExpressionKind::Aggregate { .. }
-            | ExpressionKind::Repeat { .. }
             | ExpressionKind::Select {
                 action: SelectionAction::MovePayload,
                 ..
@@ -185,6 +180,23 @@ impl Builder<'_> {
             ExpressionKind::If { .. } | ExpressionKind::Call { .. } => return Err(self.invalid()),
         };
         Ok(vec![operation])
+    }
+    fn selected_component(
+        &mut self,
+        source: AccessExpressionId,
+        fields: &nocter_model::FieldPath,
+        destination: Place,
+        action: SelectionAction,
+    ) -> Result<Operation, Failure> {
+        let source = self.component(source, fields, destination.data)?;
+        Ok(if action == SelectionAction::Access {
+            Self::alias(source, destination.slot)
+        } else {
+            Operation::Copy {
+                source,
+                destination,
+            }
+        })
     }
     fn component(
         &mut self,

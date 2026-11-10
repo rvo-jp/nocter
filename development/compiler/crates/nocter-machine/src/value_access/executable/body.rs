@@ -14,6 +14,7 @@ use nocter_mir::value_access as mir;
 use nocter_model::{AccessInstanceId, MirLocalId, TypeId, ValueInputOperation};
 use nocter_runtime_contract::RuntimeType;
 use std::collections::{BTreeMap, BTreeSet};
+mod arrays;
 
 struct Block {
     operations: Vec<MachineOperationId>,
@@ -391,6 +392,14 @@ impl<'a> Builder<'a> {
                 source,
                 destination,
             } => self.copy(source, destination)?,
+            mir::Operation::Index {
+                base,
+                index,
+                destination,
+                copy,
+            } => {
+                self.index(base, index, destination, *copy)?;
+            }
             mir::Operation::Storage(effect) => self.effect(effect)?,
             mir::Operation::Unary {
                 operation,

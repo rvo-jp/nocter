@@ -839,7 +839,8 @@ compact frozen constants, nested selection, seed-supplier invalidation and a sma
 budget. A scalar result of maximum-count repetition reaches the common native consumer.
 This closes listed/repeated construction and whole-value handoffs in the private Unit. Element
 reads use the [selection path](#array-selection); partial element initialization and native storage
-remain separate implementation gates.
+remain separate consumers. The [native path](../nocter-machine/README.md#private-array-execution)
+qualifies its own stored array scope.
 
 ## Array Selection
 
@@ -908,7 +909,8 @@ RHS/target cleanup, loop re-execution, maximum-count sparse Copy snapshots, zero
 bounds and read-only/overlapping target rejection. Required bounds failure reports E0325 without
 publishing a value. Compile-time selection also reaches the [common native
 consumer](../../../architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
-when its frozen result is scalar; this does not admit runtime array storage or array ABI.
+when its frozen result is scalar. The [native array consumer](../nocter-machine/README.md#private-array-execution)
+separately qualifies stored values and ABI; checking alone grants no physical-layout proof.
 
 ## Concrete Array Resource Frontiers
 

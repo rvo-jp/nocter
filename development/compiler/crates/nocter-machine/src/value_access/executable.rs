@@ -172,6 +172,12 @@ fn needs_cleanup(
             }
             needed
         }
+        Some(RuntimeType::FixedArray { element, .. }) => {
+            if needs_cleanup(program, *element, cache)? {
+                return Err(Failure::UnsupportedArrayCleanup(data));
+            }
+            false
+        }
         _ => return Err(Failure::InvalidRoot),
     };
     cache.insert(data, needed);

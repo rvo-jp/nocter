@@ -159,3 +159,15 @@ fn exponentially_shared_zero_size_data_needs_no_expanded_serialization_or_storag
     let program = compile(&shared_constant(64, true));
     assert!(program.data().is_empty());
 }
+
+#[test]
+fn repeated_array_constants_respect_physical_backing_limits_before_expansion() {
+    assert!(matches!(
+        lower("const DATA: [i32; 5000000] = [42; 5000000]\nfunc run(): i32 { DATA[0] }"),
+        Err(crate::value_access::ExecutableFailure::DataLimit(_))
+    ));
+    let program = compile(
+        "const DATA: [void; 18446744073709551615] = [(); 18446744073709551615]\nfunc run(): i32 { let _ = DATA[18446744073709551614]\n42 }",
+    );
+    assert!(program.data().is_empty());
+}

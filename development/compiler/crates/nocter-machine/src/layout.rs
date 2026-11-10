@@ -367,6 +367,23 @@ impl MachineLayoutPlan {
     /// Resolves an exact value-model field before discarding construction correspondence.
     #[must_use]
     pub fn value_field(&self, ty: TypeId, field: ValueField) -> Option<MachineFieldLayout> {
+        if let ValueField::Array(index) = field {
+            let MachineLayoutKind::FixedArray {
+                element,
+                length,
+                stride,
+            } = self.get(ty)?.kind()
+            else {
+                return None;
+            };
+            if index >= *length {
+                return None;
+            }
+            return Some(MachineFieldLayout {
+                ty: *element,
+                offset: index.checked_mul(*stride)?,
+            });
+        }
         self.value_fields.get(&(ty, field)).copied()
     }
 

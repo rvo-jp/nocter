@@ -262,8 +262,10 @@ through its ordinary body/resource/evaluator products. This header owner grants 
 proof merely by normalizing a count. Checking also owns [source read selection](../nocter-checking/README.md#array-selection).
 Repetition uses that same count authority and checking's compact construction path. Checking
 qualifies bounded indexed edit inputs, scoped edit aliases and complete direct replacement. Element
-transfer, partial state and native array storage retain implementation gates.
+transfer and partial state retain implementation gates.
 The [common native path](../../../architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
-qualifies scalar consumers of required array computation, without runtime array values or layout.
+qualifies scalar consumers of required array computation. Stored arrays have a separate
+[native qualification boundary](../nocter-machine/README.md#private-array-execution); this header
+owner grants neither storage nor layout evidence.
 Remaining work belongs to the
 [structural request work](../../../design/compiler-realization.md#structural-type-request-closure).

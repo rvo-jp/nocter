@@ -154,5 +154,8 @@ owns the representation policy and remaining realization obligations.
 Whole-array source values retain their homogeneous declaration schema and payload obligations
 through instance-data and lifecycle projection. Positive lengths visit element obligations once;
 zero lengths add no element-payload edge. This logical closure grants no stored representation or
-ABI evidence. Stored-shape projection reports `UnsupportedArray` explicitly, including at zero
-length, rather than treating a valid accepted Unit as corrupt or inferring tuple layout.
+ABI evidence. Stored-shape projection closes nonempty arrays into the shared homogeneous
+`RuntimeType::FixedArray`, visiting the element once. Zero-count storage retains the explicit
+`UnsupportedArray` gate until its representation can close without demanding an absent element
+payload. The [native consumer](../nocter-machine/README.md#private-array-execution) owns current
+executable qualification; normalization alone grants no layout or executable proof.

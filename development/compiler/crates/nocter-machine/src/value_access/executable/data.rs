@@ -1,10 +1,11 @@
 //! Serialize established literal DAGs with the common stored layout and byte-order authority.
 use super::Failure;
 use crate::identity::MachineId;
-use crate::{MachineData, MachineDataId, MachineDataTable, MachineLayoutPlan, MachineTarget};
-use nocter_model::{FrozenData, FrozenNode, TypeId};
-use nocter_runtime_contract::{RuntimeEnvironment, RuntimeTypeRepresentation};
+use crate::{MachineData, MachineDataId, MachineDataTable, MachineLayoutPlan};
+use nocter_model::{FrozenData, TypeId};
+use nocter_runtime_contract::RuntimeEnvironment;
 use std::collections::{BTreeMap, HashMap};
+mod encoding;
 
 pub(super) struct Data {
     values: Vec<MachineData>,
@@ -79,50 +80,7 @@ impl Data {
             .try_reserve_exact(size)
             .map_err(|_| Failure::DataLimit(ty))?;
         bytes.resize(size, 0);
-        let mut pending = vec![(ty, value.root(), 0u64)];
-        let target = MachineTarget::select(runtime.abi());
-        while let Some((ty, node, offset)) = pending.pop() {
-            let layout = layouts.get(ty).ok_or(Failure::InvalidRoot)?;
-            if layout.size() == 0 {
-                continue;
-            }
-            match &value.nodes()[node] {
-                FrozenNode::Scalar(value) => {
-                    let bits = crate::data::scalar_bits(value).ok_or(Failure::InvalidRoot)?;
-                    crate::data::write_integer_bytes(
-                        &mut bytes,
-                        offset,
-                        bits,
-                        layout.size(),
-                        target,
-                    )
-                    .ok_or(Failure::InvalidRoot)?;
-                }
-                FrozenNode::Aggregate(values) => {
-                    let Some(RuntimeTypeRepresentation::ValueAggregate { fields }) =
-                        runtime.type_representations().get(ty)
-                    else {
-                        return Err(Failure::InvalidRoot);
-                    };
-                    if fields.len() != values.len() {
-                        return Err(Failure::InvalidRoot);
-                    }
-                    for (field, &node) in fields.iter().zip(values).rev() {
-                        let member = layouts
-                            .value_field(ty, field.field())
-                            .ok_or(Failure::InvalidRoot)?;
-                        pending.push((
-                            member.ty(),
-                            node,
-                            offset
-                                .checked_add(member.offset())
-                                .ok_or(Failure::InvalidRoot)?,
-                        ));
-                    }
-                }
-                FrozenNode::Unit | FrozenNode::Repeated { .. } => return Err(Failure::InvalidRoot),
-            }
-        }
+        encoding::write(runtime, layouts, ty, value, &mut bytes)?;
         let id = MachineDataId::new(self.values.len());
         self.values.push(MachineData::literal(
             bytes.into_boxed_slice(),

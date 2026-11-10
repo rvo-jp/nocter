@@ -126,3 +126,32 @@ receive distinct minimal physical backing while retaining their zero-size logica
 code binds body-local address slots to immutable backing; callable signatures and source ownership
 remain unchanged. Static and literal data share the total serialization budget and common scalar
 encoding. No static initializer becomes a runtime function.
+
+## Private Array Execution
+
+The private source path qualifies nonempty listed arrays, complete read/edit selections and
+replacement through ordinary Machine bodies and the native consumer. Storage projects one shared
+`RuntimeType::FixedArray` element/count descriptor. The common layout and value-input ABI own
+stride, geometry and direct/indirect transport. Resolving a logical `ValueField::Array` computes one
+checked offset from that descriptor, without an element-sized layout map.
+
+`executable::body::arrays` materializes each evaluated index into a saved checked address. It uses
+the common required Machine index step, then stores the pointer for an access result or snapshots
+the selected Copy payload. Later uses and assignments consume that saved pointer; they do not
+reload the user's index variable or repeat the source bounds decision. Zero-byte selections still
+materialize their required bounds effect. Existing lifecycle phases retain RHS-first replacement,
+interruption cleanup, calls and independent Copy snapshots.
+
+The frozen-data serializer accepts listed and sparse repeated array DAGs against that same layout.
+Physical repeated storage is emitted with one traversal cursor per nesting level, rather than N
+pending entries. Zero-byte subgraphs are skipped, including maximum-count unit arrays. The existing
+serialized-byte budget is checked before physical backing allocation; this is no source cardinality
+limit. Native qualification covers nested records/arrays, scoped saved indices, loop re-execution,
+read/edit/take calls, direct and indirect array returns, scalar/zero-byte bounds traps, source order,
+frozen constants/statics and independent mutation.
+
+Runtime repetition construction, empty-array geometry, nontrivial array cleanup and partial-array
+interval cleanup remain explicit implementation gates. The released zero-count layout rule is not
+used to force the payload of a v2 empty logical element. Precise element transfer and restoration
+also require checking's separate retained-index proof. These limits do not change adopted source
+semantics or qualify the ordinary released CLI as v2.

@@ -80,6 +80,15 @@ impl Context<'_> {
         for projection in &place.projections {
             data = match projection {
                 Projection::Field(id) => {
+                    if let (
+                        nocter_model::ValueField::Array(index),
+                        Some(RuntimeType::FixedArray { element, length }),
+                    ) = (id, self.program.runtime.types().get(data))
+                    {
+                        self.require(index < length)?;
+                        data = *element;
+                        continue;
+                    }
                     let Some(RuntimeTypeRepresentation::ValueAggregate { fields }) =
                         self.program.runtime.type_representations().get(data)
                     else {
@@ -193,6 +202,37 @@ impl Context<'_> {
                 self.require(source.data == destination.data)
             }
             Operation::Storage(effect) => self.effect(effect),
+            Operation::Index {
+                base,
+                index,
+                destination,
+                copy,
+            } => {
+                self.place(base)?;
+                self.place(index)?;
+                self.place(destination)?;
+                let Some(RuntimeType::FixedArray { element, .. }) =
+                    self.program.runtime.types().get(base.data)
+                else {
+                    return Err(self.invalid());
+                };
+                let slot = self
+                    .body
+                    .slots
+                    .get(destination.slot)
+                    .ok_or_else(|| self.invalid())?;
+                self.require(
+                    self.primitive(index.data, RuntimePrimitive::Usize)
+                        && destination.data == *element
+                        && destination.projections.is_empty()
+                        && slot.storage
+                            == if *copy {
+                                Storage::Payload
+                            } else {
+                                Storage::Address
+                            },
+                )
+            }
             Operation::Unary {
                 operation,
                 operand,
@@ -439,6 +479,25 @@ impl Context<'_> {
                         RuntimePrimitive::Signed(32) | RuntimePrimitive::Usize,
                     )),
                 ) if self.integer_literal(data, *value) => {}
+                (
+                    FrozenNode::Aggregate(values),
+                    Some(RuntimeType::FixedArray { element, length }),
+                ) => {
+                    self.require(u64::try_from(values.len()) == Ok(*length))?;
+                    pending.extend(values.iter().map(|&node| (*element, node)));
+                }
+                (
+                    FrozenNode::Repeated {
+                        element: default,
+                        length: count,
+                        replacements,
+                    },
+                    Some(RuntimeType::FixedArray { element, length }),
+                ) => {
+                    self.require(count.get() == *length)?;
+                    pending.push((*element, *default));
+                    pending.extend(replacements.iter().map(|&(_, node)| (*element, node)));
+                }
                 (FrozenNode::Aggregate(values), Some(RuntimeType::Aggregate)) => {
                     let Some(nocter_runtime_contract::RuntimeTypeRepresentation::ValueAggregate {
                         fields,
