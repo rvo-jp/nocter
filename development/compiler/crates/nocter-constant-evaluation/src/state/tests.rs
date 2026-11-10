@@ -40,7 +40,6 @@ fn literal() -> Plan {
         inputs: Box::new([]),
         result: 0,
         initializer: true,
-        dependencies: Box::new([]),
         entry,
         points: points.finish(),
     }
@@ -94,7 +93,7 @@ fn invalid_value_shapes_call_edges_and_recursive_schema_edges_reject_before_exec
     assert!(Program::new([Type::I32], BTreeMap::from([(id, missing_call)])).is_err());
 }
 #[test]
-fn failed_execution_clears_frames_and_dependency_activity_before_the_next_request() {
+fn exhausted_work_is_not_replenished_by_another_closed_request() {
     let (good, bad) = code_ids();
     let mut points = ArenaBuilder::new();
     let entry = points.next_id();
@@ -107,7 +106,6 @@ fn failed_execution_clears_frames_and_dependency_activity_before_the_next_reques
         inputs: Box::new([]),
         result: 0,
         initializer: true,
-        dependencies: Box::new([]),
         entry,
         points: points.finish(),
     };
@@ -116,14 +114,81 @@ fn failed_execution_clears_frames_and_dependency_activity_before_the_next_reques
         BTreeMap::from([(good, literal()), (bad, loop_plan)]),
     )
     .unwrap();
-    let mut executor = Executor::new(
-        &program,
-        CompileTimeEvaluationLimits::new(NonZeroU64::new(20).unwrap(), NonZeroU32::new(8).unwrap()),
+    let limits =
+        CompileTimeEvaluationLimits::new(NonZeroU64::new(20).unwrap(), NonZeroU32::new(8).unwrap());
+    let mut budget = Budget::new(limits);
+    let mut executor = Executor::new(&program, &mut budget, 0);
+    assert_eq!(
+        executor.evaluate_initializer(bad).unwrap_err().rule,
+        Rule::StepLimit
     );
+    assert_eq!(
+        executor.evaluate_initializer(good).unwrap_err().rule,
+        Rule::StepLimit
+    );
+    // Opening a new executor over the same dependency budget must not replenish it either.
+    let mut executor = Executor::new(&program, &mut budget, 0);
+    assert_eq!(
+        executor.evaluate_initializer(good).unwrap_err().rule,
+        Rule::StepLimit
+    );
+    let mut fresh_budget = Budget::new(limits);
+    let mut executor = Executor::new(&program, &mut fresh_budget, 0);
+    assert_eq!(
+        executor.evaluate_initializer(good).unwrap().as_ref(),
+        &Value::I32(42)
+    );
+}
+
+#[test]
+fn arithmetic_failure_releases_its_frame_before_reusing_the_executor() {
+    let (good, bad) = code_ids();
+    let mut failure = literal();
+    failure.points = failure.points.map(|_, point| {
+        let mut point = point.clone();
+        point.actions[0].operation = Operation::Literal {
+            destination: 0,
+            value: Value::I32(i32::MIN),
+        };
+        let mut actions = point.actions.into_vec();
+        let after = vec![
+            Effect::Dispose(Place::root(1)),
+            Effect::Construct(0),
+            Effect::Move {
+                source: Place::root(0),
+                destination: Place::root(1),
+            },
+        ];
+        actions.push(Action {
+            operation: Operation::Unary {
+                destination: 0,
+                operation: crate::CompileTimeUnaryOperation::Negate,
+                operand: Place::root(1),
+            },
+            alternatives: vec![Alternative {
+                owned: BTreeMap::from([(1, Box::new([]) as Box<[Box<[usize]>]>)]),
+                before: Box::new([]),
+                after: after.into(),
+            }]
+            .into(),
+        });
+        point.actions = actions.into();
+        point
+    });
+    let program = Program::new(
+        [Type::I32],
+        BTreeMap::from([(good, literal()), (bad, failure)]),
+    )
+    .unwrap();
+    let mut budget = Budget::new(CompileTimeEvaluationLimits::new(
+        NonZeroU64::new(100).unwrap(),
+        NonZeroU32::new(1).unwrap(),
+    ));
+    let mut executor = Executor::new(&program, &mut budget, 0);
     for _ in 0..2 {
         assert_eq!(
             executor.evaluate_initializer(bad).unwrap_err().rule,
-            Rule::StepLimit
+            Rule::ArithmeticFailure
         );
         assert_eq!(
             executor.evaluate_initializer(good).unwrap().as_ref(),

@@ -18,18 +18,7 @@ fn answer(source: &str, name: &str) -> Value {
             .resolve(unit.program().symbols().get(name).unwrap())
             .is_none()
     );
-    let value = unit.constant_value(id).unwrap().clone();
-    for (_, query) in unit.bodies() {
-        assert!(
-            !query
-                .typed()
-                .body()
-                .expressions()
-                .iter()
-                .any(|(_, e)| matches!(e.kind, crate::value_access::ExpressionKind::Constant(_)))
-        );
-    }
-    value
+    unit.constant_value(id).unwrap().clone()
 }
 #[test]
 fn literals_forward_dependencies_and_runtime_references_publish_values() {
@@ -88,7 +77,7 @@ fn required_failures_are_not_runtime_fallbacks_or_domain_failures() {
             "const A: i32 = B\nconst B: i32 = A",
             CompileTimeEvaluationLimits::default()
         ),
-        Rule::Execution(ExecutionRule::DependencyCycle)
+        Rule::DependencyCycle
     );
     assert_eq!(
         failure(
@@ -317,7 +306,7 @@ fn authored_dependency_cycles_are_rejected_in_unevaluated_branches_and_const_cal
     ] {
         assert_eq!(
             failure(text, CompileTimeEvaluationLimits::default()),
-            Rule::Execution(ExecutionRule::DependencyCycle),
+            Rule::DependencyCycle,
             "{text}"
         );
     }
@@ -413,6 +402,139 @@ fn cache_guards_include_const_callees_seen_only_in_unevaluated_dependency_paths(
     let changed = headers.bind(bound(&b, &tb)).unwrap();
     assert!(named(&unit, "run").bind(&changed).is_err());
     assert!(
-        matches!(Unit::prepare(&changed),Err(Failure::Evaluation{diagnostic,..}) if diagnostic.rule()==Rule::Execution(ExecutionRule::DependencyCycle))
+        matches!(Unit::prepare(&changed),Err(Failure::Evaluation{diagnostic,..}) if diagnostic.rule()==Rule::DependencyCycle)
     );
+}
+
+#[test]
+fn required_values_select_control_before_initialization_and_access_admission() {
+    let unit = accepted(
+        "const FLAG: bool = false\nfunc run(): i32 { let value = 42\nif FLAG { drop value }\nvalue }",
+    );
+    assert!(named(&unit, "run").initialization().violations().is_empty());
+    assert_eq!(
+        answer(
+            "const FLAG: bool = false\nconst func run(): i32 { let value = 42\nif FLAG { drop value }\nvalue }\nconst ANSWER: i32 = run()",
+            "ANSWER"
+        ),
+        Value::I32(42)
+    );
+    let (sources, tree) = input(
+        "const FLAG: bool = true\nfunc run(): i32 { let value = 42\nif FLAG { drop value }\nvalue }",
+    );
+    let headers = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+    assert!(matches!(
+        Unit::prepare(&headers.bind(bound(&sources, &tree)).unwrap()),
+        Err(Failure::Flow { .. })
+    ));
+}
+
+#[test]
+fn required_values_close_normal_completion_and_dead_breaks_during_typing() {
+    accepted("const STOP: bool = true\nfunc run(): i32 { while STOP { return 42 } }");
+    accepted("const EXIT: bool = false\nfunc wait_forever(): i32 { loop { if EXIT { break } } }");
+    let (sources, tree) =
+        input("const EXIT: bool = true\nfunc missing(): i32 { loop { if EXIT { break } } }");
+    let headers = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+    assert!(
+        matches!(Unit::prepare(&headers.bind(bound(&sources, &tree)).unwrap()),
+        Err(Failure::Body { failure: BodyFailure::Rejected(diagnostic), .. }) if diagnostic.rule() == crate::value_access::Rule::MissingResult)
+    );
+}
+
+#[test]
+fn constant_control_facts_reach_capture_invocation_inference() {
+    let unit = accepted(
+        "const FLAG: bool = false\nstruct Payload { value: i32 }\nfunc run(): i32 { let data = Payload { value: 42 }\nlet action = (data^;): i32 { if FLAG { let moved = data^ }\ndata.value }\naction() }",
+    );
+    let run = named(&unit, "run");
+    let closure = run
+        .typed()
+        .body()
+        .expressions()
+        .iter()
+        .find_map(|(_, expression)| {
+            if let crate::value_access::ExpressionKind::Closure { closure, .. } = expression.kind {
+                Some(closure)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    assert_eq!(
+        unit.program()
+            .closure(closure)
+            .unwrap()
+            .contract()
+            .invocation,
+        nocter_model::ValueInvocation::Read
+    );
+}
+
+#[test]
+fn constant_control_facts_do_not_skip_structural_checks_in_dead_source() {
+    let (sources, tree) =
+        input("const FLAG: bool = false\nfunc run(): i32 { if FLAG { let value = missing }\n42 }");
+    let headers = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+    assert!(matches!(
+        Unit::prepare(&headers.bind(bound(&sources, &tree)).unwrap()),
+        Err(Failure::Body {
+            failure: BodyFailure::Rejected(_),
+            ..
+        })
+    ));
+}
+
+#[test]
+fn default_depth_budget_bounds_deep_source_dependency_preparation() {
+    let mut source = String::new();
+    for index in 0..260 {
+        writeln!(source, "const VALUE{index:03}: i32 = VALUE{:03}", index + 1).unwrap();
+    }
+    source.push_str("const VALUE260: i32 = 42");
+    assert_eq!(
+        failure(&source, CompileTimeEvaluationLimits::default()),
+        Rule::Execution(ExecutionRule::CallDepthLimit)
+    );
+}
+
+#[test]
+fn ordinary_type_and_flow_errors_precede_final_value_domain_rejection() {
+    for (source, is_flow) in [
+        ("struct Pair { value: i32 }\nconst BAD: Pair = 42", false),
+        (
+            "struct Pair { value: i32 }\nconst BAD: Pair = if true { let data = Pair { value: 42 }\ndrop data\ndata^ } else { Pair { value: 0 } }",
+            true,
+        ),
+    ] {
+        let (sources, tree) = input(source);
+        let headers = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+        let result = Unit::prepare(&headers.bind(bound(&sources, &tree)).unwrap());
+        if is_flow {
+            assert!(matches!(result, Err(Failure::Flow { .. })), "{result:?}");
+        } else {
+            assert!(matches!(result, Err(Failure::Body { .. })), "{result:?}");
+        }
+    }
+}
+
+#[test]
+fn unevaluated_callee_dependency_cycles_keep_the_authored_call_path() {
+    let (sources, tree) = input(
+        "const func helper(): i32 { ANSWER }\nconst ANSWER: i32 = if false { helper() } else { 42 }",
+    );
+    let headers = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+    let Err(Failure::Evaluation { diagnostic, .. }) =
+        Unit::prepare(&headers.bind(bound(&sources, &tree)).unwrap())
+    else {
+        panic!("cycle");
+    };
+    assert_eq!(diagnostic.rule(), Rule::DependencyCycle);
+    assert!(diagnostic.source().notes().iter().any(|note| {
+        sources
+            .get(tree.source())
+            .unwrap()
+            .text_at(note.origin().span().range())
+            == Some("helper()")
+    }));
 }

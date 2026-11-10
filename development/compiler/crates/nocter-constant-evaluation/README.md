@@ -43,7 +43,7 @@ still owns contextual numeric type, sign, range, and checked arithmetic.
   recursive source calls remain graph edges rather than plan-construction cycles.
 - Evaluation limits count semantic plan operations and source-call depth, never host instructions
   or elapsed time; all callers use the same nonzero limit contract.
-- One closed-plan executor owns its remaining budget and memoized call results. It validates input,
+- The expression-tree executor owns its remaining budget and memoized call results. It validates input,
   local, node, and result shapes; recursive calls therefore cannot bypass the depth limit or make
   malformed values observable.
 - Every nested operation produces either a typed value or one function-level control interruption.
@@ -59,7 +59,7 @@ still owns contextual numeric type, sign, range, and checked arithmetic.
 - Each completed query value is allocated once and shared across every dependent request. The
   query has no `Clone` implementation, so a semantic construction cannot fork a second memoization
   authority or copy a large frozen aggregate on each dependency edge.
-- Constant plans freeze reference edges once during planning. Evaluation requests those edges
+- Expression-tree constant plans freeze reference edges once during planning. Evaluation requests those edges
   through the query and does not construct a separate dependency-order traversal.
 - The syntax-owned expression planner is an early structural service only. Ordinary constant and
   static initializers reach execution through checked initializer plans, so adding calls does not
@@ -90,15 +90,18 @@ the affected path, preserving independent value semantics and the identity of al
 Frozen before/after effects transport ownership, assemble records and perform actual sparse cleanup.
 Taking inputs are protected before retirement; read/edit inputs bind addresses after retained
 caller temporaries exist. Ordinary calls execute every time, including unit-returning editing
-calls. Only completed immutable initializer values are cached, through the common `DependencyQuery`
-authority. Frozen authored dependencies are requested before execution, including references in
-unevaluated branches. A callable recursion cycle alone is not an initializer dependency cycle.
-The executor consumes that query to freeze its value set rather than maintaining a second cache. Failed active requests clear their
-frames and dependency activity; they cannot publish a partial result or leave a false cycle.
+calls. The executor performs only closed execution; checking owns required value requests and
+caches completed values through the common `DependencyQuery`. Unresolved declaration references
+cannot enter a stateful plan. Frozen source dependencies, including unevaluated authored references,
+are resolved before a plan executes. Callable recursion remains ordinary graph execution.
 
-Execution counts actions, resource effects, frozen dependency requests and control transitions
-against the shared deterministic limit contract, and bounds invocation/dependency depth. Arithmetic, dependency cycles, operation budgets and
-call-depth failures retain code/action identities and the call path for checking-owned diagnostics.
+`state::Budget` owns one remaining-work counter across dependency preparation and nested closed
+executions. Actions, resource effects and control transitions consume it without resetting for a
+callee. The dependency query exposes its own active depth, rather than asking checking to maintain
+a second stack count; the executor combines suspended depth with invocation frames. Arithmetic,
+operation-budget and call-depth failures retain code/action identities and the call path. A failed
+execution clears its frames and cannot return a partly initialized value. No ordinary call or
+initializer cache is maintained by this executor.
 The executor does not prove source access safety, choose another operation, perform final source
 publication or serialize a runtime object. Checking's
 [initializer boundary](../nocter-checking/README.md#required-private-initializers) owns source

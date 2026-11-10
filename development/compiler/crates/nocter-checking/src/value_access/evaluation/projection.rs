@@ -419,10 +419,6 @@ impl Builder<'_, '_> {
             .clone();
         let destination = self.holder(Holder::Expression(id))?;
         Ok(match kind {
-            ExpressionKind::Constant(initializer) => plan::Operation::Constant {
-                destination,
-                initializer,
-            },
             ExpressionKind::Integer(v) => plan::Operation::Literal {
                 destination,
                 value: plan::Value::I32(v),
@@ -583,7 +579,6 @@ impl Builder<'_, '_> {
             result: self
                 .types
                 .get(self.program, self.query.typed().result_data())?,
-            dependencies: Box::new([]),
             initializer: self
                 .program
                 .callables()
@@ -637,20 +632,12 @@ fn binary(
         right,
     })
 }
-pub(super) struct Prepared {
-    pub(super) program: plan::Program,
-    pub(super) sources: std::collections::BTreeSet<AccessCallableId>,
-}
 pub(super) fn prepare(
     program: &Program,
     bodies: &BTreeMap<AccessCallableId, flow::Query>,
-) -> Result<Prepared> {
-    let mut pending = program
-        .callables()
-        .iter()
-        .filter_map(|(id, c)| (c.kind() == CallableKind::ConstantInitializer).then_some(id))
-        .collect::<Vec<_>>();
-    let mut dependencies = super::dependencies::collect(program, bodies)?;
+    root: AccessCallableId,
+) -> Result<plan::Program> {
+    let mut pending = vec![root];
     let mut types = Types::default();
     let mut plans = BTreeMap::new();
     while let Some(id) = pending.pop() {
@@ -658,7 +645,7 @@ pub(super) fn prepare(
             continue;
         }
         let query = bodies.get(&id).ok_or(INVALID)?;
-        let mut plan = Builder {
+        let plan = Builder {
             query,
             program,
             types: &mut types,
@@ -666,26 +653,14 @@ pub(super) fn prepare(
             keys: BTreeMap::new(),
         }
         .build()?;
-        if plan.initializer {
-            plan.dependencies = dependencies.edges.remove(&id).ok_or(INVALID)?;
-        }
         for (_, point) in plan.points.iter() {
             for action in &point.actions {
-                match action.operation {
-                    plan::Operation::Call { target, .. }
-                    | plan::Operation::Constant {
-                        initializer: target,
-                        ..
-                    } => pending.push(target),
-                    _ => {}
+                if let plan::Operation::Call { target, .. } = action.operation {
+                    pending.push(target);
                 }
             }
         }
         plans.insert(id, plan);
     }
-    let program = plan::Program::new(types.values, plans).map_err(|_| INVALID)?;
-    Ok(Prepared {
-        program,
-        sources: dependencies.sources,
-    })
+    plan::Program::new(types.values, plans).map_err(|_| INVALID)
 }

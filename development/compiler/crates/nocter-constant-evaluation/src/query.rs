@@ -121,6 +121,13 @@ where
             .count()
     }
 
+    /// Number of pending dependency computations, including the current computation.
+    /// Consumers use this same stack authority when sharing a depth budget with execution.
+    #[must_use]
+    pub fn active_depth(&self) -> usize {
+        self.stack.len()
+    }
+
     /// Consumes the authority and returns exactly its completed immutable values.
     ///
     /// Active states cannot survive an externally observable `resolve` call, and failed branches
@@ -228,6 +235,7 @@ mod tests {
             Err(DependencyQueryError::Computation(1))
         );
         assert_eq!(query.complete_len(), 0);
+        assert_eq!(query.active_depth(), 0);
 
         computation.reject = None;
         assert_eq!(query.resolve(&mut computation, 0).as_deref(), Ok(&1));

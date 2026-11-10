@@ -157,6 +157,11 @@ impl BodyDiagnostic {
 #[derive(Debug)]
 pub enum Failure {
     UnknownCallable,
+    /// The unpublished body draft needs a completed declaration value before typing continues.
+    RequiredConstant {
+        initializer: AccessCallableId,
+        origin: nocter_syntax::SyntaxOrigin,
+    },
     InconsistentSyntax,
     Rejected(Box<BodyDiagnostic>),
     ChangedAuthority,
@@ -194,14 +199,21 @@ pub struct Query {
     origins: Origins,
 }
 impl Query {
+    fn freeze_constant_sources(&mut self, source: &Arc<source_dependencies::SourceDependencies>) {
+        self.evaluation_source = Some(source.clone());
+        for nested in self.closures.values_mut() {
+            Arc::make_mut(&mut nested.typed).freeze_constant_sources(source);
+        }
+    }
     /// Type-checks one body, without certifying its memory safety or executable validity.
     /// # Errors
-    /// Rejects structural typing/name/call errors or an inconsistent source pairing.
+    /// Rejects structural typing/name/call errors or an inconsistent source pairing. A missing
+    /// declaration value is a typed dependency request; complete Unit preparation resolves it.
     pub fn prepare(
         context: &DeclarationContext<'_>,
         callable: AccessCallableId,
     ) -> Result<Self, Failure> {
-        checker::prepare(context, callable)
+        checker::prepare(context, callable, &())
     }
     #[must_use]
     pub const fn results_closed(&self) -> bool {

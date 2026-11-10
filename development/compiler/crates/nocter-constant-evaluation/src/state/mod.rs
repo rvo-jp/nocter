@@ -2,7 +2,7 @@
 mod execution;
 mod memory;
 mod validation;
-pub use execution::{Error, Executor, Rule};
+pub use execution::{Budget, Error, Executor, Rule};
 use nocter_model::{AccessCallableId, AccessFlowPointId, Arena};
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -58,29 +58,10 @@ impl Place {
     }
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Site {
-    Action {
-        code: AccessCallableId,
-        point: AccessFlowPointId,
-        action: usize,
-    },
-    Expression {
-        code: AccessCallableId,
-        expression: nocter_model::AccessExpressionId,
-    },
-}
-impl Site {
-    #[must_use]
-    pub const fn code(self) -> AccessCallableId {
-        match self {
-            Self::Action { code, .. } | Self::Expression { code, .. } => code,
-        }
-    }
-}
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Dependency {
-    pub initializer: AccessCallableId,
-    pub through: Box<[Site]>,
+pub struct Site {
+    pub code: AccessCallableId,
+    pub point: AccessFlowPointId,
+    pub action: usize,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Effect {
@@ -114,10 +95,6 @@ pub enum Operation {
     Literal {
         destination: usize,
         value: Value,
-    },
-    Constant {
-        destination: usize,
-        initializer: AccessCallableId,
     },
     Alias {
         destination: usize,
@@ -182,7 +159,6 @@ pub struct Plan {
     pub inputs: Box<[(usize, nocter_model::ValueInputOperation)]>,
     pub result: usize,
     pub initializer: bool,
-    pub dependencies: Box<[Dependency]>,
     pub entry: AccessFlowPointId,
     pub points: Arena<AccessFlowPointId, Point>,
 }

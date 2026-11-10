@@ -94,7 +94,8 @@ The evaluator must preserve edit-input writes, aliases, partial state and once-o
 Compare repeated calls with equal scalar input values but different mutable places, selected enum
 payloads, zero-count repetition and temporary escape. Result-only memoization must not erase
 state transitions. Eligibility, arithmetic failure, evaluator budgets and final serialization need
-distinct source causes. The bounded private native path does not establish this const support.
+distinct source causes. Existing private scalar execution does not establish conditional generic
+eligibility or aggregate/static publication.
 
 ## Executable Lifecycle and Target Admission
 

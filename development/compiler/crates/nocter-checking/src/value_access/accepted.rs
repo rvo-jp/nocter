@@ -72,83 +72,21 @@ impl Unit {
         context: &DeclarationContext<'_>,
         limits: nocter_constant_evaluation::CompileTimeEvaluationLimits,
     ) -> Result<Self, Failure> {
-        let mut queries = BTreeMap::new();
-        for (callable, _) in context.program().callables().iter() {
-            let body = TypedQuery::prepare(context, callable)
-                .map_err(|failure| Failure::Body { callable, failure })?;
-            queries.insert(callable, body);
-        }
-        let program = super::types::canonicalize(context, &mut queries)?;
-        let mut controls = queries
-            .into_iter()
-            .map(|(id, body)| {
-                Ok((
-                    id,
-                    flow::Control::prepare(Arc::new(body)).map_err(Failure::Integrity)?,
-                ))
-            })
-            .collect::<Result<BTreeMap<_, _>, Failure>>()?;
-        let result_evidence = super::results::close(context, &mut controls)?;
-        let verified = result_evidence
-            .verify(context)
-            .map_err(|_| Failure::Integrity(flow::IntegrityError::InconsistentTypedBody))?;
-        let mut bodies = BTreeMap::new();
-        let mut closures = BTreeMap::new();
-        for (callable, control) in controls {
-            if control.typed.code() != nocter_model::ValueCode::Declaration(callable) {
-                return Err(Failure::Integrity(
-                    flow::IntegrityError::InconsistentTypedBody,
-                ));
-            }
-            for (&id, nested) in &control.typed.closures {
-                if nested.typed.code() != nocter_model::ValueCode::Closure(id) {
-                    return Err(Failure::Integrity(
-                        flow::IntegrityError::InconsistentTypedBody,
-                    ));
-                }
-                let checked = nested.clone().finish().map_err(Failure::Integrity)?;
-                let checked = admit(checked, &verified)?;
-                closures.insert(id, checked);
-            }
-            let query = control.finish().map_err(Failure::Integrity)?;
-            let query = admit(query, &verified)?;
-            bodies.insert(callable, query);
-        }
-        for (&callable, query) in &bodies {
-            if program
-                .callables()
-                .get(callable)
-                .ok_or(Failure::Integrity(
-                    flow::IntegrityError::InconsistentTypedBody,
-                ))?
-                .compile_time()
-                == nocter_model::CompileTimeGuarantee::Evaluatable
-                && let Some(violation) =
-                    super::constant::check(query).map_err(Failure::Integrity)?
-            {
-                let bound = query
-                    .bind_verified(&verified)
-                    .map_err(|failure| Failure::Body { callable, failure })?;
-                let diagnostic = violation
-                    .project(&bound)
-                    .map_err(|failure| Failure::Body { callable, failure })?;
-                return Err(Failure::Const {
-                    callable,
-                    diagnostic: Box::new(diagnostic),
-                });
+        let evaluation = super::evaluation::prepare(context, limits)?;
+        let mut queries = evaluation.queries;
+        if !evaluation.values.is_empty() {
+            for query in queries.values_mut() {
+                query.freeze_constant_sources(&evaluation.dependencies);
             }
         }
-        let evaluation = super::evaluation::evaluate(context, &program, &bodies, limits)?;
-        let constants = evaluation.values;
-        if !constants.is_empty() {
-            for query in bodies.values_mut().chain(closures.values_mut()) {
-                query
-                    .materialize_constants(&constants, &evaluation.dependencies)
-                    .map_err(Failure::Integrity)?;
-            }
-        }
+        let Checked {
+            program,
+            bodies,
+            closures,
+            result_evidence,
+        } = check_queries(context, queries)?;
         Ok(Self {
-            constants,
+            constants: evaluation.values,
             closures,
             program,
             header: context.program_handle(),
@@ -232,6 +170,83 @@ impl Unit {
             .collect::<Result<_, BodyFailure>>()?;
         Ok(Context { unit: self, bodies })
     }
+}
+pub(super) struct Checked {
+    pub(super) program: Arc<Program>,
+    pub(super) bodies: BTreeMap<AccessCallableId, flow::Query>,
+    closures: BTreeMap<nocter_model::ValueClosure, flow::Query>,
+    result_evidence: Arc<super::results::Evidence>,
+}
+/// The same ordinary acceptance authority serves required const closures and final whole-unit closure.
+pub(super) fn check_queries(
+    context: &DeclarationContext<'_>,
+    mut queries: BTreeMap<AccessCallableId, TypedQuery>,
+) -> Result<Checked, Failure> {
+    let program = super::types::canonicalize(context, &mut queries)?;
+    let mut controls = queries
+        .into_iter()
+        .map(|(id, body)| {
+            Ok((
+                id,
+                flow::Control::prepare(Arc::new(body)).map_err(Failure::Integrity)?,
+            ))
+        })
+        .collect::<Result<BTreeMap<_, _>, Failure>>()?;
+    let result_evidence = super::results::close(context, &mut controls)?;
+    let verified = result_evidence
+        .verify(context)
+        .map_err(|_| Failure::Integrity(flow::IntegrityError::InconsistentTypedBody))?;
+    let mut bodies = BTreeMap::new();
+    let mut closures = BTreeMap::new();
+    for (callable, control) in controls {
+        if control.typed.code() != nocter_model::ValueCode::Declaration(callable) {
+            return Err(Failure::Integrity(
+                flow::IntegrityError::InconsistentTypedBody,
+            ));
+        }
+        for (&id, nested) in &control.typed.closures {
+            if nested.typed.code() != nocter_model::ValueCode::Closure(id) {
+                return Err(Failure::Integrity(
+                    flow::IntegrityError::InconsistentTypedBody,
+                ));
+            }
+            let checked = nested.clone().finish().map_err(Failure::Integrity)?;
+            let checked = admit(checked, &verified)?;
+            closures.insert(id, checked);
+        }
+        let query = control.finish().map_err(Failure::Integrity)?;
+        let query = admit(query, &verified)?;
+        bodies.insert(callable, query);
+    }
+    for (&callable, query) in &bodies {
+        if program
+            .callables()
+            .get(callable)
+            .ok_or(Failure::Integrity(
+                flow::IntegrityError::InconsistentTypedBody,
+            ))?
+            .compile_time()
+            == nocter_model::CompileTimeGuarantee::Evaluatable
+            && let Some(violation) = super::constant::check(query).map_err(Failure::Integrity)?
+        {
+            let bound = query
+                .bind_verified(&verified)
+                .map_err(|failure| Failure::Body { callable, failure })?;
+            let diagnostic = violation
+                .project(&bound)
+                .map_err(|failure| Failure::Body { callable, failure })?;
+            return Err(Failure::Const {
+                callable,
+                diagnostic: Box::new(diagnostic),
+            });
+        }
+    }
+    Ok(Checked {
+        program,
+        bodies,
+        closures,
+        result_evidence,
+    })
 }
 fn admit(
     query: flow::Query,

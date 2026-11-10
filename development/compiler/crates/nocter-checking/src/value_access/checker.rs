@@ -29,6 +29,7 @@ pub(super) struct Checker<'a, 's> {
     pub environment: Option<super::BodyInput>,
     pub inputs: Vec<super::BodyInput>,
     pub context: &'a DeclarationContext<'s>,
+    pub values: &'a dyn super::evaluation::Values,
     pub body_bytes: Arc<[u8]>,
     pub result: TypeId,
     pub types: nocter_declarations::value_access::BodyTypes,
@@ -50,6 +51,7 @@ pub(super) struct Checker<'a, 's> {
 pub(super) fn prepare(
     context: &DeclarationContext<'_>,
     callable: AccessCallableId,
+    values: &dyn super::evaluation::Values,
 ) -> Result<Query, Failure> {
     let declaration = context
         .program()
@@ -82,6 +84,7 @@ pub(super) fn prepare(
         Arc::new(projection),
         body_bytes,
         nocter_model::ValueCode::Declaration(callable),
+        values,
     );
     for (&parameter, &token) in declaration.parameters().iter().zip(source.parameters()) {
         let parameter_declaration = context
@@ -132,10 +135,12 @@ impl<'a, 's> Checker<'a, 's> {
         projection: Arc<BodySyntaxProjection>,
         body_bytes: Arc<[u8]>,
         code: nocter_model::ValueCode,
+        values: &'a dyn super::evaluation::Values,
     ) -> Self {
         let pending_results = super::results::is_result(types.program(), result);
         Self {
             context,
+            values,
             result,
             types,
             projection,

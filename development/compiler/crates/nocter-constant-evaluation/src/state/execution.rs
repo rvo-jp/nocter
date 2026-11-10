@@ -3,10 +3,7 @@ use super::{
     memory::{Cell, Frame, Memory},
     validation,
 };
-use crate::{
-    CompileTimeEvaluationLimits, ConstantScalarType, DependencyComputation, DependencyQuery,
-    DependencyQueryError, scalar,
-};
+use crate::{CompileTimeEvaluationLimits, ConstantScalarType, scalar};
 use nocter_model::{AccessCallableId, ConstantValue, ValueInputOperation};
 use std::{collections::BTreeSet, sync::Arc};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -15,7 +12,6 @@ pub enum Rule {
     ArithmeticFailure,
     StepLimit,
     CallDepthLimit,
-    DependencyCycle,
     ReachedUnreachable,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -24,167 +20,88 @@ pub struct Error {
     pub site: Option<Site>,
     pub code: AccessCallableId,
     pub trace: Box<[Site]>,
-    pub dependency_cycle: Box<[AccessCallableId]>,
 }
-#[derive(Debug)]
-enum Fault {
-    Rule(Rule),
-    Cycle(Box<[AccessCallableId]>),
-}
-impl From<Rule> for Fault {
-    fn from(rule: Rule) -> Self {
-        Self::Rule(rule)
-    }
-}
-impl Fault {
-    fn from_query(error: DependencyQueryError<AccessCallableId, Rule>) -> Self {
-        match error {
-            DependencyQueryError::Cycle(path) => Self::Cycle(path),
-            DependencyQueryError::Computation(rule) => Self::Rule(rule),
-        }
-    }
-    fn into_query(self) -> DependencyQueryError<AccessCallableId, Rule> {
-        match self {
-            Self::Rule(rule) => DependencyQueryError::Computation(rule),
-            Self::Cycle(path) => DependencyQueryError::Cycle(path),
-        }
-    }
-}
-type Result<T> = std::result::Result<T, Fault>;
-type Dependencies = DependencyQuery<AccessCallableId, Value>;
-/// One execution transaction. Ordinary calls preserve their state; immutable initializers use
-/// the common dependency protocol, including frozen references in unevaluated source branches.
-pub struct Executor<'a> {
-    runtime: Runtime<'a>,
-    dependencies: Dependencies,
-}
-struct Runtime<'a> {
-    program: &'a Program,
+type Result<T> = std::result::Result<T, Rule>;
+/// One deterministic work budget shared by dependency preparation and its closed executions.
+pub struct Budget {
     limits: CompileTimeEvaluationLimits,
     remaining: u64,
+}
+impl Budget {
+    #[must_use]
+    pub fn new(limits: CompileTimeEvaluationLimits) -> Self {
+        Self {
+            limits,
+            remaining: limits.steps().get(),
+        }
+    }
+    #[must_use]
+    pub const fn limits(&self) -> CompileTimeEvaluationLimits {
+        self.limits
+    }
+    /// # Errors
+    /// Reports exhausted deterministic work without replenishing a nested request's budget.
+    pub fn step(&mut self) -> Result<()> {
+        self.remaining = self.remaining.checked_sub(1).ok_or(Rule::StepLimit)?;
+        Ok(())
+    }
+}
+/// Executes a closed graph only. Checking owns dependency requests and completed values.
+pub struct Executor<'a, 'budget> {
+    program: &'a Program,
+    budget: &'budget mut Budget,
+    suspended_depth: usize,
     memory: Memory,
-    pending_initializers: usize,
     site: Option<Site>,
     failed_site: Option<Site>,
     trace: Vec<Site>,
 }
-impl<'a> Executor<'a> {
+impl<'a, 'budget> Executor<'a, 'budget> {
     #[must_use]
-    pub fn new(program: &'a Program, limits: CompileTimeEvaluationLimits) -> Self {
+    pub fn new(program: &'a Program, budget: &'budget mut Budget, suspended_depth: usize) -> Self {
         Self {
-            dependencies: Dependencies::default(),
-            runtime: Runtime {
-                program,
-                limits,
-                remaining: 0,
-                memory: Memory::default(),
-                pending_initializers: 0,
-                site: None,
-                failed_site: None,
-                trace: Vec::new(),
-            },
+            program,
+            budget,
+            suspended_depth,
+            memory: Memory::default(),
+            site: None,
+            failed_site: None,
+            trace: Vec::new(),
         }
     }
-    /// Consume the query authority after required requests, retaining its single frozen value set.
-    #[must_use]
-    pub fn into_completed(self) -> std::collections::BTreeMap<AccessCallableId, Arc<Value>> {
-        self.dependencies.into_completed().into_iter().collect()
-    }
     /// # Errors
-    /// Returns the failing action/dependency and never publishes a partly initialized value.
+    /// Reports a failed closed initializer with its exact operation and call path.
     pub fn evaluate_initializer(
         &mut self,
         code: AccessCallableId,
     ) -> std::result::Result<Arc<Value>, Error> {
-        self.runtime.remaining = self.runtime.limits.steps().get();
-        self.runtime.site = None;
-        self.runtime.failed_site = None;
-        self.runtime.trace.clear();
-        self.runtime
-            .constant(&mut self.dependencies, code)
-            .map_err(|fault| {
-                let (rule, dependency_cycle) = match fault {
-                    Fault::Rule(rule) => (rule, Box::new([]) as Box<[_]>),
-                    Fault::Cycle(path) => (Rule::DependencyCycle, path),
-                };
-                Error {
-                    rule,
-                    site: self.runtime.failed_site.or(self.runtime.site),
-                    code,
-                    trace: self.runtime.trace.clone().into(),
-                    dependency_cycle,
-                }
-            })
-    }
-}
-impl DependencyComputation<AccessCallableId, Value, Rule> for Runtime<'_> {
-    fn compute(
-        &mut self,
-        query: &mut Dependencies,
-        code: AccessCallableId,
-    ) -> std::result::Result<Value, DependencyQueryError<AccessCallableId, Rule>> {
-        self.initialize(query, code).map_err(Fault::into_query)
-    }
-}
-impl Runtime<'_> {
-    fn initialize(&mut self, query: &mut Dependencies, code: AccessCallableId) -> Result<Value> {
-        let plan = self.program.plans.get(&code).ok_or(Rule::InvalidPlan)?;
-        if !plan.initializer {
-            return Err(Rule::InvalidPlan.into());
-        }
-        if self.memory.frames.len() + self.pending_initializers
-            >= self.limits.call_depth().get() as usize
-        {
-            return Err(Rule::CallDepthLimit.into());
-        }
-        self.pending_initializers += 1;
-        let result: Result<()> = (|| {
-            for dependency in &plan.dependencies {
-                let saved = self.site;
-                self.site = dependency.through.last().copied().or(saved);
-                let result = self
-                    .tick()
-                    .and_then(|()| self.constant(query, dependency.initializer));
-                if result.is_err() {
-                    if self.failed_site.is_none() {
-                        self.failed_site = self.site;
-                    }
-                    for &site in dependency.through.iter().rev() {
-                        if Some(site) != self.failed_site && self.trace.last() != Some(&site) {
-                            self.trace.push(site);
-                        }
-                    }
-                }
-                self.site = saved;
-                result?;
-            }
-            Ok(())
-        })();
-        self.pending_initializers -= 1;
-        result?;
-        self.invoke(query, code, &[]).map(Arc::unwrap_or_clone)
+        self.site = None;
+        self.failed_site = None;
+        self.trace.clear();
+        let result = if self.program.plans.get(&code).is_some_and(|p| p.initializer) {
+            self.invoke(code, &[])
+        } else {
+            Err(Rule::InvalidPlan)
+        };
+        result.map_err(|rule| Error {
+            rule,
+            site: self.failed_site.or(self.site),
+            code,
+            trace: self.trace.clone().into(),
+        })
     }
     fn tick(&mut self) -> Result<()> {
-        self.remaining = self.remaining.checked_sub(1).ok_or(Rule::StepLimit)?;
-        Ok(())
+        self.budget.step()
     }
-    fn constant(&mut self, query: &mut Dependencies, code: AccessCallableId) -> Result<Arc<Value>> {
-        query.resolve(self, code).map_err(Fault::from_query)
-    }
-    fn invoke(
-        &mut self,
-        query: &mut Dependencies,
-        code: AccessCallableId,
-        inputs: &[Cell],
-    ) -> Result<Arc<Value>> {
-        if self.memory.frames.len() + self.pending_initializers
-            >= self.limits.call_depth().get() as usize
+    fn invoke(&mut self, code: AccessCallableId, inputs: &[Cell]) -> Result<Arc<Value>> {
+        if self.memory.frames.len() + self.suspended_depth
+            >= self.budget.limits.call_depth().get() as usize
         {
-            return Err(Rule::CallDepthLimit.into());
+            return Err(Rule::CallDepthLimit);
         }
         let plan = self.program.plans.get(&code).ok_or(Rule::InvalidPlan)?;
         if inputs.len() != plan.inputs.len() {
-            return Err(Rule::InvalidPlan.into());
+            return Err(Rule::InvalidPlan);
         }
         let mut frame = Frame {
             slots: plan.slots.clone(),
@@ -194,7 +111,7 @@ impl Runtime<'_> {
             match (operation, input) {
                 (ValueInputOperation::Take, Cell::Data(value)) => {
                     if !validation::value(self.program, plan.slots[slot].data, value) {
-                        return Err(Rule::InvalidPlan.into());
+                        return Err(Rule::InvalidPlan);
                     }
                     frame.owned.insert(slot, BTreeSet::new());
                 }
@@ -204,17 +121,17 @@ impl Runtime<'_> {
                         plan.slots[slot].data,
                         &self.memory.read(address)?,
                     ) {
-                        return Err(Rule::InvalidPlan.into());
+                        return Err(Rule::InvalidPlan);
                     }
                 }
-                _ => return Err(Rule::InvalidPlan.into()),
+                _ => return Err(Rule::InvalidPlan),
             }
             frame.cells.insert(slot, input.clone());
         }
         let index = self.memory.frames.len();
         self.memory.frames.push(frame);
         let saved = self.site;
-        let result = self.run(query, code, plan, index);
+        let result = self.run(code, plan, index);
         if result.is_err() && self.failed_site.is_none() {
             self.failed_site = self.site;
         }
@@ -227,24 +144,18 @@ impl Runtime<'_> {
         self.memory.frames.pop();
         result
     }
-    fn run(
-        &mut self,
-        query: &mut Dependencies,
-        code: AccessCallableId,
-        plan: &Plan,
-        frame: usize,
-    ) -> Result<Arc<Value>> {
+    fn run(&mut self, code: AccessCallableId, plan: &Plan, frame: usize) -> Result<Arc<Value>> {
         let mut point = plan.entry;
         loop {
             let block = plan.points.get(point).ok_or(Rule::InvalidPlan)?;
             for (action, item) in block.actions.iter().enumerate() {
-                self.site = Some(Site::Action {
+                self.site = Some(Site {
                     code,
                     point,
                     action,
                 });
                 self.tick()?;
-                self.action(query, frame, item)?;
+                self.action(frame, item)?;
             }
             self.tick()?;
             match &block.terminator {
@@ -252,7 +163,7 @@ impl Runtime<'_> {
                 Terminator::Branch { condition, yes, no } => {
                     let value = self.read(frame, condition)?;
                     let Value::Bool(value) = value.as_ref() else {
-                        return Err(Rule::InvalidPlan.into());
+                        return Err(Rule::InvalidPlan);
                     };
                     point = if *value { *yes } else { *no };
                 }
@@ -264,27 +175,26 @@ impl Runtime<'_> {
                             .get(&address.slot)
                             .is_none_or(|holes| !holes.is_empty())
                     {
-                        return Err(Rule::InvalidPlan.into());
+                        return Err(Rule::InvalidPlan);
                     }
                     let value = self.memory.read(&address)?;
                     if !validation::value(self.program, plan.result, &value) {
-                        return Err(Rule::InvalidPlan.into());
+                        return Err(Rule::InvalidPlan);
                     }
                     return Ok(value);
                 }
-                Terminator::Unreachable => return Err(Rule::ReachedUnreachable.into()),
+                Terminator::Unreachable => return Err(Rule::ReachedUnreachable),
             }
         }
     }
     fn read(&self, frame: usize, place: &Place) -> Result<Arc<Value>> {
-        Ok(self.memory.read(&self.memory.address(frame, place)?)?)
+        self.memory.read(&self.memory.address(frame, place)?)
     }
     fn write(&mut self, frame: usize, place: &Place, value: Arc<Value>) -> Result<()> {
-        Ok(self
-            .memory
-            .store(&self.memory.address(frame, place)?, value)?)
+        self.memory
+            .store(&self.memory.address(frame, place)?, value)
     }
-    fn action(&mut self, query: &mut Dependencies, frame: usize, action: &Action) -> Result<()> {
+    fn action(&mut self, frame: usize, action: &Action) -> Result<()> {
         let owners = &self.memory.frames[frame].owned;
         let alternative = action
             .alternatives
@@ -318,7 +228,7 @@ impl Runtime<'_> {
             self.tick()?;
             self.effect(frame, effect)?;
         }
-        self.operation(query, frame, &action.operation, &taken)?;
+        self.operation(frame, &action.operation, &taken)?;
         for effect in &alternative.after {
             self.tick()?;
             self.effect(frame, effect)?;
@@ -327,7 +237,6 @@ impl Runtime<'_> {
     }
     fn operation(
         &mut self,
-        query: &mut Dependencies,
         frame: usize,
         op: &Operation,
         taken: &[Option<Arc<Value>>],
@@ -335,10 +244,6 @@ impl Runtime<'_> {
         let (destination, value) = match op {
             Operation::None => return Ok(()),
             Operation::Literal { destination, value } => (*destination, Arc::new(value.clone())),
-            Operation::Constant {
-                destination,
-                initializer,
-            } => (*destination, self.constant(query, *initializer)?),
             Operation::Alias {
                 destination,
                 source,
@@ -404,7 +309,7 @@ impl Runtime<'_> {
                 inputs,
             } => {
                 let inputs = self.inputs(frame, inputs, taken)?;
-                (*destination, self.invoke(query, *target, &inputs)?)
+                (*destination, self.invoke(*target, &inputs)?)
             }
         };
         self.write(frame, &Place::root(destination), value)
@@ -494,7 +399,7 @@ fn scalar_value(value: &Value) -> Result<(ConstantScalarType, ConstantValue)> {
             ConstantScalarType::Integer(nocter_model::BuiltinType::I32),
             ConstantValue::Integer(i128::from(*v)),
         )),
-        _ => Err(Rule::InvalidPlan.into()),
+        _ => Err(Rule::InvalidPlan),
     }
 }
 fn from_scalar(value: &ConstantValue) -> Result<Arc<Value>> {
@@ -502,8 +407,8 @@ fn from_scalar(value: &ConstantValue) -> Result<Arc<Value>> {
         ConstantValue::Bool(v) => Ok(Arc::new(Value::Bool(*v))),
         ConstantValue::Integer(v) => i32::try_from(*v)
             .map(|v| Arc::new(Value::I32(v)))
-            .map_err(|_| Rule::ArithmeticFailure.into()),
-        _ => Err(Rule::InvalidPlan.into()),
+            .map_err(|_| Rule::ArithmeticFailure),
+        _ => Err(Rule::InvalidPlan),
     }
 }
 const fn scalar_rule(error: scalar::ScalarEvaluationFailure) -> Rule {

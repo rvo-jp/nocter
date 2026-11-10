@@ -426,7 +426,6 @@ fn evaluate(
         | ExpressionKind::AdaptFunction { .. }
         | ExpressionKind::Select { .. }
         | ExpressionKind::Record { .. }
-        | ExpressionKind::Constant(_)
         | ExpressionKind::Integer(_)
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Unit

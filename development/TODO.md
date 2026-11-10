@@ -4,9 +4,8 @@
 
 1. Qualify [const source and conditional eligibility](design/compiler-realization.md#conditional-const-admission)
    beyond the [required scalar/unit initializer boundary](compiler/crates/nocter-checking/README.md#required-private-initializers)
-   by scheduling required values before affected typing/control products; the linked boundary
-   records a reproduced named-Boolean reachability gap. Then add aggregate final publication,
-   immutable statics, explicit compiler-memory budgets and early structural dependencies. Extend
+   with aggregate final publication, immutable statics, explicit compiler-memory budgets and early
+   structural dependencies. Extend
    symbolic conditions and exports as ordinary generic/witness schemas are admitted. Qualify
    comparison and typed literal/conversion/operator support against their owning contracts.
    Then close remaining expression/control, capability/library,

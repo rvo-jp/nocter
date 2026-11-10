@@ -1,4 +1,4 @@
-//! Source admission, not execution evidence: required initializers have no private evaluator yet.
+//! Definition-time source admission; required execution is covered by the initializer cases.
 use super::*;
 use crate::value_access::constant::{Diagnostic, Rule};
 use nocter_model::CompileTimeGuarantee;

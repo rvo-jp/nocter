@@ -46,18 +46,6 @@ pub(super) fn validate(program: &Program) -> Result<()> {
     Ok(())
 }
 fn validate_plan(program: &Program, plan: &super::Plan) -> Result<()> {
-    if !plan.initializer && !plan.dependencies.is_empty() {
-        return Err(INVALID);
-    }
-    for dependency in &plan.dependencies {
-        if !program
-            .plans
-            .get(&dependency.initializer)
-            .is_some_and(|p| p.initializer)
-        {
-            return Err(INVALID);
-        }
-    }
     if plan
         .slots
         .iter()
@@ -177,16 +165,6 @@ fn operation(program: &Program, plan: &super::Plan, op: &Operation) -> Result<()
             } else {
                 Err(INVALID)
             }
-        }
-        Operation::Constant {
-            destination,
-            initializer,
-        } => {
-            let target = program.plans.get(initializer).ok_or(INVALID)?;
-            if !target.initializer {
-                return Err(INVALID);
-            }
-            equal(slot(*destination)?.data, target.result)
         }
         Operation::Alias {
             destination,

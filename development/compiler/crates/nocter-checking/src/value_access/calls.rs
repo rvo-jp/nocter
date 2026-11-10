@@ -62,11 +62,26 @@ impl Checker<'_, '_> {
                 .get(target)
                 .ok_or(Failure::InconsistentSyntax)?
                 .result();
-            return self.emit(
-                node,
-                value_type(data, Mode::Own),
-                ExpressionKind::Constant(target),
-            );
+            let value = self.values.value(target).ok_or(Failure::RequiredConstant {
+                initializer: target,
+                origin: nocter_syntax::SyntaxOrigin::Node(node),
+            })?;
+            let kind = match (self.program().data_kind(data), value) {
+                (
+                    Some(nocter_model::BuiltinType::I32),
+                    nocter_constant_evaluation::state::Value::I32(value),
+                ) => ExpressionKind::Integer(*value),
+                (
+                    Some(nocter_model::BuiltinType::Bool),
+                    nocter_constant_evaluation::state::Value::Bool(value),
+                ) => ExpressionKind::Boolean(*value),
+                (
+                    Some(nocter_model::BuiltinType::Void),
+                    nocter_constant_evaluation::state::Value::Unit,
+                ) => ExpressionKind::Unit,
+                _ => return Err(Failure::InconsistentSyntax),
+            };
+            return self.emit(node, value_type(data, Mode::Own), kind);
         }
         self.place_value(node, Rule::TypeMismatch)
     }

@@ -57,6 +57,7 @@ impl Checker<'_, '_> {
             self.projection.clone(),
             self.body_bytes.clone(),
             nocter_model::ValueCode::Closure(closure),
+            self.values,
         );
         let environment = nested.locals.insert(Local {
             data,

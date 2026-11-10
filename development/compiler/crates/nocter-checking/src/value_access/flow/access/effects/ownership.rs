@@ -248,7 +248,6 @@ impl Context<'_, '_> {
             }
             ExpressionKind::Place(_) | ExpressionKind::Boundary { .. } => {}
             ExpressionKind::Function(_)
-            | ExpressionKind::Constant(_)
             | ExpressionKind::Integer(_)
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Unit

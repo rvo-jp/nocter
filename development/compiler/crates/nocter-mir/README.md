@@ -61,8 +61,9 @@ bindings. The result contains its runtime environment and closed bodies, with no
 storage reference. There is no separately pairable storage companion or released MirProgram adapter.
 
 `computation` consumes selected operation kinds and frozen call edges; it does not infer Copy,
-access, result witnesses or dispatch. Private required constants arrive as materialized literals;
-an unresolved initializer reference is an integrity failure, never a request for evaluation. `validate` checks closed representation, graph, signature,
+access, result witnesses or dispatch. Private required constants arrive as ordinary primitive
+literals; this product has no unresolved declaration-reference operation or evaluation service.
+`validate` checks closed representation, graph, signature,
 projection, primitive-operation and flag integrity before publication. It does not repeat source
 ownership analysis. The common Machine consumer lowers these closed bodies without a released
 MirProgram conversion.

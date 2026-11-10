@@ -29,7 +29,8 @@ Documentation generation compares the inventory with the public catalog in
 
 ## Invariants
 
-- One authored violation has one owning stage and stable diagnostic identity.
+- One authored violation has one owning stage and stable diagnostic identity. Adding causal notes
+  preserves its selected code, primary origin, help and repair capability.
 - An unregistered string cannot cross a compiler diagnostic boundary as a code.
 - Rendering cannot change whether compilation succeeds.
 - Missing source projection is an integrity failure, not permission to guess a range.

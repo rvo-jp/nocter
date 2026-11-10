@@ -45,6 +45,16 @@ fn private_scalar_computation_and_scoped_input_calls_execute_natively() {
             42,
         ),
         (
+            "constant-before-flow",
+            "const func decide(): bool { false }\nconst FLAG: bool = decide()\nconst func calculate(): i32 { let value = 42\nif FLAG { drop value }\nvalue }\nconst ANSWER: i32 = calculate()\nfunc run(): i32 { let value = ANSWER\nif FLAG { drop value }\nvalue }",
+            42,
+        ),
+        (
+            "constant-before-completion",
+            "const FLAG: bool = true\nfunc run(): i32 { while FLAG { return 42 } }",
+            42,
+        ),
+        (
             "const-in-capture",
             "const OFFSET: i32 = 40\nfunc run(): i32 { let value = 1\nlet action = (value;): i32 { OFFSET + value + 1 }\naction() }",
             42,

@@ -154,9 +154,7 @@ impl Builder<'_> {
                 action: SelectionAction::MovePayload,
                 ..
             } => return Ok(Vec::new()),
-            ExpressionKind::Constant(_)
-            | ExpressionKind::If { .. }
-            | ExpressionKind::Call { .. } => return Err(self.invalid()),
+            ExpressionKind::If { .. } | ExpressionKind::Call { .. } => return Err(self.invalid()),
         };
         Ok(vec![operation])
     }

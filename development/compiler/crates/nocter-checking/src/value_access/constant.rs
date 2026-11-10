@@ -112,8 +112,7 @@ fn operation_rule(
         ExpressionKind::Function(_)
         | ExpressionKind::Closure { .. }
         | ExpressionKind::AdaptFunction { .. } => Some(Rule::FunctionValue),
-        ExpressionKind::Constant(_)
-        | ExpressionKind::Integer(_)
+        ExpressionKind::Integer(_)
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Unit
         | ExpressionKind::Record { .. }

@@ -23,8 +23,10 @@ V2CoreUnit syntax + exact source
        immutable semantic program + neutral header surface + projection recipe
   -> exact-current context
        the same semantic program + current source/header/body binding
-  -> reusable typed-body query
-       same declaration authority + selected typed operations + body/source recipe
+  -> dependency-scheduled ordinary typed-body preparation
+       missing constant -> same ordinary checking of selected const closure -> closed execution
+       completed primitive values feed typing, completion and capture/control inference
+       successful body query -> same declaration authority + typed operations + source recipe
   -> canonical replay of body application types + complete body data projection
        shared declaration facts and one final type authority; exact header source binding retained
   -> source-neutral control/evaluation graph
@@ -34,7 +36,6 @@ V2CoreUnit syntax + exact source
   -> permission-demand liveness + alternative referent/access worlds
        + exact payload contracts + logical resource/cleanup transitions
   -> definition-time const-domain checks over selected bodies and resource operations
-  -> closed stateful plans + successful required initialization + literal materialization
   -> accepted private unit (all definitions validated; required values frozen)
   -> root-closed private InstanceProgram (selected concrete calls/data; no ABI or native admission)
   -> guarded private lifecycle schedules + initialization-bit recipes

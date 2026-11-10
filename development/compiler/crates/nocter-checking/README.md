@@ -92,8 +92,9 @@ diagnostics. Source projection is extended beside, never inside, semantic output
   that disposition directly when validating `notrap`.
 - Loop exits use the same flow join as branches. A while-condition false edge and each reachable
   `break` contribute explicit states; potentially zero-iteration loops retain their entry state.
-- Scalar literals retain intrinsic values, while references to declarations retain `ConstantId`;
-  checking never copies an evaluated declaration value into a checked body.
+- In the released checked-body representation, scalar literals retain intrinsic values and
+  declaration references retain `ConstantId`; evaluated declaration values are not copied into
+  those bodies. The private value-access representation has its separate initializer boundary below.
 - `ProgramEnvironment` carries the immutable structural-constant table selected with its graph.
   Body type construction reads only that narrow capability. Finalization executes checked
   initializer plans into the dense declaration-value table owned by `CompileTimeProgram`;
@@ -510,32 +511,45 @@ exclude those thunks. Their execution role grants no source return target: an in
 use `return` to leave its value-expression boundary. Nested source callables retain their own
 return targets. Runtime instance closure rejects an initializer as an entry root.
 
-`evaluation::projection` closes reachable const calls and initializer references from those checked
-control/resource products into the common evaluator's stateful plans. A separate projection of the
-same typed selections freezes authored constant dependencies through const callees, including dead
-branches; the common dependency query detects cycles without executing an unevaluated source
-operation. Ordinary recursive callable components remain valid. Each alternative preserves
-its sparse owning guard and exact before/computation/after phases. Resolved data/fields, operand
-snapshots, scoped aliases, input supply, protected returns and cleanup come from checking; the
-projector cannot repeat lookup, infer a move or select another target. All required initializers
-must succeed before Unit publication. Unsupported final type shapes reject before plan closure,
-so an interrupted opaque result cannot become an internal missing-shape failure. Cycles, arithmetic failure, action/call-depth budgets and
-unsupported final publication remain distinct diagnostic causes. The default limits use the shared
-evaluator contract; `prepare_with_limits` selects explicit deterministic budgets for a request.
+`evaluation::preparation` owns one common `DependencyQuery` for required values. The ordinary
+body checker requests a missing constant only after selecting its declaration identity. An
+unpublished draft stops at that request; preparation resolves the dependency and retries that
+draft through the same checker. Successful typed bodies are cached once. No provisional value,
+syntax dependency scanner, second source interpreter or completed-body retyping supplies a fact.
+Constant references become their validated primitive literals in ordinary expression checking,
+before conditional completion, reachable breaks, capture invocation inference or control freezing.
+All authored source remains structurally checked, including unevaluated branches. Selected const
+callees are prepared through all authored call edges; callable-only recursion remains a graph,
+while a constant reference requests a value and exposes an active declaration cycle.
+
+The same `accepted::check_queries` routine canonically replays and ordinarily validates a selected
+const closure before any execution, and later closes the complete Unit. Each temporary closure
+has one shared type authority. Only validated intrinsic scalar/unit values cross from required
+execution into further body preparation; temporary store-relative types or access evidence do not
+become the Unit's final authority. Final canonical replay still pairs every accepted body with
+that one authority. Definition-time operation checks remain independent of selected execution;
+cleanup-domain checks additionally consume actual ordinary resource obligations. All required
+values and every definition must succeed before Unit publication, including unused definitions.
+
+`evaluation::projection` closes the required root's reachable calls from those checked products
+into stateful evaluator plans. Each alternative preserves its sparse owning guard and exact
+before/computation/after phases. Resolved data/fields, scalar snapshots, aliases, input supply,
+protected returns and cleanup come from ordinary checking. The projector cannot repeat lookup,
+infer a move or select another target. The executor receives literals, not unresolved declaration
+references, and cannot request body checking. One work budget spans dependency preparation and
+nested executions; the dependency query's active stack and execution frames share the depth
+limit. Cycles, arithmetic failure, work/depth exhaustion and unsupported final publication retain
+distinct local diagnostics. `prepare_with_limits` supplies explicit deterministic limits.
 
 Final publication currently admits bool, i32 and unit values. Finite records participate as owned
 or scoped evaluator temporaries, including replacement and partial cleanup, but record constants,
-statics, arrays/tuples, explicit compiler-memory budgets, generic conditions and early structural type dependencies still require
-integration. General outcome/callback/resource evaluation is not admitted by this path.
+statics, arrays/tuples, explicit compiler-memory budgets, generic conditions and early structural
+type dependencies still require integration. General outcome/callback/resource evaluation is not
+admitted by this path. Draft preparation can repeat work before a missing dependency resolves;
+resumable checking and reusable closed const plans remain compilation-cost improvements, not
+permission to cache mutable call results or change source validity.
 
-Successful values are frozen once in the Unit. Materialization derives literal operations in the
-same typed expression identities and source recipes; control, types, access and resource products
-remain the already checked authority. Captured bodies receive the same transformation. The backend
-therefore receives values, never an initializer to execute or an evaluator to reopen. Required
-constant evaluation is separate from optional runtime optimization and does not remove ordinary
-runtime bodies for functions declared const.
-
-Computed constant facts do not yet participate in typing or control selection. For example:
+For example, named constant facts reach ordinary access and initialization checks:
 
 ```nocter
 const FLAG: bool = false
@@ -546,18 +560,17 @@ func run(): i32 {
 }
 ```
 
-This is conservatively rejected for a potentially uninitialized use, while replacing `FLAG` with
-`false` is accepted. Materialization currently follows flow admission. Closing this inference gap
-requires dependency-scheduled evaluation before the affected typing/control products are frozen;
-rewriting a predicate after ownership checking cannot establish the missing proof. This remains an
-implementation limit, not a source requirement to duplicate a constant's value.
+This is accepted like the literal condition. Setting FLAG to true rejects the later use. Known
+constant facts also reach loop completion and closure invocation inference, while dead source
+retains name, type and const-operation obligations. Required evaluation is separate from optional
+runtime optimization; runtime calls to const functions still execute their ordinary bodies.
 
-Folded queries share an exact-source guard over the initialization/callee bodies that supplied
-their values. A header-only cache hit cannot reuse those values after a dependency body changes,
-even through a standalone typed/flow source binding. `source_dependencies` owns that verification
-mechanism for both evaluator products and callable-result evidence; bytes are shared from the
-original checked bodies. Whole-unit binding still verifies every body before exposing a current
-projection. Ordinary calls have no result-only cache that could erase edit-input writes.
+The completed query is consumed into the Unit's sole frozen constant table. Bodies and captures
+share an exact-source guard over const initializer/callee definitions. Header reuse cannot reuse
+values or resulting control/access evidence after a supplying body changes, including through a
+standalone typed/flow source binding. `source_dependencies` owns that verification mechanism for
+both evaluator products and callable-result evidence. Whole-unit binding still verifies every
+body. Ordinary editing calls have no result-only cache that could erase writes.
 
 ## Owned Capture Bodies
 

@@ -198,6 +198,13 @@ impl SourceDiagnostic {
         &self.notes
     }
 
+    /// Attach a caller's causal context without reconstructing the selected diagnostic.
+    pub fn push_note(&mut self, note: DiagnosticNote) {
+        let mut notes = std::mem::take(&mut self.notes).into_vec();
+        notes.push(note);
+        self.notes = notes.into();
+    }
+
     #[must_use]
     pub fn help(&self) -> Option<&str> {
         self.details
@@ -229,7 +236,7 @@ mod tests {
             .unwrap();
         let tree = parse(sources.get(source).unwrap(), ParseGoal::SourceFile);
         let origin = SourceOrigin::from_node(&tree, tree.root_id()).unwrap();
-        let diagnostic = SourceDiagnostic::new(
+        let mut diagnostic = SourceDiagnostic::new(
             crate::DiagnosticCode::E0200,
             "enum must declare at least one variant",
             origin,
@@ -237,9 +244,11 @@ mod tests {
             Some("add a variant"),
         )
         .with_repair(DiagnosticRepair::ImplementMissingInterfaceMethod);
+        diagnostic.push_note(DiagnosticNote::new("dependency request", origin));
 
         assert_eq!(diagnostic.code(), "E0200");
         assert_eq!(diagnostic.notes()[0].message(), "related");
+        assert_eq!(diagnostic.notes()[1].message(), "dependency request");
         assert_eq!(diagnostic.help(), Some("add a variant"));
         assert_eq!(
             diagnostic.repair(),
