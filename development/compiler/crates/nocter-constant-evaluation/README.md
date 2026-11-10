@@ -56,6 +56,8 @@ still owns contextual numeric type, sign, range, and checked arithmetic.
   target floating behavior to one scalar operation implementation.
 - One dependency query owns absent, active, and completed key states. It memoizes shared
   dependencies, reports exact active cycles, and removes failed active branches before returning.
+- Its read-only active-key path lets consumers classify their own request roles for a shared
+  execution-depth budget without retaining a parallel stack; the query does not interpret those roles.
 - Each completed query value is allocated once and shared across every dependent request. The
   query has no `Clone` implementation, so a semantic construction cannot fork a second memoization
   authority or copy a large frozen aggregate on each dependency edge.

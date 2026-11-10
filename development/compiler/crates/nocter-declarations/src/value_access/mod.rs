@@ -32,7 +32,7 @@ pub use data::{DataReference, PayloadSchema, TupleData};
 use data::{data_reference, supported};
 pub use records::{Field, FieldDefinition, Record};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum DeclarationId {
     Callable(AccessCallableId),
     Record(NominalTypeId),

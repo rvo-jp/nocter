@@ -1,10 +1,12 @@
 //! Dependency-scheduled ordinary checking and required closed-plan execution.
+mod dependencies;
 mod preparation;
 mod projection;
 use super::accepted::Failure;
 use super::{Failure as BodyFailure, flow, source_origin};
 use nocter_constant_evaluation::state;
 use nocter_model::FrozenData;
+#[derive(Clone, Debug)]
 struct Completed {
     execution: state::Value,
     frozen: FrozenData,
@@ -144,9 +146,9 @@ impl Values for () {
         None
     }
 }
-impl Values for nocter_constant_evaluation::DependencyQuery<AccessCallableId, Completed> {
+impl Values for dependencies::Dependencies {
     fn value(&self, id: AccessCallableId) -> Option<&FrozenData> {
-        self.completed(&id).map(|value| &value.frozen)
+        dependencies::value(self, id).map(|value| &value.frozen)
     }
 }
 pub(super) struct Output {

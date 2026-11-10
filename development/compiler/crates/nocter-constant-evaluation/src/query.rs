@@ -127,6 +127,12 @@ where
     pub fn active_depth(&self) -> usize {
         self.stack.len()
     }
+    /// Read the exact pending request path, from outermost to current. Role-specific execution
+    /// budgets can count their own keys without maintaining a second dependency stack.
+    #[must_use]
+    pub fn active_keys(&self) -> impl DoubleEndedIterator<Item = &K> + ExactSizeIterator {
+        self.stack.iter()
+    }
 
     /// Consumes the authority and returns exactly its completed immutable values.
     ///
@@ -263,5 +269,29 @@ mod tests {
 
         assert_eq!(completed.get(&0).map(AsRef::as_ref), Some(&1));
         assert_eq!(completed.get(&1).map(AsRef::as_ref), Some(&1));
+    }
+
+    #[test]
+    fn active_keys_share_the_exact_query_path_and_disappear_on_completion() {
+        struct Paths(Vec<Vec<u8>>);
+        impl DependencyComputation<u8, (), ()> for Paths {
+            fn compute(
+                &mut self,
+                query: &mut DependencyQuery<u8, ()>,
+                key: u8,
+            ) -> Result<(), DependencyQueryError<u8, ()>> {
+                self.0.push(query.active_keys().copied().collect());
+                if key > 0 {
+                    query.resolve(self, key - 1)?;
+                }
+                Ok(())
+            }
+        }
+        let mut paths = Paths(Vec::new());
+        let mut query = DependencyQuery::default();
+        query.resolve(&mut paths, 2).unwrap();
+        assert_eq!(paths.0, [vec![2], vec![2, 1], vec![2, 1, 0]]);
+        assert_eq!(query.active_keys().len(), 0);
+        assert_eq!(query.complete_len(), 3);
     }
 }

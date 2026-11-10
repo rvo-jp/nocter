@@ -4,6 +4,45 @@ use crate::value_access::tests::{bound, input};
 use nocter_declarations::value_access::PayloadSchema;
 
 #[test]
+fn body_value_cycles_unwind_without_publishing_pending_body_or_value_facts() {
+    let (sources, tree) =
+        input("const func helper(): i32 { loop_value }\nconst loop_value: i32 = helper()");
+    let mut headers = declarations::Preparation::prepare(bound(&sources, &tree)).unwrap();
+    let mut preparation = Preparation::new(
+        headers.current(),
+        Headers::Publishing(&mut headers),
+        state::Limits::default(),
+    );
+    let program = preparation.context.program();
+    let helper = program
+        .resolve_code(program.symbols().get("helper").unwrap())
+        .unwrap();
+    let initializer = program
+        .resolve_code(program.symbols().get("loop_value").unwrap())
+        .unwrap();
+    let mut requests = Dependencies::default();
+    let Err(QueryError::Computation(Failure::Evaluation { diagnostic, .. })) =
+        preparation.body(&mut requests, helper)
+    else {
+        panic!("the unfinished body/value cycle must reject")
+    };
+    assert_eq!(diagnostic.rule(), Rule::DependencyCycle);
+    assert!(diagnostic.source().message().contains("body helper"));
+    assert!(diagnostic.source().message().contains("value loop_value"));
+    assert_eq!(requests.active_depth(), 0);
+    assert_eq!(requests.active_keys().len(), 0);
+    assert!(dependencies::body(&requests, helper).is_none());
+    // Its own typed body finished before closure requested helper. Retain that valid dependency;
+    // it grants neither helper-body completion nor initializer execution/whole-unit admission.
+    assert!(dependencies::body(&requests, initializer).is_some());
+    assert!(dependencies::value(&requests, initializer).is_none());
+    assert!(matches!(
+        requests.completed(&Request::Header(helper.into())),
+        Some(Fact::Header)
+    ));
+}
+
+#[test]
 fn required_values_execute_before_unrelated_headers_and_retain_their_successful_bodies() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -28,9 +67,14 @@ fn required_values_execute_before_unrelated_headers_and_retain_their_successful_
     let answer = code("ANSWER");
     let helper = code("helper");
     let unused = code("z_unused");
-    let mut values = Values::default();
-    let computed = values.resolve(&mut preparation, answer).unwrap();
-    assert_eq!(computed.frozen, state::Value::integer(42).freeze());
+    let mut requests = Dependencies::default();
+    let computed = requests
+        .resolve(&mut preparation, Request::Value(answer))
+        .unwrap();
+    let Fact::Value(computed_value) = &*computed else {
+        panic!("a value request must complete with value evidence")
+    };
+    assert_eq!(computed_value.frozen, state::Value::integer(42).freeze());
     assert_eq!(preparation.context.program().callables().len(), 2);
     assert!(
         preparation
@@ -42,24 +86,29 @@ fn required_values_execute_before_unrelated_headers_and_retain_their_successful_
     );
     assert!(preparation.context.program().records().is_empty());
     assert!(!preparation.context.program().headers_complete());
-    let original_body = preparation.queries[&helper].program.clone();
-    preparation.all(&mut values, &ids).unwrap();
+    let original_body = dependencies::body(&requests, helper)
+        .unwrap()
+        .program
+        .clone();
+    preparation.all(&mut requests, &ids).unwrap();
     assert!(Arc::ptr_eq(
         &computed,
-        &values.resolve(&mut preparation, answer).unwrap()
+        &requests
+            .resolve(&mut preparation, Request::Value(answer))
+            .unwrap()
     ));
     assert!(Arc::ptr_eq(
         &original_body,
-        &preparation.queries[&helper].program
+        &dependencies::body(&requests, helper).unwrap().program
     ));
     assert!(preparation.context.program().records().is_empty());
-    let output = preparation.finish(values);
+    let output = preparation.finish(requests).unwrap();
     let complete = headers.finish();
     let context = complete.bind(syntax).unwrap();
     assert!(context.program().headers_complete());
     assert_eq!(context.program().records().len(), 1);
     let unit = accepted::Unit::close_evaluation(&context, output).unwrap();
-    assert_eq!(unit.constant_value(answer), Some(&computed.frozen));
+    assert_eq!(unit.constant_value(answer), Some(&computed_value.frozen));
     assert_eq!(unit.bodies().len(), ids.len());
 }
 
@@ -75,28 +124,39 @@ fn successful_early_bodies_are_reused_and_their_closure_types_replay_after_late_
         Headers::Publishing(&mut headers),
         state::Limits::default(),
     );
-    preparation.require_header(ids[0].into()).unwrap();
+    let mut requests = Dependencies::default();
+    preparation
+        .require_header(&mut requests, ids[0].into())
+        .unwrap();
     assert_eq!(preparation.context.program().callables().len(), 1);
     assert!(preparation.context.program().records().is_empty());
     assert!(matches!(
         accepted::Unit::prepare(&preparation.context),
         Err(Failure::Integrity(_))
     ));
-    let mut values = Values::default();
-    preparation.body(&mut values, ids[0]).unwrap();
-    let original_program = preparation.queries[&ids[0]].program.clone();
-    preparation.require_header(ids[1].into()).unwrap();
+    preparation.body(&mut requests, ids[0]).unwrap();
+    let original_program = dependencies::body(&requests, ids[0])
+        .unwrap()
+        .program
+        .clone();
+    preparation
+        .require_header(&mut requests, ids[1].into())
+        .unwrap();
     assert!(
-        preparation.queries[&ids[0]]
+        dependencies::body(&requests, ids[0])
+            .unwrap()
             .bind(&preparation.context)
             .is_ok()
     );
-    preparation.all(&mut values, &ids).unwrap();
+    preparation.all(&mut requests, &ids).unwrap();
     assert!(
-        Arc::ptr_eq(&preparation.queries[&ids[0]].program, &original_program),
+        Arc::ptr_eq(
+            &dependencies::body(&requests, ids[0]).unwrap().program,
+            &original_program
+        ),
         "a successful body must not be checked again against the larger header view"
     );
-    let evaluation = preparation.finish(values);
+    let evaluation = preparation.finish(requests).unwrap();
     let headers = headers.finish();
     let context = headers.bind(syntax).unwrap();
     let unit = accepted::Unit::close_evaluation(&context, evaluation).unwrap();

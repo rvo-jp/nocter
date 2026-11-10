@@ -548,11 +548,14 @@ use `return` to leave its value-expression boundary. Nested source callables ret
 return targets. Runtime instance closure rejects an initializer as an entry root.
 
 `evaluation::preparation` owns the common coordinator for contract readiness, typed bodies and one
-`DependencyQuery` for required values. It accepts either a closed context or the exact-current
+`DependencyQuery` for header, typed-body and required-value requests. `dependencies` owns those
+disjoint key/fact roles; there is no parallel typed-body cache or active dependency stack. Header
+facts acknowledge the declaration owner's ready contracts without containing another program or
+type store. The coordinator accepts either a closed context or the exact-current
 declaration preparation. A missing callable/record contract advances the ready header view; a
 missing constant requests its value only after selecting its declaration identity. An unpublished
 draft stops at either request and retries through the same checker after its dependency is ready.
-Successful typed bodies remain in this coordinator's sole cache. No provisional value, syntax
+Successful typed bodies become completed facts in that same query. No provisional value, syntax
 dependency scanner, second source interpreter or completed-body retyping supplies a fact.
 Constant references become validated primitive literals or immutable frozen-aggregate expressions in
 ordinary expression checking,
@@ -563,8 +566,11 @@ while a constant reference requests a value and exposes an active declaration cy
 
 Required values can execute with unrelated callable/record contracts still unready. Every selected
 const body retains its origin header view until canonical replay and contributes its exact body
-bytes to source dependencies. Static requirements are still resolved from cached queries, so reuse
-cannot hide a value cycle or a changed supplying body. The same pass also checks ordinary and
+bytes to source dependencies. A body becomes complete only after its static-value requirements;
+re-entry into an unfinished body/value path reports the cycle at the responsible value reference.
+Already completed dependencies survive a failed request, while its active branches unwind without
+publishing unfinished facts. Callable-only recursion still closes through ready contracts and the
+ordinary selected call graph. The same pass also checks ordinary and
 unused definitions. Whole-unit closure requires every header, body and required value; selected
 const-closure acceptance never grants complete Unit admission. Source type normalization cannot
 yet request these values; header-dependent lengths remain a separate integration gate.
@@ -584,8 +590,10 @@ before/computation/after phases. Resolved data/fields, scalar snapshots, aliases
 protected returns and cleanup come from ordinary checking. The projector cannot repeat lookup,
 infer a move or select another target. The executor receives literals, not unresolved declaration
 references, and cannot request body checking. One work budget spans dependency preparation and
-nested executions; the dependency query's active stack and execution frames share the depth
-limit. A shared live-storage meter also covers nested execution and retained completed values;
+nested executions; pending value requests and execution frames share the depth limit. Header/body
+keys participate in cycle detection but do not add source execution-call depth. This role count
+reads the query's exact active path, without another stack or depth counter. A shared live-storage
+meter also covers nested execution and retained completed values;
 outer requests restart work without resetting storage. Its accounting contract belongs to the
 [evaluator](../nocter-constant-evaluation/README.md#live-working-storage). Cycles, arithmetic failure,
 work/depth/storage exhaustion and unsupported final publication retain
@@ -610,9 +618,9 @@ callable input or a source owner. `TypedBody::static_views` is the shared projec
 input-layout validation separately proves the declaration role, exact type, read-only kind and
 unique global key. Typing a static view requires only its declaration metadata, not its computed
 initializer. Preparation derives required static values from those views, including capture bodies,
-and resolves them through the same dependency query before execution or Unit publication. Cached
-bodies retain these requirements; revisiting a shared callee must still expose an active static
-cycle rather than bypassing it. Access worlds use the global static root, whose extent is independent
+and resolves them through the same dependency query before a typed body becomes a completed fact.
+A pending body cannot hide an active static cycle behind cached typing; reusing a completed body
+already has completed prerequisites in that same authority. Access worlds use the global static root, whose extent is independent
 of any invocation frame. The resource ledger does not create static cleanup obligations. Reads/aliases
 are allowed, independent value extraction needs ordinary Copy, and editing/retirement/drop reject.
 Static reads remain place operations rather than named-literal substitution. Their initializer
