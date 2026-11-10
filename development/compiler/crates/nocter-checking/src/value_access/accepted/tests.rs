@@ -320,3 +320,5 @@ mod integers;
 mod staged;
 
 mod array_repetition;
+
+mod indexed_edits;

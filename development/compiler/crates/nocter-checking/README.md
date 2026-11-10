@@ -301,7 +301,7 @@ checked subtraction operation as zero minus the operand. i32/usize range checks 
 numeric profile; the private source currently qualifies its 64-bit usize only. Header and
 [body-local array lengths](#body-local-required-expressions) use ordinary usize checking and
 required execution. [Listed array values](#array-construction) share the ordinary aggregate path;
-element mutation/transfer retains explicit implementation gates.
+direct element edit aliases/replacement/transfer retain explicit implementation gates.
 [Read selection](#array-selection) uses evaluated element addresses.
 
 `ValueType` keeps known result access separately from possible normal completion. Calls,
@@ -781,8 +781,8 @@ values are not exposed as named constants or runtime-callable bodies. Listed con
 whole-value handoffs use the [array construction path](#array-construction), and
 [read selection](#array-selection) retains evaluated element addresses. Repetition uses the same
 count authority and a compact value operation. Count completion precedes ordinary seed preparation,
-including at zero. Element mutation/transfer and native array storage retain explicit authored
-gates; dynamic element-state proofs remain integration work.
+including at zero. Direct element edit aliases/replacement/transfer and native array storage retain
+explicit authored gates; precise element-state proofs remain integration work.
 
 ## Array Construction
 
@@ -827,8 +827,8 @@ remain separate implementation gates.
 ## Array Selection
 
 `selection::arrays` prepares primitive bracket selection through ordinary expression/value-supply
-checking. Existing array storage lends a read referent; a computed array supplies a Copy component
-as a produced value. An existing non-Copy element can therefore initialize a scoped read alias,
+checking. Existing array storage identifies an evaluated referent; a computed array supplies a Copy
+component as a produced value. An existing non-Copy element can therefore initialize a scoped read alias,
 while a computed component cannot. A produced Copy component may lend its own editable temporary;
 an existing element cannot silently become such a temporary. Named constants construct values,
 while immutable statics retain their existing-place identity.
@@ -837,8 +837,8 @@ The index receives the ordinary expected usize boundary. Signed variables, boole
 names and out-of-range literal magnitudes keep their local diagnostics. Mixed member/index reads
 prepare iteratively through both source checking and graph scheduling. An existing static member
 prefix remains one ordinary selected place; subsequent fields retain the evaluated referent instead of
-copying intermediate records or arrays. Element edit/transfer, assignment and calls through indexed
-components still check the first index's operands before an explicit unsupported-data rejection.
+copying intermediate records or arrays. Direct element edit aliases, transfer, assignment and calls
+through indexed components still check the first index's operands before an explicit unsupported-data rejection.
 Long unclosed postfix chains do not recursively prepare intervening calls. User index protocols remain unadmitted.
 
 `Referent` is one typed-body operand for either a static selected place or an evaluated access
@@ -849,18 +849,28 @@ reservation. The graph evaluates the base and index once, in order, before publi
 selection. The evaluator retains the numeric address, rather than reloading the user's index
 variable; computed Copy results use the same bounds/address operation with a data destination.
 
+Edit call inputs resolve writable authority through `Referent::static_base`, using the same declared
+binding authority as static places. This does not turn an intermediate read projection or a scoped
+read alias into edit authority. Liveness retains the writable base through projection/preparation;
+the reservation then retains that authority for commit, separately from the saved selected address.
+Later operands may read before activation but cannot invalidate a reserved array. Captured-element
+updates use the same base resolution when selecting an editing closure invocation.
+
 The initial initialization/access proof requires the containing array complete and conservatively
 protects its footprint, including during index evaluation. A covering marker prevents fields of
 a selected record element from being appended directly to that array prefix or creating false
 disjointness. Fields outside the containing array remain independent. This is no precise
-index-equality, element-hole or restoration proof. Element editing/transfer and partial-state
-admission still require the [evaluated-selection closure](../../../design/compiler-realization.md#evaluated-array-selection-closure)
+index-equality, element-hole or restoration proof. Direct edit aliases, element replacement,
+transfer and partial-state admission still require the [evaluated-selection closure](../../../design/compiler-realization.md#evaluated-array-selection-closure)
 over the [shared path relation](../nocter-model/README.md#structural-projection-relations).
 
 Source tests qualify saved aliases after index mutation, loop re-execution, read reservation versus
 Copy snapshots, non-Copy element/field reads, covering field views, alternating member/index chains,
 once-in-order index effects, parent/index-side invalidation, interrupted preparation, computed-base alias rejection, zero-sized bounds effects and local
-operand failures. Required bounds failure reports E0325 without publishing a value. Compile-time
+operand failures. Indexed edit-input tests qualify listed/repeated and non-Copy data, edit
+parameters/aliases, saved indices, read-only rejection, conservative overlap, preparation ordering,
+interruption and captured-environment invocation. Required bounds failure reports E0325 without
+publishing a value. Compile-time
 selection also reaches the [common native consumer](../../../architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
 when its frozen result is scalar; this does not admit runtime array storage or array ABI.
 

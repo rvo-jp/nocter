@@ -130,6 +130,34 @@ impl Referent {
             Self::Evaluated(_) => None,
         }
     }
+    /// Resolve only the existing base authority, never a concrete element path or an index
+    /// equality proof. Callers retain the evaluated address separately.
+    pub(super) fn static_base<'a>(
+        mut self,
+        expression: impl Fn(AccessExpressionId) -> Option<&'a Expression>,
+    ) -> Option<AccessPlaceId> {
+        loop {
+            match self {
+                Self::Place(place) => return Some(place),
+                Self::Evaluated(id) => {
+                    let source = match expression(id)?.kind {
+                        ExpressionKind::Index {
+                            base,
+                            action: IndexAction::Access,
+                            ..
+                        } => base,
+                        ExpressionKind::Select {
+                            source,
+                            action: SelectionAction::Access,
+                            ..
+                        } => source,
+                        _ => return None,
+                    };
+                    self = expression(source)?.referent(source)?;
+                }
+            }
+        }
+    }
 }
 impl From<AccessPlaceId> for Referent {
     fn from(place: AccessPlaceId) -> Self {

@@ -89,9 +89,9 @@ impl Checker<'_, '_> {
                 match mode {
                     Mode::Read => ArgumentAction::ReserveRead(place),
                     Mode::Update => {
-                        let Some(selected) = place.place() else {
-                            return self.reject(Rule::UnsupportedData, syntax);
-                        };
+                        let selected = place
+                            .static_base(|id| self.expressions.get(id))
+                            .ok_or(Failure::InconsistentSyntax)?;
                         if !self.writable_place(selected) {
                             return self.reject_local(
                                 Rule::InvalidUpdate,

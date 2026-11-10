@@ -75,8 +75,8 @@ fn scopes_and_unclosed_writes_cannot_turn_an_existing_element_into_an_editable_c
             crate::value_access::Rule::TypeMismatch,
         ),
         (
-            "func change(edit value: i32): void {}\nfunc work(take values: [i32; 2]): void { change(values[0]) }",
-            crate::value_access::Rule::UnsupportedData,
+            "func change(edit value: i32): void {}\nfunc work(values: [i32; 2]): void { change(values[0]) }",
+            crate::value_access::Rule::InvalidUpdate,
         ),
         (
             "func work(take values: [i32; 2]): void { let selected = values[0]^ }",
@@ -224,8 +224,8 @@ fn computed_selected_fields_remain_values_and_noncopy_reads_do_not_gain_ownershi
             crate::value_access::Rule::MissingTransfer,
         ),
         (
-            "struct Row { value: i32 }\nfunc change(edit value: i32): void {}\nfunc work(take rows: [Row; 1]): void { change(rows[0].value) }",
-            crate::value_access::Rule::UnsupportedData,
+            "struct Row { value: i32 }\nfunc change(edit value: i32): void {}\nfunc work(rows: [Row; 1]): void { change(rows[0].value) }",
+            crate::value_access::Rule::InvalidUpdate,
         ),
     ] {
         let (sources, tree) = input(source);

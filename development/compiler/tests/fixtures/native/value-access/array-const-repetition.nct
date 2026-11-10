@@ -3,10 +3,16 @@ const func seed(edit calls: i32): i32 {
     40
 }
 
+const func increase(edit value: i32): void {
+    value += 1
+}
+
 const func calculate(): i32 {
     var calls = 0
-    let values = [seed(calls); 18446744073709551615]
-    values[18446744073709551614] + calls + 1
+    var values = [seed(calls); 18446744073709551615]
+    let snapshot = values
+    increase(values[18446744073709551614])
+    values[18446744073709551614] + calls + snapshot[18446744073709551614] - 40
 }
 
 const ANSWER: i32 = calculate()

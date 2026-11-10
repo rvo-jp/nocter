@@ -426,6 +426,39 @@ impl Context<'_, '_> {
             ExpressionKind::If { .. } | ExpressionKind::Call { .. } => Err(Failure::Integrity),
         }
     }
+    fn reservation_referent(
+        &self,
+        source: Referent,
+        mode: Mode,
+    ) -> Result<Option<(Region, Option<Key>)>> {
+        let selected = self.referent(source)?;
+        if mode != Mode::Update || matches!(source, Referent::Place(_)) {
+            return Ok(selected);
+        }
+        let base = source
+            .static_base(|id| self.typed.body().expressions().get(id))
+            .ok_or(Failure::Integrity)?;
+        let Some((authority, actor)) = self.base(base)? else {
+            return Err(Failure::Integrity);
+        };
+        let Some((region, _)) = selected else {
+            return Err(Failure::Integrity);
+        };
+        if region.root != authority.root
+            || actor.is_some_and(|key| {
+                self.world
+                    .nodes
+                    .get(&key)
+                    .is_none_or(|node| node.permission != Mode::Update)
+            })
+        {
+            return Err(Failure::Integrity);
+        }
+        // The frozen input operation has checked writable source authority. Use that base
+        // authority at commit, not an upgrade of the intermediate read projection. Liveness
+        // retains it through preparation; the reservation then owns its demand.
+        Ok(Some((region, actor)))
+    }
     fn prepare(&mut self, call: AccessExpressionId, index: usize) -> Result<()> {
         let ExpressionKind::Call { arguments, .. } = &self
             .typed
@@ -447,7 +480,7 @@ impl Context<'_, '_> {
                     ArgumentAction::ReserveUpdate(_) => Mode::Update,
                     _ => Mode::Own,
                 };
-                if let Some((region, actor)) = self.referent(place)? {
+                if let Some((region, actor)) = self.reservation_referent(place, mode)? {
                     if !self.world.alive(region.root) {
                         return Err(Violation {
                             location: self.at,

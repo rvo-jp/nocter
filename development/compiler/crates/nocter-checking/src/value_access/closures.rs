@@ -270,12 +270,16 @@ fn invocation(
                         .action
                     {
                         ArgumentAction::ReserveTransfer { place, .. }
-                            if place.place().is_some_and(selects) =>
+                            if place
+                                .static_base(|id| body.expressions().get(id))
+                                .is_some_and(selects) =>
                         {
                             return Ok(ValueInvocation::Take);
                         }
                         ArgumentAction::ReserveUpdate(place)
-                            if place.place().is_some_and(selects) =>
+                            if place
+                                .static_base(|id| body.expressions().get(id))
+                                .is_some_and(selects) =>
                         {
                             invocation = ValueInvocation::Edit;
                         }

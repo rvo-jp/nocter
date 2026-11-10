@@ -93,11 +93,11 @@ impl From<bool> for Need {
     }
 }
 type Uses = Vec<(Carrier, Need)>;
-fn prepared_use(
+fn prepared_uses(
     typed: &TypedQuery,
     call: AccessExpressionId,
     index: usize,
-) -> Result<(Carrier, bool), IntegrityError> {
+) -> Result<Vec<(Carrier, bool)>, IntegrityError> {
     let arg = argument(typed, call, index)?;
     let carrier = match arg.action {
         ArgumentAction::ReserveRead(place)
@@ -106,7 +106,16 @@ fn prepared_use(
         | ArgumentAction::CopyPlace(place) => referent_carrier(typed, place)?,
         _ => Carrier::Expression(arg.value),
     };
-    Ok((carrier, argument_updates(arg)))
+    let mut uses = vec![(carrier, argument_updates(arg))];
+    if let ArgumentAction::ReserveUpdate(source @ Referent::Evaluated(_)) = arg.action {
+        let base = source
+            .static_base(|id| typed.body().expressions().get(id))
+            .ok_or(INVALID)?;
+        // Projection expressions hold read views. Retain the writable base authority until
+        // the update reservation takes over at preparation.
+        uses.push((Carrier::Local(root(typed, base)?), true));
+    }
+    Ok(uses)
 }
 fn plan(
     typed: &TypedQuery,
@@ -178,7 +187,7 @@ fn plan(
             call,
             argument: index,
         } => {
-            uses.push(prepared_use(typed, *call, *index)?);
+            uses.extend(prepared_uses(typed, *call, *index)?);
             definitions.push(Carrier::Argument {
                 call: *call,
                 index: *index,

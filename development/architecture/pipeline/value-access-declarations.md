@@ -116,7 +116,8 @@ closed type metadata. Header evidence alone grants no value/storage admission. C
 [listed-construction boundary](../../compiler/crates/nocter-checking/README.md#array-construction)
 separately qualifies whole-array body/resource/evaluator handoffs. Its
 [read-selection path](../../compiler/crates/nocter-checking/README.md#array-selection) retains evaluated
-element addresses; element mutation/transfer and native array storage remain gated.
+element addresses and qualifies bounded edit call inputs. Direct element edit aliases, replacement,
+transfer and native array storage remain gated.
 Body contents, source coordinates, declaration traversal order, and later Copy specialization cannot
 change a declared input operation. Definition
 order cannot renumber parameters. Reordering source declarations may invalidate a
@@ -548,7 +549,7 @@ static callbacks and owned captures, indirect aggregate transport, zero-byte dat
 argument crossing and required arithmetic traps. Closed record/tuple constants reach native code as
 serialized immutable data through the model-owned frozen literal product. Their uses receive
 independent values; initialization thunks do not become runtime instances. Required source array
-construction/repetition, indexed reads and loop computation can freeze a scalar answer before native
+construction/repetition, indexed reads/edits and loop computation can freeze a scalar answer before native
 instance closure, including maximum-count repeated data without count expansion. Native fixtures
 execute those answers as status 42; they establish compile-time array
 computation with a scalar consumer, without runtime array layout or array-parameter ABI.
