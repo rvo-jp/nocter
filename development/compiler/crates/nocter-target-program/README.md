@@ -151,6 +151,8 @@ reclassifies Copy, access, dispatch or cleanup. No released executable adapter i
 The [private stored-representation contract](../../../architecture/pipeline/value-access-declarations.md#private-stored-representation)
 owns the representation policy and remaining realization obligations.
 
-Closed fixed-array declaration descriptors do not yet carry accepted runtime payload, storage or
-ABI evidence through this boundary. Instance-data and stored-shape projection explicitly reject
-them rather than inferring tuple representation from structural Copy or an empty count.
+Whole-array source values retain their homogeneous declaration schema and payload obligations
+through instance-data and lifecycle projection. Positive lengths visit element obligations once;
+zero lengths add no element-payload edge. This logical closure grants no stored representation or
+ABI evidence. Stored-shape projection reports `UnsupportedArray` explicitly, including at zero
+length, rather than treating a valid accepted Unit as corrupt or inferring tuple layout.

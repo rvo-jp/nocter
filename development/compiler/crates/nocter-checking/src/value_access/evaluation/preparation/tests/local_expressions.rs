@@ -34,8 +34,18 @@ fn attempt<'s>(
     (preparation, requests, failure)
 }
 
+fn prepared<'s>(context: Context<'s>, name: &str) -> (Preparation<'s, 's>, Dependencies) {
+    let id = owner(&context, name);
+    let mut preparation = Preparation::new(context, Headers::Closed, state::Limits::default());
+    let mut requests = Dependencies::default();
+    preparation.body(&mut requests, id).unwrap();
+    assert_eq!(requests.active_depth(), 0);
+    assert!(preparation.causes.is_empty());
+    (preparation, requests)
+}
+
 #[test]
-fn local_lengths_execute_before_the_separate_array_value_admission_gate() {
+fn local_lengths_execute_before_the_enclosing_body_finishes() {
     for result in ["void", "error", "func(): i32"] {
         let text = format!(
             "const BASE: usize = 20\nconst func increment(edit value: usize): usize {{ value += 1\nvalue }}\nfunc run(take unrelated: error): {result} {{ let first: [i32; if true {{ var value: usize = BASE\nlet pair = (value, increment(value))\npair.0 + pair.1 + 1 }} else {{ 0 }}] = if true {{ loop {{}} }} else {{ loop {{}} }}\nlet second: [i32; 6 * 7] = if true {{ loop {{}} }} else {{ loop {{}} }} }}"
@@ -48,11 +58,8 @@ fn local_lengths_execute_before_the_separate_array_value_admission_gate() {
             .unwrap()
             .ids()
             .collect::<Vec<_>>();
-        let (preparation, requests, failure) = attempt(context, "run", state::Limits::default());
-        assert!(
-            matches!(&failure, SourceFailure::Checking(Failure::Body { failure: BodyFailure::Rejected(error), .. }) if error.rule() == crate::value_access::Rule::UnsupportedData),
-            "{failure:?}"
-        );
+        let run = owner(&context, "run");
+        let (preparation, requests) = prepared(context, "run");
         assert_eq!(ids.len(), 2);
         for id in ids {
             let root = ValueCodeRoot::Expression(id);
@@ -70,7 +77,7 @@ fn local_lengths_execute_before_the_separate_array_value_admission_gate() {
             assert!(body.body().inputs().environment().is_none());
             body.bind(&preparation.context).unwrap();
         }
-        assert!(dependencies::body(&requests, owner(&preparation.context, "run")).is_none());
+        assert!(dependencies::body(&requests, run).is_some());
     }
 }
 
@@ -177,7 +184,7 @@ fn completed_local_count_queries_retain_selected_supplier_and_whole_body_guards(
         .ids()
         .next()
         .unwrap();
-    let (preparation, requests, _) = attempt(context.clone(), "run", state::Limits::default());
+    let (preparation, requests) = prepared(context.clone(), "run");
     let output = preparation.finish(requests).unwrap();
     let query = output.queries.get(&ValueCodeRoot::Expression(id)).unwrap();
     for (before, after, valid) in [
@@ -192,7 +199,7 @@ fn completed_local_count_queries_retain_selected_supplier_and_whole_body_guards(
         let next = headers.bind(bound(&next_sources, &next_tree)).unwrap();
         assert_eq!(query.bind(&next).is_ok(), valid, "{before}");
         let root = ValueCodeRoot::Expression(id);
-        let (_, fresh, _) = attempt(next, "run", state::Limits::default());
+        let (_, fresh) = prepared(next, "run");
         assert_eq!(
             dependencies::value(&fresh, root).unwrap().frozen,
             state::Value::integer(
@@ -206,7 +213,7 @@ fn completed_local_count_queries_retain_selected_supplier_and_whole_body_guards(
             "fresh execution after {before}"
         );
     }
-    let (_, requests, _) = attempt(context.clone(), "run", state::Limits::default());
+    let (_, requests) = prepared(context.clone(), "run");
     let graph = requests.into_dependencies();
     let root = graph
         .iter()
@@ -231,11 +238,21 @@ fn completed_local_count_queries_retain_selected_supplier_and_whole_body_guards(
     );
     let context = headers.bind(bound(&sources, &tree)).unwrap();
     assert!(
+        output
+            .queries
+            .contains_key(&ValueCodeRoot::Declaration(owner(&context, "run")))
+    );
+    assert!(
+        !output
+            .queries
+            .contains_key(&ValueCodeRoot::Declaration(owner(&context, "other")))
+    );
+    assert!(
         matches!(
             accepted::Unit::close_evaluation(&context, output),
             Err(Failure::Integrity(_))
         ),
-        "completed counts cannot publish a Unit with a missing enclosing body"
+        "completed counts and one body cannot publish a Unit with unprepared declarations"
     );
 }
 
@@ -251,9 +268,14 @@ fn nested_count_requests_keep_distinct_roots_and_enclosing_scope_exclusions() {
         .ids()
         .collect::<Vec<_>>();
     assert_eq!(ids.len(), 2);
-    let (_, requests, failure) = attempt(context, "run", state::Limits::default());
+    let limits = nocter_constant_evaluation::CompileTimeEvaluationLimits::new(
+        std::num::NonZeroU64::new(64).unwrap(),
+        std::num::NonZeroU32::new(8).unwrap(),
+    );
+    let (_, requests, failure) = attempt(context, "run", limits.into());
     assert!(
-        matches!(&failure, SourceFailure::Checking(Failure::Body { failure: BodyFailure::Rejected(error), .. }) if error.rule() == crate::value_access::Rule::UnsupportedData),
+        matches!(&failure, SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })
+        if diagnostic.rule() == Rule::Execution(state::Rule::StepLimit)),
         "{failure:?}"
     );
     assert!(dependencies::value(&requests, ValueCodeRoot::Expression(ids[0])).is_none());
@@ -376,10 +398,8 @@ fn repetition_counts_execute_before_the_separate_construction_gate() {
 }
 
 #[test]
-fn recognized_array_construction_and_selection_fail_at_the_explicit_body_gate() {
+fn array_selection_remains_an_explicit_source_gate() {
     for operation in [
-        "let value: [i32; 0] = []",
-        "let value = [1, 2]",
         "let value = items[0]",
         "read value = items[0]",
         "edit value = items[0]",

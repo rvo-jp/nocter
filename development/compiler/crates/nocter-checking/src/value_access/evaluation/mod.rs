@@ -2,10 +2,12 @@
 mod dependencies;
 mod preparation;
 mod projection;
+mod types;
 use super::accepted::Failure;
 use super::{Failure as BodyFailure, flow, source_origin};
 use nocter_constant_evaluation::state;
 use nocter_model::FrozenData;
+pub(super) use types::Types;
 #[derive(Clone, Debug)]
 struct Completed {
     execution: state::Value,

@@ -257,9 +257,9 @@ binding and a fresh source preparation recomputes the normalized length. The sou
 current expression-node/code-ID reverse index is derived once from that same executable-root
 catalog and rebuilt during rebinding; it is not another semantic namespace.
 
-Array value construction/repetition, element selection, resource
-transitions, evaluator array data and runtime storage remain outside this private source fragment.
-Known array data in body inputs/results/operations is rejected by the checking owner before flow
-admission. Native qualification covers scalar code with computed/unused array headers, not array
+Checking owns [listed construction and whole-array handoffs](../nocter-checking/README.md#array-construction-drafts)
+through its ordinary body/resource/evaluator products. This header owner grants no such value
+proof merely by normalizing a count. Repetition, source element selection and native array storage
+retain their separate implementation gates. Native qualification covers scalar code with computed/unused array headers, not array
 values or layout. Remaining work belongs to the
 [structural request work](../../../design/compiler-realization.md#structural-type-request-closure).

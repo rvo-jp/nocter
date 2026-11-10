@@ -7,7 +7,7 @@ use nocter_constant_evaluation::{
 };
 use std::fmt::Write as _;
 use std::num::{NonZeroU32, NonZeroU64};
-fn answer(source: &str, name: &str) -> Value {
+pub(super) fn answer(source: &str, name: &str) -> Value {
     let unit = accepted(source);
     let id = unit
         .program()

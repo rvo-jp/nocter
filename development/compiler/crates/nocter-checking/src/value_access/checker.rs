@@ -121,7 +121,7 @@ pub(super) fn prepare(
             true,
         )?
     };
-    checker.finish(root)
+    Ok(checker.finish(root))
 }
 
 impl<'a, 's> Checker<'a, 's> {
@@ -164,9 +164,8 @@ impl<'a, 's> Checker<'a, 's> {
             required_roots: None,
         }
     }
-    pub(super) fn finish(self, root: AccessBlockId) -> Result<Query, Failure> {
-        self.admit_body()?;
-        Ok(Query {
+    pub(super) fn finish(self, root: AccessBlockId) -> Query {
+        Query {
             code: self.code,
             program: Arc::new(self.types.finish()),
             source: self.source,
@@ -190,7 +189,7 @@ impl<'a, 's> Checker<'a, 's> {
                 blocks: self.blocks.finish(),
                 loops: self.loops.finish(),
             },
-        })
+        }
     }
 
     pub fn syntax(&self) -> BoundSyntax<'_> {

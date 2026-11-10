@@ -7,7 +7,7 @@ use nocter_constant_evaluation::{
     CompileTimeBinaryOperation as B, CompileTimeComparisonOperation as C,
     CompileTimeUnaryOperation as U, state as plan,
 };
-use nocter_declarations::value_access::{PayloadSchema, Program};
+use nocter_declarations::value_access::Program;
 use nocter_model::{
     AccessCodeId, AccessExpressionId, AccessPlaceId, FieldPath, TypeId, ValueAccessMode,
     ValueInputOperation,
@@ -15,49 +15,7 @@ use nocter_model::{
 use std::collections::BTreeMap;
 const INVALID: flow::IntegrityError = flow::IntegrityError::InconsistentTypedBody;
 type Result<T> = std::result::Result<T, flow::IntegrityError>;
-#[derive(Default)]
-struct Types {
-    values: Vec<plan::Type>,
-    ids: BTreeMap<TypeId, usize>,
-}
-impl Types {
-    fn get(&mut self, program: &Program, data: TypeId) -> Result<usize> {
-        if let Some(&id) = self.ids.get(&data) {
-            return Ok(id);
-        }
-        let mut pending = vec![(data, false)];
-        while let Some((data, expanded)) = pending.pop() {
-            if self.ids.contains_key(&data) {
-                continue;
-            }
-            let value = match program.data_schema(data).ok_or(INVALID)? {
-                PayloadSchema::Builtin(builtin) => plan::Type::builtin(builtin).ok_or(INVALID)?,
-                PayloadSchema::Aggregate(aggregate) => {
-                    let children = aggregate
-                        .components()
-                        .map(|component| component.data)
-                        .collect::<Vec<_>>();
-                    if !expanded {
-                        pending.push((data, true));
-                        pending.extend(children.into_iter().rev().map(|child| (child, false)));
-                        continue;
-                    }
-                    plan::Type::Record(
-                        children
-                            .into_iter()
-                            .map(|child| self.ids.get(&child).copied().ok_or(INVALID))
-                            .collect::<Result<_>>()?,
-                    )
-                }
-                PayloadSchema::Function(_) | PayloadSchema::Array(_) => return Err(INVALID),
-            };
-            let id = self.values.len();
-            self.values.push(value);
-            self.ids.insert(data, id);
-        }
-        self.ids.get(&data).copied().ok_or(INVALID)
-    }
-}
+use super::Types;
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum Key {
     Resource(Holder),
@@ -140,11 +98,17 @@ impl Builder<'_, '_> {
         };
         self.slot(Key::Resource(holder), data, storage)
     }
+    fn component_position(&self, field: nocter_model::ValueField) -> Result<usize> {
+        match field {
+            nocter_model::ValueField::Array(index) => usize::try_from(index).map_err(|_| INVALID),
+            _ => self.program.component_position(field).ok_or(INVALID),
+        }
+    }
     fn fields(&self, fields: &FieldPath) -> Result<Box<[usize]>> {
         fields
             .fields()
             .iter()
-            .map(|id| self.program.component_position(*id).ok_or(INVALID))
+            .map(|id| self.component_position(*id))
             .collect()
     }
     fn resource(&mut self, place: &flow::resources::Place) -> Result<plan::Place> {
@@ -219,10 +183,7 @@ impl Builder<'_, '_> {
                 fields: fields
                     .iter()
                     .map(|(field, source)| {
-                        Ok((
-                            self.program.component_position(*field).ok_or(INVALID)?,
-                            self.resource(source)?,
-                        ))
+                        Ok((self.component_position(*field)?, self.resource(source)?))
                     })
                     .collect::<Result<_>>()?,
             },

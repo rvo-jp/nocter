@@ -167,7 +167,7 @@ fn type_value_cycles_report_real_declarations_and_source_sites() {
 }
 
 #[test]
-fn array_value_operations_reject_before_flow_or_storage_admission() {
+fn whole_array_contracts_close_without_claiming_element_selection_or_storage() {
     for text in [
         "func f(take values: [i32; 2]): void {}",
         "func f(): [i32; 0] { loop {} }",
@@ -175,15 +175,15 @@ fn array_value_operations_reject_before_flow_or_storage_admission() {
         "func f(action: func(edit [i32; 2]): void): void {}",
     ] {
         let (sources, tree) = input(text);
-        let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
-        let SourceFailure::Checking(Failure::Body {
-            failure: crate::value_access::Failure::Rejected(error),
-            ..
-        }) = failure
-        else {
-            panic!("authored body limit: {failure:?}");
-        };
-        assert_eq!(error.rule(), crate::value_access::Rule::UnsupportedData);
+        let source = SourceUnit::prepare(bound(&sources, &tree)).unwrap();
+        let context = source.declarations().bind(bound(&sources, &tree)).unwrap();
+        source.unit().bind(&context).unwrap();
+        let code = source
+            .unit()
+            .program()
+            .resolve_code(source.unit().program().symbols().get("f").unwrap())
+            .unwrap();
+        assert!(source.unit().body(code).is_some());
     }
 }
 

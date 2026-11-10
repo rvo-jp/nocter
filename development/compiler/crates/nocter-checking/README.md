@@ -300,7 +300,8 @@ input does not accidentally acquire a copied or moved value. Unsigned negation f
 checked subtraction operation as zero minus the operand. i32/usize range checks use the model's
 numeric profile; the private source currently qualifies its 64-bit usize only. Header and
 [body-local array lengths](#body-local-required-expressions) use ordinary usize checking and
-required execution; array value operations remain outside body admission.
+required execution. [Listed array values](#array-construction-drafts) share the ordinary aggregate path;
+repetition and bracket selection retain explicit implementation gates.
 
 `ValueType` keeps known result access separately from possible normal completion. Calls,
 construction, operators and compatible branches retain known data on interruption. Type inference
@@ -527,9 +528,14 @@ headers close without executing bodies or proving termination; every definition 
 pass ordinary typing, initialization, access and resource validation.
 
 `value_access::constant` owns this bounded domain check. It admits primitive Boolean/i32/usize/unit
-operations, finite record/tuple compositions of supported data, local values, read/edit aliases,
+operations, finite acyclic record/tuple/array compositions of supported data, local values, read/edit aliases,
 updates, structured control, explicit transfer and direct const calls. Aggregate admission is independent of Copy and
-memoized by data identity rather than expanded through shared fields. Function-value formation,
+memoized by data identity rather than expanded through shared fields. `evaluation::types` is the
+single shape projection used by const-domain validation, final-data admission and closed-plan
+construction; homogeneous arrays retain an element ID and u64 count, never expanded type lists.
+Zero-length containment cycles and empty arrays with otherwise unsupported element data remain
+outside this evaluator projection, with a local domain rejection rather than recursive planning;
+ordinary declaration/body validity is independent of that limit. Function-value formation,
 captures, invocation through values and opaque error-data operations have no evaluator domain here.
 Explicit unsupported drops fail even in dead source. Implicit disposal and edit-input replacement
 consume the actual sparse resource transitions; ending a partial container does not destroy its
@@ -764,22 +770,22 @@ failures retain actual expression/helper sites and the shared work, depth and st
 
 Qualification covers source annotations and repetition counts, nested requests, surrounding lexical/control exclusions,
 supplier changes, dead authored calls and mixed body/value cycles. Successful count computation
-does not admit array-bearing body data: the separate array value/resource/storage gate still
-rejects it before flow. Complete Unit publication still requires every declared body and required
-value; partially completed count facts cannot publish a Unit. Count values are not exposed as
-named constants or runtime-callable bodies. List/repetition construction and bracket selection
-have explicit authored rejection gates. Count completion precedes ordinary seed preparation,
-including at zero, under the [construction draft boundary](#array-construction-drafts).
-Array value construction/selection, source-integrated resource validation, evaluator array data
-and native storage remain integration work.
+does not by itself qualify a value operation. Complete Unit publication still requires every
+declared body and required value; partially completed count facts cannot publish a Unit. Count
+values are not exposed as named constants or runtime-callable bodies. Listed construction and
+whole-value handoffs use the [array construction path](#array-construction-drafts). Repetition and
+bracket selection retain explicit authored rejection gates. Count completion precedes ordinary
+seed preparation, including at zero. Dynamic element proofs, compact repetition and native array
+storage remain integration work.
 
 ## Array Construction Drafts
 
 `construction::arrays` checks listed/repeated construction through the ordinary expression and
-value-supply boundaries before array body admission. An authored array context supplies its
+value-supply boundaries. Listed construction enters the ordinary body and resource path;
+repetition remains a checked draft. An authored array context supplies its
 element data and exact count. Inference checks each listed component independently and requires
 equal data identities; the first element supplies no coercion context to the rest. Empty lists
-need contextual element data. Listed drafts retain source-ordered `ValueField::Array` components
+need contextual element data. Listed expressions retain source-ordered `ValueField::Array` components
 in the existing aggregate expression product and use the same body type authority, including in
 nested arrays and tuples. Callable-witness elements remain outside this bounded structural scope.
 
@@ -788,14 +794,22 @@ The seed must be supplied as an ordinary value; zero does not turn a non-Copy re
 or suppress a required constant dependency. Counts above one require the declaration authority's
 Copy evidence. These checks do not execute the seed producer or qualify repetition cleanup and
 storage. Compact repeated-value operations remain unimplemented, and repetition rejects
-explicitly afterward. Listed array data likewise rejects in body admission before flow.
+explicitly afterward. This gate does not reject independently closed listed construction or whole-array operations.
 
 The internal assembly ledger validates listed array cardinality and each component through the
 same declaration projection used for records/tuples. Distinct complete component owners transfer
 atomically into a fresh destination; duplicate positions/sources, wrong data/families/counts and
-an occupied destination cannot publish partial changes. Source construction effects, dynamic
-element selection, evaluator data and native storage still need their combined proofs before the
-array admission gate can open.
+an occupied destination cannot publish partial changes. Whole-array read/edit/take inputs,
+snapshots, explicit moves, replacement, source-ordered component effects and interrupted construction
+use the existing aggregate/control/initialization/access/resource products. No parallel array
+ledger or source checker is added. Required evaluation freezes admitted listed arrays through
+the same evaluator shape/value/publication path, including arrays constructed inside required
+length bodies. Source tests cover nested/empty/zero-sized data, non-Copy records, independent
+snapshots, editing calls and reverse cleanup of interrupted component prefixes.
+
+This closes listed construction and whole-value handoffs in the private Unit, without claiming
+compact repetition, element selection, partial element initialization or native storage. The
+[selection draft](#array-selection-drafts) still rejects every unclosed source index operation.
 
 ## Array Selection Drafts
 
@@ -837,11 +851,12 @@ parent use the same atomic transfer/replacement rules as other structural places
 
 Ledger qualification covers listed component assembly, maximum u64 cardinality, first/last and out-of-bounds positions,
 empty arrays, zero-sized elements, partial record elements, replacement and container retirement.
-These tests start with declaration-backed logical owners. They do not qualify source array construction,
-source initialization/access/conflict analysis, or a runtime-selected index. Distinct dynamic
+These tests start with declaration-backed logical owners. Source construction has its separate
+[ordinary-source qualification](#array-construction-drafts); the concrete ledger does not qualify
+source element initialization/access/conflict analysis or a runtime-selected index. Distinct dynamic
 index expressions cannot be encoded as disjoint concrete keys. Their evaluated identity and
 checked equality/disjointness conditions must close across reservations, joins and loops before
-source array admission. The evaluator projector and private MIR explicitly reject array interval
+source element-selection admission. The evaluator projector and private MIR explicitly reject array interval
 cleanup until their value/storage realization is implemented.
 
 ## Frozen Body Input Channels

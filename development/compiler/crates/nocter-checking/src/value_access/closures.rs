@@ -82,7 +82,7 @@ impl Checker<'_, '_> {
             true,
         )?;
         self.types = nested.types.clone();
-        let mut control = super::flow::Control::prepare(Arc::new(nested.finish(root)?))
+        let mut control = super::flow::Control::prepare(Arc::new(nested.finish(root)))
             .map_err(|_| Failure::InconsistentSyntax)?;
         let invocation = invocation(&control, environment)?;
         let contract = FunctionConstraint {

@@ -10,8 +10,11 @@ use std::fmt::Write as _;
 mod captured;
 
 fn accepted(fixture: &ValueSourceFixture) -> Arc<Unit> {
-    let headers = access_declarations::Query::prepare(fixture.syntax()).unwrap();
-    Arc::new(Unit::prepare(&headers.bind(fixture.syntax()).unwrap()).unwrap())
+    Arc::new(
+        nocter_checking::value_access::accepted::SourceUnit::prepare(fixture.syntax())
+            .unwrap()
+            .into_unit(),
+    )
 }
 
 #[test]
@@ -618,4 +621,30 @@ fn required_initializers_are_not_function_values_or_runtime_instance_roots() {
             .calls()
             .is_empty()
     );
+}
+
+#[test]
+fn whole_array_instances_and_lifecycles_close_before_the_explicit_storage_gate() {
+    for source in [
+        "func pass(take values: [i32; 2]): [i32; 2] { values^ }\nfunc run(): [i32; 2] { pass([1, 2]) }",
+        "struct Node { next: [Node; 0] }\nfunc run(): Node { Node { next: [] } }",
+    ] {
+        let fixture = ValueSourceFixture::new(source);
+        let unit = accepted(&fixture);
+        let root = callable(&unit, "run");
+        let graph = Arc::new(InstanceProgram::prepare(unit, root).unwrap());
+        super::lifecycle::Program::prepare(graph.clone()).unwrap();
+        let failure = storage::prepare(
+            &graph,
+            nocter_runtime_contract::RuntimeAbiIdentity::Arm64DarwinV1,
+        )
+        .unwrap_err();
+        let storage::Failure::UnsupportedArray(data) = failure else {
+            panic!("unimplemented shape must not invalidate the accepted unit: {failure:?}")
+        };
+        assert!(matches!(
+            graph.unit().program().data_schema(data),
+            Some(nocter_declarations::value_access::PayloadSchema::Array(_))
+        ));
+    }
 }

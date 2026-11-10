@@ -100,7 +100,8 @@ publishes selected supplier guards with reusable headers. The
 its exact admitted scope. Header qualification does not establish array value operations.
 
 The [local annotation path](../compiler/crates/nocter-checking/README.md#body-local-required-expressions)
-uses the same query for body-owned annotation/repetition counts, while array-bearing bodies remain gated.
+uses the same query for body-owned annotation/repetition counts and
+[listed whole-value operations](../compiler/crates/nocter-checking/README.md#array-construction-drafts).
 Extend this path to later constant-generic arguments
 without reopening ordinary body checking through a competing evaluator or changing the closed
 name/input/field domain. Each required expression needs its own semantic code identity and actual
@@ -122,15 +123,15 @@ needs valid element names, storable types and independent declaration closure. D
 second eager containment or Copy validator, provisional zero count or fresh opaque type. Raw
 missing definitions, authored rejections and unknown IDs remain distinct at source projection.
 
-Array values need their own combined source proofs over these same schemas: contextual/inferred
-construction, once-only seed evaluation even at zero repetition, Copy requirements, selected
+Extend the combined source proofs over these same schemas to once-only seed evaluation even at
+zero repetition, Copy requirements, selected
 indexing, bounds checks, partial initialization/restoration, aliases, access reservations and
 remaining-element cleanup. Dynamic selected indices retain their evaluated identity and checked
 path conditions. Neither a constant-index restriction nor a language-level count ceiling may
 replace those proofs. Large cardinalities must retain homogeneous/sparse representations rather
 than expanding the payload into tuple-like metadata or compiler state.
 
-Then qualify evaluator array data/publication and native layout, zero-sized element addressing,
+Close the remaining evaluator schema/repetition products and native layout, zero-sized element addressing,
 input/result channels and destruction against those accepted source operations. Compare repeated
 calls with equal scalar inputs but different editable places; result-only memoization must not
 erase state transitions. Unsupported operations, arithmetic errors, dependency cycles, budgets
@@ -180,11 +181,12 @@ and its canonical array/tuple replay; neither a second type store nor a literal-
 needed. Completed required values remain immutable facts in the common dependency query, with
 their ordinary work/storage charges and transitive source requirements.
 
-Extend the source connection to array value construction/selection and combined nested structural data/resource proofs.
-Preserve qualified local-count source guards, scope exclusions, dead authored requirements,
-budget failures and type/value cycles as those operations become admitted. Keep array
-body/resource/storage admission separate until their combined proofs close. Header-count tests
-alone cannot establish body-local identity or scope.
+Extend [listed construction and whole-array handoffs](../compiler/crates/nocter-checking/README.md#array-construction-drafts)
+into repetition, source element selection and combined nested partial-data/resource proofs.
+Preserve local-count source guards, scope exclusions, dead authored requirements, budget failures
+and type/value cycles. Gate each unclosed operation at its owning boundary; do not reject an
+independently qualified whole-value operation solely because element selection or storage is
+unimplemented. Header-count tests alone cannot establish body-local identity, scope or value safety.
 
 ### Evaluated Array Selection Closure
 
@@ -224,7 +226,7 @@ successor arithmetic even at the maximum usize count. Symbolic cleanup must reta
 the saved value through physical lowering. It cannot substitute the current contents of the
 index variable or invent a subarray type. Qualify mutations between selections, conditional
 equality/disequality, reservations with later effects, partial nested elements, loop re-execution,
-failure and zero-sized data through actual source before opening array admission. The concrete
+failure and zero-sized data through actual source before opening element-selection admission. The concrete
 ledger tests and path-algebra tests do not establish these source proofs.
 
 ## Executable Lifecycle and Target Admission

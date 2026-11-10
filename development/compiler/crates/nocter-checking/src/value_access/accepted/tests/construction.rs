@@ -38,61 +38,66 @@ fn component_mapping_keeps_authored_order_and_completed_cleanup_uses_declaration
 
 #[test]
 fn interrupted_construction_cleans_components_in_reverse_production_order_without_assembly() {
-    let unit = accepted(&source_case("a37-interrupted-record-return.nct"));
-    let trace = steps(named(&unit, "build"));
-    assert!(
-        !trace
+    for source in [
+        source_case("a37-interrupted-record-return.nct"),
+        "func build(take first: error, take second: error, take answer: error): error { let values = [first^, second^, if true { return answer^ } else { first^ }]\nloop {} }".into(),
+    ] {
+        let unit = accepted(&source);
+        let trace = steps(named(&unit, "build"));
+        assert!(
+            !trace
+                .iter()
+                .any(|step| matches!(step, Step::Assemble { .. }))
+        );
+        let produced = trace
             .iter()
-            .any(|step| matches!(step, Step::Assemble { .. }))
-    );
-    let produced = trace
-        .iter()
-        .filter_map(|step| match step {
-            Step::Move {
-                source,
-                destination,
-                ..
-            } if matches!(source.holder(), Holder::Local(_))
-                && matches!(destination.holder(), Holder::Expression(_)) =>
-            {
-                Some(destination.holder())
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(produced.len(), 3);
-    let cleaned = trace
-        .iter()
-        .filter_map(|step| match step {
-            Step::Dispose { source, payload } if payload.disposal() == Disposal::OwnedError => {
-                Some(source.holder())
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let components = named(&unit, "build")
-        .typed()
-        .body()
-        .expressions()
-        .iter()
-        .find_map(|(_, e)| match &e.kind {
-            ExpressionKind::Aggregate { fields } => Some(fields),
-            _ => None,
-        })
-        .unwrap();
-    assert_eq!(
-        cleaned,
-        [
-            Holder::Expression(components[1].value),
-            Holder::Expression(components[0].value)
-        ]
-    );
-    let staged = trace.iter().position(|step| matches!(step, Step::Move { destination, .. } if destination.holder() == Holder::Return)).unwrap();
-    let cleanup = trace
-        .iter()
-        .position(|step| matches!(step, Step::Dispose { payload, .. } if payload.disposal() == Disposal::OwnedError))
-        .unwrap();
-    assert!(staged < cleanup);
+            .filter_map(|step| match step {
+                Step::Move {
+                    source,
+                    destination,
+                    ..
+                } if matches!(source.holder(), Holder::Local(_))
+                    && matches!(destination.holder(), Holder::Expression(_)) =>
+                {
+                    Some(destination.holder())
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(produced.len(), 3);
+        let cleaned = trace
+            .iter()
+            .filter_map(|step| match step {
+                Step::Dispose { source, payload } if payload.disposal() == Disposal::OwnedError => {
+                    Some(source.holder())
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let components = named(&unit, "build")
+            .typed()
+            .body()
+            .expressions()
+            .iter()
+            .find_map(|(_, e)| match &e.kind {
+                ExpressionKind::Aggregate { fields } => Some(fields),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(
+            cleaned,
+            [
+                Holder::Expression(components[1].value),
+                Holder::Expression(components[0].value)
+            ]
+        );
+        let staged = trace.iter().position(|step| matches!(step, Step::Move { destination, .. } if destination.holder() == Holder::Return)).unwrap();
+        let cleanup = trace
+            .iter()
+            .position(|step| matches!(step, Step::Dispose { payload, .. } if payload.disposal() == Disposal::OwnedError))
+            .unwrap();
+        assert!(staged < cleanup);
+    }
 }
 
 #[test]

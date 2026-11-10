@@ -77,5 +77,5 @@ pub(super) fn prepare(
     checker.unavailable.clone_from(&requirement.unavailable);
     let value = checker.expression(source.body(), Some(Boundary::Result(result)), true)?;
     let root = checker.emit_block(source.body(), Vec::new(), Some(value), checker.ty(value))?;
-    checker.finish(root)
+    Ok(checker.finish(root))
 }

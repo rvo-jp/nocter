@@ -1,4 +1,4 @@
-//! Actual source typing, with the combined array body/storage admission gate still closed.
+//! Ordinary construction typing and explicit repetition/selection realization limits.
 use super::*;
 use crate::value_access::Rule as BodyRule;
 
@@ -20,7 +20,7 @@ fn rejected_source(text: &str) -> BodyRule {
 }
 
 #[test]
-fn array_context_and_exact_inference_precede_the_separate_body_admission_gate() {
+fn array_context_and_exact_inference_reject_invalid_construction() {
     for (parameters, body, rule) in [
         ("", "let values = []", BodyRule::UnknownResultType),
         ("", "let values = [true, 1]", BodyRule::TypeMismatch),
@@ -31,19 +31,7 @@ fn array_context_and_exact_inference_precede_the_separate_body_admission_gate() 
             "let values = [size, 2]",
             BodyRule::TypeMismatch,
         ),
-        (
-            "size: usize",
-            "let values: [usize; 2] = [size, 2]",
-            BodyRule::UnsupportedData,
-        ),
-        ("", "let values: [i32; 0] = []", BodyRule::UnsupportedData),
-        (
-            "",
-            "let values = [[1, 2], [3, 4]]",
-            BodyRule::UnsupportedData,
-        ),
         ("", "let values = [[1, 2], [3]]", BodyRule::TypeMismatch),
-        ("", "let value = ([1, 2], true)", BodyRule::UnsupportedData),
         ("", "let values = [run]", BodyRule::UnsupportedData),
     ] {
         assert_eq!(rejected(parameters, body), rule, "{body}");

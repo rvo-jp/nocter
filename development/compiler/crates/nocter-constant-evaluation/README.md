@@ -142,8 +142,8 @@ frames release their storage through the same executor recovery as arithmetic/bu
 
 Closed-plan tests qualify listed construction/publication, array fields, independent snapshots,
 selected edits, backedge re-execution, cross-frame addresses, exact bounds and failed-budget
-cleanup. Checking still gates array source bodies and evaluator projection; this domain alone
-proves neither source conflict/initialization safety, dynamic resource-hole cleanup, compact
+cleanup. Checking separately qualifies [source listed construction and whole-value handoffs](../nocter-checking/README.md#array-construction-drafts).
+This domain alone proves neither source element conflict/initialization safety, dynamic resource-hole cleanup, compact
 repetition nor native array storage. The remaining integration follows the
 [evaluated-selection obligations](../../../design/compiler-realization.md#evaluated-array-selection-closure).
 

@@ -1,7 +1,6 @@
 //! Value-access typing and closed private-unit front-end validation.
 //! Private native consumers require the complete Unit; the released pipeline has no adapter.
 pub mod accepted;
-mod admission;
 mod annotations;
 mod body_inputs;
 mod booleans;

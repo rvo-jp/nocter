@@ -17,6 +17,7 @@ use super::InstanceProgram;
 pub enum Failure {
     InvalidInstance(AccessInstanceId),
     InvalidPayload(TypeId),
+    UnsupportedArray(TypeId),
     Types(RuntimeTypeTableBuildError),
     Environment(RuntimeEnvironmentError),
 }
@@ -88,7 +89,7 @@ pub fn prepare(
         }
         let invalid = || Failure::InvalidPayload(data);
         let kind = match program.data_schema(data).ok_or_else(invalid)? {
-            PayloadSchema::Array(_) => return Err(invalid()),
+            PayloadSchema::Array(_) => return Err(Failure::UnsupportedArray(data)),
             PayloadSchema::Builtin(builtin) => match builtin {
                 BuiltinType::Bool => RuntimeType::Primitive(RuntimePrimitive::Bool),
                 BuiltinType::I32 => RuntimeType::Primitive(RuntimePrimitive::Signed(32)),

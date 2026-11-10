@@ -1,13 +1,12 @@
 //! Definition-time operation-domain checks over the ordinary accepted body and resource ledger.
 //! This is neither an evaluator nor evidence that a required constant has executed successfully.
 use super::{CallKind, ExpressionKind, Failure, Statement, flow, source_origin};
-use nocter_declarations::value_access::{PayloadSchema, Program};
+use nocter_declarations::value_access::Program;
 use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic};
 use nocter_model::{
     AccessCodeId, AccessExpressionId, AccessStatementId, CompileTimeGuarantee, TypeId,
     ValueFunctionOrigin,
 };
-use std::collections::BTreeMap;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Rule {
@@ -46,62 +45,6 @@ pub(super) struct Violation {
 }
 const INVALID: flow::IntegrityError = flow::IntegrityError::InconsistentTypedBody;
 
-/// The declaration owner already proves finite aggregate schemas. Memoize by type identity rather
-/// than expanding repeated fields into a tree; this is domain support, not a Copy/resource rule.
-enum Domain {
-    Execution,
-    Publication,
-}
-struct DataDomain<'a> {
-    purpose: Domain,
-    program: &'a Program,
-    supported: BTreeMap<TypeId, bool>,
-}
-impl DataDomain<'_> {
-    fn supports(&mut self, data: TypeId) -> Result<bool, flow::IntegrityError> {
-        if let Some(&supported) = self.supported.get(&data) {
-            return Ok(supported);
-        }
-        let mut pending = vec![(data, false)];
-        while let Some((data, expanded)) = pending.pop() {
-            if self.supported.contains_key(&data) {
-                continue;
-            }
-            let supported = match self.program.data_schema(data).ok_or(INVALID)? {
-                PayloadSchema::Builtin(builtin) => match self.purpose {
-                    Domain::Execution => {
-                        nocter_constant_evaluation::state::Type::builtin(builtin).is_some()
-                    }
-                    Domain::Publication => matches!(
-                        builtin,
-                        nocter_model::BuiltinType::Bool
-                            | nocter_model::BuiltinType::Usize
-                            | nocter_model::BuiltinType::I32
-                            | nocter_model::BuiltinType::Void
-                    ),
-                },
-                PayloadSchema::Function(_) | PayloadSchema::Array(_) => false,
-                PayloadSchema::Aggregate(aggregate) => {
-                    let children = aggregate
-                        .components()
-                        .map(|component| component.data)
-                        .collect::<Vec<_>>();
-                    if !expanded {
-                        pending.push((data, true));
-                        pending.extend(children.into_iter().rev().map(|child| (child, false)));
-                        continue;
-                    }
-                    children
-                        .iter()
-                        .all(|child| self.supported.get(child) == Some(&true))
-                }
-            };
-            self.supported.insert(data, supported);
-        }
-        self.supported.get(&data).copied().ok_or(INVALID)
-    }
-}
-
 fn operation_rule(
     program: &Program,
     kind: &ExpressionKind,
@@ -136,11 +79,7 @@ fn operation_rule(
 
 pub(super) fn check(query: &flow::Query) -> Result<Option<Violation>, flow::IntegrityError> {
     let program = query.typed().program();
-    let mut domain = DataDomain {
-        purpose: Domain::Execution,
-        program,
-        supported: BTreeMap::new(),
-    };
+    let mut domain = super::evaluation::Types::default();
     // Walk all typed expressions, not only reachable graph points. An unevaluated branch or
     // interrupted input cannot hide an authored runtime-only call or an unsupported operation.
     for (id, expression) in query.typed().body().expressions().iter() {
@@ -162,7 +101,7 @@ pub(super) fn check(query: &flow::Query) -> Result<Option<Violation>, flow::Inte
                 .get(*local)
                 .ok_or(INVALID)?
                 .data;
-            if !domain.supports(data)? {
+            if !domain.supports(program, data)? {
                 return Ok(Some(Violation {
                     site: Site::Statement(id),
                     rule: Rule::UnsupportedCleanup(data),
@@ -174,7 +113,7 @@ pub(super) fn check(query: &flow::Query) -> Result<Option<Violation>, flow::Inte
         // A known interrupted result is not a produced resource. There is no value to classify
         // here; operation checks above still apply independently of continuation.
         if let Some(value) = expression.ty.normal()
-            && !domain.supports(value.data())?
+            && !domain.supports(program, value.data())?
         {
             return Ok(Some(Violation {
                 site: Site::Expression(id),
@@ -202,7 +141,7 @@ pub(super) fn check(query: &flow::Query) -> Result<Option<Violation>, flow::Inte
                         | flow::resources::Step::ReleaseContainer { .. }
                         | flow::resources::Step::Invoke { .. } => continue,
                     };
-                    if !domain.supports(payload.data())? {
+                    if !domain.supports(program, payload.data())? {
                         return Ok(Some(Violation {
                             site: Site::Cleanup(location),
                             rule: Rule::UnsupportedCleanup(payload.data()),
@@ -258,12 +197,7 @@ pub(super) fn supports_final(
     program: &Program,
     data: TypeId,
 ) -> Result<bool, flow::IntegrityError> {
-    DataDomain {
-        purpose: Domain::Publication,
-        program,
-        supported: BTreeMap::new(),
-    }
-    .supports(data)
+    super::evaluation::Types::default().supports(program, data)
 }
 
 #[cfg(test)]
@@ -273,7 +207,7 @@ mod tests {
     use nocter_model::{BuiltinType, SymbolTable};
 
     #[test]
-    fn array_resource_descriptors_do_not_grant_evaluator_or_final_data_admission() {
+    fn homogeneous_array_domain_uses_shared_evaluator_shapes_without_expanding_counts() {
         for length in [0, 1, u64::MAX] {
             let symbols = SymbolTable::from_spellings(["run", "Holder", "value"]);
             let mut reservations = Reservations::new(symbols.clone());
@@ -312,17 +246,12 @@ mod tests {
                     flow::resources::payload(&program, data).unwrap().disposal(),
                     flow::resources::Disposal::Aggregate
                 );
-                for purpose in [Domain::Execution, Domain::Publication] {
-                    assert!(
-                        !DataDomain {
-                            purpose,
-                            program: &program,
-                            supported: BTreeMap::new()
-                        }
-                        .supports(data)
+                assert!(
+                    super::super::evaluation::Types::default()
+                        .supports(&program, data)
                         .unwrap()
-                    );
-                }
+                );
+                assert!(supports_final(&program, data).unwrap());
             }
         }
     }

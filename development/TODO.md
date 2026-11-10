@@ -23,16 +23,17 @@ initialization, access and resource flow. The [closed evaluator address mechanis
 is an execution consumer, not proof of source safety. Preserve the evaluated numeric index through
 reservations, aliases and holes; equal recipe keys across a backedge do not establish equal values.
 Use the existing canonical address/value storage and shared structural relation, without a second
-ownership registry. Source admission remains gated until the
+ownership registry. Source element-selection admission remains gated until the
 [evaluated-selection closure](design/compiler-realization.md#evaluated-array-selection-closure)
-closes joins, loops and cleanup as well as ordinary value construction. Compact repetition and
+closes joins, loops and cleanup alongside the ordinary whole-value construction path. Compact repetition and
 native storage remain separate consumers to close before product admission.
 
 ## Migration Checklist
 
 - [ ] Complete array construction/repetition, evaluated indexing, sparse partial initialization,
   restoration and cleanup, evaluator data/publication, and native storage/ABI through ordinary
-  source. Extend the [typed construction/selection drafts](compiler/crates/nocter-checking/README.md#array-construction-drafts)
+  source, including evaluator projection of zero-length containment cycles and empty arrays with
+  otherwise unsupported element data. Extend the [typed construction/selection drafts](compiler/crates/nocter-checking/README.md#array-construction-drafts)
   and [concrete ledger](compiler/crates/nocter-checking/README.md#concrete-array-resource-frontiers)
   through the [structural request closure](design/compiler-realization.md#structural-type-request-closure).
   Preserve count supplier guards, one type authority, shared index relations and homogeneous/sparse

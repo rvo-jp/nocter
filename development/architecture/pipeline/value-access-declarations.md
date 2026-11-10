@@ -112,8 +112,10 @@ establish finite containment and Copy as body preparation needs them. Required e
 only the selected contracts and ordinarily accepted const closure; unrelated contracts can remain unready. Every
 header and body must close before complete Unit admission. Source header normalization requests
 computed lengths through that same coordinator, retaining selected supplier guards with its
-closed type metadata. This does not admit array values into body/resource or runtime storage
-operations.
+closed type metadata. Header evidence alone grants no value/storage admission. Checking's
+[listed-construction boundary](../../compiler/crates/nocter-checking/README.md#array-construction-drafts)
+separately qualifies whole-array body/resource/evaluator handoffs; element selection and native
+array storage remain gated.
 Body contents, source coordinates, declaration traversal order, and later Copy specialization cannot
 change a declared input operation. Definition
 order cannot renumber parameters. Reordering source declarations may invalidate a
