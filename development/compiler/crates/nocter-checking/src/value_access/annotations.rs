@@ -38,6 +38,12 @@ impl Checker<'_, '_> {
         use nocter_declaration_lowering::access_declarations::DataTypeSyntax;
         match ty {
             DataTypeSyntax::Named(token) => self.annotation_data_token(*token),
+            DataTypeSyntax::Array { length, .. } => self.reject_message(
+                Rule::UnknownType,
+                *length,
+                "fixed-array type normalization is outside this closed private fragment".to_owned(),
+                Vec::new(),
+            ),
             DataTypeSyntax::Tuple(fields) => {
                 let fields = fields
                     .iter()

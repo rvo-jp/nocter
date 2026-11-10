@@ -228,20 +228,29 @@ fn encode_declaration_diagnostics(tree: &SyntaxTree, canonical: &mut Vec<u8>) {
 }
 
 fn body_roots(tree: &SyntaxTree) -> HashSet<NodeId> {
-    let mut roots = tree
-        .nodes()
-        .filter_map(|(node, syntax)| (syntax.kind() == NodeKind::Block).then_some(node))
-        .collect::<HashSet<_>>();
-    for (declaration, syntax) in tree.nodes() {
-        if matches!(
-            syntax.kind(),
-            NodeKind::ConstantDeclaration | NodeKind::StaticDeclaration
-        ) && let Some(initializer) = crate::direct_node(tree, declaration, NodeKind::Expression)
-        {
-            roots.insert(initializer);
-        }
-    }
-    roots
+    // Only declaration implementations are independent body inputs. Blocks in header expressions
+    // affect the declaration itself, even when they look like ordinary executable bodies.
+    tree.nodes()
+        .filter_map(|(declaration, syntax)| {
+            let body = match syntax.kind() {
+                NodeKind::FunctionDeclaration
+                | NodeKind::ConstructionFunction
+                | NodeKind::LiteralDeclaration
+                | NodeKind::InherentMethod
+                | NodeKind::InterfaceMethod
+                | NodeKind::CoercionDeclaration
+                | NodeKind::EqualityOperator
+                | NodeKind::OrderingOperator
+                | NodeKind::IndexOperator
+                | NodeKind::ExpansionOperator
+                | NodeKind::DropDeclaration
+                | NodeKind::TestDeclaration => NodeKind::Block,
+                NodeKind::ConstantDeclaration | NodeKind::StaticDeclaration => NodeKind::Expression,
+                _ => return None,
+            };
+            crate::direct_node(tree, declaration, body)
+        })
+        .collect()
 }
 
 const fn lex_diagnostic_name(kind: LexDiagnosticKind) -> &'static str {
@@ -329,6 +338,97 @@ mod tests {
             .add_bytes(SourceName::new("surface.nct"), text.as_bytes())
             .unwrap();
         parse_reusable(sources.get(source).unwrap(), ParseGoal::SourceFile).declaration_surface()
+    }
+
+    #[test]
+    fn type_expression_blocks_remain_declaration_inputs_in_both_parse_goals() {
+        for goal in [ParseGoal::SourceFile, ParseGoal::V2CoreUnit] {
+            let input = |text: &str| {
+                let mut sources = SourceMap::new();
+                let id = sources
+                    .add_bytes(SourceName::new("length.nct"), text.as_bytes())
+                    .unwrap();
+                let source = sources.get(id).unwrap();
+                let tree = parse(source, goal);
+                assert!(
+                    !tree.has_errors(),
+                    "{goal:?}: {text}: {:?}",
+                    tree.diagnostics()
+                );
+                project_declaration_syntax(crate::BoundSyntax::new(source, &tree).unwrap())
+            };
+            for text in [
+                "func f(): [i32; if true { 1 } else { 2 }] { return missing }",
+                "struct Data { values: [i32; if true { 1 } else { 2 }] }",
+                "const DATA: [i32; if true { 1 } else { 2 }] = missing",
+            ] {
+                let first = input(text);
+                let changed_length = input(&text.replace("{ 1 }", "{ 3 }"));
+                assert_ne!(
+                    first.surface(),
+                    changed_length.surface(),
+                    "{goal:?}: {text}"
+                );
+                assert_eq!(
+                    first.body_surfaces().len(),
+                    usize::from(!text.starts_with("struct"))
+                );
+                let changed_dead_branch = input(&text.replace("{ 2 }", "{ 7 }"));
+                assert_ne!(first.surface(), changed_dead_branch.surface());
+                if text.contains("missing") {
+                    let changed_body = input(&text.replace("missing", "other"));
+                    assert_eq!(first.surface(), changed_body.surface());
+                    assert_ne!(first.body_surfaces(), changed_body.body_surfaces());
+                }
+            }
+            let first =
+                input("func f(): [i32; if true { 1 } else { 2 }] { if true { 3 } else { 4 } }");
+            let changed =
+                input("func f(): [i32; if true { 1 } else { 2 }] { if true { 5 } else { 6 } }");
+            assert_eq!(first.surface(), changed.surface());
+            assert_eq!(first.body_surfaces().len(), 1);
+        }
+    }
+
+    #[test]
+    fn every_declaration_implementation_remains_an_independent_body_input() {
+        for text in [
+            "func f(): i32 { return 1 }",
+            "construct Value { func f(): Self { return 1 } }",
+            "construct Value { literal \"\"(text: &str): Self { return 1 } }",
+            "instance Value { method &self.f(): i32 { return 1 } }",
+            "interface Value { pub default method &self.f(): i32 { return 1 } }",
+            "instance Value { coerce &self as &str { return 1 } }",
+            "instance Value { operator (&self == other: &Self): bool { return 1 } }",
+            "instance Value { operator (&self < other: &Self): bool { return 1 } }",
+            "instance Value { operator (&self[index: usize]): &i32 { return 1 } }",
+            "instance Value { operator (... &self): &i32 { return 1 } }",
+            "drop Value(&+self) { return 1 }",
+            "test example { return 1 }",
+        ] {
+            let project = |text: &str| {
+                let (tree, source) = tree(text);
+                assert!(!tree.has_errors(), "{text}: {:?}", tree.diagnostics());
+                project_declaration_syntax(crate::BoundSyntax::new(&source, &tree).unwrap())
+            };
+            let first = project(text);
+            let changed = project(&text.replace("return 1", "return 2"));
+            assert_eq!(first.surface(), changed.surface(), "{text}");
+            assert_eq!(first.body_surfaces().len(), 1, "{text}");
+            assert_ne!(first.body_surfaces(), changed.body_surfaces(), "{text}");
+        }
+    }
+
+    #[test]
+    fn type_expression_diagnostics_are_not_hidden_as_implementation_diagnostics() {
+        assert_ne!(
+            surface("func f(): [i32; if true { 1 } else { 2 }] {}"),
+            surface("func f(): [i32; if true { @ } else { 2 }] {}"),
+        );
+        assert_eq!(
+            surface("func f(): [i32; if true { 1 } else { 2 }] {}"),
+            surface("func f(): [i32; if true { 1 } else { 2 }] { @ }"),
+        );
     }
 
     #[test]

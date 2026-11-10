@@ -301,3 +301,57 @@ fn structural_tuple_syntax_distinguishes_unit_groups_and_two_or_more_components(
         assert!(tree(source, ParseGoal::V2CoreUnit).has_errors(), "{source}");
     }
 }
+
+#[test]
+fn fixed_array_types_retain_ordinary_length_expressions_in_every_data_context() {
+    for text in [
+        "struct Data { values: [[i32; inner()]; outer(1 + 2)] }",
+        "func f(input: [i32; count()]): [i32; if true { 1 } else { 2 }] {}",
+        "func f(action: func(edit [i32; count()], take [bool; 0]): [void; count()]): void {}",
+        "func f(): void { let values: [i32; count()] = missing }",
+        "const DATA: [i32; count()] = missing\nstatic MORE: [i32; count()] = missing",
+        "func f(): [\ni32\n;\nchoose(1,\n2) +\n3\n] {}",
+        "func f(): [i32; Settings { count: 3 }.count] {}",
+    ] {
+        let parsed = tree(text, ParseGoal::V2CoreUnit);
+        assert!(!parsed.has_errors(), "{text}: {:?}", parsed.diagnostics());
+        for (id, node) in parsed
+            .nodes()
+            .filter(|(_, n)| n.kind() == NodeKind::FixedArrayType)
+        {
+            assert!(crate::direct_node(&parsed, id, NodeKind::Type).is_some());
+            assert!(crate::direct_node(&parsed, id, NodeKind::Expression).is_some());
+            assert!(!node.range().is_empty());
+        }
+        assert!(
+            parsed
+                .nodes()
+                .any(|(_, n)| n.kind() == NodeKind::FixedArrayType)
+        );
+        super::super::snapshots::assert_token_projection(&parsed, text);
+    }
+}
+
+#[test]
+fn fixed_array_type_recovery_preserves_tokens_without_admitting_slices_or_missing_lengths() {
+    for text in [
+        "func f(): [i32] {}",
+        "func f(): [i32;] {}",
+        "func f(): [; 2] {}",
+        "func f(): [i32, 2] {}",
+        "func f(): [i32; 2 {}",
+        "func f(): [i32; 1 2] {}",
+    ] {
+        let parsed = tree(text, ParseGoal::V2CoreUnit);
+        assert!(parsed.has_errors(), "{text}");
+        super::super::snapshots::assert_token_projection(&parsed, text);
+    }
+    let text = format!(
+        "func f(): {}i32{} {{}}",
+        "[".repeat(500),
+        "; 0]".repeat(500)
+    );
+    let parsed = tree(&text, ParseGoal::V2CoreUnit);
+    assert!(parsed.has_errors());
+    super::super::snapshots::assert_token_projection(&parsed, "array type depth");
+}

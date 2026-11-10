@@ -202,3 +202,19 @@ fn typed_body_rebinding_checks_authority_and_own_body() {
     let changed = header.bind(bound(&changed, &changed_tree)).unwrap();
     assert!(matches!(query.bind(&changed), Err(Failure::ChangedBody)));
 }
+
+#[test]
+fn recognized_local_array_annotations_are_authored_rejections_not_integrity_failures() {
+    for annotation in [
+        "[i32; count()]",
+        "(bool, [i32; 0])",
+        "func(edit [i32; 2]): void",
+    ] {
+        let text = format!("func f(): void {{ let value: {annotation} = missing }}");
+        let Err(Failure::Rejected(diagnostic)) = queries(&text) else {
+            panic!("array normalization is not admitted: {text}");
+        };
+        assert_eq!(diagnostic.rule(), Rule::UnknownType);
+        assert_eq!(diagnostic.source().code(), "E0370");
+    }
+}

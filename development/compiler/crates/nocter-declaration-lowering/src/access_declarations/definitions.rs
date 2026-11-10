@@ -96,6 +96,14 @@ impl Definitions<'_, '_> {
     ) -> Result<Option<DataReference>, Failure> {
         match ty {
             DataTypeSyntax::Named(token) => self.data(*token, owner, position),
+            DataTypeSyntax::Array { .. } => {
+                self.violations.push(DeclarationViolation {
+                    declaration: owner,
+                    position,
+                    rule: nocter_declarations::value_access::DeclarationRule::UnsupportedArrayType,
+                });
+                Ok(None)
+            }
             DataTypeSyntax::Tuple(fields) => {
                 let fields = fields
                     .iter()

@@ -134,7 +134,10 @@ coordinator owns ordinary body acceptance and required execution. The declaratio
 Source preparation must pair each such identity with its exact executable source recipe within
 the existing type-annotation roots, including record fields as well as callable headers. Do not
 manufacture a named function, source text or a separate expression checker to evaluate it.
-The current source catalog still registers only named roots. Relabeling a record header as a
+The private parser and shared type projection now preserve fixed-array element/length syntax,
+including blocks within ordinary count expressions. Requested array headers and local annotations
+still reject explicitly without publishing a schema. The current source catalog still registers
+only named executable roots. Relabeling a record header as a
 function body cannot establish executable source evidence. A type-annotation source root alone
 grants no executable code or result contract.
 

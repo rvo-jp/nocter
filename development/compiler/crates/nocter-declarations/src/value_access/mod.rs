@@ -77,6 +77,7 @@ pub enum DeclarationRule {
     ParameterShadowsCallable { declaration: AccessCodeId },
     ParameterShadowsRecord { declaration: NominalTypeId },
     UnsupportedDataType { data: BuiltinType },
+    UnsupportedArrayType,
     DuplicateRecord { first: NominalTypeId },
     RecordShadowsCallable { declaration: AccessCodeId },
     DuplicateField { first: usize },

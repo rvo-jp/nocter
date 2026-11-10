@@ -50,6 +50,7 @@ fn project(
         violation.rule,
         R::UnknownDataName { .. }
             | R::UnsupportedDataType { .. }
+            | R::UnsupportedArrayType
             | R::NonCopyField
             | R::RecursivePayload { .. }
     );
@@ -151,6 +152,11 @@ fn details(
         R::UnsupportedDataType { .. } => (
             DiagnosticCode::E0291,
             "data type is outside this closed private fragment",
+            None,
+        ),
+        R::UnsupportedArrayType => (
+            DiagnosticCode::E0291,
+            "fixed-array type normalization is outside this closed private fragment",
             None,
         ),
         R::RecursivePayload { through } => (

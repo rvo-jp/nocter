@@ -34,8 +34,11 @@ package or discovery code. It does not resolve names or apply semantic rules.
   `func`/`mut`/`once` callable contracts through one annotation production, with unnamed
   data/input-operation parameters. Nested callback contracts remain outside this goal; record
   fields remain ordinary data shapes. `mut` and `once` are contextual
-  only at an invocation head followed by `(`. Data annotations share recursive tuple/group recognition;
-  tuples have at least two components, while `()` is only the unit expression. Tuple member suffixes
+  only at an invocation head followed by `(`. Data annotations share recursive tuple/group and
+  fixed-array recognition. Array lengths use the ordinary private expression parser, retaining one
+  expression root under `FixedArrayType`; this recognizes source without normalizing a length or
+  granting an array schema. Dynamic slice types remain outside this goal.
+  Tuples have at least two components, while `()` is only the unit expression. Tuple member suffixes
   retain integer tokens without interpreting their positions. Declaration/type/field lookup remains semantic work. Its lexical
   profile retires old modifier words and reserves `throw` without changing released `SourceFile`
   parsing or ordinary `lex`
@@ -95,9 +98,11 @@ maintaining another radix/underscore parser.
 - A consumer never infers subtree completeness from file-wide diagnostic presence.
 - Bounded ambiguity is parsed once transactionally rather than reparsed after lookahead.
 - Reusing parse work rewrites every embedded source identity and rejects unequal normalized text.
-- Block and initializer edits and their body-local diagnostics do not change the
-  declaration-syntax surface; declaration shape, body presence, and declaration-local diagnostics
-  do.
+- Declaration-implementation block and initializer edits and their body-local diagnostics do not
+  change the declaration-syntax surface; declaration shape, body presence, and declaration-local
+  diagnostics do. Blocks inside header expressions remain complete declaration inputs, including
+  unexecuted branches and their diagnostics. The syntax owner selects independent bodies by their
+  enclosing declaration role, rather than pruning every block node.
 - Editing one body changes only that body's exact surface; unchanged sibling bodies retain equal
   locators and bytes.
 - A `BodySyntaxProjection` is a complete immutable locator table. The checking body-source catalog

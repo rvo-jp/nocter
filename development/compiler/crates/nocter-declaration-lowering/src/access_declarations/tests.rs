@@ -286,3 +286,114 @@ fn const_capability_is_header_authority_and_not_body_inference() {
         Err(Failure::ChangedHeader)
     ));
 }
+
+#[test]
+fn recognized_array_headers_reject_locally_without_inventing_a_length_or_schema() {
+    use nocter_declarations::value_access::{DeclarationRule, HeaderPosition};
+    for (source, annotation, position) in [
+        (
+            "struct Data { values: [i32; count()] }",
+            "[i32; count()]",
+            HeaderPosition::Field(0),
+        ),
+        (
+            "func f(values: [i32; 0]): void {}",
+            "[i32; 0]",
+            HeaderPosition::Parameter(0),
+        ),
+        (
+            "func f(): (bool, [i32; count()]) {}",
+            "(bool, [i32; count()])",
+            HeaderPosition::Result,
+        ),
+        (
+            "func f(action: func(edit [i32; 2]): void): void {}",
+            "func(edit [i32; 2]): void",
+            HeaderPosition::Parameter(0),
+        ),
+        (
+            "const DATA: [i32; 0] = missing",
+            "[i32; 0]",
+            HeaderPosition::Result,
+        ),
+        (
+            "static DATA: [i32; 2] = missing",
+            "[i32; 2]",
+            HeaderPosition::Result,
+        ),
+    ] {
+        let (sources, tree) = input(source, ParseGoal::V2CoreUnit);
+        assert!(!tree.has_errors(), "{source}: {:?}", tree.diagnostics());
+        let syntax = bound(&sources, &tree);
+        let Err(Failure::Headers(diagnostics)) = Query::prepare(syntax) else {
+            panic!("array normalization is not admitted: {source}");
+        };
+        assert_eq!(diagnostics.len(), 1);
+        let diagnostic = &diagnostics[0];
+        assert_eq!(
+            diagnostic.violation().rule,
+            DeclarationRule::UnsupportedArrayType
+        );
+        assert_eq!(diagnostic.violation().position, position);
+        assert_eq!(diagnostic.source().code(), "E0291");
+        assert_eq!(
+            syntax.text_at(diagnostic.source().primary().span().range()),
+            Some(annotation)
+        );
+    }
+}
+
+#[test]
+fn unready_array_header_roots_preserve_the_exact_ordinary_length_expression() {
+    use nocter_declarations::value_access::{DeclarationId, HeaderPosition};
+    for (source, position) in [
+        (
+            "struct Data { values: [i32; if true { size() } else { 0 }] }",
+            HeaderPosition::Field(0),
+        ),
+        (
+            "func f(values: [i32; if true { size() } else { 0 }]): void {}",
+            HeaderPosition::Parameter(0),
+        ),
+        (
+            "func f(): [i32; if true { size() } else { 0 }] {}",
+            HeaderPosition::Result,
+        ),
+    ] {
+        let (sources, tree) = input(source, ParseGoal::V2CoreUnit);
+        let syntax = bound(&sources, &tree);
+        let preparation = Preparation::prepare(syntax).unwrap();
+        let context = preparation.current();
+        let name = if source.starts_with("struct") {
+            "Data"
+        } else {
+            "f"
+        };
+        let owner: DeclarationId = context
+            .program()
+            .declaration(context.program().symbols().get(name).unwrap())
+            .unwrap();
+        assert!(!context.program().header_ready(owner));
+        let guard = context.header_source(owner, position).unwrap();
+        let root = guard.bind(&context).unwrap();
+        let ValueTypeSyntax::Data(DataTypeSyntax::Array { element, length }) =
+            value_type_syntax(syntax, root).unwrap()
+        else {
+            panic!("array syntax");
+        };
+        assert!(matches!(*element, DataTypeSyntax::Named(_)));
+        assert_eq!(
+            syntax.text_at(tree.node(length).unwrap().range()),
+            Some("if true { size() } else { 0 }")
+        );
+        let projection = nocter_syntax::BodySyntaxProjection::for_root(&tree, length).unwrap();
+        let locator = projection
+            .locator(nocter_syntax::SyntaxOrigin::Node(length))
+            .unwrap();
+        assert_eq!(
+            projection.resolve(locator),
+            Some(nocter_syntax::SyntaxOrigin::Node(length))
+        );
+        assert!(!context.program().header_ready(owner));
+    }
+}

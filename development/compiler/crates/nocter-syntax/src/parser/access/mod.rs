@@ -121,7 +121,23 @@ fn parameter(parser: &mut Parser<'_>) {
 fn type_(parser: &mut Parser<'_>) {
     let marker = parser.start();
     let shape = parser.start();
-    if parser.eat_punctuation(Punctuation::LeftParen) {
+    if parser.eat_punctuation(Punctuation::LeftBracket) {
+        if parser.enter_nesting() {
+            parser.eat_newlines();
+            type_(parser);
+            parser.eat_newlines();
+            parser.expect_punctuation(Punctuation::Semicolon);
+            parser.eat_newlines();
+            expression::expression(parser, newline::Boundary::Delimited);
+            parser.eat_newlines();
+            parser.expect_punctuation(Punctuation::RightBracket);
+            parser.leave_nesting();
+            parser.complete(shape, NodeKind::FixedArrayType);
+        } else {
+            parser.recover_balanced(Punctuation::LeftBracket, Punctuation::RightBracket);
+            parser.complete(shape, NodeKind::Error);
+        }
+    } else if parser.eat_punctuation(Punctuation::LeftParen) {
         if parser.enter_nesting() {
             parser.eat_newlines();
             type_(parser);
@@ -195,7 +211,9 @@ fn annotation_type(parser: &mut Parser<'_>) {
                         parser.nth_kind(1),
                         TokenKind::Identifier
                             | TokenKind::Keyword(Keyword::Void)
-                            | TokenKind::Punctuation(Punctuation::LeftParen)
+                            | TokenKind::Punctuation(
+                                Punctuation::LeftParen | Punctuation::LeftBracket
+                            )
                     )
                 {
                     let operation = parser.start();

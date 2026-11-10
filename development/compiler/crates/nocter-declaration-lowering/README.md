@@ -104,8 +104,12 @@ without examining body semantics.
 Initializer expressions use the syntax owner's existing body-surface exclusion and current-body
 locator mechanism, so initializer-only edits rebind headers without retaining stale values. `type_syntax::value_type_syntax` projects one
 `ValueTypeSyntax` for input/result headers and checking's local annotations. Recursive
-`DataTypeSyntax` preserves tuple/group shape and named leaves for both consumers; record fields
-use that same data projection. Its typed invocation and input-operation projection is the only
+`DataTypeSyntax` preserves tuple/group shape, named leaves and array element/length syntax for
+both consumers; record fields use that same data projection. A recognized array retains its
+ordinary length-expression node under its actual annotation. Recognition does not normalize the
+length: requested array headers currently reject locally with E0291 before publication. Checking
+similarly rejects local array annotations rather than reporting an internal syntax failure.
+The shared typed invocation and input-operation projection is the only
 decoder for these contexts; neither consumer recovers a mode from names, types or body use.
 `definitions` resolves only the selected input/result or record recipe through one value
 normalization path and the declaration owner's single data namespace. Callable recipes retain

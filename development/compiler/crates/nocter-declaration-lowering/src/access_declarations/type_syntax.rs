@@ -21,12 +21,17 @@ pub enum ValueTypeSyntax {
 pub enum DataTypeSyntax {
     Named(SyntaxToken),
     Tuple(Box<[DataTypeSyntax]>),
+    Array {
+        element: Box<DataTypeSyntax>,
+        length: NodeId,
+    },
 }
 impl DataTypeSyntax {
     pub(super) fn tokens(&self) -> Vec<SyntaxToken> {
         match self {
             Self::Named(token) => vec![*token],
             Self::Tuple(fields) => fields.iter().flat_map(Self::tokens).collect(),
+            Self::Array { element, .. } => element.tokens(),
         }
     }
 }
@@ -97,6 +102,15 @@ pub(super) fn data_syntax(syntax: BoundSyntax<'_>, ty: NodeId) -> Result<DataTyp
             syntax,
             direct_node(syntax.tree(), shape, NodeKind::Type).ok_or(Failure::InconsistentSyntax)?,
         ),
+        NodeKind::FixedArrayType => Ok(DataTypeSyntax::Array {
+            element: Box::new(data_syntax(
+                syntax,
+                direct_node(syntax.tree(), shape, NodeKind::Type)
+                    .ok_or(Failure::InconsistentSyntax)?,
+            )?),
+            length: direct_node(syntax.tree(), shape, NodeKind::Expression)
+                .ok_or(Failure::InconsistentSyntax)?,
+        }),
         NodeKind::TupleType => {
             let fields = child_node_iter(syntax.tree(), shape)
                 .map(|field| data_syntax(syntax, field))
