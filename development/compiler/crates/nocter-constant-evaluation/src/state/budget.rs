@@ -105,6 +105,17 @@ impl Lease {
     pub(super) fn belongs_to(&self, storage: &Storage) -> bool {
         Arc::ptr_eq(&self.meter, &storage.0)
     }
+    pub(super) fn grow(&mut self, storage: &Storage, units: usize) -> Result<(), Rule> {
+        let units = u64::try_from(units).map_err(|_| Rule::StorageLimit)?;
+        if !self.belongs_to(storage) {
+            return Err(Rule::InvalidPlan);
+        }
+        let total = self.units.checked_add(units).ok_or(Rule::StorageLimit)?;
+        let mut additional = storage.reserve(units)?;
+        self.units = total;
+        additional.units = 0;
+        Ok(())
+    }
 }
 /// Entry metadata is distinct from any shared values or paths stored in it.
 pub(super) struct Resident<T> {

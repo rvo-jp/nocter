@@ -1,5 +1,5 @@
 use super::{
-    Data, Place, Rule, Slot, Storage as SlotStorage, Value,
+    Place, Rule, Slot, Storage as SlotStorage, Value,
     budget::{Lease, Resident, Storage},
 };
 use std::{
@@ -203,10 +203,11 @@ impl Memory {
             }
         };
         for &field in address.fields.iter() {
-            let Data::Aggregate(values) = value.data() else {
-                return Err(Rule::InvalidPlan);
-            };
-            value = values.get(field).ok_or(Rule::InvalidPlan)?.clone();
+            value = value
+                .data()
+                .component(field)
+                .ok_or(Rule::InvalidPlan)?
+                .clone();
         }
         Ok(value)
     }
@@ -225,17 +226,12 @@ impl Memory {
         };
         let mut root = root;
         for &field in &address.fields[..address.fields.len() - 1] {
-            let Data::Aggregate(values) = root.make_mut(&self.storage)? else {
-                return Err(Rule::InvalidPlan);
-            };
-            root = values.get_mut(field).ok_or(Rule::InvalidPlan)?;
+            root = root.component_mut(&self.storage, field)?;
         }
-        let Data::Aggregate(values) = root.make_mut(&self.storage)? else {
-            return Err(Rule::InvalidPlan);
-        };
-        *values
-            .get_mut(*address.fields.last().ok_or(Rule::InvalidPlan)?)
-            .ok_or(Rule::InvalidPlan)? = value;
+        *root.component_mut(
+            &self.storage,
+            *address.fields.last().ok_or(Rule::InvalidPlan)?,
+        )? = value;
         Ok(())
     }
     pub fn construct(&mut self, address: &Address) -> Result<()> {

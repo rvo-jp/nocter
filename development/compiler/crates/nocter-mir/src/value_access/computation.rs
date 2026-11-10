@@ -177,6 +177,7 @@ impl Builder<'_> {
             | ExpressionKind::Closure { .. }
             | ExpressionKind::AdaptFunction { .. }
             | ExpressionKind::Aggregate { .. }
+            | ExpressionKind::Repeat { .. }
             | ExpressionKind::Select {
                 action: SelectionAction::MovePayload,
                 ..

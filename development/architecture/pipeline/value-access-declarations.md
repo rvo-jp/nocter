@@ -113,7 +113,7 @@ only the selected contracts and ordinarily accepted const closure; unrelated con
 header and body must close before complete Unit admission. Source header normalization requests
 computed lengths through that same coordinator, retaining selected supplier guards with its
 closed type metadata. Header evidence alone grants no value/storage admission. Checking's
-[listed-construction boundary](../../compiler/crates/nocter-checking/README.md#array-construction-drafts)
+[listed-construction boundary](../../compiler/crates/nocter-checking/README.md#array-construction)
 separately qualifies whole-array body/resource/evaluator handoffs. Its
 [read-selection path](../../compiler/crates/nocter-checking/README.md#array-selection) retains evaluated
 element addresses; element mutation/transfer and native array storage remain gated.
@@ -548,8 +548,9 @@ static callbacks and owned captures, indirect aggregate transport, zero-byte dat
 argument crossing and required arithmetic traps. Closed record/tuple constants reach native code as
 serialized immutable data through the model-owned frozen literal product. Their uses receive
 independent values; initialization thunks do not become runtime instances. Required source array
-construction, indexed reads and loop computation can freeze a scalar answer before native instance
-closure. A native fixture executes that answer as status 42; it establishes compile-time array
+construction/repetition, indexed reads and loop computation can freeze a scalar answer before native
+instance closure, including maximum-count repeated data without count expansion. Native fixtures
+execute those answers as status 42; they establish compile-time array
 computation with a scalar consumer, without runtime array layout or array-parameter ABI.
 Immutable statics retain one place identity across bodies, with separate address bindings rather
 than callable inputs or local owners. Their frozen data uses the same physical serializer without

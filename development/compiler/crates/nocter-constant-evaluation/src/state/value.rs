@@ -1,13 +1,19 @@
 //! Immutable value handles; evaluator mutations reserve a new node before copying shared data.
 use super::{
     Rule,
-    budget::{Lease, Resident, Storage},
+    budget::{Lease, Storage},
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
+    num::NonZeroU64,
     sync::Arc,
 };
+mod composite;
+mod frozen;
+mod storage;
+const SPARSE_ENTRY_ITEMS: usize = 2;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Data {
     Unit,
@@ -15,6 +21,12 @@ pub enum Data {
     Integer(i128),
     /// Ordered physical storage; the validated slot type owns its record/tuple/array identity.
     Aggregate(Box<[Value]>),
+    /// One default element and sparse replacements, independent of logical cardinality.
+    Repeated {
+        element: Value,
+        length: NonZeroU64,
+        replacements: BTreeMap<u64, Value>,
+    },
 }
 struct Node {
     data: Data,
@@ -53,6 +65,14 @@ impl Value {
         Self::plain(Data::Aggregate(fields.into()))
     }
     #[must_use]
+    pub fn repeated(element: Self, length: NonZeroU64) -> Self {
+        Self::plain(Data::Repeated {
+            element,
+            length,
+            replacements: BTreeMap::new(),
+        })
+    }
+    #[must_use]
     pub fn data(&self) -> &Data {
         &self.inner().data
     }
@@ -68,15 +88,12 @@ impl Value {
             .as_ref()
             .is_some_and(|lease| lease.belongs_to(storage))
     }
-    pub(super) fn make_mut(&mut self, storage: &Storage) -> Result<&mut Data, Rule> {
+    fn unique_node(&mut self, storage: &Storage) -> Result<&mut Node, Rule> {
         if !self.belongs_to(storage) {
             return Err(Rule::InvalidPlan);
         }
         if Arc::get_mut(self.node.as_mut().expect("live value")).is_none() {
-            let count = match self.data() {
-                Data::Aggregate(fields) => fields.len(),
-                _ => 0,
-            };
+            let count = self.data().storage_items()?;
             let allocation = storage.items(count)?;
             let data = self.data().clone();
             self.node = Some(Arc::new(Node {
@@ -84,9 +101,38 @@ impl Value {
                 allocation: Some(allocation),
             }));
         }
-        Ok(&mut Arc::get_mut(self.node.as_mut().expect("live value"))
-            .expect("unique value")
-            .data)
+        Ok(Arc::get_mut(self.node.as_mut().expect("live value")).expect("unique value"))
+    }
+    pub(super) fn component_mut(
+        &mut self,
+        storage: &Storage,
+        index: usize,
+    ) -> Result<&mut Self, Rule> {
+        let node = self.unique_node(storage)?;
+        match &mut node.data {
+            Data::Aggregate(fields) => fields.get_mut(index).ok_or(Rule::InvalidPlan),
+            Data::Repeated {
+                element,
+                length,
+                replacements,
+            } => {
+                let index = u64::try_from(index).map_err(|_| Rule::InvalidPlan)?;
+                if index >= length.get() {
+                    return Err(Rule::InvalidPlan);
+                }
+                match replacements.entry(index) {
+                    std::collections::btree_map::Entry::Occupied(entry) => Ok(entry.into_mut()),
+                    std::collections::btree_map::Entry::Vacant(entry) => {
+                        node.allocation
+                            .as_mut()
+                            .ok_or(Rule::InvalidPlan)?
+                            .grow(storage, SPARSE_ENTRY_ITEMS)?;
+                        Ok(entry.insert(element.clone()))
+                    }
+                }
+            }
+            _ => Err(Rule::InvalidPlan),
+        }
     }
 }
 impl PartialEq for Value {
@@ -103,9 +149,7 @@ impl PartialEq for Value {
                 (Data::Unit, Data::Unit) => {}
                 (Data::Bool(a), Data::Bool(b)) if a == b => {}
                 (Data::Integer(a), Data::Integer(b)) if a == b => {}
-                (Data::Aggregate(a), Data::Aggregate(b)) if a.len() == b.len() => {
-                    pending.extend(a.iter().zip(b));
-                }
+                _ if left.data().component_pairs(right.data(), &mut pending) => {}
                 _ => return false,
             }
         }
@@ -120,171 +164,14 @@ impl fmt::Debug for Value {
 }
 impl Drop for Value {
     fn drop(&mut self) {
-        let Some(node) = self.node.take() else {
+        let Some(node) = self.node.take().and_then(Arc::into_inner) else {
             return;
         };
-        let Some(Node {
-            data: Data::Aggregate(fields),
-            ..
-        }) = Arc::into_inner(node)
-        else {
-            return;
-        };
-        let mut pending = fields.into_vec();
+        let mut pending = node.data.into_children();
         while let Some(mut value) = pending.pop() {
-            let Some(node) = value.node.take() else {
-                continue;
-            };
-            if let Some(Node {
-                data: Data::Aggregate(fields),
-                ..
-            }) = Arc::into_inner(node)
-            {
-                pending.extend(fields);
+            if let Some(node) = value.node.take().and_then(Arc::into_inner) {
+                pending.extend(node.data.into_children());
             }
         }
-    }
-}
-impl Storage {
-    pub(super) fn primitive(&self, data: Data) -> Result<Value, Rule> {
-        if matches!(data, Data::Aggregate(_)) {
-            return Err(Rule::InvalidPlan);
-        }
-        let allocation = self.items(0)?;
-        Ok(Value {
-            node: Some(Arc::new(Node {
-                data,
-                allocation: Some(allocation),
-            })),
-        })
-    }
-    pub(super) fn aggregate(
-        &self,
-        fields: impl ExactSizeIterator<Item = Value>,
-    ) -> Result<Value, Rule> {
-        let allocation = self.items(fields.len())?;
-        let fields = fields.collect::<Box<[_]>>();
-        if fields.iter().any(|value| !value.belongs_to(self)) {
-            return Err(Rule::InvalidPlan);
-        }
-        Ok(Value {
-            node: Some(Arc::new(Node {
-                data: Data::Aggregate(fields),
-                allocation: Some(allocation),
-            })),
-        })
-    }
-    pub(super) fn import(&self, value: &Value) -> Result<Value, Rule> {
-        if value.belongs_to(self) {
-            return Ok(value.clone());
-        }
-        if !matches!(value.data(), Data::Aggregate(_)) {
-            return self.primitive(value.data().clone());
-        }
-        let mut pending = vec![self.entry((value.clone(), false))?];
-        let mut completed: BTreeMap<usize, Resident<Value>> = BTreeMap::new();
-        while let Some(task) = pending.pop() {
-            let (source, expanded) = &task.value;
-            let identity = source.identity();
-            if completed.contains_key(&identity) {
-                continue;
-            }
-            if !source.belongs_to(self)
-                && !*expanded
-                && let Data::Aggregate(fields) = source.data()
-            {
-                pending.push(self.entry((source.clone(), true))?);
-                for field in fields.iter().rev() {
-                    pending.push(self.entry((field.clone(), false))?);
-                }
-                continue;
-            }
-            let value = if source.belongs_to(self) {
-                source.clone()
-            } else {
-                match source.data() {
-                    Data::Aggregate(fields) => self.aggregate(fields.iter().map(|field| {
-                        completed
-                            .get(&field.identity())
-                            .expect("postorder value")
-                            .value
-                            .clone()
-                    }))?,
-                    data => self.primitive(data.clone())?,
-                }
-            };
-            completed.insert(identity, self.entry(value)?);
-        }
-        completed
-            .get(&value.identity())
-            .map(|entry| entry.value.clone())
-            .ok_or(Rule::InvalidPlan)
-    }
-}
-
-impl Value {
-    /// Freeze one result into a finite publication DAG, preserving shared components.
-    /// # Panics
-    /// Panics if an internal value violates the postorder construction invariant.
-    #[must_use]
-    pub fn freeze(&self) -> nocter_model::FrozenData {
-        use nocter_model::{ConstantValue, FrozenData, FrozenNode};
-        let mut pending = vec![(self, false)];
-        let mut ids = BTreeMap::new();
-        let mut nodes = Vec::new();
-        while let Some((value, expanded)) = pending.pop() {
-            if ids.contains_key(&value.identity()) {
-                continue;
-            }
-            if !expanded && let Data::Aggregate(fields) = value.data() {
-                pending.push((value, true));
-                pending.extend(fields.iter().rev().map(|field| (field, false)));
-                continue;
-            }
-            let node = match value.data() {
-                Data::Unit => FrozenNode::Unit,
-                Data::Bool(value) => FrozenNode::Scalar(ConstantValue::Bool(*value)),
-                Data::Integer(value) => FrozenNode::Scalar(ConstantValue::Integer(*value)),
-                Data::Aggregate(fields) => FrozenNode::Aggregate(
-                    fields.iter().map(|field| ids[&field.identity()]).collect(),
-                ),
-            };
-            ids.insert(value.identity(), nodes.len());
-            nodes.push(node);
-        }
-        FrozenData::new(nodes).expect("postorder frozen data")
-    }
-    /// Reconstruct the selected immutable plan datum without visiting unrelated graph nodes.
-    /// Shared aggregates remain shared; no source executes during reconstruction.
-    #[must_use]
-    pub fn from_frozen(data: &nocter_model::FrozenData) -> Option<Self> {
-        use nocter_model::{ConstantValue, FrozenNode};
-        let mut values: BTreeMap<usize, Self> = BTreeMap::new();
-        let mut pending = vec![(data.root(), false)];
-        while let Some((id, expanded)) = pending.pop() {
-            if values.contains_key(&id) {
-                continue;
-            }
-            let node = data.nodes().get(id)?;
-            if !expanded && let FrozenNode::Aggregate(fields) = node {
-                pending.push((id, true));
-                pending.extend(fields.iter().rev().map(|&field| (field, false)));
-                continue;
-            }
-            let value = match node {
-                FrozenNode::Unit => Self::unit(),
-                FrozenNode::Scalar(ConstantValue::Bool(value)) => Self::boolean(*value),
-                FrozenNode::Scalar(ConstantValue::Integer(value)) => Self::integer(*value),
-                FrozenNode::Aggregate(fields) => Self::aggregate(
-                    fields
-                        .iter()
-                        .map(|id| values.get(id).cloned())
-                        .collect::<Option<Box<[_]>>>()?,
-                ),
-                FrozenNode::Scalar(_) => return None,
-            };
-            values.insert(id, value);
-        }
-        values.remove(&data.root())
     }
 }

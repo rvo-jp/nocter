@@ -40,6 +40,7 @@ fn computed_bases_and_nested_indices_supply_values_once() {
 fn required_bounds_fail_at_the_index_operation_instead_of_publishing_a_value() {
     for source in [
         "const ANSWER: i32 = [1, 2][2]",
+        "const ANSWER: void = [(); 18446744073709551615][18446744073709551615]",
         "const func work(): i32 { let values: [i32; 0] = []\nvalues[0] }\nconst ANSWER: i32 = work()",
     ] {
         let (sources, tree) = input(source);
@@ -133,6 +134,13 @@ fn immutable_statics_keep_place_identity_while_constants_construct_values() {
 fn zero_sized_comparison_does_not_skip_the_index_bounds_effect() {
     assert_eq!(
         answer("const ANSWER: bool = [(), ()][1] == ()", "ANSWER"),
+        Datum::boolean(true)
+    );
+    assert_eq!(
+        answer(
+            "const ANSWER: bool = [(); 18446744073709551615][18446744073709551614] == ()",
+            "ANSWER"
+        ),
         Datum::boolean(true)
     );
     let (sources, tree) = input("const ANSWER: bool = [(), ()][2] == ()");

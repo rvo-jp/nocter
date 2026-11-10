@@ -67,6 +67,7 @@ fn operation_rule(
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Unit
         | ExpressionKind::Aggregate { .. }
+        | ExpressionKind::Repeat { .. }
         | ExpressionKind::Select { .. }
         | ExpressionKind::Index { .. }
         | ExpressionKind::Place(_)

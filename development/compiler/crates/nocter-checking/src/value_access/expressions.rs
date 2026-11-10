@@ -59,9 +59,7 @@ impl Checker<'_, '_> {
             NodeKind::TupleExpression => {
                 self.tuple_value(node, hint.map(Boundary::Value), reachable)?
             }
-            NodeKind::ArrayRepeatLiteral => {
-                return self.array_repetition(node, hint, reachable);
-            }
+            NodeKind::ArrayRepeatLiteral => self.array_repetition(node, hint, reachable)?,
             NodeKind::ArrayLiteral => self.array_value(node, hint, reachable)?,
             NodeKind::UnaryExpression => self.unary(node, hint, reachable)?,
             NodeKind::LogicalOrExpression

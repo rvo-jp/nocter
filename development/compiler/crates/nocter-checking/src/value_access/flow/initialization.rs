@@ -441,6 +441,7 @@ fn evaluate(
         | ExpressionKind::AdaptFunction { .. }
         | ExpressionKind::Select { .. }
         | ExpressionKind::Aggregate { .. }
+        | ExpressionKind::Repeat { .. }
         | ExpressionKind::Constant(_)
         | ExpressionKind::Integer(_)
         | ExpressionKind::Boolean(_)

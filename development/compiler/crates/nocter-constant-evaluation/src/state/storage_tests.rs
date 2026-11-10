@@ -149,7 +149,7 @@ fn insufficient_space_rejects_shared_path_copy_before_mutation() {
     let record = budget.storage.aggregate([leaf].into_iter()).unwrap();
     let mut edited = record.clone();
     assert_eq!(
-        edited.make_mut(&budget.storage).unwrap_err(),
+        edited.component_mut(&budget.storage, 0).unwrap_err(),
         Rule::StorageLimit
     );
     assert_eq!(edited, record);
@@ -161,9 +161,16 @@ fn insufficient_space_rejects_shared_path_copy_before_mutation() {
 #[test]
 fn deeply_nested_values_import_and_release_without_recursive_host_stack_growth() {
     let mut source = Value::integer(1);
-    for _ in 0..10_000 {
-        source = Value::aggregate(vec![source]);
+    for depth in 0..10_000 {
+        source = if depth % 2 == 0 {
+            Value::aggregate(vec![source])
+        } else {
+            Value::repeated(source, std::num::NonZeroU64::new(u64::MAX).unwrap())
+        };
     }
+    let frozen = source.freeze();
+    assert_eq!(frozen.nodes().len(), 10_001);
+    assert_eq!(Value::from_frozen(&frozen).unwrap(), source);
     let budget = budget(100_000);
     let imported = budget.storage.import(&source).unwrap();
     assert_eq!(budget.storage_used(), 20_001);
@@ -318,4 +325,93 @@ fn static_views_share_metered_data_and_reject_mutation_without_changing_it() {
     assert_eq!(budget.storage_used(), 1);
     drop(source);
     assert_eq!(budget.storage_used(), 0);
+}
+
+#[test]
+fn sparse_repetition_edits_share_defaults_and_replace_entries_without_write_history() {
+    use std::num::NonZeroU64;
+    let budget = budget(128);
+    let source = Value::repeated(Value::integer(1), NonZeroU64::new(u64::MAX).unwrap());
+    let mut edited = budget.storage.import(&source).unwrap();
+    let snapshot = edited.clone();
+    let replacement = integer(&budget.storage, 2);
+    let before = budget.storage_used();
+    *edited.component_mut(&budget.storage, 0).unwrap() = replacement;
+    assert_eq!(budget.storage_used(), before + 4); // copied default edge/node and one sparse key/value
+    let after = budget.storage_used();
+    *edited.component_mut(&budget.storage, 0).unwrap() = integer(&budget.storage, 3);
+    assert_eq!(budget.storage_used(), after);
+    assert_eq!(edited.data().component(0).unwrap(), &Value::integer(3));
+    assert_eq!(edited.data().component(1).unwrap(), &Value::integer(1));
+    assert_eq!(snapshot, source);
+    let frozen = edited.freeze();
+    assert_eq!(frozen.nodes().len(), 3);
+    assert_eq!(Value::from_frozen(&frozen).unwrap(), edited);
+    drop(edited);
+    drop(snapshot);
+    assert_eq!(budget.storage_used(), 0);
+}
+#[test]
+fn repeated_and_listed_values_compare_logical_components_including_replaced_defaults() {
+    use std::num::NonZeroU64;
+    let budget = budget(128);
+    let mut value = budget
+        .storage
+        .import(&Value::repeated(
+            Value::integer(1),
+            NonZeroU64::new(2).unwrap(),
+        ))
+        .unwrap();
+    for index in 0..2 {
+        *value.component_mut(&budget.storage, index).unwrap() = integer(&budget.storage, 2);
+    }
+    assert_eq!(value, Value::aggregate(vec![Value::integer(2); 2]));
+    assert_eq!(
+        value,
+        Value::repeated(Value::integer(2), NonZeroU64::new(2).unwrap())
+    );
+    assert_ne!(
+        value,
+        Value::aggregate(vec![Value::integer(2), Value::integer(3)])
+    );
+    assert_ne!(
+        value,
+        Value::repeated(Value::integer(2), NonZeroU64::new(3).unwrap())
+    );
+    drop(value);
+    assert_eq!(budget.storage_used(), 0);
+}
+#[test]
+fn failed_compact_imports_and_sparse_copy_on_write_release_every_charge() {
+    use std::num::NonZeroU64;
+    let source = Value::repeated(
+        Value::aggregate(vec![Value::integer(1)]),
+        NonZeroU64::new(u64::MAX).unwrap(),
+    );
+    let mut failed = 0;
+    let mut passed = 0;
+    for limit in 1..=48 {
+        let budget = budget(limit);
+        let run = || -> Result<(), Rule> {
+            let mut value = budget.storage.import(&source)?;
+            let snapshot = value.clone();
+            let replacement = budget.storage.primitive(Data::Integer(2))?;
+            *value
+                .component_mut(&budget.storage, 0)?
+                .component_mut(&budget.storage, 0)? = replacement;
+            assert_eq!(snapshot, source);
+            assert_eq!(
+                value.data().component(1).unwrap(),
+                &Value::aggregate(vec![Value::integer(1)])
+            );
+            Ok(())
+        };
+        match run() {
+            Ok(()) => passed += 1,
+            Err(Rule::StorageLimit) => failed += 1,
+            Err(rule) => panic!("{rule:?}"),
+        }
+        assert_eq!(budget.storage_used(), 0);
+    }
+    assert!(failed > 0 && passed > 0);
 }

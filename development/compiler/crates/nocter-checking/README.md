@@ -300,8 +300,8 @@ input does not accidentally acquire a copied or moved value. Unsigned negation f
 checked subtraction operation as zero minus the operand. i32/usize range checks use the model's
 numeric profile; the private source currently qualifies its 64-bit usize only. Header and
 [body-local array lengths](#body-local-required-expressions) use ordinary usize checking and
-required execution. [Listed array values](#array-construction-drafts) share the ordinary aggregate path;
-repetition and element mutation/transfer retain explicit implementation gates.
+required execution. [Listed array values](#array-construction) share the ordinary aggregate path;
+element mutation/transfer retains explicit implementation gates.
 [Read selection](#array-selection) uses evaluated element addresses.
 
 `ValueType` keeps known result access separately from possible normal completion. Calls,
@@ -778,18 +778,17 @@ supplier changes, dead authored calls and mixed body/value cycles. Successful co
 does not by itself qualify a value operation. Complete Unit publication still requires every
 declared body and required value; partially completed count facts cannot publish a Unit. Count
 values are not exposed as named constants or runtime-callable bodies. Listed construction and
-whole-value handoffs use the [array construction path](#array-construction-drafts), and
-[read selection](#array-selection) retains evaluated element addresses. Repetition and element
-mutation/transfer retain explicit authored rejection gates. Count completion precedes ordinary
-seed preparation, including at zero. Dynamic element proofs, compact repetition and native array
-storage remain integration work.
+whole-value handoffs use the [array construction path](#array-construction), and
+[read selection](#array-selection) retains evaluated element addresses. Repetition uses the same
+count authority and a compact value operation. Count completion precedes ordinary seed preparation,
+including at zero. Element mutation/transfer and native array storage retain explicit authored
+gates; dynamic element-state proofs remain integration work.
 
-## Array Construction Drafts
+## Array Construction
 
 `construction::arrays` checks listed/repeated construction through the ordinary expression and
-value-supply boundaries. Listed construction enters the ordinary body and resource path;
-repetition remains a checked draft. An authored array context supplies its
-element data and exact count. Inference checks each listed component independently and requires
+value-supply boundaries and the ordinary body/resource/evaluator path. An authored array context
+supplies its element data and exact count. Inference checks each listed component independently and requires
 equal data identities; the first element supplies no coercion context to the rest. Empty lists
 need contextual element data. Listed expressions retain source-ordered `ValueField::Array` components
 in the existing aggregate expression product and use the same body type authority, including in
@@ -798,9 +797,13 @@ nested arrays and tuples. Callable-witness elements remain outside this bounded 
 Repetition closes its count through the common query, then prepares its seed even at zero count.
 The seed must be supplied as an ordinary value; zero does not turn a non-Copy read into an owner
 or suppress a required constant dependency. Counts above one require the declaration authority's
-Copy evidence. These checks do not execute the seed producer or qualify repetition cleanup and
-storage. Compact repeated-value operations remain unimplemented, and repetition rejects
-explicitly afterward. This gate does not reject independently closed listed construction or whole-array operations.
+Copy evidence. Typing a repetition does not execute a runtime seed. The typed repeat retains one
+seed expression; its result's array schema owns the count. Execution evaluates that seed once.
+At zero, the ordinary ledger disposes it before assembling the empty array; at one, ordinary
+assembly moves it into the single element. Larger counts snapshot Copy data into the evaluator's
+[compact repeated storage](../nocter-constant-evaluation/README.md#evaluated-array-addresses), then
+retire the seed and construct the array obligation. No per-element list or second ownership ledger
+is generated for repetition. Interruption creates no array value or parent resource obligation.
 
 The internal assembly ledger validates listed array cardinality and each component through the
 same declaration projection used for records/tuples. Distinct complete component owners transfer
@@ -813,9 +816,13 @@ the same evaluator shape/value/publication path, including arrays constructed in
 length bodies. Source tests cover nested/empty/zero-sized data, non-Copy records, independent
 snapshots, editing calls and reverse cleanup of interrupted component prefixes.
 
-This closes listed construction and whole-value handoffs in the private Unit. Element reads use
-the [selection path](#array-selection); compact repetition, partial element initialization and
-native storage remain separate implementation gates.
+Source repetition qualification covers zero/one/many and maximum u64 counts, non-Copy zero/one
+seeds, source effects, interrupted seeds, seed disposal order, independent whole-value snapshots,
+compact frozen constants, nested selection, seed-supplier invalidation and a small live-storage
+budget. A scalar result of maximum-count repetition reaches the common native consumer.
+This closes listed/repeated construction and whole-value handoffs in the private Unit. Element
+reads use the [selection path](#array-selection); partial element initialization and native storage
+remain separate implementation gates.
 
 ## Array Selection
 
@@ -878,7 +885,7 @@ parent use the same atomic transfer/replacement rules as other structural places
 Ledger qualification covers listed component assembly, maximum u64 cardinality, first/last and out-of-bounds positions,
 empty arrays, zero-sized elements, partial record elements, replacement and container retirement.
 These tests start with declaration-backed logical owners. Source construction has its separate
-[ordinary-source qualification](#array-construction-drafts); the concrete ledger does not qualify
+[ordinary-source qualification](#array-construction); the concrete ledger does not qualify
 precise source element initialization/access/conflict analysis or a runtime-selected hole. Distinct dynamic
 index expressions cannot be encoded as disjoint concrete keys. Their evaluated identity and
 checked equality/disjointness conditions must close across reservations, joins and loops before

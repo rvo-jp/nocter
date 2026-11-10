@@ -1,0 +1,16 @@
+const func seed(edit calls: i32): i32 {
+    calls += 1
+    40
+}
+
+const func calculate(): i32 {
+    var calls = 0
+    let values = [seed(calls); 18446744073709551615]
+    values[18446744073709551614] + calls + 1
+}
+
+const ANSWER: i32 = calculate()
+
+func run(): i32 {
+    ANSWER
+}

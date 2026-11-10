@@ -350,7 +350,7 @@ fn raised_source_depth_budget_closes_a_deep_constant_chain_without_host_recursio
 }
 
 #[test]
-fn repetition_counts_execute_before_the_separate_construction_gate() {
+fn repetition_counts_execute_without_executing_the_runtime_seed() {
     for (count, expected) in [
         ("6 * 7", 42),
         ("width()", 42),
@@ -372,17 +372,14 @@ fn repetition_counts_execute_before_the_separate_construction_gate() {
                 .unwrap(),
         );
         let seed = owner(&context, "seed");
-        let (_, requests, failure) = attempt(context, "run", state::Limits::default());
-        assert!(
-            matches!(&failure, SourceFailure::Checking(Failure::Body { failure: BodyFailure::Rejected(error), .. }) if error.rule() == crate::value_access::Rule::UnsupportedData)
-        );
+        let (_, requests) = prepared(context, "run");
         assert_eq!(
             dependencies::value(&requests, root).unwrap().frozen,
             state::Value::integer(i128::from(expected)).freeze()
         );
         assert!(
             dependencies::body(&requests, seed).is_none(),
-            "seed body execution needs the separate array construction path"
+            "typing repetition must not execute its runtime seed"
         );
     }
     for (parameters, count, code) in [

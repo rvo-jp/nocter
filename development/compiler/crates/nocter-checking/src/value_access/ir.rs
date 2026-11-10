@@ -255,6 +255,9 @@ pub enum ExpressionKind {
         fields: FieldPath,
         action: SelectionAction,
     },
+    Repeat {
+        seed: AccessExpressionId,
+    },
     Index {
         base: AccessExpressionId,
         index: AccessExpressionId,

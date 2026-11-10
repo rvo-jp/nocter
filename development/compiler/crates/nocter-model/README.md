@@ -20,7 +20,8 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
 - `ValueStatic` place keys linked to initializer declarations; the declaration authority validates
   the role before granting a global place, independently of code/function use
 - immutable `FrozenData` literal DAGs for the closed value-access path, with topological ordered aggregate-component
-  edges and shared component views; source typing, evaluation, nominal identity and layout remain
+  edges, compact repeated/default-and-sparse-replacement nodes and shared component views;
+  source typing, evaluation, nominal identity and layout remain
   outside this representation
 - dependency-light capability-evidence identities owned by checking authorities
 - deterministic symbols and package identities

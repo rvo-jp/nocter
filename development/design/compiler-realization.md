@@ -101,7 +101,7 @@ its exact admitted scope. Header qualification does not establish array value op
 
 The [local annotation path](../compiler/crates/nocter-checking/README.md#body-local-required-expressions)
 uses the same query for body-owned annotation/repetition counts and
-[listed whole-value operations](../compiler/crates/nocter-checking/README.md#array-construction-drafts).
+[listed whole-value operations](../compiler/crates/nocter-checking/README.md#array-construction).
 Extend this path to later constant-generic arguments
 without reopening ordinary body checking through a competing evaluator or changing the closed
 name/input/field domain. Each required expression needs its own semantic code identity and actual
@@ -181,8 +181,8 @@ and its canonical array/tuple replay; neither a second type store nor a literal-
 needed. Completed required values remain immutable facts in the common dependency query, with
 their ordinary work/storage charges and transitive source requirements.
 
-Extend [listed construction and whole-array handoffs](../compiler/crates/nocter-checking/README.md#array-construction-drafts)
-into repetition, source element selection and combined nested partial-data/resource proofs.
+Extend [listed/repeated construction and whole-array handoffs](../compiler/crates/nocter-checking/README.md#array-construction)
+into general element operations and combined nested partial-data/resource proofs.
 Preserve local-count source guards, scope exclusions, dead authored requirements, budget failures
 and type/value cycles. Gate each unclosed operation at its owning boundary; do not reject an
 independently qualified whole-value operation solely because element selection or storage is

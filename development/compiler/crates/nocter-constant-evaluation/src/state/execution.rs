@@ -260,6 +260,10 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                     self.write(frame, &Place::root(*destination), value)
                 };
             }
+            Operation::Repeat {
+                destination,
+                source,
+            } => (*destination, self.repeated(frame, *destination, source)?),
             Operation::Copy {
                 destination,
                 source,
@@ -325,6 +329,22 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             }
         };
         self.write(frame, &Place::root(destination), value)
+    }
+    fn repeated(&self, frame: usize, destination: usize, source: &Place) -> Result<Value> {
+        let slots = &self
+            .memory
+            .frames
+            .get(frame)
+            .ok_or(Rule::InvalidPlan)?
+            .slots;
+        let data = slots.get(destination).ok_or(Rule::InvalidPlan)?.data;
+        let Some(super::Type::Array { length, .. }) = self.program.types.get(data) else {
+            return Err(Rule::InvalidPlan);
+        };
+        let length = std::num::NonZeroU64::new(*length).ok_or(Rule::InvalidPlan)?;
+        self.memory
+            .storage
+            .repeated(self.read(frame, source)?, length, std::iter::empty())
     }
     fn bind_alias(&mut self, frame: usize, destination: usize, address: Address) -> Result<()> {
         self.memory.frames[frame].set(&self.memory.storage, destination, Cell::Alias(address))

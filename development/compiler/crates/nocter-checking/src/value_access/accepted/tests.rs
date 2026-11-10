@@ -318,3 +318,5 @@ mod arrays;
 mod header_arrays;
 mod integers;
 mod staged;
+
+mod array_repetition;

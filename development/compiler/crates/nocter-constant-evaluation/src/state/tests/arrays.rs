@@ -327,6 +327,18 @@ fn homogeneous_metadata_and_every_index_role_validate_before_execution() {
         (types(0), Value::unit()),
         (
             types(2),
+            Value::repeated(Value::integer(11), NonZeroU64::new(1).unwrap()),
+        ),
+        (
+            types(2),
+            Value::repeated(Value::boolean(true), NonZeroU64::new(2).unwrap()),
+        ),
+        (
+            vec![Type::I32, Type::Usize, Type::Record(vec![0, 0].into())],
+            Value::repeated(Value::integer(11), NonZeroU64::new(2).unwrap()),
+        ),
+        (
+            types(2),
             Value::aggregate(vec![Value::integer(11), Value::boolean(true)]),
         ),
     ] {
@@ -678,5 +690,91 @@ fn zero_sized_elements_retain_their_count_and_bounds() {
             assert_eq!(result.unwrap_err().rule, Rule::IndexOutOfBounds);
         }
         assert_eq!(budget.storage_used(), 0);
+    }
+}
+
+#[test]
+fn maximum_repeated_arrays_keep_canonical_indices_edits_and_snapshots_compact() {
+    let mut plan = script(
+        &[],
+        vec![
+            copy(6, 0),
+            integer(1, u64::MAX - 1),
+            index(2),
+            integer(5, 77),
+            copy(2, 5),
+            Operation::Binary {
+                destination: Place::root(4),
+                operation: crate::CompileTimeBinaryOperation::Add,
+                left: Place::root(2),
+                right: Place {
+                    slot: 6,
+                    fields: vec![0].into(),
+                },
+            },
+        ],
+    );
+    plan.points = plan.points.map(|_, point| {
+        let mut point = point.clone();
+        point.actions[0].operation = Operation::Literal {
+            destination: 0,
+            value: Value::repeated(Value::integer(11), NonZeroU64::new(u64::MAX).unwrap()),
+        };
+        point
+    });
+    assert_eq!(execute(plan, types(u64::MAX)), Value::integer(88));
+}
+
+#[test]
+fn repetition_operations_validate_the_result_shape_role_count_and_element_identity() {
+    let plan = script(
+        &[1, 2],
+        vec![
+            integer(5, 42),
+            Operation::Repeat {
+                destination: 6,
+                source: Place::root(5),
+            },
+            integer(4, 42),
+        ],
+    );
+    assert_eq!(execute(plan.clone(), types(2)), Value::integer(42));
+    let (code, _) = code_ids();
+    for (domain, seed_data, result_storage) in [
+        (types(0), 0, Storage::Auxiliary),
+        (types(1), 0, Storage::Auxiliary),
+        (types(2), 1, Storage::Auxiliary),
+        (types(2), 0, Storage::Alias),
+        (
+            vec![Type::I32, Type::Usize, Type::Record(vec![0, 0].into())],
+            0,
+            Storage::Auxiliary,
+        ),
+    ] {
+        let mut invalid = plan.clone();
+        // Keep the initial literal valid for the changed schema; the Repeat operation itself
+        // must reject zero/one counts rather than relying on an unrelated literal mismatch.
+        if let Type::Array { length, .. } = domain[2] {
+            invalid.points = invalid.points.map(|_, point| {
+                let mut point = point.clone();
+                point.actions[0].operation = Operation::Literal {
+                    destination: 0,
+                    value: array(&vec![1; usize::try_from(length).unwrap()]),
+                };
+                point
+            });
+        }
+        let mut slots = invalid.slots.to_vec();
+        slots[5].data = seed_data;
+        slots[6].storage = result_storage;
+        invalid.slots = slots.into();
+        assert!(matches!(
+            Program::new(
+                domain,
+                BTreeMap::from([(code.into(), invalid)]),
+                BTreeMap::new()
+            ),
+            Err(Rule::InvalidPlan)
+        ));
     }
 }

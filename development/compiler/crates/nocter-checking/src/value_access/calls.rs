@@ -108,6 +108,14 @@ impl Checker<'_, '_> {
             {
                 ExpressionKind::Constant(value.clone())
             }
+            (_, nocter_model::FrozenNode::Repeated { .. })
+                if matches!(
+                    self.program().data_schema(data),
+                    Some(PayloadSchema::Array(_))
+                ) =>
+            {
+                ExpressionKind::Constant(value.clone())
+            }
             _ => return Err(Failure::InconsistentSyntax),
         };
         self.emit(node, value_type(data, Mode::Own), kind)

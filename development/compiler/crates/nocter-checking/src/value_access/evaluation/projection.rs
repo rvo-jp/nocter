@@ -403,6 +403,21 @@ impl Builder<'_, '_> {
                 destination,
                 value: plan::Value::unit(),
             },
+            ExpressionKind::Repeat { seed } => {
+                let Some(nocter_declarations::value_access::PayloadSchema::Array(array)) =
+                    self.program.data_schema(self.data(id)?)
+                else {
+                    return Err(INVALID);
+                };
+                if array.length() > 1 {
+                    plan::Operation::Repeat {
+                        destination,
+                        source: self.value(seed)?,
+                    }
+                } else {
+                    plan::Operation::None
+                }
+            }
             ExpressionKind::Index {
                 base,
                 index,

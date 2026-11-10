@@ -147,6 +147,12 @@ pub enum Operation {
         base: Place,
         index: Place,
     },
+    /// Compact snapshots into a fixed array with length greater than one. The result schema
+    /// owns the count and element identity; the producer owns source-context Copy evidence.
+    Repeat {
+        destination: usize,
+        source: Place,
+    },
     Copy {
         destination: Place,
         source: Place,

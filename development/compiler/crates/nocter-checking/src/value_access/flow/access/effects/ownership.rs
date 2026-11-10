@@ -197,6 +197,7 @@ impl Context<'_, '_> {
                     &mut self.steps,
                 )?;
             }
+            ExpressionKind::Repeat { seed } => self.repeat_ownership(id, seed)?,
             ExpressionKind::Select {
                 source,
                 ref fields,
@@ -250,6 +251,38 @@ impl Context<'_, '_> {
             }
         }
 
+        Ok(())
+    }
+    fn repeat_ownership(&mut self, id: AccessExpressionId, seed: AccessExpressionId) -> Result<()> {
+        let payload = resources::expression_payload(self.typed, id)?;
+        let Some(nocter_declarations::value_access::PayloadSchema::Array(array)) =
+            self.typed.program().data_schema(payload.data())
+        else {
+            return Err(Failure::Integrity);
+        };
+        if array.length() > 1 {
+            if self.typed.program().data_copyable(array.element()) != Some(true) {
+                return Err(Failure::Integrity);
+            }
+            self.dispose_expression(seed)?;
+            return self.construct(id);
+        }
+        let fields = if array.is_empty() {
+            self.dispose_expression(seed)?;
+            Vec::new()
+        } else {
+            vec![(
+                nocter_model::ValueField::Array(0),
+                Holder::Expression(seed).place(),
+            )]
+        };
+        self.world.resources.assemble(
+            self.typed.program(),
+            Holder::Expression(id),
+            payload,
+            &fields,
+            &mut self.steps,
+        )?;
         Ok(())
     }
     fn select_ownership(

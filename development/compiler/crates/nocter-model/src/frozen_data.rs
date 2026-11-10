@@ -1,5 +1,6 @@
 //! Immutable, storage-independent literal DAGs. Types and physical layout belong to consumers.
 use crate::ConstantValue;
+use std::num::NonZeroU64;
 use std::sync::Arc;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -8,6 +9,13 @@ pub enum FrozenNode {
     Scalar(ConstantValue),
     /// Declaration/index-order component indexes into the same graph, all preceding this node.
     Aggregate(Box<[usize]>),
+    /// Homogeneous logical storage, without one graph edge per repeated element. Sparse
+    /// replacements are ordered, unique and in range; all value edges precede this node.
+    Repeated {
+        element: usize,
+        length: NonZeroU64,
+        replacements: Box<[(u64, usize)]>,
+    },
 }
 /// A validated acyclic graph with a selected root. Clones and component views share its data.
 /// Contains neither evaluator memory, semantic type IDs nor source/storage identities.
@@ -22,9 +30,23 @@ impl FrozenData {
     pub fn new(nodes: impl Into<Arc<[FrozenNode]>>) -> Result<Self, InvalidFrozenData> {
         let nodes = nodes.into();
         let root = nodes.len().checked_sub(1).ok_or(InvalidFrozenData)?;
-        if nodes.iter().enumerate().any(|(id, node)| {
-            matches!(node, FrozenNode::Aggregate(fields) if fields.iter().any(|&field| field >= id))
-        }) { return Err(InvalidFrozenData); }
+        if nodes.iter().enumerate().any(|(id, node)| match node {
+            FrozenNode::Aggregate(fields) => fields.iter().any(|&field| field >= id),
+            FrozenNode::Repeated {
+                element,
+                length,
+                replacements,
+            } => {
+                *element >= id
+                    || replacements
+                        .iter()
+                        .any(|&(index, value)| index >= length.get() || value >= id)
+                    || replacements.windows(2).any(|pair| pair[0].0 >= pair[1].0)
+            }
+            FrozenNode::Unit | FrozenNode::Scalar(_) => false,
+        }) {
+            return Err(InvalidFrozenData);
+        }
         Ok(Self { nodes, root })
     }
     #[must_use]
@@ -75,5 +97,31 @@ mod tests {
         assert!(Arc::ptr_eq(&graph.nodes, &component.nodes));
         assert_eq!(component.node(), &FrozenNode::Unit);
         assert!(graph.at(2).is_none());
+    }
+    #[test]
+    fn repeated_edges_and_sparse_positions_validate_without_count_expansion() {
+        let length = NonZeroU64::new(u64::MAX).unwrap();
+        let make = |element, replacements| {
+            vec![
+                FrozenNode::Unit,
+                FrozenNode::Repeated {
+                    element,
+                    length,
+                    replacements,
+                },
+            ]
+        };
+        for nodes in [
+            make(1, Box::new([])),
+            make(0, vec![(0, 1)].into()),
+            make(0, vec![(u64::MAX, 0)].into()),
+            make(0, vec![(1, 0), (1, 0)].into()),
+            make(0, vec![(2, 0), (1, 0)].into()),
+        ] {
+            assert!(FrozenData::new(nodes).is_err());
+        }
+        let value = FrozenData::new(make(0, vec![(0, 0), (u64::MAX - 1, 0)].into())).unwrap();
+        assert_eq!(value.nodes().len(), 2);
+        assert_eq!(value.at(0).unwrap().node(), &FrozenNode::Unit);
     }
 }

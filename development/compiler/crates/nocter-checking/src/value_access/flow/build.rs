@@ -409,6 +409,7 @@ impl Builder<'_> {
             ExpressionKind::Call { arguments, .. } => return self.call(id, entry, arguments),
             ExpressionKind::Aggregate { fields } => self.record(entry, fields)?,
             ExpressionKind::Closure { capture, .. } => self.expression(*capture, entry)?,
+            ExpressionKind::Repeat { seed } => self.expression(*seed, entry)?,
             ExpressionKind::AdaptFunction { source } => self.expression(*source, entry)?,
             ExpressionKind::Select { .. } | ExpressionKind::Index { .. } => {
                 return self.selection_chain(id, entry);

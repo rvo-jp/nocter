@@ -45,6 +45,22 @@ pub(super) fn value(program: &Program, data: usize, value: &Value) -> bool {
             {
                 pending.extend(values.iter().cloned().map(|value| (*element, value)));
             }
+            (
+                Some(Type::Array { element, length }),
+                Data::Repeated {
+                    length: count,
+                    replacements,
+                    ..
+                },
+            ) if *length == count.get() && replacements.keys().all(|&index| index < *length) => {
+                pending.extend(
+                    value
+                        .data()
+                        .children()
+                        .cloned()
+                        .map(|value| (*element, value)),
+                );
+            }
             _ => return false,
         }
     }
@@ -197,13 +213,13 @@ fn operation(program: &Program, plan: &super::Plan, op: &Operation) -> Result<()
         Operation::Literal {
             destination,
             value: v,
-        } => {
-            if value(program, slot(*destination)?.data, v) {
-                Ok(())
-            } else {
-                Err(INVALID)
-            }
-        }
+        } => value(program, slot(*destination)?.data, v)
+            .then_some(())
+            .ok_or(INVALID),
+        Operation::Repeat {
+            destination,
+            source,
+        } => repeat_operation(program, plan, *destination, source),
         Operation::Alias {
             destination,
             source,
@@ -308,6 +324,22 @@ fn binary_operation(
     if !matches!(program.types.get(data), Some(Type::I32 | Type::Usize))
         || place(program, plan, right)? != data
         || place(program, plan, destination)? != data
+    {
+        return Err(INVALID);
+    }
+    Ok(())
+}
+fn repeat_operation(
+    program: &Program,
+    plan: &super::Plan,
+    destination: usize,
+    source: &Place,
+) -> Result<()> {
+    let result = plan.slots.get(destination).ok_or(INVALID)?;
+    let Some(Type::Array { element, length }) = program.types.get(result.data) else {
+        return Err(INVALID);
+    };
+    if result.storage == Storage::Alias || *length <= 1 || *element != place(program, plan, source)?
     {
         return Err(INVALID);
     }

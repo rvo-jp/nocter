@@ -1,4 +1,4 @@
-//! Ordinary construction typing and explicit repetition/selection realization limits.
+//! Ordinary construction/selection checking and local failure causes.
 use super::*;
 use crate::value_access::Rule as BodyRule;
 
@@ -56,23 +56,8 @@ fn repetition_prepares_a_seed_even_at_zero_and_requires_copy_only_above_one() {
         ),
         (
             "take value: error",
-            "let values = [value^; 0]",
-            BodyRule::UnsupportedData,
-        ),
-        (
-            "take value: error",
-            "let values = [value^; 1]",
-            BodyRule::UnsupportedData,
-        ),
-        (
-            "take value: error",
             "let values = [value^; 2]",
             BodyRule::InvalidConstruction,
-        ),
-        (
-            "size: usize",
-            "let values = [size; 18446744073709551615]",
-            BodyRule::UnsupportedData,
         ),
         ("", "let values: [i32; 2] = [1; 1]", BodyRule::TypeMismatch),
     ] {

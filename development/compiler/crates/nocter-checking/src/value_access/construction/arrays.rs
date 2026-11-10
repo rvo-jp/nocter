@@ -1,4 +1,4 @@
-//! Ordinary component typing before the separate array body/resource/storage admission gate.
+//! Listed and repeated construction through ordinary value supply and one array type authority.
 use crate::value_access::{
     Failure, Rule,
     checker::Checker,
@@ -113,7 +113,7 @@ impl Checker<'_, '_> {
             return self.reject(Rule::TypeMismatch, node);
         }
         let expected = context.map(|(_, array)| array.element());
-        let value = self.expression(seed, expected.map(Boundary::Value), reachable)?;
+        let mut value = self.expression(seed, expected.map(Boundary::Value), reachable)?;
         let Some(element) = self
             .ty(value)
             .access()
@@ -124,7 +124,7 @@ impl Checker<'_, '_> {
         };
         self.array_element(seed, element)?;
         if expected.is_none() {
-            self.boundary(seed, value, Boundary::Value(element))?;
+            value = self.boundary(seed, value, Boundary::Value(element))?;
         }
         if length > 1 && !self.copyable(element) {
             return self.reject_message(
@@ -134,8 +134,17 @@ impl Checker<'_, '_> {
                 Vec::new(),
             );
         }
-        // Count and ordinary seed typing do not qualify seed cleanup, compact repeated storage or
-        // execution. In particular zero count never suppresses seed preparation.
-        self.reject(Rule::UnsupportedData, node)
+        let data = match context {
+            Some((data, _)) => data,
+            None => self
+                .types
+                .array(element, length)
+                .map_err(|_| Failure::InconsistentSyntax)?,
+        };
+        self.emit(
+            node,
+            value_type(data, Mode::Own).with_continuation(self.ty(value).may_complete()),
+            ExpressionKind::Repeat { seed: value },
+        )
     }
 }

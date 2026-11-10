@@ -120,7 +120,7 @@ impl Data {
                         ));
                     }
                 }
-                FrozenNode::Unit => return Err(Failure::InvalidRoot),
+                FrozenNode::Unit | FrozenNode::Repeated { .. } => return Err(Failure::InvalidRoot),
             }
         }
         let id = MachineDataId::new(self.values.len());

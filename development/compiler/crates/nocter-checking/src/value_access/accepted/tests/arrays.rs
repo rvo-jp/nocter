@@ -1,4 +1,4 @@
-//! Source construction and whole-value handoffs, independently of unadmitted element selection.
+//! Source listed construction and whole-value handoffs.
 use super::initializers::answer;
 use super::*;
 use nocter_constant_evaluation::state::Value as Datum;

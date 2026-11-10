@@ -135,8 +135,18 @@ without introducing positive containment cycles.
 Listed arrays use the same `Data::Aggregate` nodes, metered import, copy-on-write, assembly and
 frozen publication as records/tuples. The selected slot schema validates their exact count and
 homogeneous element data. This physical sharing does not turn an array into a tuple or an empty
-array into void. It is listed storage, not a compact repetition implementation; neither a large
-length descriptor nor shared seed handles authorize count expansion outside the storage budget.
+array into void. `Operation::Repeat` uses the result schema's element/count and requires a data
+result with count greater than one; checking supplies the source-context Copy proof. Zero/one
+source repetition instead uses ordinary empty/single-element assembly and seed cleanup.
+
+`Data::Repeated` retains a positive u64 count, one default element and ordered sparse replacements.
+Reading an untouched position shares the default. Writing a position creates or replaces one
+entry, with copy-on-write along the selected path; it never expands the count or accumulates an
+update history for that position. Listed and repeated arrays preserve the same indexed access,
+snapshot and typed-value behavior. Value equality compares logical components using existing
+listed entries or the union of sparse positions, without iterating an implicit repeated range.
+The default need not compare when all positions are replaced. This is internal value equality,
+not new source comparison syntax or Copy evidence.
 
 `Operation::Index` requires an array base, a usize index and an alias result of the element type.
 `Operation::IndexCopy` instead snapshots the selected payload into a data result; its producer
@@ -151,11 +161,13 @@ frames release their storage through the same executor recovery as arithmetic/bu
 
 Closed-plan tests qualify listed construction/publication, array fields, independent snapshots,
 selected edits, backedge re-execution, cross-frame addresses, exact bounds and failed-budget
-cleanup and indexed Copy snapshots with distinct data/alias result roles. Checking separately
-qualifies [source listed construction and whole-value handoffs](../nocter-checking/README.md#array-construction-drafts)
+cleanup and indexed Copy snapshots with distinct data/alias result roles. Repetition tests also
+cover maximum-count selected edits/snapshots, sparse replacement, malformed result roles/counts,
+logical equality, deep mixed DAGs and storage-failure recovery. Checking separately
+qualifies [source listed construction and whole-value handoffs](../nocter-checking/README.md#array-construction)
 and [source read selection](../nocter-checking/README.md#array-selection).
-This domain alone proves neither source element conflict/initialization safety, dynamic resource-hole cleanup, compact
-repetition nor native array storage. The remaining integration follows the
+This domain alone proves neither precise source element conflict/initialization safety,
+dynamic resource-hole cleanup nor native array storage. The remaining integration follows the
 [evaluated-selection obligations](../../../design/compiler-realization.md#evaluated-array-selection-closure).
 
 ### Live Working Storage
@@ -167,7 +179,9 @@ completed values retain the same meter; neither opening an executor nor memoizin
 reset its storage charge.
 
 The metric counts logical live storage units, not target bytes or process RSS. Each data node,
-field/path/staging array charges one header plus its element count. Each dynamic frame, cell,
+listed field/path/staging array charges one header plus its stored edge count. A repeated node
+charges one header and one default edge; each sparse replacement charges a numeric key and a
+value edge. Its logical count contributes no entries. Each dynamic frame, cell,
 ownership entry, sparse hole or literal-import traversal entry charges two metadata units. Empty
 canonical root paths need no allocation. Frame slots reference immutable plan schemas. Sharing
 handles, paths or immutable data does not duplicate their allocation charge. Reservations precede
@@ -199,7 +213,8 @@ and diagnostic rendering are outside this working-storage metric.
 
 `state::Value::freeze` converts a completed value to the model-owned `FrozenData` DAG once per
 required declaration. Identity-memoized postorder preserves sharing and never recursively expands
-aggregates. The artifact has no evaluator leases, scoped addresses, type-store IDs or source identity.
+aggregates or repeated cardinalities. A frozen repeated node retains its default/count and sorted,
+unique, in-range sparse replacements; every referenced value precedes the node. The artifact has no evaluator leases, scoped addresses, type-store IDs or source identity.
 `from_frozen` reconstructs immutable plan literals from the selected root's reachable nodes only,
 preserving shared components without rebuilding unrelated siblings or rejecting their unselected
 scalar families. Its scratch depends on that reachable subgraph, not the retained graph's size.

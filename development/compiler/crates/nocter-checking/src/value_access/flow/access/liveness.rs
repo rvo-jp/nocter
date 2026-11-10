@@ -281,7 +281,8 @@ fn expression_uses(
             uses.push((Carrier::Expression(base), false));
             uses.push((Carrier::Expression(index), false));
         }
-        ExpressionKind::Select { source, .. }
+        ExpressionKind::Repeat { seed: source }
+        | ExpressionKind::Select { source, .. }
         | ExpressionKind::AdaptFunction { source }
         | ExpressionKind::Closure {
             capture: source, ..
