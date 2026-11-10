@@ -16,7 +16,16 @@ pub(super) fn publish(
     records: records::Validated,
 ) -> Program {
     let (base_types, records) = records.publish();
-    let base_types = functions::publish_witnesses(&base_types, reserved.iter().map(|(id, _)| id));
+    let base_types = functions::publish_witnesses(
+        &base_types,
+        reserved.iter().filter_map(|(id, r)| {
+            matches!(
+                r.definition.as_ref()?.kind,
+                super::CallableKind::Function(_)
+            )
+            .then_some(id)
+        }),
+    );
     let mut types = base_types.transaction();
     let mut parameters = ArenaBuilder::<AccessParameterId, Parameter>::new();
     let callables = reserved.map(|id, reservation| {
@@ -56,7 +65,7 @@ pub(super) fn publish(
         );
         Callable {
             name: reservation.name,
-            compile_time: definition.compile_time,
+            kind: definition.kind,
             parameters: parameter_ids,
             result,
             result_contract,

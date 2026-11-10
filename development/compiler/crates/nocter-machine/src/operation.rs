@@ -42,6 +42,8 @@ pub enum MachineArithmeticCheck {
     NotRequired,
     InternalInvariant,
     Required,
+    /// The selected remainder contract requires only a nonzero divisor, not a representable quotient.
+    NonZeroDivisor,
     ProvenSafe,
     ProvenTrap,
 }
@@ -78,6 +80,7 @@ impl From<nocter_mir::MirArithmeticCheck> for MachineArithmeticCheck {
             nocter_mir::MirArithmeticCheck::NotRequired => Self::NotRequired,
             nocter_mir::MirArithmeticCheck::InternalInvariant => Self::InternalInvariant,
             nocter_mir::MirArithmeticCheck::Required => Self::Required,
+            nocter_mir::MirArithmeticCheck::NonZeroDivisor => Self::NonZeroDivisor,
             nocter_mir::MirArithmeticCheck::ProvenSafe => Self::ProvenSafe,
             nocter_mir::MirArithmeticCheck::ProvenTrap => Self::ProvenTrap,
         }

@@ -77,7 +77,7 @@ eligibility cannot repair it. The following contract closes symbolic const oblig
 adding source modifiers or requiring authors to repeat inferred conditions in a where clause.
 
 Type checking and evaluation consume the same resolved targets, input operations and concrete
-specializations. Target integer widths, overflow, division, shifts, conversion and floating-point
+specializations. The [checked integer contract](integers.md), target widths, shifts, conversion and floating-point
 semantics apply; host arithmetic or host layout cannot substitute. Evaluate supported short-circuit
 and conditional paths normally, while still checking the other paths structurally. Arithmetic
 failure on an evaluated required-constant path is a compilation error, never runtime initialization.
@@ -279,6 +279,10 @@ A `const NAME: Type = expression` is storage-independent data, not an addressabl
 `static NAME: Type = expression` is one immutable addressable place with static extent. Their
 public roots declare only name/type; one matched ordinary source supplies the initializer.
 No runtime initializer, dynamic initialization order or mutable global is introduced.
+An initializer is a value-expression boundary, not a source callable: `return` cannot target it
+or escape it into an enclosing callable. A nested source callable retains its own ordinary
+return target. Complex early-returning initialization belongs in a named const callable, whose
+result can supply the initializer.
 
 Final values must be reproducible, immutable serializable data: supported scalar/unit leaves,
 tuples, fixed arrays and finite nominal records/enum payloads composed of eligible leaves, without user

@@ -1,0 +1,418 @@
+//! Required source evaluation and final-value publication, including stateful const calls.
+use super::*;
+use crate::value_access::evaluation::Rule;
+use nocter_constant_evaluation::{
+    CompileTimeEvaluationLimits,
+    state::{Rule as ExecutionRule, Value},
+};
+use std::fmt::Write as _;
+use std::num::{NonZeroU32, NonZeroU64};
+fn answer(source: &str, name: &str) -> Value {
+    let unit = accepted(source);
+    let id = unit
+        .program()
+        .resolve_constant(unit.program().symbols().get(name).unwrap())
+        .unwrap();
+    assert!(
+        unit.program()
+            .resolve(unit.program().symbols().get(name).unwrap())
+            .is_none()
+    );
+    let value = unit.constant_value(id).unwrap().clone();
+    for (_, query) in unit.bodies() {
+        assert!(
+            !query
+                .typed()
+                .body()
+                .expressions()
+                .iter()
+                .any(|(_, e)| matches!(e.kind, crate::value_access::ExpressionKind::Constant(_)))
+        );
+    }
+    value
+}
+#[test]
+fn literals_forward_dependencies_and_runtime_references_publish_values() {
+    assert_eq!(
+        answer(
+            "const ANSWER: i32 = BASE + 2\nconst BASE: i32 = 40\nfunc run(): i32 { ANSWER }",
+            "ANSWER"
+        ),
+        Value::I32(42)
+    );
+    assert_eq!(
+        answer(
+            "const ANSWER: bool = true || false\nconst NOTHING: void = ()",
+            "ANSWER"
+        ),
+        Value::Bool(true)
+    );
+    assert_eq!(answer("const NOTHING: void = ()", "NOTHING"), Value::Unit);
+}
+#[test]
+fn editing_calls_preserve_distinct_storage_and_do_not_cache_unit_results() {
+    let source = "const func increment(edit value: i32): void { value += 1 }\nconst func calculate(): i32 {\nvar first = 20\nvar second = 20\nincrement(first)\nincrement(second)\nfirst + second\n}\nconst ANSWER: i32 = calculate()";
+    assert_eq!(answer(source, "ANSWER"), Value::I32(42));
+}
+#[test]
+fn stateful_records_moves_aliases_loops_and_copy_snapshots_use_checked_order() {
+    let source = "struct Pair {\nleft: i32\nright: i32\n}\nconst func increment(edit value: i32): i32 { value += 1\nvalue }\nconst func select(take pair: Pair): i32 { pair.left^ }\nconst func calculate(): i32 {\nvar pair = Pair { left: 0, right: 2 }\nedit target = pair.left\nwhile target < 20 { let _ = increment(target) }\nlet snapshot = target + increment(target)\nlet selected = select(pair^)\nsnapshot + selected - 20\n}\nconst ANSWER: i32 = calculate()";
+    assert_eq!(answer(source, "ANSWER"), Value::I32(42));
+}
+#[test]
+fn recursive_calls_and_short_circuits_execute_only_selected_paths() {
+    let source = "const func total(value: i32): i32 { if value == 0 { 0 } else { value + total(value - 1) } }\nconst func invalid(): bool { let _ = 1 / 0\ntrue }\nconst ANSWER: i32 = total(9)\nconst SAFE: bool = true || invalid()";
+    assert_eq!(answer(source, "ANSWER"), Value::I32(45));
+}
+fn failure(source: &str, limits: CompileTimeEvaluationLimits) -> Rule {
+    let (sources, tree) = input(source);
+    let query = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+    let result = Unit::prepare_with_limits(&query.bind(bound(&sources, &tree)).unwrap(), limits);
+    let Err(Failure::Evaluation { diagnostic, .. }) = result else {
+        panic!("{source}: {result:?}");
+    };
+    assert!(!diagnostic.source().primary().span().range().is_empty());
+    diagnostic.rule()
+}
+#[test]
+fn required_failures_are_not_runtime_fallbacks_or_domain_failures() {
+    assert_eq!(
+        failure(
+            "const BAD: i32 = 1 / 0",
+            CompileTimeEvaluationLimits::default()
+        ),
+        Rule::Execution(ExecutionRule::ArithmeticFailure)
+    );
+    assert_eq!(
+        failure(
+            "const A: i32 = B\nconst B: i32 = A",
+            CompileTimeEvaluationLimits::default()
+        ),
+        Rule::Execution(ExecutionRule::DependencyCycle)
+    );
+    assert_eq!(
+        failure(
+            "const func again(): i32 { again() }\nconst BAD: i32 = again()",
+            CompileTimeEvaluationLimits::new(
+                NonZeroU64::new(10000).unwrap(),
+                NonZeroU32::new(8).unwrap()
+            )
+        ),
+        Rule::Execution(ExecutionRule::CallDepthLimit)
+    );
+    assert_eq!(
+        failure(
+            "const func forever(): i32 { loop {} }\nconst BAD: i32 = forever()",
+            CompileTimeEvaluationLimits::new(
+                NonZeroU64::new(50).unwrap(),
+                NonZeroU32::new(8).unwrap()
+            )
+        ),
+        Rule::Execution(ExecutionRule::StepLimit)
+    );
+    assert_eq!(
+        failure(
+            "struct Pair { left: i32 }\nconst BAD: Pair = Pair { left: 1 }",
+            CompileTimeEvaluationLimits::default()
+        ),
+        Rule::FinalValue
+    );
+}
+
+#[test]
+fn taking_copy_inputs_and_lending_retired_sources_preserve_supply_choices() {
+    assert_eq!(
+        answer(
+            "const func update(take value: i32): i32 { value += 1\nvalue }\nconst func run(): i32 { let value = 20\nlet next = update(value)\nvalue + next + 1 }\nconst ANSWER: i32 = run()",
+            "ANSWER"
+        ),
+        Value::I32(42)
+    );
+    assert_eq!(
+        answer(
+            "const func inspect(value: i32): i32 { value }\nconst func run(): i32 { let value = 40\ninspect(value^) + 2 }\nconst ANSWER: i32 = run()",
+            "ANSWER"
+        ),
+        Value::I32(42)
+    );
+}
+
+#[test]
+fn edit_input_replacement_and_alternative_partial_cleanup_follow_the_ledger() {
+    assert_eq!(
+        answer(
+            "struct Pair { left: i32\nright: i32 }\nconst func replace(edit pair: Pair): void { pair = Pair { left: 20, right: 22 } }\nconst func run(): i32 { var pair = Pair { left: 1, right: 2 }\nreplace(pair)\npair.left + pair.right }\nconst ANSWER: i32 = run()",
+            "ANSWER"
+        ),
+        Value::I32(42)
+    );
+    assert_eq!(
+        answer(
+            "struct Pair { left: i32\nright: i32 }\nconst func run(flag: bool): i32 { let pair = Pair { left: 1, right: 42 }\nif flag { let moved = pair.left^ }\npair.right }\nconst ANSWER: i32 = run(true) + run(false)",
+            "ANSWER"
+        ),
+        Value::I32(84)
+    );
+}
+
+#[test]
+fn empty_records_and_interrupted_argument_preparation_keep_real_owner_presence() {
+    assert_eq!(
+        answer(
+            "struct Empty {}\nconst func inspect(take value: Empty): i32 { 42 }\nconst ANSWER: i32 = inspect(Empty {})",
+            "ANSWER"
+        ),
+        Value::I32(42)
+    );
+    assert_eq!(
+        answer(
+            "const func add(left: i32, right: i32): i32 { left + right }\nconst func run(): i32 { add(1, if true { return 42 } else { 2 }) }\nconst ANSWER: i32 = run()",
+            "ANSWER"
+        ),
+        Value::I32(42)
+    );
+}
+
+#[test]
+fn constants_are_fresh_data_and_have_no_source_place_or_function_witness() {
+    for body in [
+        "let value = ANSWER^",
+        "read value = ANSWER",
+        "edit value = ANSWER",
+        "ANSWER = 0",
+        "drop ANSWER",
+        "ANSWER()",
+    ] {
+        let text = format!("const ANSWER: i32 = 42\nfunc run(): void {{ {body} }}");
+        let (sources, tree) = input(&text);
+        let query = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+        assert!(
+            matches!(
+                Unit::prepare(&query.bind(bound(&sources, &tree)).unwrap()),
+                Err(Failure::Body { .. })
+            ),
+            "{text}"
+        );
+    }
+    let unit = accepted("const ANSWER: i32 = 42");
+    let id = unit
+        .program()
+        .resolve_constant(unit.program().symbols().get("ANSWER").unwrap())
+        .unwrap();
+    assert!(
+        unit.program()
+            .function_data(nocter_declarations::value_access::FunctionWitness {
+                origin: nocter_model::ValueFunctionOrigin::Declaration(id),
+                invocation: nocter_model::ValueInvocation::Read
+            })
+            .is_none()
+    );
+}
+
+#[test]
+fn initializer_rebinding_reuses_headers_but_recomputes_values_and_rejects_stale_units() {
+    let (a, ta) = input("const BASE: i32 = 1\nconst ANSWER: i32 = BASE + 1");
+    let headers = declarations::Query::prepare(bound(&a, &ta)).unwrap();
+    let old_context = headers.bind(bound(&a, &ta)).unwrap();
+    let old = Unit::prepare(&old_context).unwrap();
+    let (b, tb) = input("// current source\nconst BASE: i32 = 40\nconst ANSWER: i32 = BASE + 2");
+    let current_context = headers.bind(bound(&b, &tb)).unwrap();
+    assert!(old.bind(&current_context).is_err());
+    let current = Unit::prepare(&current_context).unwrap();
+    let id = current
+        .program()
+        .resolve_constant(current.program().symbols().get("ANSWER").unwrap())
+        .unwrap();
+    assert_eq!(old.constant_value(id), Some(&Value::I32(2)));
+    assert_eq!(current.constant_value(id), Some(&Value::I32(42)));
+}
+
+#[test]
+fn execution_diagnostics_keep_the_callee_operation_and_initializer_call_path() {
+    let (sources, tree) = input("const func fail(): i32 { 1 / 0 }\nconst BAD: i32 = fail()");
+    let headers = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+    let Err(Failure::Evaluation { diagnostic, .. }) =
+        Unit::prepare(&headers.bind(bound(&sources, &tree)).unwrap())
+    else {
+        panic!("arithmetic failure");
+    };
+    assert_eq!(
+        sources
+            .get(tree.source())
+            .unwrap()
+            .text_at(diagnostic.source().primary().span().range()),
+        Some("1 / 0")
+    );
+    assert!(diagnostic.source().notes().len() >= 2);
+}
+
+#[test]
+fn dependency_budget_diagnostics_point_to_the_request_that_exhausted_the_budget() {
+    let (sources, tree) = input("const A: i32 = B\nconst B: i32 = C\nconst C: i32 = 42");
+    let headers = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+    let limits =
+        CompileTimeEvaluationLimits::new(NonZeroU64::new(1).unwrap(), NonZeroU32::new(8).unwrap());
+    let Err(Failure::Evaluation { diagnostic, .. }) =
+        Unit::prepare_with_limits(&headers.bind(bound(&sources, &tree)).unwrap(), limits)
+    else {
+        panic!("dependency budget must fail");
+    };
+    assert_eq!(diagnostic.rule(), Rule::Execution(ExecutionRule::StepLimit));
+    assert_eq!(
+        sources
+            .get(tree.source())
+            .unwrap()
+            .text_at(diagnostic.source().primary().span().range()),
+        Some("C")
+    );
+}
+
+#[test]
+fn folded_runtime_bodies_reject_rebinding_after_a_const_callee_changes() {
+    let original = "const func calculate(): i32 { 1 }\nconst ANSWER: i32 = calculate()\nfunc run(): i32 { ANSWER }";
+    let (a, ta) = input(original);
+    let headers = declarations::Query::prepare(bound(&a, &ta)).unwrap();
+    let context = headers.bind(bound(&a, &ta)).unwrap();
+    let unit = Unit::prepare(&context).unwrap();
+    let (b, tb) = input(&original.replace("{ 1 }", "{ 42 }"));
+    let changed = headers.bind(bound(&b, &tb)).unwrap();
+    assert!(named(&unit, "run").bind(&changed).is_err());
+    assert!(named(&unit, "run").typed().bind(&changed).is_err());
+    let current = Unit::prepare(&changed).unwrap();
+    let run = named(&current, "run");
+    assert!(
+        run.typed()
+            .body()
+            .expressions()
+            .iter()
+            .any(|(_, expression)| expression.kind
+                == crate::value_access::ExpressionKind::Integer(42))
+    );
+}
+
+#[test]
+fn remainder_has_its_own_result_domain_and_division_keeps_its_range_requirement() {
+    assert_eq!(
+        answer("const ANSWER: i32 = -2147483648 % -1", "ANSWER"),
+        Value::I32(0)
+    );
+    for expression in ["-2147483648 / -1", "42 % 0"] {
+        assert_eq!(
+            failure(
+                &format!("const BAD: i32 = {expression}"),
+                CompileTimeEvaluationLimits::default()
+            ),
+            Rule::Execution(ExecutionRule::ArithmeticFailure)
+        );
+    }
+}
+
+#[test]
+fn authored_dependency_cycles_are_rejected_in_unevaluated_branches_and_const_callees() {
+    for text in [
+        "const A: i32 = if false { A } else { 42 }",
+        "const A: i32 = if false { B } else { 42 }\nconst B: i32 = A",
+        "const func helper(): i32 { A }\nconst A: i32 = if false { helper() } else { 42 }",
+        "const func outer(): i32 { inner() }\nconst func inner(): i32 { if false { A } else { 42 } }\nconst A: i32 = outer()",
+    ] {
+        assert_eq!(
+            failure(text, CompileTimeEvaluationLimits::default()),
+            Rule::Execution(ExecutionRule::DependencyCycle),
+            "{text}"
+        );
+    }
+    assert_eq!(
+        answer(
+            "const func first(value: i32): i32 { if value == 0 { 42 } else { second(value - 1) } }\nconst func second(value: i32): i32 { first(value) }\nconst ANSWER: i32 = first(3)",
+            "ANSWER"
+        ),
+        Value::I32(42)
+    );
+    assert_eq!(
+        answer(
+            "const ANSWER: i32 = if false { 1 / 0 } else { 42 }",
+            "ANSWER"
+        ),
+        Value::I32(42)
+    );
+}
+
+#[test]
+fn unsupported_final_shapes_fail_locally_even_when_no_value_can_be_produced() {
+    assert_eq!(
+        failure(
+            "const BAD: error = if true { loop {} } else { loop {} }",
+            CompileTimeEvaluationLimits::default()
+        ),
+        Rule::FinalValue
+    );
+}
+
+#[test]
+fn shipped_limits_bound_recursive_execution_and_deep_initializer_dependencies() {
+    assert_eq!(
+        failure(
+            "const func again(): i32 { again() }\nconst BAD: i32 = again()",
+            CompileTimeEvaluationLimits::default()
+        ),
+        Rule::Execution(ExecutionRule::CallDepthLimit)
+    );
+    let mut text = String::new();
+    for index in 0..12 {
+        writeln!(text, "const VALUE{index}: i32 = VALUE{}", index + 1).unwrap();
+    }
+    text.push_str("const VALUE12: i32 = 42");
+    assert_eq!(
+        failure(
+            &text,
+            CompileTimeEvaluationLimits::new(
+                NonZeroU64::new(10000).unwrap(),
+                NonZeroU32::new(8).unwrap()
+            )
+        ),
+        Rule::Execution(ExecutionRule::CallDepthLimit)
+    );
+    // Pending value dependencies and active callable frames share one stack-depth budget.
+    // Each part fits by itself; their combined active depth does not.
+    assert_eq!(
+        failure(
+            "const A: i32 = B\nconst B: i32 = C\nconst C: i32 = count(3)\nconst func count(value: i32): i32 { if value == 0 { 42 } else { count(value - 1) } }",
+            CompileTimeEvaluationLimits::new(
+                NonZeroU64::new(10000).unwrap(),
+                NonZeroU32::new(6).unwrap()
+            )
+        ),
+        Rule::Execution(ExecutionRule::CallDepthLimit)
+    );
+}
+
+#[test]
+fn compiler_initialization_thunks_do_not_introduce_source_return_targets() {
+    let (sources, tree) = input("const BAD: i32 = if true { return 1 } else { 2 }");
+    let headers = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+    assert!(
+        matches!(Unit::prepare(&headers.bind(bound(&sources,&tree)).unwrap()),Err(Failure::Body{failure:BodyFailure::Rejected(diagnostic),..}) if diagnostic.rule()==crate::value_access::Rule::InvalidReturn)
+    );
+    assert_eq!(
+        answer(
+            "const func choose(): i32 { if true { return 42 } else { 2 } }\nconst ANSWER: i32 = choose()",
+            "ANSWER"
+        ),
+        Value::I32(42)
+    );
+}
+
+#[test]
+fn cache_guards_include_const_callees_seen_only_in_unevaluated_dependency_paths() {
+    let original = "const func helper(): i32 { 42 }\nconst ANSWER: i32 = if false { helper() } else { 42 }\nfunc run(): i32 { ANSWER }";
+    let (a, ta) = input(original);
+    let headers = declarations::Query::prepare(bound(&a, &ta)).unwrap();
+    let context = headers.bind(bound(&a, &ta)).unwrap();
+    let unit = Unit::prepare(&context).unwrap();
+    let (b, tb) = input(&original.replace("{ 42 }\nconst", "{ ANSWER }\nconst"));
+    let changed = headers.bind(bound(&b, &tb)).unwrap();
+    assert!(named(&unit, "run").bind(&changed).is_err());
+    assert!(
+        matches!(Unit::prepare(&changed),Err(Failure::Evaluation{diagnostic,..}) if diagnostic.rule()==Rule::Execution(ExecutionRule::DependencyCycle))
+    );
+}

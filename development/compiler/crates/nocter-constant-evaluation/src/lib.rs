@@ -14,6 +14,7 @@ mod plan;
 mod program;
 mod query;
 mod scalar;
+pub mod state;
 mod support;
 #[cfg(test)]
 mod tests;

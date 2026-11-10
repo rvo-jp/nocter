@@ -154,7 +154,9 @@ impl Builder<'_> {
                 action: SelectionAction::MovePayload,
                 ..
             } => return Ok(Vec::new()),
-            ExpressionKind::If { .. } | ExpressionKind::Call { .. } => return Err(self.invalid()),
+            ExpressionKind::Constant(_)
+            | ExpressionKind::If { .. }
+            | ExpressionKind::Call { .. } => return Err(self.invalid()),
         };
         Ok(vec![operation])
     }
@@ -331,7 +333,7 @@ fn binary(
         Source::CheckedSubtract => (Binary::Subtract, false, Check::Required),
         Source::CheckedMultiply => (Binary::Multiply, false, Check::Required),
         Source::CheckedDivide => (Binary::Divide, false, Check::Required),
-        Source::CheckedRemainder => (Binary::Remainder, false, Check::Required),
+        Source::CheckedRemainder => (Binary::Remainder, false, Check::NonZeroDivisor),
         Source::Equal => (Binary::Equal, false, Check::NotRequired),
         Source::NotEqual => (Binary::Equal, true, Check::NotRequired),
         Source::Less => (Binary::Less, false, Check::NotRequired),

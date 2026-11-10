@@ -87,6 +87,9 @@ impl Program {
             ValueFunctionOrigin::Closure(id) => self.closure(id)?.contract().clone(),
             ValueFunctionOrigin::Declaration(id) => {
                 let callable = self.callables.get(id)?;
+                if callable.kind() == super::CallableKind::ConstantInitializer {
+                    return None;
+                }
                 let inputs = callable
                     .parameters()
                     .iter()
@@ -137,7 +140,9 @@ impl Program {
                 self.closure(id)?;
             }
             ValueFunctionOrigin::Declaration(id) => {
-                self.callables.get(id)?;
+                if self.callables.get(id)?.kind() == super::CallableKind::ConstantInitializer {
+                    return None;
+                }
             }
             ValueFunctionOrigin::Parameter(id) => {
                 self.parameters.get(id)?.contract()?;

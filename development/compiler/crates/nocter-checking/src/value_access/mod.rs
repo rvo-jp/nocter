@@ -9,12 +9,14 @@ mod closures;
 pub mod constant;
 mod construction;
 mod diagnostics;
+pub mod evaluation;
 mod expressions;
 pub mod flow;
 mod inputs;
 mod ir;
 mod results;
 mod selection;
+mod source_dependencies;
 mod statements;
 mod supply;
 #[cfg(test)]
@@ -50,6 +52,7 @@ pub enum Rule {
     MissingResult,
     IntegerRange,
     InvalidLoopControl,
+    InvalidReturn,
     InvalidDrop,
     NotWritable,
     CompoundOperand,
@@ -98,6 +101,10 @@ impl Rule {
             Self::IntegerRange => (
                 DiagnosticCode::E0375,
                 "integer literal is outside the i32 range",
+            ),
+            Self::InvalidReturn => (
+                DiagnosticCode::E0370,
+                "return requires an enclosing source callable and cannot leave a value initializer",
             ),
             Self::InvalidLoopControl => (
                 DiagnosticCode::E0382,
@@ -181,6 +188,7 @@ pub struct Query {
     result_data: nocter_model::TypeId,
     results_closed: bool,
     result_evidence: Option<Arc<results::Evidence>>,
+    evaluation_source: Option<Arc<source_dependencies::SourceDependencies>>,
     equalities: Vec<results::Equality>,
     body: TypedBody,
     origins: Origins,
@@ -229,6 +237,9 @@ impl Query {
     ) -> Result<Context<'query, 'source>, Failure> {
         if !Arc::ptr_eq(&self.header, &context.program_handle()) {
             return Err(Failure::ChangedAuthority);
+        }
+        if let Some(source) = &self.evaluation_source {
+            source.verify(context)?;
         }
         if let Some(evidence) = &self.result_evidence {
             let verified = evidence.verify(context)?;

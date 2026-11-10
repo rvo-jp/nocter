@@ -93,6 +93,10 @@ impl Checker<'_, '_> {
                 (Statement::Evaluate(value), self.ty(value).may_complete())
             }
             NodeKind::ReturnStatement => {
+                if let nocter_model::ValueCode::Declaration(code) = self.code
+                    && self.program().callables().get(code).is_some_and(|c| c.kind() == nocter_declarations::value_access::CallableKind::ConstantInitializer) {
+                    return self.reject(Rule::InvalidReturn,node);
+                }
                 let value = if let Some(expression) = self.children(node).first() {
                     self.expression(*expression, Some(Boundary::Result(self.result)), reachable)?
                 } else {
@@ -181,7 +185,7 @@ impl Checker<'_, '_> {
                 .program()
                 .symbols()
                 .get(&spelling)
-                .and_then(|symbol| self.program().resolve(symbol))
+                .and_then(|symbol| self.program().resolve_code(symbol))
                 .is_some()
         {
             return self.reject(Rule::ShadowedName, name);

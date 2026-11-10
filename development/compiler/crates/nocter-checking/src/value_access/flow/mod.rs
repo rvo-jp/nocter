@@ -154,6 +154,22 @@ pub struct Query {
     access: access::Analysis,
 }
 impl Query {
+    pub(in crate::value_access) fn materialize_constants(
+        &mut self,
+        values: &std::collections::BTreeMap<
+            nocter_model::AccessCallableId,
+            Arc<nocter_constant_evaluation::state::Value>,
+        >,
+        dependencies: &Arc<crate::value_access::source_dependencies::SourceDependencies>,
+    ) -> Result<(), IntegrityError> {
+        self.typed = Arc::new(super::evaluation::materialize(
+            &self.typed,
+            values,
+            dependencies,
+        )?);
+        Ok(())
+    }
+
     /// Builds control once and solves initialization, referent/access and ownership obligations.
     /// # Errors
     /// Returns an integrity failure if the closed typed product contains inconsistent identities.

@@ -55,6 +55,7 @@ pub enum HeaderPosition {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DeclarationRule {
     MissingDefinition,
+    InvalidConstantHeader,
     UnknownSymbol,
     ReservedBuiltinName,
     DuplicateCallable { first: AccessCallableId },
@@ -78,20 +79,40 @@ pub struct DeclarationViolation {
     pub rule: DeclarationRule,
 }
 
+/// Source role of executable code. A constant owns an initialization thunk, never a function witness.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CallableKind {
+    Function(CompileTimeGuarantee),
+    ConstantInitializer,
+}
+impl CallableKind {
+    #[must_use]
+    pub const fn compile_time(self) -> CompileTimeGuarantee {
+        match self {
+            Self::Function(capability) => capability,
+            Self::ConstantInitializer => CompileTimeGuarantee::Evaluatable,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Callable {
     name: Symbol,
-    compile_time: CompileTimeGuarantee,
+    kind: CallableKind,
     parameters: Box<[AccessParameterId]>,
     result: TypeId,
     result_contract: Option<FunctionConstraint>,
 }
 
 impl Callable {
+    #[must_use]
+    pub const fn kind(&self) -> CallableKind {
+        self.kind
+    }
     /// Authored capability only; body-domain acceptance and evaluation are separate obligations.
     #[must_use]
     pub const fn compile_time(&self) -> CompileTimeGuarantee {
-        self.compile_time
+        self.kind.compile_time()
     }
     #[must_use]
     pub const fn result_contract(&self) -> Option<&FunctionConstraint> {
@@ -189,13 +210,30 @@ impl Program {
     }
     #[must_use]
     pub fn resolve(&self, name: Symbol) -> Option<AccessCallableId> {
+        self.resolve_code(name).filter(|id| {
+            self.callables
+                .get(*id)
+                .is_some_and(|c| matches!(c.kind(), CallableKind::Function(_)))
+        })
+    }
+    /// Lookup any source code declaration for collision checks; not a function-value grant.
+    #[must_use]
+    pub fn resolve_code(&self, name: Symbol) -> Option<AccessCallableId> {
         self.namespace.get(&name).copied()
+    }
+    #[must_use]
+    pub fn resolve_constant(&self, name: Symbol) -> Option<AccessCallableId> {
+        self.resolve_code(name).filter(|id| {
+            self.callables
+                .get(*id)
+                .is_some_and(|c| c.kind() == CallableKind::ConstantInitializer)
+        })
     }
 }
 
 #[derive(Debug)]
 struct Definition {
-    compile_time: CompileTimeGuarantee,
+    kind: CallableKind,
     parameters: Box<[ParameterDefinition]>,
     result_data: ValueDefinition,
 }
@@ -266,7 +304,7 @@ impl Builder {
     pub fn define(
         &mut self,
         id: AccessCallableId,
-        compile_time: CompileTimeGuarantee,
+        kind: CallableKind,
         parameters: impl Into<Box<[ParameterDefinition]>>,
         result_data: impl Into<ValueDefinition>,
     ) -> Result<(), DefinitionError> {
@@ -278,7 +316,7 @@ impl Builder {
             return Err(DefinitionError::AlreadyDefined);
         }
         reservation.definition = Some(Definition {
-            compile_time,
+            kind,
             parameters: parameters.into(),
             result_data: result_data.into(),
         });
@@ -396,6 +434,16 @@ fn validate_definition(
         });
         return;
     };
+    if definition.kind == CallableKind::ConstantInitializer
+        && (!definition.parameters.is_empty()
+            || matches!(definition.result_data, ValueDefinition::Function(_)))
+    {
+        violations.push(DeclarationViolation {
+            declaration: DeclarationId::Callable(id),
+            position: HeaderPosition::Result,
+            rule: DeclarationRule::InvalidConstantHeader,
+        });
+    }
     let mut seen = BTreeMap::new();
     for (position, parameter) in definition.parameters.iter().enumerate() {
         let rule = match symbols.spelling(parameter.name) {

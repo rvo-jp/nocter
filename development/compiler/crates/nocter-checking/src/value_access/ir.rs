@@ -186,6 +186,8 @@ pub enum CallKind {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExpressionKind {
+    /// Required constant reference, materialized before accepted-unit publication.
+    Constant(AccessCallableId),
     Function(AccessCallableId),
     Closure {
         closure: nocter_model::ValueClosure,

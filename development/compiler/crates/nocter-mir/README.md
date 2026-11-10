@@ -44,7 +44,8 @@ or assign a machine ABI.
   derives a proof from constants nor changes a required check into a proven result.
 - Source arithmetic retains checking's exact trap disposition. Compiler-generated loop and pack
   arithmetic uses an explicit internal-invariant state instead of masquerading as source proof or
-  silently selecting unchecked source semantics.
+  silently selecting unchecked source semantics. A nonzero-divisor-only remainder disposition
+  preserves the selected intrinsic's result domain; it is not a proof that division is safe.
 - Suspension-frame liveness is derived once from the closed MIR CFG. Cancellation order and
   conditional initialization are consumed from checked ownership rather than inferred from MIR
   operation shapes.
@@ -60,7 +61,8 @@ bindings. The result contains its runtime environment and closed bodies, with no
 storage reference. There is no separately pairable storage companion or released MirProgram adapter.
 
 `computation` consumes selected operation kinds and frozen call edges; it does not infer Copy,
-access, result witnesses or dispatch. `validate` checks closed representation, graph, signature,
+access, result witnesses or dispatch. Private required constants arrive as materialized literals;
+an unresolved initializer reference is an integrity failure, never a request for evaluation. `validate` checks closed representation, graph, signature,
 projection, primitive-operation and flag integrity before publication. It does not repeat source
 ownership analysis. The common Machine consumer lowers these closed bodies without a released
 MirProgram conversion.

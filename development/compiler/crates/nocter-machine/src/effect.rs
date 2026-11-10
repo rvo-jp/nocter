@@ -46,13 +46,19 @@ impl MachineOperationKind {
                 ..
             } => MachineOperationEffect::Pure,
             Self::Unary {
-                check: MachineArithmeticCheck::Required | MachineArithmeticCheck::ProvenTrap,
+                check:
+                    MachineArithmeticCheck::Required
+                    | MachineArithmeticCheck::NonZeroDivisor
+                    | MachineArithmeticCheck::ProvenTrap,
                 ..
             }
             | Self::Load { .. }
             | Self::AddressOf { .. }
             | Self::Binary {
-                check: MachineArithmeticCheck::Required | MachineArithmeticCheck::ProvenTrap,
+                check:
+                    MachineArithmeticCheck::Required
+                    | MachineArithmeticCheck::NonZeroDivisor
+                    | MachineArithmeticCheck::ProvenTrap,
                 ..
             }
             | Self::NumericConversion { .. }

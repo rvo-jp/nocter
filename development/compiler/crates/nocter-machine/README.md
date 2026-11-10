@@ -81,7 +81,8 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
   checked address paths share this contract, and targets consume it without repeating
   source-safety analysis or erasing a trap.
 - Integer arithmetic carries the frozen checking disposition unchanged. `Required` remains
-  observable and cannot be removed; `ProvenSafe` is removable when unused; `ProvenTrap` remains an
+  observable and cannot be removed. `NonZeroDivisor` retains exactly the selected remainder
+  contract's divisor check and is also observable; `ProvenSafe` is removable when unused; `ProvenTrap` remains an
   unconditional trap. Machine does not inspect constants or ranges to change that classification.
 - Representation-preserving operations may retain distinct semantic value and type identities while
   naming one proven physical-storage identity. Machine validates that relation after dense pruning;

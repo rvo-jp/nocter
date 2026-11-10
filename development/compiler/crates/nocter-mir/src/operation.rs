@@ -47,6 +47,8 @@ pub enum MirArithmeticCheck {
     /// Compiler-generated arithmetic whose surrounding lowering invariant proves the operation.
     InternalInvariant,
     Required,
+    /// The selected remainder contract requires only a nonzero divisor, not a representable quotient.
+    NonZeroDivisor,
     ProvenSafe,
     ProvenTrap,
 }

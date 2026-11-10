@@ -32,7 +32,8 @@ source, loader commands, or package state.
   the proof from index or bound shape.
 - Arithmetic emission consumes Machine's explicit trap disposition. Required integer operations
   check fixed-width overflow, zero division/remainder, signed minimum divided by negative one, and
-  invalid shift counts before committing the result. Proven traps emit `brk`; proven-safe
+  invalid shift counts before committing the result. A transported nonzero-divisor-only remainder
+  checks zero without adding a quotient-representability requirement. Proven traps emit `brk`; proven-safe
   operations omit only the check. Narrow results are normalized to their declared signedness and
   width. Three compiler scratch registers are reserved so 64-bit multiply overflow remains exact
   even when both operands and the result are spilled.

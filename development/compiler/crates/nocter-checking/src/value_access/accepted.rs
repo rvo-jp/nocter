@@ -16,6 +16,10 @@ pub enum Failure {
         callable: AccessCallableId,
         diagnostics: Box<[SourceDiagnostic]>,
     },
+    Evaluation {
+        callable: AccessCallableId,
+        diagnostic: Box<super::evaluation::Diagnostic>,
+    },
     Const {
         callable: AccessCallableId,
         diagnostic: Box<super::constant::Diagnostic>,
@@ -44,6 +48,7 @@ impl DataEvidence {
 /// There is no parts constructor: bodies cannot be omitted or paired with another program.
 #[derive(Clone, Debug)]
 pub struct Unit {
+    constants: BTreeMap<AccessCallableId, Arc<nocter_constant_evaluation::state::Value>>,
     closures: BTreeMap<nocter_model::ValueClosure, flow::Query>,
     program: Arc<Program>,
     header: Arc<Program>,
@@ -55,6 +60,18 @@ impl Unit {
     /// # Errors
     /// Returns source-backed typing/flow rejection, or an inconsistent compiler product.
     pub fn prepare(context: &DeclarationContext<'_>) -> Result<Self, Failure> {
+        Self::prepare_with_limits(
+            context,
+            nocter_constant_evaluation::CompileTimeEvaluationLimits::default(),
+        )
+    }
+    /// Checks and evaluates required initializers with explicit deterministic limits.
+    /// # Errors
+    /// Rejects an invalid body, unsupported domain, failed required evaluation or compiler integrity.
+    pub fn prepare_with_limits(
+        context: &DeclarationContext<'_>,
+        limits: nocter_constant_evaluation::CompileTimeEvaluationLimits,
+    ) -> Result<Self, Failure> {
         let mut queries = BTreeMap::new();
         for (callable, _) in context.program().callables().iter() {
             let body = TypedQuery::prepare(context, callable)
@@ -121,13 +138,30 @@ impl Unit {
                 });
             }
         }
+        let evaluation = super::evaluation::evaluate(context, &program, &bodies, limits)?;
+        let constants = evaluation.values;
+        if !constants.is_empty() {
+            for query in bodies.values_mut().chain(closures.values_mut()) {
+                query
+                    .materialize_constants(&constants, &evaluation.dependencies)
+                    .map_err(Failure::Integrity)?;
+            }
+        }
         Ok(Self {
+            constants,
             closures,
             program,
             header: context.program_handle(),
             bodies,
             result_evidence,
         })
+    }
+    #[must_use]
+    pub fn constant_value(
+        &self,
+        id: AccessCallableId,
+    ) -> Option<&nocter_constant_evaluation::state::Value> {
+        self.constants.get(&id).map(Arc::as_ref)
     }
     /// The named/captured-code or own-input witness established for a callable result in this bounded unit.
     #[must_use]

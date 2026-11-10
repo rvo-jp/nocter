@@ -149,7 +149,7 @@ impl Definitions<'_, '_> {
         )? && complete
         {
             self.builder
-                .define(id, header.compile_time, parameters, data)
+                .define(id, header.kind, parameters, data)
                 .map_err(|_| Failure::InconsistentSyntax)?;
         }
         Ok(())

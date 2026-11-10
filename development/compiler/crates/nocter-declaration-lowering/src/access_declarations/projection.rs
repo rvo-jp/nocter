@@ -112,9 +112,14 @@ fn details(
 ) -> Option<(DiagnosticCode, &'static str, Option<SyntaxToken>)> {
     use DeclarationRule as R;
     Some(match violation.rule {
+        R::InvalidConstantHeader => (
+            DiagnosticCode::E0323,
+            "constant headers require a data value and no inputs",
+            None,
+        ),
         R::DuplicateCallable { first } => (
             DiagnosticCode::E0241,
-            "duplicate function name",
+            "duplicate value declaration name",
             Some(sources.get(&first)?.name),
         ),
         R::DuplicateRecord { first } => (
@@ -124,7 +129,7 @@ fn details(
         ),
         R::RecordShadowsCallable { declaration } => (
             DiagnosticCode::E0241,
-            "record name conflicts with a function",
+            "record name conflicts with a value declaration",
             Some(sources.get(&declaration)?.name),
         ),
         R::DuplicateParameter { first } => {
@@ -149,7 +154,7 @@ fn details(
         }
         R::ParameterShadowsCallable { declaration } => (
             DiagnosticCode::E0341,
-            "parameter shadows an authored function",
+            "parameter shadows an authored value declaration",
             Some(sources.get(&declaration)?.name),
         ),
         R::ParameterShadowsRecord { declaration } => (

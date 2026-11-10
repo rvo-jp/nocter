@@ -418,49 +418,15 @@ impl Builder<'_> {
                     self.expression(*source, entry)?
                 }
             }
-            ExpressionKind::Unary { operand, .. } => {
-                let end = self.expression(*operand, entry)?;
-                if let Some(point) = end {
-                    self.action(
-                        point,
-                        origin,
-                        Operation::PrepareOperand {
-                            expression: id,
-                            operand: 0,
-                            value: *operand,
-                        },
-                    )?;
-                }
-                end
-            }
+            ExpressionKind::Unary { operand, .. } => self.operand(id, 0, *operand, entry)?,
             ExpressionKind::Binary { left, right, .. } => {
-                let Some(point) = self.expression(*left, entry)? else {
+                let Some(point) = self.operand(id, 0, *left, entry)? else {
                     return Ok(None);
                 };
-                self.action(
-                    point,
-                    origin,
-                    Operation::PrepareOperand {
-                        expression: id,
-                        operand: 0,
-                        value: *left,
-                    },
-                )?;
-                let end = self.expression(*right, point)?;
-                if let Some(point) = end {
-                    self.action(
-                        point,
-                        origin,
-                        Operation::PrepareOperand {
-                            expression: id,
-                            operand: 1,
-                            value: *right,
-                        },
-                    )?;
-                }
-                end
+                self.operand(id, 1, *right, point)?
             }
             ExpressionKind::Function(_)
+            | ExpressionKind::Constant(_)
             | ExpressionKind::Integer(_)
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Unit
@@ -469,6 +435,27 @@ impl Builder<'_> {
         };
         if let Some(point) = end {
             self.action(point, origin, Operation::Evaluate(id))?;
+        }
+        Ok(end)
+    }
+    fn operand(
+        &mut self,
+        expression: AccessExpressionId,
+        operand: usize,
+        value: AccessExpressionId,
+        entry: AccessFlowPointId,
+    ) -> Result<Option<AccessFlowPointId>> {
+        let end = self.expression(value, entry)?;
+        if let Some(point) = end {
+            self.action(
+                point,
+                Origin::Expression(expression),
+                Operation::PrepareOperand {
+                    expression,
+                    operand,
+                    value,
+                },
+            )?;
         }
         Ok(end)
     }

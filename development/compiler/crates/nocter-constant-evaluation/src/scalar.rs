@@ -18,17 +18,21 @@ pub(crate) fn unary(
     operation: CompileTimeUnaryOperation,
     ty: ConstantScalarType,
     operand: &ConstantValue,
-    target: CompilationTarget,
+    target: impl Into<Option<CompilationTarget>>,
 ) -> Result<ConstantValue, ScalarEvaluationFailure> {
+    let target = target.into();
     match (operation, ty, operand) {
         (
             CompileTimeUnaryOperation::LogicalNot,
             ConstantScalarType::Bool,
             ConstantValue::Bool(value),
         ) => Ok(ConstantValue::Bool(!value)),
-        (CompileTimeUnaryOperation::Negate, ConstantScalarType::Float(format), value) => Ok(
-            float_value(TargetFloatEvaluator::new(target).negate(constant_float(value, format)?)),
-        ),
+        (CompileTimeUnaryOperation::Negate, ConstantScalarType::Float(format), value) => {
+            Ok(float_value(
+                TargetFloatEvaluator::new(target.ok_or(ScalarEvaluationFailure::InvalidType)?)
+                    .negate(constant_float(value, format)?),
+            ))
+        }
         (
             CompileTimeUnaryOperation::Negate,
             ConstantScalarType::Integer(builtin),
@@ -52,7 +56,39 @@ pub(crate) fn binary(
     ty: ConstantScalarType,
     left: &ConstantValue,
     right: &ConstantValue,
-    target: CompilationTarget,
+    target: impl Into<Option<CompilationTarget>>,
+) -> Result<ConstantValue, ScalarEvaluationFailure> {
+    binary_in_domain(
+        operation,
+        ty,
+        left,
+        right,
+        target.into(),
+        RemainderDomain::CheckedQuotient,
+    )
+}
+
+pub(crate) fn value_binary(
+    operation: CompileTimeBinaryOperation,
+    ty: ConstantScalarType,
+    left: &ConstantValue,
+    right: &ConstantValue,
+) -> Result<ConstantValue, ScalarEvaluationFailure> {
+    binary_in_domain(operation, ty, left, right, None, RemainderDomain::Result)
+}
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum RemainderDomain {
+    CheckedQuotient,
+    Result,
+}
+
+fn binary_in_domain(
+    operation: CompileTimeBinaryOperation,
+    ty: ConstantScalarType,
+    left: &ConstantValue,
+    right: &ConstantValue,
+    target: Option<CompilationTarget>,
+    remainder: RemainderDomain,
 ) -> Result<ConstantValue, ScalarEvaluationFailure> {
     match ty {
         ConstantScalarType::Float(format) => {
@@ -68,7 +104,7 @@ pub(crate) fn binary(
                     return Err(ScalarEvaluationFailure::InvalidType);
                 }
             };
-            TargetFloatEvaluator::new(target)
+            TargetFloatEvaluator::new(target.ok_or(ScalarEvaluationFailure::InvalidType)?)
                 .binary(
                     operation,
                     constant_float(left, format)?,
@@ -83,6 +119,15 @@ pub(crate) fn binary(
             else {
                 return Err(ScalarEvaluationFailure::InvalidType);
             };
+            if spec.signed
+                && *left == spec.minimum
+                && *right == -1
+                && (operation == CompileTimeBinaryOperation::Divide
+                    || (operation == CompileTimeBinaryOperation::Remainder
+                        && remainder == RemainderDomain::CheckedQuotient))
+            {
+                return Err(ScalarEvaluationFailure::Arithmetic);
+            }
             let result = match operation {
                 CompileTimeBinaryOperation::Add => left.checked_add(*right),
                 CompileTimeBinaryOperation::Subtract => left.checked_sub(*right),
@@ -117,17 +162,18 @@ pub(crate) fn compare(
     operation: CompileTimeComparisonOperation,
     left: &ConstantValue,
     right: &ConstantValue,
-    target: CompilationTarget,
+    target: impl Into<Option<CompilationTarget>>,
 ) -> Result<ConstantValue, ScalarEvaluationFailure> {
+    let target = target.into();
     let equal = match (left, right) {
         (ConstantValue::Float32(left), ConstantValue::Float32(right)) => float_compare(
-            target,
+            target.ok_or(ScalarEvaluationFailure::InvalidType)?,
             FloatComparisonOperation::Equal,
             FloatBits::Binary32(*left),
             FloatBits::Binary32(*right),
         )?,
         (ConstantValue::Float64(left), ConstantValue::Float64(right)) => float_compare(
-            target,
+            target.ok_or(ScalarEvaluationFailure::InvalidType)?,
             FloatComparisonOperation::Equal,
             FloatBits::Binary64(*left),
             FloatBits::Binary64(*right),
@@ -175,7 +221,7 @@ fn ordering(
     operation: CompileTimeComparisonOperation,
     left: &ConstantValue,
     right: &ConstantValue,
-    target: CompilationTarget,
+    target: Option<CompilationTarget>,
 ) -> Result<bool, ScalarEvaluationFailure> {
     let order = |ordering: std::cmp::Ordering| match operation {
         CompileTimeComparisonOperation::Less => ordering.is_lt(),
@@ -191,13 +237,13 @@ fn ordering(
         }
         (ConstantValue::Float32(left), ConstantValue::Float32(right)) => float_ordering(
             operation,
-            target,
+            target.ok_or(ScalarEvaluationFailure::InvalidType)?,
             FloatBits::Binary32(*left),
             FloatBits::Binary32(*right),
         ),
         (ConstantValue::Float64(left), ConstantValue::Float64(right)) => float_ordering(
             operation,
-            target,
+            target.ok_or(ScalarEvaluationFailure::InvalidType)?,
             FloatBits::Binary64(*left),
             FloatBits::Binary64(*right),
         ),

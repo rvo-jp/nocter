@@ -494,10 +494,70 @@ their opaque annotations.
 Failures retain source-neutral rules and expression/statement/cleanup sites; exact-current binding
 projects E0421 without repeating lookup, operation selection or ownership analysis. Ordinary
 runtime calls continue to consume the same accepted body. Checked arithmetic, including operations
-that would trap if evaluated, is a supported operation domain. This check executes nothing: it
-provides no required-initializer result, input-materialization proof, budget/termination proof,
-final serialization, generic conditional eligibility or exported const product. Those remain
+that would trap if evaluated, is a supported operation domain. This domain check executes nothing and proves no termination or trap freedom.
+[Required initializers](#required-private-initializers) additionally execute admitted plans. Generic
+conditional eligibility and exported const products remain
 [evaluator integration work](../../../design/compiler-realization.md#conditional-const-admission).
+
+## Required Private Initializers
+
+The private source goal admits `const NAME: Type = expression` with a required explicit data type
+and initializer. A constant is storage-independent data, not a place or function witness. All
+initializers are ordinarily typed and checked for the const domain, including unused declarations.
+The same body catalog holds their input-free initialization thunks; no source function, synthetic
+source text or separate expression checker is created. Function lookup and witness publication
+exclude those thunks. Their execution role grants no source return target: an initializer cannot
+use `return` to leave its value-expression boundary. Nested source callables retain their own
+return targets. Runtime instance closure rejects an initializer as an entry root.
+
+`evaluation::projection` closes reachable const calls and initializer references from those checked
+control/resource products into the common evaluator's stateful plans. A separate projection of the
+same typed selections freezes authored constant dependencies through const callees, including dead
+branches; the common dependency query detects cycles without executing an unevaluated source
+operation. Ordinary recursive callable components remain valid. Each alternative preserves
+its sparse owning guard and exact before/computation/after phases. Resolved data/fields, operand
+snapshots, scoped aliases, input supply, protected returns and cleanup come from checking; the
+projector cannot repeat lookup, infer a move or select another target. All required initializers
+must succeed before Unit publication. Unsupported final type shapes reject before plan closure,
+so an interrupted opaque result cannot become an internal missing-shape failure. Cycles, arithmetic failure, action/call-depth budgets and
+unsupported final publication remain distinct diagnostic causes. The default limits use the shared
+evaluator contract; `prepare_with_limits` selects explicit deterministic budgets for a request.
+
+Final publication currently admits bool, i32 and unit values. Finite records participate as owned
+or scoped evaluator temporaries, including replacement and partial cleanup, but record constants,
+statics, arrays/tuples, explicit compiler-memory budgets, generic conditions and early structural type dependencies still require
+integration. General outcome/callback/resource evaluation is not admitted by this path.
+
+Successful values are frozen once in the Unit. Materialization derives literal operations in the
+same typed expression identities and source recipes; control, types, access and resource products
+remain the already checked authority. Captured bodies receive the same transformation. The backend
+therefore receives values, never an initializer to execute or an evaluator to reopen. Required
+constant evaluation is separate from optional runtime optimization and does not remove ordinary
+runtime bodies for functions declared const.
+
+Computed constant facts do not yet participate in typing or control selection. For example:
+
+```nocter
+const FLAG: bool = false
+func run(): i32 {
+    let value = 42
+    if FLAG { drop value }
+    value
+}
+```
+
+This is conservatively rejected for a potentially uninitialized use, while replacing `FLAG` with
+`false` is accepted. Materialization currently follows flow admission. Closing this inference gap
+requires dependency-scheduled evaluation before the affected typing/control products are frozen;
+rewriting a predicate after ownership checking cannot establish the missing proof. This remains an
+implementation limit, not a source requirement to duplicate a constant's value.
+
+Folded queries share an exact-source guard over the initialization/callee bodies that supplied
+their values. A header-only cache hit cannot reuse those values after a dependency body changes,
+even through a standalone typed/flow source binding. `source_dependencies` owns that verification
+mechanism for both evaluator products and callable-result evidence; bytes are shared from the
+original checked bodies. Whole-unit binding still verifies every body before exposing a current
+projection. Ordinary calls have no result-only cache that could erase edit-input writes.
 
 ## Owned Capture Bodies
 

@@ -179,3 +179,37 @@ fn descendants(tree: &SyntaxTree, root: NodeId) -> Vec<NodeId> {
     }
     result
 }
+
+#[test]
+fn published_signed_remainder_rejects_an_unrepresentable_typed_quotient() {
+    for builtin in [
+        BuiltinType::I8,
+        BuiltinType::I16,
+        BuiltinType::I32,
+        BuiltinType::I64,
+        BuiltinType::Isize,
+    ] {
+        let minimum = crate::support::integer_spec(builtin).unwrap().minimum;
+        let expression = format!("{minimum} % -1");
+        let (sources, tree, node) = parsed_expression(&expression);
+        let mut resolver = Resolver {
+            reference: None,
+            conversion: None,
+        };
+        let plan = plan_expression(
+            CompilationTarget::Arm64Darwin,
+            bound(&sources, &tree),
+            node,
+            ConstantScalarType::Integer(builtin),
+            &mut resolver,
+        )
+        .unwrap();
+        assert_eq!(
+            evaluate_expression_plan(&plan, |_| None)
+                .unwrap_err()
+                .rule(),
+            crate::ConstantEvaluationRule::ArithmeticFailure,
+            "{builtin:?}"
+        );
+    }
+}

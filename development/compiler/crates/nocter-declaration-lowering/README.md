@@ -95,7 +95,9 @@ The access-declaration query accepts only complete `V2CoreUnit` syntax. It colle
 canonicalizes declaration symbols, reserves functions and records by name order, and resolves
 data types, input operations, namespaces, authored const capability and value-result constraints
 before examining body semantics.
-`headers` extracts syntax-only header evidence. `type_syntax::value_type_syntax` projects one
+`headers` extracts syntax-only header evidence for functions and explicitly typed required constants.
+Initializer expressions use the syntax owner's existing body-surface exclusion and current-body
+locator mechanism, so initializer-only edits rebind headers without retaining stale values. `type_syntax::value_type_syntax` projects one
 `ValueTypeSyntax` for input/result headers and checking's local annotations. Its typed invocation and input-operation projection is the only
 decoder for these contexts; neither consumer recovers a mode from names, types or body use.
 `definitions` resolves input and result slots through one value normalization path and the

@@ -4,8 +4,8 @@ use super::{CallKind, ExpressionKind, Failure, Statement, flow, source_origin};
 use nocter_declarations::value_access::{PayloadSchema, Program};
 use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic};
 use nocter_model::{
-    AccessCallableId, AccessExpressionId, AccessStatementId, BuiltinType, CompileTimeGuarantee,
-    TypeId, ValueFunctionOrigin,
+    AccessCallableId, AccessExpressionId, AccessStatementId, CompileTimeGuarantee, TypeId,
+    ValueFunctionOrigin,
 };
 use std::collections::BTreeMap;
 
@@ -57,22 +57,41 @@ impl DataDomain<'_> {
         if let Some(&supported) = self.supported.get(&data) {
             return Ok(supported);
         }
-        let supported = match self.program.data_schema(data).ok_or(INVALID)? {
-            PayloadSchema::Builtin(BuiltinType::Bool | BuiltinType::I32 | BuiltinType::Void) => {
-                true
+        let mut pending = vec![(data, false)];
+        while let Some((data, expanded)) = pending.pop() {
+            if self.supported.contains_key(&data) {
+                continue;
             }
-            PayloadSchema::Builtin(_) | PayloadSchema::Function(_) => false,
-            PayloadSchema::Record(record) => {
-                let mut supported = true;
-                for field in record.fields() {
-                    let data = self.program.fields().get(*field).ok_or(INVALID)?.data();
-                    supported &= self.supports(data)?;
+            let supported = match self.program.data_schema(data).ok_or(INVALID)? {
+                PayloadSchema::Builtin(builtin) => {
+                    nocter_constant_evaluation::state::Type::builtin(builtin).is_some()
                 }
-                supported
-            }
-        };
-        self.supported.insert(data, supported);
-        Ok(supported)
+                PayloadSchema::Function(_) => false,
+                PayloadSchema::Record(record) => {
+                    let children = record
+                        .fields()
+                        .iter()
+                        .map(|field| {
+                            self.program
+                                .fields()
+                                .get(*field)
+                                .map(|field| field.data())
+                                .ok_or(INVALID)
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    if !expanded {
+                        pending.push((data, true));
+                        pending.extend(children.into_iter().rev().map(|child| (child, false)));
+                        continue;
+                    }
+                    children
+                        .iter()
+                        .all(|child| self.supported.get(child) == Some(&true))
+                }
+            };
+            self.supported.insert(data, supported);
+        }
+        self.supported.get(&data).copied().ok_or(INVALID)
     }
 }
 
@@ -93,7 +112,8 @@ fn operation_rule(
         ExpressionKind::Function(_)
         | ExpressionKind::Closure { .. }
         | ExpressionKind::AdaptFunction { .. } => Some(Rule::FunctionValue),
-        ExpressionKind::Integer(_)
+        ExpressionKind::Constant(_)
+        | ExpressionKind::Integer(_)
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Unit
         | ExpressionKind::Record { .. }

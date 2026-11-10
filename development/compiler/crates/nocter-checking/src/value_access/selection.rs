@@ -214,13 +214,13 @@ impl Checker<'_, '_> {
             .program()
             .symbols()
             .get(spelling)
-            .and_then(|symbol| self.program().resolve(symbol))
+            .and_then(|symbol| self.program().resolve_code(symbol))
             .is_some()
         {
             if rule == Rule::MissingTransfer {
                 return self.reject_message(
                     rule, token,
-                    "a function declaration constructs a value and has no owning source to retire; remove postfix ^".into(),
+                    "this declaration constructs a value and has no owning source to retire; remove postfix ^".into(),
                     Vec::new(),
                 );
             }

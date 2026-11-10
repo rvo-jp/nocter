@@ -78,6 +78,7 @@ impl Instance {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Failure {
     UnknownRoot(AccessCallableId),
+    InitializerRoot(AccessCallableId),
     UnboundRoot(AccessParameterId),
     InvalidAcceptedUnit,
 }

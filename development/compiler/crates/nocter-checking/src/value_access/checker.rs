@@ -105,11 +105,22 @@ pub(super) fn prepare(
         let spelling = checker.text(token)?.to_owned();
         checker.scopes[0].insert(spelling, local);
     }
-    let root = checker.block(
-        source.body(),
-        Some(Boundary::Result(declaration.result())),
-        true,
-    )?;
+    let root = if declaration.kind()
+        == nocter_declarations::value_access::CallableKind::ConstantInitializer
+    {
+        let value = checker.expression(
+            source.body(),
+            Some(Boundary::Result(declaration.result())),
+            true,
+        )?;
+        checker.emit_block(source.body(), Vec::new(), Some(value), checker.ty(value))?
+    } else {
+        checker.block(
+            source.body(),
+            Some(Boundary::Result(declaration.result())),
+            true,
+        )?
+    };
     Ok(checker.finish(root))
 }
 
@@ -156,6 +167,7 @@ impl<'a, 's> Checker<'a, 's> {
             result_data: self.result,
             results_closed: !self.pending_results,
             result_evidence: None,
+            evaluation_source: None,
             equalities: self.equalities,
             closures: self.closures,
             origins: self.origins,

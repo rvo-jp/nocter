@@ -11,8 +11,13 @@ pub(super) fn unit(parser: &mut Parser<'_>) {
     let marker = parser.start();
     parser.eat_newlines();
     while !parser.at(TokenKind::Eof) {
-        if parser.at_keyword(Keyword::Func) || parser.at_keyword(Keyword::Const) {
+        if parser.at_keyword(Keyword::Func)
+            || (parser.at_keyword(Keyword::Const)
+                && parser.nth_kind(1) == TokenKind::Keyword(Keyword::Func))
+        {
             function(parser);
+        } else if parser.at_keyword(Keyword::Const) {
+            constant(parser);
         } else if parser.at_keyword(Keyword::Struct)
             || (parser.at_contextual(ContextualSpelling::Copy)
                 && parser.nth_kind(1) == TokenKind::Keyword(Keyword::Struct))
@@ -74,6 +79,19 @@ fn function(parser: &mut Parser<'_>) {
     parser.complete(tail, NodeKind::CallableTail);
     required_block(parser);
     parser.complete(marker, NodeKind::FunctionDeclaration);
+    parser.complete(item, NodeKind::Item);
+}
+
+fn constant(parser: &mut Parser<'_>) {
+    let item = parser.start();
+    let marker = parser.start();
+    parser.expect_keyword(Keyword::Const);
+    parser.expect_name();
+    parser.expect_punctuation(Punctuation::Colon);
+    type_(parser);
+    parser.expect_punctuation(Punctuation::Equal);
+    expression::expression(parser, newline::Boundary::Statement);
+    parser.complete(marker, NodeKind::ConstantDeclaration);
     parser.complete(item, NodeKind::Item);
 }
 

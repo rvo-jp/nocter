@@ -195,7 +195,12 @@ impl Context<'_> {
                         self.primitive(left.data, integer)
                             && left.data == destination.data
                             && !invert
-                            && *check == Check::Required
+                            && *check
+                                == if *operation == Binary::Remainder {
+                                    Check::NonZeroDivisor
+                                } else {
+                                    Check::Required
+                                }
                     }
                     Binary::Equal => {
                         (self.primitive(left.data, boolean) || self.primitive(left.data, integer))

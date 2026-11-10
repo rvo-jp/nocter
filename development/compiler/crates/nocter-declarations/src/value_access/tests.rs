@@ -10,7 +10,7 @@ fn build(reverse: bool) -> Program {
         builder
             .define(
                 id,
-                CompileTimeGuarantee::RuntimeOnly,
+                crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
                 [ParameterDefinition {
                     name: symbols.get("input").unwrap(),
                     data: BuiltinType::Error.into(),
@@ -51,7 +51,7 @@ fn each_input_operation_is_independent_of_result_data_and_copy_evidence() {
         builder
             .define(
                 id,
-                CompileTimeGuarantee::RuntimeOnly,
+                crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
                 [
                     ParameterDefinition {
                         name: symbols.get("read").unwrap(),
@@ -100,10 +100,20 @@ fn incomplete_or_double_definition_never_publishes_a_program() {
     let mut builder = Builder::new(symbols.clone());
     let id = builder.reserve(symbols.get("f").unwrap());
     builder
-        .define(id, CompileTimeGuarantee::RuntimeOnly, [], BuiltinType::Void)
+        .define(
+            id,
+            crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            [],
+            BuiltinType::Void,
+        )
         .unwrap();
     assert!(matches!(
-        builder.define(id, CompileTimeGuarantee::RuntimeOnly, [], BuiltinType::I32),
+        builder.define(
+            id,
+            crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            [],
+            BuiltinType::I32
+        ),
         Err(DefinitionError::AlreadyDefined)
     ));
     let program = builder.finish().unwrap();
@@ -134,7 +144,7 @@ fn duplicate_names_and_unsupported_data_do_not_cross_freeze() {
     builder
         .define(
             f,
-            CompileTimeGuarantee::RuntimeOnly,
+            crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [parameter.clone(), parameter],
             BuiltinType::F64,
         )
@@ -253,7 +263,7 @@ fn callable_result_headers_publish_signatures_without_inventing_producers_or_cop
     builder
         .define(
             id,
-            CompileTimeGuarantee::RuntimeOnly,
+            crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [],
             ValueDefinition::Function(FunctionDefinition {
                 invocation: ValueInvocation::Read,
@@ -303,7 +313,7 @@ fn application_suffixes_replay_by_body_owner_without_changing_the_header() {
     builder
         .define(
             first,
-            CompileTimeGuarantee::RuntimeOnly,
+            crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [],
             BuiltinType::Void,
         )
@@ -311,7 +321,7 @@ fn application_suffixes_replay_by_body_owner_without_changing_the_header() {
     builder
         .define(
             second,
-            CompileTimeGuarantee::RuntimeOnly,
+            crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [],
             ValueDefinition::Function(FunctionDefinition {
                 invocation: ValueInvocation::Read,
@@ -323,7 +333,7 @@ fn application_suffixes_replay_by_body_owner_without_changing_the_header() {
     builder
         .define(
             make,
-            CompileTimeGuarantee::RuntimeOnly,
+            crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [],
             ValueDefinition::Function(FunctionDefinition {
                 invocation: ValueInvocation::Read,
@@ -394,7 +404,7 @@ fn owned_closure_schemas_replay_with_their_own_body_and_preserve_capture_copy_ev
     builder
         .define(
             first,
-            CompileTimeGuarantee::RuntimeOnly,
+            crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [],
             BuiltinType::Void,
         )
@@ -402,7 +412,7 @@ fn owned_closure_schemas_replay_with_their_own_body_and_preserve_capture_copy_ev
     builder
         .define(
             second,
-            CompileTimeGuarantee::RuntimeOnly,
+            crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [],
             BuiltinType::Void,
         )

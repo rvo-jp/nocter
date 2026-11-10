@@ -33,7 +33,7 @@ still owns contextual numeric type, sign, range, and checked arithmetic.
   and result shape against the target plan. An executor can never observe a partially linked plan
   graph.
 - A callable plan contains no syntax or source coordinate and cannot request a semantic decision.
-- One generic operation representation serves both checked recipes and closed plans. Its exhaustive
+- One generic expression-tree operation representation serves both checked recipes and closed plans. Its exhaustive
   call-target mapping is the only recipe-to-plan operation transform, so specialization cannot
   grow a second partial operation model.
 - Callable specialization keys contain closed evaluator-domain type shapes rather than `TypeId`, so
@@ -64,3 +64,42 @@ still owns contextual numeric type, sign, range, and checked arithmetic.
 - The syntax-owned expression planner is an early structural service only. Ordinary constant and
   static initializers reach execution through checked initializer plans, so adding calls does not
   expand the syntax planner into a second body checker.
+
+## Stateful Value Plans
+
+`state` owns the closed graph-plan domain for the private value-access source path. Checking projects
+its selected operations and exact resource alternatives into this product; this crate never reads
+its typed bodies or source. `Program::new` validates finite type/field schemas, slot roles, control,
+operation shapes, exact call signatures and resource references. Equal owning-state guards cannot
+select different resource phases. Initialization thunks have no inputs and cannot be ordinary call
+targets. Positional type identities retain the producer's nominal distinctions within one immutable
+table; structurally similar records do not make call edges interchangeable.
+
+`Type::builtin` owns the admitted fixed-width primitive domain. The checker uses that same admission
+for body-domain checks. Finite record schemas compose those leaves without claiming Copy. Schema
+projection and value validation memoize shared subgraphs rather than expanding trees. Boolean/i32
+arithmetic delegates to the common scalar operations without a target-dependent fallback. The
+selected integer domain preserves the distinction between checked-quotient remainder in the
+published contract and direct remainder in the [adopted contract](../../../spec/language/integers.md);
+only the quotient-domain policy differs, not the arithmetic implementation. Floating
+operations still require an explicit compilation target in their existing domain.
+
+The executor keeps fresh invocation frames, canonical scoped addresses, independent scalar
+snapshots and sparse owning states. Immutable record data may share internal nodes; writes copy only
+the affected path, preserving independent value semantics and the identity of aliased places.
+Frozen before/after effects transport ownership, assemble records and perform actual sparse cleanup.
+Taking inputs are protected before retirement; read/edit inputs bind addresses after retained
+caller temporaries exist. Ordinary calls execute every time, including unit-returning editing
+calls. Only completed immutable initializer values are cached, through the common `DependencyQuery`
+authority. Frozen authored dependencies are requested before execution, including references in
+unevaluated branches. A callable recursion cycle alone is not an initializer dependency cycle.
+The executor consumes that query to freeze its value set rather than maintaining a second cache. Failed active requests clear their
+frames and dependency activity; they cannot publish a partial result or leave a false cycle.
+
+Execution counts actions, resource effects, frozen dependency requests and control transitions
+against the shared deterministic limit contract, and bounds invocation/dependency depth. Arithmetic, dependency cycles, operation budgets and
+call-depth failures retain code/action identities and the call path for checking-owned diagnostics.
+The executor does not prove source access safety, choose another operation, perform final source
+publication or serialize a runtime object. Checking's
+[initializer boundary](../nocter-checking/README.md#required-private-initializers) owns source
+admission, exact-generation reuse and the currently supported final-value scope.

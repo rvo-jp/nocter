@@ -25,7 +25,7 @@ pub(super) struct Equality {
 pub(super) struct Evidence {
     producers: BTreeMap<AccessCallableId, FunctionWitness>,
     applications: BTreeMap<ValueApplication, ApplicationEvidence>,
-    bodies: BTreeMap<AccessCallableId, Arc<[u8]>>,
+    bodies: super::source_dependencies::SourceDependencies,
 }
 #[derive(Clone, Copy, Debug)]
 enum ApplicationEvidence {
@@ -45,26 +45,7 @@ impl Evidence {
         &'a self,
         context: &'a DeclarationContext<'source>,
     ) -> Result<Verified<'a, 'source>, Failure> {
-        let syntax = context.syntax();
-        for (&id, bytes) in &self.bodies {
-            let body = context
-                .callable_source(id)
-                .ok_or(Failure::ChangedBody)?
-                .body();
-            let range = syntax
-                .tree()
-                .node(body)
-                .ok_or(Failure::InconsistentSyntax)?
-                .range();
-            if syntax
-                .text_at(range)
-                .ok_or(Failure::InconsistentSyntax)?
-                .as_bytes()
-                != bytes.as_ref()
-            {
-                return Err(Failure::ChangedBody);
-            }
-        }
+        self.bodies.verify(context)?;
         Ok(Verified {
             evidence: self,
             context,

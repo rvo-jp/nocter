@@ -870,7 +870,11 @@ fn emit_binary(
         return Ok(());
     }
     let required = arithmetic.is_some_and(|arithmetic| {
-        arithmetic.check == nocter_machine::MachineArithmeticCheck::Required
+        matches!(
+            arithmetic.check,
+            nocter_machine::MachineArithmeticCheck::Required
+                | nocter_machine::MachineArithmeticCheck::NonZeroDivisor
+        )
     });
     if required && let Some(arithmetic) = arithmetic {
         crate::arithmetic_check_code::emit_precalculation_check(

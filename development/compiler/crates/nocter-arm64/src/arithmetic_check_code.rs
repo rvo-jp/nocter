@@ -122,7 +122,9 @@ pub(crate) fn emit_precalculation_check(
         | crate::Arm64SelectedBinaryOperation::Remainder { .. } => {
             compare_with_zero(code, size, right);
             trap_if(code, Arm64BranchCondition::Equal)?;
-            if arithmetic.signed {
+            if arithmetic.signed
+                && arithmetic.check != nocter_machine::MachineArithmeticCheck::NonZeroDivisor
+            {
                 let valid_divisor = code.create_label();
                 let scratch = crate::frame_access::scratch(2);
                 crate::frame_access::load_immediate(code, scratch, u64::MAX, size);

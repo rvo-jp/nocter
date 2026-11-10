@@ -176,7 +176,7 @@ impl Checker<'_, '_> {
                     .program()
                     .symbols()
                     .get(&name)
-                    .is_some_and(|s| self.program().resolve(s).is_some())
+                    .is_some_and(|s| self.program().resolve_code(s).is_some())
             {
                 return self.reject(Rule::ShadowedName, token);
             }

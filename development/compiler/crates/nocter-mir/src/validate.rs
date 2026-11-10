@@ -658,6 +658,7 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     MirUnaryOperation::Negate => {
                         (is_integer(self.types, operand) || is_float(self.types, operand))
                             && result == Some(operand)
+                            && *check != MirArithmeticCheck::NonZeroDivisor
                             && arithmetic_check_matches_type(
                                 *check,
                                 is_integer(self.types, operand),
@@ -699,6 +700,8 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     };
                     left == right
                         && supports_operation
+                        && (*check != MirArithmeticCheck::NonZeroDivisor
+                            || *operation == MirBinaryOperation::Remainder)
                         && result == Some(left)
                         && arithmetic_check_matches_type(*check, is_integer(self.types, left))
                 };

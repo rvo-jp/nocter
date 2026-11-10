@@ -1,5 +1,6 @@
 //! Syntax-only header extraction. Type/name meaning is resolved by the declaration owner.
 use super::{Failure, ValueTypeSyntax, text, type_syntax::data_token, value_type_syntax};
+use nocter_declarations::value_access::CallableKind;
 use nocter_model::{CompileTimeGuarantee, ValueInputOperation};
 use nocter_syntax::{
     BoundSyntax, ContextualSpelling, NodeId, NodeKind, SyntaxToken, child_node_iter,
@@ -16,7 +17,7 @@ pub(super) struct ParameterHeader {
 #[derive(Clone, Debug)]
 pub(super) struct Header {
     pub name: SyntaxToken,
-    pub compile_time: CompileTimeGuarantee,
+    pub kind: CallableKind,
     pub parameters: Vec<ParameterHeader>,
     pub result_syntax: NodeId,
     pub result_data: ValueTypeSyntax,
@@ -59,11 +60,26 @@ pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<H
     };
     Ok(Header {
         name,
-        compile_time,
+        kind: CallableKind::Function(compile_time),
         parameters,
         result_syntax,
         result_data: value_type_syntax(syntax, result_syntax)?,
         body: direct_node(tree, declaration, NodeKind::Block).ok_or(Failure::InconsistentSyntax)?,
+    })
+}
+pub(super) fn constant(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<Header, Failure> {
+    let tree = syntax.tree();
+    let name = declaration_name_token(tree, declaration).ok_or(Failure::InconsistentSyntax)?;
+    let result_syntax =
+        direct_node(tree, declaration, NodeKind::Type).ok_or(Failure::InconsistentSyntax)?;
+    Ok(Header {
+        name,
+        kind: CallableKind::ConstantInitializer,
+        parameters: Vec::new(),
+        result_syntax,
+        result_data: value_type_syntax(syntax, result_syntax)?,
+        body: direct_node(tree, declaration, NodeKind::Expression)
+            .ok_or(Failure::InconsistentSyntax)?,
     })
 }
 pub(super) fn record(
@@ -102,6 +118,9 @@ pub(super) fn collect(
         match tree.node(*declaration).map(nocter_syntax::SyntaxNode::kind) {
             Some(NodeKind::FunctionDeclaration) => {
                 functions.push(function(syntax, *declaration)?);
+            }
+            Some(NodeKind::ConstantDeclaration) => {
+                functions.push(constant(syntax, *declaration)?);
             }
             Some(NodeKind::StructDeclaration) => {
                 records.push(record(syntax, *declaration)?);

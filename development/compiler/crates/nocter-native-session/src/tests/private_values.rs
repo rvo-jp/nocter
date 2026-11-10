@@ -40,6 +40,21 @@ fn private_scalar_computation_and_scoped_input_calls_execute_natively() {
             42,
         ),
         (
+            "required-const-value",
+            "const func increment(edit value: i32): void { value += 1 }\nconst func calculate(): i32 { var left = 20\nvar right = 20\nincrement(left)\nincrement(right)\nleft + right }\nconst ANSWER: i32 = calculate()\nfunc run(): i32 { ANSWER }",
+            42,
+        ),
+        (
+            "const-in-capture",
+            "const OFFSET: i32 = 40\nfunc run(): i32 { let value = 1\nlet action = (value;): i32 { OFFSET + value + 1 }\naction() }",
+            42,
+        ),
+        (
+            "remainder-result-domain",
+            "func remainder(value: i32, divisor: i32): i32 { value % divisor }\nfunc run(): i32 { remainder(-2147483648, -1) }",
+            0,
+        ),
+        (
             "negative",
             "func negate(value: i32): i32 { -value }\nfunc run(): i32 { negate(-7) }",
             7,
@@ -157,6 +172,10 @@ fn private_required_arithmetic_checks_reach_native_traps() {
         (
             "overflow",
             "func add(a: i32, b: i32): i32 { a + b }\nfunc run(): i32 { let unused = add(2147483647, 1)\n0 }",
+        ),
+        (
+            "remainder-zero",
+            "func remainder(value: i32, divisor: i32): i32 { value % divisor }\nfunc run(): i32 { let unused = remainder(42, 0)\n0 }",
         ),
         (
             "divide-zero",

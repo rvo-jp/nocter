@@ -569,3 +569,29 @@ fn interrupted_dependent_application_adds_no_factory_or_callback_instance() {
     );
 }
 mod lifecycle;
+
+#[test]
+fn required_initializers_are_not_function_values_or_runtime_instance_roots() {
+    let fixture = ValueSourceFixture::new(
+        "const func calculate(): i32 { 42 }\nconst ANSWER: i32 = calculate()\nfunc run(): i32 { ANSWER }",
+    );
+    let unit = accepted(&fixture);
+    let initializer = unit
+        .program()
+        .resolve_constant(unit.program().symbols().get("ANSWER").unwrap())
+        .unwrap();
+    assert!(
+        matches!(InstanceProgram::prepare(unit.clone(), initializer), Err(Failure::InitializerRoot(id)) if id == initializer)
+    );
+    let run = callable(&unit, "run");
+    let graph = InstanceProgram::prepare(unit, run).unwrap();
+    assert_eq!(graph.instances().len(), 1);
+    assert!(
+        graph
+            .instances()
+            .get(graph.root())
+            .unwrap()
+            .calls()
+            .is_empty()
+    );
+}

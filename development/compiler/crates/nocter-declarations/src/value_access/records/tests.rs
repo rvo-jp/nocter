@@ -50,7 +50,7 @@ fn nested(reverse: bool) -> super::super::Program {
     builder
         .define(
             function,
-            CompileTimeGuarantee::RuntimeOnly,
+            crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [ParameterDefinition {
                 name: symbols.get("input").unwrap(),
                 data: BuiltinType::Error.into(),
@@ -271,7 +271,12 @@ fn duplicate_record_and_field_names_and_callable_collisions_are_rejected() {
     let collision = builder.reserve_record(symbols.get("f").unwrap());
     let f = builder.reserve(symbols.get("f").unwrap());
     builder
-        .define(f, CompileTimeGuarantee::RuntimeOnly, [], BuiltinType::Void)
+        .define(
+            f,
+            crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            [],
+            BuiltinType::Void,
+        )
         .unwrap();
     let value = field(&symbols, "value", DataReference::Builtin(BuiltinType::I32));
     builder.define_record(a, false, [value, value]).unwrap();
@@ -447,7 +452,7 @@ fn callable_parameters_cannot_shadow_authored_record_names() {
     builder
         .define(
             f,
-            CompileTimeGuarantee::RuntimeOnly,
+            crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [ParameterDefinition {
                 name: symbols.get("A").unwrap(),
                 data: BuiltinType::I32.into(),

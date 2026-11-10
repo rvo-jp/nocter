@@ -1176,6 +1176,9 @@ fn select_unary(
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     let (operation, check) = semantics;
+    if check == nocter_machine::MachineArithmeticCheck::NonZeroDivisor {
+        return Err(Arm64SelectionError::UnsupportedScalar(operand));
+    }
     let result = result.ok_or(Arm64SelectionError::MissingResult(operation_id))?;
     let operand_storage = values
         .value(operand)
@@ -1309,6 +1312,11 @@ fn select_binary(
     let (operation, check) = semantics;
     let (left, right) = operands;
     let result = result.ok_or(Arm64SelectionError::MissingResult(operation_id))?;
+    if check == nocter_machine::MachineArithmeticCheck::NonZeroDivisor
+        && operation != MachineBinaryOperation::Remainder
+    {
+        return Err(Arm64SelectionError::UnsupportedScalar(result));
+    }
     let left_storage = values
         .value(left)
         .ok_or(Arm64SelectionError::UnknownValue(left))?;

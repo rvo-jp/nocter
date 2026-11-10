@@ -34,7 +34,8 @@ V2CoreUnit syntax + exact source
   -> permission-demand liveness + alternative referent/access worlds
        + exact payload contracts + logical resource/cleanup transitions
   -> definition-time const-domain checks over selected bodies and resource operations
-  -> accepted private unit (all definitions validated)
+  -> closed stateful plans + successful required initialization + literal materialization
+  -> accepted private unit (all definitions validated; required values frozen)
   -> root-closed private InstanceProgram (selected concrete calls/data; no ABI or native admission)
   -> guarded private lifecycle schedules + initialization-bit recipes
   -> closed private MIR (runtime shapes, input slots, control, computation, calls and resource phases)
@@ -261,8 +262,9 @@ not. Source admission closes projected initialization, demand/reservation and re
 together; native realization remains separate.
 
 The accepted private-unit constructor derives its membership from the declaration authority and
-checks every definition before publication, including the authored
-[const body domain](../../compiler/crates/nocter-checking/README.md#constant-domain-acceptance). A caller cannot omit an unsafe unused
+checks every definition and required initializer before publication, including the authored
+[const body domain](../../compiler/crates/nocter-checking/README.md#constant-domain-acceptance) and
+[initializer boundary](../../compiler/crates/nocter-checking/README.md#required-private-initializers). A caller cannot omit an unsafe unused
 callee, combine different header generations, or construct acceptance from intermediate reports. Rebinding checks
 the whole original body set before exposing any exact-current projection. No lookup, typing,
 dispatch, or flow computation is repeated by that projection.

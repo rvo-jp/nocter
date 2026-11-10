@@ -48,6 +48,26 @@ impl Checker<'_, '_> {
                 ExpressionKind::Function(target),
             );
         }
+        if let Some(token) = self.name_token(node)?
+            && self.lookup(self.text(token)?).is_none()
+            && let Some(target) = self
+                .program()
+                .symbols()
+                .get(self.text(token)?)
+                .and_then(|name| self.program().resolve_constant(name))
+        {
+            let data = self
+                .program()
+                .callables()
+                .get(target)
+                .ok_or(Failure::InconsistentSyntax)?
+                .result();
+            return self.emit(
+                node,
+                value_type(data, Mode::Own),
+                ExpressionKind::Constant(target),
+            );
+        }
         self.place_value(node, Rule::TypeMismatch)
     }
     fn callee(&mut self, node: NodeId, reachable: bool) -> Result<Callee, Failure> {
