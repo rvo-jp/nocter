@@ -624,28 +624,38 @@ fn required_initializers_are_not_function_values_or_runtime_instance_roots() {
 }
 
 #[test]
-fn empty_array_storage_retains_its_explicit_gate() {
+fn empty_array_storage_has_identity_without_an_element_payload_edge() {
     for source in [
         "func run(): [i32; 0] { [] }",
-        "struct Node { next: [Node; 0] }\nfunc run(): Node { Node { next: [] } }",
+        "struct Node { next: [Node; 0] }\nfunc run(): [Node; 0] { [] }",
     ] {
         let fixture = ValueSourceFixture::new(source);
         let unit = accepted(&fixture);
         let root = callable(&unit, "run");
         let graph = Arc::new(InstanceProgram::prepare(unit, root).unwrap());
         super::lifecycle::Program::prepare(graph.clone()).unwrap();
-        let failure = storage::prepare(
+        let runtime = storage::prepare(
             &graph,
             nocter_runtime_contract::RuntimeAbiIdentity::Arm64DarwinV1,
         )
-        .unwrap_err();
-        let storage::Failure::UnsupportedArray(data) = failure else {
-            panic!("unimplemented shape must not invalidate the accepted unit: {failure:?}")
-        };
-        assert!(matches!(
-            graph.unit().program().data_schema(data),
-            Some(nocter_declarations::value_access::PayloadSchema::Array(_))
-        ));
+        .unwrap();
+        let arrays: Vec<_> = runtime
+            .types()
+            .iter()
+            .filter_map(|(data, kind)| match kind {
+                nocter_runtime_contract::RuntimeType::EmptyArray { element } => {
+                    Some((data, *element))
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(arrays.len(), 1);
+        let (data, element) = arrays[0];
+        assert!(runtime.types().get(element).is_none());
+        assert!(runtime.type_representations().get(data).is_none());
+        assert!(
+            matches!(graph.unit().program().data_schema(data), Some(nocter_declarations::value_access::PayloadSchema::Array(array)) if array.element() == element && array.is_empty())
+        );
     }
 }
 

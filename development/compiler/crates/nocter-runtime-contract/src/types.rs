@@ -39,6 +39,11 @@ pub enum RuntimeType {
         element: TypeId,
         length: u64,
     },
+    /// A v2 zero-count array. The established element identity is metadata, not a stored-payload
+    /// dependency; no runtime entry or geometry for that element is required by this shape.
+    EmptyArray {
+        element: TypeId,
+    },
     Tuple(Box<[TypeId]>),
     PackEntry {
         key: TypeId,
@@ -56,6 +61,18 @@ pub enum RuntimeType {
     /// One compiler-owned, source-opaque storage representation.
     Storage(super::RuntimeStorageRole),
     Opaque,
+}
+
+impl RuntimeType {
+    /// Homogeneous source component identity and logical count, independent of empty geometry.
+    #[must_use]
+    pub const fn array(&self) -> Option<(TypeId, u64)> {
+        match self {
+            Self::FixedArray { element, length } => Some((*element, *length)),
+            Self::EmptyArray { element } => Some((*element, 0)),
+            _ => None,
+        }
+    }
 }
 
 /// Closed semantic IDs paired only with concrete runtime shapes.
@@ -119,11 +136,12 @@ impl RuntimeTypeTableBuilder {
         Ok(())
     }
 
-    /// Freezes a closed table after validating every referenced runtime type.
+    /// Freezes a closed table after validating every stored-payload reference. Empty-array
+    /// element identities are established upstream and require no stored runtime entry.
     ///
     /// # Errors
     ///
-    /// Rejects a type whose concrete runtime shape refers to an absent identity.
+    /// Rejects a type whose concrete stored payload refers to an absent runtime identity.
     pub fn finish(self) -> Result<RuntimeTypeTable, RuntimeTypeTableBuildError> {
         for (owner, kind) in &self.entries {
             let referenced = match kind {
@@ -162,6 +180,7 @@ impl RuntimeTypeTableBuilder {
                     Some(*value)
                 }
                 RuntimeType::Primitive(_)
+                | RuntimeType::EmptyArray { .. }
                 | RuntimeType::Unit
                 | RuntimeType::Aggregate
                 | RuntimeType::Closure
@@ -241,6 +260,31 @@ mod tests {
         assert_eq!(
             builder.finish().unwrap_err(),
             RuntimeTypeTableBuildError::UnknownReference { owner, referenced }
+        );
+    }
+
+    #[test]
+    fn empty_array_identity_is_not_a_stored_payload_reference() {
+        let semantic = TypeStore::new();
+        let owner = semantic.builtin(BuiltinType::Bool);
+        let element = semantic.builtin(BuiltinType::I32);
+        let mut builder = RuntimeTypeTableBuilder::new();
+        builder
+            .insert(owner, RuntimeType::EmptyArray { element })
+            .unwrap();
+        let table = builder.finish().unwrap();
+        assert_eq!(table.get(owner).unwrap().array(), Some((element, 0)));
+        assert!(table.get(element).is_none());
+        let mut released = RuntimeTypeTableBuilder::new();
+        released
+            .insert(owner, RuntimeType::FixedArray { element, length: 0 })
+            .unwrap();
+        assert_eq!(
+            released.finish().unwrap_err(),
+            RuntimeTypeTableBuildError::UnknownReference {
+                owner,
+                referenced: element
+            }
         );
     }
 

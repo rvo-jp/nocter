@@ -553,6 +553,15 @@ impl LayoutBuilder<'_> {
                     },
                 })
             }
+            RuntimeType::EmptyArray { element } => Ok(MachineLayout {
+                size: 0,
+                alignment: 1,
+                kind: MachineLayoutKind::FixedArray {
+                    element: *element,
+                    length: 0,
+                    stride: 0,
+                },
+            }),
             RuntimeType::Tuple(elements) => self.tuple(ty, elements),
             RuntimeType::PackEntry { key, value } => {
                 let key_layout = self.layout(*key)?.clone();

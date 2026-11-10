@@ -364,3 +364,76 @@ fn structural_tuple_layout_uses_logical_positions_and_shared_member_padding() {
             .is_none()
     );
 }
+
+#[test]
+fn empty_value_arrays_have_geometry_without_materializing_their_element() {
+    let instances = close(&ValueSourceFixture::new(
+        "struct Node { next: [Node; 0] }\nfunc run(): [Node; 0] { [] }",
+    ));
+    let runtime = environment(&instances);
+    let (data, element) = runtime
+        .types()
+        .iter()
+        .find_map(|(data, kind)| match kind {
+            RuntimeType::EmptyArray { element } => Some((data, *element)),
+            _ => None,
+        })
+        .unwrap();
+    assert!(runtime.types().get(element).is_none());
+    let plan = layouts(&runtime).unwrap();
+    let layout = plan.get(data).unwrap();
+    assert_eq!((layout.size(), layout.alignment()), (0, 1));
+    assert!(
+        matches!(layout.kind(), MachineLayoutKind::FixedArray { element: selected, length: 0, stride: 0 } if *selected == element)
+    );
+    assert!(plan.get(element).is_none());
+    assert!(
+        plan.value_field(data, nocter_model::ValueField::Array(0))
+            .is_none()
+    );
+}
+
+#[test]
+fn empty_value_array_geometry_preserves_the_released_fixed_array_policy() {
+    use nocter_runtime_contract::{
+        RuntimePrimitive, RuntimeTypeRepresentationTable, RuntimeTypeTableBuilder,
+    };
+    let semantic = nocter_model::TypeStore::new();
+    let element = semantic.builtin(BuiltinType::I32);
+    let empty = semantic.builtin(BuiltinType::Bool);
+    let fixed = semantic.builtin(BuiltinType::Usize);
+    let mut types = RuntimeTypeTableBuilder::new();
+    types
+        .insert(
+            element,
+            RuntimeType::Primitive(RuntimePrimitive::Signed(32)),
+        )
+        .unwrap();
+    types
+        .insert(empty, RuntimeType::EmptyArray { element })
+        .unwrap();
+    types
+        .insert(fixed, RuntimeType::FixedArray { element, length: 0 })
+        .unwrap();
+    let runtime = RuntimeEnvironment::new(
+        types.finish().unwrap(),
+        RuntimeTypeRepresentationTable::default(),
+        RuntimeAbiIdentity::Arm64DarwinV1,
+    )
+    .unwrap();
+    let plan = layouts(&runtime).unwrap();
+    assert_eq!(
+        (
+            plan.get(empty).unwrap().size(),
+            plan.get(empty).unwrap().alignment()
+        ),
+        (0, 1)
+    );
+    assert_eq!(
+        (
+            plan.get(fixed).unwrap().size(),
+            plan.get(fixed).unwrap().alignment()
+        ),
+        (0, 4)
+    );
+}

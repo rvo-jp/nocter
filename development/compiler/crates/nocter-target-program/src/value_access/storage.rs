@@ -17,7 +17,6 @@ use super::InstanceProgram;
 pub enum Failure {
     InvalidInstance(AccessInstanceId),
     InvalidPayload(TypeId),
-    UnsupportedArray(TypeId),
     Types(RuntimeTypeTableBuildError),
     Environment(RuntimeEnvironmentError),
 }
@@ -91,18 +90,19 @@ pub fn prepare(
         let kind = match program.data_schema(data).ok_or_else(invalid)? {
             PayloadSchema::Array(array) => {
                 if array.is_empty() {
-                    // Empty logical arrays need no element payload. Do not demand that payload
-                    // through the released layout rule until their v2 representation is closed.
-                    return Err(Failure::UnsupportedArray(data));
-                }
-                pending.insert(array.element());
-                // Native homogeneous traversal uses canonical compiler scalar identities.
-                for builtin in [BuiltinType::Usize, BuiltinType::Bool] {
-                    pending.insert(program.data_type(builtin).ok_or_else(invalid)?);
-                }
-                RuntimeType::FixedArray {
-                    element: array.element(),
-                    length: array.length(),
+                    RuntimeType::EmptyArray {
+                        element: array.element(),
+                    }
+                } else {
+                    pending.insert(array.element());
+                    // Native homogeneous traversal uses canonical compiler scalar identities.
+                    for builtin in [BuiltinType::Usize, BuiltinType::Bool] {
+                        pending.insert(program.data_type(builtin).ok_or_else(invalid)?);
+                    }
+                    RuntimeType::FixedArray {
+                        element: array.element(),
+                        length: array.length(),
+                    }
                 }
             }
             PayloadSchema::Builtin(builtin) => match builtin {

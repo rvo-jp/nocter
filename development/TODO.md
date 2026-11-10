@@ -18,11 +18,11 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Close empty-array representation and nontrivial array cleanup
+Close nontrivial array cleanup
 through the [native array consumer](compiler/crates/nocter-machine/README.md#private-array-execution).
 Preserve homogeneous geometry and finite generated loops; do not expand N
-compiler owners, layout fields or generated operations. Empty logical arrays must not force an
-unavailable element payload or inherit the released zero-count alignment rule without examination.
+compiler owners, layout fields or generated operations. Preserve payload-free empty-array geometry
+and do not traverse an element cleanup schema for count zero.
 
 Connect general evaluated selections to one checking-owned source of retained-index facts for
 initialization, access and resource flow. The [selection path](compiler/crates/nocter-checking/README.md#array-selection)
@@ -32,8 +32,8 @@ index through reservations, aliases and holes; equal recipe keys across a backed
 Use the existing canonical address/value storage and shared structural relation, without a second
 ownership registry. Element transfer and partial-state admission remain gated until the
 [evaluated-selection closure](design/compiler-realization.md#evaluated-array-selection-closure)
-closes joins, loops and cleanup alongside the ordinary whole-value construction path. Native array
-storage and ABI remain separate consumers to close before product admission.
+closes joins, loops and cleanup alongside the ordinary whole-value construction path. Native
+nontrivial and partial-array cleanup remain separate consumers to close before product admission.
 
 ## Migration Checklist
 

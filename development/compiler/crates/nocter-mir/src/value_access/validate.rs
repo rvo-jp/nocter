@@ -80,13 +80,16 @@ impl Context<'_> {
         for projection in &place.projections {
             data = match projection {
                 Projection::Field(id) => {
-                    if let (
-                        nocter_model::ValueField::Array(index),
-                        Some(RuntimeType::FixedArray { element, length }),
-                    ) = (id, self.program.runtime.types().get(data))
-                    {
-                        self.require(index < length)?;
-                        data = *element;
+                    if let (nocter_model::ValueField::Array(index), Some((element, length))) = (
+                        id,
+                        self.program
+                            .runtime
+                            .types()
+                            .get(data)
+                            .and_then(RuntimeType::array),
+                    ) {
+                        self.require(*index < length)?;
+                        data = element;
                         continue;
                     }
                     let Some(RuntimeTypeRepresentation::ValueAggregate { fields }) =
@@ -234,8 +237,12 @@ impl Context<'_> {
                 self.place(base)?;
                 self.place(index)?;
                 self.place(destination)?;
-                let Some(RuntimeType::FixedArray { element, .. }) =
-                    self.program.runtime.types().get(base.data)
+                let Some((element, _)) = self
+                    .program
+                    .runtime
+                    .types()
+                    .get(base.data)
+                    .and_then(RuntimeType::array)
                 else {
                     return Err(self.invalid());
                 };
@@ -246,7 +253,7 @@ impl Context<'_> {
                     .ok_or_else(|| self.invalid())?;
                 self.require(
                     self.primitive(index.data, RuntimePrimitive::Usize)
-                        && destination.data == *element
+                        && destination.data == element
                         && destination.projections.is_empty()
                         && slot.storage
                             == if *copy {
@@ -520,6 +527,9 @@ impl Context<'_> {
                     self.require(count.get() == *length)?;
                     pending.push((*element, *default));
                     pending.extend(replacements.iter().map(|&(_, node)| (*element, node)));
+                }
+                (FrozenNode::Aggregate(values), Some(RuntimeType::EmptyArray { .. })) => {
+                    self.require(values.is_empty())?;
                 }
                 (FrozenNode::Aggregate(values), Some(RuntimeType::Aggregate)) => {
                     let Some(nocter_runtime_contract::RuntimeTypeRepresentation::ValueAggregate {

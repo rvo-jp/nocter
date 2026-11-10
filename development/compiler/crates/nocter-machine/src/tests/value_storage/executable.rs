@@ -198,3 +198,11 @@ fn native_repetition_has_a_finite_cfg_independent_of_cardinality() {
     assert_eq!(counts[0], counts[1]);
     assert!(counts[0] < 100);
 }
+
+#[test]
+fn empty_array_statics_keep_distinct_minimal_addressable_backing() {
+    let program = compile(
+        "struct Node { next: [Node; 0] }\nstatic LEFT: [Node; 0] = []\nstatic RIGHT: [Node; 0] = []\nfunc inspect(values: [Node; 0]): i32 { 21 }\nfunc run(): i32 { inspect(LEFT) + inspect(RIGHT) }",
+    );
+    assert_eq!(program.data().len(), 2);
+}

@@ -129,6 +129,18 @@ fn private_array_bounds_trap_even_when_no_payload_is_read_or_written() {
     use std::process::Command;
     for (name, source) in [
         (
+            "array-empty-bounds",
+            "func run(): i32 { let values: [i32; 0] = []\nlet _ = values[0]\n42 }",
+        ),
+        (
+            "array-empty-write-bounds",
+            "func run(): i32 { var values: [i32; 0] = []\nvalues[0] = 42\n0 }",
+        ),
+        (
+            "array-empty-recursive-bounds",
+            "struct Node { next: [Node; 0] }\nfunc run(): i32 { let values: [Node; 0] = []\nread item = values[0]\n42 }",
+        ),
+        (
             "array-read-bounds",
             "func run(): i32 { let values = [1, 2]\nlet _ = values[2]\n42 }",
         ),
@@ -203,6 +215,43 @@ fn private_repetition_constructs_once_and_fills_without_generated_element_lists(
         (
             "array-repeat-interrupted-seed",
             "func run(): i32 { let values = [if true { return 42 } else { 0 }; 4096]\nvalues[0] }",
+        ),
+    ] {
+        let package = TempPackage::new();
+        execute_native_status(&compile(source), &package.0, name, 42);
+    }
+}
+
+#[test]
+fn private_empty_arrays_have_no_element_geometry_or_payload_dependency() {
+    for (name, source) in [
+        (
+            "array-empty-call",
+            "func pass(take values: [i32; 0]): [i32; 0] { values^ }\nfunc run(): i32 { let values: [i32; 0] = []\nlet _ = pass(values)\n42 }",
+        ),
+        (
+            "array-empty-recursion",
+            "struct Node { next: [Node; 0] }\nfunc build(): Node { Node { next: [] } }\nfunc run(): i32 { let node = build()\nlet _ = node.next\n42 }",
+        ),
+        (
+            "array-empty-absent-payload",
+            "struct Node { next: [Node; 0] }\nfunc build(): [Node; 0] { [] }\nfunc run(): i32 { let values = build()\n42 }",
+        ),
+        (
+            "array-empty-nested-max",
+            "struct Node { next: [Node; 0] }\nfunc run(): i32 { let nested: [[Node; 0]; 18446744073709551615] = [[]; 18446744073709551615]\nlet _ = nested[18446744073709551614]\n42 }",
+        ),
+        (
+            "array-empty-seed-effect",
+            "struct Item { value: i32 }\nfunc build(edit calls: i32): Item { calls += 1\nItem { value: 7 } }\nfunc run(): i32 { var calls = 41\nlet values = [build(calls); 0]\ncalls }",
+        ),
+        (
+            "array-empty-frozen",
+            "struct Node { next: [Node; 0] }\nconst EMPTY: [Node; 0] = []\nstatic BASE: [Node; 0] = []\nfunc inspect(values: [Node; 0]): i32 { 21 }\nfunc run(): i32 { inspect(EMPTY) + inspect(BASE) }",
+        ),
+        (
+            "array-empty-edit",
+            "func clear(edit values: [i32; 0]): i32 { values = []\n42 }\nfunc run(): i32 { var values: [i32; 0] = []\nclear(values) }",
         ),
     ] {
         let package = TempPackage::new();

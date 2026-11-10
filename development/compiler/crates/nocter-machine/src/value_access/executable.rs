@@ -171,6 +171,7 @@ fn needs_cleanup(
         Some(
             RuntimeType::Primitive(_)
             | RuntimeType::Unit
+            | RuntimeType::EmptyArray { .. }
             | RuntimeType::StaticCallable { environment: None },
         ) => false,
         Some(RuntimeType::StaticCallable {

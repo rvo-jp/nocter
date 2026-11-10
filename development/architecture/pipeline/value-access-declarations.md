@@ -458,6 +458,15 @@ declaration/index-order member placement with each member's alignment and final 
 recursive layout calculation, checked size arithmetic and member correspondence for both pipeline
 inputs. Equal offsets, including zero-byte members, do not identify logical fields.
 
+A v2 zero-count array uses a distinct `RuntimeType::EmptyArray` stored shape. It preserves the
+established element TypeId as metadata without a stored-payload reference or a demand for that
+element's runtime entry. Its size is zero and alignment is one; the common Machine array layout
+retains count and stride zero. This policy terminates empty containment paths, including valid
+nominal cycles, without inventing an opaque type or computing an unavailable element layout.
+Positive arrays use the shared homogeneous element/count shape and element geometry. The published
+pipeline's `FixedArray` zero-count alignment policy remains unchanged. Equal zero-byte geometry
+does not equate distinct source data identities or remove index evaluation/bounds effects.
+
 A statically selected named function carries no runtime payload. A statically selected closure
 carries only its inline environment, at offset zero; no code pointer, allocation header or erased
 callable wrapper is introduced. Invocation views keep distinct type identities but do not add

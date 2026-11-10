@@ -184,12 +184,15 @@ impl Builder<'_> {
         seed: AccessExpressionId,
         destination: Place,
     ) -> Result<Vec<Operation>, Failure> {
-        let Some(nocter_runtime_contract::RuntimeType::FixedArray { length, .. }) =
-            self.runtime.types().get(destination.data)
+        let Some((_, length)) = self
+            .runtime
+            .types()
+            .get(destination.data)
+            .and_then(nocter_runtime_contract::RuntimeType::array)
         else {
             return Err(self.invalid());
         };
-        if *length <= 1 {
+        if length <= 1 {
             // The ordinary resource handoff disposes or assembles the one seed.
             return Ok(Vec::new());
         }

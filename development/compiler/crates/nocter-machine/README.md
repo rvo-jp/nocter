@@ -129,7 +129,7 @@ encoding. No static initializer becomes a runtime function.
 
 ## Private Array Execution
 
-The private source path qualifies nonempty listed/repeated arrays, complete read/edit selections and
+The private source path qualifies listed/repeated arrays, complete read/edit selections and
 replacement through ordinary Machine bodies and the native consumer. Storage projects one shared
 `RuntimeType::FixedArray` element/count descriptor. The common layout and value-input ABI own
 stride, geometry and direct/indirect transport. Resolving a logical `ValueField::Array` computes one
@@ -160,8 +160,13 @@ limit. Native qualification covers nested records/arrays, scoped saved indices, 
 read/edit/take calls, direct and indirect array returns, scalar/zero-byte bounds traps, source order,
 frozen constants/statics and independent mutation.
 
-Empty-array geometry, nontrivial array cleanup and partial-array
-interval cleanup remain explicit implementation gates. The released zero-count layout rule is not
-used to force the payload of a v2 empty logical element. Precise element transfer and restoration
+Empty arrays use the [private stored-layout contract](../../../architecture/pipeline/value-access-declarations.md#private-stored-representation),
+retaining their element identity without requiring that payload's runtime entry or geometry.
+Native qualification covers ordinary calls, Copy/replacement, zero-count seed effects and recursive
+nominal payloads terminated by empty arrays. Frozen empty arrays use ordinary zero-byte literal
+handling; distinct empty statics keep separate minimal addressable backing. Empty selections still
+perform their required bounds trap, including when the selected nominal data is zero-sized.
+
+Nontrivial array cleanup and partial-array interval cleanup remain explicit implementation gates. Precise element transfer and restoration
 also require checking's separate retained-index proof. These limits do not change adopted source
 semantics or qualify the ordinary released CLI as v2.

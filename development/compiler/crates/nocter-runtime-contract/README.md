@@ -43,7 +43,7 @@ public source-level imports.
 - target-independent descriptor, monotonic-timer, and process-completion wait interests
 - target runtime capability requirements
 - closed runtime environment schemas
-- storable unit, static-code environment-only shapes, and value-model component/input identities
+- storable unit, payload-free empty arrays, static-code environment-only shapes, and value-model component/input identities
 
 ## Invariants
 
@@ -65,6 +65,10 @@ public source-level imports.
 - Machine consumers cannot reach declaration or checking storage through this contract.
 - Value-model aggregates preserve record-field keys and tuple positions without equating them
   with physical offsets. Their ordered representation does not erase source data identity.
+- `EmptyArray` retains an established element identity without a stored-payload edge. Table closure
+  validates actual payload references; it does not require an unused empty element's runtime entry
+  or reinterpret a released zero-count `FixedArray` as this value-model shape. `RuntimeType::array`
+  supplies the common homogeneous identity/count view, independently of physical geometry.
 - Stored data shape does not encode a value-model input operation. RuntimeValueSignature retains
   the environment/explicit local channels independently; it introduces no borrow data type.
 - Native callback layouts have one numeric schema; source code cannot construct or inspect them.
