@@ -1,7 +1,7 @@
 //! Root-driven interning closes selected calls once. Recursive edges reuse reserved instances.
 use super::{Failure, Instance, InstanceKey, InstanceProgram, invocation, projection};
 use nocter_checking::value_access::{ExpressionKind, accepted::Unit, flow::Operation};
-use nocter_model::{AccessCallableId, AccessInstanceId, ArenaBuilder};
+use nocter_model::{AccessCodeId, AccessInstanceId, ArenaBuilder};
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
@@ -78,10 +78,10 @@ impl Builder {
         Ok(())
     }
 }
-pub(super) fn close(unit: Arc<Unit>, root: AccessCallableId) -> Result<InstanceProgram, Failure> {
+pub(super) fn close(unit: Arc<Unit>, root: AccessCodeId) -> Result<InstanceProgram, Failure> {
     let declaration = unit
         .program()
-        .callables()
+        .codes()
         .get(root)
         .ok_or(Failure::UnknownRoot(root))?;
     if declaration.kind().is_initializer() {

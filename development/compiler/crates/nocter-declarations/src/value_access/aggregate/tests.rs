@@ -1,6 +1,6 @@
 use super::*;
 use crate::value_access::{
-    CallableKind, DataReference, DeclarationRule, FieldDefinition, Reservations, TupleData,
+    CodeKind, DataReference, DeclarationRule, FieldDefinition, Reservations, TupleData,
 };
 use nocter_model::{BuiltinType, CompileTimeGuarantee, SymbolTable};
 
@@ -85,7 +85,7 @@ fn shared_structural_copy_proof_visits_shapes_without_expanding_the_payload() {
     builder
         .define(
             run,
-            CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [],
             BuiltinType::Void,
         )

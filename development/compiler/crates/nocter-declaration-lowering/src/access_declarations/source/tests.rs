@@ -5,7 +5,7 @@ use crate::access_declarations::{
 };
 use nocter_syntax::ParseGoal;
 
-fn code(context: &Context<'_>, name: &str) -> AccessCallableId {
+fn code(context: &Context<'_>, name: &str) -> AccessCodeId {
     context
         .program()
         .resolve_code(context.program().symbols().get(name).unwrap())
@@ -136,7 +136,7 @@ fn header_sources_cover_record_fields_and_callable_slots_before_type_publication
             .resolve_record(program.symbols().get("Buffer").unwrap())
             .unwrap(),
     );
-    let function = DeclarationId::Callable(code(&early, "size"));
+    let function = DeclarationId::Code(code(&early, "size"));
     assert!(!program.header_ready(buffer));
     assert!(!program.header_ready(function));
     let cases = [

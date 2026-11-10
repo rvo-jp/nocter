@@ -29,9 +29,14 @@ fn source_calls_bind_exact_named_and_formal_witnesses_without_erasure() {
         panic!("named binding");
     };
     assert_eq!(
-        unit.program()
-            .symbols()
-            .spelling(unit.program().callables().get(concrete).unwrap().name()),
+        unit.program().symbols().spelling(
+            unit.program()
+                .codes()
+                .get(concrete)
+                .unwrap()
+                .name()
+                .unwrap()
+        ),
         Some("increment")
     );
     let forward = calls(named(&unit, "forward"));

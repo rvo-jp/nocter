@@ -11,7 +11,7 @@ fn missing_callable_contracts_are_requests_even_in_dead_source_and_cannot_bind_b
         let (sources, tree) = input(&source);
         let syntax = bound(&sources, &tree);
         let mut headers = declarations::Preparation::prepare(syntax).unwrap();
-        let ids: Vec<_> = headers.callable_ids().collect();
+        let ids: Vec<_> = headers.code_ids().collect();
         let early = headers.context(ids[0]).unwrap();
         assert!(
             matches!(TypedQuery::prepare(&early, ids[0]), Err(BodyFailure::RequiredHeader { declaration, .. }) if declaration == ids[1].into())
@@ -69,7 +69,7 @@ fn unready_records_are_requested_by_construction_annotations_and_closure_inputs(
         let (sources, tree) = input(&source);
         let syntax = bound(&sources, &tree);
         let mut headers = declarations::Preparation::prepare(syntax).unwrap();
-        let run = headers.callable_ids().next().unwrap();
+        let run = headers.code_ids().next().unwrap();
         let early = headers.context(run).unwrap();
         let record = early
             .program()
@@ -110,9 +110,9 @@ fn completing_callables_alone_cannot_admit_a_unit_with_unready_unused_records() 
     let (sources, tree) = input("struct Unused {}\nfunc run(): i32 { 42 }");
     let syntax = bound(&sources, &tree);
     let mut headers = declarations::Preparation::prepare(syntax).unwrap();
-    let run = headers.callable_ids().next().unwrap();
+    let run = headers.code_ids().next().unwrap();
     let early = headers.context(run).unwrap();
-    assert!(early.program().callables().is_complete());
+    assert!(early.program().codes().is_complete());
     assert!(early.program().parameters().is_complete());
     assert!(!early.program().headers_complete());
     assert!(TypedQuery::prepare(&early, run).is_ok());

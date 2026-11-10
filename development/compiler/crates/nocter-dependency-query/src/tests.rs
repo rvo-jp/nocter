@@ -300,3 +300,150 @@ fn iterative_requests_share_outer_recursive_frames_and_preserve_them_on_failure(
     assert_eq!(query.complete_len(), 3);
     assert_eq!(query.active_depth(), 0);
 }
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+enum MixedKey {
+    Outer,
+    Header,
+    Value,
+    Body,
+    Sibling,
+}
+struct Mixed {
+    cycle: bool,
+    reject: bool,
+    visits: HashMap<MixedKey, usize>,
+}
+impl DependencyProgress<MixedKey, usize, MixedKey> for Mixed {
+    fn advance(
+        &mut self,
+        query: &DependencyQuery<MixedKey, usize>,
+        key: MixedKey,
+    ) -> Result<DependencyStep<MixedKey, usize>, MixedKey> {
+        match key {
+            MixedKey::Header if query.completed(&MixedKey::Value).is_none() => {
+                Ok(DependencyStep::Require(Box::new([
+                    MixedKey::Sibling,
+                    MixedKey::Value,
+                ])))
+            }
+            MixedKey::Header => Ok(DependencyStep::Complete(
+                1 + query.completed(&MixedKey::Value).unwrap(),
+            )),
+            MixedKey::Sibling => Ok(DependencyStep::Complete(10)),
+            _ => Ok(DependencyStep::Compute),
+        }
+    }
+    fn compute_current(
+        &mut self,
+        query: &mut DependencyQuery<MixedKey, usize>,
+        key: MixedKey,
+    ) -> Result<usize, DependencyQueryError<MixedKey, MixedKey>> {
+        DependencyComputation::compute(self, query, key)
+    }
+    fn no_progress(&mut self, key: MixedKey) -> MixedKey {
+        key
+    }
+}
+impl DependencyComputation<MixedKey, usize, MixedKey> for Mixed {
+    fn compute(
+        &mut self,
+        query: &mut DependencyQuery<MixedKey, usize>,
+        key: MixedKey,
+    ) -> Result<usize, DependencyQueryError<MixedKey, MixedKey>> {
+        *self.visits.entry(key).or_default() += 1;
+        match key {
+            MixedKey::Outer => {
+                let expected = if self.cycle {
+                    DependencyQueryError::Cycle(Box::new([
+                        MixedKey::Header,
+                        MixedKey::Value,
+                        MixedKey::Body,
+                        MixedKey::Header,
+                    ]))
+                } else {
+                    DependencyQueryError::Computation(MixedKey::Body)
+                };
+                assert_eq!(query.resolve_steps(self, MixedKey::Header), Err(expected));
+                assert_eq!(
+                    query.active_keys().copied().collect::<Vec<_>>(),
+                    [MixedKey::Outer]
+                );
+                assert_eq!(query.completed(&MixedKey::Sibling), Some(&10));
+                for unfinished in [MixedKey::Header, MixedKey::Value, MixedKey::Body] {
+                    assert!(query.completed(&unfinished).is_none());
+                }
+                self.cycle = false;
+                self.reject = false;
+                Ok(*query.resolve_steps(self, MixedKey::Header)? + 1)
+            }
+            MixedKey::Value => Ok(*query.resolve(self, MixedKey::Body)? + 1),
+            MixedKey::Body if self.cycle => Ok(*query.resolve_steps(self, MixedKey::Header)?),
+            MixedKey::Body if self.reject => Err(DependencyQueryError::Computation(key)),
+            MixedKey::Body => Ok(40),
+            _ => unreachable!("iterative-only key"),
+        }
+    }
+}
+#[test]
+fn iterative_frames_delegate_to_bounded_computation_without_reopening_the_current_key() {
+    let mut mixed = Mixed {
+        cycle: false,
+        reject: false,
+        visits: HashMap::new(),
+    };
+    let mut query = DependencyQuery::default();
+    let first = query.resolve_steps(&mut mixed, MixedKey::Header).unwrap();
+    assert_eq!(*first, 42);
+    assert_eq!(mixed.visits[&MixedKey::Value], 1);
+    assert_eq!(mixed.visits[&MixedKey::Body], 1);
+    let cached = query.resolve_steps(&mut mixed, MixedKey::Header).unwrap();
+    assert!(Arc::ptr_eq(&first, &cached));
+    assert_eq!(query.active_depth(), 0);
+    assert_eq!(query.complete_len(), 4);
+}
+#[test]
+fn mixed_cycles_and_computation_failures_preserve_outer_work_and_completed_siblings() {
+    for cycle in [false, true] {
+        let mut mixed = Mixed {
+            cycle,
+            reject: !cycle,
+            visits: HashMap::new(),
+        };
+        let mut query = DependencyQuery::default();
+        assert_eq!(*query.resolve(&mut mixed, MixedKey::Outer).unwrap(), 43);
+        assert_eq!(mixed.visits[&MixedKey::Value], 2);
+        assert_eq!(mixed.visits[&MixedKey::Body], 2);
+        assert_eq!(query.active_depth(), 0);
+        assert_eq!(query.complete_len(), 5);
+    }
+}
+#[test]
+fn unsupported_bounded_computation_unwinds_iterative_ancestors() {
+    struct Unsupported;
+    impl DependencyProgress<u8, (), u8> for Unsupported {
+        fn advance(
+            &mut self,
+            _: &DependencyQuery<u8, ()>,
+            key: u8,
+        ) -> Result<DependencyStep<u8, ()>, u8> {
+            Ok(if key == 0 {
+                DependencyStep::Require(Box::new([1]))
+            } else {
+                DependencyStep::Compute
+            })
+        }
+        fn no_progress(&mut self, key: u8) -> u8 {
+            key
+        }
+    }
+    let mut query = DependencyQuery::default();
+    for _ in 0..2 {
+        assert_eq!(
+            query.resolve_steps(&mut Unsupported, 0),
+            Err(DependencyQueryError::Computation(1))
+        );
+        assert_eq!(query.active_depth(), 0);
+        assert_eq!(query.complete_len(), 0);
+    }
+}

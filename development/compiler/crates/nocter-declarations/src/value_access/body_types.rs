@@ -1,7 +1,7 @@
 //! Owner-scoped body type construction and canonical replay over one immutable header prefix.
 use super::{Program, TypeScope};
 use nocter_model::{
-    AccessCallableId, AccessExpressionId, TypeCursor, TypeId, TypeKind, ValueApplication,
+    AccessCodeId, AccessExpressionId, TypeCursor, TypeId, TypeKind, ValueApplication,
     ValueFunctionOrigin, ValueInvocation,
 };
 use std::collections::BTreeMap;
@@ -16,13 +16,13 @@ pub enum BodyTypeError {
 /// The sole construction capability for one body's closed type extension, with shared header facts.
 #[derive(Clone, Debug)]
 pub struct BodyTypes {
-    owner: AccessCallableId,
+    owner: AccessCodeId,
     program: Program,
-    applications: BTreeMap<AccessExpressionId, AccessCallableId>,
+    applications: BTreeMap<AccessExpressionId, AccessCodeId>,
 }
 impl BodyTypes {
     #[must_use]
-    pub const fn owner(&self) -> AccessCallableId {
+    pub const fn owner(&self) -> AccessCodeId {
         self.owner
     }
     /// Intern a structural tuple over admitted closed ordinary component data.
@@ -118,7 +118,7 @@ impl BodyTypes {
     pub fn application(
         &mut self,
         call: AccessExpressionId,
-        callee: AccessCallableId,
+        callee: AccessCodeId,
     ) -> Result<TypeId, BodyTypeError> {
         if self
             .applications
@@ -129,9 +129,9 @@ impl BodyTypes {
         }
         let declared = self
             .program
-            .callables
+            .codes
             .get(callee)
-            .and_then(super::Callable::result_contract)
+            .and_then(super::Code::result_contract)
             .ok_or(BodyTypeError::InvalidApplication)?
             .invocation;
         let origin = ValueFunctionOrigin::Application(ValueApplication {
@@ -171,11 +171,11 @@ impl BodyTypes {
 #[derive(Debug)]
 pub struct CanonicalBodyTypes {
     program: Program,
-    projections: BTreeMap<AccessCallableId, (TypeCursor, BTreeMap<TypeId, TypeId>)>,
+    projections: BTreeMap<AccessCodeId, (TypeCursor, BTreeMap<TypeId, TypeId>)>,
 }
 impl CanonicalBodyTypes {
     #[must_use]
-    pub fn project(&self, owner: AccessCallableId, data: TypeId) -> Option<TypeId> {
+    pub fn project(&self, owner: AccessCodeId, data: TypeId) -> Option<TypeId> {
         let (prefix, projection) = self.projections.get(&owner)?;
         project_type(*prefix, projection, data)
     }
@@ -188,11 +188,11 @@ impl Program {
     /// Open a body-owned construction branch without changing declarations or their source cache.
     /// # Errors
     /// Rejects an identity outside this declaration program.
-    pub fn body_types(&self, owner: AccessCallableId) -> Result<BodyTypes, BodyTypeError> {
+    pub fn body_types(&self, owner: AccessCodeId) -> Result<BodyTypes, BodyTypeError> {
         if self.type_scope != TypeScope::Headers {
             return Err(BodyTypeError::InvalidExtension);
         }
-        self.callables
+        self.codes
             .get(owner)
             .ok_or(BodyTypeError::InvalidApplication)?;
         let mut program = self.clone();
@@ -208,7 +208,7 @@ impl Program {
     /// Rejects foreign headers, an unrelated type prefix or a suffix outside its body's domain.
     pub fn canonical_body_types(
         &self,
-        bodies: BTreeMap<AccessCallableId, &Program>,
+        bodies: BTreeMap<AccessCodeId, &Program>,
     ) -> Result<CanonicalBodyTypes, BodyTypeError> {
         if self.type_scope != TypeScope::Headers {
             return Err(BodyTypeError::InvalidExtension);
@@ -223,7 +223,7 @@ impl Program {
             {
                 return Err(BodyTypeError::ForeignDeclarations);
             }
-            self.callables
+            self.codes
                 .get(owner)
                 .ok_or(BodyTypeError::InvalidApplication)?;
             let prefix = body.header_prefix.cursor();
@@ -275,7 +275,7 @@ fn project_type(
 fn replay_types(
     header: &Program,
     body: &Program,
-    owner: AccessCallableId,
+    owner: AccessCodeId,
     types: &mut nocter_model::TypeTransaction,
 ) -> Result<BTreeMap<TypeId, TypeId>, BodyTypeError> {
     let prefix = &body.header_prefix;
@@ -297,9 +297,9 @@ fn replay_types(
             } => {
                 application.owner == owner
                     && header
-                        .callables
+                        .codes
                         .get(application.callee)
-                        .and_then(super::Callable::result_contract)
+                        .and_then(super::Code::result_contract)
                         .is_some_and(|contract| contract.invocation.can_supply(*invocation))
             }
             TypeKind::Tuple(fields) => fields.iter().all(|data| {

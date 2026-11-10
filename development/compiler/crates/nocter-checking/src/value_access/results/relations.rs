@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 pub(super) enum Relation {
     Union(Producers),
     Apply {
-        callee: nocter_model::AccessCallableId,
+        callee: nocter_model::AccessCodeId,
         inputs: Inputs,
     },
 }

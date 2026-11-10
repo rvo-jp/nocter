@@ -26,7 +26,7 @@ fn a_late_record_field_type_cannot_reinterpret_an_early_body_tuple() {
     builder
         .define(
             run,
-            CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [],
             BuiltinType::Void,
         )
@@ -64,7 +64,7 @@ fn earlier_body_types_replay_past_later_header_keys_at_the_same_raw_position() {
     let alpha = reservations.reserve(symbols.get("alpha").unwrap(), 0);
     let beta = reservations.reserve(symbols.get("beta").unwrap(), 1);
     let mut builder = reservations.finish().unwrap();
-    let kind = CallableKind::Function(CompileTimeGuarantee::RuntimeOnly);
+    let kind = CodeKind::Function(CompileTimeGuarantee::RuntimeOnly);
     builder.define(alpha, kind, [], BuiltinType::I32).unwrap();
     builder
         .define(
@@ -84,7 +84,7 @@ fn earlier_body_types_replay_past_later_header_keys_at_the_same_raw_position() {
         .unwrap();
     let mut publication = builder.into_publication();
     let empty = publication.snapshot();
-    assert!(empty.callables().is_empty());
+    assert!(empty.codes().is_empty());
     assert_eq!(empty.resolve(symbols.get("alpha").unwrap()), None);
     assert_eq!(
         empty.function_data(FunctionWitness {
@@ -164,7 +164,7 @@ fn application_suffixes_replay_by_body_owner_without_changing_the_header() {
     builder
         .define(
             first,
-            crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            crate::value_access::CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [],
             BuiltinType::Void,
         )
@@ -172,7 +172,7 @@ fn application_suffixes_replay_by_body_owner_without_changing_the_header() {
     builder
         .define(
             second,
-            crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            crate::value_access::CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [],
             ValueDefinition::Function(FunctionDefinition {
                 invocation: ValueInvocation::Read,
@@ -184,7 +184,7 @@ fn application_suffixes_replay_by_body_owner_without_changing_the_header() {
     builder
         .define(
             make,
-            crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            crate::value_access::CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [],
             ValueDefinition::Function(FunctionDefinition {
                 invocation: ValueInvocation::Read,
@@ -256,7 +256,7 @@ fn owned_closure_schemas_replay_with_their_own_body_and_preserve_capture_copy_ev
     builder
         .define(
             first,
-            crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            crate::value_access::CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [],
             BuiltinType::Void,
         )
@@ -264,7 +264,7 @@ fn owned_closure_schemas_replay_with_their_own_body_and_preserve_capture_copy_ev
     builder
         .define(
             second,
-            crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            crate::value_access::CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [],
             BuiltinType::Void,
         )

@@ -35,7 +35,7 @@ use nocter_declaration_lowering::access_declarations::{
 use nocter_declarations::value_access::Program;
 use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic};
 use nocter_model::{
-    AccessBlockId, AccessCallableId, AccessExpressionId, AccessLocalId, AccessStatementId,
+    AccessBlockId, AccessCodeId, AccessExpressionId, AccessLocalId, AccessStatementId,
 };
 use nocter_source_index::SourceOrigin;
 use nocter_syntax::{BodySyntaxLocator, BodySyntaxProjection, BoundSyntax, SyntaxOrigin};
@@ -167,7 +167,7 @@ pub enum Failure {
     },
     /// The unpublished body draft needs a completed declaration value before typing continues.
     RequiredConstant {
-        initializer: AccessCallableId,
+        initializer: AccessCodeId,
         origin: nocter_syntax::SyntaxOrigin,
     },
     InconsistentSyntax,
@@ -229,7 +229,7 @@ impl Query {
     /// declaration value is a typed dependency request; complete Unit preparation resolves it.
     pub fn prepare(
         context: &DeclarationContext<'_>,
-        callable: AccessCallableId,
+        callable: AccessCodeId,
     ) -> Result<Self, Failure> {
         checker::prepare(context, callable, &())
     }
@@ -246,7 +246,7 @@ impl Query {
         self.code
     }
     #[must_use]
-    pub const fn source_owner(&self) -> AccessCallableId {
+    pub const fn source_owner(&self) -> AccessCodeId {
         self.source.owner()
     }
     fn source_for_code(&self) -> Option<&BodySource> {

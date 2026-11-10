@@ -803,7 +803,7 @@ fn future_named_witnesses_cannot_enter_the_released_declaration_program() {
     program
         .define_module_namespace(module, ModuleNamespace::default())
         .unwrap();
-    let mut identities = nocter_model::ArenaBuilder::<nocter_model::AccessCallableId, ()>::new();
+    let mut identities = nocter_model::ArenaBuilder::<nocter_model::AccessCodeId, ()>::new();
     let declaration = identities.insert(());
     program
         .types_mut()

@@ -1,7 +1,7 @@
 //! Source-neutral capture/rebinding of named bodies and declaration header slots.
-use super::{CallableSource, FieldSource, RecordSource, Sources};
+use super::{CodeSource, FieldSource, RecordSource, Sources};
 use crate::access_declarations::Failure;
-use nocter_model::{AccessCallableId, NominalTypeId};
+use nocter_model::{AccessCodeId, NominalTypeId};
 use nocter_syntax::{DeclarationSyntaxLocator, DeclarationSyntaxProjection, SyntaxOrigin};
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -24,7 +24,7 @@ struct RecordRecipe {
 
 #[derive(Clone, Debug)]
 pub(in crate::access_declarations) struct Recipes {
-    callables: BTreeMap<AccessCallableId, CallableRecipe>,
+    codes: BTreeMap<AccessCodeId, CallableRecipe>,
     records: BTreeMap<NominalTypeId, RecordRecipe>,
 }
 impl Recipes {
@@ -34,7 +34,7 @@ impl Recipes {
     ) -> Result<Self, Failure> {
         let locate = |origin| projection.locate(origin).ok_or(Failure::InconsistentSyntax);
         let mut recipes = BTreeMap::new();
-        for (&id, source) in sources.callables.iter() {
+        for (&id, source) in sources.codes.iter() {
             recipes.insert(
                 id,
                 CallableRecipe {
@@ -77,7 +77,7 @@ impl Recipes {
             })
             .collect::<Result<_, Failure>>()?;
         Ok(Self {
-            callables: recipes,
+            codes: recipes,
             records: record_recipes,
         })
     }
@@ -91,12 +91,12 @@ impl Recipes {
             _ => Err(Failure::InconsistentSyntax),
         };
         let sources = self
-            .callables
+            .codes
             .iter()
             .map(|(&id, recipe)| {
                 Ok((
                     id,
-                    CallableSource {
+                    CodeSource {
                         name: token(recipe.name)?,
                         parameters: recipe
                             .parameters
@@ -137,7 +137,7 @@ impl Recipes {
             })
             .collect::<Result<_, Failure>>()?;
         Ok(Sources {
-            callables: Arc::new(sources),
+            codes: Arc::new(sources),
             records: Arc::new(record_sources),
         })
     }

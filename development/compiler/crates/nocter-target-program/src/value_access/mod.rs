@@ -13,7 +13,7 @@ use nocter_checking::value_access::{
     flow,
 };
 use nocter_model::{
-    AccessCallableId, AccessExpressionId, AccessInstanceId, AccessParameterId, Arena, TypeId,
+    AccessCodeId, AccessExpressionId, AccessInstanceId, AccessParameterId, Arena, TypeId,
     ValueCode, ValueInvocation,
 };
 use std::{collections::BTreeMap, sync::Arc};
@@ -77,8 +77,8 @@ impl Instance {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Failure {
-    UnknownRoot(AccessCallableId),
-    InitializerRoot(AccessCallableId),
+    UnknownRoot(AccessCodeId),
+    InitializerRoot(AccessCodeId),
     UnboundRoot(AccessParameterId),
     InvalidAcceptedUnit,
 }
@@ -96,7 +96,7 @@ impl InstanceProgram {
     /// # Errors
     /// A root must exist and need no externally supplied callback witness. Invalid checked edges
     /// are integrity errors; no partially closed graph is published.
-    pub fn prepare(unit: Arc<Unit>, root: AccessCallableId) -> Result<Self, Failure> {
+    pub fn prepare(unit: Arc<Unit>, root: AccessCodeId) -> Result<Self, Failure> {
         build::close(unit, root)
     }
     #[must_use]

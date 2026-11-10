@@ -74,7 +74,7 @@ coordinates, or checking internals.
 The value-access product owns immutable declaration facts and their type authority for the future
 private core goal. Header facts are shared by immutable body type branches and canonical replay. It is not
 an adapter to `DeclarationProgram` or accepted by the released target/checking pipeline.
-`Reservations` assigns callable/record and input/field identities; its consuming `finish` closes
+`Reservations` assigns code/record and input/field identities; its consuming `finish` closes
 the complete name domain into a `Builder`. This construction owns define-once raw definitions;
 its infallible `into_publication` transition opens `HeaderPublication` without requiring definitions
 to be loaded. The writer retains that sole raw owner and permits defining remaining headers through
@@ -83,8 +83,8 @@ This single writer validates and normalizes requested callable or record contrac
 immutable `Program` views containing only ready entries. Each contract first closes its transitive record
 dependencies. Its consuming `finish` closes every remaining callable and record, including unused
 records. `Builder::finish` uses that same path.
-No definition or type resolution is available during reservation, and no new declaration can be
-reserved after name closure. Untyped construction grants no body-checking admission. A ready view
+No authored definition or type resolution is available during reservation, and no new declaration
+can be reserved after name closure. Untyped construction grants no body-checking admission. A ready view
 can support typed-only checking of its established contracts, but only `headers_complete` can
 permit whole-unit closure. `is_defined` distinguishes known unloaded definitions from unknown IDs;
 it does not grant a validated contract. Raw reference, payload and Copy validation all run on demand.
@@ -134,14 +134,27 @@ helpers or borrow constructors. Unit is a value in this product. Input operation
 separate from data identity and payload Copy evidence. Stored parameter records carry a data
 TypeId and Read/Edit/Take operation; callable results carry a data TypeId and, for a callable
 result, its structural constraint. The authored compile-time capability is a separate callable
-header fact; it proves neither body-domain validity nor successful evaluation. `CallableKind`
-distinguishes source functions, constant initializers and immutable-static initializers in the same
-code arena. Initializer roles derive their compile-time capability, reject function inputs/results,
+header fact; it proves neither body-domain validity nor successful evaluation. `CodeKind`
+distinguishes source functions, constant initializers, immutable-static initializers and anonymous
+required type expressions in the same `AccessCodeId` arena. Initializer roles derive their
+compile-time capability, reject function inputs/results,
 and grant neither a function namespace entry nor a named-function witness. A `ValueStatic` key
 identifies the static's place separately from invoking its initializer code; `static_declaration`
 validates that relationship through the sole declaration table. No parallel static metadata or
 namespace owns its name/type. Neither introduces a result access operation. No result
 mode/referent set or old read-result normalization remains.
+
+`reserve_type_expression` reserves anonymous code against an existing parameter, result or record-field
+slot. Its source-independent `TypeExpressionSource` records that exact declaration/position;
+unknown, non-type and anonymous-owner slots reject before allocation. Its define-once contract has
+no inputs and a usize result. It is construction metadata, not an authored definition or a resolved
+array type. `Code::name` is absent, the closed namespace gains no entry, and no function witness is
+published. `code_ids` includes these roots although named `declaration_ids` does not; final header
+closure still requires every code slot. A selected anonymous contract can publish before its
+owning authored header is ready, without making that parent ready. Presentation derives a label
+from the real owning declaration, including an unready owner, rather than interning a synthetic
+name. Source registration, exact executable-root pairing and value-dependent header normalization
+remain with the [structural request work](../../../design/compiler-realization.md#structural-type-request-closure).
 
 The same program publishes closed nominal record metadata used by parsed callable and body
 checking. Record names use the common closed namespace above. Fields have a distinct value-field

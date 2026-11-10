@@ -1,6 +1,6 @@
 //! Readiness grants complete schemas rather than provisional identities or field fragments.
 use super::*;
-use crate::value_access::{CallableKind, DataReference, FieldDefinition, Reservations, TupleData};
+use crate::value_access::{CodeKind, DataReference, FieldDefinition, Reservations, TupleData};
 use nocter_model::{
     ArenaBuilder, BuiltinType, CompileTimeGuarantee, GenericApplication, NominalTypeId, SymbolTable,
 };
@@ -36,7 +36,7 @@ fn selected_records_publish_transitive_schemas_without_exposing_unrelated_fields
     builder
         .define(
             run,
-            CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [],
             BuiltinType::Void,
         )
@@ -155,7 +155,7 @@ fn callable_contracts_close_record_data_in_nested_callback_slots() {
     builder
         .define(
             run,
-            CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [super::super::ParameterDefinition {
                 name: symbols.get("callback").unwrap(),
                 operation: nocter_model::ValueInputOperation::Read,
@@ -179,7 +179,7 @@ fn callable_contracts_close_record_data_in_nested_callback_slots() {
     assert!(program.data_schema(callback.inputs[0].data).is_some());
     assert!(program.data_schema(callback.result).is_some());
     assert_eq!(
-        program.callables().get(run).unwrap().result_contract(),
+        program.codes().get(run).unwrap().result_contract(),
         Some(callback)
     );
 }
@@ -199,7 +199,7 @@ fn missing_definitions_can_be_loaded_without_changing_slots_or_established_contr
     headers
         .define(
             run,
-            CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [],
             BuiltinType::I32,
         )

@@ -1,6 +1,6 @@
 //! Incremental publication of complete contracts into one persistent header lineage.
 use super::{
-    Builder, Callable, DeclarationId, DeclarationRule, DeclarationViolation, FieldDefinition,
+    Builder, Code, DeclarationId, DeclarationRule, DeclarationViolation, FieldDefinition,
     FunctionConstraint, FunctionInput, Parameter, ParameterDefinition, Program, ValueDefinition,
     data::resolved_data, functions, records, validate_definition,
 };
@@ -8,7 +8,7 @@ use nocter_dependency_query::{
     DependencyProgress, DependencyQuery, DependencyQueryError, DependencyStep,
 };
 use nocter_model::{
-    AccessCallableId, AccessParameterId, NominalTypeId, SparseArenaBuilder, Symbol, TypeAuthority,
+    AccessCodeId, AccessParameterId, NominalTypeId, SparseArenaBuilder, Symbol, TypeAuthority,
     TypeKind, ValueFunctionOrigin, ValueInvocation,
 };
 use std::collections::BTreeMap;
@@ -36,7 +36,7 @@ pub enum HeaderFailure {
 #[derive(Debug)]
 pub struct HeaderPublication {
     definitions: Builder,
-    callables: SparseArenaBuilder<AccessCallableId, Callable>,
+    codes: SparseArenaBuilder<AccessCodeId, Code>,
     parameters: SparseArenaBuilder<AccessParameterId, Parameter>,
     types: TypeAuthority,
     records: records::Publication,
@@ -44,10 +44,11 @@ pub struct HeaderPublication {
 impl HeaderPublication {
     /// All reserved code identities; missing contracts grant no body-checking admission.
     #[must_use]
-    pub fn callable_ids(&self) -> impl ExactSizeIterator<Item = AccessCallableId> + '_ {
-        self.definitions.callables.iter().map(|(id, _)| id)
+    pub fn code_ids(&self) -> impl ExactSizeIterator<Item = AccessCodeId> + '_ {
+        self.definitions.codes.iter().map(|(id, _)| id)
     }
-    /// The closed declaration domain, independently of publication readiness.
+    /// The closed named declaration domain, independently of publication readiness.
+    /// Anonymous roots are enumerated separately by `code_ids`.
     #[must_use]
     pub fn declaration_ids(&self) -> impl ExactSizeIterator<Item = DeclarationId> + '_ {
         self.definitions.namespace.values().copied()
@@ -56,7 +57,7 @@ impl HeaderPublication {
         let mut types = TypeAuthority::new();
         let records = records::Publication::new(&definitions.records, &mut types);
         Self {
-            callables: SparseArenaBuilder::new(definitions.callables.len()),
+            codes: SparseArenaBuilder::new(definitions.codes.len()),
             parameters: SparseArenaBuilder::new(definitions.parameters.len()),
             definitions,
             types,
@@ -67,9 +68,7 @@ impl HeaderPublication {
     #[must_use]
     pub fn is_defined(&self, id: impl Into<DeclarationId>) -> Option<bool> {
         match id.into() {
-            DeclarationId::Callable(id) => {
-                Some(self.definitions.callables.get(id)?.definition.is_some())
-            }
+            DeclarationId::Code(id) => Some(self.definitions.codes.get(id)?.definition.is_some()),
             DeclarationId::Record(id) => self.definitions.records.is_defined(id),
         }
     }
@@ -89,8 +88,8 @@ impl HeaderPublication {
     /// Rejects unknown IDs, mismatched arity or a second definition without replacement.
     pub fn define(
         &mut self,
-        id: AccessCallableId,
-        kind: super::CallableKind,
+        id: AccessCodeId,
+        kind: super::CodeKind,
         parameters: impl Into<Box<[ParameterDefinition]>>,
         result: impl Into<ValueDefinition>,
     ) -> Result<(), crate::DefinitionError> {
@@ -127,7 +126,7 @@ impl HeaderPublication {
             .iter()
             .map(|id| match id {
                 DeclarationId::Record(id) => Some(*id),
-                DeclarationId::Callable(_) => None,
+                DeclarationId::Code(_) => None,
             })
             .collect::<Option<Vec<_>>>();
         records
@@ -163,13 +162,13 @@ impl HeaderPublication {
                     .publish_ready(&self.definitions.records, id, &mut self.types)
                     .map_err(HeaderFailure::Rejected)?;
             }
-            DeclarationId::Callable(id) => {
-                if self.callables.get(id).is_some() {
+            DeclarationId::Code(id) => {
+                if self.codes.get(id).is_some() {
                     return Ok(HeaderStep::Ready);
                 }
                 let reservation = self
                     .definitions
-                    .callables
+                    .codes
                     .get(id)
                     .ok_or(HeaderFailure::UnknownId)?;
                 let mut violations = Vec::new();
@@ -203,22 +202,18 @@ impl HeaderPublication {
                 if !records.is_empty() {
                     return Ok(HeaderStep::Require(records.into()));
                 }
-                self.publish_callable(id);
+                self.publish_code(id);
             }
         }
         Ok(HeaderStep::Ready)
     }
-    fn publish_callable(&mut self, id: AccessCallableId) {
-        let reservation = self
-            .definitions
-            .callables
-            .get(id)
-            .expect("reserved callable");
+    fn publish_code(&mut self, id: AccessCodeId) {
+        let reservation = self.definitions.codes.get(id).expect("reserved code");
         let definition = reservation
             .definition
             .as_ref()
             .expect("validated definition");
-        if matches!(definition.kind, super::CallableKind::Function(_)) {
+        if matches!(definition.kind, super::CodeKind::Function(_)) {
             self.types = functions::publish_witnesses(&self.types, std::iter::once(id));
         }
         let mut types = self.types.transaction();
@@ -265,10 +260,10 @@ impl HeaderPublication {
                 .insert(id, parameter)
                 .expect("define-once reserved input");
         }
-        self.callables
+        self.codes
             .insert(
                 id,
-                Callable {
+                Code {
                     name: reservation.name,
                     kind: definition.kind,
                     parameters: reservation.parameters.clone(),
@@ -287,7 +282,7 @@ impl HeaderPublication {
             types: self.types.clone(),
             header_prefix: self.types.store().clone(),
             type_scope: super::TypeScope::Headers,
-            callables: self.callables.snapshot(),
+            codes: self.codes.snapshot(),
             parameters: self.parameters.snapshot(),
             namespace: self.definitions.namespace.clone(),
             records: self.records.snapshot(),
@@ -301,12 +296,7 @@ impl HeaderPublication {
         for id in records {
             self.publish(id)?;
         }
-        let ids: Vec<_> = self
-            .definitions
-            .callables
-            .iter()
-            .map(|(id, _)| id)
-            .collect();
+        let ids: Vec<_> = self.definitions.codes.iter().map(|(id, _)| id).collect();
         for id in ids {
             self.publish(id)?;
         }

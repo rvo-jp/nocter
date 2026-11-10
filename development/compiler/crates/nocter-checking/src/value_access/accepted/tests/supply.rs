@@ -32,7 +32,7 @@ fn pending_supply_closes_before_initialization_without_rebuilding_control() {
         let context = headers.bind(bound(&sources, &tree)).unwrap();
         let mut queries = context
             .program()
-            .callables()
+            .codes()
             .iter()
             .map(|(id, _)| (id, TypedQuery::prepare(&context, id).unwrap()))
             .collect::<BTreeMap<_, _>>();

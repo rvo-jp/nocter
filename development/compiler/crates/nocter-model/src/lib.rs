@@ -32,7 +32,7 @@ pub use closure_sequence::{ClosureSequence, ClosureSequenceIter, UnknownClosureS
 pub use constant::{ConstantValue, FrozenValue, GenericApplication, GenericValue, UsizeTerm};
 pub use field_path::{FieldPath, ValueField};
 pub use id::{
-    AccessBlockId, AccessCallableId, AccessExpressionId, AccessFieldId, AccessFlowPointId,
+    AccessBlockId, AccessCodeId, AccessExpressionId, AccessFieldId, AccessFlowPointId,
     AccessInstanceId, AccessLocalId, AccessLoopId, AccessParameterId, AccessPlaceId,
     AccessStatementId, AssociatedTypeId, BodyId, BodyNodeId, BodyScopeId, CallableId,
     CapabilityEvidenceId, CaptureId, ClosureId, ConstantExpressionId, ConstantId, ConstructionId,

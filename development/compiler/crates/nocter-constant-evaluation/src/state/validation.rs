@@ -275,7 +275,7 @@ fn call(
     program: &Program,
     plan: &super::Plan,
     destination: usize,
-    target: nocter_model::AccessCallableId,
+    target: nocter_model::AccessCodeId,
     inputs: &[super::Input],
 ) -> Result<()> {
     let callee = program.plans.get(&target).ok_or(INVALID)?;

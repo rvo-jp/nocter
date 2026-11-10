@@ -22,7 +22,7 @@ pub(super) fn queries(text: &str) -> Result<Vec<Query>, Failure> {
     let context = header.bind(bound(&sources, &tree)).unwrap();
     context
         .program()
-        .callables()
+        .codes()
         .iter()
         .map(|(id, _)| Query::prepare(&context, id))
         .collect()
@@ -32,11 +32,12 @@ pub(super) fn named<'a>(queries: &'a [Query], name: &str) -> &'a Query {
         .iter()
         .find(|q| {
             q.program()
-                .callables()
+                .codes()
                 .get(q.source_owner())
                 .unwrap()
                 .name()
-                == q.program().symbols().get(name).unwrap()
+                .and_then(|symbol| q.program().symbols().spelling(symbol))
+                == Some(name)
         })
         .unwrap()
 }
@@ -185,7 +186,7 @@ fn typed_body_rebinding_checks_authority_and_own_body() {
     let (sources, tree) = input("func f(input: i32): i32 { return input }");
     let header = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
     let context = header.bind(bound(&sources, &tree)).unwrap();
-    let id = context.program().callables().iter().next().unwrap().0;
+    let id = context.program().codes().iter().next().unwrap().0;
     let query = Query::prepare(&context, id).unwrap();
     assert!(query.bind(&context).is_ok());
     let (other, other_tree) = input("// moved\nfunc f(input: i32): i32 { return input }");

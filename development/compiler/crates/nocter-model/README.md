@@ -31,13 +31,15 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
   without source names or runtime layout. Applications pair caller/operation/callee identities.
   Formal/result/application witnesses remain nonconcrete and may carry storage; named witnesses
   are concrete capture-free leaves. Canonical body replay and result closure retain one authority
-- named/captured body code identities, with a derived named source owner used only for source reuse
+- root/captured body code identities: `AccessCodeId` identifies function bodies, named initializers
+  and anonymous type-expression code without granting a name or callable contract. Captures derive
+  their root source owner for reuse; declaration roles belong to the declaration authority
 - body-owned closure code keys independent of runtime environments; data/schema owners, rather
   than the key or invocation view, establish capture Copy and destruction properties
 - logical field paths with record-field identities and tuple positions, concatenation and
   prefix/overlap relations; the declaration owner validates each selection against its containing data schema, independently of memory offsets
 - independent value-input operations, local binding kinds, transient operation-access descriptors,
-  and distinct future callable/input/field and body-local/selected-place/operation/control-flow-point identity domains;
+  and distinct future code/input/field and body-local/selected-place/operation/control-flow-point identity domains;
   these are not aliases for borrow capability or an implicit permission-coercion ordering
 - a distinct private instance identity domain for the target owner's root-closed value program
 - structural callable capabilities and independent authored allocation/nonblocking guarantee

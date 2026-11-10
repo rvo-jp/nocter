@@ -3,13 +3,13 @@ use super::Completed;
 use crate::value_access::Query;
 use nocter_declarations::value_access::DeclarationId;
 use nocter_dependency_query::DependencyQuery;
-use nocter_model::AccessCallableId;
+use nocter_model::AccessCodeId;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(super) enum Request {
     Header(DeclarationId),
-    Body(AccessCallableId),
-    Value(AccessCallableId),
+    Body(AccessCodeId),
+    Value(AccessCodeId),
 }
 #[derive(Clone, Debug)]
 pub(super) enum Fact {
@@ -19,13 +19,13 @@ pub(super) enum Fact {
 }
 pub(super) type Dependencies = DependencyQuery<Request, Fact>;
 
-pub(super) fn body(query: &Dependencies, id: AccessCallableId) -> Option<&Query> {
+pub(super) fn body(query: &Dependencies, id: AccessCodeId) -> Option<&Query> {
     match query.completed(&Request::Body(id))? {
         Fact::Body(body) => Some(body),
         _ => None,
     }
 }
-pub(super) fn value(query: &Dependencies, id: AccessCallableId) -> Option<&Completed> {
+pub(super) fn value(query: &Dependencies, id: AccessCodeId) -> Option<&Completed> {
     match query.completed(&Request::Value(id))? {
         Fact::Value(value) => Some(value),
         _ => None,

@@ -6,8 +6,7 @@ use super::{
 };
 use nocter_declarations::value_access::{FunctionInput, FunctionWitness, PayloadSchema};
 use nocter_model::{
-    AccessCallableId, AccessExpressionId, ValueAccessMode as Mode, ValueFunctionOrigin,
-    ValueInvocation,
+    AccessCodeId, AccessExpressionId, ValueAccessMode as Mode, ValueFunctionOrigin, ValueInvocation,
 };
 use nocter_syntax::NodeId;
 
@@ -17,7 +16,7 @@ struct Callee {
     completes: bool,
 }
 impl Checker<'_, '_> {
-    fn declared_function(&self, node: NodeId) -> Result<Option<AccessCallableId>, Failure> {
+    fn declared_function(&self, node: NodeId) -> Result<Option<AccessCodeId>, Failure> {
         let Some(name) = self.name_token(node)? else {
             return Ok(None);
         };
@@ -59,7 +58,7 @@ impl Checker<'_, '_> {
         {
             let data = self
                 .program()
-                .callables()
+                .codes()
                 .get(target)
                 .ok_or(Failure::InconsistentSyntax)?
                 .result();
@@ -184,7 +183,7 @@ impl Checker<'_, '_> {
             ValueFunctionOrigin::Declaration(callee)
                 if self
                     .program()
-                    .callables()
+                    .codes()
                     .get(callee)
                     .is_some_and(|callable| callable.result_contract().is_some()) =>
             {

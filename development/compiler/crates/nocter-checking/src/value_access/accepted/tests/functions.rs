@@ -31,7 +31,7 @@ fn mut_view_keeps_static_dispatch_and_prepares_the_environment_before_explicit_i
     assert_eq!(
         unit.program().symbols().spelling(
             unit.program()
-                .callables()
+                .codes()
                 .get(match calls[0].0 {
                     nocter_model::ValueFunctionOrigin::Declaration(id) => id,
                     nocter_model::ValueFunctionOrigin::Closure(_)
@@ -42,6 +42,7 @@ fn mut_view_keeps_static_dispatch_and_prepares_the_environment_before_explicit_i
                 })
                 .unwrap()
                 .name()
+                .unwrap()
         ),
         Some("update")
     );

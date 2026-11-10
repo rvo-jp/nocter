@@ -21,7 +21,7 @@ fn required_values_prepare_deep_shared_headers_without_recursive_queries_or_call
     let (sources, tree) = input(&source);
     let syntax = bound(&sources, &tree);
     let mut headers = declarations::Preparation::prepare(syntax).unwrap();
-    let ids: Vec<_> = headers.callable_ids().collect();
+    let ids: Vec<_> = headers.code_ids().collect();
     let limits = nocter_constant_evaluation::CompileTimeEvaluationLimits::new(
         std::num::NonZeroU64::new(256).unwrap(),
         std::num::NonZeroU32::new(2).unwrap(),
@@ -115,7 +115,7 @@ fn required_values_execute_before_unrelated_headers_and_retain_their_successful_
     let (sources, tree) = input(source);
     let syntax = bound(&sources, &tree);
     let mut headers = declarations::Preparation::prepare(syntax).unwrap();
-    let ids: Vec<_> = headers.callable_ids().collect();
+    let ids: Vec<_> = headers.code_ids().collect();
     let mut preparation = Preparation::new(
         headers.current(),
         Headers::Publishing(&mut headers),
@@ -139,15 +139,8 @@ fn required_values_execute_before_unrelated_headers_and_retain_their_successful_
         panic!("a value request must complete with value evidence")
     };
     assert_eq!(computed_value.frozen, state::Value::integer(42).freeze());
-    assert_eq!(preparation.context.program().callables().len(), 2);
-    assert!(
-        preparation
-            .context
-            .program()
-            .callables()
-            .get(unused)
-            .is_none()
-    );
+    assert_eq!(preparation.context.program().codes().len(), 2);
+    assert!(preparation.context.program().codes().get(unused).is_none());
     assert!(preparation.context.program().records().is_empty());
     assert!(!preparation.context.program().headers_complete());
     let original_body = dependencies::body(&requests, helper)
@@ -182,7 +175,7 @@ fn successful_early_bodies_are_reused_and_their_closure_types_replay_after_late_
     let (sources, tree) = input(source);
     let syntax = bound(&sources, &tree);
     let mut headers = declarations::Preparation::prepare(syntax).unwrap();
-    let ids: Vec<_> = headers.callable_ids().collect();
+    let ids: Vec<_> = headers.code_ids().collect();
     let mut preparation = Preparation::new(
         headers.current(),
         Headers::Publishing(&mut headers),
@@ -192,7 +185,7 @@ fn successful_early_bodies_are_reused_and_their_closure_types_replay_after_late_
     preparation
         .require_header(&mut requests, ids[0].into())
         .unwrap();
-    assert_eq!(preparation.context.program().callables().len(), 1);
+    assert_eq!(preparation.context.program().codes().len(), 1);
     assert!(preparation.context.program().records().is_empty());
     assert!(matches!(
         accepted::Unit::prepare(&preparation.context),

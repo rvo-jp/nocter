@@ -4,25 +4,25 @@ use super::{Failure as BodyFailure, Query as TypedQuery, flow};
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::Program;
 use nocter_diagnostics::SourceDiagnostic;
-use nocter_model::{AccessCallableId, TypeId};
+use nocter_model::{AccessCodeId, TypeId};
 use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Debug)]
 pub enum Failure {
     Body {
-        callable: AccessCallableId,
+        callable: AccessCodeId,
         failure: BodyFailure,
     },
     Flow {
-        callable: AccessCallableId,
+        callable: AccessCodeId,
         diagnostics: Box<[SourceDiagnostic]>,
     },
     Evaluation {
-        callable: AccessCallableId,
+        callable: AccessCodeId,
         diagnostic: Box<super::evaluation::Diagnostic>,
     },
     Const {
-        callable: AccessCallableId,
+        callable: AccessCodeId,
         diagnostic: Box<super::constant::Diagnostic>,
     },
     Integrity(flow::IntegrityError),
@@ -49,11 +49,11 @@ impl DataEvidence {
 /// There is no parts constructor: bodies cannot be omitted or paired with another program.
 #[derive(Clone, Debug)]
 pub struct Unit {
-    initializers: BTreeMap<AccessCallableId, Arc<nocter_model::FrozenData>>,
+    initializers: BTreeMap<AccessCodeId, Arc<nocter_model::FrozenData>>,
     closures: BTreeMap<nocter_model::ValueClosure, flow::Query>,
     program: Arc<Program>,
     header: Arc<Program>,
-    bodies: BTreeMap<AccessCallableId, flow::Query>,
+    bodies: BTreeMap<AccessCodeId, flow::Query>,
     result_evidence: Arc<super::results::Evidence>,
 }
 impl Unit {
@@ -85,7 +85,7 @@ impl Unit {
         context: &DeclarationContext<'_>,
         evaluation: super::evaluation::Output,
     ) -> Result<Self, Failure> {
-        let declarations = context.program().callables();
+        let declarations = context.program().codes();
         let complete_bodies = evaluation.queries.len() == declarations.len()
             && declarations
                 .iter()
@@ -125,9 +125,9 @@ impl Unit {
         })
     }
     #[must_use]
-    pub fn constant_value(&self, id: AccessCallableId) -> Option<&nocter_model::FrozenData> {
-        (self.program.callables().get(id)?.kind()
-            == nocter_declarations::value_access::CallableKind::ConstantInitializer)
+    pub fn constant_value(&self, id: AccessCodeId) -> Option<&nocter_model::FrozenData> {
+        (self.program.codes().get(id)?.kind()
+            == nocter_declarations::value_access::CodeKind::ConstantInitializer)
             .then_some(())?;
         self.initializers.get(&id).map(Arc::as_ref)
     }
@@ -140,7 +140,7 @@ impl Unit {
     #[must_use]
     pub fn result_witness(
         &self,
-        callable: AccessCallableId,
+        callable: AccessCodeId,
     ) -> Option<nocter_declarations::value_access::FunctionWitness> {
         self.result_evidence.producer(callable)
     }
@@ -168,7 +168,7 @@ impl Unit {
     }
     /// The exact checked body in this accepted unit's sole body catalog.
     #[must_use]
-    pub fn body(&self, callable: AccessCallableId) -> Option<&flow::Query> {
+    pub fn body(&self, callable: AccessCodeId) -> Option<&flow::Query> {
         self.bodies.get(&callable)
     }
     /// Select the exact accepted named or captured body. Source ownership is not code identity.
@@ -180,7 +180,7 @@ impl Unit {
         }
     }
     #[must_use]
-    pub fn bodies(&self) -> impl ExactSizeIterator<Item = (AccessCallableId, &flow::Query)> {
+    pub fn bodies(&self) -> impl ExactSizeIterator<Item = (AccessCodeId, &flow::Query)> {
         self.bodies.iter().map(|(&id, query)| (id, query))
     }
     #[must_use]
@@ -210,14 +210,14 @@ impl Unit {
 }
 pub(super) struct Checked {
     pub(super) program: Arc<Program>,
-    pub(super) bodies: BTreeMap<AccessCallableId, flow::Query>,
+    pub(super) bodies: BTreeMap<AccessCodeId, flow::Query>,
     closures: BTreeMap<nocter_model::ValueClosure, flow::Query>,
     result_evidence: Arc<super::results::Evidence>,
 }
 /// The same ordinary acceptance authority serves required const closures and final whole-unit closure.
 pub(super) fn check_queries(
     context: &DeclarationContext<'_>,
-    mut queries: BTreeMap<AccessCallableId, TypedQuery>,
+    mut queries: BTreeMap<AccessCodeId, TypedQuery>,
 ) -> Result<Checked, Failure> {
     let program = super::types::canonicalize(context, &mut queries)?;
     let mut controls = queries
@@ -257,7 +257,7 @@ pub(super) fn check_queries(
     }
     for (&callable, query) in &bodies {
         if program
-            .callables()
+            .codes()
             .get(callable)
             .ok_or(Failure::Integrity(
                 flow::IntegrityError::InconsistentTypedBody,
@@ -322,7 +322,7 @@ fn admit(
 #[derive(Debug)]
 pub struct Context<'query, 'source> {
     unit: &'query Unit,
-    bodies: BTreeMap<AccessCallableId, flow::Context<'query, 'source>>,
+    bodies: BTreeMap<AccessCodeId, flow::Context<'query, 'source>>,
 }
 impl Context<'_, '_> {
     #[must_use]
@@ -330,7 +330,7 @@ impl Context<'_, '_> {
         self.unit
     }
     #[must_use]
-    pub fn body(&self, id: AccessCallableId) -> Option<&flow::Context<'_, '_>> {
+    pub fn body(&self, id: AccessCodeId) -> Option<&flow::Context<'_, '_>> {
         self.bodies.get(&id)
     }
 }

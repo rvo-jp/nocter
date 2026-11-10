@@ -576,6 +576,11 @@ All authored source remains structurally checked, including unevaluated branches
 callees are prepared through all authored call edges; callable-only recursion remains a graph,
 while a constant reference requests a value and exposes an active declaration cycle.
 
+Required values enter the coordinator through iterative progress. Header steps schedule explicit
+dependency groups; body/value steps delegate their already-active key to the ordinary bounded
+computation. Both paths share memoization, exact cycle frames and failure unwinding, without
+reopening the current key or maintaining a second request authority.
+
 Required values can execute with unrelated callable/record contracts still unready. Every selected
 const body retains its origin header view until canonical replay and contributes its exact body
 bytes to source dependencies. A body becomes complete only after its static-value requirements;

@@ -21,21 +21,35 @@ pub trait DependencyComputation<K, V, E> {
     ) -> Result<V, DependencyQueryError<K, E>>;
 }
 
-/// A completed value or the next authored-order group of dependencies needed by a draft.
+/// The next construction action: completion, authored-order dependencies or bounded computation.
 #[derive(Debug)]
 pub enum DependencyStep<K, V> {
     Complete(V),
     Require(Box<[K]>),
+    /// Run a bounded re-entrant computation for this already-active key.
+    Compute,
 }
 
-/// Advances unpublished work using completed values, without recursively resolving children.
+/// Advances unpublished work through explicit dependency groups or bounded re-entrant computation.
 pub trait DependencyProgress<K, V, E> {
     /// A required group must contain an unfinished key. Completed dependencies may occur in the
-    /// group and are skipped. A successful draft must return `Complete` after its needs close.
+    /// group and are skipped. A draft completes through `Complete` or the result of `Compute`.
     /// # Errors
     /// Returns the consumer's authored or integrity failure; only the query constructs cycles.
     fn advance(&mut self, query: &DependencyQuery<K, V>, key: K)
     -> Result<DependencyStep<K, V>, E>;
+    /// Compute the current active key without reopening it. Nested requests use this same query.
+    /// Re-resolving the current key would correctly report a cycle; compute it directly instead.
+    /// The consumer must bound recursive work; only `Require` groups use explicit query frames.
+    /// # Errors
+    /// Propagates exact query cycles or consumer failures. The default rejects this unsupported role.
+    fn compute_current(
+        &mut self,
+        _: &mut DependencyQuery<K, V>,
+        key: K,
+    ) -> Result<V, DependencyQueryError<K, E>> {
+        Err(DependencyQueryError::Computation(self.no_progress(key)))
+    }
     /// Classify a draft that requests no unfinished dependency and therefore cannot progress.
     fn no_progress(&mut self, key: K) -> E;
 }
@@ -124,13 +138,9 @@ where
                 continue;
             }
             let key = frame.key.clone();
-            match computation.advance(self, key.clone()) {
-                Ok(DependencyStep::Complete(value)) => {
-                    let value = self.finish(key, Ok(value))?;
-                    if self.stack.len() == outer_depth {
-                        return Ok(value);
-                    }
-                }
+            let result = match computation.advance(self, key.clone()) {
+                Ok(DependencyStep::Complete(value)) => Ok(value),
+                Ok(DependencyStep::Compute) => computation.compute_current(self, key.clone()),
                 Ok(DependencyStep::Require(dependencies)) => {
                     if !dependencies.iter().any(|key| self.completed(key).is_none()) {
                         let error = DependencyQueryError::Computation(computation.no_progress(key));
@@ -139,10 +149,16 @@ where
                     }
                     self.stack.last_mut().expect("current step frame").pending =
                         dependencies.into_vec().into_iter();
+                    continue;
                 }
+                Err(error) => Err(DependencyQueryError::Computation(error)),
+            };
+            match self.finish(key, result) {
+                Ok(value) if self.stack.len() == outer_depth => return Ok(value),
+                Ok(_) => {}
                 Err(error) => {
                     self.unwind(outer_depth);
-                    return Err(DependencyQueryError::Computation(error));
+                    return Err(error);
                 }
             }
         }

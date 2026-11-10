@@ -6,7 +6,7 @@ use super::{
     type_syntax::{DataTypeSyntax, data_syntax},
     value_type_syntax,
 };
-use nocter_declarations::value_access::CallableKind;
+use nocter_declarations::value_access::CodeKind;
 use nocter_model::{CompileTimeGuarantee, SymbolTable, ValueInputOperation};
 use nocter_syntax::{
     BoundSyntax, ContextualSpelling, NodeId, NodeKind, SyntaxToken, child_node_iter,
@@ -24,7 +24,7 @@ pub(super) struct ParameterHeader {
 #[derive(Clone, Debug)]
 pub(super) struct Header {
     pub name: SyntaxToken,
-    pub kind: CallableKind,
+    pub kind: CodeKind,
     pub parameters: Vec<ParameterHeader>,
     pub result_syntax: NodeId,
     pub result_data: ValueTypeSyntax,
@@ -67,7 +67,7 @@ pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<H
     };
     Ok(Header {
         name,
-        kind: CallableKind::Function(compile_time),
+        kind: CodeKind::Function(compile_time),
         parameters,
         result_syntax,
         result_data: value_type_syntax(syntax, result_syntax)?,
@@ -85,9 +85,9 @@ pub(super) fn initializer(syntax: BoundSyntax<'_>, declaration: NodeId) -> Resul
             .node(declaration)
             .is_some_and(|node| node.kind() == NodeKind::StaticDeclaration)
         {
-            CallableKind::StaticInitializer
+            CodeKind::StaticInitializer
         } else {
-            CallableKind::ConstantInitializer
+            CodeKind::ConstantInitializer
         },
         parameters: Vec::new(),
         result_syntax,

@@ -129,12 +129,14 @@ This is the remaining construction design, not implemented array admission. Exte
 with computed type dependencies while keeping the closed name/input/field domain fixed.
 Normalization must return a typed dependency request without publishing a provisional contract.
 Source lowering owns loading the requested recipe; declarations own validation and normalized identity; the existing checking/value
-coordinator owns ordinary body acceptance and required execution. A length expression needs its
-own semantic code identity and exact source recipe. Do not manufacture a named function, source
-text or a separate expression checker to evaluate it. Code identity must pair with the existing
-exact source roots for record fields as well as callable headers. The current callable-only
-executable source-owner projection cannot represent a record-owned length by relabeling it as a
-function. A type-annotation source root grants no executable code or result contract.
+coordinator owns ordinary body acceptance and required execution. The declaration authority now reserves anonymous
+[expression-code contracts](../compiler/crates/nocter-declarations/README.md#future-value-declaration-boundary).
+Source preparation must pair each such identity with its exact executable source recipe within
+the existing type-annotation roots, including record fields as well as callable headers. Do not
+manufacture a named function, source text or a separate expression checker to evaluate it.
+The current source catalog still registers only named roots. Relabeling a record header as a
+function body cannot establish executable source evidence. A type-annotation source root alone
+grants no executable code or result contract.
 
 Keep executable code identity, a selected named callable contract and the source-reuse owner as
 separate roles. Carry that separation through body-type branches, call-application/closure keys,
@@ -143,8 +145,9 @@ has its own code identity and expected usize result, no named-function witness o
 and no source `return` target. Its diagnostic owner remains the exact header slot. If its ordinary
 source contains unsupported const operations, first preserve ordinary typing/safety and then
 apply the same const-domain rejection; an expression-specific source scan cannot replace that
-validation. Required expression values need a distinct key from declaration initializer values
-in the common query, while actual execution consumes the shared value/work/storage budget.
+validation. Each anonymous expression's distinct code ID gives its required value a distinct key in the
+common query, independently of named declaration initializers. Actual execution must consume the
+shared value/work/storage budget.
 
 Keep deferred header normalization on the
 [query-owned iterative progress path](../compiler/crates/nocter-dependency-query/README.md#invariants).

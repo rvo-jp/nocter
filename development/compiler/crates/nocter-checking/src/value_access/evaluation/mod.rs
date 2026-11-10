@@ -13,7 +13,7 @@ struct Completed {
 }
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_diagnostics::{DiagnosticCode, DiagnosticNote, SourceDiagnostic};
-use nocter_model::AccessCallableId;
+use nocter_model::AccessCodeId;
 use std::{collections::BTreeMap, sync::Arc};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Rule {
@@ -71,7 +71,7 @@ impl Diagnostic {
 }
 fn origin(
     context: &DeclarationContext<'_>,
-    bodies: &BTreeMap<AccessCallableId, flow::Query>,
+    bodies: &BTreeMap<AccessCodeId, flow::Query>,
     site: state::Site,
 ) -> Result<nocter_syntax::SyntaxOrigin, BodyFailure> {
     let bound = bodies
@@ -85,11 +85,11 @@ fn origin(
 }
 fn project(
     context: &DeclarationContext<'_>,
-    bodies: &BTreeMap<AccessCallableId, flow::Query>,
+    bodies: &BTreeMap<AccessCodeId, flow::Query>,
     error: &state::Error,
 ) -> Result<Diagnostic, BodyFailure> {
     let root = context
-        .callable_source(error.code)
+        .code_source(error.code)
         .ok_or(BodyFailure::InconsistentSyntax)?;
     let mut notes = vec![DiagnosticNote::new(
         "this initializer requires a compile-time value",
@@ -123,10 +123,10 @@ fn project(
 }
 fn final_diagnostic(
     context: &DeclarationContext<'_>,
-    id: AccessCallableId,
+    id: AccessCodeId,
 ) -> Result<Diagnostic, BodyFailure> {
     let source = context
-        .callable_source(id)
+        .code_source(id)
         .ok_or(BodyFailure::InconsistentSyntax)?;
     let primary = source_origin(
         context.syntax(),
@@ -139,27 +139,27 @@ fn final_diagnostic(
     })
 }
 pub(super) trait Values {
-    fn value(&self, id: AccessCallableId) -> Option<&FrozenData>;
+    fn value(&self, id: AccessCodeId) -> Option<&FrozenData>;
 }
 impl Values for () {
-    fn value(&self, _: AccessCallableId) -> Option<&FrozenData> {
+    fn value(&self, _: AccessCodeId) -> Option<&FrozenData> {
         None
     }
 }
 impl Values for dependencies::Dependencies {
-    fn value(&self, id: AccessCallableId) -> Option<&FrozenData> {
+    fn value(&self, id: AccessCodeId) -> Option<&FrozenData> {
         dependencies::value(self, id).map(|value| &value.frozen)
     }
 }
 pub(super) struct Output {
-    pub(super) queries: BTreeMap<AccessCallableId, super::Query>,
-    pub(super) values: BTreeMap<AccessCallableId, Arc<FrozenData>>,
+    pub(super) queries: BTreeMap<AccessCodeId, super::Query>,
+    pub(super) values: BTreeMap<AccessCodeId, Arc<FrozenData>>,
     pub(super) dependencies: Arc<nocter_declaration_lowering::access_declarations::BodySources>,
 }
 pub(super) use preparation::{prepare, prepare_source};
 fn failure_at(
     context: &DeclarationContext<'_>,
-    code: AccessCallableId,
+    code: AccessCodeId,
     rule: Rule,
     origin: nocter_syntax::SyntaxOrigin,
 ) -> Failure {

@@ -74,7 +74,7 @@ pub(super) fn validate_key(program: &Program, key: &InstanceKey) -> Result<(), F
     match key.code {
         ValueCode::Declaration(id) => {
             let declaration = program
-                .callables()
+                .codes()
                 .get(id)
                 .ok_or(Failure::InvalidAcceptedUnit)?;
             for &id in declaration.parameters() {

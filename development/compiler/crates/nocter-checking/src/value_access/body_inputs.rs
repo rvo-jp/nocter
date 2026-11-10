@@ -43,12 +43,7 @@ pub(super) fn layout(query: &Query) -> Result<(), IntegrityError> {
             if inputs.environment().is_some() {
                 return Err(INVALID);
             }
-            let parameters = query
-                .program()
-                .callables()
-                .get(id)
-                .ok_or(INVALID)?
-                .parameters();
+            let parameters = query.program().codes().get(id).ok_or(INVALID)?.parameters();
             if parameters.len() != inputs.explicit().len() {
                 return Err(INVALID);
             }

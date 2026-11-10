@@ -53,7 +53,7 @@ fn captured_code_invocation_selects_its_checked_body() {
         ValueCode::Closure(_)
     ));
 }
-fn callable(unit: &Unit, name: &str) -> AccessCallableId {
+fn callable(unit: &Unit, name: &str) -> AccessCodeId {
     unit.program()
         .resolve(unit.program().symbols().get(name).unwrap())
         .unwrap()
@@ -312,7 +312,7 @@ fn unbound_callback_roots_cannot_publish_a_partially_concrete_program() {
         "a94-callback-take-cleanup-on-return.nct",
     ));
     let root = callable(&unit, "apply");
-    let formal = unit.program().callables().get(root).unwrap().parameters()[0];
+    let formal = unit.program().codes().get(root).unwrap().parameters()[0];
     assert_eq!(
         InstanceProgram::prepare(unit, root).unwrap_err(),
         Failure::UnboundRoot(formal)

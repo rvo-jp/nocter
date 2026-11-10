@@ -5,12 +5,12 @@ use super::{
 };
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::Program;
-use nocter_model::{AccessCallableId, AccessExpressionId, TypeId, ValueAccess};
+use nocter_model::{AccessCodeId, AccessExpressionId, TypeId, ValueAccess};
 use std::{collections::BTreeMap, sync::Arc};
 
 pub(super) fn canonicalize(
     context: &DeclarationContext<'_>,
-    queries: &mut BTreeMap<AccessCallableId, Query>,
+    queries: &mut BTreeMap<AccessCodeId, Query>,
 ) -> Result<Arc<Program>, accepted::Failure> {
     let canonical = context
         .program()

@@ -8,7 +8,7 @@ use super::{
 use crate::value_access::{ExpressionKind, accepted, flow};
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::{FunctionWitness, PayloadSchema};
-use nocter_model::{AccessCallableId, ValueFunctionOrigin as Origin};
+use nocter_model::{AccessCodeId, ValueFunctionOrigin as Origin};
 use std::collections::{BTreeMap, BTreeSet};
 
 const INVALID: accepted::Failure =
@@ -16,7 +16,7 @@ const INVALID: accepted::Failure =
 
 pub(super) fn solve(
     context: &DeclarationContext<'_>,
-    controls: &BTreeMap<AccessCallableId, flow::Control>,
+    controls: &BTreeMap<AccessCodeId, flow::Control>,
 ) -> Result<Evidence, accepted::Failure> {
     let mut evidence = Evidence::default();
     let mut equations = Relations::new();
@@ -26,7 +26,7 @@ pub(super) fn solve(
         if control
             .typed
             .program()
-            .callables()
+            .codes()
             .get(id)
             .ok_or(INVALID)?
             .result_contract()
@@ -92,7 +92,7 @@ fn single(producers: &Producers) -> Option<FunctionWitness> {
 }
 fn close_applications(
     context: &DeclarationContext<'_>,
-    controls: &BTreeMap<AccessCallableId, flow::Control>,
+    controls: &BTreeMap<AccessCodeId, flow::Control>,
     committed: &BTreeSet<nocter_model::ValueApplication>,
     evidence: &mut Evidence,
 ) -> Result<(), accepted::Failure> {
@@ -176,7 +176,7 @@ fn close_applications(
 }
 fn prove_equalities(
     context: &DeclarationContext<'_>,
-    controls: &BTreeMap<AccessCallableId, flow::Control>,
+    controls: &BTreeMap<AccessCodeId, flow::Control>,
     evidence: &Evidence,
 ) -> Result<(), accepted::Failure> {
     for control in controls.values() {
@@ -228,23 +228,20 @@ fn describe_witness(
     program: &nocter_declarations::value_access::Program,
     witness: FunctionWitness,
 ) -> Result<String, accepted::Failure> {
-    let (kind, name) = match witness.origin {
-        Origin::Closure(id) => {
-            return Ok(format!(
-                "closure {} in `{}`",
-                id.slot,
-                program
-                    .symbols()
-                    .spelling(program.callables().get(id.owner).ok_or(INVALID)?.name())
-                    .ok_or(INVALID)?
-            ));
-        }
-        Origin::Declaration(id) => ("code", program.callables().get(id).ok_or(INVALID)?.name()),
-        Origin::Parameter(id) => ("input", program.parameters().get(id).ok_or(INVALID)?.name()),
-        _ => return Err(INVALID),
-    };
-    Ok(format!(
-        "{kind} `{}`",
-        program.symbols().spelling(name).ok_or(INVALID)?
-    ))
+    match witness.origin {
+        Origin::Closure(id) => Ok(format!(
+            "closure {} in `{}`",
+            id.slot,
+            program.code_label(id.owner).ok_or(INVALID)?
+        )),
+        Origin::Declaration(id) => Ok(format!("code `{}`", program.code_label(id).ok_or(INVALID)?)),
+        Origin::Parameter(id) => Ok(format!(
+            "input `{}`",
+            program
+                .symbols()
+                .spelling(program.parameters().get(id).ok_or(INVALID)?.name())
+                .ok_or(INVALID)?
+        )),
+        _ => Err(INVALID),
+    }
 }

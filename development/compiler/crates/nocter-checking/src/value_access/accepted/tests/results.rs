@@ -136,7 +136,7 @@ fn recursive_result_proofs_and_explicit_returns_share_one_named_producer() {
             .program()
             .resolve(unit.program().symbols().get("increment").unwrap())
             .unwrap();
-        for (id, declaration) in unit.program().callables().iter() {
+        for (id, declaration) in unit.program().codes().iter() {
             if declaration.result_contract().is_some() {
                 assert_eq!(
                     unit.result_witness(id).unwrap().origin,

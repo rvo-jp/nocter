@@ -3,7 +3,7 @@ use super::{
     memory::{Cell, Frame, Memory},
 };
 use crate::{ConstantScalarType, scalar};
-use nocter_model::{AccessCallableId, ConstantValue, ValueInputOperation};
+use nocter_model::{AccessCodeId, ConstantValue, ValueInputOperation};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Rule {
     InvalidPlan,
@@ -17,7 +17,7 @@ pub enum Rule {
 pub struct Error {
     pub rule: Rule,
     pub site: Option<Site>,
-    pub code: AccessCallableId,
+    pub code: AccessCodeId,
     pub trace: Box<[Site]>,
 }
 type Result<T> = std::result::Result<T, Rule>;
@@ -49,7 +49,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
     /// Reports a failed closed initializer with its exact operation and call path.
     pub fn evaluate_initializer(
         &mut self,
-        code: AccessCallableId,
+        code: AccessCodeId,
     ) -> std::result::Result<Value, Error> {
         self.site = None;
         self.failed_site = None;
@@ -69,7 +69,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
     fn tick(&mut self) -> Result<()> {
         self.budget.step()
     }
-    fn invoke(&mut self, code: AccessCallableId, inputs: &[Cell]) -> Result<Value> {
+    fn invoke(&mut self, code: AccessCodeId, inputs: &[Cell]) -> Result<Value> {
         if self
             .memory
             .frames
@@ -119,7 +119,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         self.memory.frames.pop();
         result
     }
-    fn run(&mut self, code: AccessCallableId, plan: &Plan, frame: usize) -> Result<Value> {
+    fn run(&mut self, code: AccessCodeId, plan: &Plan, frame: usize) -> Result<Value> {
         let mut point = plan.entry;
         loop {
             let block = plan.points.get(point).ok_or(Rule::InvalidPlan)?;

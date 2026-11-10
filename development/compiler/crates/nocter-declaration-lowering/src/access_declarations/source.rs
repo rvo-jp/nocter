@@ -1,7 +1,7 @@
 //! Exact source evidence shared by declaration and checking consumers, without evaluation.
-use super::{CallableSource, Context};
+use super::{CodeSource, Context};
 use nocter_declarations::value_access::{DeclarationId, HeaderPosition, Program};
-use nocter_model::{AccessCallableId, NominalTypeId};
+use nocter_model::{AccessCodeId, NominalTypeId};
 use nocter_syntax::{NodeId, SyntaxOrigin, SyntaxToken};
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -10,7 +10,7 @@ pub(super) use recipes::Recipes;
 
 #[derive(Clone, Debug)]
 pub(super) struct Sources {
-    pub callables: Arc<BTreeMap<AccessCallableId, CallableSource>>,
+    pub codes: Arc<BTreeMap<AccessCodeId, CodeSource>>,
     pub records: Arc<BTreeMap<NominalTypeId, Arc<RecordSource>>>,
 }
 
@@ -77,12 +77,12 @@ impl Evidence {
 /// This evidence grants neither a ready contract nor body acceptance.
 #[derive(Clone, Debug)]
 pub struct BodySource {
-    owner: AccessCallableId,
+    owner: AccessCodeId,
     evidence: Evidence,
 }
 impl BodySource {
     #[must_use]
-    pub const fn owner(&self) -> AccessCallableId {
+    pub const fn owner(&self) -> AccessCodeId {
         self.owner
     }
     /// Locate the same body in an exact descendant of its original declaration authority.
@@ -91,7 +91,7 @@ impl BodySource {
     pub fn bind<'context>(
         &self,
         context: &'context Context<'_>,
-    ) -> Result<&'context CallableSource, SourceMismatch> {
+    ) -> Result<&'context CodeSource, SourceMismatch> {
         self.evidence.bind(context, || body(context, self.owner))
     }
 }
@@ -126,7 +126,7 @@ impl Context<'_> {
     /// Capture a body dependency without permitting a caller-supplied owner/bytes join.
     /// # Errors
     /// Rejects an unknown body or an inconsistent current source pairing.
-    pub fn body_source(&self, owner: AccessCallableId) -> Result<BodySource, SourceMismatch> {
+    pub fn body_source(&self, owner: AccessCodeId) -> Result<BodySource, SourceMismatch> {
         let (_, bytes) = body(self, owner)?;
         Ok(BodySource {
             owner,
@@ -153,7 +153,7 @@ impl Context<'_> {
 /// A union of exact body dependencies. Conflicting evidence never replaces an existing guard.
 #[derive(Clone, Debug, Default)]
 pub struct BodySources {
-    bodies: BTreeMap<AccessCallableId, BodySource>,
+    bodies: BTreeMap<AccessCodeId, BodySource>,
 }
 impl BodySources {
     /// Retain the strongest compatible header prefix for this source owner.
@@ -184,10 +184,10 @@ impl BodySources {
 
 fn body<'context, 'source>(
     context: &'context Context<'source>,
-    owner: AccessCallableId,
-) -> Result<(&'context CallableSource, &'source [u8]), SourceMismatch> {
+    owner: AccessCodeId,
+) -> Result<(&'context CodeSource, &'source [u8]), SourceMismatch> {
     let source = context
-        .callable_source(owner)
+        .code_source(owner)
         .ok_or(SourceMismatch::UnknownSource)?;
     Ok((source, bytes(context, source.body())?))
 }
@@ -197,7 +197,7 @@ fn header<'source>(
     position: HeaderPosition,
 ) -> Result<(NodeId, &'source [u8]), SourceMismatch> {
     let Some(SyntaxOrigin::Node(node)) = header_origin(
-        &context.sources.callables,
+        &context.sources.codes,
         &context.sources.records,
         declaration,
         position,
@@ -208,14 +208,14 @@ fn header<'source>(
     Ok((node, bytes(context, node)?))
 }
 pub(super) fn header_origin(
-    sources: &BTreeMap<AccessCallableId, CallableSource>,
+    sources: &BTreeMap<AccessCodeId, CodeSource>,
     records: &BTreeMap<NominalTypeId, Arc<RecordSource>>,
     declaration: DeclarationId,
     position: HeaderPosition,
     typed: bool,
 ) -> Option<SyntaxOrigin> {
     Some(match declaration {
-        DeclarationId::Callable(id) => {
+        DeclarationId::Code(id) => {
             let s = sources.get(&id)?;
             match position {
                 HeaderPosition::Name => SyntaxOrigin::Token(s.name),

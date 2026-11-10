@@ -9,7 +9,7 @@ use nocter_constant_evaluation::{
 };
 use nocter_declarations::value_access::{PayloadSchema, Program};
 use nocter_model::{
-    AccessCallableId, AccessExpressionId, AccessPlaceId, FieldPath, TypeId, ValueAccessMode,
+    AccessCodeId, AccessExpressionId, AccessPlaceId, FieldPath, TypeId, ValueAccessMode,
     ValueInputOperation,
 };
 use std::collections::BTreeMap;
@@ -592,7 +592,7 @@ impl Builder<'_, '_> {
                 .get(self.program, self.query.typed().result_data())?,
             initializer: self
                 .program
-                .callables()
+                .codes()
                 .get(self.query.typed().source_owner())
                 .ok_or(INVALID)?
                 .kind()
@@ -654,9 +654,9 @@ fn binary(
 }
 pub(super) fn prepare(
     program: &Program,
-    bodies: &BTreeMap<AccessCallableId, flow::Query>,
-    root: AccessCallableId,
-    values: impl Fn(AccessCallableId) -> Option<plan::Value>,
+    bodies: &BTreeMap<AccessCodeId, flow::Query>,
+    root: AccessCodeId,
+    values: impl Fn(AccessCodeId) -> Option<plan::Value>,
 ) -> Result<plan::Program> {
     let mut pending = vec![root];
     let mut types = Types::default();

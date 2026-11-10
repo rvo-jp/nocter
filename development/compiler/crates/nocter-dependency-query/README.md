@@ -18,8 +18,12 @@ and pairs keys with its own domain. Cross-revision inputs, fingerprints and inva
 One `DependencyQuery` owns absent, active and completed states and the exact ordered active frames.
 `resolve` supports re-entrant computations. `resolve_steps` instead advances drafts through
 `DependencyProgress`, scheduling each returned dependency group in order with explicit frames.
-Both entries share memoization and cycle detection, including when iterative work runs inside a
-re-entrant computation. Deep iterative dependencies do not consume the host call stack.
+A step may instead request `Compute`, delegating the already-active key to `compute_current`.
+That bounded computation can recursively resolve other roles, including iterative requests,
+through the same query; it must not reopen its current key. The default callback rejects an
+unsupported computation role through `no_progress`. Both entries share memoization and cycle
+detection across these transitions. `Require` groups use no host recursion; consumers must bound
+recursive computations themselves.
 
 A draft returns a complete value or a group containing at least one unfinished key. Completed
 dependencies in a group are skipped. Empty or wholly completed groups invoke the consumer's

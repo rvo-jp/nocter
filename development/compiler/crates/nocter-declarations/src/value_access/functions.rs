@@ -1,7 +1,7 @@
 //! Named/formal witness identity and structural contracts are distinct declaration-owned facts.
 use super::{DataReference, PayloadSchema, Program};
 use nocter_model::{
-    AccessCallableId, TypeAuthority, TypeId, TypeKind, ValueFunctionOrigin, ValueInputOperation,
+    AccessCodeId, TypeAuthority, TypeId, TypeKind, ValueFunctionOrigin, ValueInputOperation,
     ValueInvocation,
 };
 
@@ -86,7 +86,7 @@ impl Program {
         let mut contract = match witness.origin {
             ValueFunctionOrigin::Closure(id) => self.closure(id)?.contract().clone(),
             ValueFunctionOrigin::Declaration(id) => {
-                let callable = self.callables.get(id)?;
+                let callable = self.codes.get(id)?;
                 if callable.kind().is_initializer() {
                     return None;
                 }
@@ -108,9 +108,9 @@ impl Program {
                 }
             }
             ValueFunctionOrigin::Parameter(id) => self.parameters.get(id)?.contract()?.clone(),
-            ValueFunctionOrigin::Result(id) => self.callables.get(id)?.result_contract()?.clone(),
+            ValueFunctionOrigin::Result(id) => self.codes.get(id)?.result_contract()?.clone(),
             ValueFunctionOrigin::Application(application) => self
-                .callables
+                .codes
                 .get(application.callee)?
                 .result_contract()?
                 .clone(),
@@ -140,7 +140,7 @@ impl Program {
                 self.closure(id)?;
             }
             ValueFunctionOrigin::Declaration(id) => {
-                if self.callables.get(id)?.kind().is_initializer() {
+                if self.codes.get(id)?.kind().is_initializer() {
                     return None;
                 }
             }
@@ -148,11 +148,11 @@ impl Program {
                 self.parameters.get(id)?.contract()?;
             }
             ValueFunctionOrigin::Result(id) => {
-                self.callables.get(id)?.result_contract()?;
+                self.codes.get(id)?.result_contract()?;
             }
             ValueFunctionOrigin::Application(application) => {
-                self.callables.get(application.owner)?;
-                self.callables.get(application.callee)?.result_contract()?;
+                self.codes.get(application.owner)?;
+                self.codes.get(application.callee)?.result_contract()?;
             }
         }
         self.types.store().identity(&TypeKind::ValueFunction {
@@ -226,7 +226,7 @@ impl Program {
 /// All named views belong to the header authority, independent of body annotations.
 pub(super) fn publish_witnesses(
     base: &TypeAuthority,
-    declarations: impl Iterator<Item = AccessCallableId>,
+    declarations: impl Iterator<Item = AccessCodeId>,
 ) -> TypeAuthority {
     let mut types = base.transaction();
     for declaration in declarations {

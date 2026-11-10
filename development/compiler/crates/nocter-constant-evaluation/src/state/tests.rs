@@ -45,7 +45,7 @@ pub(super) fn literal() -> Plan {
         points: points.finish(),
     }
 }
-pub(super) fn code_ids() -> (AccessCallableId, AccessCallableId) {
+pub(super) fn code_ids() -> (AccessCodeId, AccessCodeId) {
     let mut ids = ArenaBuilder::new();
     (ids.insert(()), ids.insert(()))
 }

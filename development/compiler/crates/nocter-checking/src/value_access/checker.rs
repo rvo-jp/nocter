@@ -9,9 +9,9 @@ use nocter_declaration_lowering::access_declarations::Context as DeclarationCont
 use nocter_declarations::value_access::{AggregateForm, PayloadSchema, Program};
 use nocter_diagnostics::{DiagnosticNote, SourceDiagnostic};
 use nocter_model::{
-    AccessBlockId, AccessCallableId, AccessExpressionId, AccessLocalId, AccessLoopId,
-    AccessPlaceId, AccessStatementId, ArenaBuilder, BuiltinType, FieldPath, TypeId,
-    ValueAccess as Ty, ValueAccessMode as Mode,
+    AccessBlockId, AccessCodeId, AccessExpressionId, AccessLocalId, AccessLoopId, AccessPlaceId,
+    AccessStatementId, ArenaBuilder, BuiltinType, FieldPath, TypeId, ValueAccess as Ty,
+    ValueAccessMode as Mode,
 };
 use nocter_syntax::{
     BodySyntaxProjection, BoundSyntax, NodeId, NodeKind, Punctuation, SyntaxOrigin, SyntaxToken,
@@ -52,16 +52,16 @@ pub(super) struct Checker<'a, 's> {
 
 pub(super) fn prepare(
     context: &DeclarationContext<'_>,
-    callable: AccessCallableId,
+    callable: AccessCodeId,
     values: &dyn super::evaluation::Values,
 ) -> Result<Query, Failure> {
     let declaration = context
         .program()
-        .callables()
+        .codes()
         .get(callable)
         .ok_or(Failure::UnknownCallable)?;
     let source = context
-        .callable_source(callable)
+        .code_source(callable)
         .ok_or(Failure::UnknownCallable)?;
     let syntax = context.syntax();
     let projection = BodySyntaxProjection::for_root(syntax.tree(), source.body())
@@ -361,32 +361,22 @@ impl<'a, 's> Checker<'a, 's> {
             PayloadSchema::Function(witness) => format!(
                 "{} witness `{}`",
                 super::annotations::invocation_label(witness.invocation),
-                self.program()
-                    .symbols()
-                    .spelling(match witness.origin {
-                        nocter_model::ValueFunctionOrigin::Closure(id) => self
-                            .program()
-                            .callables()
-                            .get(id.owner)
-                            .expect("closure owner")
-                            .name(),
-                        nocter_model::ValueFunctionOrigin::Declaration(id)
-                        | nocter_model::ValueFunctionOrigin::Result(id) =>
-                            self.program().callables().get(id).expect("witness").name(),
-                        nocter_model::ValueFunctionOrigin::Application(application) => self
-                            .program()
-                            .callables()
-                            .get(application.callee)
-                            .expect("application")
-                            .name(),
-                        nocter_model::ValueFunctionOrigin::Parameter(id) => self
-                            .program()
-                            .parameters()
-                            .get(id)
-                            .expect("formal witness")
-                            .name(),
-                    })
-                    .expect("function name")
+                match witness.origin {
+                    nocter_model::ValueFunctionOrigin::Closure(id) =>
+                        self.program().code_label(id.owner),
+                    nocter_model::ValueFunctionOrigin::Declaration(id)
+                    | nocter_model::ValueFunctionOrigin::Result(id) =>
+                        self.program().code_label(id),
+                    nocter_model::ValueFunctionOrigin::Application(application) =>
+                        self.program().code_label(application.callee),
+                    nocter_model::ValueFunctionOrigin::Parameter(id) => self
+                        .program()
+                        .parameters()
+                        .get(id)
+                        .and_then(|parameter| self.program().symbols().spelling(parameter.name()))
+                        .map(str::to_owned),
+                }
+                .expect("closed witness source")
             ),
         }
     }
@@ -420,7 +410,7 @@ impl<'a, 's> Checker<'a, 's> {
                     .owner();
                 let token = self
                     .context
-                    .callable_source(owner)
+                    .code_source(owner)
                     .and_then(|source| source.parameters().get(position))
                     .ok_or(Failure::InconsistentSyntax)?;
                 SyntaxOrigin::Token(*token)

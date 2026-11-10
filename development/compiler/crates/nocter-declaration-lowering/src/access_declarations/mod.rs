@@ -20,7 +20,7 @@ use nocter_dependency_query::{
     DependencyProgress, DependencyQuery, DependencyQueryError, DependencyStep,
 };
 use nocter_diagnostics::{SourceDiagnostic, syntax_diagnostics};
-use nocter_model::{AccessCallableId, NominalTypeId};
+use nocter_model::{AccessCodeId, NominalTypeId};
 use nocter_syntax::{
     BoundSyntax, DeclarationSyntaxSurface, NodeId, NodeKind, SyntaxToken,
     project_declaration_syntax,
@@ -54,7 +54,7 @@ pub struct Context<'source> {
 }
 
 #[derive(Clone, Debug)]
-pub struct CallableSource {
+pub struct CodeSource {
     name: SyntaxToken,
     parameters: Box<[SyntaxToken]>,
     parameter_types: Box<[NodeId]>,
@@ -62,7 +62,7 @@ pub struct CallableSource {
     body: NodeId,
 }
 
-impl CallableSource {
+impl CodeSource {
     #[must_use]
     pub const fn name(&self) -> SyntaxToken {
         self.name
@@ -86,7 +86,7 @@ impl CallableSource {
 pub struct Preparation<'source> {
     headers: HeaderPublication,
     records: BTreeMap<NominalTypeId, RecordHeader>,
-    functions: BTreeMap<AccessCallableId, definitions::Recipe>,
+    functions: BTreeMap<AccessCodeId, definitions::Recipe>,
     syntax: BoundSyntax<'source>,
     surface: DeclarationSyntaxSurface,
     source_recipes: source::Recipes,
@@ -126,7 +126,7 @@ impl<'source> Preparation<'source> {
             .map(|(&id, h)| {
                 (
                     id,
-                    CallableSource {
+                    CodeSource {
                         name: h.name,
                         parameters: h.parameters.iter().map(|p| p.name).collect(),
                         parameter_types: h.parameters.iter().map(|p| p.ty).collect(),
@@ -141,11 +141,11 @@ impl<'source> Preparation<'source> {
             .map(|(&id, header)| (id, header.source.clone()))
             .collect();
         let sources = source::Sources {
-            callables: Arc::new(sources),
+            codes: Arc::new(sources),
             records: Arc::new(record_sources),
         };
         let builder = reservations.finish().map_err(|violations| {
-            projection::project_violations(tree, &sources.callables, &sources.records, violations)
+            projection::project_violations(tree, &sources.codes, &sources.records, violations)
         })?;
         let headers = builder.into_publication();
         let source_recipes = source::Recipes::capture(&projection, &sources)?;
@@ -164,8 +164,8 @@ impl<'source> Preparation<'source> {
     }
 
     #[must_use]
-    pub fn callable_ids(&self) -> impl ExactSizeIterator<Item = AccessCallableId> + '_ {
-        self.headers.callable_ids()
+    pub fn code_ids(&self) -> impl ExactSizeIterator<Item = AccessCodeId> + '_ {
+        self.headers.code_ids()
     }
     /// All reserved contracts, including unused records, in canonical namespace order.
     #[must_use]
@@ -197,13 +197,13 @@ impl<'source> Preparation<'source> {
                 self.syntax,
                 required,
                 &self.functions,
-                &self.sources.callables,
+                &self.sources.codes,
                 &self.records,
             )?;
             if !violations.is_empty() {
                 return Err(projection::project_violations(
                     self.syntax.tree(),
-                    &self.sources.callables,
+                    &self.sources.codes,
                     &self.sources.records,
                     violations,
                 ));
@@ -238,7 +238,7 @@ impl<'source> Preparation<'source> {
     fn project_failure(&self, failure: HeaderFailure) -> Failure {
         project_failure(
             self.syntax,
-            &self.sources.callables,
+            &self.sources.codes,
             &self.sources.records,
             failure,
         )
@@ -254,7 +254,7 @@ impl<'source> Preparation<'source> {
         let program = self.headers.finish().map_err(|failure| {
             project_failure(
                 self.syntax,
-                &self.sources.callables,
+                &self.sources.codes,
                 &self.sources.records,
                 failure,
             )
@@ -285,7 +285,7 @@ impl DependencyProgress<DeclarationId, (), Failure> for Preparation<'_> {
 
 fn project_failure(
     syntax: BoundSyntax<'_>,
-    sources: &BTreeMap<AccessCallableId, CallableSource>,
+    sources: &BTreeMap<AccessCodeId, CodeSource>,
     records: &BTreeMap<NominalTypeId, Arc<RecordSource>>,
     failure: HeaderFailure,
 ) -> Failure {
@@ -342,8 +342,8 @@ impl<'source> Context<'source> {
         self.syntax
     }
     #[must_use]
-    pub fn callable_source(&self, callable: AccessCallableId) -> Option<&CallableSource> {
-        self.sources.callables.get(&callable)
+    pub fn code_source(&self, callable: AccessCodeId) -> Option<&CodeSource> {
+        self.sources.codes.get(&callable)
     }
 }
 

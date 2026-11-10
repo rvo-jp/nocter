@@ -13,7 +13,7 @@ use nocter_dependency_query::{
     DependencyComputation, DependencyProgress, DependencyQueryError, DependencyStep,
 };
 use nocter_diagnostics::SourceDiagnostic;
-use nocter_model::{AccessCallableId, CompileTimeGuarantee, ValueFunctionOrigin};
+use nocter_model::{AccessCodeId, CompileTimeGuarantee, ValueFunctionOrigin};
 use nocter_syntax::SyntaxOrigin;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -39,12 +39,7 @@ pub(in crate::value_access) fn prepare(
     context: &Context<'_>,
     limits: state::Limits,
 ) -> Result<Output, Failure> {
-    let ids: Vec<_> = context
-        .program()
-        .callables()
-        .iter()
-        .map(|(id, _)| id)
-        .collect();
+    let ids: Vec<_> = context.program().codes().iter().map(|(id, _)| id).collect();
     let mut preparation = Preparation::new(context.clone(), Headers::Closed, limits);
     let mut requests = Dependencies::default();
     preparation
@@ -60,7 +55,7 @@ pub(in crate::value_access) fn prepare_source(
     mut headers: declarations::Preparation<'_>,
     limits: state::Limits,
 ) -> Result<(declarations::Query, Output), SourceFailure> {
-    let ids: Vec<_> = headers.callable_ids().collect();
+    let ids: Vec<_> = headers.code_ids().collect();
     let contracts: Vec<_> = headers.declaration_ids().collect();
     let mut preparation =
         Preparation::new(headers.current(), Headers::Publishing(&mut headers), limits);
@@ -88,14 +83,14 @@ impl<'a, 'source> Preparation<'a, 'source> {
     fn all(
         &mut self,
         requests: &mut Dependencies,
-        ids: &[AccessCallableId],
+        ids: &[AccessCodeId],
     ) -> Result<(), SourceFailure> {
         for &id in ids {
             self.require_header(requests, id.into())?;
             if self
                 .context
                 .program()
-                .callables()
+                .codes()
                 .get(id)
                 .ok_or(INVALID)?
                 .kind()
@@ -103,7 +98,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
             {
                 self.budget.restart_work();
                 let fact = requests
-                    .resolve(self, Request::Value(id))
+                    .resolve_steps(self, Request::Value(id))
                     .map_err(|failure| match failure {
                         QueryError::Computation(failure) => failure,
                         QueryError::Cycle(_) => INVALID.into(),
@@ -166,11 +161,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
             _ => Err(INVALID.into()),
         }
     }
-    fn body(
-        &mut self,
-        requests: &mut Dependencies,
-        id: AccessCallableId,
-    ) -> Result<(), QueryError> {
+    fn body(&mut self, requests: &mut Dependencies, id: AccessCodeId) -> Result<(), QueryError> {
         let fact = requests.resolve(self, Request::Body(id))?;
         if matches!(&*fact, Fact::Body(_)) {
             Ok(())
@@ -181,7 +172,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
     fn check_body(
         &mut self,
         requests: &mut Dependencies,
-        id: AccessCallableId,
+        id: AccessCodeId,
     ) -> Result<Query, SourceFailure> {
         self.require_header(requests, id.into())?;
         loop {
@@ -190,7 +181,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
                     self.require_statics(requests, &query)?;
                     if query
                         .program()
-                        .callables()
+                        .codes()
                         .get(id)
                         .ok_or(INVALID)?
                         .compile_time()
@@ -220,8 +211,8 @@ impl<'a, 'source> Preparation<'a, 'source> {
     fn require_value(
         &mut self,
         requests: &mut Dependencies,
-        owner: AccessCallableId,
-        initializer: AccessCallableId,
+        owner: AccessCodeId,
+        initializer: AccessCodeId,
         origin: SyntaxOrigin,
     ) -> Result<(), SourceFailure> {
         if dependencies::value(requests, initializer).is_some() {
@@ -260,7 +251,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
         fn collect(
             query: &Query,
             context: &Context<'_>,
-            pending: &mut Vec<(AccessCallableId, SyntaxOrigin)>,
+            pending: &mut Vec<(AccessCodeId, SyntaxOrigin)>,
         ) -> Result<(), Failure> {
             let source = query.bind(context).map_err(|failure| Failure::Body {
                 callable: query.source_owner(),
@@ -283,9 +274,9 @@ impl<'a, 'source> Preparation<'a, 'source> {
     }
     fn cycle(&self, path: &[Request], origin: SyntaxOrigin) -> Result<Failure, Failure> {
         let code = |request| match request {
-            Request::Body(id)
-            | Request::Value(id)
-            | Request::Header(DeclarationId::Callable(id)) => Ok(id),
+            Request::Body(id) | Request::Value(id) | Request::Header(DeclarationId::Code(id)) => {
+                Ok(id)
+            }
             Request::Header(DeclarationId::Record(_)) => Err(INVALID),
         };
         let root = code(*path.first().ok_or(INVALID)?)?;
@@ -293,13 +284,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
             .iter()
             .map(|&request| {
                 let id = code(request)?;
-                let name = self
-                    .context
-                    .program()
-                    .callables()
-                    .get(id)
-                    .and_then(|d| self.context.program().symbols().spelling(d.name()))
-                    .ok_or(INVALID)?;
+                let name = self.context.program().code_label(id).ok_or(INVALID)?;
                 let role = match request {
                     Request::Header(_) => "header",
                     Request::Body(_) => "body",
@@ -339,8 +324,8 @@ impl<'a, 'source> Preparation<'a, 'source> {
     fn graph(
         &mut self,
         requests: &mut Dependencies,
-        root: AccessCallableId,
-    ) -> Result<BTreeMap<AccessCallableId, Query>, QueryError> {
+        root: AccessCodeId,
+    ) -> Result<BTreeMap<AccessCodeId, Query>, QueryError> {
         let mut selected = BTreeSet::new();
         let mut pending = vec![(root, Vec::new())];
         while let Some((id, through)) = pending.pop() {
@@ -410,14 +395,14 @@ impl<'a, 'source> Preparation<'a, 'source> {
     fn initialize(
         &mut self,
         requests: &mut Dependencies,
-        id: AccessCallableId,
+        id: AccessCodeId,
     ) -> Result<Completed, QueryError> {
         self.require_header(requests, id.into())
             .map_err(QueryError::Computation)?;
         let declaration = self
             .context
             .program()
-            .callables()
+            .codes()
             .get(id)
             .ok_or(QueryError::Computation(INVALID.into()))?;
         if !declaration.kind().is_initializer() {
@@ -431,9 +416,9 @@ impl<'a, 'source> Preparation<'a, 'source> {
     fn execute(
         &mut self,
         requests: &Dependencies,
-        id: AccessCallableId,
+        id: AccessCodeId,
         result_data: nocter_model::TypeId,
-        queries: BTreeMap<AccessCallableId, Query>,
+        queries: BTreeMap<AccessCodeId, Query>,
     ) -> Result<Completed, Failure> {
         // This is the ordinary acceptance routine over the selected const closure, not another
         // source checker or evaluator. Only established frozen data crosses into final Unit typing.
@@ -508,7 +493,7 @@ impl DependencyComputation<Request, Fact, SourceFailure> for Preparation<'_, '_>
                 {
                     let source = self
                         .context
-                        .callable_source(id)
+                        .code_source(id)
                         .ok_or(QueryError::Computation(INVALID.into()))?;
                     return Err(QueryError::Computation(
                         super::failure_at(
@@ -532,7 +517,7 @@ impl DependencyProgress<Request, Fact, SourceFailure> for Preparation<'_, '_> {
         request: Request,
     ) -> Result<DependencyStep<Request, Fact>, SourceFailure> {
         let Request::Header(declaration) = request else {
-            return Err(INVALID.into());
+            return Ok(DependencyStep::Compute);
         };
         if self.context.program().header_ready(declaration) {
             return Ok(DependencyStep::Complete(Fact::Header));
@@ -553,6 +538,13 @@ impl DependencyProgress<Request, Fact, SourceFailure> for Preparation<'_, '_> {
                     .collect(),
             )),
         }
+    }
+    fn compute_current(
+        &mut self,
+        requests: &mut Dependencies,
+        request: Request,
+    ) -> Result<Fact, QueryError> {
+        DependencyComputation::compute(self, requests, request)
     }
     fn no_progress(&mut self, _: Request) -> SourceFailure {
         INVALID.into()

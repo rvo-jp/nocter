@@ -52,7 +52,7 @@ fn nested(reverse: bool) -> super::super::Program {
     builder
         .define(
             function,
-            crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            crate::value_access::CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [ParameterDefinition {
                 name: symbols.get("input").unwrap(),
                 data: BuiltinType::Error.into(),
@@ -70,7 +70,7 @@ fn records_share_the_program_authority_and_preserve_canonical_ids() {
     let b = nested(true);
     assert_eq!(a.records(), b.records());
     assert_eq!(a.fields(), b.fields());
-    assert_eq!(a.callables(), b.callables());
+    assert_eq!(a.codes(), b.codes());
     assert_eq!(a.parameters(), b.parameters());
     let outer = a.resolve_record(a.symbols().get("Outer").unwrap()).unwrap();
     let record = a.records().get(outer).unwrap();
@@ -513,7 +513,7 @@ fn callable_parameters_cannot_shadow_authored_record_names() {
     builder
         .define(
             f,
-            crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            crate::value_access::CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [ParameterDefinition {
                 name: symbols.get("A").unwrap(),
                 data: BuiltinType::I32.into(),
@@ -525,7 +525,7 @@ fn callable_parameters_cannot_shadow_authored_record_names() {
     assert_eq!(
         builder.finish().unwrap_err(),
         [DeclarationViolation {
-            declaration: DeclarationId::Callable(f),
+            declaration: DeclarationId::Code(f),
             position: HeaderPosition::Parameter(0),
             rule: DeclarationRule::ParameterShadowsRecord { declaration: a },
         }]

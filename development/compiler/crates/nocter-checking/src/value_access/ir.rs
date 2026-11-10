@@ -1,5 +1,5 @@
 use nocter_model::{
-    AccessBlockId, AccessCallableId, AccessExpressionId, AccessLocalId, AccessLoopId,
+    AccessBlockId, AccessCodeId, AccessExpressionId, AccessLocalId, AccessLoopId,
     AccessParameterId, AccessPlaceId, AccessStatementId, Arena, FieldPath, TypeId, ValueAccess,
     ValueAccessMode, ValueBindingKind, ValueField, ValueInputOperation,
 };
@@ -207,7 +207,7 @@ pub enum CallKind {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExpressionKind {
     /// Named function value with its declaration-owned witness.
-    Function(AccessCallableId),
+    Function(AccessCodeId),
     Closure {
         closure: nocter_model::ValueClosure,
         capture: AccessExpressionId,

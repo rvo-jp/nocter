@@ -30,7 +30,7 @@ impl Checker<'_, '_> {
         data: nocter_model::TypeId,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
-        // Callable contracts select invocation adapters later; their formal witness is not a
+        // Code contracts select invocation adapters later; their formal witness is not a
         // concrete expected value identity. Ordinary data can constrain literal construction.
         let hint = (!matches!(
             self.program().data_schema(data),

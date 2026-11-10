@@ -189,5 +189,6 @@ before contract readiness and does not resolve its type names. Non-type position
 and foreign authorities reject. Record-owned source is never relabeled as a callable body.
 
 This establishes exact source roots, not executable length code or evaluated array types.
-Header-expression code identity and value-dependent header reuse remain part of the
+Pairing the declaration owner's anonymous code contracts with executable source roots and
+value-dependent header reuse remain part of the
 [structural request work](../../../design/compiler-realization.md#structural-type-request-closure).

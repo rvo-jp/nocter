@@ -18,7 +18,7 @@ fn rejected(text: &str, check: impl FnOnce(&Diagnostic)) {
     assert_eq!(
         context
             .program()
-            .callables()
+            .codes()
             .get(callable)
             .unwrap()
             .compile_time(),

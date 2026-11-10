@@ -93,7 +93,7 @@ fn tuple_constants_and_statics_share_evaluation_without_granting_nominal_copy() 
         .unwrap();
     assert_eq!(
         unit.program()
-            .data_copyable(unit.program().callables().get(data).unwrap().result()),
+            .data_copyable(unit.program().codes().get(data).unwrap().result()),
         Some(false)
     );
 }

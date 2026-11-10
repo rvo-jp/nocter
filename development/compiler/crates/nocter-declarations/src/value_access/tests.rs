@@ -10,7 +10,7 @@ fn wrong_slot_counts_leave_both_definition_kinds_retryable_without_resizing() {
     let mut builder = reservations.finish().unwrap();
     let fields = builder.field_ids(record).unwrap().to_vec();
     let inputs = builder.parameter_ids(run).unwrap().to_vec();
-    let kind = CallableKind::Function(CompileTimeGuarantee::RuntimeOnly);
+    let kind = CodeKind::Function(CompileTimeGuarantee::RuntimeOnly);
     let parameter = ParameterDefinition {
         name: symbols.get("value").unwrap(),
         data: BuiltinType::I32.into(),
@@ -57,7 +57,7 @@ fn wrong_slot_counts_leave_both_definition_kinds_retryable_without_resizing() {
         Err(DefinitionError::AlreadyDefined)
     );
     let program = builder.finish().unwrap();
-    assert_eq!(program.callables().get(run).unwrap().parameters(), inputs);
+    assert_eq!(program.codes().get(run).unwrap().parameters(), inputs);
     assert_eq!(program.records().get(record).unwrap().fields(), fields);
     assert_eq!(
         program.data_kind(program.parameters().get(inputs[0]).unwrap().data()),
@@ -79,7 +79,7 @@ fn untyped_slot_reservations_do_not_publish_incomplete_declarations() {
     assert_eq!(builder.field_ids(record).unwrap().len(), 3);
     assert_eq!(builder.parameter_ids(run).unwrap().len(), 2);
     let mut headers = builder.into_publication();
-    for id in [DeclarationId::Callable(run), DeclarationId::Record(record)] {
+    for id in [DeclarationId::Code(run), DeclarationId::Record(record)] {
         assert_eq!(headers.is_defined(id), Some(false));
         assert_eq!(
             headers.publish(id),
@@ -110,7 +110,7 @@ fn publication_keeps_reserved_slots_and_formal_witnesses_after_reversed_definiti
     let fields = builder.field_ids(record).unwrap().to_vec();
     let inputs = builder.parameter_ids(alpha).unwrap().to_vec();
     let beta_input = builder.parameter_ids(beta).unwrap()[0];
-    let kind = CallableKind::Function(CompileTimeGuarantee::RuntimeOnly);
+    let kind = CodeKind::Function(CompileTimeGuarantee::RuntimeOnly);
     // Definitions deliberately run in the reverse callable order. Formal witness keys must use
     // the earlier input reservations rather than an allocation position in this traversal.
     builder
@@ -165,9 +165,9 @@ fn publication_keeps_reserved_slots_and_formal_witnesses_after_reversed_definiti
         )
         .unwrap();
     let program = builder.finish().unwrap();
-    assert_eq!(program.callables().get(alpha).unwrap().parameters(), inputs);
+    assert_eq!(program.codes().get(alpha).unwrap().parameters(), inputs);
     assert_eq!(
-        program.callables().get(beta).unwrap().parameters(),
+        program.codes().get(beta).unwrap().parameters(),
         &[beta_input]
     );
     assert_eq!(program.records().get(record).unwrap().fields(), fields);
@@ -219,7 +219,7 @@ fn one_closed_namespace_preserves_declaration_roles_before_and_after_type_public
     builder
         .define(
             run,
-            CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [],
             DataReference::Record(item),
         )
@@ -232,7 +232,7 @@ fn one_closed_namespace_preserves_declaration_roles_before_and_after_type_public
     assert_eq!(program.type_named("run"), None);
     assert_eq!(
         program.type_named("Item"),
-        Some(program.callables().get(run).unwrap().result())
+        Some(program.codes().get(run).unwrap().result())
     );
 }
 
@@ -249,17 +249,17 @@ fn invalid_callable_names_fail_before_requesting_any_definition_or_type() {
         reservations.finish().unwrap_err(),
         [
             DeclarationViolation {
-                declaration: DeclarationId::Callable(duplicate),
+                declaration: DeclarationId::Code(duplicate),
                 position: HeaderPosition::Name,
                 rule: DeclarationRule::DuplicateCallable { first },
             },
             DeclarationViolation {
-                declaration: DeclarationId::Callable(builtin),
+                declaration: DeclarationId::Code(builtin),
                 position: HeaderPosition::Name,
                 rule: DeclarationRule::ReservedBuiltinName,
             },
             DeclarationViolation {
-                declaration: DeclarationId::Callable(unknown),
+                declaration: DeclarationId::Code(unknown),
                 position: HeaderPosition::Name,
                 rule: DeclarationRule::UnknownSymbol,
             },
@@ -280,7 +280,7 @@ fn repeated_parameters_retain_the_first_input_even_when_it_shadows_a_declaration
     builder
         .define(
             run,
-            CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [item_name, item_name, run_name, run_name].map(|name| ParameterDefinition {
                 name,
                 data: BuiltinType::I32.into(),
@@ -328,7 +328,7 @@ fn build(reverse: bool) -> Program {
         builder
             .define(
                 id,
-                crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
+                crate::value_access::CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
                 [ParameterDefinition {
                     name: symbols.get("input").unwrap(),
                     data: BuiltinType::Error.into(),
@@ -344,10 +344,10 @@ fn build(reverse: bool) -> Program {
 fn definition_order_preserves_operation_and_data_identities() {
     let a = build(false);
     let b = build(true);
-    assert_eq!(a.callables, b.callables);
+    assert_eq!(a.codes, b.codes);
     assert_eq!(a.parameters, b.parameters);
     assert_eq!(a.namespace, b.namespace);
-    for (id, callable) in a.callables.iter() {
+    for (id, callable) in a.codes.iter() {
         assert_eq!(a.data_kind(callable.result()), Some(BuiltinType::Error));
         let parameter = a.parameters.get(callable.parameters()[0]).unwrap();
         assert_eq!(parameter.owner(), id);
@@ -370,7 +370,7 @@ fn each_input_operation_is_independent_of_result_data_and_copy_evidence() {
         builder
             .define(
                 id,
-                crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
+                crate::value_access::CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
                 [
                     ParameterDefinition {
                         name: symbols.get("read").unwrap(),
@@ -392,7 +392,7 @@ fn each_input_operation_is_independent_of_result_data_and_copy_evidence() {
             )
             .unwrap();
         let program = builder.finish().unwrap();
-        let callable = program.callables().get(id).unwrap();
+        let callable = program.codes().get(id).unwrap();
         assert_eq!(program.data_kind(callable.result()), Some(data));
         assert_eq!(
             program.data_copyable(callable.result()),
@@ -422,7 +422,7 @@ fn incomplete_or_double_definition_never_publishes_a_program() {
     builder
         .define(
             id,
-            crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            crate::value_access::CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [],
             BuiltinType::Void,
         )
@@ -430,7 +430,7 @@ fn incomplete_or_double_definition_never_publishes_a_program() {
     assert!(matches!(
         builder.define(
             id,
-            crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            crate::value_access::CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [],
             BuiltinType::I32
         ),
@@ -438,7 +438,7 @@ fn incomplete_or_double_definition_never_publishes_a_program() {
     ));
     let program = builder.finish().unwrap();
     assert_eq!(
-        program.data_kind(program.callables().get(id).unwrap().result()),
+        program.data_kind(program.codes().get(id).unwrap().result()),
         Some(BuiltinType::Void)
     );
     let mut reservations = Reservations::new(symbols.clone());
@@ -466,7 +466,7 @@ fn duplicate_names_and_unsupported_data_do_not_cross_freeze() {
     builder
         .define(
             f,
-            crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            crate::value_access::CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [parameter.clone(), parameter],
             BuiltinType::F64,
         )
@@ -586,7 +586,7 @@ fn callable_result_headers_publish_signatures_without_inventing_producers_or_cop
     builder
         .define(
             id,
-            crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            crate::value_access::CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
             [],
             ValueDefinition::Function(FunctionDefinition {
                 invocation: ValueInvocation::Read,
@@ -596,7 +596,7 @@ fn callable_result_headers_publish_signatures_without_inventing_producers_or_cop
         )
         .unwrap();
     let program = builder.finish().unwrap();
-    let callable = program.callables().get(id).unwrap();
+    let callable = program.codes().get(id).unwrap();
     let Some(PayloadSchema::Function(witness)) = program.data_schema(callable.result()) else {
         panic!("result schema");
     };
@@ -623,4 +623,176 @@ fn callable_result_headers_publish_signatures_without_inventing_producers_or_cop
                 .is_some()
         );
     }
+}
+
+#[test]
+fn anonymous_type_expression_code_has_no_name_or_function_witness() {
+    let symbols = SymbolTable::from_spellings(["Buffer", "open", "value"]);
+    let mut reservations = Reservations::new(symbols.clone());
+    let record = reservations.reserve_record(symbols.get("Buffer").unwrap(), 1);
+    let function = reservations.reserve(symbols.get("open").unwrap(), 1);
+    let sites = [
+        TypeExpressionSource {
+            declaration: record.into(),
+            position: HeaderPosition::Field(0),
+        },
+        TypeExpressionSource {
+            declaration: function.into(),
+            position: HeaderPosition::Parameter(0),
+        },
+        TypeExpressionSource {
+            declaration: function.into(),
+            position: HeaderPosition::Result,
+        },
+    ];
+    let expressions = sites.map(|site| reservations.reserve_type_expression(site).unwrap());
+    let mut builder = reservations.finish().unwrap();
+    for &expression in &expressions {
+        assert_eq!(
+            builder.define(
+                expression,
+                CodeKind::ConstantInitializer,
+                [],
+                BuiltinType::I32
+            ),
+            Err(DefinitionError::AlreadyDefined)
+        );
+    }
+    builder
+        .define_record(
+            record,
+            false,
+            [FieldDefinition {
+                name: symbols.get("value").unwrap(),
+                data: BuiltinType::I32.into(),
+            }],
+        )
+        .unwrap();
+    builder
+        .define(
+            function,
+            CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            [ParameterDefinition {
+                name: symbols.get("value").unwrap(),
+                data: BuiltinType::I32.into(),
+                operation: ValueInputOperation::Read,
+            }],
+            BuiltinType::Void,
+        )
+        .unwrap();
+    let mut headers = builder.into_publication();
+    assert_eq!(headers.declaration_ids().count(), 2);
+    assert_eq!(headers.code_ids().count(), 4);
+    headers.publish(expressions[0]).unwrap();
+    let early = headers.snapshot();
+    assert!(!early.header_ready(record));
+    assert!(!early.headers_complete());
+    assert_eq!(
+        early.code_label(expressions[0]).as_deref(),
+        Some("type expression in Buffer")
+    );
+    let program = headers.finish().unwrap();
+    assert!(program.headers_complete());
+    assert!(program.preserves_headers(&early));
+    assert_eq!(
+        program.resolve_code(symbols.get("open").unwrap()),
+        Some(function)
+    );
+    assert_eq!(program.resolve_code(symbols.get("Buffer").unwrap()), None);
+    for (expression, site) in expressions.into_iter().zip(sites) {
+        let code = program.codes().get(expression).unwrap();
+        assert_eq!(code.name(), None);
+        assert_eq!(code.kind(), CodeKind::TypeExpression(site));
+        assert!(code.kind().is_initializer());
+        assert_eq!(code.compile_time(), CompileTimeGuarantee::Evaluatable);
+        assert!(code.parameters().is_empty());
+        assert_eq!(program.data_kind(code.result()), Some(BuiltinType::Usize));
+        let witness = FunctionWitness {
+            origin: nocter_model::ValueFunctionOrigin::Declaration(expression),
+            invocation: ValueInvocation::Read,
+        };
+        assert_eq!(program.function_contract(witness), None);
+        assert_eq!(program.function_data(witness), None);
+    }
+}
+
+#[test]
+fn invalid_type_expression_sites_do_not_consume_code_slots() {
+    let symbols = SymbolTable::from_spellings(["Record", "run", "after"]);
+    let mut reservations = Reservations::new(symbols.clone());
+    let record = reservations.reserve_record(symbols.get("Record").unwrap(), 1);
+    let function = reservations.reserve(symbols.get("run").unwrap(), 1);
+    let mut outside_codes = ArenaBuilder::<AccessCodeId, ()>::new();
+    outside_codes.insert(());
+    let unknown_code = outside_codes.insert(());
+    let mut outside_records = ArenaBuilder::<NominalTypeId, ()>::new();
+    outside_records.insert(());
+    let unknown_record = outside_records.insert(());
+    for (declaration, position) in [
+        (unknown_code.into(), HeaderPosition::Result),
+        (unknown_record.into(), HeaderPosition::Field(0)),
+        (record.into(), HeaderPosition::Name),
+        (record.into(), HeaderPosition::Field(1)),
+        (record.into(), HeaderPosition::Result),
+        (record.into(), HeaderPosition::Parameter(0)),
+        (function.into(), HeaderPosition::Name),
+        (function.into(), HeaderPosition::Field(0)),
+        (function.into(), HeaderPosition::Parameter(1)),
+    ] {
+        assert_eq!(
+            reservations.reserve_type_expression(TypeExpressionSource {
+                declaration,
+                position
+            }),
+            Err(DefinitionError::UnknownId)
+        );
+    }
+    let after = reservations.reserve(symbols.get("after").unwrap(), 0);
+    // Failed reservations cannot leave anonymous slots in the eventual complete-code domain.
+    let expression = reservations
+        .reserve_type_expression(TypeExpressionSource {
+            declaration: function.into(),
+            position: HeaderPosition::Result,
+        })
+        .unwrap();
+    assert_eq!(
+        reservations.reserve_type_expression(TypeExpressionSource {
+            declaration: expression.into(),
+            position: HeaderPosition::Result
+        }),
+        Err(DefinitionError::UnknownId)
+    );
+    let headers = reservations.finish().unwrap().into_publication();
+    assert_eq!(
+        headers.code_ids().collect::<Vec<_>>(),
+        [function, after, expression]
+    );
+}
+
+#[test]
+fn named_code_cannot_masquerade_as_an_anonymous_type_expression() {
+    let symbols = SymbolTable::from_spellings(["run"]);
+    let mut reservations = Reservations::new(symbols.clone());
+    let function = reservations.reserve(symbols.get("run").unwrap(), 0);
+    let mut builder = reservations.finish().unwrap();
+    builder
+        .define(
+            function,
+            CodeKind::TypeExpression(TypeExpressionSource {
+                declaration: function.into(),
+                position: HeaderPosition::Result,
+            }),
+            [],
+            BuiltinType::Usize,
+        )
+        .unwrap();
+    let failure = builder.finish().unwrap_err();
+    assert_eq!(
+        failure,
+        [DeclarationViolation {
+            declaration: function.into(),
+            position: HeaderPosition::Result,
+            rule: DeclarationRule::InvalidInitializerHeader
+        }]
+    );
 }

@@ -1,6 +1,6 @@
 //! Bind syntax header references through the declaration-owned construction namespace.
 use super::{
-    CallableSource, DataTypeSyntax, Failure, ValueTypeSyntax,
+    CodeSource, DataTypeSyntax, Failure, ValueTypeSyntax,
     headers::{Header, RecordHeader},
     text,
 };
@@ -8,14 +8,14 @@ use nocter_declarations::value_access::{
     DataReference, DeclarationId, DeclarationViolation, FieldDefinition, FunctionDefinition,
     HeaderPosition, HeaderPublication, ParameterDefinition, TupleData, ValueDefinition,
 };
-use nocter_model::{AccessCallableId, NominalTypeId, Symbol, ValueInputOperation};
+use nocter_model::{AccessCodeId, NominalTypeId, Symbol, ValueInputOperation};
 use nocter_syntax::{BoundSyntax, SyntaxToken};
 use std::collections::BTreeMap;
 
 /// Raw type/operation recipe only; names and source positions remain in the source catalog.
 #[derive(Debug)]
 pub(super) struct Recipe {
-    kind: nocter_declarations::value_access::CallableKind,
+    kind: nocter_declarations::value_access::CodeKind,
     parameters: Box<[(ValueInputOperation, ValueTypeSyntax)]>,
     result: ValueTypeSyntax,
 }
@@ -36,15 +36,15 @@ impl From<Header> for Recipe {
 struct Definitions<'a, 's> {
     publication: &'a mut HeaderPublication,
     syntax: BoundSyntax<'s>,
-    sources: &'a BTreeMap<AccessCallableId, CallableSource>,
+    sources: &'a BTreeMap<AccessCodeId, CodeSource>,
     violations: Vec<DeclarationViolation>,
 }
 pub(super) fn define(
     publication: &mut HeaderPublication,
     syntax: BoundSyntax<'_>,
     id: DeclarationId,
-    functions: &BTreeMap<AccessCallableId, Recipe>,
-    sources: &BTreeMap<AccessCallableId, CallableSource>,
+    functions: &BTreeMap<AccessCodeId, Recipe>,
+    sources: &BTreeMap<AccessCodeId, CodeSource>,
     records: &BTreeMap<NominalTypeId, RecordHeader>,
 ) -> Result<Vec<DeclarationViolation>, Failure> {
     let mut definitions = Definitions {
@@ -57,7 +57,7 @@ pub(super) fn define(
         DeclarationId::Record(id) => {
             definitions.record(id, records.get(&id).ok_or(Failure::InconsistentSyntax)?)?;
         }
-        DeclarationId::Callable(id) => {
+        DeclarationId::Code(id) => {
             definitions.function(id, functions.get(&id).ok_or(Failure::InconsistentSyntax)?)?;
         }
     }
@@ -173,11 +173,11 @@ impl Definitions<'_, '_> {
             }
         })
     }
-    fn function(&mut self, id: AccessCallableId, header: &Recipe) -> Result<(), Failure> {
+    fn function(&mut self, id: AccessCodeId, header: &Recipe) -> Result<(), Failure> {
         let mut parameters = Vec::new();
         let mut complete = true;
         for (index, (operation, parameter)) in header.parameters.iter().enumerate() {
-            let owner = DeclarationId::Callable(id);
+            let owner = DeclarationId::Code(id);
             let position = HeaderPosition::Parameter(index);
             let data = self.value(parameter, owner, position)?;
             if let Some(data) = data {
@@ -199,7 +199,7 @@ impl Definitions<'_, '_> {
 
         if let Some(data) = self.value(
             &header.result,
-            DeclarationId::Callable(id),
+            DeclarationId::Code(id),
             HeaderPosition::Result,
         )? && complete
         {

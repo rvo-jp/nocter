@@ -13,11 +13,12 @@ fn function<'a>(all: &'a [Query], name: &str) -> &'a Query {
         .find(|q| {
             let t = q.typed();
             t.program()
-                .callables()
+                .codes()
                 .get(t.source_owner())
                 .unwrap()
                 .name()
-                == t.program().symbols().get(name).unwrap()
+                .and_then(|symbol| t.program().symbols().spelling(symbol))
+                == Some(name)
         })
         .unwrap()
 }

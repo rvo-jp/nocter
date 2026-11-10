@@ -96,7 +96,7 @@ impl Checker<'_, '_> {
                 if let nocter_model::ValueCode::Declaration(code) = self.code
                     && self
                         .program()
-                        .callables()
+                        .codes()
                         .get(code)
                         .is_some_and(|c| c.kind().is_initializer())
                 {

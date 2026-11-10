@@ -150,10 +150,10 @@ impl<I: SemanticId, T> SparseArenaBuilder<I, T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{AccessCallableId, ArenaBuilder};
+    use crate::{AccessCodeId, ArenaBuilder};
     #[test]
     fn sparse_views_keep_holes_and_exact_ancestry_without_replacing_values() {
-        let mut names = ArenaBuilder::<AccessCallableId, ()>::new();
+        let mut names = ArenaBuilder::<AccessCodeId, ()>::new();
         let ids: Vec<_> = (0..130).map(|_| names.insert(())).collect();
         let mut writer = SparseArenaBuilder::new(ids.len());
         let empty = writer.snapshot();
@@ -180,7 +180,7 @@ mod tests {
         assert!(second.preserves(&first) && first.preserves(&empty));
         assert!(!first.preserves(&second));
         assert!(!second.is_complete());
-        let other = SparseArenaBuilder::<AccessCallableId, usize>::new(ids.len()).finish();
+        let other = SparseArenaBuilder::<AccessCodeId, usize>::new(ids.len()).finish();
         assert!(!other.preserves(&empty));
     }
 }

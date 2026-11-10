@@ -1,9 +1,9 @@
-use super::{CallableSource, Failure, source::RecordSource};
+use super::{CodeSource, Failure, source::RecordSource};
 use nocter_declarations::value_access::{
     DeclarationId, DeclarationRule, DeclarationViolation, HeaderPosition,
 };
 use nocter_diagnostics::{DiagnosticCode, DiagnosticNote, SourceDiagnostic};
-use nocter_model::{AccessCallableId, NominalTypeId};
+use nocter_model::{AccessCodeId, NominalTypeId};
 use nocter_source_index::SourceOrigin;
 use nocter_syntax::{SyntaxOrigin, SyntaxToken, SyntaxTree};
 use std::{collections::BTreeMap, sync::Arc};
@@ -25,7 +25,7 @@ impl HeaderDiagnostic {
 }
 pub(super) fn project_violations(
     tree: &SyntaxTree,
-    sources: &BTreeMap<AccessCallableId, CallableSource>,
+    sources: &BTreeMap<AccessCodeId, CodeSource>,
     records: &BTreeMap<NominalTypeId, Arc<RecordSource>>,
     violations: Vec<DeclarationViolation>,
 ) -> Failure {
@@ -41,7 +41,7 @@ pub(super) fn project_violations(
 }
 fn project(
     tree: &SyntaxTree,
-    sources: &BTreeMap<AccessCallableId, CallableSource>,
+    sources: &BTreeMap<AccessCodeId, CodeSource>,
     records: &BTreeMap<NominalTypeId, Arc<RecordSource>>,
     violation: DeclarationViolation,
 ) -> Option<HeaderDiagnostic> {
@@ -82,7 +82,7 @@ fn project(
     })
 }
 fn details(
-    sources: &BTreeMap<AccessCallableId, CallableSource>,
+    sources: &BTreeMap<AccessCodeId, CodeSource>,
     records: &BTreeMap<NominalTypeId, Arc<RecordSource>>,
     violation: DeclarationViolation,
 ) -> Option<(DiagnosticCode, &'static str, Option<SyntaxToken>)> {
@@ -109,7 +109,7 @@ fn details(
             Some(sources.get(&declaration)?.name),
         ),
         R::DuplicateParameter { first } => {
-            let DeclarationId::Callable(id) = violation.declaration else {
+            let DeclarationId::Code(id) = violation.declaration else {
                 return None;
             };
             (

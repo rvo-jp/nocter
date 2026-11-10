@@ -4,14 +4,14 @@ use super::{CallKind, ExpressionKind, Failure, Statement, flow, source_origin};
 use nocter_declarations::value_access::{PayloadSchema, Program};
 use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic};
 use nocter_model::{
-    AccessCallableId, AccessExpressionId, AccessStatementId, CompileTimeGuarantee, TypeId,
+    AccessCodeId, AccessExpressionId, AccessStatementId, CompileTimeGuarantee, TypeId,
     ValueFunctionOrigin,
 };
 use std::collections::BTreeMap;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Rule {
-    RuntimeCall(AccessCallableId),
+    RuntimeCall(AccessCodeId),
     FunctionValue,
     ValueInvocation,
     UnsupportedData(TypeId),
@@ -109,7 +109,7 @@ fn operation_rule(
     Ok(match kind {
         ExpressionKind::Call { kind, target, .. } => match (kind, target) {
             (CallKind::Direct, ValueFunctionOrigin::Declaration(target)) => {
-                let callable = program.callables().get(*target).ok_or(INVALID)?;
+                let callable = program.codes().get(*target).ok_or(INVALID)?;
                 (callable.compile_time() != CompileTimeGuarantee::Evaluatable)
                     .then_some(Rule::RuntimeCall(*target))
             }
@@ -229,7 +229,7 @@ impl Violation {
         let message = match self.rule {
             Rule::RuntimeCall(target) => {
                 let program = typed.query().program();
-                let name = program.callables().get(target).and_then(|c| program.symbols().spelling(c.name()))
+                let name = program.code_label(target)
                     .ok_or(Failure::InconsistentSyntax)?;
                 format!("const body calls runtime-only function `{name}`")
             }

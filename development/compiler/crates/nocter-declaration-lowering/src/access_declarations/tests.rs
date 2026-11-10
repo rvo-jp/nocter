@@ -21,7 +21,7 @@ fn input_modes_and_value_result_come_only_from_the_header() {
     );
     let query = Query::prepare(bound(&sources, &tree)).unwrap();
     let program = query.program();
-    let (_, callable) = program.callables().iter().next().unwrap();
+    let (_, callable) = program.codes().iter().next().unwrap();
     assert_eq!(
         program.data_kind(callable.result()),
         Some(BuiltinType::Error)
@@ -78,7 +78,7 @@ fn canonical_reservation_is_independent_of_source_order() {
     );
     let qa = Query::prepare(bound(&a, &ta)).unwrap();
     let qb = Query::prepare(bound(&b, &tb)).unwrap();
-    assert_eq!(qa.program().callables(), qb.program().callables());
+    assert_eq!(qa.program().codes(), qb.program().codes());
     assert_eq!(qa.program().parameters(), qb.program().parameters());
 }
 
@@ -97,7 +97,7 @@ fn field_and_formal_input_reservations_are_independent_of_source_definition_orde
     let (sources_b, tree_b) = input(&second, ParseGoal::V2CoreUnit);
     let a = Query::prepare(bound(&sources_a, &tree_a)).unwrap();
     let b = Query::prepare(bound(&sources_b, &tree_b)).unwrap();
-    assert_eq!(a.program().callables(), b.program().callables());
+    assert_eq!(a.program().codes(), b.program().codes());
     assert_eq!(a.program().parameters(), b.program().parameters());
     assert_eq!(a.program().records(), b.program().records());
     assert_eq!(a.program().fields(), b.program().fields());
@@ -105,7 +105,7 @@ fn field_and_formal_input_reservations_are_independent_of_source_definition_orde
     let apply = program
         .resolve(program.symbols().get("apply").unwrap())
         .unwrap();
-    let parameter_id = program.callables().get(apply).unwrap().parameters()[0];
+    let parameter_id = program.codes().get(apply).unwrap().parameters()[0];
     let parameter = program.parameters().get(parameter_id).unwrap();
     assert_eq!(
         program.data_schema(parameter.data()),
@@ -269,7 +269,7 @@ fn const_capability_is_header_authority_and_not_body_inference() {
             .resolve(query.program().symbols().get(name).unwrap())
             .unwrap();
         assert_eq!(
-            query.program().callables().get(id).unwrap().compile_time(),
+            query.program().codes().get(id).unwrap().compile_time(),
             expected
         );
     }

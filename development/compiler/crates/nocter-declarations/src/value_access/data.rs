@@ -211,7 +211,7 @@ pub(super) fn data_reference(
     }
     match namespace.get(&symbols.get(spelling)?)? {
         DeclarationId::Record(id) => Some(DataReference::Record(*id)),
-        DeclarationId::Callable(_) => None,
+        DeclarationId::Code(_) => None,
     }
 }
 pub(super) fn resolved_data(

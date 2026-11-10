@@ -89,11 +89,11 @@ impl ValueBindingKind {
 /// Symbolic origins are static identities, never runtime-erased function pointers.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum ValueFunctionOrigin {
-    Declaration(crate::AccessCallableId),
+    Declaration(crate::AccessCodeId),
     Closure(ValueClosure),
     Parameter(crate::AccessParameterId),
     /// A declared callable result, closed by checking its reachable return producers.
-    Result(crate::AccessCallableId),
+    Result(crate::AccessCodeId),
     /// One statically selected call application, independent of source coordinates and type IDs.
     Application(ValueApplication),
 }
@@ -101,14 +101,14 @@ pub enum ValueFunctionOrigin {
 /// Body-owned lexical code identity. It carries no source position or environment address.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ValueClosure {
-    pub owner: crate::AccessCallableId,
+    pub owner: crate::AccessCodeId,
     pub slot: u32,
 }
 
 /// Selected code, independently of a value's invocation view or runtime environment.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum ValueCode {
-    Declaration(crate::AccessCallableId),
+    Declaration(crate::AccessCodeId),
     Closure(ValueClosure),
 }
 impl ValueCode {
@@ -119,9 +119,10 @@ impl ValueCode {
             Self::Closure(id) => ValueFunctionOrigin::Closure(id),
         }
     }
-    /// The named declaration whose complete source body owns this code's reuse guard.
+    /// The root code whose complete source body owns this code's reuse guard.
+    /// This identity does not grant a name, function witness or invocation contract.
     #[must_use]
-    pub const fn source_owner(self) -> crate::AccessCallableId {
+    pub const fn source_owner(self) -> crate::AccessCodeId {
         match self {
             Self::Declaration(id) => id,
             Self::Closure(id) => id.owner,
@@ -131,9 +132,9 @@ impl ValueCode {
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ValueApplication {
-    pub owner: crate::AccessCallableId,
+    pub owner: crate::AccessCodeId,
     pub call: crate::AccessExpressionId,
-    pub callee: crate::AccessCallableId,
+    pub callee: crate::AccessCodeId,
 }
 
 /// Invocation access, independent of a callable value's binding or explicit inputs.
@@ -164,10 +165,10 @@ impl ValueInvocation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{AccessCallableId, ArenaBuilder, TypeAuthority, TypeKind};
+    use crate::{AccessCodeId, ArenaBuilder, TypeAuthority, TypeKind};
     #[test]
     fn named_witness_projection_preserves_identity_and_invocation_view() {
-        let mut declarations = ArenaBuilder::<AccessCallableId, ()>::new();
+        let mut declarations = ArenaBuilder::<AccessCodeId, ()>::new();
         let first = declarations.insert(());
         let second = declarations.insert(());
         let base = TypeAuthority::new();
@@ -229,10 +230,10 @@ mod formal_tests {
 #[cfg(test)]
 mod result_tests {
     use super::*;
-    use crate::{AccessCallableId, ArenaBuilder, TypeAuthority, TypeKind};
+    use crate::{AccessCodeId, ArenaBuilder, TypeAuthority, TypeKind};
     #[test]
     fn result_signature_identity_is_symbolic_until_its_producer_is_closed() {
-        let mut declarations = ArenaBuilder::<AccessCallableId, ()>::new();
+        let mut declarations = ArenaBuilder::<AccessCodeId, ()>::new();
         let id = declarations.insert(());
         let base = TypeAuthority::new();
         let mut types = base.transaction();
@@ -260,5 +261,5 @@ mod result_tests {
 /// A declaration program must validate the initializer role before granting a static place.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ValueStatic {
-    pub initializer: crate::AccessCallableId,
+    pub initializer: crate::AccessCodeId,
 }

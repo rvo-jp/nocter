@@ -35,8 +35,10 @@ fn named<'a>(unit: &'a Unit, name: &str) -> &'a flow::Query {
     unit.bodies()
         .find(|(id, _)| {
             unit.program()
-                .symbols()
-                .spelling(unit.program().callables().get(*id).unwrap().name())
+                .codes()
+                .get(*id)
+                .and_then(nocter_declarations::value_access::Code::name)
+                .and_then(|symbol| unit.program().symbols().spelling(symbol))
                 == Some(name)
         })
         .unwrap()
@@ -95,7 +97,7 @@ fn corpus_is_validated_by_the_complete_production_boundary() {
             let source = result.unwrap_or_else(|e| panic!("{name}: {e:?}"));
             let context = source.declarations().bind(bound(&sources, &tree)).unwrap();
             let unit = source.unit();
-            assert_eq!(unit.bodies().len(), context.program().callables().len());
+            assert_eq!(unit.bodies().len(), context.program().codes().len());
             assert!(unit.bind(&context).is_ok());
             counts[1] += 1;
         } else {

@@ -10,7 +10,7 @@ use super::{Failure, Query, accepted, flow};
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::{FunctionWitness, PayloadSchema, Program};
 use nocter_model::{
-    AccessCallableId, AccessExpressionId, TypeId, ValueApplication, ValueFunctionOrigin,
+    AccessCodeId, AccessExpressionId, TypeId, ValueApplication, ValueFunctionOrigin,
 };
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -23,7 +23,7 @@ pub(super) struct Equality {
 }
 #[derive(Clone, Debug, Default)]
 pub(super) struct Evidence {
-    producers: BTreeMap<AccessCallableId, FunctionWitness>,
+    producers: BTreeMap<AccessCodeId, FunctionWitness>,
     applications: BTreeMap<ValueApplication, ApplicationEvidence>,
     bodies: nocter_declaration_lowering::access_declarations::BodySources,
 }
@@ -38,7 +38,7 @@ pub(super) struct Verified<'a, 'source> {
     pub(super) context: &'a DeclarationContext<'source>,
 }
 impl Evidence {
-    pub(super) fn producer(&self, callable: AccessCallableId) -> Option<FunctionWitness> {
+    pub(super) fn producer(&self, callable: AccessCodeId) -> Option<FunctionWitness> {
         self.producers.get(&callable).copied()
     }
     pub(super) fn verify<'a, 'source>(
@@ -137,7 +137,7 @@ pub(super) fn is_result(program: &Program, data: TypeId) -> bool {
 
 pub(super) fn close(
     context: &DeclarationContext<'_>,
-    controls: &mut BTreeMap<AccessCallableId, flow::Control>,
+    controls: &mut BTreeMap<AccessCodeId, flow::Control>,
 ) -> Result<Arc<Evidence>, accepted::Failure> {
     let evidence = Arc::new(solve::solve(context, controls)?);
     for (&callable, control) in controls {
