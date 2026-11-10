@@ -590,13 +590,17 @@ impl Builder<'_, '_> {
             result: self
                 .types
                 .get(self.program, self.query.typed().result_data())?,
-            initializer: self
-                .program
-                .codes()
-                .get(self.query.typed().source_owner())
-                .ok_or(INVALID)?
-                .kind()
-                .is_initializer(),
+            initializer: match self.query.typed().code() {
+                nocter_model::ValueCode::Declaration(id) => self
+                    .program
+                    .codes()
+                    .get(id)
+                    .ok_or(INVALID)?
+                    .kind()
+                    .is_initializer(),
+                nocter_model::ValueCode::Expression(_) => true,
+                nocter_model::ValueCode::Closure(_) => return Err(INVALID),
+            },
             entry: self.query.graph().entry(),
             points: points.finish(),
         })
@@ -654,15 +658,15 @@ fn binary(
 }
 pub(super) fn prepare(
     program: &Program,
-    bodies: &BTreeMap<AccessCodeId, flow::Query>,
-    root: AccessCodeId,
+    bodies: &BTreeMap<nocter_model::ValueCodeRoot, flow::Query>,
+    root: nocter_model::ValueCodeRoot,
     values: impl Fn(AccessCodeId) -> Option<plan::Value>,
 ) -> Result<plan::Program> {
     let mut pending = vec![root];
     let mut types = Types::default();
     let mut plans = BTreeMap::new();
     while let Some(id) = pending.pop() {
-        if plans.contains_key(&id.into()) {
+        if plans.contains_key(&id) {
             continue;
         }
         let query = bodies.get(&id).ok_or(INVALID)?;
@@ -677,11 +681,11 @@ pub(super) fn prepare(
         for (_, point) in plan.points.iter() {
             for action in &point.actions {
                 if let plan::Operation::Call { target, .. } = action.operation {
-                    pending.push(target);
+                    pending.push(target.into());
                 }
             }
         }
-        plans.insert(id.into(), plan);
+        plans.insert(id, plan);
     }
     let mut statics = BTreeMap::new();
     for plan in plans.values() {

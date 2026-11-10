@@ -53,7 +53,7 @@ pub struct Unit {
     closures: BTreeMap<nocter_model::ValueClosure, flow::Query>,
     program: Arc<Program>,
     header: Arc<Program>,
-    bodies: BTreeMap<AccessCodeId, flow::Query>,
+    bodies: BTreeMap<nocter_model::ValueCodeRoot, flow::Query>,
     result_evidence: Arc<super::results::Evidence>,
 }
 impl Unit {
@@ -109,7 +109,13 @@ impl Unit {
             bodies,
             closures,
             result_evidence,
-        } = check_queries(context, queries)?;
+        } = check_queries(
+            context,
+            queries
+                .into_iter()
+                .map(|(id, query)| (id.into(), query))
+                .collect(),
+        )?;
         Ok(Self {
             initializers: evaluation.values,
             closures,
@@ -164,20 +170,22 @@ impl Unit {
     /// The exact checked body in this accepted unit's sole body catalog.
     #[must_use]
     pub fn body(&self, callable: AccessCodeId) -> Option<&flow::Query> {
-        self.bodies.get(&callable)
+        self.bodies.get(&callable.into())
     }
     /// Select the exact accepted named or captured body. Source ownership is not code identity.
     #[must_use]
     pub fn code_body(&self, code: nocter_model::ValueCode) -> Option<&flow::Query> {
         match code {
-            nocter_model::ValueCode::Declaration(id) => self.bodies.get(&id),
+            nocter_model::ValueCode::Declaration(id) => self.bodies.get(&id.into()),
             nocter_model::ValueCode::Expression(_) => None,
             nocter_model::ValueCode::Closure(id) => self.closures.get(&id),
         }
     }
-    #[must_use]
-    pub fn bodies(&self) -> impl ExactSizeIterator<Item = (AccessCodeId, &flow::Query)> {
-        self.bodies.iter().map(|(&id, query)| (id, query))
+    pub fn bodies(&self) -> impl Iterator<Item = (AccessCodeId, &flow::Query)> {
+        self.bodies.iter().filter_map(|(&root, query)| match root {
+            nocter_model::ValueCodeRoot::Declaration(id) => Some((id, query)),
+            nocter_model::ValueCodeRoot::Expression(_) => None,
+        })
     }
     #[must_use]
     pub fn closures(&self) -> &BTreeMap<nocter_model::ValueClosure, flow::Query> {
@@ -206,14 +214,14 @@ impl Unit {
 }
 pub(super) struct Checked {
     pub(super) program: Arc<Program>,
-    pub(super) bodies: BTreeMap<AccessCodeId, flow::Query>,
+    pub(super) bodies: BTreeMap<nocter_model::ValueCodeRoot, flow::Query>,
     closures: BTreeMap<nocter_model::ValueClosure, flow::Query>,
     result_evidence: Arc<super::results::Evidence>,
 }
 /// The same ordinary acceptance authority serves required const closures and final whole-unit closure.
 pub(super) fn check_queries(
     context: &DeclarationContext<'_>,
-    mut queries: BTreeMap<AccessCodeId, TypedQuery>,
+    mut queries: BTreeMap<nocter_model::ValueCodeRoot, TypedQuery>,
 ) -> Result<Checked, Failure> {
     let program = super::types::canonicalize(context, &mut queries)?;
     let mut controls = queries
@@ -231,12 +239,7 @@ pub(super) fn check_queries(
         .map_err(|_| Failure::Integrity(flow::IntegrityError::InconsistentTypedBody))?;
     let mut bodies = BTreeMap::new();
     let mut closures = BTreeMap::new();
-    for (callable, control) in controls {
-        if control.typed.code() != nocter_model::ValueCode::Declaration(callable) {
-            return Err(Failure::Integrity(
-                flow::IntegrityError::InconsistentTypedBody,
-            ));
-        }
+    for (root, control) in controls {
         for (&id, nested) in &control.typed.closures {
             if nested.typed.code() != nocter_model::ValueCode::Closure(id) {
                 return Err(Failure::Integrity(
@@ -249,17 +252,24 @@ pub(super) fn check_queries(
         }
         let query = control.finish().map_err(Failure::Integrity)?;
         let query = admit(query, &verified)?;
-        bodies.insert(callable, query);
+        bodies.insert(root, query);
     }
-    for (&callable, query) in &bodies {
-        if program
-            .codes()
-            .get(callable)
-            .ok_or(Failure::Integrity(
-                flow::IntegrityError::InconsistentTypedBody,
-            ))?
-            .compile_time()
-            == nocter_model::CompileTimeGuarantee::Evaluatable
+    for (&root, query) in &bodies {
+        let callable = root.source_owner();
+        let evaluatable = match root {
+            nocter_model::ValueCodeRoot::Declaration(id) => {
+                program
+                    .codes()
+                    .get(id)
+                    .ok_or(Failure::Integrity(
+                        flow::IntegrityError::InconsistentTypedBody,
+                    ))?
+                    .compile_time()
+                    == nocter_model::CompileTimeGuarantee::Evaluatable
+            }
+            nocter_model::ValueCodeRoot::Expression(_) => true,
+        };
+        if evaluatable
             && let Some(violation) = super::constant::check(query).map_err(Failure::Integrity)?
         {
             let bound = query
@@ -318,7 +328,7 @@ fn admit(
 #[derive(Debug)]
 pub struct Context<'query, 'source> {
     unit: &'query Unit,
-    bodies: BTreeMap<AccessCodeId, flow::Context<'query, 'source>>,
+    bodies: BTreeMap<nocter_model::ValueCodeRoot, flow::Context<'query, 'source>>,
 }
 impl Context<'_, '_> {
     #[must_use]
@@ -327,7 +337,7 @@ impl Context<'_, '_> {
     }
     #[must_use]
     pub fn body(&self, id: AccessCodeId) -> Option<&flow::Context<'_, '_>> {
-        self.bodies.get(&id)
+        self.bodies.get(&id.into())
     }
 }
 

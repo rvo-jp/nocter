@@ -166,7 +166,7 @@ fn required_values_execute_before_unrelated_headers_and_retain_their_successful_
     assert_eq!(context.program().records().len(), 1);
     let unit = accepted::Unit::close_evaluation(&context, output).unwrap();
     assert_eq!(unit.constant_value(answer), Some(&computed_value.frozen));
-    assert_eq!(unit.bodies().len(), ids.len());
+    assert_eq!(unit.bodies().count(), ids.len());
 }
 
 #[test]
@@ -218,7 +218,7 @@ fn successful_early_bodies_are_reused_and_their_closure_types_replay_after_late_
     let context = headers.bind(syntax).unwrap();
     let unit = accepted::Unit::close_evaluation(&context, evaluation).unwrap();
     assert!(unit.bind(&context).is_ok());
-    assert_eq!(unit.bodies().len(), 2);
+    assert_eq!(unit.bodies().count(), 2);
     let (&code, _) = unit.closures().iter().next().unwrap();
     let environment = unit.program().closure(code).unwrap().environment();
     let Some(PayloadSchema::Aggregate(schema)) = unit.program().data_schema(environment) else {

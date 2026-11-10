@@ -114,3 +114,23 @@ fn a_required_expression_cannot_masquerade_as_its_declaring_body() {
     ));
     rejects(typed);
 }
+
+#[test]
+fn checked_body_keys_must_match_the_complete_code_root_before_type_replay() {
+    let (sources, tree) = input("func run(): i32 { 42 }");
+    let headers = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+    let context = headers.bind(bound(&sources, &tree)).unwrap();
+    let code = context.program().codes().iter().next().unwrap().0;
+    let typed = crate::value_access::Query::prepare(&context, code).unwrap();
+    let key = nocter_model::ValueCodeRoot::Expression(nocter_model::ValueExpression {
+        owner: code,
+        slot: 0,
+    });
+    assert_eq!(key.source_owner(), typed.source_owner());
+    assert!(matches!(
+        super::super::check_queries(&context, BTreeMap::from([(key, typed)])),
+        Err(Failure::Integrity(
+            flow::IntegrityError::InconsistentTypedBody
+        ))
+    ));
+}

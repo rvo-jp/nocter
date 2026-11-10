@@ -8,7 +8,7 @@ use super::{
 use crate::value_access::{ExpressionKind, accepted, flow};
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::{FunctionWitness, PayloadSchema};
-use nocter_model::{AccessCodeId, ValueFunctionOrigin as Origin};
+use nocter_model::ValueFunctionOrigin as Origin;
 use std::collections::{BTreeMap, BTreeSet};
 
 const INVALID: accepted::Failure =
@@ -16,21 +16,22 @@ const INVALID: accepted::Failure =
 
 pub(super) fn solve(
     context: &DeclarationContext<'_>,
-    controls: &BTreeMap<AccessCodeId, flow::Control>,
+    controls: &BTreeMap<nocter_model::ValueCodeRoot, flow::Control>,
 ) -> Result<Evidence, accepted::Failure> {
     let mut evidence = Evidence::default();
     let mut equations = Relations::new();
     let mut committed = BTreeSet::new();
     for (&id, control) in controls {
         let report = super::producers::analyze(control).map_err(accepted::Failure::Integrity)?;
-        if control
-            .typed
-            .program()
-            .codes()
-            .get(id)
-            .ok_or(INVALID)?
-            .result_contract()
-            .is_some()
+        if let nocter_model::ValueCodeRoot::Declaration(id) = id
+            && control
+                .typed
+                .program()
+                .codes()
+                .get(id)
+                .ok_or(INVALID)?
+                .result_contract()
+                .is_some()
         {
             evidence
                 .bodies
@@ -55,7 +56,7 @@ pub(super) fn solve(
     let solved = relations::solve(&equations).map_err(|()| INVALID)?;
     for (&origin, producers) in &solved {
         let Origin::Result(id) = origin else { continue };
-        let query = &controls.get(&id).ok_or(INVALID)?.typed;
+        let query = &controls.get(&id.into()).ok_or(INVALID)?.typed;
         let Some(witness) = single(producers) else {
             let message = if producers.is_empty() {
                 "callable result has no established code or input producer; recursive forwarding needs a reachable return anchor".to_owned()
@@ -92,7 +93,7 @@ fn single(producers: &Producers) -> Option<FunctionWitness> {
 }
 fn close_applications(
     context: &DeclarationContext<'_>,
-    controls: &BTreeMap<AccessCodeId, flow::Control>,
+    controls: &BTreeMap<nocter_model::ValueCodeRoot, flow::Control>,
     committed: &BTreeSet<nocter_model::ValueApplication>,
     evidence: &mut Evidence,
 ) -> Result<(), accepted::Failure> {
@@ -150,10 +151,7 @@ fn close_applications(
         let Origin::Application(application) = origin else {
             continue;
         };
-        let nocter_model::ValueCodeRoot::Declaration(owner) = application.owner else {
-            return Err(INVALID);
-        };
-        let query = &controls.get(&owner).ok_or(INVALID)?.typed;
+        let query = &controls.get(&application.owner).ok_or(INVALID)?.typed;
         if producers.is_empty() && !committed.contains(&application) {
             evidence
                 .applications
@@ -163,11 +161,9 @@ fn close_applications(
         let witness = single(&producers).ok_or_else(|| reject(context, query, Some(application.call),
             "this callable result application has no single established witness; an unknown-shaped input cannot supply a dependent result witness"))?;
         if let Origin::Parameter(parameter) = witness.origin
-            && query
-                .program()
-                .parameters()
-                .get(parameter)
-                .is_none_or(|p| p.owner() != owner)
+            && query.program().parameters().get(parameter).is_none_or(|p| {
+                nocter_model::ValueCodeRoot::Declaration(p.owner()) != application.owner
+            })
         {
             return Err(INVALID);
         }
@@ -179,7 +175,7 @@ fn close_applications(
 }
 fn prove_equalities(
     context: &DeclarationContext<'_>,
-    controls: &BTreeMap<AccessCodeId, flow::Control>,
+    controls: &BTreeMap<nocter_model::ValueCodeRoot, flow::Control>,
     evidence: &Evidence,
 ) -> Result<(), accepted::Failure> {
     for control in controls.values() {

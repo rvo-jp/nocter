@@ -34,7 +34,7 @@ fn pending_supply_closes_before_initialization_without_rebuilding_control() {
             .program()
             .codes()
             .iter()
-            .map(|(id, _)| (id, TypedQuery::prepare(&context, id).unwrap()))
+            .map(|(id, _)| (id.into(), TypedQuery::prepare(&context, id).unwrap()))
             .collect::<BTreeMap<_, _>>();
         crate::value_access::types::canonicalize(&context, &mut queries).unwrap();
         let mut controls = queries

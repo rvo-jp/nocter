@@ -5,35 +5,46 @@ use super::{
 };
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::Program;
-use nocter_model::{AccessCodeId, AccessExpressionId, TypeId, ValueAccess};
+use nocter_model::{AccessExpressionId, TypeId, ValueAccess};
 use std::{collections::BTreeMap, sync::Arc};
 
 pub(super) fn canonicalize(
     context: &DeclarationContext<'_>,
-    queries: &mut BTreeMap<AccessCodeId, Query>,
+    queries: &mut BTreeMap<nocter_model::ValueCodeRoot, Query>,
 ) -> Result<Arc<Program>, accepted::Failure> {
+    if queries
+        .iter()
+        .any(|(&root, query)| query.code() != root.code())
+    {
+        return Err(accepted::Failure::Integrity(
+            super::flow::IntegrityError::InconsistentTypedBody,
+        ));
+    }
     let canonical = context
         .program()
         .canonical_body_types(
             queries
                 .iter()
-                .map(|(&id, query)| (id.into(), query.program()))
+                .map(|(&id, query)| (id, query.program()))
                 .collect(),
         )
         .map_err(|_| {
             accepted::Failure::Integrity(super::flow::IntegrityError::InconsistentTypedBody)
         })?;
-    for (&callable, query) in &mut *queries {
+    for (&root, query) in &mut *queries {
         project(
             query,
             |data| {
                 canonical
-                    .project(callable, data)
+                    .project(root, data)
                     .ok_or(Failure::InconsistentSyntax)
             },
             |_, _, _| Ok(()),
         )
-        .map_err(|failure| accepted::Failure::Body { callable, failure })?;
+        .map_err(|failure| accepted::Failure::Body {
+            callable: root.source_owner(),
+            failure,
+        })?;
     }
     let program = Arc::new(canonical.finish());
     for query in queries.values_mut() {

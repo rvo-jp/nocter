@@ -137,17 +137,21 @@ pub(super) fn is_result(program: &Program, data: TypeId) -> bool {
 
 pub(super) fn close(
     context: &DeclarationContext<'_>,
-    controls: &mut BTreeMap<AccessCodeId, flow::Control>,
+    controls: &mut BTreeMap<nocter_model::ValueCodeRoot, flow::Control>,
 ) -> Result<Arc<Evidence>, accepted::Failure> {
     let evidence = Arc::new(solve::solve(context, controls)?);
-    for (&callable, control) in controls {
+    for (&root, control) in controls {
         if control.typed.results_closed() {
             continue;
         }
         let query = Arc::make_mut(&mut control.typed);
         query.result_evidence = Some(evidence.clone());
-        projection::project(context, query, &evidence)
-            .map_err(|failure| accepted::Failure::Body { callable, failure })?;
+        projection::project(context, query, &evidence).map_err(|failure| {
+            accepted::Failure::Body {
+                callable: root.source_owner(),
+                failure,
+            }
+        })?;
         query.results_closed = true;
     }
     Ok(evidence)

@@ -141,8 +141,11 @@ The [model/type owners](../compiler/crates/nocter-declarations/README.md#future-
 and [source owner](../compiler/crates/nocter-declaration-lowering/README.md#exact-source-evidence)
 provide body-owned expression roots and exact source pairing. The
 [closed evaluator](../compiler/crates/nocter-constant-evaluation/README.md#stateful-value-plans)
-also retains those roots independently of source ownership. Their connection through ordinary
-lexical checking, the shared value query, checked-body closure and source-cause projection remains required before
+also retains those roots independently of source ownership. The
+[checked-body closure](../compiler/crates/nocter-checking/README.md#frozen-body-input-channels)
+preserves them through result applications, plan projection and execution-error locations. Local
+requests still need ordinary lexical checking and full-root dependency scheduling, including cycle
+projection and supplier evidence, before
 local count admission. Do not append these roots to the closed header reservation arena: adding an expression
 in one body would otherwise renumber sibling expressions or invalidate an unrelated header query.
 Pair each expression key with its actual root through its enclosing body's source authority.

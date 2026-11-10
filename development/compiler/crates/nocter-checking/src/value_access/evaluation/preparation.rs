@@ -424,7 +424,13 @@ impl<'a, 'source> Preparation<'a, 'source> {
     ) -> Result<Completed, Failure> {
         // This is the ordinary acceptance routine over the selected const closure, not another
         // source checker or evaluator. Only established frozen data crosses into final Unit typing.
-        let checked = accepted::check_queries(&self.context, queries)?;
+        let checked = accepted::check_queries(
+            &self.context,
+            queries
+                .into_iter()
+                .map(|(id, query)| (id.into(), query))
+                .collect(),
+        )?;
         if !super::super::constant::supports_final(&checked.program, result_data)
             .map_err(Failure::Integrity)?
         {
@@ -438,7 +444,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
                 diagnostic: Box::new(diagnostic),
             });
         }
-        let program = projection::prepare(&checked.program, &checked.bodies, id, |id| {
+        let program = projection::prepare(&checked.program, &checked.bodies, id.into(), |id| {
             dependencies::value(requests, id).map(|value| value.execution.clone())
         })
         .map_err(Failure::Integrity)?;

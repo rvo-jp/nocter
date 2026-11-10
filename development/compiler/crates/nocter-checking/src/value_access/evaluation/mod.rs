@@ -71,14 +71,11 @@ impl Diagnostic {
 }
 fn origin(
     context: &DeclarationContext<'_>,
-    bodies: &BTreeMap<AccessCodeId, flow::Query>,
+    bodies: &BTreeMap<nocter_model::ValueCodeRoot, flow::Query>,
     site: state::Site,
 ) -> Result<nocter_syntax::SyntaxOrigin, BodyFailure> {
-    let nocter_model::ValueCodeRoot::Declaration(code) = site.code else {
-        return Err(BodyFailure::InconsistentSyntax);
-    };
     let bound = bodies
-        .get(&code)
+        .get(&site.code)
         .ok_or(BodyFailure::InconsistentSyntax)?
         .bind(context)?;
     bound.origin(flow::Location {
@@ -88,15 +85,15 @@ fn origin(
 }
 fn project(
     context: &DeclarationContext<'_>,
-    bodies: &BTreeMap<AccessCodeId, flow::Query>,
+    bodies: &BTreeMap<nocter_model::ValueCodeRoot, flow::Query>,
     error: &state::Error,
 ) -> Result<Diagnostic, BodyFailure> {
-    let nocter_model::ValueCodeRoot::Declaration(code) = error.code else {
-        return Err(BodyFailure::InconsistentSyntax);
-    };
-    let root = context
-        .code_source(code)
-        .ok_or(BodyFailure::InconsistentSyntax)?;
+    let root = bodies
+        .get(&error.code)
+        .ok_or(BodyFailure::InconsistentSyntax)?
+        .typed()
+        .source
+        .bind(context)?;
     let mut notes = vec![DiagnosticNote::new(
         "this expression requires a compile-time value",
         source_origin(context.syntax(), root.origin())?,

@@ -735,10 +735,15 @@ The typed query retains the source owner's paired `BodySource`. Current source b
 input-layout admission use one proof that executable code and this independently retained source
 owner agree.
 The accepted Unit exposes exact code-to-body selection without a name or header/body fallback.
-The model and source owners also distinguish body-local required-expression roots from their
-enclosing declarations. Type branches and selected applications/closures retain those full roots.
-This does not yet admit local count checking/evaluation: input-layout and Unit/target boundaries
-explicitly reject that code role until the ordinary lexical/value-query connection closes.
+Checked-body catalogs, type replay, result applications and evaluator projection retain complete
+code roots. Admission verifies a catalog key against its body's code before replaying any types.
+Only declaration roots contribute declared callable-result equations; an expression cannot
+inherit its source parent's result contract or const capability. Evaluator diagnostics select
+the actual root's paired source from that same checked catalog, including for nested call sites.
+The public declared-body iterator projects declaration-root entries from the closed body catalog;
+source ownership never selects an executable body. This does not yet admit local count checking/
+evaluation: input-layout and Unit/target boundaries explicitly reject that code role until the
+ordinary lexical/value-query connection closes.
 
 `body_inputs` owns coverage and contract validation of the typed body's input layout: one optional
 environment channel and an authored-order sequence of explicit input slots and operations. Named

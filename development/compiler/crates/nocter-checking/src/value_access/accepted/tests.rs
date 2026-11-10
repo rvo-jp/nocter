@@ -97,7 +97,7 @@ fn corpus_is_validated_by_the_complete_production_boundary() {
             let source = result.unwrap_or_else(|e| panic!("{name}: {e:?}"));
             let context = source.declarations().bind(bound(&sources, &tree)).unwrap();
             let unit = source.unit();
-            assert_eq!(unit.bodies().len(), context.program().codes().len());
+            assert_eq!(unit.bodies().count(), context.program().codes().len());
             assert!(unit.bind(&context).is_ok());
             counts[1] += 1;
         } else {
@@ -143,7 +143,7 @@ fn unused_bad_definition_rejects_the_entire_unit_and_recursive_valid_bodies_are_
     let unit = accepted(
         "func first(take input: error): error { second(input^) }\nfunc second(take input: error): error { first(input^) }",
     );
-    assert_eq!(unit.bodies().len(), 2);
+    assert_eq!(unit.bodies().count(), 2);
 }
 #[test]
 fn whole_unit_rebinding_checks_every_body_and_the_exact_authority() {

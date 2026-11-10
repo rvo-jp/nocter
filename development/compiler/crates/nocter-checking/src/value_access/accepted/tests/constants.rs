@@ -34,7 +34,7 @@ fn ordinary_operations_and_state_updates_share_one_checked_runtime_body() {
     let unit = accepted(
         "struct Pair {\nleft: i32\nright: i32\n}\nconst func increment(edit value: i32): void { value += 1 }\nconst func run(): i32 {\nvar pair = Pair { left: 0, right: 2 }\nedit target = pair.left\nwhile target < 3 { increment(target) }\nread snapshot = pair.right\nlet answer = pair.left + snapshot\nreturn answer\n}\nfunc runtime(): i32 { run() }",
     );
-    assert_eq!(unit.bodies().len(), 3);
+    assert_eq!(unit.bodies().count(), 3);
     let run = named(&unit, "run");
     assert!(run.graph().points().iter().any(|(_, p)| {
         p.actions
@@ -160,7 +160,7 @@ fn current_source_projection_and_authority_invalidation_remain_exact() {
     ));
     let new_query = declarations::Query::prepare(bound(&c, &tc)).unwrap();
     let accepted = Unit::prepare(&new_query.bind(bound(&c, &tc)).unwrap()).unwrap();
-    assert_eq!(accepted.bodies().len(), 2);
+    assert_eq!(accepted.bodies().count(), 2);
     assert!(accepted.bind(&context).is_err());
 }
 
