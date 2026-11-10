@@ -3,7 +3,8 @@ mod definitions;
 mod headers;
 mod projection;
 mod source;
-pub use source::{BodySource, BodySourceFailure, BodySources};
+use source::RecordSource;
+pub use source::{BodySource, BodySources, HeaderSource, SourceMismatch};
 mod type_syntax;
 pub use type_syntax::{DataTypeSyntax, FunctionTypeSyntax, ValueTypeSyntax, value_type_syntax};
 #[cfg(test)]
@@ -21,8 +22,8 @@ use nocter_dependency_query::{
 use nocter_diagnostics::{SourceDiagnostic, syntax_diagnostics};
 use nocter_model::{AccessCallableId, NominalTypeId};
 use nocter_syntax::{
-    BoundSyntax, DeclarationSyntaxLocator, DeclarationSyntaxSurface, NodeId, NodeKind,
-    SyntaxOrigin, SyntaxToken, project_declaration_syntax,
+    BoundSyntax, DeclarationSyntaxSurface, NodeId, NodeKind, SyntaxToken,
+    project_declaration_syntax,
 };
 
 pub use projection::HeaderDiagnostic;
@@ -36,22 +37,12 @@ pub enum Failure {
     ChangedHeader,
 }
 
-/// Source-neutral recipe. Its locators have meaning only with an equal declaration surface.
-#[derive(Clone, Debug)]
-struct HeaderRecipe {
-    name: DeclarationSyntaxLocator,
-    parameters: Box<[DeclarationSyntaxLocator]>,
-    parameter_types: Box<[DeclarationSyntaxLocator]>,
-    result: DeclarationSyntaxLocator,
-    body: DeclarationSyntaxLocator,
-}
-
 /// Closed reusable declaration query; no body syntax or current source identity is retained.
 #[derive(Clone, Debug)]
 pub struct Query {
     program: Arc<Program>,
     surface: DeclarationSyntaxSurface,
-    recipes: BTreeMap<AccessCallableId, HeaderRecipe>,
+    source_recipes: source::Recipes,
 }
 
 /// One current source/semantic pairing. Callers cannot assemble its parts independently.
@@ -59,7 +50,7 @@ pub struct Query {
 pub struct Context<'source> {
     program: Arc<Program>,
     syntax: BoundSyntax<'source>,
-    sources: Arc<BTreeMap<AccessCallableId, CallableSource>>,
+    sources: source::Sources,
 }
 
 #[derive(Clone, Debug)]
@@ -98,8 +89,8 @@ pub struct Preparation<'source> {
     functions: BTreeMap<AccessCallableId, definitions::Recipe>,
     syntax: BoundSyntax<'source>,
     surface: DeclarationSyntaxSurface,
-    recipes: BTreeMap<AccessCallableId, HeaderRecipe>,
-    sources: Arc<BTreeMap<AccessCallableId, CallableSource>>,
+    source_recipes: source::Recipes,
+    sources: source::Sources,
 }
 impl<'source> Preparation<'source> {
     /// Closes names/slots and retains raw type recipes, without resolving types or checking bodies.
@@ -121,7 +112,7 @@ impl<'source> Preparation<'source> {
             .into_iter()
             .map(|h| {
                 Ok((
-                    reservations.reserve_record(symbol(h.name)?, h.fields.len()),
+                    reservations.reserve_record(symbol(h.source.name)?, h.fields.len()),
                     h,
                 ))
             })
@@ -145,32 +136,19 @@ impl<'source> Preparation<'source> {
                 )
             })
             .collect();
+        let record_sources: BTreeMap<_, _> = record_headers
+            .iter()
+            .map(|(&id, header)| (id, header.source.clone()))
+            .collect();
+        let sources = source::Sources {
+            callables: Arc::new(sources),
+            records: Arc::new(record_sources),
+        };
         let builder = reservations.finish().map_err(|violations| {
-            projection::project_violations(tree, &sources, &record_headers, violations)
+            projection::project_violations(tree, &sources.callables, &sources.records, violations)
         })?;
         let headers = builder.into_publication();
-        let mut recipes = BTreeMap::new();
-        for (&id, source) in &sources {
-            let locate = |origin| projection.locate(origin).ok_or(Failure::InconsistentSyntax);
-            recipes.insert(
-                id,
-                HeaderRecipe {
-                    name: locate(SyntaxOrigin::Token(source.name))?,
-                    parameters: source
-                        .parameters
-                        .iter()
-                        .map(|&name| locate(SyntaxOrigin::Token(name)))
-                        .collect::<Result<_, _>>()?,
-                    parameter_types: source
-                        .parameter_types
-                        .iter()
-                        .map(|&ty| locate(SyntaxOrigin::Node(ty)))
-                        .collect::<Result<_, _>>()?,
-                    result: locate(SyntaxOrigin::Node(source.result))?,
-                    body: locate(SyntaxOrigin::Node(source.body))?,
-                },
-            );
-        }
+        let source_recipes = source::Recipes::capture(&projection, &sources)?;
         Ok(Self {
             headers,
             records: record_headers,
@@ -180,8 +158,8 @@ impl<'source> Preparation<'source> {
                 .collect(),
             syntax,
             surface: projection.into_surface(),
-            recipes,
-            sources: Arc::new(sources),
+            source_recipes,
+            sources,
         })
     }
 
@@ -219,14 +197,14 @@ impl<'source> Preparation<'source> {
                 self.syntax,
                 required,
                 &self.functions,
-                &self.sources,
+                &self.sources.callables,
                 &self.records,
             )?;
             if !violations.is_empty() {
                 return Err(projection::project_violations(
                     self.syntax.tree(),
-                    &self.sources,
-                    &self.records,
+                    &self.sources.callables,
+                    &self.sources.records,
                     violations,
                 ));
             }
@@ -258,7 +236,12 @@ impl<'source> Preparation<'source> {
         self.project_failure(self.headers.reject_cycle(path))
     }
     fn project_failure(&self, failure: HeaderFailure) -> Failure {
-        project_failure(self.syntax, &self.sources, &self.records, failure)
+        project_failure(
+            self.syntax,
+            &self.sources.callables,
+            &self.sources.records,
+            failure,
+        )
     }
     /// Finish the complete reusable header query without re-normalizing published contracts.
     /// # Errors
@@ -269,12 +252,17 @@ impl<'source> Preparation<'source> {
             self.publish(id)?;
         }
         let program = self.headers.finish().map_err(|failure| {
-            project_failure(self.syntax, &self.sources, &self.records, failure)
+            project_failure(
+                self.syntax,
+                &self.sources.callables,
+                &self.sources.records,
+                failure,
+            )
         })?;
         Ok(Query {
             program: Arc::new(program),
             surface: self.surface,
-            recipes: self.recipes,
+            source_recipes: self.source_recipes,
         })
     }
 }
@@ -298,7 +286,7 @@ impl DependencyProgress<DeclarationId, (), Failure> for Preparation<'_> {
 fn project_failure(
     syntax: BoundSyntax<'_>,
     sources: &BTreeMap<AccessCallableId, CallableSource>,
-    records: &BTreeMap<NominalTypeId, RecordHeader>,
+    records: &BTreeMap<NominalTypeId, Arc<RecordSource>>,
     failure: HeaderFailure,
 ) -> Failure {
     match failure {
@@ -330,42 +318,11 @@ impl Query {
         if projection.surface() != &self.surface {
             return Err(Failure::ChangedHeader);
         }
-        let sources = self
-            .recipes
-            .iter()
-            .map(|(&id, recipe)| {
-                let token = |locator| match projection.resolve(locator) {
-                    Some(SyntaxOrigin::Token(token)) => Ok(token),
-                    _ => Err(Failure::InconsistentSyntax),
-                };
-                let node = |locator| match projection.resolve(locator) {
-                    Some(SyntaxOrigin::Node(node)) => Ok(node),
-                    _ => Err(Failure::InconsistentSyntax),
-                };
-                Ok((
-                    id,
-                    CallableSource {
-                        name: token(recipe.name)?,
-                        parameters: recipe
-                            .parameters
-                            .iter()
-                            .map(|&locator| token(locator))
-                            .collect::<Result<_, _>>()?,
-                        parameter_types: recipe
-                            .parameter_types
-                            .iter()
-                            .map(|&locator| node(locator))
-                            .collect::<Result<_, _>>()?,
-                        result: node(recipe.result)?,
-                        body: node(recipe.body)?,
-                    },
-                ))
-            })
-            .collect::<Result<_, Failure>>()?;
+        let sources = self.source_recipes.bind(&projection)?;
         Ok(Context {
             program: Arc::clone(&self.program),
             syntax,
-            sources: Arc::new(sources),
+            sources,
         })
     }
 }
@@ -386,7 +343,7 @@ impl<'source> Context<'source> {
     }
     #[must_use]
     pub fn callable_source(&self, callable: AccessCallableId) -> Option<&CallableSource> {
-        self.sources.get(&callable)
+        self.sources.callables.get(&callable)
     }
 }
 

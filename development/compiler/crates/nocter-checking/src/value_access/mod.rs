@@ -30,7 +30,7 @@ pub use ir::{
     TypedBody, Unary, ValueType, WitnessBinding,
 };
 use nocter_declaration_lowering::access_declarations::{
-    BodySource, BodySourceFailure, BodySources, Context as DeclarationContext,
+    BodySource, BodySources, Context as DeclarationContext, SourceMismatch,
 };
 use nocter_declarations::value_access::Program;
 use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic};
@@ -190,13 +190,13 @@ struct Origins {
     blocks: BTreeMap<AccessBlockId, Site>,
 }
 
-impl From<BodySourceFailure> for Failure {
-    fn from(failure: BodySourceFailure) -> Self {
+impl From<SourceMismatch> for Failure {
+    fn from(failure: SourceMismatch) -> Self {
         match failure {
-            BodySourceFailure::UnknownBody => Self::UnknownCallable,
-            BodySourceFailure::ChangedAuthority => Self::ChangedAuthority,
-            BodySourceFailure::ChangedBody => Self::ChangedBody,
-            BodySourceFailure::InconsistentSyntax => Self::InconsistentSyntax,
+            SourceMismatch::UnknownSource => Self::UnknownCallable,
+            SourceMismatch::ChangedAuthority => Self::ChangedAuthority,
+            SourceMismatch::ChangedSource => Self::ChangedBody,
+            SourceMismatch::InconsistentSyntax => Self::InconsistentSyntax,
         }
     }
 }
@@ -249,6 +249,9 @@ impl Query {
     pub const fn source_owner(&self) -> AccessCallableId {
         self.source.owner()
     }
+    fn source_for_code(&self) -> Option<&BodySource> {
+        (self.code.source_owner() == self.source.owner()).then_some(&self.source)
+    }
     #[must_use]
     pub const fn body(&self) -> &TypedBody {
         &self.body
@@ -289,7 +292,10 @@ impl Query {
         &'query self,
         context: &DeclarationContext<'source>,
     ) -> Result<Context<'query, 'source>, Failure> {
-        let source = self.source.bind(context)?;
+        let source = self
+            .source_for_code()
+            .ok_or(Failure::InconsistentSyntax)?
+            .bind(context)?;
         let syntax = context.syntax();
         let projection = BodySyntaxProjection::for_root(syntax.tree(), source.body())
             .ok_or(Failure::InconsistentSyntax)?;

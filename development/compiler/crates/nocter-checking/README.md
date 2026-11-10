@@ -664,7 +664,7 @@ The completed query is consumed rather than cloned. Bodies and captures
 share an exact-source guard over const initializer/callee definitions. Header reuse cannot reuse
 values or resulting control/access evidence after a supplying body changes, including through a
 standalone typed/flow source binding. Declaration lowering's
-[exact source evidence](../nocter-declaration-lowering/README.md#exact-body-source-evidence) owns
+[exact source evidence](../nocter-declaration-lowering/README.md#exact-source-evidence) owns
 that verification mechanism for both evaluator products and callable-result evidence. Whole-unit binding still verifies every
 body. Ordinary editing calls have no result-only cache that could erase writes.
 
@@ -703,8 +703,9 @@ publishing its closure-body catalog. Capture/body edits invalidate the enclosing
 
 A typed query's code identity selects its named or captured body. Its derived source owner selects
 only the enclosing source reuse guard; these are separate roles, not interchangeable lookup keys.
-The typed query retains the source owner's paired `BodySource`; input-layout admission also proves
-that executable code and this independently retained source owner agree.
+The typed query retains the source owner's paired `BodySource`. Current source binding and
+input-layout admission use one proof that executable code and this independently retained source
+owner agree.
 The accepted Unit exposes exact code-to-body selection without a name or header/body fallback.
 
 `body_inputs` owns coverage and contract validation of the typed body's input layout: one optional

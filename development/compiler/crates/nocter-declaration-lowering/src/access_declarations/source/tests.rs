@@ -46,7 +46,7 @@ fn exact_dependencies_rebind_current_coordinates_and_reject_changed_initializers
         let changed = query.bind(bound(&changed_sources, &changed_tree)).unwrap();
         assert_eq!(
             dependencies.verify(&changed),
-            Err(BodySourceFailure::ChangedBody)
+            Err(SourceMismatch::ChangedSource)
         );
     }
     // Equal text and numeric IDs from another construction are not this declaration authority.
@@ -54,7 +54,7 @@ fn exact_dependencies_rebind_current_coordinates_and_reject_changed_initializers
     let foreign = foreign.bind(bound(&sources, &tree)).unwrap();
     assert_eq!(
         dependencies.verify(&foreign),
-        Err(BodySourceFailure::ChangedAuthority)
+        Err(SourceMismatch::ChangedAuthority)
     );
 }
 
@@ -83,7 +83,7 @@ fn merging_dependencies_keeps_the_strongest_prefix_in_either_insertion_order() {
         }
         assert_eq!(
             dependencies.verify(&early),
-            Err(BodySourceFailure::ChangedAuthority)
+            Err(SourceMismatch::ChangedAuthority)
         );
         dependencies.verify(&later).unwrap();
     }
@@ -108,7 +108,7 @@ fn conflicting_evidence_cannot_replace_an_existing_source_dependency() {
     let changed = query.bind(bound(&changed_sources, &changed_tree)).unwrap();
     assert_eq!(
         dependencies.insert(&changed.body_source(run).unwrap()),
-        Err(BodySourceFailure::ChangedBody)
+        Err(SourceMismatch::ChangedSource)
     );
     dependencies.verify(&context).unwrap();
 
@@ -116,7 +116,107 @@ fn conflicting_evidence_cannot_replace_an_existing_source_dependency() {
     let foreign = foreign.bind(bound(&sources, &tree)).unwrap();
     assert_eq!(
         dependencies.insert(&foreign.body_source(run).unwrap()),
-        Err(BodySourceFailure::ChangedAuthority)
+        Err(SourceMismatch::ChangedAuthority)
     );
     dependencies.verify(&context).unwrap();
+}
+
+#[test]
+fn header_sources_cover_record_fields_and_callable_slots_before_type_publication() {
+    use nocter_declarations::value_access::{DeclarationId, HeaderPosition};
+    let original =
+        "struct Buffer { pair: (i32, bool)\nsize: usize }\nfunc size(value: Buffer): usize { 2 }";
+    let (sources, tree) = input(original, ParseGoal::V2CoreUnit);
+    let syntax = bound(&sources, &tree);
+    let preparation = Preparation::prepare(syntax).unwrap();
+    let early = preparation.current();
+    let program = early.program();
+    let buffer = DeclarationId::Record(
+        program
+            .resolve_record(program.symbols().get("Buffer").unwrap())
+            .unwrap(),
+    );
+    let function = DeclarationId::Callable(code(&early, "size"));
+    assert!(!program.header_ready(buffer));
+    assert!(!program.header_ready(function));
+    let cases = [
+        (buffer, HeaderPosition::Field(0), "(i32, bool)"),
+        (buffer, HeaderPosition::Field(1), "usize"),
+        (function, HeaderPosition::Parameter(0), "Buffer"),
+        (function, HeaderPosition::Result, "usize"),
+    ];
+    let guards = cases
+        .iter()
+        .map(|&(owner, position, _)| early.header_source(owner, position).unwrap())
+        .collect::<Vec<_>>();
+    let query = preparation.finish().unwrap();
+    let moved = format!("// current source\n{}", original.replace("{ 2 }", "{ 42 }"));
+    let (current_sources, current_tree) = input(&moved, ParseGoal::V2CoreUnit);
+    let current = query.bind(bound(&current_sources, &current_tree)).unwrap();
+    for (guard, &(declaration, position, expected)) in guards.iter().zip(&cases) {
+        assert_eq!(guard.declaration(), declaration);
+        assert_eq!(guard.position(), position);
+        let node = guard.bind(&current).unwrap();
+        assert_eq!(
+            current
+                .syntax()
+                .text_at(current.syntax().tree().node(node).unwrap().range()),
+            Some(expected)
+        );
+    }
+    for (declaration, position) in [
+        (buffer, HeaderPosition::Name),
+        (buffer, HeaderPosition::Parameter(0)),
+        (buffer, HeaderPosition::Field(2)),
+        (function, HeaderPosition::Field(0)),
+        (function, HeaderPosition::Parameter(1)),
+    ] {
+        assert!(matches!(
+            current.header_source(declaration, position),
+            Err(SourceMismatch::UnknownSource)
+        ));
+    }
+    let foreign = Query::prepare(syntax).unwrap();
+    let foreign = foreign.bind(syntax).unwrap();
+    assert_eq!(
+        guards[0].bind(&foreign),
+        Err(SourceMismatch::ChangedAuthority)
+    );
+    let (changed_sources, changed_tree) = input(
+        &original.replace("size: usize", "size: i32"),
+        ParseGoal::V2CoreUnit,
+    );
+    assert!(matches!(
+        query.bind(bound(&changed_sources, &changed_tree)),
+        Err(crate::access_declarations::Failure::ChangedHeader)
+    ));
+}
+
+#[test]
+fn an_unresolved_record_type_root_is_source_evidence_without_header_admission() {
+    use nocter_declarations::value_access::{DeclarationId, HeaderPosition};
+    let (sources, tree) = input("struct Bad { payload: Missing }", ParseGoal::V2CoreUnit);
+    let syntax = bound(&sources, &tree);
+    let mut preparation = Preparation::prepare(syntax).unwrap();
+    let early = preparation.current();
+    let owner = DeclarationId::Record(
+        early
+            .program()
+            .resolve_record(early.program().symbols().get("Bad").unwrap())
+            .unwrap(),
+    );
+    let source = early
+        .header_source(owner, HeaderPosition::Field(0))
+        .unwrap();
+    let node = source.bind(&early).unwrap();
+    assert_eq!(
+        syntax.text_at(syntax.tree().node(node).unwrap().range()),
+        Some("Missing")
+    );
+    assert!(matches!(
+        preparation.advance(owner),
+        Err(crate::access_declarations::Failure::Headers(_))
+    ));
+    assert!(!preparation.current().program().header_ready(owner));
+    assert!(preparation.finish().is_err());
 }

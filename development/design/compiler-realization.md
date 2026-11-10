@@ -115,11 +115,12 @@ Keep type/value cycles distinct from callable recursion. A request that needs it
 normalized type or value is a dependency error, including an authored requirement in dead source.
 Callable-only recursion instead closes one checked graph and remains subject to execution budgets.
 Body evidence used by a header value must participate in header reuse invalidation. Extend the
-[shared source evidence](../compiler/crates/nocter-declaration-lowering/README.md#exact-body-source-evidence)
-to the header-expression roots and retain the selected supplying-body dependencies with the
-normalized header query. Body-independent header-surface equality cannot certify an evaluated
-length after a supplying const body changes. Preserve exact source recipes and causal edges across those requests. This integration,
-not reservation closure alone, is the remaining gate for array type lengths.
+[shared source evidence](../compiler/crates/nocter-declaration-lowering/README.md#exact-source-evidence)
+from the enclosing type-annotation roots to executable header-expression identities, and retain
+the selected supplying-body dependencies with the normalized header query. Body-independent
+header-surface equality cannot certify an evaluated length after a supplying const body changes.
+Preserve exact source recipes and causal edges across those requests. This integration, not
+reservation closure alone, is the remaining gate for array type lengths.
 
 ### Structural Type Request Closure
 
@@ -130,9 +131,20 @@ Normalization must return a typed dependency request without publishing a provis
 Source lowering owns loading the requested recipe; declarations own validation and normalized identity; the existing checking/value
 coordinator owns ordinary body acceptance and required execution. A length expression needs its
 own semantic code identity and exact source recipe. Do not manufacture a named function, source
-text or a separate expression checker to evaluate it. Code identity and source-reuse ownership
-must cover expressions in record fields as well as callable headers. The current callable-only
-source-owner projection cannot represent a record-owned length by relabeling it as a function.
+text or a separate expression checker to evaluate it. Code identity must pair with the existing
+exact source roots for record fields as well as callable headers. The current callable-only
+executable source-owner projection cannot represent a record-owned length by relabeling it as a
+function. A type-annotation source root grants no executable code or result contract.
+
+Keep executable code identity, a selected named callable contract and the source-reuse owner as
+separate roles. Carry that separation through body-type branches, call-application/closure keys,
+input layouts, result closure, evaluator plans and diagnostics. An anonymous length expression
+has its own code identity and expected usize result, no named-function witness or formal inputs,
+and no source `return` target. Its diagnostic owner remains the exact header slot. If its ordinary
+source contains unsupported const operations, first preserve ordinary typing/safety and then
+apply the same const-domain rejection; an expression-specific source scan cannot replace that
+validation. Required expression values need a distinct key from declaration initializer values
+in the common query, while actual execution consumes the shared value/work/storage budget.
 
 Keep deferred header normalization on the
 [query-owned iterative progress path](../compiler/crates/nocter-dependency-query/README.md#invariants).

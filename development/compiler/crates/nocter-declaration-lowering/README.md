@@ -122,8 +122,10 @@ body syntax, or source coordinates. Binding an equal surface constructs one curr
 with that same program and the current header/body nodes. Changed headers, a wrong parse goal,
 invalid syntax, and mismatched locators cannot create a context or trigger fallback lowering.
 Body-only edits can rebind but receive no body-validity certificate from declaration reuse.
-The complete neutral surface guards record/field and const-capability header changes too. Function locators retained
-for body rebinding do not duplicate record schemas or create a second record-header cache.
+The complete neutral surface guards record/field and const-capability header changes too. Record
+recipes retain only neutral name/field-type locators. `source::recipes` owns capture and rebinding
+of the callable and record source catalog as one product. Binding materializes current source
+metadata from those locators, without rebuilding a raw type recipe or copying semantic record schemas.
 `projection` maps declaration-owned failures through current header evidence; it does not select
 semantic failures from diagnostic codes or recover meaning from source coordinates.
 
@@ -148,8 +150,9 @@ steps iteratively through its common query, including unused records at final cl
 record header evidence stays with preparation so late declaration rejections project through the
 same field/name projection as initial failures. `reject_cycle` delegates semantic classification
 to declarations; it does not inspect payloads. `finish` is fallible, preserving unused invalid
-contracts rather than turning them into internal failures. Reusable completed queries retain no
-record syntax catalog.
+contracts rather than turning them into internal failures. Raw record recipes and current contexts
+share one `RecordSource`; declaration diagnostics and type-root capture use its same position
+projection. Reusable completed queries retain only neutral record source recipes.
 `current` shares the already established view without publishing another contract. Cloning a
 context shares that exact immutable program and source pairing; it cannot extend readiness.
 
@@ -161,9 +164,9 @@ equal declarations rebuilt by another query cannot substitute for the original l
 projection remains outside semantic type lookup.
 
 
-## Exact Body Source Evidence
+## Exact Source Evidence
 
-`access_declarations::source` owns exact body-source evidence shared by declaration and checking
+`access_declarations::source` owns exact source evidence shared by declaration and checking
 consumers. Only a current declaration `Context` captures `BodySource`, pairing the selected code's
 source owner, original immutable header view and exact body bytes. No consumer can provide an
 owner and unrelated bytes independently. The evidence contains no current source identity, node,
@@ -179,5 +182,12 @@ incomparable authority fails without replacing earlier evidence. Compatible dupl
 retain the strongest header prefix, independently of insertion order; adding an older guard
 cannot weaken reuse requirements. Required evaluation and callable-result evidence consume this
 same source mechanism. Source comparison never performs name lookup, checking or evaluation.
-Header-expression code identity and source ownership remain part of the
+`HeaderSource` separately identifies one parameter/result or record-field type annotation by its
+own tagged declaration and header position. It shares the same private byte/ancestry verification
+as body evidence, but its current root is an annotation node, never executable code. Capture works
+before contract readiness and does not resolve its type names. Non-type positions, unknown slots
+and foreign authorities reject. Record-owned source is never relabeled as a callable body.
+
+This establishes exact source roots, not executable length code or evaluated array types.
+Header-expression code identity and value-dependent header reuse remain part of the
 [structural request work](../../../design/compiler-realization.md#structural-type-request-closure).

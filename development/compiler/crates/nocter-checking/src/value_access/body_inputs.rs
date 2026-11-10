@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 const INVALID: IntegrityError = IntegrityError::InconsistentTypedBody;
 
 pub(super) fn layout(query: &Query) -> Result<(), IntegrityError> {
-    if query.code().source_owner() != query.source_owner() {
+    if query.source_for_code().is_none() {
         return Err(INVALID);
     }
     let body = query.body();

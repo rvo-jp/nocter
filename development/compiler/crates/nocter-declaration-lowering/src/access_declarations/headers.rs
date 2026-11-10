@@ -1,6 +1,8 @@
 //! Syntax-only header extraction. Type/name meaning is resolved by the declaration owner.
 use super::{
-    Failure, ValueTypeSyntax, text,
+    Failure, ValueTypeSyntax,
+    source::{FieldSource, RecordSource},
+    text,
     type_syntax::{DataTypeSyntax, data_syntax},
     value_type_syntax,
 };
@@ -10,6 +12,7 @@ use nocter_syntax::{
     BoundSyntax, ContextualSpelling, NodeId, NodeKind, SyntaxToken, child_node_iter,
     declaration_name_token, direct_identifier, direct_node, direct_node_iter, first_direct_token,
 };
+use std::sync::Arc;
 
 #[derive(Clone, Debug)]
 pub(super) struct ParameterHeader {
@@ -29,9 +32,9 @@ pub(super) struct Header {
 }
 #[derive(Clone, Debug)]
 pub(super) struct RecordHeader {
-    pub name: SyntaxToken,
+    pub source: Arc<RecordSource>,
     pub copy: bool,
-    pub fields: Vec<(SyntaxToken, DataTypeSyntax, NodeId)>,
+    pub fields: Box<[DataTypeSyntax]>,
 }
 
 pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<Header, Failure> {
@@ -106,10 +109,18 @@ pub(super) fn record(
         .map(|field| {
             let name = direct_identifier(tree, field).ok_or(Failure::InconsistentSyntax)?;
             let ty = direct_node(tree, field, NodeKind::Type).ok_or(Failure::InconsistentSyntax)?;
-            Ok((name, data_syntax(syntax, ty)?, ty))
+            Ok((FieldSource { name, ty }, data_syntax(syntax, ty)?))
         })
-        .collect::<Result<_, _>>()?;
-    Ok(RecordHeader { name, copy, fields })
+        .collect::<Result<Vec<_>, Failure>>()?;
+    let (fields, types): (Vec<_>, Vec<_>) = fields.into_iter().unzip();
+    Ok(RecordHeader {
+        source: Arc::new(RecordSource {
+            name,
+            fields: fields.into(),
+        }),
+        copy,
+        fields: types.into(),
+    })
 }
 
 pub(super) fn collect(
@@ -140,7 +151,7 @@ pub(super) fn collect(
         }
     }
     functions.sort_by_key(|h| text(syntax, h.name));
-    records.sort_by_key(|h| text(syntax, h.name));
+    records.sort_by_key(|h| text(syntax, h.source.name));
     Ok((functions, records))
 }
 
@@ -161,10 +172,14 @@ pub(super) fn symbols(
                 )
             })
             .chain(records.iter().flat_map(|r| {
-                std::iter::once(r.name).chain(
-                    r.fields
+                std::iter::once(r.source.name).chain(
+                    r.source
+                        .fields
                         .iter()
-                        .flat_map(|(name, data, _)| std::iter::once(*name).chain(data.tokens())),
+                        .zip(&r.fields)
+                        .flat_map(|(source, data)| {
+                            std::iter::once(source.name).chain(data.tokens())
+                        }),
                 )
             }))
             .map(|token| text(syntax, token)),

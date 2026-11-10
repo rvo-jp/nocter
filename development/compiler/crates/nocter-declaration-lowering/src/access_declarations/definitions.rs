@@ -117,7 +117,7 @@ impl Definitions<'_, '_> {
             .fields
             .iter()
             .enumerate()
-            .map(|(index, (name, data, _))| {
+            .map(|(index, data)| {
                 let Some(data) = self.data_type(
                     data,
                     DeclarationId::Record(id),
@@ -127,7 +127,7 @@ impl Definitions<'_, '_> {
                     return Ok(None);
                 };
                 Ok(Some(FieldDefinition {
-                    name: self.symbol(*name)?,
+                    name: self.symbol(header.source.fields[index].name)?,
                     data,
                 }))
             })

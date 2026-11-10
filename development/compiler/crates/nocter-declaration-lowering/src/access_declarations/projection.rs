@@ -1,4 +1,4 @@
-use super::{CallableSource, Failure, RecordHeader};
+use super::{CallableSource, Failure, source::RecordSource};
 use nocter_declarations::value_access::{
     DeclarationId, DeclarationRule, DeclarationViolation, HeaderPosition,
 };
@@ -6,7 +6,7 @@ use nocter_diagnostics::{DiagnosticCode, DiagnosticNote, SourceDiagnostic};
 use nocter_model::{AccessCallableId, NominalTypeId};
 use nocter_source_index::SourceOrigin;
 use nocter_syntax::{SyntaxOrigin, SyntaxToken, SyntaxTree};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct HeaderDiagnostic {
@@ -26,7 +26,7 @@ impl HeaderDiagnostic {
 pub(super) fn project_violations(
     tree: &SyntaxTree,
     sources: &BTreeMap<AccessCallableId, CallableSource>,
-    records: &BTreeMap<NominalTypeId, RecordHeader>,
+    records: &BTreeMap<NominalTypeId, Arc<RecordSource>>,
     violations: Vec<DeclarationViolation>,
 ) -> Failure {
     let projected = violations
@@ -42,7 +42,7 @@ pub(super) fn project_violations(
 fn project(
     tree: &SyntaxTree,
     sources: &BTreeMap<AccessCallableId, CallableSource>,
-    records: &BTreeMap<NominalTypeId, RecordHeader>,
+    records: &BTreeMap<NominalTypeId, Arc<RecordSource>>,
     violation: DeclarationViolation,
 ) -> Option<HeaderDiagnostic> {
     use DeclarationRule as R;
@@ -53,7 +53,13 @@ fn project(
             | R::NonCopyField
             | R::RecursivePayload { .. }
     );
-    let primary = primary_source(sources, records, violation, typed)?;
+    let primary = super::source::header_origin(
+        sources,
+        records,
+        violation.declaration,
+        violation.position,
+        typed,
+    )?;
     let (code, message, related) = details(sources, records, violation)?;
     let primary = origin(tree, primary)?;
     let notes = if let Some(token) = related {
@@ -75,39 +81,9 @@ fn project(
         ),
     })
 }
-fn primary_source(
-    sources: &BTreeMap<AccessCallableId, CallableSource>,
-    records: &BTreeMap<NominalTypeId, RecordHeader>,
-    violation: DeclarationViolation,
-    typed: bool,
-) -> Option<SyntaxOrigin> {
-    Some(match violation.declaration {
-        DeclarationId::Callable(id) => {
-            let s = sources.get(&id)?;
-            match violation.position {
-                HeaderPosition::Name => SyntaxOrigin::Token(s.name),
-                HeaderPosition::Parameter(i) if typed => {
-                    SyntaxOrigin::Node(*s.parameter_types.get(i)?)
-                }
-                HeaderPosition::Parameter(i) => SyntaxOrigin::Token(*s.parameters.get(i)?),
-                HeaderPosition::Result => SyntaxOrigin::Node(s.result),
-                HeaderPosition::Field(_) => return None,
-            }
-        }
-        DeclarationId::Record(id) => {
-            let s = records.get(&id)?;
-            match violation.position {
-                HeaderPosition::Name => SyntaxOrigin::Token(s.name),
-                HeaderPosition::Field(i) if typed => SyntaxOrigin::Node(s.fields.get(i)?.2),
-                HeaderPosition::Field(i) => SyntaxOrigin::Token(s.fields.get(i)?.0),
-                _ => return None,
-            }
-        }
-    })
-}
 fn details(
     sources: &BTreeMap<AccessCallableId, CallableSource>,
-    records: &BTreeMap<NominalTypeId, RecordHeader>,
+    records: &BTreeMap<NominalTypeId, Arc<RecordSource>>,
     violation: DeclarationViolation,
 ) -> Option<(DiagnosticCode, &'static str, Option<SyntaxToken>)> {
     use DeclarationRule as R;
@@ -149,7 +125,7 @@ fn details(
             (
                 DiagnosticCode::E0241,
                 "duplicate field name",
-                Some(records.get(&id)?.fields.get(first)?.0),
+                Some(records.get(&id)?.fields.get(first)?.name),
             )
         }
         R::ParameterShadowsCallable { declaration } => (

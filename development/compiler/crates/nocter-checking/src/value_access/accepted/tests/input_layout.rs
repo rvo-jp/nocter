@@ -79,8 +79,20 @@ fn a_coherent_slot_edit_cannot_replace_the_inferred_environment_contract() {
 
 #[test]
 fn equal_input_layout_cannot_relabel_a_body_as_another_code_owner() {
-    let unit = accepted("func first(): i32 { 1 }\nfunc second(): i32 { 2 }");
-    let mut typed = named(&unit, "first").typed().clone();
-    typed.code = named(&unit, "second").typed().code();
+    let (sources, tree) = input("func first(): i32 { 1 }\nfunc second(): i32 { 2 }");
+    let headers = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+    let context = headers.bind(bound(&sources, &tree)).unwrap();
+    let code = |name| {
+        context
+            .program()
+            .resolve(context.program().symbols().get(name).unwrap())
+            .unwrap()
+    };
+    let mut typed = crate::value_access::Query::prepare(&context, code("first")).unwrap();
+    typed.code = ValueCode::Declaration(code("second"));
+    assert!(matches!(
+        typed.bind(&context),
+        Err(crate::value_access::Failure::InconsistentSyntax)
+    ));
     rejects(typed);
 }

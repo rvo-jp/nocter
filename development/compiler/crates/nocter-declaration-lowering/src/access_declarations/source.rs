@@ -1,24 +1,84 @@
-//! Source evidence shared by declaration and checking consumers, without semantic evaluation.
+//! Exact source evidence shared by declaration and checking consumers, without evaluation.
 use super::{CallableSource, Context};
-use nocter_declarations::value_access::Program;
-use nocter_model::AccessCallableId;
+use nocter_declarations::value_access::{DeclarationId, HeaderPosition, Program};
+use nocter_model::{AccessCallableId, NominalTypeId};
+use nocter_syntax::{NodeId, SyntaxOrigin, SyntaxToken};
 use std::{collections::BTreeMap, sync::Arc};
 
+mod recipes;
+pub(super) use recipes::Recipes;
+
+#[derive(Clone, Debug)]
+pub(super) struct Sources {
+    pub callables: Arc<BTreeMap<AccessCallableId, CallableSource>>,
+    pub records: Arc<BTreeMap<NominalTypeId, Arc<RecordSource>>>,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum BodySourceFailure {
-    UnknownBody,
+pub enum SourceMismatch {
+    UnknownSource,
     ChangedAuthority,
-    ChangedBody,
+    ChangedSource,
     InconsistentSyntax,
 }
 
-/// One source-neutral owner/bytes/authority pairing, captured only from a current context.
+#[derive(Clone, Debug)]
+pub(super) struct FieldSource {
+    pub name: SyntaxToken,
+    pub ty: NodeId,
+}
+#[derive(Clone, Debug)]
+pub(super) struct RecordSource {
+    pub name: SyntaxToken,
+    pub fields: Box<[FieldSource]>,
+}
+
+/// Exact bytes and header lineage, never a source lookup or semantic authority of their own.
+#[derive(Clone, Debug)]
+struct Evidence {
+    header: Arc<Program>,
+    bytes: Arc<[u8]>,
+}
+impl Evidence {
+    fn capture(context: &Context<'_>, bytes: &[u8]) -> Self {
+        Self {
+            header: context.program_handle(),
+            bytes: bytes.into(),
+        }
+    }
+    fn bind<'source, T>(
+        &self,
+        context: &Context<'_>,
+        locate: impl FnOnce() -> Result<(T, &'source [u8]), SourceMismatch>,
+    ) -> Result<T, SourceMismatch> {
+        if !context.program().preserves_headers(&self.header) {
+            return Err(SourceMismatch::ChangedAuthority);
+        }
+        let (source, bytes) = locate()?;
+        if bytes != self.bytes.as_ref() {
+            return Err(SourceMismatch::ChangedSource);
+        }
+        Ok(source)
+    }
+    fn retain(&mut self, source: &Self) -> Result<(), SourceMismatch> {
+        if self.bytes != source.bytes {
+            return Err(SourceMismatch::ChangedSource);
+        }
+        if source.header.preserves_headers(&self.header) {
+            self.header = source.header.clone();
+        } else if !self.header.preserves_headers(&source.header) {
+            return Err(SourceMismatch::ChangedAuthority);
+        }
+        Ok(())
+    }
+}
+
+/// A source-neutral body-owner/bytes/authority pairing captured only from a current context.
 /// This evidence grants neither a ready contract nor body acceptance.
 #[derive(Clone, Debug)]
 pub struct BodySource {
     owner: AccessCallableId,
-    header: Arc<Program>,
-    bytes: Arc<[u8]>,
+    evidence: Evidence,
 }
 impl BodySource {
     #[must_use]
@@ -31,28 +91,61 @@ impl BodySource {
     pub fn bind<'context>(
         &self,
         context: &'context Context<'_>,
-    ) -> Result<&'context CallableSource, BodySourceFailure> {
-        if !context.program().preserves_headers(&self.header) {
-            return Err(BodySourceFailure::ChangedAuthority);
-        }
-        let (source, bytes) = body(context, self.owner)?;
-        if bytes != self.bytes.as_ref() {
-            return Err(BodySourceFailure::ChangedBody);
-        }
-        Ok(source)
+    ) -> Result<&'context CallableSource, SourceMismatch> {
+        self.evidence.bind(context, || body(context, self.owner))
+    }
+}
+
+/// One declaration-owned type annotation, including an unready record's field annotation.
+/// The source root is not executable code and grants no normalized type or value.
+#[derive(Clone, Debug)]
+pub struct HeaderSource {
+    declaration: DeclarationId,
+    position: HeaderPosition,
+    evidence: Evidence,
+}
+impl HeaderSource {
+    #[must_use]
+    pub const fn declaration(&self) -> DeclarationId {
+        self.declaration
+    }
+    #[must_use]
+    pub const fn position(&self) -> HeaderPosition {
+        self.position
+    }
+    /// Resolve this exact annotation to its current syntax node without type lookup or parsing.
+    /// # Errors
+    /// Rejects changed authority/source or a missing/inconsistent current annotation.
+    pub fn bind(&self, context: &Context<'_>) -> Result<NodeId, SourceMismatch> {
+        self.evidence
+            .bind(context, || header(context, self.declaration, self.position))
     }
 }
 
 impl Context<'_> {
-    /// Capture an exact source dependency without permitting a caller-supplied owner/bytes join.
+    /// Capture a body dependency without permitting a caller-supplied owner/bytes join.
     /// # Errors
     /// Rejects an unknown body or an inconsistent current source pairing.
-    pub fn body_source(&self, owner: AccessCallableId) -> Result<BodySource, BodySourceFailure> {
+    pub fn body_source(&self, owner: AccessCallableId) -> Result<BodySource, SourceMismatch> {
         let (_, bytes) = body(self, owner)?;
         Ok(BodySource {
             owner,
-            header: self.program_handle(),
-            bytes: bytes.into(),
+            evidence: Evidence::capture(self, bytes),
+        })
+    }
+    /// Capture one raw type-annotation root independently of its contract's readiness.
+    /// # Errors
+    /// Rejects a non-type position, an unknown slot or an inconsistent current source pairing.
+    pub fn header_source(
+        &self,
+        declaration: DeclarationId,
+        position: HeaderPosition,
+    ) -> Result<HeaderSource, SourceMismatch> {
+        let (_, bytes) = header(self, declaration, position)?;
+        Ok(HeaderSource {
+            declaration,
+            position,
+            evidence: Evidence::capture(self, bytes),
         })
     }
 }
@@ -66,22 +159,14 @@ impl BodySources {
     /// Retain the strongest compatible header prefix for this source owner.
     /// # Errors
     /// Rejects conflicting bytes or incomparable declaration authorities without mutation.
-    pub fn insert(&mut self, source: &BodySource) -> Result<(), BodySourceFailure> {
+    pub fn insert(&mut self, source: &BodySource) -> Result<(), SourceMismatch> {
         use std::collections::btree_map::Entry;
         match self.bodies.entry(source.owner) {
             Entry::Vacant(entry) => {
                 entry.insert(source.clone());
             }
             Entry::Occupied(mut entry) => {
-                let previous = entry.get();
-                if previous.bytes != source.bytes {
-                    return Err(BodySourceFailure::ChangedBody);
-                }
-                if source.header.preserves_headers(&previous.header) {
-                    entry.insert(source.clone());
-                } else if !previous.header.preserves_headers(&source.header) {
-                    return Err(BodySourceFailure::ChangedAuthority);
-                }
+                entry.get_mut().evidence.retain(&source.evidence)?;
             }
         }
         Ok(())
@@ -89,7 +174,7 @@ impl BodySources {
     /// Verify source dependencies without lookup, checking or evaluation of their contents.
     /// # Errors
     /// Reports the first changed authority/body or inconsistent current source pairing.
-    pub fn verify(&self, context: &Context<'_>) -> Result<(), BodySourceFailure> {
+    pub fn verify(&self, context: &Context<'_>) -> Result<(), SourceMismatch> {
         for source in self.bodies.values() {
             source.bind(context)?;
         }
@@ -100,21 +185,74 @@ impl BodySources {
 fn body<'context, 'source>(
     context: &'context Context<'source>,
     owner: AccessCallableId,
-) -> Result<(&'context CallableSource, &'source [u8]), BodySourceFailure> {
+) -> Result<(&'context CallableSource, &'source [u8]), SourceMismatch> {
     let source = context
         .callable_source(owner)
-        .ok_or(BodySourceFailure::UnknownBody)?;
+        .ok_or(SourceMismatch::UnknownSource)?;
+    Ok((source, bytes(context, source.body())?))
+}
+fn header<'source>(
+    context: &Context<'source>,
+    declaration: DeclarationId,
+    position: HeaderPosition,
+) -> Result<(NodeId, &'source [u8]), SourceMismatch> {
+    let Some(SyntaxOrigin::Node(node)) = header_origin(
+        &context.sources.callables,
+        &context.sources.records,
+        declaration,
+        position,
+        true,
+    ) else {
+        return Err(SourceMismatch::UnknownSource);
+    };
+    Ok((node, bytes(context, node)?))
+}
+pub(super) fn header_origin(
+    sources: &BTreeMap<AccessCallableId, CallableSource>,
+    records: &BTreeMap<NominalTypeId, Arc<RecordSource>>,
+    declaration: DeclarationId,
+    position: HeaderPosition,
+    typed: bool,
+) -> Option<SyntaxOrigin> {
+    Some(match declaration {
+        DeclarationId::Callable(id) => {
+            let s = sources.get(&id)?;
+            match position {
+                HeaderPosition::Name => SyntaxOrigin::Token(s.name),
+                HeaderPosition::Parameter(i) if typed => {
+                    SyntaxOrigin::Node(*s.parameter_types.get(i)?)
+                }
+                HeaderPosition::Parameter(i) => SyntaxOrigin::Token(*s.parameters.get(i)?),
+                HeaderPosition::Result => SyntaxOrigin::Node(s.result),
+                HeaderPosition::Field(_) => return None,
+            }
+        }
+        DeclarationId::Record(id) => {
+            let s = records.get(&id)?;
+            match position {
+                HeaderPosition::Name => SyntaxOrigin::Token(s.name),
+                HeaderPosition::Field(i) if typed => SyntaxOrigin::Node(s.fields.get(i)?.ty),
+                HeaderPosition::Field(i) => SyntaxOrigin::Token(s.fields.get(i)?.name),
+                _ => return None,
+            }
+        }
+    })
+}
+
+fn bytes<'source>(
+    context: &Context<'source>,
+    root: NodeId,
+) -> Result<&'source [u8], SourceMismatch> {
     let syntax = context.syntax();
     let range = syntax
         .tree()
-        .node(source.body())
-        .ok_or(BodySourceFailure::InconsistentSyntax)?
+        .node(root)
+        .ok_or(SourceMismatch::InconsistentSyntax)?
         .range();
-    let bytes = syntax
+    Ok(syntax
         .text_at(range)
-        .ok_or(BodySourceFailure::InconsistentSyntax)?
-        .as_bytes();
-    Ok((source, bytes))
+        .ok_or(SourceMismatch::InconsistentSyntax)?
+        .as_bytes())
 }
 
 #[cfg(test)]
