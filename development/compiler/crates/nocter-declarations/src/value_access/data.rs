@@ -1,5 +1,5 @@
 //! Closed data identity, source-name resolution and payload projection. No source syntax lives here.
-use super::{Program, Record};
+use super::{DeclarationId, Program, Record};
 use nocter_model::{BuiltinType, FieldPath, NominalTypeId, Symbol, SymbolTable, TypeId, TypeKind};
 use std::collections::BTreeMap;
 
@@ -69,7 +69,7 @@ impl Program {
     /// Source-name lookup; semantic equality continues to use resolved `TypeId` only.
     #[must_use]
     pub fn type_named(&self, spelling: &str) -> Option<TypeId> {
-        match data_reference(&self.symbols, &self.records.namespace, spelling)? {
+        match data_reference(&self.symbols, &self.namespace, spelling)? {
             DataReference::Builtin(data) => self.data_type(data),
             DataReference::Record(id) => self.records.records.get(id).map(Record::data),
             DataReference::Tuple(_) => None,
@@ -206,16 +206,16 @@ pub(super) fn builtin_copyable(data: BuiltinType) -> Option<bool> {
 
 pub(super) fn data_reference(
     symbols: &SymbolTable,
-    namespace: &BTreeMap<Symbol, NominalTypeId>,
+    namespace: &BTreeMap<Symbol, DeclarationId>,
     spelling: &str,
 ) -> Option<DataReference> {
     if let Some(data) = BuiltinType::from_spelling(spelling) {
         return Some(DataReference::Builtin(data));
     }
-    namespace
-        .get(&symbols.get(spelling)?)
-        .copied()
-        .map(DataReference::Record)
+    match namespace.get(&symbols.get(spelling)?)? {
+        DeclarationId::Record(id) => Some(DataReference::Record(*id)),
+        DeclarationId::Callable(_) => None,
+    }
 }
 pub(super) fn resolved_data(
     types: &mut nocter_model::TypeTransaction,

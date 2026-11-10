@@ -159,6 +159,15 @@ impl<I: SemanticId, T> ArenaBuilder<I, T> {
         self.values.get_mut(id.index())
     }
 
+    /// Inspect reserved slots without freezing the arena or granting mutation through the view.
+    #[must_use]
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = (I, &T)> {
+        self.values
+            .iter()
+            .enumerate()
+            .map(|(index, value)| (I::new(index), value))
+    }
+
     #[must_use]
     pub const fn len(&self) -> usize {
         self.values.len()

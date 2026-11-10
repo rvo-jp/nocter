@@ -1,7 +1,7 @@
 //! Freeze data contracts, formal witness identities and callables in one declaration authority.
 use super::{
-    Callable, FunctionConstraint, FunctionInput, Parameter, Program, Reservation, ValueDefinition,
-    data::resolved_data, functions, records,
+    Callable, DeclarationId, FunctionConstraint, FunctionInput, Parameter, Program, Reservation,
+    ValueDefinition, data::resolved_data, functions, records,
 };
 use nocter_model::{
     AccessCallableId, AccessParameterId, Arena, ArenaBuilder, Symbol, SymbolTable, TypeKind,
@@ -12,7 +12,7 @@ use std::collections::BTreeMap;
 pub(super) fn publish(
     symbols: SymbolTable,
     reserved: &Arena<AccessCallableId, Reservation>,
-    namespace: BTreeMap<Symbol, AccessCallableId>,
+    namespace: BTreeMap<Symbol, DeclarationId>,
     records: records::Validated,
 ) -> Program {
     let (base_types, records) = records.publish();

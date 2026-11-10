@@ -1,5 +1,5 @@
 use super::*;
-use nocter_declarations::value_access::{Builder, DataReference, FieldDefinition};
+use nocter_declarations::value_access::{DataReference, FieldDefinition, Reservations};
 use nocter_model::{ArenaBuilder, SymbolTable, ValueField};
 
 struct Fixture {
@@ -20,9 +20,10 @@ impl Fixture {
         let symbols = SymbolTable::from_spellings([
             "Leaf", "Outer", "a", "b", "head", "left", "right", "tail",
         ]);
-        let mut builder = Builder::new(symbols.clone());
-        let leaf = builder.reserve_record(symbols.get("Leaf").unwrap());
-        let outer = builder.reserve_record(symbols.get("Outer").unwrap());
+        let mut reservations = Reservations::new(symbols.clone());
+        let leaf = reservations.reserve_record(symbols.get("Leaf").unwrap());
+        let outer = reservations.reserve_record(symbols.get("Outer").unwrap());
+        let mut builder = reservations.finish().unwrap();
         let field = |name: &str, data| FieldDefinition {
             name: symbols.get(name).unwrap(),
             data,
@@ -556,11 +557,12 @@ fn deeply_shared_payload_cleanup_visits_only_the_selected_frontier_without_recur
     let names: Vec<_> = (0..COUNT).map(|i| format!("R{i:03}")).collect();
     let symbols =
         SymbolTable::from_spellings(names.iter().map(String::as_str).chain(["left", "right"]));
-    let mut builder = Builder::new(symbols.clone());
+    let mut reservations = Reservations::new(symbols.clone());
     let ids: Vec<_> = names
         .iter()
-        .map(|s| builder.reserve_record(symbols.get(s).unwrap()))
+        .map(|s| reservations.reserve_record(symbols.get(s).unwrap()))
         .collect();
+    let mut builder = reservations.finish().unwrap();
     builder.define_record(ids[0], false, []).unwrap();
     for pair in ids.windows(2) {
         builder

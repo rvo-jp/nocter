@@ -92,7 +92,11 @@ beside their owning modules.
 ## Future Private Access Declarations
 
 The access-declaration query accepts only complete `V2CoreUnit` syntax. It collects all headers,
-canonicalizes declaration symbols, reserves functions and records by name order, and resolves
+canonicalizes declaration symbols, reserves functions and records by name order, and consumes
+reservation closure before resolving any header type. That transition validates the complete
+declaration namespace independently of missing/unsupported data; a name conflict is projected at
+the current declaration with its related declaration even when both signatures have invalid types.
+The resulting definition builder resolves
 data types, input operations, namespaces, authored const capability and value-result constraints
 before examining body semantics.
 `headers` extracts syntax-only header evidence for functions and explicitly typed required constant/static initializers.

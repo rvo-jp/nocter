@@ -73,10 +73,20 @@ coordinates, or checking internals.
 
 The value-access product owns immutable declaration facts and their type authority for the future
 private core goal. Header facts are shared by immutable body type branches and canonical replay. It is not
-an adapter to `DeclarationProgram` or accepted by the released target/checking pipeline. Its
-builder reserves identities before definitions and freezes only after all header checks. Defining
-headers in a different order cannot change parameter identities. The lowering owner
-reserves functions and records in canonical namespace order.
+an adapter to `DeclarationProgram` or accepted by the released target/checking pipeline.
+Construction has three one-way states: `Reservations` assigns callable/record identities;
+its consuming `finish` validates and closes the complete name domain into a `Builder`; that
+builder resolves and defines headers, then publishes a `Program` only after all header checks.
+No definition or type resolution is available during reservation, and no new declaration can be
+reserved after name closure. Neither construction state is body-checking admission or an incomplete
+semantic program. Defining headers in a different order cannot change parameter identities.
+The lowering owner reserves functions and records in canonical namespace order.
+
+`namespace` constructs one tagged callable/record name table at reservation closure. The same table
+serves forward header references, parameter-shadowing checks and published role-specific lookup;
+record schemas do not maintain a second global index. Invalid cross-domain names retain only a
+temporary first-record diagnostic witness, never another lookup authority. Name failures precede
+type normalization, so an invalid namespace cannot request or invent types to diagnose itself.
 
 `value_access::data` owns closed data-name resolution, TypeId projection and Copy queries over
 one privately owned type authority. Callable headers admit `bool`, `i32`, `usize`, `void`, opaque move-only
@@ -99,8 +109,7 @@ namespace owns its name/type. Neither introduces a result access operation. No r
 mode/referent set or old read-result normalization remains.
 
 The same program publishes closed nominal record metadata used by parsed callable and body
-checking. Record reservations construct the namespace once; validation and freeze retain that
-same namespace rather than rebuilding a parallel name index. Fields have a distinct value-field
+checking. Record names use the common closed namespace above. Fields have a distinct value-field
 identity domain. Record
 schemas retain declared field order, resolved TypeIds and a frozen local member namespace.
 Definition order cannot affect those identities. Record and callable names cannot collide.

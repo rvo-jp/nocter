@@ -10,7 +10,7 @@ mod tests;
 use std::{collections::BTreeMap, sync::Arc};
 
 use headers::RecordHeader;
-use nocter_declarations::value_access::{Builder, Program};
+use nocter_declarations::value_access::{Program, Reservations};
 use nocter_diagnostics::{SourceDiagnostic, syntax_diagnostics};
 use nocter_model::{AccessCallableId, SymbolTable};
 use nocter_syntax::{
@@ -115,14 +115,14 @@ impl Query {
                 .get(text(syntax, token))
                 .ok_or(Failure::InconsistentSyntax)
         };
-        let mut builder = Builder::new(symbols.clone());
+        let mut reservations = Reservations::new(symbols.clone());
         let record_headers = records
             .into_iter()
-            .map(|h| Ok((builder.reserve_record(symbol(h.name)?), h)))
+            .map(|h| Ok((reservations.reserve_record(symbol(h.name)?), h)))
             .collect::<Result<BTreeMap<_, _>, Failure>>()?;
         let function_headers = functions
             .into_iter()
-            .map(|h| Ok((builder.reserve(symbol(h.name)?), h)))
+            .map(|h| Ok((reservations.reserve(symbol(h.name)?), h)))
             .collect::<Result<BTreeMap<_, _>, Failure>>()?;
         let sources: BTreeMap<_, _> = function_headers
             .iter()
@@ -139,6 +139,9 @@ impl Query {
                 )
             })
             .collect();
+        let mut builder = reservations.finish().map_err(|violations| {
+            projection::project_violations(tree, &sources, &record_headers, violations)
+        })?;
         let violations = definitions::define(
             &mut builder,
             syntax,

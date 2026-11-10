@@ -24,6 +24,7 @@ pub use functions::{
     FunctionConstraint, FunctionDefinition, FunctionInput, FunctionMismatch, FunctionWitness,
     ValueDefinition,
 };
+mod namespace;
 mod publication;
 mod records;
 pub use data::{DataReference, PayloadSchema, TupleData};
@@ -187,7 +188,7 @@ pub struct Program {
     header_type_count: usize,
     callables: std::sync::Arc<Arena<AccessCallableId, Callable>>,
     parameters: std::sync::Arc<Arena<AccessParameterId, Parameter>>,
-    namespace: std::sync::Arc<BTreeMap<Symbol, AccessCallableId>>,
+    namespace: std::sync::Arc<BTreeMap<Symbol, DeclarationId>>,
     records: std::sync::Arc<records::Schemas>,
     closures: BTreeMap<nocter_model::ValueClosure, Closure>,
 }
@@ -207,7 +208,10 @@ impl Program {
     }
     #[must_use]
     pub fn resolve_record(&self, name: Symbol) -> Option<NominalTypeId> {
-        self.records.namespace.get(&name).copied()
+        match self.namespace.get(&name)? {
+            DeclarationId::Record(id) => Some(*id),
+            DeclarationId::Callable(_) => None,
+        }
     }
     #[must_use]
     pub fn callables(&self) -> &Arena<AccessCallableId, Callable> {
@@ -228,7 +232,10 @@ impl Program {
     /// Lookup any source code declaration for collision checks; not a function-value grant.
     #[must_use]
     pub fn resolve_code(&self, name: Symbol) -> Option<AccessCallableId> {
-        self.namespace.get(&name).copied()
+        match self.namespace.get(&name)? {
+            DeclarationId::Callable(id) => Some(*id),
+            DeclarationId::Record(_) => None,
+        }
     }
     #[must_use]
     pub fn resolve_constant(&self, name: Symbol) -> Option<AccessCallableId> {
@@ -266,26 +273,26 @@ struct Reservation {
     definition: Option<Definition>,
 }
 
-/// Reserve in canonical namespace order, then define in any order. Only `finish` publishes metadata.
+/// Construction-only identity reservation. No header can be defined before names are closed.
 #[derive(Debug)]
-pub struct Builder {
+pub struct Reservations {
     symbols: SymbolTable,
-    reservations: ArenaBuilder<AccessCallableId, Reservation>,
+    callables: ArenaBuilder<AccessCallableId, Reservation>,
     records: records::Builder,
 }
 
-impl Builder {
+impl Reservations {
     #[must_use]
     pub fn new(symbols: SymbolTable) -> Self {
         Self {
             symbols,
-            reservations: ArenaBuilder::new(),
+            callables: ArenaBuilder::new(),
             records: records::Builder::default(),
         }
     }
 
     pub fn reserve(&mut self, name: Symbol) -> AccessCallableId {
-        self.reservations.insert(Reservation {
+        self.callables.insert(Reservation {
             name,
             definition: None,
         })
@@ -296,6 +303,40 @@ impl Builder {
         self.records.reserve(name)
     }
 
+    /// Close the complete name domain before resolving types or checking definitions.
+    /// # Errors
+    /// Rejects unknown, reserved or colliding names without inventing missing type/header data.
+    pub fn finish(self) -> Result<Builder, Vec<DeclarationViolation>> {
+        let mut violations = Vec::new();
+        let namespace = namespace::close(
+            &self.symbols,
+            &self.callables,
+            &self.records,
+            &mut violations,
+        );
+        if !violations.is_empty() {
+            return Err(violations);
+        }
+        Ok(Builder {
+            symbols: self.symbols,
+            callables: self.callables,
+            records: self.records,
+            namespace,
+        })
+    }
+}
+
+/// Define closed reserved headers in any order. Only `finish` publishes a semantic program.
+/// There is no operation for appending another declaration after reservation closure.
+#[derive(Debug)]
+pub struct Builder {
+    symbols: SymbolTable,
+    callables: ArenaBuilder<AccessCallableId, Reservation>,
+    records: records::Builder,
+    namespace: BTreeMap<Symbol, DeclarationId>,
+}
+
+impl Builder {
     /// Defines an ordinary or explicitly Copy record. Every field stores a value, not an access.
     ///
     /// # Errors
@@ -317,7 +358,7 @@ impl Builder {
             .symbols
             .spelling(name)
             .ok_or(DeclarationRule::UnknownSymbol)?;
-        data_reference(&self.symbols, self.records.namespace(), spelling)
+        data_reference(&self.symbols, &self.namespace, spelling)
             .ok_or(DeclarationRule::UnknownDataName { name })
     }
 
@@ -331,7 +372,7 @@ impl Builder {
         result_data: impl Into<ValueDefinition>,
     ) -> Result<(), DefinitionError> {
         let reservation = self
-            .reservations
+            .callables
             .get_mut(id)
             .ok_or(DefinitionError::UnknownId)?;
         if reservation.definition.is_some() {
@@ -348,32 +389,19 @@ impl Builder {
     /// # Errors
     /// Returns callable and record header/shape violations without publishing a partial program.
     pub fn finish(self) -> Result<Program, Vec<DeclarationViolation>> {
-        let reserved = self.reservations.finish();
+        let reserved = self.callables.finish();
         let mut violations = Vec::new();
-        let namespace = validate_namespace(&self.symbols, &reserved, &mut violations);
+        let namespace = self.namespace;
         for (id, reservation) in reserved.iter() {
             validate_definition(&self.symbols, &namespace, id, reservation, &mut violations);
         }
-        let records = match self.records.validate(&self.symbols, &namespace) {
+        let records = match self.records.validate(&self.symbols) {
             Ok(records) => records,
             Err(errors) => {
                 violations.extend(errors);
                 return Err(violations);
             }
         };
-        for (id, reservation) in reserved.iter() {
-            if let Some(definition) = &reservation.definition {
-                for (position, parameter) in definition.parameters.iter().enumerate() {
-                    if let Some(declaration) = records.resolve(parameter.name) {
-                        violations.push(DeclarationViolation {
-                            declaration: DeclarationId::Callable(id),
-                            position: HeaderPosition::Parameter(position),
-                            rule: DeclarationRule::ParameterShadowsRecord { declaration },
-                        });
-                    }
-                }
-            }
-        }
         for (id, reservation) in reserved.iter() {
             if let Some(definition) = &reservation.definition {
                 let mut validate = |position, data: &DataReference| {
@@ -409,41 +437,9 @@ impl Builder {
     }
 }
 
-fn validate_namespace(
-    symbols: &SymbolTable,
-    reserved: &Arena<AccessCallableId, Reservation>,
-    violations: &mut Vec<DeclarationViolation>,
-) -> BTreeMap<Symbol, AccessCallableId> {
-    let mut namespace = BTreeMap::new();
-    for (id, reservation) in reserved.iter() {
-        let rule = match symbols.spelling(reservation.name) {
-            None => Some(DeclarationRule::UnknownSymbol),
-            Some(name) if BuiltinType::from_spelling(name).is_some() => {
-                Some(DeclarationRule::ReservedBuiltinName)
-            }
-            Some(_) => {
-                if let Some(&first) = namespace.get(&reservation.name) {
-                    Some(DeclarationRule::DuplicateCallable { first })
-                } else {
-                    namespace.insert(reservation.name, id);
-                    None
-                }
-            }
-        };
-        if let Some(rule) = rule {
-            violations.push(DeclarationViolation {
-                declaration: DeclarationId::Callable(id),
-                position: HeaderPosition::Name,
-                rule,
-            });
-        }
-    }
-    namespace
-}
-
 fn validate_definition(
     symbols: &SymbolTable,
-    namespace: &BTreeMap<Symbol, AccessCallableId>,
+    namespace: &BTreeMap<Symbol, DeclarationId>,
     id: AccessCallableId,
     reservation: &Reservation,
     violations: &mut Vec<DeclarationViolation>,
@@ -476,11 +472,18 @@ fn validate_definition(
             Some(_) => {
                 if let Some(&first) = seen.get(&parameter.name) {
                     Some(DeclarationRule::DuplicateParameter { first })
-                } else if let Some(&declaration) = namespace.get(&parameter.name) {
-                    Some(DeclarationRule::ParameterShadowsCallable { declaration })
                 } else {
                     seen.insert(parameter.name, position);
-                    None
+                    namespace
+                        .get(&parameter.name)
+                        .map(|&declaration| match declaration {
+                            DeclarationId::Callable(declaration) => {
+                                DeclarationRule::ParameterShadowsCallable { declaration }
+                            }
+                            DeclarationId::Record(declaration) => {
+                                DeclarationRule::ParameterShadowsRecord { declaration }
+                            }
+                        })
                 }
             }
         };

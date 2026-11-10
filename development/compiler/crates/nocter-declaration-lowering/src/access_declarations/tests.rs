@@ -96,6 +96,32 @@ fn header_errors_are_local_and_cannot_be_repaired_by_a_body() {
         assert!(!diagnostics.is_empty());
     }
 }
+
+#[test]
+fn namespace_closure_precedes_type_resolution_and_keeps_current_conflict_locations() {
+    use nocter_declarations::value_access::{DeclarationRule, HeaderPosition};
+    for source in [
+        "struct Shared { value: Missing }\nfunc Shared(): Missing { unknown }",
+        "// current coordinates\nfunc Shared(): Missing { other }\nstruct Shared { value: Missing }",
+    ] {
+        let (sources, tree) = input(source, ParseGoal::V2CoreUnit);
+        let Err(Failure::Headers(diagnostics)) = Query::prepare(bound(&sources, &tree)) else {
+            panic!("expected namespace rejection: {source}");
+        };
+        assert_eq!(diagnostics.len(), 1);
+        let diagnostic = &diagnostics[0];
+        assert!(matches!(
+            diagnostic.violation().rule,
+            DeclarationRule::RecordShadowsCallable { .. }
+        ));
+        assert_eq!(diagnostic.violation().position, HeaderPosition::Name);
+        let primary = diagnostic.source().primary().span().range();
+        let name = source.find("struct Shared").unwrap() + "struct ".len();
+        assert_eq!(primary.start().get() as usize, name);
+        assert_eq!(primary.end().get() as usize, name + "Shared".len());
+        assert_eq!(diagnostic.source().notes().len(), 1);
+    }
+}
 #[test]
 fn wrong_goal_and_retired_source_cannot_publish_declarations() {
     let (sources, tree) = input("func f(): void {}", ParseGoal::SourceFile);

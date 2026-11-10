@@ -2,8 +2,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use nocter_model::{
-    AccessCallableId, AccessFieldId, Arena, ArenaBuilder, BuiltinType, GenericApplication,
-    NominalTypeId, Symbol, SymbolTable, TypeAuthority, TypeId, TypeKind,
+    AccessFieldId, Arena, ArenaBuilder, GenericApplication, NominalTypeId, Symbol, SymbolTable,
+    TypeAuthority, TypeId, TypeKind,
 };
 
 use super::data::builtin_copyable;
@@ -86,7 +86,6 @@ impl Field {
 pub(super) struct Schemas {
     pub records: Arena<NominalTypeId, Record>,
     pub fields: Arena<AccessFieldId, Field>,
-    pub namespace: BTreeMap<Symbol, NominalTypeId>,
 }
 
 #[derive(Debug)]
@@ -104,21 +103,20 @@ struct Reservation {
 #[derive(Debug, Default)]
 pub(super) struct Builder {
     reservations: ArenaBuilder<NominalTypeId, Reservation>,
-    namespace: BTreeMap<Symbol, NominalTypeId>,
 }
 
 impl Builder {
     pub fn reserve(&mut self, name: Symbol) -> NominalTypeId {
-        let id = self.reservations.insert(Reservation {
+        self.reservations.insert(Reservation {
             name,
             definition: None,
-        });
-        self.namespace.entry(name).or_insert(id);
-        id
+        })
     }
 
-    pub fn namespace(&self) -> &BTreeMap<Symbol, NominalTypeId> {
-        &self.namespace
+    pub fn names(&self) -> impl Iterator<Item = (NominalTypeId, Symbol)> {
+        self.reservations
+            .iter()
+            .map(|(id, reservation)| (id, reservation.name))
     }
 
     pub fn define(
@@ -138,13 +136,8 @@ impl Builder {
         Ok(())
     }
 
-    pub fn validate(
-        self,
-        symbols: &SymbolTable,
-        callables: &BTreeMap<Symbol, AccessCallableId>,
-    ) -> Result<Validated, Vec<DeclarationViolation>> {
+    pub fn validate(self, symbols: &SymbolTable) -> Result<Validated, Vec<DeclarationViolation>> {
         let reserved = self.reservations.finish();
-        let namespace = self.namespace;
         let mut violations = Vec::new();
         for (id, reservation) in reserved.iter() {
             let mut report = |position, rule| {
@@ -154,26 +147,6 @@ impl Builder {
                     rule,
                 });
             };
-            let rule = match symbols.spelling(reservation.name) {
-                None => Some(DeclarationRule::UnknownSymbol),
-                Some(name) if BuiltinType::from_spelling(name).is_some() => {
-                    Some(DeclarationRule::ReservedBuiltinName)
-                }
-                Some(_) => {
-                    if let Some(&first) = namespace.get(&reservation.name)
-                        && first != id
-                    {
-                        Some(DeclarationRule::DuplicateRecord { first })
-                    } else if let Some(&declaration) = callables.get(&reservation.name) {
-                        Some(DeclarationRule::RecordShadowsCallable { declaration })
-                    } else {
-                        None
-                    }
-                }
-            };
-            if let Some(rule) = rule {
-                report(HeaderPosition::Name, rule);
-            }
             let Some(definition) = &reservation.definition else {
                 report(HeaderPosition::Name, DeclarationRule::MissingDefinition);
                 continue;
@@ -208,27 +181,19 @@ impl Builder {
         if !violations.is_empty() {
             return Err(violations);
         }
-        Ok(Validated {
-            reserved,
-            namespace,
-            copyable,
-        })
+        Ok(Validated { reserved, copyable })
     }
 }
 
 /// Construction-only capability: every record has a finite shape and valid explicit Copy policy.
 pub(super) struct Validated {
     reserved: Arena<NominalTypeId, Reservation>,
-    namespace: BTreeMap<Symbol, NominalTypeId>,
     copyable: BTreeMap<NominalTypeId, bool>,
 }
 
 impl Validated {
     pub fn contains(&self, id: NominalTypeId) -> bool {
         self.reserved.get(id).is_some()
-    }
-    pub fn resolve(&self, name: Symbol) -> Option<NominalTypeId> {
-        self.namespace.get(&name).copied()
     }
 
     pub fn publish(self) -> (TypeAuthority, Schemas) {
@@ -284,7 +249,6 @@ impl Validated {
         let schemas = Schemas {
             records,
             fields: fields.finish(),
-            namespace: self.namespace,
         };
         (
             types

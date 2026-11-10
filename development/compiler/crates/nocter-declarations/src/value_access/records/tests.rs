@@ -1,7 +1,7 @@
 use super::*;
 use crate::value_access::PayloadSchema;
-use crate::value_access::{Builder as ProgramBuilder, ParameterDefinition};
-use nocter_model::{CompileTimeGuarantee, ValueInputOperation};
+use crate::value_access::{ParameterDefinition, Reservations};
+use nocter_model::{BuiltinType, CompileTimeGuarantee, ValueInputOperation};
 
 fn field(symbols: &SymbolTable, name: &str, data: DataReference) -> FieldDefinition {
     FieldDefinition {
@@ -14,12 +14,13 @@ fn nested(reverse: bool) -> super::super::Program {
     let symbols = SymbolTable::from_spellings([
         "Inner", "Outer", "Ordinary", "Empty", "f", "input", "left", "right", "value",
     ]);
-    let mut builder = ProgramBuilder::new(symbols.clone());
-    let empty = builder.reserve_record(symbols.get("Empty").unwrap());
-    let inner = builder.reserve_record(symbols.get("Inner").unwrap());
-    let ordinary = builder.reserve_record(symbols.get("Ordinary").unwrap());
-    let outer = builder.reserve_record(symbols.get("Outer").unwrap());
-    let function = builder.reserve(symbols.get("f").unwrap());
+    let mut reservations = Reservations::new(symbols.clone());
+    let empty = reservations.reserve_record(symbols.get("Empty").unwrap());
+    let inner = reservations.reserve_record(symbols.get("Inner").unwrap());
+    let ordinary = reservations.reserve_record(symbols.get("Ordinary").unwrap());
+    let outer = reservations.reserve_record(symbols.get("Outer").unwrap());
+    let function = reservations.reserve(symbols.get("f").unwrap());
+    let mut builder = reservations.finish().unwrap();
     let records = if reverse {
         [outer, ordinary, inner, empty]
     } else {
@@ -95,10 +96,11 @@ fn records_share_the_program_authority_and_preserve_canonical_ids() {
 #[test]
 fn copy_opt_in_is_not_inferred_from_empty_or_all_copy_fields() {
     let symbols = SymbolTable::from_spellings(["Empty", "CopyEmpty", "Plain", "value"]);
-    let mut builder = ProgramBuilder::new(symbols.clone());
-    let empty = builder.reserve_record(symbols.get("Empty").unwrap());
-    let copy_empty = builder.reserve_record(symbols.get("CopyEmpty").unwrap());
-    let plain = builder.reserve_record(symbols.get("Plain").unwrap());
+    let mut reservations = Reservations::new(symbols.clone());
+    let empty = reservations.reserve_record(symbols.get("Empty").unwrap());
+    let copy_empty = reservations.reserve_record(symbols.get("CopyEmpty").unwrap());
+    let plain = reservations.reserve_record(symbols.get("Plain").unwrap());
+    let mut builder = reservations.finish().unwrap();
     builder.define_record(empty, false, []).unwrap();
     builder.define_record(copy_empty, true, []).unwrap();
     builder
@@ -126,10 +128,11 @@ fn copy_opt_in_is_not_inferred_from_empty_or_all_copy_fields() {
 #[test]
 fn opaque_error_and_noncopy_records_cannot_be_hidden_by_copy_opt_in() {
     let symbols = SymbolTable::from_spellings(["A", "B", "Plain", "first", "second"]);
-    let mut builder = ProgramBuilder::new(symbols.clone());
-    let a = builder.reserve_record(symbols.get("A").unwrap());
-    let b = builder.reserve_record(symbols.get("B").unwrap());
-    let plain = builder.reserve_record(symbols.get("Plain").unwrap());
+    let mut reservations = Reservations::new(symbols.clone());
+    let a = reservations.reserve_record(symbols.get("A").unwrap());
+    let b = reservations.reserve_record(symbols.get("B").unwrap());
+    let plain = reservations.reserve_record(symbols.get("Plain").unwrap());
+    let mut builder = reservations.finish().unwrap();
     builder
         .define_record(
             a,
@@ -178,11 +181,12 @@ fn opaque_error_and_noncopy_records_cannot_be_hidden_by_copy_opt_in() {
 #[test]
 fn self_mutual_and_containing_recursive_payloads_cannot_publish() {
     let symbols = SymbolTable::from_spellings(["A", "B", "C", "Self", "value"]);
-    let mut builder = ProgramBuilder::new(symbols.clone());
-    let a = builder.reserve_record(symbols.get("A").unwrap());
-    let b = builder.reserve_record(symbols.get("B").unwrap());
-    let c = builder.reserve_record(symbols.get("C").unwrap());
-    let recursive = builder.reserve_record(symbols.get("Self").unwrap());
+    let mut reservations = Reservations::new(symbols.clone());
+    let a = reservations.reserve_record(symbols.get("A").unwrap());
+    let b = reservations.reserve_record(symbols.get("B").unwrap());
+    let c = reservations.reserve_record(symbols.get("C").unwrap());
+    let recursive = reservations.reserve_record(symbols.get("Self").unwrap());
+    let mut builder = reservations.finish().unwrap();
     for (id, child) in [(a, b), (b, a), (c, a), (recursive, recursive)] {
         builder
             .define_record(
@@ -211,9 +215,10 @@ fn self_mutual_and_containing_recursive_payloads_cannot_publish() {
 #[test]
 fn missing_or_second_definitions_never_replace_a_valid_schema() {
     let symbols = SymbolTable::from_spellings(["A", "B"]);
-    let mut builder = ProgramBuilder::new(symbols.clone());
-    let a = builder.reserve_record(symbols.get("A").unwrap());
-    let b = builder.reserve_record(symbols.get("B").unwrap());
+    let mut reservations = Reservations::new(symbols.clone());
+    let a = reservations.reserve_record(symbols.get("A").unwrap());
+    let b = reservations.reserve_record(symbols.get("B").unwrap());
+    let mut builder = reservations.finish().unwrap();
     builder.define_record(a, true, []).unwrap();
     assert_eq!(
         builder.define_record(a, false, []),
@@ -236,8 +241,9 @@ fn unknown_reservations_are_rejected_at_definition_and_field_use() {
     let mut identities = ArenaBuilder::<NominalTypeId, ()>::new();
     identities.insert(());
     let absent = identities.insert(());
-    let mut builder = ProgramBuilder::new(symbols.clone());
-    let a = builder.reserve_record(symbols.get("A").unwrap());
+    let mut reservations = Reservations::new(symbols.clone());
+    let a = reservations.reserve_record(symbols.get("A").unwrap());
+    let mut builder = reservations.finish().unwrap();
     assert_eq!(
         builder.define_record(absent, true, []),
         Err(DefinitionError::UnknownId)
@@ -260,35 +266,17 @@ fn unknown_reservations_are_rejected_at_definition_and_field_use() {
 }
 
 #[test]
-fn duplicate_record_and_field_names_and_callable_collisions_are_rejected() {
-    let symbols = SymbolTable::from_spellings(["A", "f", "value"]);
-    let mut builder = ProgramBuilder::new(symbols.clone());
-    let a = builder.reserve_record(symbols.get("A").unwrap());
-    let duplicate = builder.reserve_record(symbols.get("A").unwrap());
-    let collision = builder.reserve_record(symbols.get("f").unwrap());
-    let f = builder.reserve(symbols.get("f").unwrap());
-    builder
-        .define(
-            f,
-            crate::value_access::CallableKind::Function(CompileTimeGuarantee::RuntimeOnly),
-            [],
-            BuiltinType::Void,
-        )
-        .unwrap();
-    let value = field(&symbols, "value", DataReference::Builtin(BuiltinType::I32));
-    builder
-        .define_record(a, false, [value.clone(), value])
-        .unwrap();
-    builder.define_record(duplicate, false, []).unwrap();
-    builder.define_record(collision, false, []).unwrap();
+fn duplicate_record_names_and_callable_collisions_fail_before_any_definition() {
+    let symbols = SymbolTable::from_spellings(["A", "f"]);
+    let mut reservations = Reservations::new(symbols.clone());
+    let a = reservations.reserve_record(symbols.get("A").unwrap());
+    let duplicate = reservations.reserve_record(symbols.get("A").unwrap());
+    let collision = reservations.reserve_record(symbols.get("f").unwrap());
+    let repeated_collision = reservations.reserve_record(symbols.get("f").unwrap());
+    let f = reservations.reserve(symbols.get("f").unwrap());
     assert_eq!(
-        builder.finish().unwrap_err(),
+        reservations.finish().unwrap_err(),
         [
-            DeclarationViolation {
-                declaration: DeclarationId::Record(a),
-                position: HeaderPosition::Field(1),
-                rule: DeclarationRule::DuplicateField { first: 0 }
-            },
             DeclarationViolation {
                 declaration: DeclarationId::Record(duplicate),
                 position: HeaderPosition::Name,
@@ -299,19 +287,68 @@ fn duplicate_record_and_field_names_and_callable_collisions_are_rejected() {
                 position: HeaderPosition::Name,
                 rule: DeclarationRule::RecordShadowsCallable { declaration: f }
             },
+            DeclarationViolation {
+                declaration: DeclarationId::Record(repeated_collision),
+                position: HeaderPosition::Name,
+                rule: DeclarationRule::DuplicateRecord { first: collision }
+            },
         ]
     );
 }
 
 #[test]
-fn unsupported_and_unknown_symbols_cannot_enter_frozen_schemas() {
+fn duplicate_field_names_fail_after_valid_reservations() {
+    let symbols = SymbolTable::from_spellings(["A", "value"]);
+    let mut reservations = Reservations::new(symbols.clone());
+    let a = reservations.reserve_record(symbols.get("A").unwrap());
+    let mut builder = reservations.finish().unwrap();
+    let value = field(&symbols, "value", DataReference::Builtin(BuiltinType::I32));
+    builder
+        .define_record(a, false, [value.clone(), value])
+        .unwrap();
+    assert_eq!(
+        builder.finish().unwrap_err(),
+        [DeclarationViolation {
+            declaration: DeclarationId::Record(a),
+            position: HeaderPosition::Field(1),
+            rule: DeclarationRule::DuplicateField { first: 0 }
+        }]
+    );
+}
+
+#[test]
+fn reserved_and_unknown_record_names_fail_without_requesting_a_schema() {
     let symbols = SymbolTable::from_spellings(["A", "i32", "value"]);
     let foreign_symbols = SymbolTable::from_spellings(["a", "b", "c", "d"]);
     let unknown = foreign_symbols.get("d").unwrap();
-    let mut builder = ProgramBuilder::new(symbols.clone());
-    let a = builder.reserve_record(symbols.get("A").unwrap());
-    let builtin = builder.reserve_record(symbols.get("i32").unwrap());
-    let absent = builder.reserve_record(unknown);
+    let mut reservations = Reservations::new(symbols.clone());
+    let builtin = reservations.reserve_record(symbols.get("i32").unwrap());
+    let absent = reservations.reserve_record(unknown);
+    assert_eq!(
+        reservations.finish().unwrap_err(),
+        [
+            DeclarationViolation {
+                declaration: DeclarationId::Record(builtin),
+                position: HeaderPosition::Name,
+                rule: DeclarationRule::ReservedBuiltinName,
+            },
+            DeclarationViolation {
+                declaration: DeclarationId::Record(absent),
+                position: HeaderPosition::Name,
+                rule: DeclarationRule::UnknownSymbol,
+            },
+        ]
+    );
+}
+
+#[test]
+fn unsupported_field_data_and_unknown_field_names_cannot_enter_frozen_schemas() {
+    let symbols = SymbolTable::from_spellings(["A", "i32", "value"]);
+    let foreign_symbols = SymbolTable::from_spellings(["a", "b", "c", "d"]);
+    let unknown = foreign_symbols.get("d").unwrap();
+    let mut reservations = Reservations::new(symbols.clone());
+    let a = reservations.reserve_record(symbols.get("A").unwrap());
+    let mut builder = reservations.finish().unwrap();
     builder
         .define_record(
             a,
@@ -322,34 +359,32 @@ fn unsupported_and_unknown_symbols_cannot_enter_frozen_schemas() {
             }],
         )
         .unwrap();
-    builder.define_record(builtin, false, []).unwrap();
-    builder.define_record(absent, false, []).unwrap();
-    let violations = builder.finish().unwrap_err();
-    assert_eq!(violations.len(), 4);
-    assert!(violations.iter().any(|v| v.rule
-        == DeclarationRule::UnsupportedDataType {
-            data: BuiltinType::F64
-        }));
-    assert!(
-        violations
-            .iter()
-            .any(|v| v.rule == DeclarationRule::ReservedBuiltinName)
-    );
     assert_eq!(
-        violations
-            .iter()
-            .filter(|v| v.rule == DeclarationRule::UnknownSymbol)
-            .count(),
-        2
+        builder.finish().unwrap_err(),
+        [
+            DeclarationViolation {
+                declaration: DeclarationId::Record(a),
+                position: HeaderPosition::Field(0),
+                rule: DeclarationRule::UnknownSymbol,
+            },
+            DeclarationViolation {
+                declaration: DeclarationId::Record(a),
+                position: HeaderPosition::Field(0),
+                rule: DeclarationRule::UnsupportedDataType {
+                    data: BuiltinType::F64
+                },
+            },
+        ]
     );
 }
 
 #[test]
 fn field_names_are_local_and_type_names_do_not_change_field_identity() {
     let symbols = SymbolTable::from_spellings(["A", "B"]);
-    let mut builder = ProgramBuilder::new(symbols.clone());
-    let a = builder.reserve_record(symbols.get("A").unwrap());
-    let b = builder.reserve_record(symbols.get("B").unwrap());
+    let mut reservations = Reservations::new(symbols.clone());
+    let a = reservations.reserve_record(symbols.get("A").unwrap());
+    let b = reservations.reserve_record(symbols.get("B").unwrap());
+    let mut builder = reservations.finish().unwrap();
     let fields = [field(
         &symbols,
         "A",
@@ -374,11 +409,12 @@ fn deep_shared_schemas_do_not_recurse_or_expand_payload_trees() {
     let names: Vec<_> = (0..COUNT).map(|i| format!("R{i:04}")).collect();
     let symbols =
         SymbolTable::from_spellings(names.iter().map(String::as_str).chain(["left", "right"]));
-    let mut builder = ProgramBuilder::new(symbols.clone());
+    let mut reservations = Reservations::new(symbols.clone());
     let ids: Vec<_> = names
         .iter()
-        .map(|name| builder.reserve_record(symbols.get(name).unwrap()))
+        .map(|name| reservations.reserve_record(symbols.get(name).unwrap()))
         .collect();
+    let mut builder = reservations.finish().unwrap();
     builder.define_record(ids[0], true, []).unwrap();
     for pair in ids.windows(2) {
         builder
@@ -406,9 +442,10 @@ fn deep_shared_schemas_do_not_recurse_or_expand_payload_trees() {
 #[test]
 fn ordinary_records_preserve_move_only_error_fields_without_flattening() {
     let symbols = SymbolTable::from_spellings(["Failure", "Wrapper", "error", "value"]);
-    let mut builder = ProgramBuilder::new(symbols.clone());
-    let failure = builder.reserve_record(symbols.get("Failure").unwrap());
-    let wrapper = builder.reserve_record(symbols.get("Wrapper").unwrap());
+    let mut reservations = Reservations::new(symbols.clone());
+    let failure = reservations.reserve_record(symbols.get("Failure").unwrap());
+    let wrapper = reservations.reserve_record(symbols.get("Wrapper").unwrap());
+    let mut builder = reservations.finish().unwrap();
     builder
         .define_record(
             failure,
@@ -444,9 +481,10 @@ fn ordinary_records_preserve_move_only_error_fields_without_flattening() {
 #[test]
 fn callable_parameters_cannot_shadow_authored_record_names() {
     let symbols = SymbolTable::from_spellings(["A", "f"]);
-    let mut builder = ProgramBuilder::new(symbols.clone());
-    let a = builder.reserve_record(symbols.get("A").unwrap());
-    let f = builder.reserve(symbols.get("f").unwrap());
+    let mut reservations = Reservations::new(symbols.clone());
+    let a = reservations.reserve_record(symbols.get("A").unwrap());
+    let f = reservations.reserve(symbols.get("f").unwrap());
+    let mut builder = reservations.finish().unwrap();
     builder.define_record(a, false, []).unwrap();
     builder
         .define(

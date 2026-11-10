@@ -1,6 +1,6 @@
 use super::*;
 use crate::value_access::{
-    Builder, CallableKind, DataReference, DeclarationRule, FieldDefinition, TupleData,
+    CallableKind, DataReference, DeclarationRule, FieldDefinition, Reservations, TupleData,
 };
 use nocter_model::{BuiltinType, CompileTimeGuarantee, SymbolTable};
 
@@ -10,8 +10,9 @@ fn pair(first: DataReference, second: DataReference) -> DataReference {
 #[test]
 fn nominal_fields_and_tuple_positions_cannot_substitute_for_each_other() {
     let symbols = SymbolTable::from_spellings(["Box", "value"]);
-    let mut builder = Builder::new(symbols.clone());
-    let record = builder.reserve_record(symbols.get("Box").unwrap());
+    let mut reservations = Reservations::new(symbols.clone());
+    let record = reservations.reserve_record(symbols.get("Box").unwrap());
+    let mut builder = reservations.finish().unwrap();
     builder
         .define_record(
             record,
@@ -43,9 +44,10 @@ fn nominal_fields_and_tuple_positions_cannot_substitute_for_each_other() {
 fn nominal_containment_and_copy_validation_follow_leaves_inside_tuples() {
     for (recursive, copy) in [(true, false), (false, true)] {
         let symbols = SymbolTable::from_spellings(["Box", "Item", "value"]);
-        let mut builder = Builder::new(symbols.clone());
-        let owner = builder.reserve_record(symbols.get("Box").unwrap());
-        let item = builder.reserve_record(symbols.get("Item").unwrap());
+        let mut reservations = Reservations::new(symbols.clone());
+        let owner = reservations.reserve_record(symbols.get("Box").unwrap());
+        let item = reservations.reserve_record(symbols.get("Item").unwrap());
+        let mut builder = reservations.finish().unwrap();
         builder
             .define_record(
                 owner,
@@ -76,8 +78,9 @@ fn nominal_containment_and_copy_validation_follow_leaves_inside_tuples() {
 #[test]
 fn shared_structural_copy_proof_visits_shapes_without_expanding_the_payload() {
     let symbols = SymbolTable::from_spellings(["run"]);
-    let mut builder = Builder::new(symbols.clone());
-    let run = builder.reserve(symbols.get("run").unwrap());
+    let mut reservations = Reservations::new(symbols.clone());
+    let run = reservations.reserve(symbols.get("run").unwrap());
+    let mut builder = reservations.finish().unwrap();
     builder
         .define(
             run,

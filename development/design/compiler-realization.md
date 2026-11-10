@@ -90,6 +90,24 @@ without accepting capability cycles or mistaking budget exhaustion for nontermin
 array-length/constant-argument calls need the owning dependency protocol: the current header
 stratum cannot reopen ordinary body checking or publish fabricated type/constant placeholders.
 
+Early structural requests must start from the declaration owner's
+[closed reservation domain](../compiler/crates/nocter-declarations/README.md#future-value-declaration-boundary),
+before type-dependent definition publication. Extend the existing dependency coordinator with
+distinct header-normalization, checked-body and required-value keys. A checked body may consume
+only closed contracts for its selected references; if one is unavailable, suspend its unpublished
+work and require that contract rather than treating an unknown length as zero, unit or a fresh
+opaque type. Compute a required length through the ordinary checked usize/evaluator path, then
+intern the resulting array identity in the same type authority. Publication still requires every
+declaration and every definition to close.
+
+Keep type/value cycles distinct from callable recursion. A request that needs its own unfinished
+normalized type or value is a dependency error, including an authored requirement in dead source.
+Callable-only recursion instead closes one checked graph and remains subject to execution budgets.
+Body bytes used by a header value must participate in header reuse invalidation; the current
+body-independent header-surface equality cannot certify an evaluated length after a supplying const
+body changes. Preserve exact source recipes and causal edges across those requests. This integration,
+not reservation closure alone, is the remaining gate for array type lengths.
+
 The evaluator must preserve edit-input writes, aliases, partial state and once-only cleanup.
 Compare repeated calls with equal scalar input values but different mutable places, selected enum
 payloads, zero-count repetition and temporary escape. Result-only memoization must not erase
