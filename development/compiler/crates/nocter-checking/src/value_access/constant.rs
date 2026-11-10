@@ -80,7 +80,7 @@ impl DataDomain<'_> {
                             | nocter_model::BuiltinType::Void
                     ),
                 },
-                PayloadSchema::Function(_) => false,
+                PayloadSchema::Function(_) | PayloadSchema::Array(_) => false,
                 PayloadSchema::Aggregate(aggregate) => {
                     let children = aggregate
                         .components()
@@ -263,4 +263,66 @@ pub(super) fn supports_final(
         supported: BTreeMap::new(),
     }
     .supports(data)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nocter_declarations::value_access::{CodeKind, DataReference, Reservations};
+    use nocter_model::{BuiltinType, SymbolTable};
+
+    #[test]
+    fn array_metadata_and_copy_do_not_grant_evaluator_or_resource_admission() {
+        for length in [0, 1, u64::MAX] {
+            let symbols = SymbolTable::from_spellings(["run", "Holder", "value"]);
+            let mut reservations = Reservations::new(symbols.clone());
+            let holder = reservations.reserve_record(symbols.get("Holder").unwrap(), 1);
+            let code = reservations.reserve(symbols.get("run").unwrap(), 0);
+            let mut builder = reservations.finish().unwrap();
+            builder
+                .define(
+                    code,
+                    CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
+                    [],
+                    DataReference::Array {
+                        element: Box::new(BuiltinType::I32.into()),
+                        length,
+                    },
+                )
+                .unwrap();
+            builder
+                .define_record(
+                    holder,
+                    false,
+                    [nocter_declarations::value_access::FieldDefinition {
+                        name: symbols.get("value").unwrap(),
+                        data: DataReference::Array {
+                            element: Box::new(BuiltinType::I32.into()),
+                            length,
+                        },
+                    }],
+                )
+                .unwrap();
+            let program = builder.finish().unwrap();
+            let data = program.codes().get(code).unwrap().result();
+            assert_eq!(program.data_copyable(data), Some(true));
+            for purpose in [Domain::Execution, Domain::Publication] {
+                assert!(
+                    !DataDomain {
+                        purpose,
+                        program: &program,
+                        supported: BTreeMap::new()
+                    }
+                    .supports(data)
+                    .unwrap()
+                );
+            }
+            assert!(flow::resources::payload(&program, data).is_err());
+            assert!(
+                flow::resources::payload(&program, program.records().get(holder).unwrap().data())
+                    .is_err(),
+                "a nominal wrapper cannot hide the unsupported array"
+            );
+        }
+    }
 }

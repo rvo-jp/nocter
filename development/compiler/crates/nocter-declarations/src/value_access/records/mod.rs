@@ -224,7 +224,7 @@ impl Builder {
                 .iter()
                 .position(|field| {
                     let mut found = false;
-                    field.data.visit_leaves(|data| {
+                    field.data.visit_payload_leaves(|data| {
                         found |= matches!(data, DataReference::Record(id) if *id == child);
                     });
                     found
@@ -240,5 +240,12 @@ impl Builder {
             position: HeaderPosition::Field(position),
             rule: DeclarationRule::RecursivePayload { through },
         })
+    }
+}
+
+pub(in crate::value_access) fn nominal_key(id: NominalTypeId) -> nocter_model::TypeKind {
+    nocter_model::TypeKind::Nominal {
+        definition: id,
+        arguments: nocter_model::GenericApplication::default(),
     }
 }

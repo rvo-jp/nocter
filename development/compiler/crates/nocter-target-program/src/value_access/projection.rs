@@ -158,6 +158,7 @@ pub(super) fn data(
                 source
             }
             PayloadSchema::Builtin(_) => source,
+            PayloadSchema::Array(_) => return Err(Failure::InvalidAcceptedUnit),
         };
         let contract = payload(program, target).map_err(|_| Failure::InvalidAcceptedUnit)?;
         concrete.insert(source, DataEvidence::Payload(contract));

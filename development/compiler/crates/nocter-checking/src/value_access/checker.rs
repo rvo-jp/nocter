@@ -338,6 +338,11 @@ impl<'a, 's> Checker<'a, 's> {
             .data_schema(data)
             .expect("closed data authority")
         {
+            PayloadSchema::Array(array) => format!(
+                "[{}; {}]",
+                self.data_label_with_budget(array.element(), remaining),
+                array.length()
+            ),
             PayloadSchema::Builtin(data) => data.spelling().to_owned(),
             PayloadSchema::Aggregate(schema) => match schema.form() {
                 AggregateForm::Record(record) => self

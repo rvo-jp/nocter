@@ -1,10 +1,8 @@
 //! Demand-driven finite-payload and Copy validation before atomic schema publication.
 use super::super::data::builtin_copyable;
 use super::super::{DeclarationId, DeclarationRule, DeclarationViolation, HeaderPosition};
-use super::{Builder, DataReference, Field, Record, Schemas};
-use nocter_model::{
-    AccessFieldId, GenericApplication, NominalTypeId, SparseArenaBuilder, TypeAuthority, TypeKind,
-};
+use super::{Builder, DataReference, Field, Record, Schemas, nominal_key};
+use nocter_model::{AccessFieldId, NominalTypeId, SparseArenaBuilder, TypeAuthority};
 
 /// One writer for complete transitive payload schemas; nominal leaf keys grant no schema.
 #[derive(Debug)]
@@ -47,7 +45,7 @@ impl Publication {
             .expect("resolved definition");
         let mut children = Vec::new();
         for field in &definition.fields {
-            field.data.visit_leaves(|data| {
+            field.data.visit_payload_leaves(|data| {
                 if let DataReference::Record(child) = data
                     && self.records.get(*child).is_none()
                 {
@@ -78,7 +76,7 @@ impl Publication {
             let mut violations = Vec::new();
             for (position, field) in definition.fields.iter().enumerate() {
                 let mut copy = true;
-                field.data.visit_leaves(|data| {
+                field.data.visit_payload_leaves(|data| {
                     copy &= match data {
                         DataReference::Builtin(data) => {
                             builtin_copyable(*data).expect("resolved builtin payload")
@@ -88,7 +86,9 @@ impl Publication {
                             .get(*child)
                             .expect("ready child schema")
                             .copyable(),
-                        DataReference::Tuple(_) => unreachable!("only leaves are visited"),
+                        DataReference::Tuple(_) | DataReference::Array { .. } => {
+                            unreachable!("only leaves are visited")
+                        }
                     };
                 });
                 if !copy {
@@ -108,11 +108,7 @@ impl Publication {
         for &field_id in &reservation.fields {
             let slot = definitions.fields.get(field_id).expect("reserved field");
             let field = &definition.fields[slot.position];
-            let data = super::super::data::resolved_data(
-                &mut types,
-                |child| self.records.get(child).expect("ready child schema").data(),
-                &field.data,
-            );
+            let data = super::super::data::resolved_data(&mut types, &field.data);
             fields.push((
                 field_id,
                 Field {
@@ -143,12 +139,5 @@ impl Publication {
             .insert(id, record)
             .expect("define-once reserved record");
         Ok(())
-    }
-}
-
-fn nominal_key(id: NominalTypeId) -> TypeKind {
-    TypeKind::Nominal {
-        definition: id,
-        arguments: GenericApplication::default(),
     }
 }

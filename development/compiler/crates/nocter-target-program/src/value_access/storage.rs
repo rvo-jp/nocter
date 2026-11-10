@@ -88,6 +88,7 @@ pub fn prepare(
         }
         let invalid = || Failure::InvalidPayload(data);
         let kind = match program.data_schema(data).ok_or_else(invalid)? {
+            PayloadSchema::Array(_) => return Err(invalid()),
             PayloadSchema::Builtin(builtin) => match builtin {
                 BuiltinType::Bool => RuntimeType::Primitive(RuntimePrimitive::Bool),
                 BuiltinType::I32 => RuntimeType::Primitive(RuntimePrimitive::Signed(32)),

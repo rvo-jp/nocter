@@ -196,9 +196,9 @@ impl HeaderPublication {
                     }
                 };
                 for parameter in &definition.parameters {
-                    parameter.data.visit_data(&mut require_record);
+                    parameter.data.visit_payload_data(&mut require_record);
                 }
-                definition.result_data.visit_data(require_record);
+                definition.result_data.visit_payload_data(require_record);
                 if !records.is_empty() {
                     return Ok(HeaderStep::Require(records.into()));
                 }
@@ -229,7 +229,6 @@ impl HeaderPublication {
                 let parameter = &definition.parameters[slot.position];
                 let (data, contract) = publish_value(
                     &mut types,
-                    &self.records,
                     ValueFunctionOrigin::Parameter(id),
                     &parameter.data,
                 );
@@ -248,7 +247,6 @@ impl HeaderPublication {
             .collect();
         let (result, result_contract) = publish_value(
             &mut types,
-            &self.records,
             ValueFunctionOrigin::Result(id),
             &definition.result_data,
         );
@@ -321,20 +319,12 @@ impl DependencyProgress<DeclarationId, (), HeaderFailure> for HeaderPublication 
 
 fn publish_value(
     types: &mut nocter_model::TypeTransaction,
-    records: &records::Publication,
     origin: ValueFunctionOrigin,
     definition: &ValueDefinition,
 ) -> (nocter_model::TypeId, Option<FunctionConstraint>) {
     let definition = match definition {
         ValueDefinition::Data(data) => {
-            return (
-                resolved_data(
-                    types,
-                    |id| records.get(id).expect("ready record").data(),
-                    data,
-                ),
-                None,
-            );
+            return (resolved_data(types, data), None);
         }
         ValueDefinition::Function(definition) => definition,
     };
@@ -344,19 +334,11 @@ fn publish_value(
             .inputs
             .iter()
             .map(|(operation, data)| FunctionInput {
-                data: resolved_data(
-                    types,
-                    |id| records.get(id).expect("ready record").data(),
-                    data,
-                ),
+                data: resolved_data(types, data),
                 operation: *operation,
             })
             .collect(),
-        result: resolved_data(
-            types,
-            |id| records.get(id).expect("ready record").data(),
-            &definition.result,
-        ),
+        result: resolved_data(types, &definition.result),
     };
     let mut selected = None;
     for invocation in [

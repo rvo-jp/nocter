@@ -49,7 +49,7 @@ impl Types {
                             .collect::<Result<_>>()?,
                     )
                 }
-                PayloadSchema::Function(_) => return Err(INVALID),
+                PayloadSchema::Function(_) | PayloadSchema::Array(_) => return Err(INVALID),
             };
             let id = self.values.len();
             self.values.push(value);

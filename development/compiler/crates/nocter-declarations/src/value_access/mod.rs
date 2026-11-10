@@ -28,7 +28,7 @@ mod namespace;
 mod publication;
 pub use publication::{HeaderFailure, HeaderPublication, HeaderStep};
 mod records;
-pub use data::{DataReference, PayloadSchema, TupleData};
+pub use data::{ArraySchema, DataReference, PayloadSchema, TupleData};
 use data::{data_reference, supported};
 pub use records::{Field, FieldDefinition, Record};
 

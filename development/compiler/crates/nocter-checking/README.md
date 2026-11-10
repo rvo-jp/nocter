@@ -463,6 +463,10 @@ return survives evaluation/lexical cleanup, whose order is reverse actual constr
 Return owner with the checking-closed result data type, including unit. Trapping/diverging paths do
 not acquire unwind guarantees.
 
+Declaration-owned array descriptors do not yet grant body/resource operations or evaluator
+representation in this fragment. Domain checks reject them explicitly, including empty Copy
+arrays; zero count is not permission to substitute tuple or scalar behavior.
+
 Payload evidence consumes the declaration authority's exact bool/i32/usize/void and opaque owned-error
 snapshot contracts, plus its closed record/tuple compositions over those leaves and exact
 capture-free named-function witnesses. Scalars/unit/named functions have trivial disposal; error owns graph cleanup; aggregates

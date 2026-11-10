@@ -161,6 +161,11 @@ recursion, exact dependency causes and the shared active/completed authority. Do
 proof with a source depth or array-length ceiling, or charge header traversal as source
 execution-call depth.
 
+The declaration owner now normalizes already-closed array references and exposes homogeneous
+[fixed-array metadata](../compiler/crates/nocter-declarations/README.md#future-value-declaration-boundary).
+Connect source-computed counts to that same resolver; metadata tests alone do not qualify the
+source/body/evaluator/storage paths.
+
 Separate nominal name identity from payload-schema dependencies. In particular, the
 [array containment contract](../spec/language/tuples-and-arrays.md#scope-and-identity) requires
 evaluating the count before deciding which element-payload edges need closure. Requesting every

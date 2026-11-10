@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 pub enum PayloadSchema<'a> {
     Builtin(BuiltinType),
     Aggregate(super::AggregateSchema<'a>),
+    Array(ArraySchema),
     Function(super::FunctionWitness),
 }
 
@@ -17,6 +18,31 @@ pub enum DataReference {
     Builtin(BuiltinType),
     Record(NominalTypeId),
     Tuple(TupleData),
+    Array {
+        element: Box<DataReference>,
+        length: u64,
+    },
+}
+
+/// A homogeneous closed array descriptor; cardinality never expands its element schema.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ArraySchema {
+    element: TypeId,
+    length: u64,
+}
+impl ArraySchema {
+    #[must_use]
+    pub const fn element(self) -> TypeId {
+        self.element
+    }
+    #[must_use]
+    pub const fn length(self) -> u64 {
+        self.length
+    }
+    #[must_use]
+    pub const fn is_empty(self) -> bool {
+        self.length == 0
+    }
 }
 /// A structural data reference with the same minimum arity as semantic tuple types.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -38,11 +64,22 @@ impl TupleData {
     }
 }
 impl DataReference {
-    pub(super) fn visit_leaves(&self, mut visit: impl FnMut(&Self)) {
+    pub(super) fn visit_leaves(&self, visit: impl FnMut(&Self)) {
+        self.visit(false, visit);
+    }
+    pub(super) fn visit_payload_leaves(&self, visit: impl FnMut(&Self)) {
+        self.visit(true, visit);
+    }
+    fn visit(&self, payload_only: bool, mut visit: impl FnMut(&Self)) {
         let mut pending = vec![self];
         while let Some(data) = pending.pop() {
             match data {
                 Self::Tuple(fields) => pending.extend(fields.as_slice().iter().rev()),
+                Self::Array { element, length } => {
+                    if !payload_only || *length != 0 {
+                        pending.push(element);
+                    }
+                }
                 _ => visit(data),
             }
         }
@@ -72,7 +109,7 @@ impl Program {
         match data_reference(&self.symbols, &self.namespace, spelling)? {
             DataReference::Builtin(data) => self.data_type(data),
             DataReference::Record(id) => self.records.records.get(id).map(Record::data),
-            DataReference::Tuple(_) => None,
+            DataReference::Tuple(_) | DataReference::Array { .. } => None,
         }
     }
     /// Structural Copy evidence for the payload, never permission to duplicate an access.
@@ -90,6 +127,13 @@ impl Program {
                 PayloadSchema::Builtin(builtin) => {
                     copyable.insert(current, builtin_copyable(builtin)?);
                     continue;
+                }
+                PayloadSchema::Array(array) => {
+                    if array.is_empty() {
+                        copyable.insert(current, true);
+                        continue;
+                    }
+                    vec![array.element()]
                 }
                 PayloadSchema::Aggregate(schema) => match schema.form() {
                     AggregateForm::Record(record) => {
@@ -151,6 +195,10 @@ impl Program {
                     PayloadSchema::Aggregate(super::AggregateSchema::record(record, self.fields()))
                 })
             }
+            TypeKind::FixedArray { element, length } => Some(PayloadSchema::Array(ArraySchema {
+                element: *element,
+                length: length.closed_value()?,
+            })),
             TypeKind::Tuple(fields) => Some(PayloadSchema::Aggregate(
                 super::AggregateSchema::tuple(fields.as_slice()),
             )),
@@ -216,7 +264,6 @@ pub(super) fn data_reference(
 }
 pub(super) fn resolved_data(
     types: &mut nocter_model::TypeTransaction,
-    record: impl Fn(NominalTypeId) -> TypeId,
     data: &DataReference,
 ) -> TypeId {
     let mut pending = vec![(data, false)];
@@ -224,7 +271,23 @@ pub(super) fn resolved_data(
     while let Some((data, expanded)) = pending.pop() {
         let data = match data {
             DataReference::Builtin(data) => types.builtin(*data),
-            DataReference::Record(id) => record(*id),
+            DataReference::Record(id) => types
+                .intern(super::records::nominal_key(*id))
+                .expect("validated nominal identity"),
+            DataReference::Array { element, length } => {
+                if !expanded {
+                    pending.push((data, true));
+                    pending.push((element, false));
+                    continue;
+                }
+                let element = resolved.pop().expect("resolved array element");
+                types
+                    .intern(TypeKind::FixedArray {
+                        element,
+                        length: (*length).into(),
+                    })
+                    .expect("validated closed array reference")
+            }
             DataReference::Tuple(fields) => {
                 if !expanded {
                     pending.push((data, true));
@@ -245,3 +308,6 @@ pub(super) fn resolved_data(
     }
     resolved.pop().expect("one complete data reference")
 }
+
+#[cfg(test)]
+mod tests;

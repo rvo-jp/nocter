@@ -80,8 +80,8 @@ its infallible `into_publication` transition opens `HeaderPublication` without r
 to be loaded. The writer retains that sole raw owner and permits defining remaining headers through
 the same define-once methods. It cannot append reservations or replace an established definition.
 This single writer validates and normalizes requested callable or record contracts and exposes
-immutable `Program` views containing only ready entries. Each contract first closes its transitive record
-dependencies. Its consuming `finish` closes every remaining callable and record, including unused
+immutable `Program` views containing only ready entries. Each contract first closes its positive
+by-value payload dependencies. Its consuming `finish` closes every remaining callable and record, including unused
 records. `Builder::finish` uses that same path.
 No authored definition or type resolution is available during reservation, and no new declaration
 can be reserved after name closure. Untyped construction grants no body-checking admission. A ready view
@@ -124,12 +124,14 @@ its parent's complete fields and local member namespace. Reserved callable and d
 enumeration belongs to this same authority, independently of source projection and readiness.
 
 `value_access::data` owns closed data-name resolution, TypeId projection and Copy queries over
-one privately owned type authority. Callable headers admit `bool`, `i32`, `usize`, `void`, opaque move-only
-`error`, closed nominal records and structural tuples, and flat callable input/result contracts.
+one privately owned type authority. Callable metadata headers admit `bool`, `i32`, `usize`, `void`, opaque move-only
+`error`, closed nominal records, structural tuples and closed array descriptors, plus flat callable
+input/result contracts.
 Construction-time
 `ValueDefinition` slots share data or callable normalization. `DataReference` composes named
-leaves into minimum-two-component tuple trees; one iterative resolver interns their TypeIds in the
-same declaration transaction before publication. They do not expose released type-store eligibility
+leaves into minimum-two-component tuple trees and closed fixed arrays. Array lengths are already
+normalized u64 target-usize values, not source expressions or symbolic guesses. One iterative
+resolver interns their TypeIds in the same declaration transaction before publication. They do not expose released type-store eligibility
 helpers or borrow constructors. Unit is a value in this product. Input operation is
 separate from data identity and payload Copy evidence. Stored parameter records carry a data
 TypeId and Read/Edit/Take operation; callable results carry a data TypeId and, for a callable
@@ -156,6 +158,27 @@ from the real owning declaration, including an unready owner, rather than intern
 name. The [source owner](../nocter-declaration-lowering/README.md#exact-source-evidence) pairs these
 contracts with exact executable roots. Array normalization and value-dependent header reuse
 remain with the [structural request work](../../../design/compiler-realization.md#structural-type-request-closure).
+
+The declaration product also admits closed fixed-array metadata as `PayloadSchema::Array` with an
+`ArraySchema` element TypeId and u64 cardinality. It reuses the model's `FixedArray` identity and
+closed `UsizeTerm`; array cardinality never expands metadata or becomes a tuple identity. The
+schema does not grant tuple/record component selectors or runtime value operations. Structural
+Copy is true for a zero count, otherwise it consumes the element's evidence once. A zero-byte
+non-Copy element with positive count remains non-Copy.
+
+Raw type validation still visits every element name and storable-type leaf, including inside empty
+arrays. Finite containment and explicit Copy consume the same separate payload-leaf traversal,
+which omits proven zero-count element edges. Diagnostic closing-field selection uses that same
+policy. Normalization interns validated nominal name keys without requiring their payload schemas;
+this lets a zero array break self containment or refer to another unready record. It does not make
+that record ready or valid. Complete closure still rejects independently invalid unused
+declarations. Positive counts require the ordinary ready element payloads. Copy and containment
+rejection occur before publishing any parent field or array type.
+
+These are declaration metadata contracts. Source count normalization, array value checking,
+resource cleanup, const-data publication and runtime realization remain separate admission gates;
+the [source owner](../nocter-declaration-lowering/README.md#exact-source-evidence) states the current
+source boundary.
 
 The same program publishes closed nominal record metadata used by parsed callable and body
 checking. Record names use the common closed namespace above. Fields have a distinct value-field
@@ -187,8 +210,8 @@ is rejected.
 the supplied program's sole type authority. It never falls back to a different header/body store.
 `data_copyable` consumes that validated shape with iterative memoized structural traversal;
 `data_kind` deliberately remains a builtin-only projection. These APIs do not publish arbitrary
-borrow types, generic eligibility guesses, or a second type store. Current
-aggregate schemas contain only values over the closed builtin leaves, records and tuples.
+borrow types, generic eligibility guesses, or a second type store. Ordered record/tuple aggregate
+schemas remain distinct from the homogeneous fixed-array descriptor.
 A tuple is Copy exactly when every component is; it does not make an ordinary nominal component
 Copy. These schemas are metadata, not proof of body acceptance, partial initialization, survival, destruction or
 native execution. Selected source places consume these schemas through the private body checker;
