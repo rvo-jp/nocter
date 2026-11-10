@@ -135,7 +135,7 @@ must cover expressions in record fields as well as callable headers. The current
 source-owner projection cannot represent a record-owned length by relabeling it as a function.
 
 Keep deferred header normalization on the
-[query-owned iterative progress path](../compiler/crates/nocter-constant-evaluation/README.md#dependency-queries).
+[query-owned iterative progress path](../compiler/crates/nocter-dependency-query/README.md#invariants).
 Introducing raw type/value dependencies must preserve deep-schema preparation without host
 recursion, exact dependency causes and the shared active/completed authority. Do not replace this
 proof with a source depth or array-length ceiling, or charge header traversal as source

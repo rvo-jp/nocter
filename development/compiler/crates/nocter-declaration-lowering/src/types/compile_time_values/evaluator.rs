@@ -2,11 +2,11 @@ use std::collections::{HashMap, HashSet};
 
 use nocter_constant_evaluation::{
     ConstantEvaluationError, ConstantEvaluationRule, ConstantExpressionPlan, ConstantPlanError,
-    ConstantPlanRule, ConstantReference, ConstantResolver, ConstantScalarType,
-    DependencyComputation, DependencyQuery, DependencyQueryError, FloatFormat,
+    ConstantPlanRule, ConstantReference, ConstantResolver, ConstantScalarType, FloatFormat,
     evaluate_expression_plan, plan_expression,
 };
 use nocter_declarations::ExportedEntity;
+use nocter_dependency_query::{DependencyComputation, DependencyQuery, DependencyQueryError};
 use nocter_model::{
     BorrowCapability, BuiltinType, CompilationTarget, ConstantExpressionId, ConstantId,
     ConstantValue, ModuleId,

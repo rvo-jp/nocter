@@ -1,11 +1,11 @@
 use std::collections::{HashSet, VecDeque};
 
 use nocter_constant_evaluation::{
-    CompileTimeCallTarget, CompileTimeCallablePlan, CompileTimeCallableRecipe,
-    CompileTimePlanTable, DependencyComputation, DependencyQuery, DependencyQueryError,
+    CompileTimeCallTarget, CompileTimeCallablePlan, CompileTimeCallableRecipe, CompileTimePlanTable,
 };
 use nocter_declarations::BodyOwner;
 use nocter_declarations::DeclarationGraph;
+use nocter_dependency_query::{DependencyComputation, DependencyQuery, DependencyQueryError};
 use nocter_model::{Arena, CompileTimeGuarantee, TypeStore};
 
 use super::{

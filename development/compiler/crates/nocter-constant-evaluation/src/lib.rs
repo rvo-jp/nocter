@@ -12,7 +12,6 @@ mod floating;
 mod model;
 mod plan;
 mod program;
-mod query;
 mod scalar;
 pub mod state;
 mod support;
@@ -51,10 +50,6 @@ pub use plan::{plan_expression, plan_frozen_expression};
 pub use program::{
     CompileTimePlanTable, InvalidCompileTimePlanRule, InvalidCompileTimePlanTable,
     MissingCompileTimePlan,
-};
-pub use query::{
-    DependencyComputation, DependencyProgress, DependencyQuery, DependencyQueryError,
-    DependencyStep,
 };
 pub use value::CompileTimeValue;
 

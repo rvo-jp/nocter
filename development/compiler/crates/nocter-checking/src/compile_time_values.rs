@@ -1,10 +1,11 @@
 use nocter_constant_evaluation::{
     CompileTimeConstantResolver, CompileTimeEvaluationLimits, CompileTimeExecutionRule,
-    CompileTimeExecutor, DependencyComputation, DependencyQuery, DependencyQueryError,
+    CompileTimeExecutor,
 };
 use nocter_declarations::{
     BodyOwner, DeclarationGraph, DeclarationValueTable, StructuralConstantTable,
 };
+use nocter_dependency_query::{DependencyComputation, DependencyQuery, DependencyQueryError};
 use nocter_model::{ConstantId, ConstantValue, TypeStore};
 
 use crate::compile_time_projection::ProjectedCompileTimePlans;

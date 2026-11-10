@@ -110,6 +110,7 @@ fn core_program_layers_keep_the_reviewed_dependency_direction() {
     let expected = [
         ("nocter-persistent", &[][..]),
         ("nocter-language", &[][..]),
+        ("nocter-dependency-query", &[][..]),
         (
             "nocter-model",
             &["nocter-language", "nocter-persistent"][..],

@@ -148,6 +148,7 @@ Supporting boundary crates remain deliberately narrow:
 |---|---|
 | syntax-owned target-gate decisions | [`nocter-target-selection`](../compiler/crates/nocter-target-selection/README.md) |
 | compile-time expression evaluation | [`nocter-constant-evaluation`](../compiler/crates/nocter-constant-evaluation/README.md) |
+| construction-scoped dependency requests and memoization | [`nocter-dependency-query`](../compiler/crates/nocter-dependency-query/README.md) |
 | source-only formatting and inspection | [`nocter-source-tooling`](../compiler/crates/nocter-source-tooling/README.md) |
 | deterministic JSON and byte-stream hashing | [`nocter-json`](../compiler/crates/nocter-json/README.md) and [`nocter-hash`](../compiler/crates/nocter-hash/README.md) |
 | physical file and regular-tree content identity | [`nocter-content-integrity`](../compiler/crates/nocter-content-integrity/README.md) |

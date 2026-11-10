@@ -1,8 +1,8 @@
 //! One memoization and active-path authority for contracts, typed bodies and required values.
 use super::Completed;
 use crate::value_access::Query;
-use nocter_constant_evaluation::DependencyQuery;
 use nocter_declarations::value_access::DeclarationId;
+use nocter_dependency_query::DependencyQuery;
 use nocter_model::AccessCallableId;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]

@@ -10,6 +10,7 @@ publish = false
 test-api = []
 
 [dependencies]
+nocter-dependency-query = { path = "../nocter-dependency-query" }
 nocter-toolchain-contract = { path = "../nocter-toolchain-contract" }
 nocter-compile-input = { path = "../nocter-compile-input" }
 nocter-constant-evaluation = { path = "../nocter-constant-evaluation" }

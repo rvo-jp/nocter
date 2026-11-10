@@ -548,7 +548,8 @@ use `return` to leave its value-expression boundary. Nested source callables ret
 return targets. Runtime instance closure rejects an initializer as an entry root.
 
 `evaluation::preparation` owns the common coordinator for contract readiness, typed bodies and one
-`DependencyQuery` for header, typed-body and required-value requests. `dependencies` owns those
+[construction dependency query](../nocter-dependency-query/README.md) for header, typed-body and
+required-value requests. `dependencies` owns those
 disjoint key/fact roles; there is no parallel typed-body cache or active dependency stack. Header
 facts acknowledge the declaration owner's ready contracts without containing another program or
 type store. The coordinator accepts either a closed context or the exact-current

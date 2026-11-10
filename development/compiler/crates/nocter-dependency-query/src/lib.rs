@@ -1,3 +1,4 @@
+//! Construction-scoped dependency state, immutable memoization and explicit request progress.
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::Arc;

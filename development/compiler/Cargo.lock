@@ -1743,6 +1743,7 @@ dependencies = [
  "nocter-constant-evaluation",
  "nocter-declaration-lowering",
  "nocter-declarations",
+ "nocter-dependency-query",
  "nocter-diagnostics",
  "nocter-frontend-bindings",
  "nocter-json",
@@ -1892,6 +1893,7 @@ dependencies = [
  "nocter-compile-input",
  "nocter-constant-evaluation",
  "nocter-declarations",
+ "nocter-dependency-query",
  "nocter-diagnostics",
  "nocter-frontend-bindings",
  "nocter-json",
@@ -1913,6 +1915,10 @@ dependencies = [
  "nocter-model",
  "nocter-toolchain-contract",
 ]
+
+[[package]]
+name = "nocter-dependency-query"
+version = "0.0.0"
 
 [[package]]
 name = "nocter-diagnostics"

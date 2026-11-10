@@ -5,11 +5,12 @@ use super::{
     final_diagnostic, projection,
 };
 use crate::value_access::{self, ExpressionKind, Failure as BodyFailure, Query, accepted, checker};
-use nocter_constant_evaluation::{
-    DependencyComputation, DependencyProgress, DependencyQueryError, DependencyStep, state,
-};
+use nocter_constant_evaluation::state;
 use nocter_declaration_lowering::access_declarations::{self as declarations, Context};
 use nocter_declarations::value_access::{DeclarationId, HeaderStep};
+use nocter_dependency_query::{
+    DependencyComputation, DependencyProgress, DependencyQueryError, DependencyStep,
+};
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{AccessCallableId, CompileTimeGuarantee, ValueFunctionOrigin};
 use nocter_syntax::SyntaxOrigin;

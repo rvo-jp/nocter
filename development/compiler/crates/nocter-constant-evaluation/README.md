@@ -60,25 +60,6 @@ still owns contextual numeric type, sign, range, and checked arithmetic.
   static initializers reach execution through checked initializer plans, so adding calls does not
   expand the syntax planner into a second body checker.
 
-## Dependency Queries
-
-One `DependencyQuery` owns absent, active and completed states and the exact ordered active frames.
-`resolve` supports re-entrant computations. `resolve_steps` instead advances drafts through
-`DependencyProgress`, scheduling each returned dependency group in order with explicit frames.
-Both entries share memoization and cycle detection, including when iterative work runs inside a
-re-entrant computation. Deep iterative dependencies do not consume the host call stack.
-
-A draft returns a complete value or a group containing at least one unfinished key. Completed
-dependencies in a group are skipped. Empty or wholly completed groups invoke the consumer's
-`no_progress` failure, preventing an invalid draft from spinning. The query alone constructs
-active-cycle paths; consumers classify their own authored and integrity failures. Failure unwinds
-only the invocation's unfinished frames, retaining completed dependencies and outer active work.
-
-The read-only active-key path lets consumers classify request roles for an execution-depth budget
-without another stack; the query does not interpret those roles. Each completed value is allocated
-once and shared across requests. The query has no `Clone` implementation, so a construction cannot
-fork a second memoization authority or copy a large frozen aggregate on each edge.
-
 ## Stateful Value Plans
 
 `state` owns the closed graph-plan domain for the private value-access source path. Checking projects
@@ -110,7 +91,8 @@ Frozen before/after effects transport ownership, assemble aggregates and perform
 Taking inputs are protected before retirement; read/edit inputs bind addresses after retained
 caller temporaries exist. Ordinary calls execute every time, including unit-returning editing
 calls. The executor performs only closed execution; checking owns required value requests and
-caches completed values through the common `DependencyQuery`. Unresolved declaration references
+caches completed values through the common
+[construction dependency query](../nocter-dependency-query/README.md). Unresolved declaration references
 cannot enter a stateful plan. Frozen source dependencies, including unevaluated authored references,
 are resolved before a plan executes. Callable recursion remains ordinary graph execution.
 
