@@ -234,6 +234,11 @@ explicit postfix transfer requires an owner and retires it even for Copy data. A
 never manufactures an owner. Direct call selection is frozen
 before access checking and has no permission-driven alternative target.
 
+Primitive unit comparisons are selected as fixed-result intrinsics during typing. Their one
+operation-owned result is shared by Boolean facts, evaluator projection and MIR computation.
+Both operand evaluations, access checks, interruption and cleanup remain in the ordinary graph;
+no consumer derives unit equality from a zero-byte representation or repeats type selection.
+
 `calls` resolves function references and freezes declaration or formal-input dispatch through
 local values, aliases and computed callees. `inputs` freezes input operations and optional
 formal-to-actual witness bindings. `supply` alone selects an unmarked Copy snapshot or pending result-supply obligation.

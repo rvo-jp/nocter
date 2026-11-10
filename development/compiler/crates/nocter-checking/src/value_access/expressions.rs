@@ -117,7 +117,7 @@ impl Checker<'_, '_> {
         let [left_node, right_node] = children.as_slice() else {
             return Err(Failure::InconsistentSyntax);
         };
-        let operation = self.binary_operation(node)?;
+        let mut operation = self.binary_operation(node)?;
         let left = self.expression(*left_node, None, reachable)?;
         let right_demand = super::booleans::right_demand(operation, self.normal_boolean(left));
         let right = self.expression(
@@ -141,6 +141,13 @@ impl Checker<'_, '_> {
                 || matches!((left_data, right_data), (Some(a), Some(b)) if a != b)
             {
                 return self.reject(Rule::TypeMismatch, node);
+            }
+            if left_data == Some(self.data(BuiltinType::Void)) && right_data == left_data {
+                operation = if operation == Binary::Equal {
+                    Binary::UnitEqual
+                } else {
+                    Binary::UnitNotEqual
+                };
             }
         } else {
             let expected = if logical { boolean } else { integer };

@@ -63,7 +63,9 @@ storage reference. There is no separately pairable storage companion or released
 `computation` consumes selected operation kinds and frozen call edges; it does not infer Copy,
 access, result witnesses or dispatch. Private required constants arrive as ordinary primitive
 literals; this product has no unresolved declaration-reference operation or evaluation service.
-`validate` checks closed representation, graph, signature,
+Selected unit-comparison intrinsics lower only their final computation to a Boolean constant;
+their operand operations remain in the consumed graph. A zero-byte operand is not interpreted as
+an integer comparison. `validate` checks closed representation, graph, signature,
 projection, primitive-operation and flag integrity before publication. It does not repeat source
 ownership analysis. The common Machine consumer lowers these closed bodies without a released
 MirProgram conversion.

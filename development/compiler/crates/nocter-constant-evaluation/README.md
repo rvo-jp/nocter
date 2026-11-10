@@ -84,6 +84,10 @@ published contract and direct remainder in the [adopted contract](../../../spec/
 only the quotient-domain policy differs, not the arithmetic implementation. Floating
 operations still require an explicit compilation target in their existing domain.
 
+A selected comparison with a fixed result arrives as a literal operation after the original
+operand actions. This does not authorize skipping calls, access validation or failure before that
+operation, and the executor performs no source-type dispatch to derive the result again.
+
 The executor keeps fresh invocation frames, canonical scoped addresses, independent scalar
 snapshots and sparse owning states. Immutable record data may share internal nodes; writes copy only
 the affected path, preserving independent value semantics and the identity of aliased places.

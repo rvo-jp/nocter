@@ -597,6 +597,15 @@ fn binary(
     left: plan::Place,
     right: plan::Place,
 ) -> Result<plan::Operation> {
+    if let Some(value) = operation.fixed_boolean_result() {
+        if !destination.fields.is_empty() {
+            return Err(INVALID);
+        }
+        return Ok(plan::Operation::Literal {
+            destination: destination.slot,
+            value: plan::Value::Bool(value),
+        });
+    }
     let comparison = match operation {
         Binary::Equal => Some(C::Equal),
         Binary::NotEqual => Some(C::NotEqual),

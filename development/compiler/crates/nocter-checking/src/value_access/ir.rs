@@ -162,12 +162,26 @@ pub enum Binary {
     CheckedRemainder,
     Equal,
     NotEqual,
+    UnitEqual,
+    UnitNotEqual,
     Less,
     LessEqual,
     Greater,
     GreaterEqual,
     And,
     Or,
+}
+
+impl Binary {
+    /// A selected unit comparison's result after both operands complete. Evaluation is retained.
+    #[must_use]
+    pub const fn fixed_boolean_result(self) -> Option<bool> {
+        match self {
+            Self::UnitEqual => Some(true),
+            Self::UnitNotEqual => Some(false),
+            _ => None,
+        }
+    }
 }
 
 /// One selected component, retained in authored evaluation order, not declaration order.

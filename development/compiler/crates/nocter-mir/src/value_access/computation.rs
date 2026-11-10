@@ -332,6 +332,12 @@ fn binary(
         Source::CheckedMultiply => (Binary::Multiply, false, Check::Required),
         Source::CheckedDivide => (Binary::Divide, false, Check::Required),
         Source::CheckedRemainder => (Binary::Remainder, false, Check::NonZeroDivisor),
+        Source::UnitEqual | Source::UnitNotEqual => {
+            return Some(Operation::Constant {
+                destination,
+                value: Constant::Boolean(operation.fixed_boolean_result()?),
+            });
+        }
         Source::Equal => (Binary::Equal, false, Check::NotRequired),
         Source::NotEqual => (Binary::Equal, true, Check::NotRequired),
         Source::Less => (Binary::Less, false, Check::NotRequired),

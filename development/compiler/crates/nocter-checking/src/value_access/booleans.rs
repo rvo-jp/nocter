@@ -45,6 +45,7 @@ impl Checker<'_, '_> {
                 _ if !self.ty(right).may_complete() => Some(true),
                 _ => None,
             },
+            ExpressionKind::Binary { operation, .. } => operation.fixed_boolean_result(),
             _ => None,
         }
     }

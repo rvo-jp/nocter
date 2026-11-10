@@ -65,6 +65,16 @@ fn private_scalar_computation_and_scoped_input_calls_execute_natively() {
             42,
         ),
         (
+            "unit-comparison-effects",
+            "func first(edit count: i32): void { count = count * 10 + 1 }\nfunc second(edit count: i32): void { count = count * 10 + 2 }\nfunc run(): i32 { var count = 0\nif first(count) == second(count) { count } else { 0 } }",
+            12,
+        ),
+        (
+            "unit-comparison-inequality",
+            "func run(): i32 { let value = 42\nif () != () { drop value }\nvalue }",
+            42,
+        ),
+        (
             "const-in-capture",
             "const OFFSET: i32 = 40\nfunc run(): i32 { let value = 1\nlet action = (value;): i32 { OFFSET + value + 1 }\naction() }",
             42,
@@ -196,6 +206,10 @@ fn private_required_arithmetic_checks_reach_native_traps() {
         (
             "boolean-proof-trap",
             "func fail(): bool { let _ = 1 / 0\nfalse }\nfunc run(): i32 { if fail() || true { return 42 } else { return 0 } }",
+        ),
+        (
+            "unit-comparison-trap",
+            "func fail(): void { let _ = 1 / 0 }\nfunc run(): i32 { if fail() == () { return 42 } else { return 0 } }",
         ),
         (
             "remainder-zero",
