@@ -237,6 +237,8 @@ pub enum ExpressionKind {
 pub struct Expression {
     pub ty: ValueType,
     pub kind: ExpressionKind,
+    /// Result shared by normal completions; this grants no omission of evaluation or its effects.
+    pub(super) normal_boolean: Option<bool>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

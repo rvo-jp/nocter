@@ -246,11 +246,8 @@ impl<'a, 's> Checker<'a, 's> {
     pub fn ty(&self, expr: AccessExpressionId) -> ValueType {
         self.expressions.get(expr).expect("own expression").ty
     }
-    pub fn literal_bool(&self, expression: AccessExpressionId) -> Option<bool> {
-        match self.expressions.get(expression)?.kind {
-            ExpressionKind::Boolean(value) => Some(value),
-            _ => None,
-        }
+    pub fn normal_boolean(&self, expression: AccessExpressionId) -> Option<bool> {
+        self.expressions.get(expression)?.normal_boolean
     }
     pub fn local_ty(&self, local: AccessLocalId) -> Ty {
         self.locals.get(local).expect("own local").access()
@@ -271,7 +268,15 @@ impl<'a, 's> Checker<'a, 's> {
             .access()
             .is_some_and(|access| super::results::is_result(self.program(), access.data()));
         let site = self.site(SyntaxOrigin::Node(node))?;
-        let id = self.expressions.insert(Expression { ty, kind });
+        let normal_boolean = ty
+            .may_complete()
+            .then(|| self.boolean_result(&kind))
+            .flatten();
+        let id = self.expressions.insert(Expression {
+            ty,
+            kind,
+            normal_boolean,
+        });
         self.origins.expressions.insert(id, site);
         Ok(id)
     }

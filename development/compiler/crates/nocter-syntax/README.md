@@ -27,7 +27,9 @@ package or discovery code. It does not resolve names or apply semantic rules.
   named data types, structural record values, member suffixes and joint postfix transfer nodes.
   Marked value-capture entries use the same joint caret token. Structural initializers use
   comma-delimited named fields. Control-header parsing leaves the first outer brace to its body,
-  while nested delimiters restore ordinary expression recognition without type lookup.
+  while nested delimiters restore ordinary expression recognition without type lookup. Outer
+  header parentheses are groups, not closure heads consuming the control body's brace; an
+  actual closure body in a header requires a containing delimiter.
   Local annotations, formal parameter headers and function results recognize bounded
   `func`/`mut`/`once` callable contracts through one annotation production, with unnamed
   data/input-operation parameters. Nested callback contracts remain outside this goal; record

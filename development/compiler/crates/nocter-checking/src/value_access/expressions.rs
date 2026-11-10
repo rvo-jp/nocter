@@ -119,8 +119,14 @@ impl Checker<'_, '_> {
         };
         let operation = self.binary_operation(node)?;
         let left = self.expression(*left_node, None, reachable)?;
-        let right =
-            self.expression(*right_node, None, reachable && self.ty(left).may_complete())?;
+        let right_demand = super::booleans::right_demand(operation, self.normal_boolean(left));
+        let right = self.expression(
+            *right_node,
+            None,
+            reachable
+                && self.ty(left).may_complete()
+                && right_demand != super::booleans::Demand::Never,
+        )?;
         let boolean = self.data(BuiltinType::Bool);
         let integer = self.data(BuiltinType::I32);
         let logical = matches!(operation, Binary::And | Binary::Or);
@@ -154,7 +160,9 @@ impl Checker<'_, '_> {
             boolean
         };
         let ty = value_type(result_data, Mode::Own).with_continuation(
-            self.ty(left).may_complete() && (logical || self.ty(right).may_complete()),
+            self.ty(left).may_complete()
+                && (right_demand != super::booleans::Demand::Always
+                    || self.ty(right).may_complete()),
         );
         self.emit(
             node,
@@ -198,7 +206,7 @@ impl Checker<'_, '_> {
         let condition = self.expression(condition_node, None, reachable)?;
         self.require_data(condition, self.data(BuiltinType::Bool), condition_node)?;
         let branches_reachable = reachable && self.ty(condition).may_complete();
-        let literal_condition = self.literal_bool(condition);
+        let known_condition = self.normal_boolean(condition);
         // A terminating condition never reaches either branch's outgoing value boundary.
         // Still type-check each branch's own declarations, operations and explicit returns.
         let expected = expected.filter(|_| self.ty(condition).may_complete());
@@ -213,7 +221,7 @@ impl Checker<'_, '_> {
         let then_block = self.block(
             self.direct(node, NodeKind::Block)?,
             branch_expected,
-            branches_reachable && literal_condition != Some(false),
+            branches_reachable && known_condition != Some(false),
         )?;
         let else_block = if let Some(clause) = alternative {
             let child = self.first_child(clause)?;
@@ -221,13 +229,13 @@ impl Checker<'_, '_> {
                 self.block(
                     child,
                     expected,
-                    branches_reachable && literal_condition != Some(true),
+                    branches_reachable && known_condition != Some(true),
                 )?
             } else {
                 let value = self.if_expression(
                     child,
                     expected,
-                    branches_reachable && literal_condition != Some(true),
+                    branches_reachable && known_condition != Some(true),
                 )?;
                 self.emit_block(clause, Vec::new(), Some(value), self.ty(value))?
             }
@@ -268,7 +276,7 @@ impl Checker<'_, '_> {
             _ => checked_access,
         };
         let completes = self.ty(condition).may_complete()
-            && match literal_condition {
+            && match known_condition {
                 Some(true) => left.may_complete(),
                 Some(false) => right.may_complete(),
                 None => left.may_complete() || right.may_complete(),

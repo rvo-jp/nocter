@@ -159,8 +159,9 @@ fn argument(parser: &mut Parser<'_>) {
 
 fn primary(parser: &mut Parser<'_>, allow_braces: bool) -> Expression {
     if parser.at_punctuation(Punctuation::LeftParen) {
-        if let Some((completed, _)) =
-            parser.attempt_decided_with(closure, |_, (_, decided)| *decided)
+        if allow_braces
+            && let Some((completed, _)) =
+                parser.attempt_decided_with(closure, |_, (_, decided)| *decided)
         {
             return Expression { completed };
         }

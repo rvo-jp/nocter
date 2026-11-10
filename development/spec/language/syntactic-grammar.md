@@ -486,7 +486,7 @@ The binary arithmetic, conversion, comparison, short-circuit and recovery preced
 their structural order. At unary level retain `!` and `-`, with `await` and postfix outcome
 extraction in their existing precedence positions. Remove unary `&`, `&+`, `^` and the `move`
 production. A unary `&&` token cannot be split into access operators. Binary `&&`/`||` remain
-short-circuit operations. An expression outcome layer still admits one suffix, `?` or `!`;
+short-circuit operations under the [Boolean contract](booleans.md). An expression outcome layer still admits one suffix, `?` or `!`;
 nested layers need grouping. Repeated type optionality is not repeated expression extraction.
 
 Postfix member, tuple-position, index and call structure is retained. A selected generic call

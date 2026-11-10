@@ -108,9 +108,15 @@ impl Builder<'_> {
             Origin::Expression(condition),
             Operation::Condition(condition),
         )?;
-        let terminator = match self.body.expressions().get(condition).ok_or(INVALID)?.kind {
-            ExpressionKind::Boolean(true) => Terminator::Jump(yes),
-            ExpressionKind::Boolean(false) => Terminator::Jump(no),
+        let terminator = match self
+            .body
+            .expressions()
+            .get(condition)
+            .ok_or(INVALID)?
+            .normal_boolean
+        {
+            Some(true) => Terminator::Jump(yes),
+            Some(false) => Terminator::Jump(no),
             _ => Terminator::Branch { condition, yes, no },
         };
         self.terminate(point, terminator)

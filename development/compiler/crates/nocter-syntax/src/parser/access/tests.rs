@@ -235,3 +235,18 @@ fn const_headers_preserve_their_own_node_without_retired_modifier_fallbacks() {
         assert!(tree(text, ParseGoal::V2CoreUnit).has_errors(), "{text}");
     }
 }
+
+#[test]
+fn control_header_groups_leave_outer_braces_to_control_bodies() {
+    let source = "func run(flag: bool): void { if (flag) {}\nwhile (false) {}\nif flag && (if true { false } else { true }) {}\nif ((flag;): bool { flag })() {} }";
+    let parsed = tree(source, ParseGoal::V2CoreUnit);
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics());
+    assert_eq!(
+        parsed
+            .nodes()
+            .filter(|(_, node)| node.kind() == NodeKind::ClosureExpression)
+            .count(),
+        1
+    );
+    super::super::snapshots::assert_token_projection(&parsed, "control header groups");
+}

@@ -55,6 +55,16 @@ fn private_scalar_computation_and_scoped_input_calls_execute_natively() {
             42,
         ),
         (
+            "boolean-proof-effects",
+            "func touch(edit count: i32): bool { count += 1\nfalse }\nfunc run(): i32 { var count = 40\nif touch(count) || true { count += 1 }\nlet _ = !true && touch(count)\ncount }",
+            42,
+        ),
+        (
+            "boolean-proof-completion",
+            "func run(): i32 { let _ = true && if true { return 42 } else { false } }",
+            42,
+        ),
+        (
             "const-in-capture",
             "const OFFSET: i32 = 40\nfunc run(): i32 { let value = 1\nlet action = (value;): i32 { OFFSET + value + 1 }\naction() }",
             42,
@@ -182,6 +192,10 @@ fn private_required_arithmetic_checks_reach_native_traps() {
         (
             "overflow",
             "func add(a: i32, b: i32): i32 { a + b }\nfunc run(): i32 { let unused = add(2147483647, 1)\n0 }",
+        ),
+        (
+            "boolean-proof-trap",
+            "func fail(): bool { let _ = 1 / 0\nfalse }\nfunc run(): i32 { if fail() || true { return 42 } else { return 0 } }",
         ),
         (
             "remainder-zero",

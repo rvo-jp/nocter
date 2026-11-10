@@ -3,6 +3,7 @@
 pub mod accepted;
 mod annotations;
 mod body_inputs;
+mod booleans;
 mod calls;
 mod checker;
 mod closures;

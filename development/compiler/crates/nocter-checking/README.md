@@ -361,8 +361,14 @@ from selected-value completeness, retaining invalidation causes without expandin
 Copy does not invalidate its source; moves invalidate only the selected region. Restoration requires
 present ancestor containers, while complete-value use requires every selected component. Fixed
 owners cannot be reinitialized. Diagnostics retain which of those requirements failed.
-Typing propagates literal Boolean reachability through conditionals and loops without skipping
-name/data checks in dead branches. A dead break cannot create a normal loop exit or a missing-result
+`booleans` derives one expression-local normal-result fact while typing literals, negation,
+short-circuit operations and value-preserving boundaries. It neither reads storage contents nor
+inspects a callee body. Typing, capture inference and control construction consume that same
+stored fact; no consumer grows a second predicate evaluator. RHS demand also controls reachable
+breaks and normal completion: a skipped operand cannot introduce a loop exit, and a required
+interrupted operand cannot manufacture a value. Known results retain the complete selected
+evaluation and its effects. These are proofs under the [Boolean contract](../../../spec/language/booleans.md),
+not constant replacement of calls or permission to skip name/data checks in dead branches. A dead break cannot create a normal loop exit or a missing-result
 obligation; a reachable break still can. Selected terminating branches have no continuing value.
 Edit replacements keep their outside place valid. Cleanup conditions are not permission to read
 missing data or skip required destruction. Unreachable source retains structural checking without

@@ -301,7 +301,7 @@ impl Checker<'_, '_> {
             None,
             reachable
                 && condition.is_none_or(|expr| {
-                    self.ty(expr).may_complete() && self.literal_bool(expr) != Some(false)
+                    self.ty(expr).may_complete() && self.normal_boolean(expr) != Some(false)
                 }),
         )?;
         let frame = self.loop_stack.pop().expect("own loop frame");
@@ -311,7 +311,7 @@ impl Checker<'_, '_> {
             return self.reject(Rule::UnusedValue, node);
         }
         if let Some(condition) = condition {
-            let always_true = self.literal_bool(condition) == Some(true);
+            let always_true = self.normal_boolean(condition) == Some(true);
             Ok((
                 Statement::While {
                     loop_id,
