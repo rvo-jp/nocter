@@ -112,9 +112,9 @@ fn details(
 ) -> Option<(DiagnosticCode, &'static str, Option<SyntaxToken>)> {
     use DeclarationRule as R;
     Some(match violation.rule {
-        R::InvalidConstantHeader => (
+        R::InvalidInitializerHeader => (
             DiagnosticCode::E0323,
-            "constant headers require a data value and no inputs",
+            "initializer headers require a data value and no inputs",
             None,
         ),
         R::DuplicateCallable { first } => (

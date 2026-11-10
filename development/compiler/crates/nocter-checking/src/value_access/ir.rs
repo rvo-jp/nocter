@@ -51,12 +51,18 @@ impl ValueType {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LocalOrigin {
+    /// A body-local address view of one immutable global place; never a callable input.
+    Static(nocter_model::ValueStatic),
     Parameter(AccessParameterId),
     ClosureParameter,
     Capture,
     Binding,
 }
 impl LocalOrigin {
+    #[must_use]
+    pub const fn initialized_on_entry(self) -> bool {
+        self.is_input() || matches!(self, Self::Static(_))
+    }
     #[must_use]
     pub const fn is_input(self) -> bool {
         matches!(
@@ -338,6 +344,17 @@ pub struct TypedBody {
 }
 
 impl TypedBody {
+    /// Body-local address views, independent of callable input channels and source spelling.
+    pub fn static_views(
+        &self,
+    ) -> impl Iterator<Item = (AccessLocalId, nocter_model::ValueStatic)> + '_ {
+        self.locals
+            .iter()
+            .filter_map(|(local, declaration)| match declaration.origin {
+                LocalOrigin::Static(id) => Some((local, id)),
+                _ => None,
+            })
+    }
     #[must_use]
     pub const fn inputs(&self) -> &BodyInputs {
         &self.inputs

@@ -96,7 +96,7 @@ pub(super) fn analyze(typed: &TypedQuery, graph: &Graph) -> Result<Initializatio
         .map(|(id, local)| {
             (
                 id,
-                Storage::new(if local.origin.is_input() {
+                Storage::new(if local.origin.initialized_on_entry() {
                     InitializationState::Initialized
                 } else {
                     InitializationState::Uninitialized

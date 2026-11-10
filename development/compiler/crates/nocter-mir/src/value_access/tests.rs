@@ -335,3 +335,19 @@ fn frozen_record_literals_retain_schema_and_reject_mismatched_payloads() {
     *value = nocter_model::FrozenData::new(vec![nocter_model::FrozenNode::Unit]).unwrap();
     assert!(validate::program(&program).is_err());
 }
+
+#[test]
+fn static_views_are_not_call_inputs_and_global_shapes_are_validated_once() {
+    let mut program = lower("static DATA: i32 = 42\nfunc run(): i32 { DATA }");
+    let body = &program.bodies[&program.root];
+    assert!(body.inputs.is_empty());
+    assert_eq!(body.statics.len(), 1);
+    assert_eq!(program.statics.len(), 1);
+    let id = body.statics[0].1;
+    program.statics.get_mut(&id).unwrap().value =
+        nocter_model::FrozenData::new(vec![nocter_model::FrozenNode::Unit]).unwrap();
+    assert!(validate::program(&program).is_err());
+    let mut program = lower("static DATA: i32 = 42\nfunc run(): i32 { DATA }");
+    program.bodies.get_mut(&program.root).unwrap().statics = Box::new([]);
+    assert!(validate::program(&program).is_err());
+}

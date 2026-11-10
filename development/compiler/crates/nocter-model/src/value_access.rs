@@ -255,3 +255,10 @@ mod result_tests {
         assert_eq!(projected.types().get(projected.root()), types.get(result));
     }
 }
+
+/// The immutable place owned by one static initializer declaration, distinct from its code role.
+/// A declaration program must validate the initializer role before granting a static place.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct ValueStatic {
+    pub initializer: crate::AccessCallableId,
+}

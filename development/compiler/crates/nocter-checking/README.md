@@ -513,8 +513,9 @@ conditional eligibility and exported const products remain
 
 ## Required Private Initializers
 
-The private source goal admits `const NAME: Type = expression` with a required explicit data type
-and initializer. A constant is storage-independent data, not a place or function witness. All
+The private source goal admits `const NAME: Type = expression` and
+`static NAME: Type = expression` with required explicit data types and initializers. A constant is
+storage-independent data; a static denotes one immutable place. Neither is a function witness. All
 initializers are ordinarily typed and checked for the const domain, including unused declarations.
 The same body catalog holds their input-free initialization thunks; no source function, synthetic
 source text or separate expression checker is created. Function lookup and witness publication
@@ -563,11 +564,23 @@ resources. Each constant reference creates a fresh ordinary value without granti
 Constant names remain non-addressable. Constant member selection resolves fields through the
 ordinary field authority, then selects established frozen components; scalar selections become
 ordinary literals before control facts and flow admission. No runtime initializer call results.
-Statics, arrays/tuples, enums, generic conditions and early structural type dependencies still
-require integration. General outcome/callback/resource evaluation is not
+Arrays/tuples, enums, generic conditions and early structural type dependencies still require
+integration. General outcome/callback/resource evaluation is not
 admitted by this path. Draft preparation can repeat work before a missing dependency resolves;
 resumable checking and reusable closed const plans remain compilation-cost improvements, not
 permission to cache mutable call results or change source validity.
+
+A static reference selects one cached body-local address view with `LocalOrigin::Static`; its data
+type stays ordinary and its access is read-only. That view is initialized on entry but is not a
+callable input or a source owner. `TypedBody::static_views` is the shared projection for consumers;
+input-layout validation separately proves the declaration role, exact type, read-only kind and
+unique global key. Access worlds use the global static root, whose extent is independent of any
+invocation frame. The resource ledger does not create static cleanup obligations. Reads/aliases
+are allowed, independent value extraction needs ordinary Copy, and editing/retirement/drop reject.
+Static reads remain place operations rather than named-literal substitution. Their initializer
+values and mixed constant/static dependencies use the same required-value query, source guards
+and final-data policy. Published Units retain only frozen initializer data, with role-checked
+constant/static accessors.
 
 For example, named constant facts reach ordinary access and initialization checks:
 

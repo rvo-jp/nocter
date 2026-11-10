@@ -37,6 +37,7 @@ pub(super) fn literal() -> Plan {
             2
         ]
         .into(),
+        statics: Box::new([]),
         inputs: Box::new([]),
         result: 0,
         initializer: true,
@@ -61,7 +62,11 @@ fn equal_ownership_guards_cannot_choose_conflicting_resource_phases() {
         point
     });
     assert!(matches!(
-        Program::new([Type::I32], BTreeMap::from([(id, invalid)])),
+        Program::new(
+            [Type::I32],
+            BTreeMap::from([(id, invalid)]),
+            BTreeMap::new()
+        ),
         Err(Rule::InvalidPlan)
     ));
 }
@@ -77,8 +82,22 @@ fn invalid_value_shapes_call_edges_and_recursive_schema_edges_reject_before_exec
         };
         point
     });
-    assert!(Program::new([Type::I32], BTreeMap::from([(id, wrong_value)])).is_err());
-    assert!(Program::new([Type::Record(vec![0].into())], BTreeMap::new()).is_err());
+    assert!(
+        Program::new(
+            [Type::I32],
+            BTreeMap::from([(id, wrong_value)]),
+            BTreeMap::new()
+        )
+        .is_err()
+    );
+    assert!(
+        Program::new(
+            [Type::Record(vec![0].into())],
+            BTreeMap::new(),
+            BTreeMap::new()
+        )
+        .is_err()
+    );
     let mut missing_call = literal();
     missing_call.points = missing_call.points.map(|_, point| {
         let mut point = point.clone();
@@ -90,7 +109,14 @@ fn invalid_value_shapes_call_edges_and_recursive_schema_edges_reject_before_exec
         point
     });
     // An initializer is not an ordinary call target even when arity and data happen to agree.
-    assert!(Program::new([Type::I32], BTreeMap::from([(id, missing_call)])).is_err());
+    assert!(
+        Program::new(
+            [Type::I32],
+            BTreeMap::from([(id, missing_call)]),
+            BTreeMap::new()
+        )
+        .is_err()
+    );
 }
 #[test]
 fn exhausted_work_is_not_replenished_by_another_closed_request() {
@@ -103,6 +129,7 @@ fn exhausted_work_is_not_replenished_by_another_closed_request() {
     });
     let loop_plan = Plan {
         slots: Vec::new().into(),
+        statics: Box::new([]),
         inputs: Box::new([]),
         result: 0,
         initializer: true,
@@ -112,6 +139,7 @@ fn exhausted_work_is_not_replenished_by_another_closed_request() {
     let program = Program::new(
         [Type::I32],
         BTreeMap::from([(good, literal()), (bad, loop_plan)]),
+        BTreeMap::new(),
     )
     .unwrap();
     let limits =
@@ -178,6 +206,7 @@ fn arithmetic_failure_releases_its_frame_before_reusing_the_executor() {
     let program = Program::new(
         [Type::I32],
         BTreeMap::from([(good, literal()), (bad, failure)]),
+        BTreeMap::new(),
     )
     .unwrap();
     let mut budget = Budget::new(CompileTimeEvaluationLimits::new(
@@ -223,7 +252,8 @@ fn sparse_guards_have_one_sorted_prefix_free_form_before_phase_matching() {
         assert!(matches!(
             Program::new(
                 [Type::I32, Type::Record(vec![0, 0].into())],
-                BTreeMap::from([(id, plan)])
+                BTreeMap::from([(id, plan)]),
+                BTreeMap::new()
             ),
             Err(Rule::InvalidPlan)
         ));
@@ -259,6 +289,7 @@ fn unread_scoped_inputs_still_require_initialized_caller_data() {
     let program = Program::new(
         [Type::I32],
         BTreeMap::from([(root, source), (function, target)]),
+        BTreeMap::new(),
     )
     .unwrap();
     let mut budget = Budget::new(CompileTimeEvaluationLimits::default());

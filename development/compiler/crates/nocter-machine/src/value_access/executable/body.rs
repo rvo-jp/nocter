@@ -318,6 +318,59 @@ impl<'a> Builder<'a> {
         self.store(destination, value)?;
         Ok(())
     }
+    fn prepare_flags(&mut self, source: &mir::Body) -> Result<(), Failure> {
+        let mut flags = BTreeSet::new();
+        for alternative in source.actions().values().flat_map(|a| &a.alternatives) {
+            for bit in alternative
+                .tests
+                .iter()
+                .chain(&alternative.before_writes)
+                .chain(&alternative.after_writes)
+            {
+                flags.insert((bit.word, bit.mask));
+            }
+        }
+        for (word, mask) in flags {
+            let id = MachineDropFlagId::new(self.flags.len());
+            let initial = *source.flags().get(word).ok_or(Self::invalid())? & mask != 0;
+            self.flags.push(MachineDropFlag::new(initial));
+            self.flag_ids.insert((word, mask), id);
+        }
+        Ok(())
+    }
+    fn bind_static(
+        &mut self,
+        slot: MirLocalId,
+        id: nocter_model::ValueStatic,
+    ) -> Result<(), Failure> {
+        let global = self
+            .context
+            .program
+            .statics()
+            .get(&id)
+            .ok_or_else(Self::invalid)?;
+        let layout = self
+            .context
+            .layouts
+            .get(global.data)
+            .ok_or_else(Self::invalid)?;
+        let data = self.context.data.global(id).ok_or_else(Self::invalid)?;
+        let source = self.address(MachineAddress::new(
+            global.data,
+            layout.size(),
+            layout.alignment(),
+            MachineAddressRoot::Data(data),
+            [],
+        ));
+        let value = self.value(
+            global.data,
+            true,
+            MachineOperationKind::AddressOf { source },
+        )?;
+        let destination = self.slot_address(*self.slots.get(&slot).ok_or_else(Self::invalid)?);
+        self.emit(MachineOperationKind::Store { destination, value });
+        Ok(())
+    }
     fn operation(&mut self, operation: &mir::Operation) -> Result<(), Failure> {
         match operation {
             mir::Operation::Frozen { destination, value } => self.frozen(destination, value)?,
@@ -565,23 +618,7 @@ pub(super) fn source<'a>(
         .iter()
         .map(|id| builder.slots.get(id).copied().ok_or(Failure::InvalidRoot))
         .collect::<Result<_, _>>()?;
-    let mut flags = BTreeSet::new();
-    for alternative in source.actions().values().flat_map(|a| &a.alternatives) {
-        for bit in alternative
-            .tests
-            .iter()
-            .chain(&alternative.before_writes)
-            .chain(&alternative.after_writes)
-        {
-            flags.insert((bit.word, bit.mask));
-        }
-    }
-    for (word, mask) in flags {
-        let id = MachineDropFlagId::new(builder.flags.len());
-        let initial = *source.flags().get(word).ok_or(Failure::InvalidRoot)? & mask != 0;
-        builder.flags.push(MachineDropFlag::new(initial));
-        builder.flag_ids.insert((word, mask), id);
-    }
+    builder.prepare_flags(source)?;
     let mut points = BTreeMap::new();
     for &point in source.terminators().keys() {
         let block = if points.is_empty() {
@@ -593,6 +630,11 @@ pub(super) fn source<'a>(
     }
     for (&point, terminator) in source.terminators() {
         builder.current = points[&point];
+        if point == source.entry() {
+            for &(slot, id) in source.statics() {
+                builder.bind_static(slot, id)?;
+            }
+        }
         for (_, action) in source.actions().range(
             mir::Location { point, action: 0 }..=mir::Location {
                 point,

@@ -67,14 +67,21 @@ pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<H
         body: direct_node(tree, declaration, NodeKind::Block).ok_or(Failure::InconsistentSyntax)?,
     })
 }
-pub(super) fn constant(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<Header, Failure> {
+pub(super) fn initializer(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<Header, Failure> {
     let tree = syntax.tree();
     let name = declaration_name_token(tree, declaration).ok_or(Failure::InconsistentSyntax)?;
     let result_syntax =
         direct_node(tree, declaration, NodeKind::Type).ok_or(Failure::InconsistentSyntax)?;
     Ok(Header {
         name,
-        kind: CallableKind::ConstantInitializer,
+        kind: if tree
+            .node(declaration)
+            .is_some_and(|node| node.kind() == NodeKind::StaticDeclaration)
+        {
+            CallableKind::StaticInitializer
+        } else {
+            CallableKind::ConstantInitializer
+        },
         parameters: Vec::new(),
         result_syntax,
         result_data: value_type_syntax(syntax, result_syntax)?,
@@ -119,8 +126,8 @@ pub(super) fn collect(
             Some(NodeKind::FunctionDeclaration) => {
                 functions.push(function(syntax, *declaration)?);
             }
-            Some(NodeKind::ConstantDeclaration) => {
-                functions.push(constant(syntax, *declaration)?);
+            Some(NodeKind::ConstantDeclaration | NodeKind::StaticDeclaration) => {
+                functions.push(initializer(syntax, *declaration)?);
             }
             Some(NodeKind::StructDeclaration) => {
                 records.push(record(syntax, *declaration)?);

@@ -250,3 +250,26 @@ fn control_header_groups_leave_outer_braces_to_control_bodies() {
     );
     super::super::snapshots::assert_token_projection(&parsed, "control header groups");
 }
+
+#[test]
+fn immutable_statics_use_the_initializer_surface_without_modifier_or_type_fallbacks() {
+    let source = "static ANSWER: i32 = calculate()\nconst func calculate(): i32 { 42 }";
+    let parsed = tree(source, ParseGoal::V2CoreUnit);
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics());
+    assert_eq!(
+        parsed
+            .nodes()
+            .filter(|(_, node)| node.kind() == NodeKind::StaticDeclaration)
+            .count(),
+        1
+    );
+    super::super::snapshots::assert_token_projection(&parsed, "static initializer");
+    for source in [
+        "static VALUE: i32",
+        "static var VALUE: i32 = 1",
+        "static VALUE: &i32 = 1",
+        "static VALUE: func(): i32 = action",
+    ] {
+        assert!(tree(source, ParseGoal::V2CoreUnit).has_errors(), "{source}");
+    }
+}

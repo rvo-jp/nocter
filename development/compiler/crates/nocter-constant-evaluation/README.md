@@ -155,3 +155,19 @@ records. The artifact has no evaluator leases, scoped addresses, type-store IDs 
 `from_frozen` reconstructs immutable plan literals from those established nodes without evaluating source;
 closed plan construction validates the literal against its selected type. These are publication
 and plan-construction transforms, not another evaluator or a source Copy capability.
+
+### Immutable Static Backing
+
+Closed plans retain explicit static address bindings separately from invocation inputs. Their
+program carries established immutable data and evaluator-domain types by `ValueStatic` identity;
+construction validates each binding's alias role, unique slot and data shape. No initializer code
+or dependency request runs when a static address is bound. Checking supplies the already completed
+query value, allowing the current meter's immutable nodes to stay shared rather than rebuilding
+and charging another copy.
+
+Memory addresses distinguish invocation-local roots from immutable static roots. Alias formation
+canonicalizes both, so a static remains available across nested frames without becoming a local
+owner or a hidden parameter. Each executor retains one metered backing entry per used static;
+reads can share its data, while stores and ownership transitions reject that root. The backing
+entries count against live storage and are released with the executor. This physical backing map
+is not another initializer evaluator or a result-only cache for ordinary calls.

@@ -18,6 +18,7 @@ fn returned_values_retain_one_charge_without_charging_handle_clones() {
     let program = Program::new(
         [Type::I32],
         BTreeMap::from([(code, super::tests::literal())]),
+        BTreeMap::new(),
     )
     .unwrap();
     let result = Executor::new(&program, &mut budget, 0)
@@ -41,6 +42,7 @@ fn retained_outputs_eventually_exhaust_storage_and_failed_frames_are_reusable() 
     let program = Program::new(
         [Type::I32],
         BTreeMap::from([(code, super::tests::literal())]),
+        BTreeMap::new(),
     )
     .unwrap();
     let mut outputs = Vec::new();
@@ -210,7 +212,7 @@ fn closed_literal_dags_validate_and_execute_without_expanding_shared_subgraphs()
         };
         point
     });
-    let program = Program::new(types, BTreeMap::from([(code, plan)])).unwrap();
+    let program = Program::new(types, BTreeMap::from([(code, plan)]), BTreeMap::new()).unwrap();
     let mut budget = budget(1024);
     let value = Executor::new(&program, &mut budget, 0)
         .evaluate_initializer(code)
@@ -227,6 +229,7 @@ fn excessive_suspended_depth_rejects_without_overflow_or_allocating_a_frame() {
     let program = Program::new(
         [Type::I32],
         BTreeMap::from([(code, super::tests::literal())]),
+        BTreeMap::new(),
     )
     .unwrap();
     let mut budget = budget(16);
@@ -249,4 +252,38 @@ fn publication_roundtrip_preserves_deep_shared_data_without_expanding_a_tree() {
     let frozen = value.freeze();
     assert_eq!(frozen.nodes().len(), 10_001);
     assert_eq!(Value::from_frozen(&frozen).unwrap(), value);
+}
+
+#[test]
+fn static_views_share_metered_data_and_reject_mutation_without_changing_it() {
+    use super::memory::{Frame, Memory};
+    let budget = budget(100);
+    let source = integer(&budget.storage, 42);
+    let (initializer, _) = super::tests::code_ids();
+    let id = nocter_model::ValueStatic { initializer };
+    let mut frame = Frame::new(
+        &budget.storage,
+        vec![Slot {
+            data: 0,
+            storage: Storage::Alias,
+        }]
+        .into(),
+    )
+    .unwrap();
+    let mut memory = Memory::new(budget.storage.clone());
+    memory.bind_static(&mut frame, 0, id, &source).unwrap();
+    let before = budget.storage_used();
+    memory.bind_static(&mut frame, 0, id, &source).unwrap();
+    assert_eq!(budget.storage_used(), before);
+    memory.frames.push(frame);
+    let address = memory.address(0, &Place::root(0)).unwrap();
+    let replacement = integer(&budget.storage, 0);
+    assert_eq!(memory.store(&address, replacement), Err(Rule::InvalidPlan));
+    assert_eq!(memory.read(&address).unwrap(), Value::integer(42));
+    assert_eq!(memory.retire(&address, false), Err(Rule::InvalidPlan));
+    assert_eq!(memory.construct(&address), Err(Rule::InvalidPlan));
+    drop(memory);
+    assert_eq!(budget.storage_used(), 1);
+    drop(source);
+    assert_eq!(budget.storage_used(), 0);
 }

@@ -53,10 +53,14 @@ impl Ord for Path {
         (**self).cmp(&**other)
     }
 }
+#[derive(Clone, Copy)]
+pub(super) enum Root {
+    Local { frame: usize, slot: usize },
+    Static(nocter_model::ValueStatic),
+}
 #[derive(Clone)]
 pub(super) struct Address {
-    pub frame: usize,
-    pub slot: usize,
+    pub root: Root,
     pub fields: Path,
 }
 #[derive(Clone)]
@@ -100,7 +104,16 @@ impl Frame {
         Ok(())
     }
 }
+impl Address {
+    pub fn local(&self) -> Result<(usize, usize)> {
+        match self.root {
+            Root::Local { frame, slot } => Ok((frame, slot)),
+            Root::Static(_) => Err(Rule::InvalidPlan),
+        }
+    }
+}
 pub(super) struct Memory {
+    globals: BTreeMap<nocter_model::ValueStatic, Resident<Value>>,
     pub frames: Vec<Resident<Frame>>,
     pub storage: Storage,
 }
@@ -108,9 +121,30 @@ type Result<T> = std::result::Result<T, Rule>;
 impl Memory {
     pub fn new(storage: Storage) -> Self {
         Self {
+            globals: BTreeMap::new(),
             frames: Vec::new(),
             storage,
         }
+    }
+    pub fn bind_static(
+        &mut self,
+        frame: &mut Frame,
+        slot: usize,
+        id: nocter_model::ValueStatic,
+        source: &Value,
+    ) -> Result<()> {
+        if !self.globals.contains_key(&id) {
+            let value = self.storage.import(source)?;
+            self.globals.insert(id, self.storage.entry(value)?);
+        }
+        frame.set(
+            &self.storage,
+            slot,
+            Cell::Alias(Address {
+                root: Root::Static(id),
+                fields: Path::default(),
+            }),
+        )
     }
     /// Alias cells store canonical roots at definition time; no chain or cycle can be created.
     pub fn address(&self, frame: usize, place: &Place) -> Result<Address> {
@@ -122,39 +156,52 @@ impl Memory {
             .storage;
         match current.cells.get(&place.slot).map(|entry| &entry.value) {
             Some(Cell::Alias(base)) if role == SlotStorage::Alias => {
-                let root = self
-                    .frames
-                    .get(base.frame)
-                    .and_then(|f| f.slots.get(base.slot))
-                    .ok_or(Rule::InvalidPlan)?;
-                if root.storage == SlotStorage::Alias {
-                    return Err(Rule::InvalidPlan);
+                if let Root::Local { frame, slot } = base.root {
+                    let root = self
+                        .frames
+                        .get(frame)
+                        .and_then(|frame| frame.slots.get(slot))
+                        .ok_or(Rule::InvalidPlan)?;
+                    if root.storage == SlotStorage::Alias {
+                        return Err(Rule::InvalidPlan);
+                    }
                 }
                 Ok(Address {
-                    frame: base.frame,
-                    slot: base.slot,
+                    root: base.root,
                     fields: base.fields.extended(&self.storage, &place.fields)?,
                 })
             }
             Some(Cell::Alias(_)) => Err(Rule::InvalidPlan),
             _ if role == SlotStorage::Alias => Err(Rule::InvalidPlan),
             _ => Ok(Address {
-                frame,
-                slot: place.slot,
+                root: Root::Local {
+                    frame,
+                    slot: place.slot,
+                },
                 fields: Path::default().extended(&self.storage, &place.fields)?,
             }),
         }
     }
     pub fn read(&self, address: &Address) -> Result<Value> {
-        let Some(Cell::Data(value)) = self
-            .frames
-            .get(address.frame)
-            .and_then(|f| f.cells.get(&address.slot))
-            .map(|entry| &entry.value)
-        else {
-            return Err(Rule::InvalidPlan);
+        let mut value = match address.root {
+            Root::Static(id) => self
+                .globals
+                .get(&id)
+                .ok_or(Rule::InvalidPlan)?
+                .value
+                .clone(),
+            Root::Local { frame, slot } => {
+                let Some(Cell::Data(value)) = self
+                    .frames
+                    .get(frame)
+                    .and_then(|frame| frame.cells.get(&slot))
+                    .map(|entry| &entry.value)
+                else {
+                    return Err(Rule::InvalidPlan);
+                };
+                value.clone()
+            }
         };
-        let mut value = value.clone();
         for &field in address.fields.iter() {
             let Data::Record(values) = value.data() else {
                 return Err(Rule::InvalidPlan);
@@ -164,20 +211,15 @@ impl Memory {
         Ok(value)
     }
     pub fn store(&mut self, address: &Address, value: Value) -> Result<()> {
+        let (frame_id, slot) = address.local()?;
         if !value.belongs_to(&self.storage) {
             return Err(Rule::InvalidPlan);
         }
-        let frame = self
-            .frames
-            .get_mut(address.frame)
-            .ok_or(Rule::InvalidPlan)?;
+        let frame = self.frames.get_mut(frame_id).ok_or(Rule::InvalidPlan)?;
         if address.fields.is_empty() {
-            return frame.set(&self.storage, address.slot, Cell::Data(value));
+            return frame.set(&self.storage, slot, Cell::Data(value));
         }
-        let Some(Cell::Data(root)) = frame
-            .cells
-            .get_mut(&address.slot)
-            .map(|entry| &mut entry.value)
+        let Some(Cell::Data(root)) = frame.cells.get_mut(&slot).map(|entry| &mut entry.value)
         else {
             return Err(Rule::InvalidPlan);
         };
@@ -197,17 +239,12 @@ impl Memory {
         Ok(())
     }
     pub fn construct(&mut self, address: &Address) -> Result<()> {
-        let frame = self
-            .frames
-            .get_mut(address.frame)
-            .ok_or(Rule::InvalidPlan)?;
+        let (frame_id, slot) = address.local()?;
+        let frame = self.frames.get_mut(frame_id).ok_or(Rule::InvalidPlan)?;
         if address.fields.is_empty() {
-            frame.own(&self.storage, address.slot)
+            frame.own(&self.storage, slot)
         } else {
-            let holes = frame
-                .owned
-                .get_mut(&address.slot)
-                .ok_or(Rule::InvalidPlan)?;
+            let holes = frame.owned.get_mut(&slot).ok_or(Rule::InvalidPlan)?;
             if holes
                 .keys()
                 .any(|hole| hole != &address.fields && address.fields.starts_with(hole))
@@ -219,14 +256,9 @@ impl Memory {
         }
     }
     pub fn retire(&mut self, address: &Address, partial: bool) -> Result<()> {
-        let frame = self
-            .frames
-            .get_mut(address.frame)
-            .ok_or(Rule::InvalidPlan)?;
-        let holes = frame
-            .owned
-            .get_mut(&address.slot)
-            .ok_or(Rule::InvalidPlan)?;
+        let (frame_id, slot) = address.local()?;
+        let frame = self.frames.get_mut(frame_id).ok_or(Rule::InvalidPlan)?;
+        let holes = frame.owned.get_mut(&slot).ok_or(Rule::InvalidPlan)?;
         if holes
             .keys()
             .any(|h| address.fields.starts_with(h) || (!partial && h.starts_with(&address.fields)))
@@ -234,7 +266,7 @@ impl Memory {
             return Err(Rule::InvalidPlan);
         }
         if address.fields.is_empty() {
-            frame.owned.remove(&address.slot);
+            frame.owned.remove(&slot);
         } else {
             holes.retain(|h, _| !h.starts_with(&address.fields));
             holes.insert(address.fields.clone(), self.storage.entry(())?);

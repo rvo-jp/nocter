@@ -66,8 +66,9 @@ The cross-stage contract is documented in
 `value_access::InstanceProgram` owns the future private product's root-driven static instances.
 It retains the exact accepted Unit and its body/type authority; no released CheckedProgram or
 TargetProgram adapter exists. Roots requiring externally supplied callback witnesses reject as
-unbound. Constant initialization thunks reject as roots and never become runtime instances through
-constant references; checking has already frozen and materialized those values. Scalar/record
+unbound. Constant/static initialization thunks reject as roots and never become runtime instances through
+constant/static references; checking has already frozen their initializers. Static place views
+retain their global identity and ordinary data projection without adding runtime code instances. Scalar/record
 runtime inputs remain ordinary data rather than specialization arguments.
 This product grants no ABI, layout, executable cleanup or backend capability.
 

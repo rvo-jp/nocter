@@ -286,7 +286,7 @@ impl Context<'_, '_> {
                     payload,
                 });
             }
-            Root::Temporary { .. } => return Err(Failure::Integrity),
+            Root::Temporary { .. } | Root::Static(_) => return Err(Failure::Integrity),
         }
 
         Ok(())

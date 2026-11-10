@@ -14,6 +14,19 @@ pub(super) fn layout(query: &Query) -> Result<(), IntegrityError> {
             return Err(INVALID);
         }
     }
+    let mut statics = BTreeSet::new();
+    for (_, local) in body.locals().iter() {
+        if let LocalOrigin::Static(id) = local.origin
+            && (!statics.insert(id)
+                || local.kind != nocter_model::ValueBindingKind::ReadAlias
+                || query
+                    .program()
+                    .static_declaration(id)
+                    .is_none_or(|declaration| declaration.result() != local.data))
+        {
+            return Err(INVALID);
+        }
+    }
     let expected = body
         .locals()
         .iter()

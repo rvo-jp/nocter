@@ -137,7 +137,7 @@ impl Checker<'_, '_> {
     ) -> Result<AccessExpressionId, Failure> {
         let (root, members) = self.selection(node)?;
         if let Some(name) = self.name_token(root)?
-            && let Some(local) = self.lookup(self.text(name)?)
+            && let Some(local) = self.named_place(name)?
         {
             let place = self.local_selection(local, &members)?;
             return self.emit_place(node, place);
@@ -239,11 +239,49 @@ impl Checker<'_, '_> {
         let selected = self.selected_place(place);
         Ty::new(selected.data, self.local_ty(selected.local).mode())
     }
-    pub fn place_name(&self, token: SyntaxToken, rule: Rule) -> Result<AccessLocalId, Failure> {
+    fn named_place(&mut self, token: SyntaxToken) -> Result<Option<AccessLocalId>, Failure> {
         let spelling = self.text(token)?;
         if let Some(local) = self.lookup(spelling) {
+            return Ok(Some(local));
+        }
+        if let Some(id) = self
+            .program()
+            .symbols()
+            .get(spelling)
+            .and_then(|name| self.program().resolve_static(name))
+        {
+            if self.values.value(id.initializer).is_none() {
+                return Err(Failure::RequiredConstant {
+                    initializer: id.initializer,
+                    origin: nocter_syntax::SyntaxOrigin::Token(token),
+                });
+            }
+            if let Some(&local) = self.statics.get(&id) {
+                return Ok(Some(local));
+            }
+            let data = self
+                .program()
+                .static_declaration(id)
+                .ok_or(Failure::InconsistentSyntax)?
+                .result();
+            let local = self.locals.insert(super::Local {
+                data,
+                kind: nocter_model::ValueBindingKind::ReadAlias,
+                origin: super::LocalOrigin::Static(id),
+            });
+            self.origins
+                .locals
+                .insert(local, self.site(nocter_syntax::SyntaxOrigin::Token(token))?);
+            self.statics.insert(id, local);
+            return Ok(Some(local));
+        }
+        Ok(None)
+    }
+    pub fn place_name(&mut self, token: SyntaxToken, rule: Rule) -> Result<AccessLocalId, Failure> {
+        if let Some(local) = self.named_place(token)? {
             return Ok(local);
         }
+        let spelling = self.text(token)?;
         if self
             .program()
             .symbols()

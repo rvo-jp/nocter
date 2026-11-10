@@ -94,6 +94,15 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             }
             frame.set(&self.memory.storage, slot, input.clone())?;
         }
+        for &(slot, id) in &plan.statics {
+            let value = &self
+                .program
+                .statics
+                .get(&id)
+                .ok_or(Rule::InvalidPlan)?
+                .value;
+            self.memory.bind_static(&mut frame, slot, id, value)?;
+        }
         let index = self.memory.frames.len();
         self.memory.frames.push(frame);
         let saved = self.site;
@@ -135,11 +144,9 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                 }
                 Terminator::Return(place) => {
                     let address = self.memory.address(frame, place)?;
+                    let (_, slot) = address.local()?;
                     let owners = &self.memory.frames[frame].owned;
-                    if owners.len() != 1
-                        || owners
-                            .get(&address.slot)
-                            .is_none_or(|holes| !holes.is_empty())
+                    if owners.len() != 1 || owners.get(&slot).is_none_or(|holes| !holes.is_empty())
                     {
                         return Err(Rule::InvalidPlan);
                     }

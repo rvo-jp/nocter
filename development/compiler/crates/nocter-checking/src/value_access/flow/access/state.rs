@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(super) enum Key {
-    Input(AccessLocalId),
+    Entry(AccessLocalId),
     Expression(AccessExpressionId),
 }
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -56,19 +56,23 @@ impl World {
             prepared: BTreeMap::new(),
         };
         for (local, declaration) in typed.body().locals().iter() {
-            if declaration.origin.is_input() {
+            if declaration.origin.initialized_on_entry() {
                 let mode = declaration.access().mode();
                 let value = if mode == Mode::Own {
                     Value::without_referent(mode)
                 } else {
-                    let key = Key::Input(local);
+                    let key = Key::Entry(local);
                     world.nodes.insert(
                         key,
                         Node {
-                            region: Root::Input(local).region(),
+                            region: match declaration.origin {
+                                crate::value_access::LocalOrigin::Static(id) => Root::Static(id),
+                                _ => Root::Input(local),
+                            }
+                            .region(),
                             parent: None,
                             permission: mode,
-                            created: Creation::Parameter(local),
+                            created: Creation::Entry(local),
                         },
                     );
                     Value {
@@ -111,7 +115,7 @@ impl World {
             Root::Owned(local) => self
                 .resources
                 .contains(super::super::resources::Holder::Local(local)),
-            Root::Input(_) => true,
+            Root::Input(_) | Root::Static(_) => true,
             Root::Temporary { call, index } => {
                 use super::super::resources::Holder;
                 self.resources.contains(Holder::Prepared { call, index })

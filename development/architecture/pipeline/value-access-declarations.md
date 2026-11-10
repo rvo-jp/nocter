@@ -25,7 +25,7 @@ V2CoreUnit syntax + exact source
        the same semantic program + current source/header/body binding
   -> dependency-scheduled ordinary typed-body preparation
        missing constant -> same ordinary checking of selected const closure -> closed execution
-       completed primitive values feed typing, completion and capture/control inference
+       completed frozen values feed typing; immutable static views retain global place identity
        successful body query -> same declaration authority + typed operations + source recipe
   -> canonical replay of body application types + complete body data projection
        shared declaration facts and one final type authority; exact header source binding retained
@@ -514,8 +514,10 @@ execute the images on ARM64 macOS. They cover scalar computation, scoped channel
 static callbacks and owned captures, indirect aggregate transport, zero-byte data, register/stack
 argument crossing and required arithmetic traps. Closed record constants reach native code as
 serialized immutable data through the model-owned frozen literal product. Their uses receive
-independent values; initialization thunks do not become runtime instances. Machine owns layout,
-byte encoding and serialization limits, while checking owns final-data eligibility. Helper-generation tests qualify shared error/record
+independent values; initialization thunks do not become runtime instances. Immutable statics retain
+one place identity across bodies, with separate address bindings rather
+than callable inputs or local owners. Their frozen data uses the same physical serializer without
+runtime initialization. Machine owns layout, byte encoding and serialization limits, while checking owns final-data eligibility. Helper-generation tests qualify shared error/record
 destruction structure; source-level runtime error construction and nontrivial destruction through
 adapters are not yet native-qualified. This boundary establishes correctness evidence, not a
 performance claim or complete v2.0.0 support.

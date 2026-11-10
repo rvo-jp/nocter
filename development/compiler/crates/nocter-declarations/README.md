@@ -88,9 +88,12 @@ separate from data identity and payload Copy evidence. Stored parameter records 
 TypeId and Read/Edit/Take operation; callable results carry a data TypeId and, for a callable
 result, its structural constraint. The authored compile-time capability is a separate callable
 header fact; it proves neither body-domain validity nor successful evaluation. `CallableKind`
-distinguishes source functions from input-free constant-initialization thunks in the same code
-arena. The constant role derives its compile-time capability, rejects function inputs/results,
-and grants neither a function namespace entry nor a named-function witness. Neither introduces a result access operation. No result
+distinguishes source functions, constant initializers and immutable-static initializers in the same
+code arena. Initializer roles derive their compile-time capability, reject function inputs/results,
+and grant neither a function namespace entry nor a named-function witness. A `ValueStatic` key
+identifies the static's place separately from invoking its initializer code; `static_declaration`
+validates that relationship through the sole declaration table. No parallel static metadata or
+namespace owns its name/type. Neither introduces a result access operation. No result
 mode/referent set or old read-result normalization remains.
 
 The same program publishes closed nominal record metadata used by parsed callable and body

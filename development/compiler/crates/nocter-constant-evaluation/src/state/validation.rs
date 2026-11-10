@@ -39,6 +39,11 @@ pub(super) fn validate(program: &Program) -> Result<()> {
             return Err(INVALID);
         }
     }
+    for global in program.statics.values() {
+        if !value(program, global.data, &global.value) {
+            return Err(INVALID);
+        }
+    }
     for plan in program.plans.values() {
         validate_plan(program, plan)?;
     }
@@ -64,6 +69,13 @@ fn validate_plan(program: &Program, plan: &super::Plan) -> Result<()> {
             Storage::Alias
         };
         if data.storage != storage || !inputs.insert(slot) {
+            return Err(INVALID);
+        }
+    }
+    for &(slot, id) in &plan.statics {
+        let source = program.statics.get(&id).ok_or(INVALID)?;
+        let target = plan.slots.get(slot).ok_or(INVALID)?;
+        if target.storage != Storage::Alias || target.data != source.data || !inputs.insert(slot) {
             return Err(INVALID);
         }
     }

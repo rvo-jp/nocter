@@ -84,7 +84,7 @@ pub(super) fn close(unit: Arc<Unit>, root: AccessCallableId) -> Result<InstanceP
         .callables()
         .get(root)
         .ok_or(Failure::UnknownRoot(root))?;
-    if declaration.kind() == nocter_declarations::value_access::CallableKind::ConstantInitializer {
+    if declaration.kind().is_initializer() {
         return Err(Failure::InitializerRoot(root));
     }
     for &id in declaration.parameters() {

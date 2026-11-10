@@ -48,7 +48,7 @@ impl DataEvidence {
 /// There is no parts constructor: bodies cannot be omitted or paired with another program.
 #[derive(Clone, Debug)]
 pub struct Unit {
-    constants: BTreeMap<AccessCallableId, Arc<nocter_model::FrozenData>>,
+    initializers: BTreeMap<AccessCallableId, Arc<nocter_model::FrozenData>>,
     closures: BTreeMap<nocter_model::ValueClosure, flow::Query>,
     program: Arc<Program>,
     header: Arc<Program>,
@@ -86,7 +86,7 @@ impl Unit {
             result_evidence,
         } = check_queries(context, queries)?;
         Ok(Self {
-            constants: evaluation.values,
+            initializers: evaluation.values,
             closures,
             program,
             header: context.program_handle(),
@@ -96,7 +96,15 @@ impl Unit {
     }
     #[must_use]
     pub fn constant_value(&self, id: AccessCallableId) -> Option<&nocter_model::FrozenData> {
-        self.constants.get(&id).map(Arc::as_ref)
+        (self.program.callables().get(id)?.kind()
+            == nocter_declarations::value_access::CallableKind::ConstantInitializer)
+            .then_some(())?;
+        self.initializers.get(&id).map(Arc::as_ref)
+    }
+    #[must_use]
+    pub fn static_value(&self, id: nocter_model::ValueStatic) -> Option<&nocter_model::FrozenData> {
+        self.program.static_declaration(id)?;
+        self.initializers.get(&id.initializer).map(Arc::as_ref)
     }
     /// The named/captured-code or own-input witness established for a callable result in this bounded unit.
     #[must_use]

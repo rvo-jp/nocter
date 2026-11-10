@@ -4,10 +4,11 @@ use crate::identity::MachineId;
 use crate::{MachineData, MachineDataId, MachineDataTable, MachineLayoutPlan, MachineTarget};
 use nocter_model::{FrozenData, FrozenNode, TypeId};
 use nocter_runtime_contract::{RuntimeEnvironment, RuntimeTypeRepresentation};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 pub(super) struct Data {
     values: Vec<MachineData>,
+    statics: BTreeMap<nocter_model::ValueStatic, MachineDataId>,
     ids: HashMap<(TypeId, FrozenData), MachineDataId>,
     remaining: usize,
 }
@@ -18,9 +19,14 @@ impl Data {
     ) -> Result<Self, Failure> {
         let mut data = Self {
             values: Vec::new(),
+            statics: BTreeMap::new(),
             ids: HashMap::new(),
             remaining: 16 * 1024 * 1024,
         };
+        for (&id, source) in program.statics() {
+            let object = data.encode(program.runtime(), layouts, source.data, &source.value)?;
+            data.statics.insert(id, object);
+        }
         for body in program.bodies().values() {
             for action in body.actions().values() {
                 for operation in &action.operations {
@@ -50,6 +56,20 @@ impl Data {
         if size == 0 {
             return Ok(());
         }
+        let id = self.encode(runtime, layouts, ty, value)?;
+        self.ids.insert(key, id);
+        Ok(())
+    }
+    fn encode(
+        &mut self,
+        runtime: &RuntimeEnvironment,
+        layouts: &MachineLayoutPlan,
+        ty: TypeId,
+        value: &FrozenData,
+    ) -> Result<MachineDataId, Failure> {
+        let layout = layouts.get(ty).ok_or(Failure::InvalidRoot)?;
+        // An addressable empty static still receives distinct physical backing.
+        let size = usize::try_from(layout.size().max(1)).map_err(|_| Failure::DataLimit(ty))?;
         self.remaining = self
             .remaining
             .checked_sub(size)
@@ -108,8 +128,10 @@ impl Data {
             bytes.into_boxed_slice(),
             layout.alignment(),
         ));
-        self.ids.insert(key, id);
-        Ok(())
+        Ok(id)
+    }
+    pub fn global(&self, id: nocter_model::ValueStatic) -> Option<MachineDataId> {
+        self.statics.get(&id).copied()
     }
     pub fn get(&self, ty: TypeId, value: &FrozenData) -> Option<MachineDataId> {
         self.ids.get(&(ty, value.clone())).copied()

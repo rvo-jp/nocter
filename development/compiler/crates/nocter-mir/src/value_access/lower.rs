@@ -25,6 +25,45 @@ pub(super) struct Builder<'a> {
     keys: BTreeMap<SlotKey, MirLocalId>,
 }
 impl Builder<'_> {
+    fn control(
+        &mut self,
+        result: TypeId,
+    ) -> Result<BTreeMap<nocter_model::AccessFlowPointId, super::Terminator>, Failure> {
+        let checked = self.checked;
+        let mut terminators = BTreeMap::new();
+        for (point, block) in checked.graph().points().iter() {
+            if !checked.initialization().reachable(point) {
+                continue;
+            }
+            let terminator = match block.terminator {
+                flow::Terminator::Jump(next) => super::Terminator::Jump(next),
+                flow::Terminator::Branch { condition, yes, no } => super::Terminator::Branch {
+                    condition: self.predicate(condition)?,
+                    yes,
+                    no,
+                },
+                flow::Terminator::Return => {
+                    let data = result;
+                    super::Terminator::Return(self.root(Holder::Return, data, false)?)
+                }
+                flow::Terminator::Unreachable => super::Terminator::Unreachable,
+            };
+            terminators.insert(point, terminator);
+        }
+        Ok(terminators)
+    }
+    fn static_views(&self) -> Box<[(MirLocalId, nocter_model::ValueStatic)]> {
+        self.checked
+            .typed()
+            .body()
+            .static_views()
+            .filter_map(|(local, id)| {
+                self.keys
+                    .get(&SlotKey::Local(local))
+                    .map(|&slot| (slot, id))
+            })
+            .collect()
+    }
     pub(super) fn invalid(&self) -> Failure {
         Failure::InvalidBody(self.id)
     }
@@ -568,26 +607,7 @@ pub(super) fn body(
             },
         );
     }
-    let mut terminators = BTreeMap::new();
-    for (point, block) in checked.graph().points().iter() {
-        if !checked.initialization().reachable(point) {
-            continue;
-        }
-        let terminator = match block.terminator {
-            flow::Terminator::Jump(next) => super::Terminator::Jump(next),
-            flow::Terminator::Branch { condition, yes, no } => super::Terminator::Branch {
-                condition: builder.predicate(condition)?,
-                yes,
-                no,
-            },
-            flow::Terminator::Return => {
-                let data = signature.result();
-                super::Terminator::Return(builder.root(Holder::Return, data, false)?)
-            }
-            flow::Terminator::Unreachable => super::Terminator::Unreachable,
-        };
-        terminators.insert(point, terminator);
-    }
+    let terminators = builder.control(signature.result())?;
     let inputs = signature
         .ordered()
         .map(|input| {
@@ -598,7 +618,9 @@ pub(super) fn body(
                 .ok_or(invalid)
         })
         .collect::<Result<Box<[_]>, _>>()?;
+    let statics = builder.static_views();
     Ok(Body {
+        statics,
         signature,
         slots: builder.slots.finish(),
         flags: lifecycle.flags().initial_words().into(),

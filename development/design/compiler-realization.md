@@ -77,7 +77,7 @@ names do not authorize hidden effects, root stability or target primitives.
 
 The [const contract](../spec/language/constant-evaluation.md) owns eligibility and publication.
 Extend the [required initializer boundary](../compiler/crates/nocter-checking/README.md#required-private-initializers)
-with remaining aggregate forms, immutable statics and early structural dependencies. As ordinary
+with remaining aggregate forms and early structural dependencies. As ordinary
 generic/witness schemas are admitted, qualify condition derivation, per-conformance witness facts,
 exact-generation exports and substitution over that same authority. Preserve runtime-valid
 instances whose const condition is false; distinguish those from definition-time known forbidden operations and missing ordinary capabilities.

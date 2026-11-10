@@ -275,3 +275,49 @@ fn private_record_constants_are_serialized_and_each_use_receives_an_independent_
         execute_native_status(&compile(source), &package.0, name, expected);
     }
 }
+
+#[test]
+fn private_immutable_statics_share_places_without_initializer_calls_or_hidden_inputs() {
+    let source = "const func initialize(): i32 { 40 + 2 }\nstatic FIRST: i32 = initialize()\nstatic SECOND: i32 = 42\nfunc first(): i32 { read value = FIRST\nvalue }\nfunc second(): i32 { FIRST + SECOND }\nfunc run(): i32 { first() + second() }";
+    let program = machine(source);
+    assert_eq!(program.data().len(), 2);
+    assert!(
+        program
+            .data()
+            .iter()
+            .all(|(_, data)| data.bytes() == [42, 0, 0, 0])
+    );
+    assert_eq!(program.functions().len(), 4);
+    assert!(
+        program
+            .functions()
+            .all(|(_, function)| match function.kind() {
+                nocter_machine::MachineFunctionKind::Callable(abi) => abi.arguments().is_empty(),
+                _ => true,
+            })
+    );
+    let arm = nocter_arm64::Arm64Program::lower_machine(&program).unwrap();
+    let image = crate::NativeImage::from_macho(nocter_macho::MachOImage::build(&arm).unwrap());
+    let package = TempPackage::new();
+    execute_native_status(&image, &package.0, "static-identity", 126);
+    for (name, source) in [
+        (
+            "static-noncopy",
+            "struct Pair { left: i32\nright: i32 }\nstatic DATA: Pair = Pair { left: 40, right: 2 }\nfunc inspect(value: Pair): i32 { value.left + value.right }\nfunc run(): i32 { read value = DATA\ninspect(value) }",
+        ),
+        (
+            "static-copy",
+            "copy struct Pair { value: i32 }\nstatic DATA: Pair = Pair { value: 42 }\nfunc run(): i32 { var value = DATA\nvalue.value = 0\nDATA.value }",
+        ),
+        (
+            "static-empty",
+            "struct Empty {}\nstatic FIRST: Empty = Empty {}\nstatic SECOND: Empty = Empty {}\nfunc inspect(first: Empty, second: Empty): i32 { 42 }\nfunc run(): i32 { inspect(FIRST, SECOND) }",
+        ),
+        (
+            "static-capture",
+            "static BASE: i32 = 40\nfunc run(): i32 { let value = 2\nlet action = (value;): i32 { BASE + value }\naction() }",
+        ),
+    ] {
+        execute_native_status(&compile(source), &package.0, name, 42);
+    }
+}

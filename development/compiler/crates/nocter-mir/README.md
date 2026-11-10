@@ -75,3 +75,10 @@ MirProgram conversion.
 
 The [private activation handoff](../../../architecture/pipeline/value-access-declarations.md#private-activation-storage-handoff)
 owns cross-stage ordering and remaining execution obligations.
+
+Each body additionally freezes the reachable static address-slot bindings separately from its
+ordered inputs. One program-owned static table retains their exact runtime data and frozen values.
+Validation proves table coverage, global shapes, unique alias slots and absence from the input
+layout. An immutable global is neither a parameter nor a body-owned resource; no initialization
+call or destruction is inferred. Consumers receive those closed bindings without examining
+source names or deriving a static role from a slot's address representation.

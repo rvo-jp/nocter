@@ -55,7 +55,7 @@ pub enum HeaderPosition {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DeclarationRule {
     MissingDefinition,
-    InvalidConstantHeader,
+    InvalidInitializerHeader,
     UnknownSymbol,
     ReservedBuiltinName,
     DuplicateCallable { first: AccessCallableId },
@@ -84,13 +84,20 @@ pub struct DeclarationViolation {
 pub enum CallableKind {
     Function(CompileTimeGuarantee),
     ConstantInitializer,
+    StaticInitializer,
 }
 impl CallableKind {
+    #[must_use]
+    pub const fn is_initializer(self) -> bool {
+        matches!(self, Self::ConstantInitializer | Self::StaticInitializer)
+    }
     #[must_use]
     pub const fn compile_time(self) -> CompileTimeGuarantee {
         match self {
             Self::Function(capability) => capability,
-            Self::ConstantInitializer => CompileTimeGuarantee::Evaluatable,
+            Self::ConstantInitializer | Self::StaticInitializer => {
+                CompileTimeGuarantee::Evaluatable
+            }
         }
     }
 }
@@ -228,6 +235,19 @@ impl Program {
                 .get(*id)
                 .is_some_and(|c| c.kind() == CallableKind::ConstantInitializer)
         })
+    }
+    #[must_use]
+    pub fn resolve_static(&self, name: Symbol) -> Option<nocter_model::ValueStatic> {
+        let initializer = self.resolve_code(name)?;
+        let id = nocter_model::ValueStatic { initializer };
+        self.static_declaration(id)?;
+        Some(id)
+    }
+    #[must_use]
+    pub fn static_declaration(&self, id: nocter_model::ValueStatic) -> Option<&Callable> {
+        self.callables
+            .get(id.initializer)
+            .filter(|value| value.kind() == CallableKind::StaticInitializer)
     }
 }
 
@@ -434,14 +454,14 @@ fn validate_definition(
         });
         return;
     };
-    if definition.kind == CallableKind::ConstantInitializer
+    if definition.kind.is_initializer()
         && (!definition.parameters.is_empty()
             || matches!(definition.result_data, ValueDefinition::Function(_)))
     {
         violations.push(DeclarationViolation {
             declaration: DeclarationId::Callable(id),
             position: HeaderPosition::Result,
-            rule: DeclarationRule::InvalidConstantHeader,
+            rule: DeclarationRule::InvalidInitializerHeader,
         });
     }
     let mut seen = BTreeMap::new();

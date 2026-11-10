@@ -40,6 +40,7 @@ pub(super) struct Checker<'a, 's> {
     pub locals: ArenaBuilder<AccessLocalId, Local>,
     pub expressions: ArenaBuilder<AccessExpressionId, Expression>,
     pub places: ArenaBuilder<AccessPlaceId, Place>,
+    pub statics: BTreeMap<nocter_model::ValueStatic, AccessLocalId>,
     pub place_index: BTreeMap<(AccessLocalId, FieldPath), AccessPlaceId>,
     pub statements: ArenaBuilder<AccessStatementId, Statement>,
     pub blocks: ArenaBuilder<AccessBlockId, Block>,
@@ -108,9 +109,7 @@ pub(super) fn prepare(
         let spelling = checker.text(token)?.to_owned();
         checker.scopes[0].insert(spelling, local);
     }
-    let root = if declaration.kind()
-        == nocter_declarations::value_access::CallableKind::ConstantInitializer
-    {
+    let root = if declaration.kind().is_initializer() {
         let value = checker.expression(
             source.body(),
             Some(Boundary::Result(declaration.result())),
@@ -155,6 +154,7 @@ impl<'a, 's> Checker<'a, 's> {
             locals: ArenaBuilder::new(),
             expressions: ArenaBuilder::new(),
             places: ArenaBuilder::new(),
+            statics: BTreeMap::new(),
             place_index: BTreeMap::new(),
             statements: ArenaBuilder::new(),
             blocks: ArenaBuilder::new(),

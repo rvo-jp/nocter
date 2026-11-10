@@ -7,7 +7,7 @@ use nocter_constant_evaluation::{
     CompileTimeBinaryOperation as B, CompileTimeComparisonOperation as C,
     CompileTimeUnaryOperation as U, state as plan,
 };
-use nocter_declarations::value_access::{CallableKind, PayloadSchema, Program};
+use nocter_declarations::value_access::{PayloadSchema, Program};
 use nocter_model::{
     AccessCallableId, AccessExpressionId, AccessPlaceId, FieldPath, TypeId, ValueAccessMode,
     ValueInputOperation,
@@ -498,6 +498,18 @@ impl Builder<'_, '_> {
             _ => return Err(INVALID),
         })
     }
+    fn static_views(&self) -> Box<[(usize, nocter_model::ValueStatic)]> {
+        self.query
+            .typed()
+            .body()
+            .static_views()
+            .filter_map(|(local, id)| {
+                self.keys
+                    .get(&Key::Resource(Holder::Local(local)))
+                    .map(|&slot| (slot, id))
+            })
+            .collect()
+    }
     fn build(mut self) -> Result<plan::Plan> {
         let inputs = self
             .query
@@ -577,7 +589,9 @@ impl Builder<'_, '_> {
                 return Err(INVALID);
             }
         }
+        let statics = self.static_views();
         Ok(plan::Plan {
+            statics,
             inputs,
             slots: self.slots.into(),
             result: self
@@ -589,7 +603,7 @@ impl Builder<'_, '_> {
                 .get(self.query.typed().source_owner())
                 .ok_or(INVALID)?
                 .kind()
-                == CallableKind::ConstantInitializer,
+                .is_initializer(),
             entry: self.query.graph().entry(),
             points: points.finish(),
         })
@@ -649,6 +663,7 @@ pub(super) fn prepare(
     program: &Program,
     bodies: &BTreeMap<AccessCallableId, flow::Query>,
     root: AccessCallableId,
+    values: impl Fn(AccessCallableId) -> Option<plan::Value>,
 ) -> Result<plan::Program> {
     let mut pending = vec![root];
     let mut types = Types::default();
@@ -675,5 +690,22 @@ pub(super) fn prepare(
         }
         plans.insert(id, plan);
     }
-    plan::Program::new(types.values, plans).map_err(|_| INVALID)
+    let mut statics = BTreeMap::new();
+    for plan in plans.values() {
+        for &(_, id) in &plan.statics {
+            if statics.contains_key(&id) {
+                continue;
+            }
+            let data = program.static_declaration(id).ok_or(INVALID)?.result();
+            let value = values(id.initializer).ok_or(INVALID)?;
+            statics.insert(
+                id,
+                plan::Static {
+                    data: types.get(program, data)?,
+                    value,
+                },
+            );
+        }
+    }
+    plan::Program::new(types.values, plans, statics).map_err(|_| INVALID)
 }

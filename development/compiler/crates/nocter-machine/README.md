@@ -118,3 +118,10 @@ allocation refusal. The current byte budget is owned by its constructor. Zero-si
 skipped instead of expanding exponentially shared empty records. Frozen graph sharing does not
 justify overflowing a physical layout or allocating unbounded serialized output. This private
 bound does not change the released static catalog or claim a compiler-process memory limit.
+
+Private immutable statics use that same serializer, with a catalog entry per global identity rather
+than literal-content merging. Every reference across bodies selects that same object. Empty statics
+receive distinct minimal physical backing while retaining their zero-size logical layout. Entry
+code binds body-local address slots to immutable backing; callable signatures and source ownership
+remain unchanged. Static and literal data share the total serialization budget and common scalar
+encoding. No static initializer becomes a runtime function.

@@ -6,7 +6,7 @@ use super::{Failure as BodyFailure, flow, source_origin};
 use nocter_constant_evaluation::state;
 use nocter_model::FrozenData;
 struct Completed {
-    _execution: state::Value,
+    execution: state::Value,
     frozen: FrozenData,
 }
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;

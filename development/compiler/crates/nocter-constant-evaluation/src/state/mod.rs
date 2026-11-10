@@ -154,15 +154,23 @@ pub struct Point {
 pub struct Plan {
     pub slots: Arc<[Slot]>,
     pub inputs: Box<[(usize, nocter_model::ValueInputOperation)]>,
+    pub statics: Box<[(usize, nocter_model::ValueStatic)]>,
     pub result: usize,
     pub initializer: bool,
     pub entry: AccessFlowPointId,
     pub points: Arena<AccessFlowPointId, Point>,
 }
-/// Closed immutable table. Public parts are validated before becoming executable plans.
+/// Established immutable global data and its evaluator-domain shape.
+#[derive(Clone, Debug)]
+pub struct Static {
+    pub data: usize,
+    pub value: Value,
+}
+/// Closed immutable table of plans and established immutable global data.
 #[derive(Clone, Debug)]
 pub struct Program {
     types: Box<[Type]>,
+    statics: BTreeMap<nocter_model::ValueStatic, Static>,
     plans: BTreeMap<AccessCallableId, Plan>,
 }
 impl Program {
@@ -171,9 +179,11 @@ impl Program {
     pub fn new(
         types: impl Into<Box<[Type]>>,
         plans: BTreeMap<AccessCallableId, Plan>,
+        statics: BTreeMap<nocter_model::ValueStatic, Static>,
     ) -> Result<Self, Rule> {
         let program = Self {
             types: types.into(),
+            statics,
             plans,
         };
         validation::validate(&program)?;

@@ -45,6 +45,17 @@ impl Context<'_, '_> {
             root => {
                 let local = match root {
                     Root::Owned(local) | Root::Input(local) => local,
+                    Root::Static(id) => self
+                        .query()
+                        .typed()
+                        .body()
+                        .locals()
+                        .iter()
+                        .find_map(|(local, declaration)| {
+                            (declaration.origin == crate::value_access::LocalOrigin::Static(id))
+                                .then_some(local)
+                        })
+                        .ok_or(Failure::InconsistentSyntax)?,
                     Root::Temporary { .. } => return Err(Failure::InconsistentSyntax),
                 };
                 self.typed()
@@ -93,7 +104,7 @@ impl Context<'_, '_> {
             )];
             if let Some(retained) = violation.retained {
                 let origin = match retained.created {
-                    Creation::Parameter(local) => self
+                    Creation::Entry(local) => self
                         .typed()
                         .local_origin(local)
                         .ok_or(Failure::InconsistentSyntax)?,

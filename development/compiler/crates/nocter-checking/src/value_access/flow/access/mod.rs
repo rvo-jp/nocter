@@ -17,6 +17,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Root {
+    Static(nocter_model::ValueStatic),
     Owned(AccessLocalId),
     Input(AccessLocalId),
     Temporary {
@@ -45,7 +46,7 @@ impl Region {
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Creation {
-    Parameter(AccessLocalId),
+    Entry(AccessLocalId),
     Action(Location),
 }
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]

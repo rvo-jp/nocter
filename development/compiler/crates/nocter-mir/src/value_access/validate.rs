@@ -13,6 +13,24 @@ pub(super) fn program(program: &Program) -> Result<(), Failure> {
     if !program.bodies.contains_key(&program.root) {
         return Err(Failure::InvalidBody(program.root));
     }
+    let root = program
+        .bodies
+        .get(&program.root)
+        .ok_or(Failure::InvalidBody(program.root))?;
+    let context = Context {
+        program,
+        body: root,
+        id: program.root,
+    };
+    let used: BTreeSet<_> = program
+        .bodies
+        .values()
+        .flat_map(|body| body.statics.iter().map(|&(_, id)| id))
+        .collect();
+    context.require(used.iter().eq(program.statics.keys()))?;
+    for value in program.statics.values() {
+        context.frozen(value.data, &value.value)?;
+    }
     for (&id, body) in &program.bodies {
         validate_body(program, id, body)?;
     }
@@ -259,6 +277,17 @@ impl Context<'_> {
 
 fn validate_body(program: &Program, id: AccessInstanceId, body: &Body) -> Result<(), Failure> {
     let context = Context { program, body, id };
+    let mut bound = BTreeSet::new();
+    for &(slot, id) in &body.statics {
+        let data = program.statics.get(&id).ok_or_else(|| context.invalid())?;
+        let slot_data = body.slots.get(slot).ok_or_else(|| context.invalid())?;
+        context.require(
+            bound.insert(slot)
+                && !body.inputs.contains(&slot)
+                && slot_data.storage == Storage::Address
+                && slot_data.representations.as_ref() == [data.data],
+        )?;
+    }
     let mut keys = BTreeSet::new();
     for (_, slot) in body.slots.iter() {
         context.require(keys.insert(slot.key) && !slot.representations.is_empty())?;

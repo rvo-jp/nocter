@@ -301,3 +301,5 @@ mod initializers;
 mod booleans;
 
 mod comparisons;
+
+mod statics;

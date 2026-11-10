@@ -5,7 +5,6 @@ use nocter_constant_evaluation::{
     DependencyComputation, DependencyQuery, DependencyQueryError, state,
 };
 use nocter_declaration_lowering::access_declarations::Context;
-use nocter_declarations::value_access::CallableKind;
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{AccessCallableId, CompileTimeGuarantee, ValueFunctionOrigin};
 use nocter_syntax::SyntaxOrigin;
@@ -36,7 +35,7 @@ pub(in crate::value_access) fn prepare(
     };
     let mut values = Values::default();
     for (id, declaration) in context.program().callables().iter() {
-        if declaration.kind() == CallableKind::ConstantInitializer {
+        if declaration.kind().is_initializer() {
             preparation.budget.restart_work();
             values
                 .resolve(&mut preparation, id)
@@ -206,7 +205,7 @@ impl Preparation<'_, '_> {
         id: AccessCallableId,
     ) -> Result<Completed, Failure> {
         let declaration = self.context.program().callables().get(id).ok_or(INVALID)?;
-        if declaration.kind() != CallableKind::ConstantInitializer {
+        if !declaration.kind().is_initializer() {
             return Err(INVALID);
         }
         let queries = self.graph(values, id)?;
@@ -226,8 +225,10 @@ impl Preparation<'_, '_> {
                 diagnostic: Box::new(diagnostic),
             });
         }
-        let program = projection::prepare(&checked.program, &checked.bodies, id)
-            .map_err(Failure::Integrity)?;
+        let program = projection::prepare(&checked.program, &checked.bodies, id, |id| {
+            values.completed(&id).map(|value| value.execution.clone())
+        })
+        .map_err(Failure::Integrity)?;
         let mut executor =
             state::Executor::new(&program, &mut self.budget, values.active_depth() - 1);
         let value =
@@ -255,7 +256,7 @@ impl Preparation<'_, '_> {
             };
         Ok(Completed {
             frozen: value.freeze(),
-            _execution: value,
+            execution: value,
         })
     }
 }

@@ -195,6 +195,7 @@ pub struct Action {
 
 #[derive(Clone, Debug)]
 pub struct Body {
+    statics: Box<[(MirLocalId, nocter_model::ValueStatic)]>,
     signature: RuntimeValueSignature,
     slots: Arena<MirLocalId, Slot>,
     flags: Box<[u64]>,
@@ -204,6 +205,10 @@ pub struct Body {
     inputs: Box<[MirLocalId]>,
 }
 impl Body {
+    #[must_use]
+    pub fn statics(&self) -> &[(MirLocalId, nocter_model::ValueStatic)] {
+        &self.statics
+    }
     #[must_use]
     pub const fn entry(&self) -> AccessFlowPointId {
         self.entry
@@ -240,9 +245,16 @@ pub enum Failure {
     InvalidBody(AccessInstanceId),
 }
 
-/// Closed private MIR bodies, without a released-program adapter or native capability.
+/// One immutable global object with its exact closed runtime data.
+#[derive(Clone, Debug)]
+pub struct Static {
+    pub data: TypeId,
+    pub value: nocter_model::FrozenData,
+}
+/// Closed private MIR bodies and global data, without a released-program adapter.
 #[derive(Clone, Debug)]
 pub struct Program {
+    statics: BTreeMap<nocter_model::ValueStatic, Static>,
     runtime: RuntimeEnvironment,
     bodies: BTreeMap<AccessInstanceId, Body>,
     root: AccessInstanceId,
@@ -254,18 +266,45 @@ impl Program {
     pub fn lower(program: &lifecycle::Program, abi: RuntimeAbiIdentity) -> Result<Self, Failure> {
         let runtime =
             storage::prepare(program.instance_program(), abi).map_err(Failure::Storage)?;
-        let bodies = program
+        let bodies: BTreeMap<AccessInstanceId, Body> = program
             .bodies()
             .iter()
             .map(|(&id, body)| Ok((id, lower::body(program.instance_program(), id, body)?)))
             .collect::<Result<_, Failure>>()?;
+        let mut statics = BTreeMap::new();
+        for body in bodies.values() {
+            for &(slot, id) in &body.statics {
+                let source = program.instance_program().unit();
+                let data = *body
+                    .slots
+                    .get(slot)
+                    .ok_or(Failure::InvalidBody(program.instance_program().root()))?
+                    .representations
+                    .first()
+                    .ok_or(Failure::InvalidBody(program.instance_program().root()))?;
+                let value = source
+                    .static_value(id)
+                    .ok_or(Failure::InvalidBody(program.instance_program().root()))?
+                    .clone();
+                if let Some(existing) = statics.insert(id, Static { data, value })
+                    && existing.data != data
+                {
+                    return Err(Failure::InvalidBody(program.instance_program().root()));
+                }
+            }
+        }
         let result = Self {
+            statics,
             runtime,
             bodies,
             root: program.instance_program().root(),
         };
         validate::program(&result)?;
         Ok(result)
+    }
+    #[must_use]
+    pub const fn statics(&self) -> &BTreeMap<nocter_model::ValueStatic, Static> {
+        &self.statics
     }
     #[must_use]
     pub const fn runtime(&self) -> &RuntimeEnvironment {

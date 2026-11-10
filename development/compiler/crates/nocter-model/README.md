@@ -15,6 +15,8 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
 
 - dense semantic ID domains and arenas
 - source-independent compile-time expression identities
+- `ValueStatic` place keys linked to initializer declarations; the declaration authority validates
+  the role before granting a global place, independently of code/function use
 - immutable `FrozenData` literal DAGs for the closed value-access path, with topological component
   edges and shared component views; source typing, evaluation, nominal identity and layout remain
   outside this representation
