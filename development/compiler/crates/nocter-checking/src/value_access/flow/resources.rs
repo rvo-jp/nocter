@@ -122,7 +122,7 @@ pub enum Step {
         from: Payload,
         payload: Payload,
     },
-    /// Transfer complete component obligations into one record/tuple; no second value is constructed.
+    /// Transfer listed component obligations into one structural value; no second value is constructed.
     Assemble {
         destination: Holder,
         payload: Payload,

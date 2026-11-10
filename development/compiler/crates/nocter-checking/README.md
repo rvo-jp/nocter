@@ -432,7 +432,7 @@ deallocation policy. Integrity rejection commits no partial ownership, cleanup s
 mutability and access permission remain prerequisites proved by body checking, not permissions
 granted by a resource place.
 
-`resources::assembly` transfers complete component obligations into one aggregate atomically.
+`resources::assembly` transfers complete listed component obligations into one structural value atomically.
 Components remain ordinary expression owners in the existing evaluation frame until completion;
 interrupted construction therefore cleans them in reverse production order without an additional
 partial-constructor state or whole-aggregate destruction. `Step::Assemble` retains resolved
@@ -768,10 +768,34 @@ does not admit array-bearing body data: the separate array value/resource/storag
 rejects it before flow. Complete Unit publication still requires every declared body and required
 value; partially completed count facts cannot publish a Unit. Count values are not exposed as
 named constants or runtime-callable bodies. List/repetition construction and bracket selection
-have explicit authored rejection gates. Repetition count preparation does not check or execute
-the seed: once-only seed evaluation, including at zero count, requires the combined construction
-proof. Array value construction/selection, source-integrated resource validation, evaluator array data and native
-storage remain integration work.
+have explicit authored rejection gates. Count completion precedes ordinary seed preparation,
+including at zero, under the [construction draft boundary](#array-construction-drafts).
+Array value construction/selection, source-integrated resource validation, evaluator array data
+and native storage remain integration work.
+
+## Array Construction Drafts
+
+`construction::arrays` checks listed/repeated construction through the ordinary expression and
+value-supply boundaries before array body admission. An authored array context supplies its
+element data and exact count. Inference checks each listed component independently and requires
+equal data identities; the first element supplies no coercion context to the rest. Empty lists
+need contextual element data. Listed drafts retain source-ordered `ValueField::Array` components
+in the existing aggregate expression product and use the same body type authority, including in
+nested arrays and tuples. Callable-witness elements remain outside this bounded structural scope.
+
+Repetition closes its count through the common query, then prepares its seed even at zero count.
+The seed must be supplied as an ordinary value; zero does not turn a non-Copy read into an owner
+or suppress a required constant dependency. Counts above one require the declaration authority's
+Copy evidence. These checks do not execute the seed producer or qualify repetition cleanup and
+storage. Compact repeated-value operations remain unimplemented, and repetition rejects
+explicitly afterward. Listed array data likewise rejects in body admission before flow.
+
+The internal assembly ledger validates listed array cardinality and each component through the
+same declaration projection used for records/tuples. Distinct complete component owners transfer
+atomically into a fresh destination; duplicate positions/sources, wrong data/families/counts and
+an occupied destination cannot publish partial changes. Source construction effects, dynamic
+element selection, evaluator data and native storage still need their combined proofs before the
+array admission gate can open.
 
 ## Concrete Array Resource Frontiers
 
@@ -791,9 +815,9 @@ ordinals or a guessed tuple schema. `ReleaseContainer` ends the array after its 
 including when every element has moved. Restoration, initialized replacement and absence of the
 parent use the same atomic transfer/replacement rules as other structural places.
 
-Ledger qualification covers maximum u64 cardinality, first/last and out-of-bounds positions,
+Ledger qualification covers listed component assembly, maximum u64 cardinality, first/last and out-of-bounds positions,
 empty arrays, zero-sized elements, partial record elements, replacement and container retirement.
-These tests start with declaration-backed logical owners. They do not qualify array construction,
+These tests start with declaration-backed logical owners. They do not qualify source array construction,
 source initialization/access/conflict analysis, or a runtime-selected index. Distinct dynamic
 index expressions cannot be encoded as disjoint concrete keys. Their evaluated identity and
 checked equality/disjointness conditions must close across reservations, joins and loops before

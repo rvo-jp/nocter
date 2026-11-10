@@ -2,6 +2,7 @@
 use super::*;
 use nocter_declarations::value_access::{DataReference, FieldDefinition, Reservations};
 use nocter_model::{ArenaBuilder, SymbolTable, ValueField};
+mod construction;
 
 struct Fixture {
     program: Program,

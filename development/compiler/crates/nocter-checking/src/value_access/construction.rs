@@ -8,6 +8,7 @@ use nocter_declarations::value_access::{AggregateForm, PayloadSchema};
 use nocter_model::{AccessExpressionId, ValueAccessMode as Mode};
 use nocter_syntax::{NodeId, NodeKind, direct_identifier};
 use std::collections::BTreeSet;
+mod arrays;
 
 impl Checker<'_, '_> {
     pub fn tuple_value(
@@ -58,7 +59,11 @@ impl Checker<'_, '_> {
             };
             if !matches!(
                 self.program().data_schema(field_data),
-                Some(PayloadSchema::Builtin(_) | PayloadSchema::Aggregate(_))
+                Some(
+                    PayloadSchema::Builtin(_)
+                        | PayloadSchema::Aggregate(_)
+                        | PayloadSchema::Array(_)
+                )
             ) {
                 return self.reject(Rule::InvalidConstruction, entry);
             }

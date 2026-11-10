@@ -328,7 +328,7 @@ fn raised_source_depth_budget_closes_a_deep_constant_chain_without_host_recursio
 }
 
 #[test]
-fn repetition_counts_execute_without_granting_seed_or_array_value_admission() {
+fn repetition_counts_execute_before_the_separate_construction_gate() {
     for (count, expected) in [
         ("6 * 7", 42),
         ("width()", 42),
@@ -360,7 +360,7 @@ fn repetition_counts_execute_without_granting_seed_or_array_value_admission() {
         );
         assert!(
             dependencies::body(&requests, seed).is_none(),
-            "seed execution/checking needs the separate array construction path"
+            "seed body execution needs the separate array construction path"
         );
     }
     for (parameters, count, code) in [
@@ -378,7 +378,7 @@ fn repetition_counts_execute_without_granting_seed_or_array_value_admission() {
 #[test]
 fn recognized_array_construction_and_selection_fail_at_the_explicit_body_gate() {
     for operation in [
-        "let value = []",
+        "let value: [i32; 0] = []",
         "let value = [1, 2]",
         "let value = items[0]",
         "read value = items[0]",

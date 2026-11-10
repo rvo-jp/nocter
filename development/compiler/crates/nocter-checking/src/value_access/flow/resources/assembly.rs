@@ -13,18 +13,18 @@ impl State {
         fields: &[(ValueField, Place)],
         steps: &mut Vec<Step>,
     ) -> Result<()> {
-        let PayloadSchema::Aggregate(aggregate) =
-            program.data_schema(payload.data()).ok_or(INVALID)?
-        else {
-            return Err(INVALID);
+        let complete = match program.data_schema(payload.data()).ok_or(INVALID)? {
+            PayloadSchema::Aggregate(aggregate) => fields.len() == aggregate.len(),
+            PayloadSchema::Array(array) => u64::try_from(fields.len()).ok() == Some(array.length()),
+            PayloadSchema::Builtin(_) | PayloadSchema::Function(_) => false,
         };
-        if fields.len() != aggregate.len() {
+        if !complete || self.contains(destination) {
             return Err(INVALID);
         }
         let mut staged = self.clone();
         let mut selected = BTreeSet::new();
         for (field, source) in fields {
-            let declaration = aggregate.component(*field).ok_or(INVALID)?;
+            let declaration = program.component(payload.data(), *field).ok_or(INVALID)?;
             if !selected.insert(*field) {
                 return Err(INVALID);
             }

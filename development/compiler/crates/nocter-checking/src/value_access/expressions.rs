@@ -60,12 +60,9 @@ impl Checker<'_, '_> {
                 self.tuple_value(node, hint.map(Boundary::Value), reachable)?
             }
             NodeKind::ArrayRepeatLiteral => {
-                let (_, count) = nocter_syntax::array_repetition_parts(self.syntax().tree(), node)
-                    .ok_or(Failure::InconsistentSyntax)?;
-                self.required_length(count)?;
-                return self.reject(Rule::UnsupportedData, node);
+                return self.array_repetition(node, hint, reachable);
             }
-            NodeKind::ArrayLiteral => return self.reject(Rule::UnsupportedData, node),
+            NodeKind::ArrayLiteral => self.array_value(node, hint, reachable)?,
             NodeKind::UnaryExpression => self.unary(node, hint, reachable)?,
             NodeKind::LogicalOrExpression
             | NodeKind::LogicalAndExpression
