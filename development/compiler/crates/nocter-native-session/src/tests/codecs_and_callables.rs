@@ -628,3 +628,16 @@ fn scalar_floating_values_cross_the_complete_native_session() {
     let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
     execute_native_status(image.image(), &package_root.0, "floating", 0);
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn immutable_float_statics_cross_native_data_emission_and_loading() {
+    let standard_root = nocter_test_support::standard_library_root();
+    let package = TempPackage::new();
+    let image = compile_single_file_native_source(
+        &package,
+        &standard_root,
+        "static SMALL: f32 = 1.5f32\nstatic LARGE: f64 = -2.25f64\nstatic VALUES: [f32; 2] = [1.5f32, -2.25f32]\nstatic ZERO: f64 = -0.0\nstatic NAN: f64 = 0.0 / 0.0\nfunc main(): i32 {\nif SMALL != 1.5f32 { return 1 }\nif LARGE != -2.25f64 { return 2 }\nif VALUES[1] != -2.25f32 { return 3 }\nif 1.0 / ZERO > 0.0 { return 4 }\nif NAN == NAN { return 5 }\nreturn 0\n}",
+    );
+    execute_native_status(&image, &package.0, "float-statics", 0);
+}

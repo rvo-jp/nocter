@@ -2603,3 +2603,22 @@ fn lower_selected_fixture(fixture: &CompilerFixture, tests: bool) -> nocter_mir:
     };
     lower_executable(executable).unwrap()
 }
+
+#[test]
+fn immutable_float_statics_serialize_their_established_ieee_bits() {
+    let mir = lower_fixture(
+        "static SMALL: f32 = 1.5f32\nstatic LARGE: f64 = -2.25f64\nfunc main(): i32 { let _ = SMALL\nlet _ = LARGE\nreturn 0 }",
+    );
+    let program = MachineProgram::lower(&mir).unwrap();
+    let data = program
+        .data()
+        .iter()
+        .map(|(_, data)| data)
+        .collect::<Vec<_>>();
+    assert!(data.iter().any(|data| data.alignment() == 4
+        && data.bytes() == [0, 0, 192, 63]
+        && data.relocations().is_empty()));
+    assert!(data.iter().any(|data| data.alignment() == 8
+        && data.bytes() == [0, 0, 0, 0, 0, 0, 2, 192]
+        && data.relocations().is_empty()));
+}

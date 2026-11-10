@@ -322,28 +322,9 @@ fn encode_frozen(
         .get(ty)
         .ok_or(MachineProgramError::MissingStoredLayout(ty))?;
     match (value, layout.kind()) {
-        (FrozenValue::Scalar(ConstantValue::Bool(value)), MachineLayoutKind::Scalar(_)) => {
-            write_bytes(bytes, offset, &[u8::from(*value)], owner)
-        }
-        (FrozenValue::Scalar(ConstantValue::Character(value)), MachineLayoutKind::Scalar(_)) => {
-            write_integer(
-                bytes,
-                offset,
-                u128::from(*value),
-                layout.size(),
-                target,
-                owner,
-            )
-        }
-        (FrozenValue::Scalar(ConstantValue::Integer(value)), MachineLayoutKind::Scalar(_)) => {
-            write_integer(
-                bytes,
-                offset,
-                value.cast_unsigned(),
-                layout.size(),
-                target,
-                owner,
-            )
+        (FrozenValue::Scalar(value), MachineLayoutKind::Scalar(_)) => {
+            let bits = scalar_bits(value).ok_or(MachineProgramError::InvalidStaticData(owner))?;
+            write_integer(bytes, offset, bits, layout.size(), target, owner)
         }
         (
             FrozenValue::Scalar(ConstantValue::Text(text)),
@@ -495,24 +476,6 @@ fn write_integer(
         .ok_or(MachineProgramError::InvalidStaticData(owner))
 }
 
-fn write_bytes(
-    bytes: &mut [u8],
-    offset: u64,
-    value: &[u8],
-    owner: ExecutableStaticId,
-) -> Result<(), MachineProgramError> {
-    let start =
-        usize::try_from(offset).map_err(|_| MachineProgramError::InvalidStaticData(owner))?;
-    let end = start
-        .checked_add(value.len())
-        .ok_or(MachineProgramError::InvalidStaticData(owner))?;
-    bytes
-        .get_mut(start..end)
-        .ok_or(MachineProgramError::InvalidStaticData(owner))?
-        .copy_from_slice(value);
-    Ok(())
-}
-
 /// Shared integer encoding for released statics and closed private literal data.
 pub(crate) fn write_integer_bytes(
     bytes: &mut [u8],
@@ -535,4 +498,15 @@ pub(crate) fn write_integer_bytes(
         .get_mut(start..start.checked_add(size)?)?
         .copy_from_slice(source);
     Some(())
+}
+
+/// Established scalar payload bits, without host floating-point conversion or arithmetic.
+pub(crate) fn scalar_bits(value: &ConstantValue) -> Option<u128> {
+    Some(match value {
+        ConstantValue::Bool(value) => u128::from(*value),
+        ConstantValue::Character(bits) | ConstantValue::Float32(bits) => u128::from(*bits),
+        ConstantValue::Float64(bits) => u128::from(*bits),
+        ConstantValue::Integer(value) => value.cast_unsigned(),
+        ConstantValue::Text(_) => return None,
+    })
 }

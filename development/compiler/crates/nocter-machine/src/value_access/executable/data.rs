@@ -2,7 +2,7 @@
 use super::Failure;
 use crate::identity::MachineId;
 use crate::{MachineData, MachineDataId, MachineDataTable, MachineLayoutPlan, MachineTarget};
-use nocter_model::{ConstantValue, FrozenData, FrozenNode, TypeId};
+use nocter_model::{FrozenData, FrozenNode, TypeId};
 use nocter_runtime_contract::{RuntimeEnvironment, RuntimeTypeRepresentation};
 use std::collections::HashMap;
 
@@ -67,19 +67,12 @@ impl Data {
                 continue;
             }
             match &value.nodes()[node] {
-                FrozenNode::Scalar(ConstantValue::Bool(value)) => crate::data::write_integer_bytes(
-                    &mut bytes,
-                    offset,
-                    u128::from(*value),
-                    layout.size(),
-                    target,
-                )
-                .ok_or(Failure::InvalidRoot)?,
-                FrozenNode::Scalar(ConstantValue::Integer(value)) => {
+                FrozenNode::Scalar(value) => {
+                    let bits = crate::data::scalar_bits(value).ok_or(Failure::InvalidRoot)?;
                     crate::data::write_integer_bytes(
                         &mut bytes,
                         offset,
-                        value.cast_unsigned(),
+                        bits,
                         layout.size(),
                         target,
                     )
@@ -107,7 +100,7 @@ impl Data {
                         ));
                     }
                 }
-                _ => return Err(Failure::InvalidRoot),
+                FrozenNode::Unit => return Err(Failure::InvalidRoot),
             }
         }
         let id = MachineDataId::new(self.values.len());
