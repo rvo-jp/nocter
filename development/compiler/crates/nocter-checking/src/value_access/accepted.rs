@@ -86,18 +86,29 @@ impl Unit {
         evaluation: super::evaluation::Output,
     ) -> Result<Self, Failure> {
         let declarations = context.program().codes();
-        let complete_bodies = evaluation.queries.len() == declarations.len()
+        let complete_bodies = evaluation
+            .queries
+            .keys()
+            .filter(|root| matches!(root, nocter_model::ValueCodeRoot::Declaration(_)))
+            .count()
+            == declarations.len()
             && declarations
                 .iter()
-                .all(|(id, _)| evaluation.queries.contains_key(&id));
-        let initializer_count = declarations
-            .iter()
-            .filter(|(_, declaration)| declaration.kind().is_initializer())
-            .count();
-        let complete_values = initializer_count == evaluation.values.len()
-            && declarations.iter().all(|(id, declaration)| {
-                !declaration.kind().is_initializer() || evaluation.values.contains_key(&id)
-            });
+                .all(|(id, _)| evaluation.queries.contains_key(&id.into()));
+        let requires_value = |root| match root {
+            nocter_model::ValueCodeRoot::Declaration(id) => declarations
+                .get(id)
+                .is_some_and(|code| code.kind().is_initializer()),
+            nocter_model::ValueCodeRoot::Expression(_) => true,
+        };
+        let complete_values = evaluation
+            .queries
+            .keys()
+            .all(|&root| !requires_value(root) || evaluation.values.contains_key(&root))
+            && evaluation
+                .values
+                .keys()
+                .all(|&root| requires_value(root) && evaluation.queries.contains_key(&root));
         if !context.program().headers_complete() || !complete_bodies || !complete_values {
             return Err(Failure::Integrity(
                 flow::IntegrityError::InconsistentTypedBody,
@@ -109,15 +120,16 @@ impl Unit {
             bodies,
             closures,
             result_evidence,
-        } = check_queries(
-            context,
-            queries
-                .into_iter()
-                .map(|(id, query)| (id.into(), query))
-                .collect(),
-        )?;
+        } = check_queries(context, queries)?;
         Ok(Self {
-            initializers: evaluation.values,
+            initializers: evaluation
+                .values
+                .into_iter()
+                .filter_map(|(root, value)| match root {
+                    nocter_model::ValueCodeRoot::Declaration(id) => Some((id, value)),
+                    nocter_model::ValueCodeRoot::Expression(_) => None,
+                })
+                .collect(),
             closures,
             program,
             header: context.program_handle(),

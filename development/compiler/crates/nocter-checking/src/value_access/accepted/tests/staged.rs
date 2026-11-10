@@ -138,17 +138,19 @@ fn whole_unit_closure_rejects_missing_bodies_and_incorrect_initializer_value_cov
         let mut output = evaluation::prepare(&context, state::Limits::default()).unwrap();
         match mutation {
             0 => {
-                output.queries.remove(&run);
+                output.queries.remove(&run.into());
             }
             1 => {
-                output.values.remove(&answer);
+                output.values.remove(&answer.into());
             }
             2 => {
-                output.values.insert(run, output.values[&answer].clone());
+                output
+                    .values
+                    .insert(run.into(), output.values[&answer.into()].clone());
             }
             _ => {
-                let value = output.values.remove(&answer).unwrap();
-                output.values.insert(run, value);
+                let value = output.values.remove(&answer.into()).unwrap();
+                output.values.insert(run.into(), value);
             }
         }
         assert!(

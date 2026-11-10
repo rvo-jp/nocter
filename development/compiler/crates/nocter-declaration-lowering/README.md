@@ -237,8 +237,9 @@ namespace changes. The node/code reverse index derives from those same roots. Se
 reuse `BodySource`, including its full-body guard, rather than a second byte/ancestry mechanism.
 An unchanged count does not certify reuse after its lexical body changes. Sibling-body edits and
 physical source relocation preserve its keys and guarded binding. Registration establishes no
-lexical value availability, expected-type checking, computed length or body acceptance; connecting
-these local roots to ordinary checking and the shared value query remains required.
+lexical value availability, expected-type checking, computed length or body acceptance. The
+[checking owner](../nocter-checking/README.md#body-local-required-expressions) connects these roots
+to ordinary scoped checking and the shared value query, and defines its current admission limits.
 
 Source header normalization uses those anonymous counts through ordinary body checking,
 const-domain validation and required usize execution while the enclosing header remains unready.
@@ -254,7 +255,7 @@ binding and a fresh source preparation recomputes the normalized length. The sou
 current expression-node/code-ID reverse index is derived once from that same executable-root
 catalog and rebuilt during rebinding; it is not another semantic namespace.
 
-Array value construction/repetition, local array annotations, element selection, resource
+Array value construction/repetition, element selection, resource
 transitions, evaluator array data and runtime storage remain outside this private source fragment.
 Known array data in body inputs/results/operations is rejected by the checking owner before flow
 admission. Native qualification covers scalar code with computed/unused array headers, not array

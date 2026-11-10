@@ -62,10 +62,13 @@ impl Checker<'_, '_> {
                 .get(target)
                 .ok_or(Failure::InconsistentSyntax)?
                 .result();
-            let value = self.values.value(target).ok_or(Failure::RequiredConstant {
-                initializer: target,
-                origin: nocter_syntax::SyntaxOrigin::Node(node),
-            })?;
+            let value = self
+                .values
+                .value(target.into())
+                .ok_or(Failure::RequiredConstant {
+                    initializer: target,
+                    origin: nocter_syntax::SyntaxOrigin::Node(node),
+                })?;
             let value = value.clone();
             return self.constant_value(node, data, &value);
         }

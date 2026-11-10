@@ -59,6 +59,7 @@ impl Checker<'_, '_> {
             nocter_model::ValueCode::Closure(closure),
             self.values,
         );
+        nested.unavailable.clone_from(&self.unavailable);
         let environment = nested.locals.insert(Local {
             data,
             kind: ValueBindingKind::MutableValue,
@@ -81,8 +82,7 @@ impl Checker<'_, '_> {
             true,
         )?;
         self.types = nested.types.clone();
-        let query = nested.finish(root)?;
-        let mut control = super::flow::Control::prepare(Arc::new(query))
+        let mut control = super::flow::Control::prepare(Arc::new(nested.finish(root)?))
             .map_err(|_| Failure::InconsistentSyntax)?;
         let invocation = invocation(&control, environment)?;
         let contract = FunctionConstraint {

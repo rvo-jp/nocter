@@ -123,11 +123,9 @@ fn project(
 }
 fn final_diagnostic(
     context: &DeclarationContext<'_>,
-    id: AccessCodeId,
+    source: &nocter_declaration_lowering::access_declarations::BodySource,
 ) -> Result<Diagnostic, BodyFailure> {
-    let source = context
-        .code_source(id)
-        .ok_or(BodyFailure::InconsistentSyntax)?;
+    let source = source.bind(context)?;
     let primary = source_origin(
         context.syntax(),
         nocter_syntax::SyntaxOrigin::Node(source.result_origin()),
@@ -139,21 +137,21 @@ fn final_diagnostic(
     })
 }
 pub(super) trait Values {
-    fn value(&self, id: AccessCodeId) -> Option<&FrozenData>;
+    fn value(&self, id: nocter_model::ValueCodeRoot) -> Option<&FrozenData>;
 }
 impl Values for () {
-    fn value(&self, _: AccessCodeId) -> Option<&FrozenData> {
+    fn value(&self, _: nocter_model::ValueCodeRoot) -> Option<&FrozenData> {
         None
     }
 }
 impl Values for dependencies::Dependencies {
-    fn value(&self, id: AccessCodeId) -> Option<&FrozenData> {
+    fn value(&self, id: nocter_model::ValueCodeRoot) -> Option<&FrozenData> {
         dependencies::value(self, id).map(|value| &value.frozen)
     }
 }
 pub(super) struct Output {
-    pub(super) queries: BTreeMap<AccessCodeId, super::Query>,
-    pub(super) values: BTreeMap<AccessCodeId, Arc<FrozenData>>,
+    pub(super) queries: BTreeMap<nocter_model::ValueCodeRoot, super::Query>,
+    pub(super) values: BTreeMap<nocter_model::ValueCodeRoot, Arc<FrozenData>>,
     pub(super) header_sources: nocter_declaration_lowering::access_declarations::BodySources,
 }
 pub(super) use preparation::{prepare, prepare_source};

@@ -39,7 +39,15 @@ pub(super) fn layout(query: &Query) -> Result<(), IntegrityError> {
         return Err(INVALID);
     }
     match query.code() {
-        ValueCode::Expression(_) => return Err(INVALID),
+        ValueCode::Expression(_) => {
+            if inputs.environment().is_some()
+                || !inputs.explicit().is_empty()
+                || query.program().data_kind(query.result_data())
+                    != Some(nocter_model::BuiltinType::Usize)
+            {
+                return Err(INVALID);
+            }
+        }
         ValueCode::Declaration(id) => {
             if inputs.environment().is_some() {
                 return Err(INVALID);

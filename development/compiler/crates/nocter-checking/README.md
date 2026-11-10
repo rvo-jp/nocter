@@ -298,8 +298,9 @@ without reevaluating an expression or converting a typed name/call. Execution an
 remain left to right. Input data hints remain separate from binding operations, so a read/edit
 input does not accidentally acquire a copied or moved value. Unsigned negation freezes the same
 checked subtraction operation as zero minus the operand. i32/usize range checks use the model's
-numeric profile; the private source currently qualifies its 64-bit usize only. Array lengths and
-early structural dependencies still need their own integration before array source admission.
+numeric profile; the private source currently qualifies its 64-bit usize only. Header and
+[body-local array lengths](#body-local-required-expressions) use ordinary usize checking and
+required execution; array value operations remain outside body admission.
 
 `ValueType` keeps known result access separately from possible normal completion. Calls,
 construction, operators and compatible branches retain known data on interruption. Type inference
@@ -569,8 +570,8 @@ Successful typed bodies become completed facts in that same query. No provisiona
 dependency scanner, second source interpreter or completed-body retyping supplies a fact.
 Header requests use the query's iterative progress entry. Lowering exposes declaration-owned
 required-record identities; checking schedules them without inspecting fields or repeating
-containment/Copy analysis. Pending groups share the same active frames and memoization as bounded
-body/value callbacks. All remaining contracts, including unused records, pass through this entry
+containment/Copy analysis. Header, body and value dependencies share iterative query-owned frames
+and memoization. All remaining contracts, including unused records, pass through this entry
 before source-unit closure. Header failures retain the facade's declaration-versus-checking
 classification through body and value requests; a record failure never acquires a fictitious
 callable owner. Lowering projects its owning field. Completed independent values survive failed
@@ -585,10 +586,15 @@ All authored source remains structurally checked, including unevaluated branches
 callees are prepared through all authored call edges; callable-only recursion remains a graph,
 while a constant reference requests a value and exposes an active declaration cycle.
 
-Required values enter the coordinator through iterative progress. Header steps schedule explicit
-dependency groups; body/value steps delegate their already-active key to the ordinary bounded
-computation. Both paths share memoization, exact cycle frames and failure unwinding, without
-reopening the current key or maintaining a second request authority.
+Header, body and value requests advance through explicit dependency groups, without host recursion
+through constant chains. A body draft requests its missing contract/value or static prerequisite;
+a value draft requests missing bodies in its authored call closure. Execution starts only after
+that closure is complete and requests no new checking. Query-owned failure unwinding projects
+each outgoing source cause through a consumer hook. The coordinator retains only those pending
+source causes, not another active path or completed-fact authority. Successful retries discard
+the prior pending cause. All roles share memoization, exact cycles and failure unwinding without
+reopening the current key. The configured source depth budget diagnoses deep value dependencies
+independently of the host call stack.
 
 Required values can execute with unrelated callable/record contracts still unready. Every selected
 const body retains its origin header view until canonical replay and contributes its exact body
@@ -727,6 +733,42 @@ code/environment identity. Result equations accept only actually produced closur
 Unit admission validates every nested body, even an uninvoked or unreachable producer, before
 publishing its closure-body catalog. Capture/body edits invalidate the enclosing source recipe.
 
+## Body-Local Required Expressions
+
+`required` captures a local array annotation's length request at its ordinary checking site.
+It pairs the source owner's registered `ValueExpression` root with the names of active enclosing
+bindings. The catalog supplies source identity, not lexical availability. A fresh ordinary
+`Checker` checks the selected expression with an expected usize result, no formal inputs or
+environment, and its own control targets. The current private implementation does not capture
+enclosing let/var/read/edit bindings or callable parameters as compile-time inputs; their use
+reports E0421 locally. Their names still participate in shadowing checks, including inside nested
+count requests and count-local closures. This is an implementation limit, not a rule forbidding
+future proven compile-time lexical values. Expression-local bindings, scoped updates, loops,
+global constants and admitted const callees use ordinary checking and execution.
+
+The common header/body/value coordinator keys body and value requests by complete `ValueCodeRoot`.
+Its expression registry holds only paired request inputs and lexical exclusions; completed bodies,
+computed values, dependencies and cycle frames remain in the one dependency query. Retrying a
+parent reads the completed count before constructing the declaration-owned body array type.
+Nested counts retain separate code roots, type suffixes and source causes. Required expressions
+cannot return, break or continue into their parent. A count's enclosing callable result type,
+parameters and const capability are not inherited.
+
+Source reuse retains the whole enclosing body guard and selected supplier evidence. Typed call
+reuse depends on the callee contract; executing that call also depends on its body. The completed
+value request records that additional edge. A normalized type consuming the value must retain
+those value prerequisites, rather than treating the typed call's proof as a computed-value proof.
+Cycle diagnostics distinguish expression bodies/values from enclosing declarations; execution
+failures retain actual expression/helper sites and the shared work, depth and storage limits.
+
+Qualification covers source annotations, nested requests, surrounding lexical/control exclusions,
+supplier changes, dead authored calls and mixed body/value cycles. Successful count computation
+does not admit array-bearing body data: the separate array value/resource/storage gate still
+rejects it before flow. Complete Unit publication still requires every declared body and required
+value; partially completed count facts cannot publish a Unit. Count values are not exposed as
+named constants or runtime-callable bodies. Repetition, array construction and selection, resource
+transitions, evaluator array data and native storage remain integration work.
+
 ## Frozen Body Input Channels
 
 A typed query's code identity selects its named or captured body. Its derived source owner selects
@@ -741,9 +783,9 @@ Only declaration roots contribute declared callable-result equations; an express
 inherit its source parent's result contract or const capability. Evaluator diagnostics select
 the actual root's paired source from that same checked catalog, including for nested call sites.
 The public declared-body iterator projects declaration-root entries from the closed body catalog;
-source ownership never selects an executable body. This does not yet admit local count checking/
-evaluation: input-layout and Unit/target boundaries explicitly reject that code role until the
-ordinary lexical/value-query connection closes.
+source ownership never selects an executable body. A checked required expression has no explicit
+or environment inputs and a usize result. Unit/target runtime selection excludes that code role;
+its private checking and evaluation follow the [required-expression path](#body-local-required-expressions).
 
 `body_inputs` owns coverage and contract validation of the typed body's input layout: one optional
 environment channel and an authored-order sequence of explicit input slots and operations. Named

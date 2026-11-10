@@ -10,13 +10,11 @@ use declarations::HeaderProgress;
 use nocter_constant_evaluation::state;
 use nocter_declaration_lowering::access_declarations::{self as declarations, Context};
 use nocter_declarations::value_access::DeclarationId;
-use nocter_dependency_query::{
-    DependencyComputation, DependencyProgress, DependencyQueryError, DependencyStep,
-};
+use nocter_dependency_query::{DependencyProgress, DependencyQueryError, DependencyStep};
 use nocter_diagnostics::SourceDiagnostic;
-use nocter_model::{AccessCodeId, ValueFunctionOrigin};
+use nocter_model::{AccessCodeId, ValueCodeRoot, ValueExpression, ValueFunctionOrigin};
 use nocter_syntax::SyntaxOrigin;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 #[cfg(test)]
 mod tests;
 type Failure = accepted::Failure;
@@ -29,6 +27,17 @@ struct Preparation<'a, 'source> {
     context: Context<'source>,
     headers: Headers<'a, 'source>,
     budget: state::Budget,
+    expressions: BTreeMap<ValueExpression, crate::value_access::RequiredExpression>,
+    causes: HashMap<Request, (Request, DependencyCause)>,
+}
+enum DependencyCause {
+    Header(SyntaxOrigin),
+    Value(SyntaxOrigin),
+    Calls(Vec<SyntaxOrigin>),
+}
+enum GraphProgress {
+    Require(ValueCodeRoot, Vec<SyntaxOrigin>),
+    Ready(BTreeMap<ValueCodeRoot, Query>),
 }
 pub(in crate::value_access) fn prepare(
     context: &Context<'_>,
@@ -66,6 +75,25 @@ pub(in crate::value_access) fn prepare_source(
     ))
 }
 impl<'a, 'source> Preparation<'a, 'source> {
+    fn source(
+        &self,
+        root: ValueCodeRoot,
+    ) -> Result<std::borrow::Cow<'_, declarations::CodeSource>, BodyFailure> {
+        match root {
+            ValueCodeRoot::Declaration(id) => self
+                .context
+                .code_source(id)
+                .map(std::borrow::Cow::Borrowed)
+                .ok_or(BodyFailure::InconsistentSyntax),
+            ValueCodeRoot::Expression(id) => self
+                .expressions
+                .get(&id)
+                .ok_or(BodyFailure::InconsistentSyntax)?
+                .source
+                .bind(&self.context)
+                .map_err(Into::into),
+        }
+    }
     fn new(
         context: Context<'source>,
         headers: Headers<'a, 'source>,
@@ -75,6 +103,8 @@ impl<'a, 'source> Preparation<'a, 'source> {
             context,
             headers,
             budget: state::Budget::new(limits),
+            expressions: BTreeMap::new(),
+            causes: HashMap::new(),
         }
     }
     fn all(
@@ -95,7 +125,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
             {
                 self.budget.restart_work();
                 let fact = requests
-                    .resolve_steps(self, Request::Value(id))
+                    .resolve_steps(self, Request::Value(id.into()))
                     .map_err(|failure| match failure {
                         QueryError::Computation(failure) => failure,
                         QueryError::Cycle(_) => INVALID.into(),
@@ -120,125 +150,156 @@ impl<'a, 'source> Preparation<'a, 'source> {
         requests: &mut Dependencies,
         declaration: DeclarationId,
     ) -> Result<(), SourceFailure> {
-        self.require_header_at(requests, declaration, None)
-    }
-    fn require_header_at(
-        &mut self,
-        requests: &mut Dependencies,
-        declaration: DeclarationId,
-        origin: Option<SyntaxOrigin>,
-    ) -> Result<(), SourceFailure> {
         match requests.resolve_steps(self, Request::Header(declaration)) {
             Ok(fact) if matches!(&*fact, Fact::Header) => Ok(()),
             Err(QueryError::Computation(failure)) => Err(failure),
-            Err(QueryError::Cycle(path)) => {
-                if let Some(headers) = path
-                    .iter()
-                    .map(|request| match request {
-                        Request::Header(id) => Some(*id),
-                        _ => None,
-                    })
-                    .collect::<Option<Vec<_>>>()
-                {
-                    return match &self.headers {
-                        Headers::Publishing(owner) => Err(owner.reject_cycle(&headers).into()),
-                        Headers::Closed => Err(INVALID.into()),
-                    };
-                }
-                let origin = origin
-                    .or_else(|| {
-                        path.iter().find_map(|request| match request {
-                            Request::Value(id) => self
-                                .context
-                                .code_source(*id)
-                                .map(|source| SyntaxOrigin::Node(source.body())),
-                            _ => None,
-                        })
-                    })
-                    .ok_or(INVALID)?;
-                Err(self.cycle(&path, origin)?.into())
-            }
             _ => Err(INVALID.into()),
         }
     }
-    fn body(&mut self, requests: &mut Dependencies, id: AccessCodeId) -> Result<(), QueryError> {
-        let fact = requests.resolve(self, Request::Body(id))?;
+    fn body(
+        &mut self,
+        requests: &mut Dependencies,
+        id: impl Into<ValueCodeRoot>,
+    ) -> Result<(), QueryError> {
+        let fact = requests.resolve_steps(self, Request::Body(id.into()))?;
         if matches!(&*fact, Fact::Body(_)) {
             Ok(())
         } else {
             Err(QueryError::Computation(INVALID.into()))
         }
     }
-    fn check_body(
+    fn advance_body(
         &mut self,
-        requests: &mut Dependencies,
-        id: AccessCodeId,
-    ) -> Result<Query, SourceFailure> {
-        self.require_header(requests, id.into())?;
-        loop {
-            match checker::prepare(&self.context, id, requests) {
-                Ok(query) => {
-                    self.require_statics(requests, &query)?;
-                    return Ok(query);
-                }
-                Err(BodyFailure::RequiredHeader {
-                    declaration,
-                    origin,
-                }) => {
-                    self.require_header_at(requests, declaration, Some(origin))?;
-                }
-                Err(BodyFailure::RequiredConstant {
-                    initializer,
-                    origin,
-                }) => self.require_value(requests, id, initializer, origin)?,
-                Err(failure) => {
-                    return Err(Failure::Body {
-                        callable: id,
-                        failure,
-                    }
-                    .into());
-                }
+        requests: &Dependencies,
+        id: ValueCodeRoot,
+    ) -> Result<DependencyStep<Request, Fact>, SourceFailure> {
+        if let ValueCodeRoot::Declaration(code) = id {
+            let header = Request::Header(code.into());
+            if requests.completed(&header).is_none() {
+                return Ok(DependencyStep::Require(Box::new([header])));
             }
         }
-    }
-    fn require_value(
-        &mut self,
-        requests: &mut Dependencies,
-        owner: AccessCodeId,
-        initializer: AccessCodeId,
-        origin: SyntaxOrigin,
-    ) -> Result<(), SourceFailure> {
-        if dependencies::value(requests, initializer).is_some() {
-            return Ok(());
+        match self.check_draft(id, requests) {
+            Ok(query) => {
+                for (initializer, origin) in self.static_requirements(&query)? {
+                    if dependencies::value(requests, initializer).is_none() {
+                        return self.require_value_step(
+                            requests,
+                            Request::Body(id),
+                            initializer.into(),
+                            origin,
+                        );
+                    }
+                }
+                Ok(DependencyStep::Complete(Fact::Body(query)))
+            }
+            Err(BodyFailure::RequiredHeader {
+                declaration,
+                origin,
+            }) => Ok(self.require_step(
+                Request::Body(id),
+                Request::Header(declaration),
+                DependencyCause::Header(origin),
+            )),
+            Err(BodyFailure::RequiredConstant {
+                initializer,
+                origin,
+            }) => self.require_value_step(requests, Request::Body(id), initializer.into(), origin),
+            Err(BodyFailure::RequiredExpression(required)) => {
+                let (root, origin) = self.register_expression(id.source_owner(), *required)?;
+                self.require_value_step(requests, Request::Body(id), root, origin)
+            }
+            Err(failure) => Err(Failure::Body {
+                callable: id.source_owner(),
+                failure,
+            }
+            .into()),
         }
+    }
+    fn check_draft(
+        &self,
+        id: ValueCodeRoot,
+        requests: &Dependencies,
+    ) -> Result<Box<Query>, BodyFailure> {
+        match id {
+            ValueCodeRoot::Declaration(code) => checker::prepare(&self.context, code, requests),
+            ValueCodeRoot::Expression(expression) => crate::value_access::required::prepare(
+                &self.context,
+                self.expressions
+                    .get(&expression)
+                    .ok_or(BodyFailure::InconsistentSyntax)?,
+                requests,
+            ),
+        }
+        .map(Box::new)
+    }
+    fn register_expression(
+        &mut self,
+        owner: AccessCodeId,
+        required: crate::value_access::RequiredExpression,
+    ) -> Result<(ValueCodeRoot, SyntaxOrigin), SourceFailure> {
+        let ValueCodeRoot::Expression(key) = required.code() else {
+            return Err(INVALID.into());
+        };
+        if key.owner != owner {
+            return Err(INVALID.into());
+        }
+        let origin = SyntaxOrigin::Node(
+            required
+                .source
+                .bind(&self.context)
+                .map_err(|failure| Failure::Body {
+                    callable: owner,
+                    failure: failure.into(),
+                })?
+                .body(),
+        );
+        if let Some(known) = self.expressions.get(&key) {
+            if known.unavailable != required.unavailable {
+                return Err(INVALID.into());
+            }
+        } else {
+            self.expressions.insert(key, required);
+        }
+        Ok((ValueCodeRoot::Expression(key), origin))
+    }
+    fn require_step(
+        &mut self,
+        parent: Request,
+        child: Request,
+        cause: DependencyCause,
+    ) -> DependencyStep<Request, Fact> {
+        self.causes.insert(parent, (child, cause));
+        DependencyStep::Require(Box::new([child]))
+    }
+    fn require_value_step(
+        &mut self,
+        requests: &Dependencies,
+        parent: Request,
+        initializer: ValueCodeRoot,
+        origin: SyntaxOrigin,
+    ) -> Result<DependencyStep<Request, Fact>, SourceFailure> {
         if dependencies::value_depth(requests) == 0 {
             self.budget.restart_work();
         }
         self.budget.step().map_err(|rule| {
-            super::failure_at(&self.context, initializer, Rule::Execution(rule), origin)
+            super::failure_at(
+                &self.context,
+                initializer.source_owner(),
+                Rule::Execution(rule),
+                origin,
+            )
         })?;
-        let error = match requests.resolve(self, Request::Value(initializer)) {
-            Ok(fact) if matches!(&*fact, Fact::Value(_)) => return Ok(()),
-            Ok(_) => return Err(INVALID.into()),
-            Err(error) => error,
-        };
-        let mut failure = match error {
-            QueryError::Computation(failure) => failure,
-            QueryError::Cycle(path) => self.cycle(&path, origin)?.into(),
-        };
-        add_dependency_note(&mut failure, &self.context, origin).map_err(|failure| {
-            Failure::Body {
-                callable: owner,
-                failure,
-            }
-        })?;
-        Err(failure)
+        Ok(self.require_step(
+            parent,
+            Request::Value(initializer),
+            DependencyCause::Value(origin),
+        ))
     }
-    fn require_statics(
-        &mut self,
-        requests: &mut Dependencies,
+    fn static_requirements(
+        &self,
         query: &Query,
-    ) -> Result<(), SourceFailure> {
+    ) -> Result<Vec<(AccessCodeId, SyntaxOrigin)>, SourceFailure> {
         // A body becomes complete only after its retained static requirements. An active
         // value/body cycle cannot hide behind an already-published typed-body fact.
         fn collect(
@@ -260,22 +321,18 @@ impl<'a, 'source> Preparation<'a, 'source> {
         }
         let mut pending = Vec::new();
         collect(query, &self.context, &mut pending)?;
-        for (initializer, origin) in pending {
-            self.require_value(requests, query.source_owner(), initializer, origin)?;
-        }
-        Ok(())
+        Ok(pending)
     }
     fn cycle(&self, path: &[Request], origin: SyntaxOrigin) -> Result<Failure, Failure> {
         let code = |request| match request {
-            Request::Body(id) | Request::Value(id) | Request::Header(DeclarationId::Code(id)) => {
-                Some(id)
-            }
+            Request::Body(id) | Request::Value(id) => Some(id.source_owner()),
+            Request::Header(DeclarationId::Code(id)) => Some(id),
             Request::Header(DeclarationId::Record(_)) => None,
         };
         let root = code(*path.first().ok_or(INVALID)?)
             .or_else(|| {
                 path.iter().find_map(|request| match request {
-                    Request::Value(id) => Some(*id),
+                    Request::Value(id) => Some(id.source_owner()),
                     _ => None,
                 })
             })
@@ -283,16 +340,12 @@ impl<'a, 'source> Preparation<'a, 'source> {
         let names = path
             .iter()
             .map(|&request| {
-                let (declaration, role) = match request {
-                    Request::Header(id) => (id, "header"),
-                    Request::Body(id) => (id.into(), "body"),
-                    Request::Value(id) => (id.into(), "value"),
+                let (name, role) = match request {
+                    Request::Header(id) => (self.context.program().declaration_label(id), "header"),
+                    Request::Body(id) => (self.context.program().root_label(id), "body"),
+                    Request::Value(id) => (self.context.program().root_label(id), "value"),
                 };
-                let name = self
-                    .context
-                    .program()
-                    .declaration_label(declaration)
-                    .ok_or(INVALID)?;
+                let name = name.ok_or(INVALID)?;
                 Ok(format!("{role} {name}"))
             })
             .collect::<Result<Vec<_>, Failure>>()?;
@@ -324,47 +377,24 @@ impl<'a, 'source> Preparation<'a, 'source> {
         })
     }
     fn graph(
-        &mut self,
-        requests: &mut Dependencies,
-        root: AccessCodeId,
-    ) -> Result<BTreeMap<AccessCodeId, Query>, QueryError> {
+        &self,
+        requests: &Dependencies,
+        root: ValueCodeRoot,
+    ) -> Result<GraphProgress, SourceFailure> {
         let mut selected = BTreeSet::new();
         let mut pending = vec![(root, Vec::new())];
         while let Some((id, through)) = pending.pop() {
             if !selected.insert(id) {
                 continue;
             }
-            if let Err(error) = self.body(requests, id) {
-                let QueryError::Computation(mut failure) = error else {
-                    return Err(error);
-                };
-                for origin in through.into_iter().rev() {
-                    add_dependency_note(&mut failure, &self.context, origin).map_err(
-                        |failure| {
-                            QueryError::Computation(
-                                Failure::Body {
-                                    callable: id,
-                                    failure,
-                                }
-                                .into(),
-                            )
-                        },
-                    )?;
-                }
-                return Err(QueryError::Computation(failure));
-            }
+            let Some(query) = dependencies::body(requests, id) else {
+                return Ok(GraphProgress::Require(id, through));
+            };
             // All authored direct callees participate in ordinary closure, including dead source.
             // Const-domain rejection follows ordinary safety; runtime callees are never executed.
-            let query =
-                dependencies::body(requests, id).ok_or(QueryError::Computation(INVALID.into()))?;
-            let bound = query.bind(&self.context).map_err(|failure| {
-                QueryError::Computation(
-                    Failure::Body {
-                        callable: id,
-                        failure,
-                    }
-                    .into(),
-                )
+            let bound = query.bind(&self.context).map_err(|failure| Failure::Body {
+                callable: id.source_owner(),
+                failure,
             })?;
             for (expression_id, expression) in query.body().expressions().iter() {
                 if let ExpressionKind::Call {
@@ -373,78 +403,84 @@ impl<'a, 'source> Preparation<'a, 'source> {
                 } = expression.kind
                 {
                     let mut path = through.clone();
-                    path.push(
-                        bound
-                            .expression_origin(expression_id)
-                            .ok_or(QueryError::Computation(INVALID.into()))?,
-                    );
-                    pending.push((target, path));
+                    path.push(bound.expression_origin(expression_id).ok_or(INVALID)?);
+                    pending.push((target.into(), path));
                 }
             }
         }
-        selected
+        let queries = selected
             .into_iter()
-            .map(|id| {
-                Ok((
-                    id,
-                    dependencies::body(requests, id)
-                        .ok_or(QueryError::Computation(INVALID.into()))?
-                        .clone(),
-                ))
-            })
-            .collect()
+            .map(|id| Ok((id, dependencies::body(requests, id).ok_or(INVALID)?.clone())))
+            .collect::<Result<_, Failure>>()?;
+        Ok(GraphProgress::Ready(queries))
     }
-    fn initialize(
+    fn advance_value(
         &mut self,
-        requests: &mut Dependencies,
-        id: AccessCodeId,
-    ) -> Result<Completed, QueryError> {
-        self.require_header(requests, id.into())
-            .map_err(QueryError::Computation)?;
-        let declaration = self
-            .context
-            .program()
-            .codes()
-            .get(id)
-            .ok_or(QueryError::Computation(INVALID.into()))?;
-        if !declaration.kind().is_initializer() {
-            return Err(QueryError::Computation(INVALID.into()));
+        requests: &Dependencies,
+        id: ValueCodeRoot,
+    ) -> Result<DependencyStep<Request, Fact>, SourceFailure> {
+        self.check_value_depth(requests, id)?;
+        let result_data = match id {
+            ValueCodeRoot::Declaration(code) => {
+                let header = Request::Header(code.into());
+                if requests.completed(&header).is_none() {
+                    return Ok(DependencyStep::Require(Box::new([header])));
+                }
+                let declaration = self.context.program().codes().get(code).ok_or(INVALID)?;
+                if !declaration.kind().is_initializer() {
+                    return Err(INVALID.into());
+                }
+                declaration.result()
+            }
+            ValueCodeRoot::Expression(expression) => {
+                if !self.expressions.contains_key(&expression) {
+                    return Err(INVALID.into());
+                }
+                self.context
+                    .program()
+                    .data_type(nocter_model::BuiltinType::Usize)
+                    .ok_or(INVALID)?
+            }
+        };
+        match self.graph(requests, id)? {
+            GraphProgress::Require(target, through) => Ok(self.require_step(
+                Request::Value(id),
+                Request::Body(target),
+                DependencyCause::Calls(through),
+            )),
+            GraphProgress::Ready(queries) => self
+                .execute(requests, id, result_data, queries)
+                .map(|value| DependencyStep::Complete(Fact::Value(value)))
+                .map_err(Into::into),
         }
-        let result_data = declaration.result();
-        let queries = self.graph(requests, id)?;
-        self.execute(requests, id, result_data, queries)
-            .map_err(|failure| QueryError::Computation(failure.into()))
     }
     fn execute(
         &mut self,
         requests: &Dependencies,
-        id: AccessCodeId,
+        id: ValueCodeRoot,
         result_data: nocter_model::TypeId,
-        queries: BTreeMap<AccessCodeId, Query>,
+        queries: BTreeMap<ValueCodeRoot, Query>,
     ) -> Result<Completed, Failure> {
         // This is the ordinary acceptance routine over the selected const closure, not another
         // source checker or evaluator. Only established frozen data crosses into final Unit typing.
-        let checked = accepted::check_queries(
-            &self.context,
-            queries
-                .into_iter()
-                .map(|(id, query)| (id.into(), query))
-                .collect(),
-        )?;
+        let checked = accepted::check_queries(&self.context, queries)?;
         if !super::super::constant::supports_final(&checked.program, result_data)
             .map_err(Failure::Integrity)?
         {
-            let diagnostic =
-                final_diagnostic(&self.context, id).map_err(|failure| Failure::Body {
-                    callable: id,
-                    failure,
-                })?;
+            let diagnostic = final_diagnostic(
+                &self.context,
+                &checked.bodies.get(&id).ok_or(INVALID)?.typed().source,
+            )
+            .map_err(|failure| Failure::Body {
+                callable: id.source_owner(),
+                failure,
+            })?;
             return Err(Failure::Evaluation {
-                callable: id,
+                callable: id.source_owner(),
                 diagnostic: Box::new(diagnostic),
             });
         }
-        let program = projection::prepare(&checked.program, &checked.bodies, id.into(), |id| {
+        let program = projection::prepare(&checked.program, &checked.bodies, id, |id| {
             dependencies::value(requests, id).map(|value| value.execution.clone())
         })
         .map_err(Failure::Integrity)?;
@@ -467,11 +503,11 @@ impl<'a, 'source> Preparation<'a, 'source> {
                 Err(error) => {
                     let diagnostic = super::project(&self.context, &checked.bodies, &error)
                         .map_err(|failure| Failure::Body {
-                            callable: id,
+                            callable: id.source_owner(),
                             failure,
                         })?;
                     return Err(Failure::Evaluation {
-                        callable: id,
+                        callable: id.source_owner(),
                         diagnostic: Box::new(diagnostic),
                     });
                 }
@@ -481,41 +517,98 @@ impl<'a, 'source> Preparation<'a, 'source> {
             execution: value,
         })
     }
-}
-impl DependencyComputation<Request, Fact, SourceFailure> for Preparation<'_, '_> {
-    fn compute(
-        &mut self,
-        requests: &mut Dependencies,
-        request: Request,
-    ) -> Result<Fact, QueryError> {
-        match request {
-            // Header dependencies use the query's iterative progress entry exclusively.
-            Request::Header(_) => Err(QueryError::Computation(INVALID.into())),
-            Request::Body(id) => self
-                .check_body(requests, id)
-                .map(|query| Fact::Body(Box::new(query)))
-                .map_err(QueryError::Computation),
-            Request::Value(id) => {
-                if dependencies::value_depth(requests)
-                    > self.budget.limits().call_depth().get() as usize
-                {
-                    let source = self
-                        .context
-                        .code_source(id)
-                        .ok_or(QueryError::Computation(INVALID.into()))?;
-                    return Err(QueryError::Computation(
-                        super::failure_at(
-                            &self.context,
-                            id,
-                            Rule::Execution(state::Rule::CallDepthLimit),
-                            SyntaxOrigin::Node(source.body()),
-                        )
-                        .into(),
-                    ));
-                }
-                self.initialize(requests, id).map(Fact::Value)
-            }
+    fn check_value_depth(
+        &self,
+        requests: &Dependencies,
+        id: ValueCodeRoot,
+    ) -> Result<(), SourceFailure> {
+        if dependencies::value_depth(requests) <= self.budget.limits().call_depth().get() as usize {
+            return Ok(());
         }
+        let source = self.source(id).map_err(|failure| Failure::Body {
+            callable: id.source_owner(),
+            failure,
+        })?;
+        Err(super::failure_at(
+            &self.context,
+            id.source_owner(),
+            Rule::Execution(state::Rule::CallDepthLimit),
+            SyntaxOrigin::Node(source.body()),
+        )
+        .into())
+    }
+    fn project_dependency_failure(
+        &self,
+        parent: Request,
+        child: Request,
+        cause: Option<DependencyCause>,
+        error: QueryError,
+    ) -> Result<QueryError, Failure> {
+        let mut failure = match error {
+            QueryError::Cycle(path) => {
+                if let Some(headers) = path
+                    .iter()
+                    .map(|request| match request {
+                        Request::Header(id) => Some(*id),
+                        _ => None,
+                    })
+                    .collect::<Option<Vec<_>>>()
+                {
+                    return Ok(match &self.headers {
+                        Headers::Publishing(owner) => {
+                            QueryError::Computation(owner.reject_cycle(&headers).into())
+                        }
+                        Headers::Closed => QueryError::Computation(INVALID.into()),
+                    });
+                }
+                let authored = |cause: &DependencyCause| match cause {
+                    DependencyCause::Header(origin) | DependencyCause::Value(origin) => {
+                        Some(*origin)
+                    }
+                    DependencyCause::Calls(_) => None,
+                };
+                // Call-closure scheduling can close a cycle at a pending body. The diagnostic
+                // still belongs to its authored type/value requirement, not that graph edge.
+                let origin = cause
+                    .as_ref()
+                    .and_then(authored)
+                    .or_else(|| {
+                        path.windows(2).rev().find_map(|edge| {
+                            let (target, cause) = self.causes.get(&edge[0])?;
+                            (*target == edge[1]).then(|| authored(cause)).flatten()
+                        })
+                    })
+                    .or_else(|| match child {
+                        Request::Value(root) => self
+                            .source(root)
+                            .ok()
+                            .map(|source| SyntaxOrigin::Node(source.body())),
+                        _ => None,
+                    });
+                let Some(origin) = origin else {
+                    return Ok(QueryError::Cycle(path));
+                };
+                self.cycle(&path, origin)?.into()
+            }
+            QueryError::Computation(failure) => failure,
+        };
+        let origins = match cause {
+            Some(DependencyCause::Value(origin)) => vec![origin],
+            Some(DependencyCause::Calls(through)) => through,
+            _ => Vec::new(),
+        };
+        for origin in origins.into_iter().rev() {
+            add_dependency_note(&mut failure, &self.context, origin).map_err(|failure| {
+                let callable = match parent {
+                    Request::Body(root) | Request::Value(root) => root.source_owner(),
+                    Request::Header(_) => {
+                        unreachable!("only body/value requests retain dependency notes")
+                    }
+                };
+                Failure::Body { callable, failure }
+            })?;
+        }
+        Ok(QueryError::Computation(failure))
     }
 }
 impl DependencyProgress<Request, Fact, SourceFailure> for Preparation<'_, '_> {
@@ -524,8 +617,11 @@ impl DependencyProgress<Request, Fact, SourceFailure> for Preparation<'_, '_> {
         requests: &Dependencies,
         request: Request,
     ) -> Result<DependencyStep<Request, Fact>, SourceFailure> {
-        let Request::Header(declaration) = request else {
-            return Ok(DependencyStep::Compute);
+        self.causes.remove(&request);
+        let declaration = match request {
+            Request::Body(root) => return self.advance_body(requests, root),
+            Request::Value(root) => return self.advance_value(requests, root),
+            Request::Header(declaration) => declaration,
         };
         if self.context.program().header_ready(declaration) {
             return Ok(DependencyStep::Complete(Fact::Header));
@@ -552,20 +648,33 @@ impl DependencyProgress<Request, Fact, SourceFailure> for Preparation<'_, '_> {
                     self.budget.restart_work();
                 }
                 Ok(DependencyStep::Require(
-                    values.into_vec().into_iter().map(Request::Value).collect(),
+                    values
+                        .into_vec()
+                        .into_iter()
+                        .map(|id| Request::Value(id.into()))
+                        .collect(),
                 ))
             }
         }
     }
-    fn compute_current(
-        &mut self,
-        requests: &mut Dependencies,
-        request: Request,
-    ) -> Result<Fact, QueryError> {
-        DependencyComputation::compute(self, requests, request)
-    }
     fn no_progress(&mut self, _: Request) -> SourceFailure {
         INVALID.into()
+    }
+    fn dependency_failed(
+        &mut self,
+        parent: Request,
+        child: Request,
+        failure: QueryError,
+    ) -> QueryError {
+        let cause = self.causes.remove(&parent);
+        if cause
+            .as_ref()
+            .is_some_and(|(expected, _)| *expected != child)
+        {
+            return QueryError::Computation(INVALID.into());
+        }
+        self.project_dependency_failure(parent, child, cause.map(|(_, cause)| cause), failure)
+            .unwrap_or_else(|failure| QueryError::Computation(failure.into()))
     }
 }
 

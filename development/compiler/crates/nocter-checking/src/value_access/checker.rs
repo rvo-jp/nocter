@@ -17,7 +17,10 @@ use nocter_syntax::{
     BodySyntaxProjection, BoundSyntax, NodeId, NodeKind, Punctuation, SyntaxOrigin, SyntaxToken,
     TokenKind, child_node_iter, direct_node, direct_token, first_direct_token,
 };
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 pub(super) struct LoopFrame {
     pub id: AccessLoopId,
@@ -48,6 +51,9 @@ pub(super) struct Checker<'a, 's> {
     pub loops: ArenaBuilder<AccessLoopId, ()>,
     pub loop_stack: Vec<LoopFrame>,
     pub scopes: Vec<BTreeMap<String, AccessLocalId>>,
+    pub unavailable: BTreeSet<String>,
+    pub required_roots:
+        Option<nocter_declaration_lowering::access_declarations::BodyExpressions<'s>>,
 }
 
 pub(super) fn prepare(
@@ -154,6 +160,8 @@ impl<'a, 's> Checker<'a, 's> {
             loops: ArenaBuilder::new(),
             loop_stack: Vec::new(),
             scopes: vec![BTreeMap::new()],
+            unavailable: BTreeSet::new(),
+            required_roots: None,
         }
     }
     pub(super) fn finish(self, root: AccessBlockId) -> Result<Query, Failure> {
@@ -460,6 +468,14 @@ impl<'a, 's> Checker<'a, 's> {
     }
     pub fn require_header(&self, token: SyntaxToken) -> Result<(), Failure> {
         let spelling = self.text(token)?;
+        if self.unavailable.contains(spelling) && self.lookup(spelling).is_none() {
+            return self.reject_message(
+                Rule::RequiredValueScope,
+                token,
+                "this private required expression cannot capture an enclosing local value".into(),
+                Vec::new(),
+            );
+        }
         if self.lookup(spelling).is_none()
             && let Some(declaration) = self
                 .program()
@@ -483,6 +499,7 @@ impl<'a, 's> Checker<'a, 's> {
     }
     pub fn shadows_name(&self, name: &str) -> bool {
         self.lookup(name).is_some()
+            || self.unavailable.contains(name)
             || BuiltinType::from_spelling(name).is_some()
             || self
                 .program()

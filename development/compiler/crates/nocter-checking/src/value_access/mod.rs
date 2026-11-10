@@ -16,6 +16,7 @@ mod expressions;
 pub mod flow;
 mod inputs;
 mod ir;
+mod required;
 mod results;
 mod selection;
 mod staged;
@@ -40,6 +41,7 @@ use nocter_model::{
 };
 use nocter_source_index::SourceOrigin;
 use nocter_syntax::{BodySyntaxLocator, BodySyntaxProjection, BoundSyntax, SyntaxOrigin};
+pub use required::RequiredExpression;
 use std::{collections::BTreeMap, sync::Arc};
 
 /// Structural rule only: no initialization, lifetime, escape or conflict conclusion is implied.
@@ -65,10 +67,15 @@ pub enum Rule {
     InvalidCall,
     InvalidConstruction,
     AnnotatedDiscard,
+    RequiredValueScope,
 }
 impl Rule {
     const fn diagnostic(self) -> (DiagnosticCode, &'static str) {
         match self {
+            Self::RequiredValueScope => (
+                DiagnosticCode::E0421,
+                "an enclosing local is unavailable to this required expression",
+            ),
             Self::InvalidConstruction => (
                 DiagnosticCode::E0370,
                 "record construction requires each declared field exactly once",
@@ -176,6 +183,7 @@ pub enum Failure {
         initializer: AccessCodeId,
         origin: nocter_syntax::SyntaxOrigin,
     },
+    RequiredExpression(Box<RequiredExpression>),
     InconsistentSyntax,
     Rejected(Box<BodyDiagnostic>),
     ChangedAuthority,

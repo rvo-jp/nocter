@@ -93,6 +93,9 @@ impl Checker<'_, '_> {
                 (Statement::Evaluate(value), self.ty(value).may_complete())
             }
             NodeKind::ReturnStatement => {
+                if matches!(self.code, nocter_model::ValueCode::Expression(_)) {
+                    return self.reject(Rule::InvalidReturn, node);
+                }
                 if let nocter_model::ValueCode::Declaration(code) = self.code
                     && self
                         .program()

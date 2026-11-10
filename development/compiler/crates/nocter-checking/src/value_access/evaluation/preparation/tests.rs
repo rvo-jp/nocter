@@ -3,6 +3,7 @@ use super::*;
 use crate::value_access::tests::{bound, input};
 use nocter_declarations::value_access::PayloadSchema;
 use std::{fmt::Write as _, sync::Arc};
+mod local_expressions;
 
 #[test]
 fn required_values_prepare_deep_shared_headers_without_recursive_queries_or_call_depth_charges() {
@@ -37,7 +38,7 @@ fn required_values_prepare_deep_shared_headers_without_recursive_queries_or_call
         .unwrap();
     let mut requests = Dependencies::default();
     requests
-        .resolve(&mut preparation, Request::Value(answer))
+        .resolve_steps(&mut preparation, Request::Value(answer.into()))
         .unwrap();
     assert_eq!(
         dependencies::value(&requests, answer).unwrap().frozen,
@@ -133,7 +134,7 @@ fn required_values_execute_before_unrelated_headers_and_retain_their_successful_
     let unused = code("z_unused");
     let mut requests = Dependencies::default();
     let computed = requests
-        .resolve(&mut preparation, Request::Value(answer))
+        .resolve_steps(&mut preparation, Request::Value(answer.into()))
         .unwrap();
     let Fact::Value(computed_value) = &*computed else {
         panic!("a value request must complete with value evidence")
@@ -151,7 +152,7 @@ fn required_values_execute_before_unrelated_headers_and_retain_their_successful_
     assert!(Arc::ptr_eq(
         &computed,
         &requests
-            .resolve(&mut preparation, Request::Value(answer))
+            .resolve_steps(&mut preparation, Request::Value(answer.into()))
             .unwrap()
     ));
     assert!(Arc::ptr_eq(
@@ -276,7 +277,7 @@ fn deferred_invalid_records_do_not_block_independent_values_or_escape_complete_u
             .unwrap();
         let mut requests = Dependencies::default();
         requests
-            .resolve(&mut preparation, Request::Value(answer))
+            .resolve_steps(&mut preparation, Request::Value(answer.into()))
             .unwrap();
         let completed = dependencies::value(&requests, answer).unwrap();
         assert_eq!(completed.frozen, state::Value::integer(42).freeze());
@@ -407,7 +408,7 @@ fn raw_type_names_are_resolved_only_when_their_declaration_is_requested() {
             .unwrap();
         let mut requests = Dependencies::default();
         requests
-            .resolve(&mut preparation, Request::Value(answer))
+            .resolve_steps(&mut preparation, Request::Value(answer.into()))
             .unwrap();
         assert_eq!(
             dependencies::value(&requests, answer).unwrap().frozen,
@@ -526,7 +527,7 @@ fn anonymous_header_lengths_use_ordinary_usize_checking_and_execution_before_par
         );
         let mut requests = Dependencies::default();
         requests
-            .resolve_steps(&mut preparation, Request::Value(expression))
+            .resolve_steps(&mut preparation, Request::Value(expression.into()))
             .unwrap();
         assert_eq!(
             dependencies::value(&requests, expression).unwrap().frozen,
@@ -545,7 +546,7 @@ fn anonymous_header_lengths_use_ordinary_usize_checking_and_execution_before_par
         assert!(!program.header_ready(parent));
         assert!(!program.headers_complete());
         assert!(matches!(
-            requests.completed(&Request::Body(expression)),
+            requests.completed(&Request::Body(expression.into())),
             Some(Fact::Body(_))
         ));
         assert_eq!(requests.active_depth(), 0);
@@ -601,7 +602,7 @@ fn anonymous_header_lengths_preserve_ordinary_typing_and_dead_authored_const_fai
         );
         let mut requests = Dependencies::default();
         let Err(QueryError::Computation(SourceFailure::Checking(failure))) =
-            requests.resolve_steps(&mut preparation, Request::Value(expression))
+            requests.resolve_steps(&mut preparation, Request::Value(expression.into()))
         else {
             panic!("ordinary source rejection: {source}");
         };
@@ -619,7 +620,11 @@ fn anonymous_header_lengths_preserve_ordinary_typing_and_dead_authored_const_fai
             )),
             other => panic!("the exact ordinary rejection: {other:?}"),
         }
-        assert!(requests.completed(&Request::Value(expression)).is_none());
+        assert!(
+            requests
+                .completed(&Request::Value(expression.into()))
+                .is_none()
+        );
         assert_eq!(requests.active_depth(), 0);
     }
 }
@@ -649,7 +654,7 @@ fn failed_anonymous_length_execution_reports_its_real_expression_root() {
     let Err(QueryError::Computation(SourceFailure::Checking(Failure::Evaluation {
         callable,
         diagnostic,
-    }))) = requests.resolve_steps(&mut preparation, Request::Value(expression))
+    }))) = requests.resolve_steps(&mut preparation, Request::Value(expression.into()))
     else {
         panic!("invalid required arithmetic");
     };
@@ -670,6 +675,10 @@ fn failed_anonymous_length_execution_reports_its_real_expression_root() {
             .iter()
             .any(|note| syntax.text_at(note.origin().span().range()) == Some("1 / 0"))
     );
-    assert!(requests.completed(&Request::Value(expression)).is_none());
+    assert!(
+        requests
+            .completed(&Request::Value(expression.into()))
+            .is_none()
+    );
     assert_eq!(requests.active_depth(), 0);
 }

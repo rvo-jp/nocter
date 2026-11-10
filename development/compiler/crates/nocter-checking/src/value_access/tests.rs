@@ -204,17 +204,19 @@ fn typed_body_rebinding_checks_authority_and_own_body() {
 }
 
 #[test]
-fn recognized_local_array_annotations_are_authored_rejections_not_integrity_failures() {
+fn local_array_annotations_request_their_paired_length_code_before_normalization() {
     for annotation in [
         "[i32; count()]",
         "(bool, [i32; 0])",
         "func(edit [i32; 2]): void",
     ] {
         let text = format!("func f(): void {{ let value: {annotation} = missing }}");
-        let Err(Failure::Rejected(diagnostic)) = queries(&text) else {
-            panic!("array normalization is not admitted: {text}");
+        let Err(Failure::RequiredExpression(required)) = queries(&text) else {
+            panic!("length normalization needs a completed value: {text}");
         };
-        assert_eq!(diagnostic.rule(), Rule::UnknownType);
-        assert_eq!(diagnostic.source().code(), "E0370");
+        assert!(matches!(
+            required.code(),
+            nocter_model::ValueCodeRoot::Expression(_)
+        ));
     }
 }
