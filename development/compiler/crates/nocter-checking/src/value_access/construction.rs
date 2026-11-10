@@ -4,7 +4,7 @@ use super::{
     checker::Checker,
     ir::{Boundary, ExpressionKind, FieldValue, value_type},
 };
-use nocter_declarations::value_access::PayloadSchema;
+use nocter_declarations::value_access::{AggregateForm, PayloadSchema};
 use nocter_model::{AccessExpressionId, ValueAccessMode as Mode};
 use nocter_syntax::{NodeId, NodeKind, direct_identifier};
 use std::collections::BTreeSet;
@@ -19,12 +19,10 @@ impl Checker<'_, '_> {
         let expected = expected.map(|boundary| boundary.ty().data());
         let constraints = if let Some(data) = expected {
             match self.program().data_schema(data) {
-                Some(PayloadSchema::Aggregate(schema)) if schema.as_record().is_none() => Some(
-                    schema
-                        .components()
-                        .map(|component| component.data)
-                        .collect::<Vec<_>>(),
-                ),
+                Some(PayloadSchema::Aggregate(schema)) => match schema.form() {
+                    AggregateForm::Tuple(fields) => Some(fields.to_vec()),
+                    AggregateForm::Record(_) => return self.reject(Rule::TypeMismatch, node),
+                },
                 _ => return self.reject(Rule::TypeMismatch, node),
             }
         } else {
@@ -98,6 +96,9 @@ impl Checker<'_, '_> {
             return self.reject(Rule::UnknownType, name);
         };
         let Some(PayloadSchema::Aggregate(record)) = self.program().data_schema(data) else {
+            return self.reject(Rule::InvalidConstruction, name);
+        };
+        let AggregateForm::Record(_) = record.form() else {
             return self.reject(Rule::InvalidConstruction, name);
         };
         let count = record.len();

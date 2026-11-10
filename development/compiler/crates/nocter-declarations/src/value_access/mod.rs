@@ -17,7 +17,7 @@ mod closures;
 pub use body_types::{BodyTypeError, BodyTypes, CanonicalBodyTypes};
 pub use closures::Closure;
 mod aggregate;
-pub use aggregate::{AggregateSchema, Component};
+pub use aggregate::{AggregateForm, AggregateSchema, Component};
 mod data;
 mod functions;
 pub use functions::{

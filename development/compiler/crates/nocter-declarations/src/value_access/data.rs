@@ -1,5 +1,5 @@
 //! Closed data identity, source-name resolution and payload projection. No source syntax lives here.
-use super::{DeclarationId, Program, Record};
+use super::{AggregateForm, DeclarationId, Program, Record};
 use nocter_model::{BuiltinType, FieldPath, NominalTypeId, Symbol, SymbolTable, TypeId, TypeKind};
 use std::collections::BTreeMap;
 
@@ -91,16 +91,13 @@ impl Program {
                     copyable.insert(current, builtin_copyable(builtin)?);
                     continue;
                 }
-                PayloadSchema::Aggregate(schema) => {
-                    if let Some(record) = schema.as_record() {
+                PayloadSchema::Aggregate(schema) => match schema.form() {
+                    AggregateForm::Record(record) => {
                         copyable.insert(current, record.copyable());
                         continue;
                     }
-                    schema
-                        .components()
-                        .map(|component| component.data)
-                        .collect::<Vec<_>>()
-                }
+                    AggregateForm::Tuple(fields) => fields.to_vec(),
+                },
                 PayloadSchema::Function(witness) => match witness.origin {
                     nocter_model::ValueFunctionOrigin::Declaration(_) => {
                         copyable.insert(current, true);

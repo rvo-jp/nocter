@@ -6,7 +6,7 @@ use super::{
     },
 };
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
-use nocter_declarations::value_access::{PayloadSchema, Program};
+use nocter_declarations::value_access::{AggregateForm, PayloadSchema, Program};
 use nocter_diagnostics::{DiagnosticNote, SourceDiagnostic};
 use nocter_model::{
     AccessBlockId, AccessCallableId, AccessExpressionId, AccessLocalId, AccessLoopId,
@@ -349,25 +349,25 @@ impl<'a, 's> Checker<'a, 's> {
             .expect("closed data authority")
         {
             PayloadSchema::Builtin(data) => data.spelling().to_owned(),
-            PayloadSchema::Aggregate(schema) => {
-                if let Some(record) = schema.as_record() {
-                    self.program()
-                        .symbols()
-                        .spelling(record.name())
-                        .expect("record name")
-                        .to_owned()
-                } else {
+            PayloadSchema::Aggregate(schema) => match schema.form() {
+                AggregateForm::Record(record) => self
+                    .program()
+                    .symbols()
+                    .spelling(record.name())
+                    .expect("record name")
+                    .to_owned(),
+                AggregateForm::Tuple(fields) => {
                     let mut components = Vec::new();
-                    for component in schema.components() {
+                    for &data in fields {
                         if *remaining == 0 {
                             components.push("…".into());
                             break;
                         }
-                        components.push(self.data_label_with_budget(component.data, remaining));
+                        components.push(self.data_label_with_budget(data, remaining));
                     }
                     format!("({})", components.join(", "))
                 }
-            }
+            },
             PayloadSchema::Function(witness) => format!(
                 "{} witness `{}`",
                 super::annotations::invocation_label(witness.invocation),

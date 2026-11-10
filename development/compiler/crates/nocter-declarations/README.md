@@ -160,7 +160,10 @@ contract. The fallible final closure still rejects unused invalid declarations. 
 construction and source-driven steps consume these same rules.
 
 `aggregate` exposes one ordered component schema for records and tuples. Record components retain
-their declared field identities; tuple components retain their positions. `component` and
+their declared field identities; tuple components retain their positions. `AggregateForm` projects
+the explicit record or tuple family from that validated schema. Family-specific consumers match
+this view; absence of a record projection is not permission to assume tuple semantics. The view
+cannot construct a new schema or choose another type authority. `component` and
 `project_data` validate each selection against its exact containing shape, without looking up names
 or inferring access permissions. A tuple position cannot select a nominal field or vice versa.
 An empty path preserves its validated data type; a scalar projection or a field from another owner

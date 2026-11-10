@@ -9,6 +9,13 @@ pub struct Component {
     pub position: usize,
 }
 
+/// A positive family projection; consumers must handle every admitted aggregate family.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AggregateForm<'a> {
+    Record(&'a Record),
+    Tuple(&'a [TypeId]),
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct AggregateSchema<'a>(Shape<'a>);
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -27,10 +34,10 @@ impl<'a> AggregateSchema<'a> {
         Self(Shape::Tuple(fields))
     }
     #[must_use]
-    pub const fn as_record(self) -> Option<&'a Record> {
+    pub const fn form(self) -> AggregateForm<'a> {
         match self.0 {
-            Shape::Record(record, _) => Some(record),
-            Shape::Tuple(_) => None,
+            Shape::Record(record, _) => AggregateForm::Record(record),
+            Shape::Tuple(fields) => AggregateForm::Tuple(fields),
         }
     }
     #[must_use]

@@ -77,17 +77,19 @@ impl Checker<'_, '_> {
             .data_schema(data)
             .ok_or(Failure::InconsistentSyntax)?;
         let field = if let PayloadSchema::Aggregate(aggregate) = schema {
-            if let Some(record) = aggregate.as_record() {
-                self.program()
+            match aggregate.form() {
+                nocter_declarations::value_access::AggregateForm::Record(record) => self
+                    .program()
                     .symbols()
                     .get(self.text(token)?)
                     .and_then(|name| record.resolve_field(name))
-                    .map(ValueField::Record)
-            } else {
-                nocter_syntax::decode_integer_literal(self.text(token)?)
-                    .and_then(|index| usize::try_from(index).ok())
-                    .map(ValueField::Tuple)
-                    .filter(|&field| aggregate.component(field).is_some())
+                    .map(ValueField::Record),
+                nocter_declarations::value_access::AggregateForm::Tuple(_) => {
+                    nocter_syntax::decode_integer_literal(self.text(token)?)
+                        .and_then(|index| usize::try_from(index).ok())
+                        .map(ValueField::Tuple)
+                        .filter(|&field| aggregate.component(field).is_some())
+                }
             }
         } else {
             None
