@@ -574,8 +574,12 @@ A static reference selects one cached body-local address view with `LocalOrigin:
 type stays ordinary and its access is read-only. That view is initialized on entry but is not a
 callable input or a source owner. `TypedBody::static_views` is the shared projection for consumers;
 input-layout validation separately proves the declaration role, exact type, read-only kind and
-unique global key. Access worlds use the global static root, whose extent is independent of any
-invocation frame. The resource ledger does not create static cleanup obligations. Reads/aliases
+unique global key. Typing a static view requires only its declaration metadata, not its computed
+initializer. Preparation derives required static values from those views, including capture bodies,
+and resolves them through the same dependency query before execution or Unit publication. Cached
+bodies retain these requirements; revisiting a shared callee must still expose an active static
+cycle rather than bypassing it. Access worlds use the global static root, whose extent is independent
+of any invocation frame. The resource ledger does not create static cleanup obligations. Reads/aliases
 are allowed, independent value extraction needs ordinary Copy, and editing/retirement/drop reject.
 Static reads remain place operations rather than named-literal substitution. Their initializer
 values and mixed constant/static dependencies use the same required-value query, source guards
@@ -600,7 +604,7 @@ runtime optimization; runtime calls to const functions still execute their ordin
 
 Each completed dependency retains its evaluator value lease alongside one derived model-owned
 frozen artifact until all required evaluation and body preparation finish. Query publication
-consumes those entries into the Unit's sole frozen constant table and drops evaluator state.
+consumes those entries into the Unit's sole frozen initializer table and drops evaluator state.
 Bodies share the immutable artifact graph; no public product retains a temporary type authority.
 The completed query is consumed rather than cloned. Bodies and captures
 share an exact-source guard over const initializer/callee definitions. Header reuse cannot reuse

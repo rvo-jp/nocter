@@ -68,16 +68,29 @@ fn static_reads_need_copy_for_values_and_never_grant_update_move_or_drop() {
 }
 #[test]
 fn mixed_initializer_cycles_keep_the_dependency_query_and_exact_source_cause() {
-    for source in [
-        "static A: i32 = A",
-        "static A: i32 = B\nconst B: i32 = A",
-        "const A: i32 = B\nstatic B: i32 = A",
+    for (source, cause) in [
+        ("static A: i32 = A", "A"),
+        ("static A: i32 = if false { A } else { 42 }", "A"),
+        (
+            "static A: i32 = helper()\nstatic B: i32 = helper()\nconst func helper(): i32 { B }",
+            "B",
+        ),
+        ("static A: i32 = B\nconst B: i32 = A", "A"),
+        ("const A: i32 = B\nstatic B: i32 = A", "A"),
     ] {
         let (sources, tree) = input(source);
         let headers = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
         let result = Unit::prepare(&headers.bind(bound(&sources, &tree)).unwrap());
-        assert!(
-            matches!(result, Err(Failure::Evaluation { diagnostic, .. }) if diagnostic.rule() == EvaluationRule::DependencyCycle),
+        let Err(Failure::Evaluation { diagnostic, .. }) = result else {
+            panic!("{source}: {result:?}");
+        };
+        assert_eq!(diagnostic.rule(), EvaluationRule::DependencyCycle);
+        assert_eq!(
+            sources
+                .get(tree.source())
+                .unwrap()
+                .text_at(diagnostic.source().primary().span().range()),
+            Some(cause),
             "{source}"
         );
     }
@@ -92,4 +105,21 @@ fn static_initializer_changes_invalidate_callers_and_views_in_capture_bodies() {
     let context = headers.bind(bound(&changed, &parsed)).unwrap();
     assert!(unit.bind(&context).is_err());
     assert!(named(&unit, "run").bind(&context).is_err());
+}
+
+#[test]
+fn typed_static_views_need_metadata_without_computing_the_initializer() {
+    let (sources, tree) = input("static VALUE: i32 = 1 / 0\nfunc run(): i32 { VALUE }");
+    let headers = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+    let context = headers.bind(bound(&sources, &tree)).unwrap();
+    let id = context
+        .program()
+        .resolve(context.program().symbols().get("run").unwrap())
+        .unwrap();
+    let typed = crate::value_access::Query::prepare(&context, id).unwrap();
+    assert_eq!(typed.body().static_views().count(), 1);
+    assert!(matches!(
+        Unit::prepare(&context),
+        Err(Failure::Evaluation { .. })
+    ));
 }

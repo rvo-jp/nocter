@@ -62,7 +62,7 @@ pub(in crate::value_access) fn prepare(
 impl Preparation<'_, '_> {
     fn body(&mut self, values: &mut Values, id: AccessCallableId) -> Result<(), Failure> {
         if self.queries.contains_key(&id) {
-            return Ok(());
+            return self.require_statics(values, id);
         }
         loop {
             match checker::prepare(self.context, id, values) {
@@ -78,28 +78,13 @@ impl Preparation<'_, '_> {
                         self.sources.insert(id, query.body_bytes.clone());
                     }
                     self.queries.insert(id, query);
-                    return Ok(());
+                    return self.require_statics(values, id);
                 }
                 Err(BodyFailure::RequiredConstant {
                     initializer,
                     origin,
                 }) => {
-                    self.budget.step().map_err(|rule| {
-                        super::failure_at(self.context, initializer, Rule::Execution(rule), origin)
-                    })?;
-                    if let Err(error) = values.resolve(self, initializer) {
-                        let mut failure = match error {
-                            QueryError::Computation(failure) => failure,
-                            QueryError::Cycle(path) => self.cycle(&path, origin)?,
-                        };
-                        super::add_dependency_note(&mut failure, self.context, origin).map_err(
-                            |failure| Failure::Body {
-                                callable: id,
-                                failure,
-                            },
-                        )?;
-                        return Err(failure);
-                    }
+                    self.require_value(values, id, initializer, origin)?;
                     // No typed product was published. Retry this draft with its completed dependency;
                     // successful bodies are cached once and are never reopened for a later value.
                 }
@@ -111,6 +96,69 @@ impl Preparation<'_, '_> {
                 }
             }
         }
+    }
+    fn require_value(
+        &mut self,
+        values: &mut Values,
+        owner: AccessCallableId,
+        initializer: AccessCallableId,
+        origin: SyntaxOrigin,
+    ) -> Result<(), Failure> {
+        if values.completed(&initializer).is_some() {
+            return Ok(());
+        }
+        self.budget.step().map_err(|rule| {
+            super::failure_at(self.context, initializer, Rule::Execution(rule), origin)
+        })?;
+        if let Err(error) = values.resolve(self, initializer) {
+            let mut failure = match error {
+                QueryError::Computation(failure) => failure,
+                QueryError::Cycle(path) => self.cycle(&path, origin)?,
+            };
+            super::add_dependency_note(&mut failure, self.context, origin).map_err(|failure| {
+                Failure::Body {
+                    callable: owner,
+                    failure,
+                }
+            })?;
+            return Err(failure);
+        }
+        Ok(())
+    }
+    fn require_statics(
+        &mut self,
+        values: &mut Values,
+        owner: AccessCallableId,
+    ) -> Result<(), Failure> {
+        // A complete cached body still retains its authored requirements. A nested request may
+        // reach that body while one of its static values is active; caching must not hide cycles.
+        fn collect(
+            query: &Query,
+            context: &Context<'_>,
+            pending: &mut Vec<(AccessCallableId, SyntaxOrigin)>,
+        ) -> Result<(), Failure> {
+            let source = query.bind(context).map_err(|failure| Failure::Body {
+                callable: query.source_owner(),
+                failure,
+            })?;
+            for (local, id) in query.body().static_views() {
+                pending.push((id.initializer, source.local_origin(local).ok_or(INVALID)?));
+            }
+            for nested in query.closures.values() {
+                collect(&nested.typed, context, pending)?;
+            }
+            Ok(())
+        }
+        let mut pending = Vec::new();
+        collect(
+            self.queries.get(&owner).ok_or(INVALID)?,
+            self.context,
+            &mut pending,
+        )?;
+        for (initializer, origin) in pending {
+            self.require_value(values, owner, initializer, origin)?;
+        }
+        Ok(())
     }
     fn cycle(&self, path: &[AccessCallableId], origin: SyntaxOrigin) -> Result<Failure, Failure> {
         let root = *path.first().ok_or(INVALID)?;

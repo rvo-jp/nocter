@@ -250,12 +250,6 @@ impl Checker<'_, '_> {
             .get(spelling)
             .and_then(|name| self.program().resolve_static(name))
         {
-            if self.values.value(id.initializer).is_none() {
-                return Err(Failure::RequiredConstant {
-                    initializer: id.initializer,
-                    origin: nocter_syntax::SyntaxOrigin::Token(token),
-                });
-            }
             if let Some(&local) = self.statics.get(&id) {
                 return Ok(Some(local));
             }
