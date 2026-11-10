@@ -5,8 +5,8 @@ mod projection;
 mod source;
 use source::RecordSource;
 pub use source::{
-    BodyDependencies, BodySource, BodySourceGraph, BodySourceNode, BodySources, CodeSource,
-    HeaderSource, SourceMismatch,
+    BodyDependencies, BodyExpressions, BodySource, BodySourceGraph, BodySourceNode, BodySources,
+    CodeSource, HeaderSource, SourceMismatch,
 };
 mod type_syntax;
 pub use type_syntax::{DataTypeSyntax, FunctionTypeSyntax, ValueTypeSyntax, value_type_syntax};

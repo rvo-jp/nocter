@@ -2,6 +2,7 @@ use super::*;
 use nocter_model::{BuiltinType, ValueInputOperation};
 use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
+mod body_expressions;
 pub(super) fn input(text: &str, goal: ParseGoal) -> (SourceMap, SyntaxTree) {
     let mut sources = SourceMap::new();
     let id = sources

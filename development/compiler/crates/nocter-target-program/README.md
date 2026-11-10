@@ -71,6 +71,8 @@ constant/static references; checking has already frozen their initializers. Stat
 retain their global identity and ordinary data projection without adding runtime code instances. Scalar/aggregate
 runtime inputs remain ordinary data rather than specialization arguments.
 This product grants no ABI, layout, executable cleanup or backend capability.
+Body-local required-expression code has no callable origin and explicitly rejects as a runtime
+instance key or invocation environment; a source owner cannot substitute for its code identity.
 
 `build` interns keys of one named/captured code identity and its concrete formal-witness bindings.
 A concrete witness pairs code identity with the supplied invocation view; the code instance itself

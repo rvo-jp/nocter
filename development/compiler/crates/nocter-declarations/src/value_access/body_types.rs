@@ -2,7 +2,7 @@
 use super::{Program, TypeScope};
 use nocter_model::{
     AccessCodeId, AccessExpressionId, TypeCursor, TypeId, TypeKind, ValueApplication,
-    ValueFunctionOrigin, ValueInvocation,
+    ValueCodeRoot, ValueFunctionOrigin, ValueInvocation,
 };
 use std::collections::BTreeMap;
 
@@ -16,13 +16,13 @@ pub enum BodyTypeError {
 /// The sole construction capability for one body's closed type extension, with shared header facts.
 #[derive(Clone, Debug)]
 pub struct BodyTypes {
-    owner: AccessCodeId,
+    owner: ValueCodeRoot,
     program: Program,
     applications: BTreeMap<AccessExpressionId, AccessCodeId>,
 }
 impl BodyTypes {
     #[must_use]
-    pub const fn owner(&self) -> AccessCodeId {
+    pub const fn owner(&self) -> ValueCodeRoot {
         self.owner
     }
     /// Intern a structural tuple over admitted closed ordinary component data.
@@ -183,11 +183,12 @@ impl BodyTypes {
 #[derive(Debug)]
 pub struct CanonicalBodyTypes {
     program: Program,
-    projections: BTreeMap<AccessCodeId, (TypeCursor, BTreeMap<TypeId, TypeId>)>,
+    projections: BTreeMap<ValueCodeRoot, (TypeCursor, BTreeMap<TypeId, TypeId>)>,
 }
 impl CanonicalBodyTypes {
     #[must_use]
-    pub fn project(&self, owner: AccessCodeId, data: TypeId) -> Option<TypeId> {
+    pub fn project(&self, owner: impl Into<ValueCodeRoot>, data: TypeId) -> Option<TypeId> {
+        let owner = owner.into();
         let (prefix, projection) = self.projections.get(&owner)?;
         project_type(*prefix, projection, data)
     }
@@ -197,16 +198,23 @@ impl CanonicalBodyTypes {
     }
 }
 impl Program {
+    pub(super) fn has_type_root(&self, root: ValueCodeRoot) -> bool {
+        match root {
+            ValueCodeRoot::Declaration(id) => self.codes.get(id).is_some(),
+            ValueCodeRoot::Expression(id) => self.codes.is_reserved(id.owner),
+        }
+    }
     /// Open a body-owned construction branch without changing declarations or their source cache.
     /// # Errors
     /// Rejects an identity outside this declaration program.
-    pub fn body_types(&self, owner: AccessCodeId) -> Result<BodyTypes, BodyTypeError> {
+    pub fn body_types(&self, owner: impl Into<ValueCodeRoot>) -> Result<BodyTypes, BodyTypeError> {
+        let owner = owner.into();
         if self.type_scope != TypeScope::Headers {
             return Err(BodyTypeError::InvalidExtension);
         }
-        self.codes
-            .get(owner)
-            .ok_or(BodyTypeError::InvalidApplication)?;
+        if !self.has_type_root(owner) {
+            return Err(BodyTypeError::InvalidApplication);
+        }
         let mut program = self.clone();
         program.type_scope = TypeScope::Body(owner);
         Ok(BodyTypes {
@@ -220,7 +228,7 @@ impl Program {
     /// Rejects foreign headers, an unrelated type prefix or a suffix outside its body's domain.
     pub fn canonical_body_types(
         &self,
-        bodies: BTreeMap<AccessCodeId, &Program>,
+        bodies: BTreeMap<ValueCodeRoot, &Program>,
     ) -> Result<CanonicalBodyTypes, BodyTypeError> {
         if self.type_scope != TypeScope::Headers {
             return Err(BodyTypeError::InvalidExtension);
@@ -235,9 +243,9 @@ impl Program {
             {
                 return Err(BodyTypeError::ForeignDeclarations);
             }
-            self.codes
-                .get(owner)
-                .ok_or(BodyTypeError::InvalidApplication)?;
+            if !self.has_type_root(owner) {
+                return Err(BodyTypeError::InvalidApplication);
+            }
             let prefix = body.header_prefix.cursor();
             let projection = replay_types(self, body, owner, &mut types)?;
             for (&id, schema) in &body.closures {
@@ -298,7 +306,7 @@ fn ordinary_data(program: &Program, data: TypeId) -> bool {
 fn replay_types(
     header: &Program,
     body: &Program,
-    owner: AccessCodeId,
+    owner: ValueCodeRoot,
     types: &mut nocter_model::TypeTransaction,
 ) -> Result<BTreeMap<TypeId, TypeId>, BodyTypeError> {
     let prefix = &body.header_prefix;

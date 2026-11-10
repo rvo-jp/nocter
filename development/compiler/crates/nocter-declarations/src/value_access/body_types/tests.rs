@@ -3,6 +3,7 @@ use super::super::*;
 use nocter_model::ValueInvocation;
 
 mod arrays;
+mod expression_roots;
 
 #[test]
 fn a_late_record_field_type_cannot_reinterpret_an_early_body_tuple() {
@@ -50,7 +51,7 @@ fn a_late_record_field_type_cannot_reinterpret_an_early_body_tuple() {
     );
     assert_ne!(body.data_schema(tuple), later.data_schema(tuple));
     let canonical = later
-        .canonical_body_types(BTreeMap::from([(run, &body)]))
+        .canonical_body_types(BTreeMap::from([(run.into(), &body)]))
         .unwrap();
     let projected = canonical.project(run, tuple).unwrap();
     assert_ne!(projected, tuple);
@@ -121,7 +122,7 @@ fn earlier_body_types_replay_past_later_header_keys_at_the_same_raw_position() {
         .finish();
     assert!(empty_canonical.body_types(alpha).is_err());
     assert!(matches!(
-        later.canonical_body_types(BTreeMap::from([(beta, &body)])),
+        later.canonical_body_types(BTreeMap::from([(beta.into(), &body)])),
         Err(BodyTypeError::ForeignDeclarations)
     ));
     assert_eq!(
@@ -137,7 +138,7 @@ fn earlier_body_types_replay_past_later_header_keys_at_the_same_raw_position() {
         Some(PayloadSchema::Function(_))
     ));
     let canonical = later
-        .canonical_body_types(BTreeMap::from([(alpha, &body)]))
+        .canonical_body_types(BTreeMap::from([(alpha.into(), &body)]))
         .unwrap();
     let projected = canonical.project(alpha, tuple).unwrap();
     assert_ne!(projected, tuple);
@@ -216,8 +217,8 @@ fn application_suffixes_replay_by_body_owner_without_changing_the_header() {
     assert!(a.types.store().may_carry_storage(da));
     let canonical = header
         .canonical_body_types(std::collections::BTreeMap::from([
-            (second, &b),
-            (first, &a),
+            (second.into(), &b),
+            (first.into(), &a),
         ]))
         .unwrap();
     let ca = canonical.project(first, da).unwrap();
@@ -242,7 +243,7 @@ fn application_suffixes_replay_by_body_owner_without_changing_the_header() {
     );
     assert!(
         header
-            .canonical_body_types(std::collections::BTreeMap::from([(first, &b)]))
+            .canonical_body_types(std::collections::BTreeMap::from([(first.into(), &b)]))
             .is_err()
     );
 }
@@ -294,14 +295,14 @@ fn owned_closure_schemas_replay_with_their_own_body_and_preserve_capture_copy_ev
         );
         (branch.finish(), data, key)
     };
-    let (a, da, ka) = make(first, BuiltinType::Error);
-    let (b, db, kb) = make(second, BuiltinType::I32);
+    let (a, da, ka) = make(first.into(), BuiltinType::Error);
+    let (b, db, kb) = make(second.into(), BuiltinType::I32);
     assert_eq!(da, db);
     assert!(header.closure(ka).is_none());
     let canonical = header
         .canonical_body_types(std::collections::BTreeMap::from([
-            (first, &a),
-            (second, &b),
+            (first.into(), &a),
+            (second.into(), &b),
         ]))
         .unwrap();
     let ca = canonical.project(first, da).unwrap();
@@ -321,7 +322,7 @@ fn owned_closure_schemas_replay_with_their_own_body_and_preserve_capture_copy_ev
     );
     assert!(
         header
-            .canonical_body_types(std::collections::BTreeMap::from([(first, &b)]))
+            .canonical_body_types(std::collections::BTreeMap::from([(first.into(), &b)]))
             .is_err()
     );
 }

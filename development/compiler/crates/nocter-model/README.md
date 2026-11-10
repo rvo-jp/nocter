@@ -31,9 +31,12 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
   without source names or runtime layout. Applications pair caller/operation/callee identities.
   Formal/result/application witnesses remain nonconcrete and may carry storage; named witnesses
   are concrete capture-free leaves. Canonical body replay and result closure retain one authority
-- root/captured body code identities: `AccessCodeId` identifies function bodies, named initializers
-  and anonymous type-expression code without granting a name or callable contract. Captures derive
-  their root source owner for reuse; declaration roles belong to the declaration authority
+- root/captured body code identities: `AccessCodeId` identifies reserved declarations and header
+  type-expression code. `ValueExpression` identifies a required root by enclosing body and local
+  slot without appending a declaration. `ValueCodeRoot` separates their checking/type branches;
+  closure and application keys retain that complete root. `ValueCode` selects a root or captured
+  body, independently of its source owner. A body-local expression has no function origin;
+  declaration roles and callable witnesses remain declaration-owned facts
 - body-owned closure code keys independent of runtime environments; data/schema owners, rather
   than the key or invocation view, establish capture Copy and destruction properties
 - logical field paths with record-field identities and tuple positions, concatenation and

@@ -72,6 +72,7 @@ pub(super) fn callee(
 pub(super) fn validate_key(program: &Program, key: &InstanceKey) -> Result<(), Failure> {
     let mut expected = BTreeSet::new();
     match key.code {
+        ValueCode::Expression(_) => return Err(Failure::InvalidAcceptedUnit),
         ValueCode::Declaration(id) => {
             let declaration = program
                 .codes()
@@ -148,7 +149,7 @@ pub(super) fn data(
                 }
                 program
                     .function_data(FunctionWitness {
-                        origin: selected.code.origin(),
+                        origin: selected.code.origin().ok_or(Failure::InvalidAcceptedUnit)?,
                         invocation: selected.invocation,
                     })
                     .ok_or(Failure::InvalidAcceptedUnit)?

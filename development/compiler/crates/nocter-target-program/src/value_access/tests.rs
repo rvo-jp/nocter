@@ -58,6 +58,30 @@ fn callable(unit: &Unit, name: &str) -> AccessCodeId {
         .resolve(unit.program().symbols().get(name).unwrap())
         .unwrap()
 }
+
+#[test]
+fn a_required_expression_cannot_substitute_its_source_owners_runtime_code() {
+    let fixture = ValueSourceFixture::new("func run(): i32 { 42 }");
+    let unit = accepted(&fixture);
+    let root = callable(&unit, "run");
+    let code = ValueCode::Expression(nocter_model::ValueExpression {
+        owner: root,
+        slot: 0,
+    });
+    assert_eq!(code.source_owner(), root);
+    assert_eq!(code.origin(), None);
+    assert!(unit.code_body(code).is_none());
+    assert!(matches!(
+        projection::validate_key(
+            unit.program(),
+            &InstanceKey {
+                code,
+                witnesses: BTreeMap::new()
+            }
+        ),
+        Err(Failure::InvalidAcceptedUnit)
+    ));
+}
 fn close_case(name: &str) -> InstanceProgram {
     let unit = accepted(&ValueSourceFixture::corpus(name));
     let root = callable(&unit, "run");
@@ -150,7 +174,7 @@ fn adapters_specialize_payload_obligations_without_changing_source_move_semantic
             p.owner()
                 == match apply.key.code {
                     ValueCode::Declaration(id) => id,
-                    ValueCode::Closure(_) => panic!("named body"),
+                    ValueCode::Closure(_) | ValueCode::Expression(_) => panic!("named body"),
                 }
         })
         .unwrap();

@@ -125,7 +125,7 @@ fn close_applications(
             let Origin::Application(application) = witness.origin else {
                 continue;
             };
-            if application.owner != query.source_owner()
+            if application.owner != query.code().root()
                 || application.call != id
                 || *target != Origin::Declaration(application.callee)
             {
@@ -150,7 +150,10 @@ fn close_applications(
         let Origin::Application(application) = origin else {
             continue;
         };
-        let query = &controls.get(&application.owner).ok_or(INVALID)?.typed;
+        let nocter_model::ValueCodeRoot::Declaration(owner) = application.owner else {
+            return Err(INVALID);
+        };
+        let query = &controls.get(&owner).ok_or(INVALID)?.typed;
         if producers.is_empty() && !committed.contains(&application) {
             evidence
                 .applications
@@ -164,7 +167,7 @@ fn close_applications(
                 .program()
                 .parameters()
                 .get(parameter)
-                .is_none_or(|p| p.owner() != application.owner)
+                .is_none_or(|p| p.owner() != owner)
         {
             return Err(INVALID);
         }
@@ -232,7 +235,7 @@ fn describe_witness(
         Origin::Closure(id) => Ok(format!(
             "closure {} in `{}`",
             id.slot,
-            program.code_label(id.owner).ok_or(INVALID)?
+            program.root_label(id.owner).ok_or(INVALID)?
         )),
         Origin::Declaration(id) => Ok(format!("code `{}`", program.code_label(id).ok_or(INVALID)?)),
         Origin::Parameter(id) => Ok(format!(

@@ -1,14 +1,16 @@
 //! Exact source evidence shared by declaration and checking consumers, without evaluation.
 use super::Context;
 use nocter_declarations::value_access::{DeclarationId, HeaderPosition, Program};
-use nocter_model::{AccessCodeId, NominalTypeId};
-use nocter_syntax::{NodeId, SyntaxOrigin, SyntaxToken};
-use std::{collections::BTreeMap, sync::Arc};
+use nocter_model::{AccessCodeId, NominalTypeId, ValueCodeRoot, ValueExpression};
+use nocter_syntax::{BodySyntaxLocator, BodySyntaxProjection, NodeId, SyntaxOrigin, SyntaxToken};
+use std::{borrow::Cow, collections::BTreeMap, sync::Arc};
 
 mod dependencies;
+mod expressions;
 mod recipes;
 mod registration;
 pub use dependencies::{BodyDependencies, BodySourceGraph, BodySourceNode};
+pub use expressions::BodyExpressions;
 pub(super) use recipes::Recipes;
 
 #[derive(Clone, Debug)]
@@ -156,17 +158,55 @@ impl Evidence {
 #[derive(Clone, Debug)]
 pub struct BodySource {
     owner: AccessCodeId,
+    root: BodyRoot,
     evidence: Evidence,
+}
+#[derive(Clone, Copy, Debug)]
+enum BodyRoot {
+    Declaration,
+    Expression {
+        slot: u32,
+        locator: BodySyntaxLocator,
+    },
 }
 impl BodySource {
     #[must_use]
     pub const fn owner(&self) -> AccessCodeId {
         self.owner
     }
+    /// The selected executable root, independently of its enclosing source owner.
+    #[must_use]
+    pub const fn code(&self) -> ValueCodeRoot {
+        match self.root {
+            BodyRoot::Declaration => ValueCodeRoot::Declaration(self.owner),
+            BodyRoot::Expression { slot, .. } => ValueCodeRoot::Expression(ValueExpression {
+                owner: self.owner,
+                slot,
+            }),
+        }
+    }
     /// Locate the same body in an exact descendant of its original declaration authority.
     /// # Errors
     /// Rejects a foreign authority, a changed body or inconsistent source metadata.
     pub fn bind<'context>(
+        &self,
+        context: &'context Context<'_>,
+    ) -> Result<Cow<'context, CodeSource>, SourceMismatch> {
+        let source = self.verify_owner(context)?;
+        match self.root {
+            BodyRoot::Declaration => Ok(Cow::Borrowed(source)),
+            BodyRoot::Expression { locator, .. } => {
+                let projection =
+                    BodySyntaxProjection::for_root(context.syntax().tree(), source.body())
+                        .ok_or(SourceMismatch::InconsistentSyntax)?;
+                let Some(SyntaxOrigin::Node(body)) = projection.resolve(locator) else {
+                    return Err(SourceMismatch::InconsistentSyntax);
+                };
+                Ok(Cow::Owned(CodeSource { header: None, body }))
+            }
+        }
+    }
+    fn verify_owner<'context>(
         &self,
         context: &'context Context<'_>,
     ) -> Result<&'context CodeSource, SourceMismatch> {
@@ -208,6 +248,7 @@ impl Context<'_> {
         let (_, bytes) = body(self, owner)?;
         Ok(BodySource {
             owner,
+            root: BodyRoot::Declaration,
             evidence: Evidence::capture(self, bytes),
         })
     }
@@ -259,7 +300,7 @@ impl BodySources {
     /// Reports the first changed authority/body or inconsistent current source pairing.
     pub fn verify(&self, context: &Context<'_>) -> Result<(), SourceMismatch> {
         for source in self.bodies.values() {
-            source.bind(context)?;
+            source.verify_owner(context)?;
         }
         Ok(())
     }

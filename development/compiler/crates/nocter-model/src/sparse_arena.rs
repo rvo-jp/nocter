@@ -34,6 +34,11 @@ impl<I: SemanticId, T> SparseArena<I, T> {
     pub fn get(&self, id: I) -> Option<&T> {
         self.values.get(id.index())?.as_ref()
     }
+    /// Membership in the fixed reservation domain, independently of value readiness.
+    #[must_use]
+    pub fn is_reserved(&self, id: I) -> bool {
+        id.index() < self.values.len()
+    }
     #[must_use]
     pub const fn len(&self) -> usize {
         self.defined
@@ -157,6 +162,8 @@ mod tests {
         let ids: Vec<_> = (0..130).map(|_| names.insert(())).collect();
         let mut writer = SparseArenaBuilder::new(ids.len());
         let empty = writer.snapshot();
+        assert!(ids.iter().all(|&id| empty.is_reserved(id)));
+        assert!(!empty.is_reserved(names.insert(())));
         for index in (0..130).rev().step_by(2) {
             writer.insert(ids[index], index).unwrap();
         }

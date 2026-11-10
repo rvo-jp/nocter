@@ -369,7 +369,7 @@ impl<'a, 's> Checker<'a, 's> {
                 super::annotations::invocation_label(witness.invocation),
                 match witness.origin {
                     nocter_model::ValueFunctionOrigin::Closure(id) =>
-                        self.program().code_label(id.owner),
+                        self.program().root_label(id.owner),
                     nocter_model::ValueFunctionOrigin::Declaration(id)
                     | nocter_model::ValueFunctionOrigin::Result(id) =>
                         self.program().code_label(id),

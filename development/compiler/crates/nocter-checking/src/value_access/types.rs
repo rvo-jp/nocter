@@ -17,7 +17,7 @@ pub(super) fn canonicalize(
         .canonical_body_types(
             queries
                 .iter()
-                .map(|(&id, query)| (id, query.program()))
+                .map(|(&id, query)| (id.into(), query.program()))
                 .collect(),
         )
         .map_err(|_| {

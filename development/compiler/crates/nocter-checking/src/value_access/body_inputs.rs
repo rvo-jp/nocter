@@ -39,6 +39,7 @@ pub(super) fn layout(query: &Query) -> Result<(), IntegrityError> {
         return Err(INVALID);
     }
     match query.code() {
+        ValueCode::Expression(_) => return Err(INVALID),
         ValueCode::Declaration(id) => {
             if inputs.environment().is_some() {
                 return Err(INVALID);

@@ -120,7 +120,7 @@ pub(super) fn bind(
             else {
                 return Err(INVALID);
             };
-            if witness.origin != code.origin()
+            if Some(witness.origin) != code.origin()
                 || witness.invocation.operation() != argument.operation
             {
                 return Err(INVALID);
@@ -171,6 +171,7 @@ fn environment(
     data: &BTreeMap<TypeId, DataEvidence>,
 ) -> Result<Environment, Failure> {
     match code {
+        ValueCode::Expression(_) => Err(INVALID),
         ValueCode::Declaration(_) => {
             if input.is_some() {
                 return Err(INVALID);

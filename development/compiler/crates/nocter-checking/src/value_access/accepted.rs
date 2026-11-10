@@ -171,6 +171,7 @@ impl Unit {
     pub fn code_body(&self, code: nocter_model::ValueCode) -> Option<&flow::Query> {
         match code {
             nocter_model::ValueCode::Declaration(id) => self.bodies.get(&id),
+            nocter_model::ValueCode::Expression(_) => None,
             nocter_model::ValueCode::Closure(id) => self.closures.get(&id),
         }
     }

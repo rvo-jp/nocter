@@ -258,7 +258,7 @@ impl Query {
         self.source.owner()
     }
     fn source_for_code(&self) -> Option<&BodySource> {
-        (self.code.source_owner() == self.source.owner()).then_some(&self.source)
+        (self.code.root() == self.source.code()).then_some(&self.source)
     }
     #[must_use]
     pub const fn body(&self) -> &TypedBody {

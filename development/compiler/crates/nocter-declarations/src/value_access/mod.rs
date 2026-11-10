@@ -206,7 +206,7 @@ impl Parameter {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum TypeScope {
     Headers,
-    Body(AccessCodeId),
+    Body(nocter_model::ValueCodeRoot),
     Canonical,
 }
 
@@ -331,6 +331,18 @@ impl Program {
             .iter()
             .find(|(_, owner)| **owner == declaration)?;
         self.symbols.spelling(name).map(str::to_owned)
+    }
+    /// Presentation only: anonymous code is labeled by its real owning declaration.
+    #[must_use]
+    pub fn root_label(&self, root: nocter_model::ValueCodeRoot) -> Option<String> {
+        match root {
+            nocter_model::ValueCodeRoot::Declaration(id) => self.code_label(id),
+            nocter_model::ValueCodeRoot::Expression(id) => Some(format!(
+                "expression {} in {}",
+                id.slot,
+                self.declaration_label(id.owner.into())?
+            )),
+        }
     }
     /// Presentation only: anonymous code is labeled by its real owning declaration.
     #[must_use]

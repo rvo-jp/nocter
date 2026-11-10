@@ -97,7 +97,7 @@ fn array_replay_remaps_nested_elements_after_late_headers_and_sibling_suffixes()
         "the late header must reuse the raw slot"
     );
     let canonical = late
-        .canonical_body_types(BTreeMap::from([(first, &a), (second, &b)]))
+        .canonical_body_types(BTreeMap::from([(first.into(), &a), (second.into(), &b)]))
         .unwrap();
     let projected_inner = canonical.project(first, inner).unwrap();
     let projected_tuple = canonical.project(first, tuple).unwrap();
@@ -137,7 +137,7 @@ fn array_closure_slots_replay_without_confusing_capture_copy_with_call_contracts
     let tuple = body.tuple(&[environment, integer]).unwrap();
     let result = body.array(tuple, u64::MAX).unwrap();
     let id = ValueClosure {
-        owner: second,
+        owner: second.into(),
         slot: 0,
     };
     let data = body
@@ -159,7 +159,10 @@ fn array_closure_slots_replay_without_confusing_capture_copy_with_call_contracts
     earlier.array(integer, 5).unwrap();
     let earlier = earlier.finish();
     let canonical = header
-        .canonical_body_types(BTreeMap::from([(first, &earlier), (second, &body)]))
+        .canonical_body_types(BTreeMap::from([
+            (first.into(), &earlier),
+            (second.into(), &body),
+        ]))
         .unwrap();
     let projected = |data| canonical.project(second, data).unwrap();
     assert_ne!(

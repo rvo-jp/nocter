@@ -137,8 +137,11 @@ that unused/computed array types coexist with scalar execution, not array value 
 
 ### Body-Owned Required Expressions
 
-Local type lengths and repetition counts need a body-owned expression-code domain before source
-admission. Do not append these roots to the closed header reservation arena: adding an expression
+The [model/type owners](../compiler/crates/nocter-declarations/README.md#future-value-declaration-boundary)
+and [source owner](../compiler/crates/nocter-declaration-lowering/README.md#exact-source-evidence)
+provide body-owned expression roots and exact source pairing. Their connection to ordinary
+lexical checking, the shared value query and evaluator code identities remains required before
+local count admission. Do not append these roots to the closed header reservation arena: adding an expression
 in one body would otherwise renumber sibling expressions or invalidate an unrelated header query.
 Pair each expression key with its actual root through its enclosing body's source authority.
 An edit may invalidate that body and its expressions, while preserving header slots and unrelated

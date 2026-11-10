@@ -178,21 +178,26 @@ projection remains outside semantic type lookup.
 ## Exact Source Evidence
 
 `access_declarations::source` owns exact source evidence shared by declaration and checking
-consumers. Only a current declaration `Context` captures `BodySource`, pairing the selected code's
-source owner, original immutable header view and exact body bytes. No consumer can provide an
-owner and unrelated bytes independently. The evidence contains no current source identity, node,
-span or locator and grants neither contract readiness nor semantic body acceptance.
+consumers. A current declaration `Context` supplies `BodySource` capture, pairing the selected
+code's source owner, original immutable header view and exact body bytes. No consumer can provide
+an owner and unrelated bytes independently. Byte/ancestry evidence contains no current source
+identity, node or span and grants neither contract readiness nor semantic body acceptance.
 
 Binding validates exact header ancestry, then compares the selected body and returns its current
 source metadata. Relocated source and unrelated body edits remain reusable; changed guarded bytes
 or an equal but independently rebuilt declaration authority reject. Closures can share their
-containing body's evidence while retaining separate executable code identities.
+containing body's evidence while retaining separate executable code identities. `BodySource::code`
+identifies the selected checking root separately from `owner`, which owns the complete guarded
+body. Declaration roots borrow current `CodeSource`; body-local expression roots additionally
+retain a neutral body locator and resolve it only after the whole owner passes verification.
+Such a selected expression has no source parameters, name or inherited result annotation.
 
 `BodySources` collects these already-paired dependencies. Adding conflicting bytes or an
 incomparable authority fails without replacing earlier evidence. Compatible duplicate owners
 retain the strongest header prefix, independently of insertion order; adding an older guard
 cannot weaken reuse requirements. Required evaluation and callable-result evidence consume this
 same source mechanism. Source comparison never performs name lookup, checking or evaluation.
+Dependency verification checks the full owner directly, without rebuilding expression projections.
 `source::dependencies` projects successful query prerequisites into a flat `BodySourceGraph` of
 paired source guards and conjunction edges. `BodyDependencies` selects a root over that shared
 graph; unrelated nodes impose no binding requirement. Iterative verification visits each reached
@@ -223,6 +228,17 @@ and result cause are the real count expression, whose expected usize result belo
 `source::recipes` captures and rebinds both named and anonymous executable roots through the same
 neutral locator catalog. `BodySource` guards their exact bytes and ancestry without permitting
 caller-supplied code/source joins.
+
+`source::expressions` supplies the exact-current `BodyExpressions` catalog on demand for one body.
+It uses the shared type projection to register local array lengths, including nested tuple,
+callback and closure annotations and annotations inside count bodies. Each root receives a
+`ValueExpression` key in that source owner's local domain; no declaration reservation or global
+namespace changes. The node/code reverse index derives from those same roots. Selected sources
+reuse `BodySource`, including its full-body guard, rather than a second byte/ancestry mechanism.
+An unchanged count does not certify reuse after its lexical body changes. Sibling-body edits and
+physical source relocation preserve its keys and guarded binding. Registration establishes no
+lexical value availability, expected-type checking, computed length or body acceptance; connecting
+these local roots to ordinary checking and the shared value query remains required.
 
 Source header normalization uses those anonymous counts through ordinary body checking,
 const-domain validation and required usize execution while the enclosing header remains unready.

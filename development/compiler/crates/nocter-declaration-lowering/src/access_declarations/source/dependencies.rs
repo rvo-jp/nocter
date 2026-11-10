@@ -50,7 +50,7 @@ impl BodyDependencies {
     /// Rejects changed source or authority through the ordinary paired `BodySource` proof.
     pub fn verify(&self, context: &Context<'_>) -> Result<(), SourceMismatch> {
         for source in self.sources() {
-            source.bind(context)?;
+            source.verify_owner(context)?;
         }
         Ok(())
     }

@@ -241,6 +241,14 @@ its caller/operation/callee key and all permitted views over its immutable ready
 construction-only reservation forbids selecting two callees for one operation. It is discarded
 on freeze; no dispatch search or source syntax enters the program. Branches share declaration,
 namespace and record metadata instead of cloning those authorities.
+Its owner is a complete `ValueCodeRoot`, including a body-local expression identity when selected.
+Different expressions in one source body have distinct suffix, closure and application domains;
+sharing their source owner cannot merge those domains. A declaration branch requires its ready
+contract; an expression branch requires only its enclosing reserved code identity. The parent
+contract need not close for an independent expression. Neither grants source expression pairing
+or evaluator admission. The source
+owner must establish that pairing before ordinary checking. Canonical replay preserves these
+full roots while interning equal structural data as one type.
 That branch also publishes closed single-value closure environment schemas under lexical
 owner/slot code keys. Environment, flat input/result data and inferred invocation are distinct
 schema components. The environment is ordinary closed builtin/record/tuple/array data; Copy follows that
@@ -257,7 +265,7 @@ projection, not body checking.
 
 Canonical replay validates retained ready contracts, exact namespace and sparse-table lineage, persistent
 header-prefix ancestry and each suffix's body owner. It records each body's own prefix boundary;
-an explicit type-scope proof retains the owning callable even when its suffix is empty. A header
+an explicit type-scope proof retains the owning code root even when its suffix is empty. A header
 view, a body branch and a canonical merged product cannot substitute for each other's construction role.
 Later header keys may occupy the same raw positions as an earlier body's suffix. The prefix is
 proof input, never an alternative semantic lookup store. Replay re-interns witness keys and

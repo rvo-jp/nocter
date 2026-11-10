@@ -157,7 +157,9 @@ impl Program {
                 self.codes.get(id)?.result_contract()?;
             }
             ValueFunctionOrigin::Application(application) => {
-                self.codes.get(application.owner)?;
+                if !self.has_type_root(application.owner) {
+                    return None;
+                }
                 self.codes.get(application.callee)?.result_contract()?;
             }
         }

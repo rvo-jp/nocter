@@ -98,10 +98,45 @@ pub enum ValueFunctionOrigin {
     Application(ValueApplication),
 }
 
+/// A required expression within one complete source body, independent of sibling bodies.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct ValueExpression {
+    pub owner: crate::AccessCodeId,
+    pub slot: u32,
+}
+
+/// A checking/type branch root; local expressions do not enter the declaration arena.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum ValueCodeRoot {
+    Declaration(crate::AccessCodeId),
+    Expression(ValueExpression),
+}
+impl From<crate::AccessCodeId> for ValueCodeRoot {
+    fn from(id: crate::AccessCodeId) -> Self {
+        Self::Declaration(id)
+    }
+}
+impl ValueCodeRoot {
+    #[must_use]
+    pub const fn source_owner(self) -> crate::AccessCodeId {
+        match self {
+            Self::Declaration(id) => id,
+            Self::Expression(id) => id.owner,
+        }
+    }
+    #[must_use]
+    pub const fn code(self) -> ValueCode {
+        match self {
+            Self::Declaration(id) => ValueCode::Declaration(id),
+            Self::Expression(id) => ValueCode::Expression(id),
+        }
+    }
+}
+
 /// Body-owned lexical code identity. It carries no source position or environment address.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ValueClosure {
-    pub owner: crate::AccessCodeId,
+    pub owner: ValueCodeRoot,
     pub slot: u32,
 }
 
@@ -109,30 +144,37 @@ pub struct ValueClosure {
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum ValueCode {
     Declaration(crate::AccessCodeId),
+    Expression(ValueExpression),
     Closure(ValueClosure),
 }
 impl ValueCode {
     #[must_use]
-    pub const fn origin(self) -> ValueFunctionOrigin {
+    pub const fn origin(self) -> Option<ValueFunctionOrigin> {
         match self {
-            Self::Declaration(id) => ValueFunctionOrigin::Declaration(id),
-            Self::Closure(id) => ValueFunctionOrigin::Closure(id),
+            Self::Declaration(id) => Some(ValueFunctionOrigin::Declaration(id)),
+            Self::Closure(id) => Some(ValueFunctionOrigin::Closure(id)),
+            Self::Expression(_) => None,
+        }
+    }
+    #[must_use]
+    pub const fn root(self) -> ValueCodeRoot {
+        match self {
+            Self::Declaration(id) => ValueCodeRoot::Declaration(id),
+            Self::Expression(id) => ValueCodeRoot::Expression(id),
+            Self::Closure(id) => id.owner,
         }
     }
     /// The root code whose complete source body owns this code's reuse guard.
     /// This identity does not grant a name, function witness or invocation contract.
     #[must_use]
     pub const fn source_owner(self) -> crate::AccessCodeId {
-        match self {
-            Self::Declaration(id) => id,
-            Self::Closure(id) => id.owner,
-        }
+        self.root().source_owner()
     }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ValueApplication {
-    pub owner: crate::AccessCodeId,
+    pub owner: ValueCodeRoot,
     pub call: crate::AccessExpressionId,
     pub callee: crate::AccessCodeId,
 }

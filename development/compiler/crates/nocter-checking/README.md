@@ -735,6 +735,10 @@ The typed query retains the source owner's paired `BodySource`. Current source b
 input-layout admission use one proof that executable code and this independently retained source
 owner agree.
 The accepted Unit exposes exact code-to-body selection without a name or header/body fallback.
+The model and source owners also distinguish body-local required-expression roots from their
+enclosing declarations. Type branches and selected applications/closures retain those full roots.
+This does not yet admit local count checking/evaluation: input-layout and Unit/target boundaries
+explicitly reject that code role until the ordinary lexical/value-query connection closes.
 
 `body_inputs` owns coverage and contract validation of the typed body's input layout: one optional
 environment channel and an authored-order sequence of explicit input slots and operations. Named
