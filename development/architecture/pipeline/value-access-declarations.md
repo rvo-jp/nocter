@@ -116,8 +116,8 @@ closed type metadata. Header evidence alone grants no value/storage admission. C
 [listed-construction boundary](../../compiler/crates/nocter-checking/README.md#array-construction)
 separately qualifies whole-array body/resource/evaluator handoffs. Its
 [read-selection path](../../compiler/crates/nocter-checking/README.md#array-selection) retains evaluated
-element addresses and qualifies bounded edit call inputs and scoped edit aliases. Direct indexed
-replacement/transfer, partial state and native array storage remain gated.
+element addresses and qualifies bounded edit call inputs, scoped edit aliases and complete direct
+replacement. Element transfer, partial state and native array storage remain gated.
 Body contents, source coordinates, declaration traversal order, and later Copy specialization cannot
 change a declared input operation. Definition
 order cannot renumber parameters. Reordering source declarations may invalidate a

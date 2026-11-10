@@ -94,12 +94,12 @@ pub(super) fn apply(
             if replacement.mode != Mode::Own {
                 return Err(Failure::Integrity);
             }
-            let (region, actor) = context.base(*target)?.ok_or(Failure::Integrity)?;
+            let (region, actor) = context.referent(*target)?.ok_or(Failure::Integrity)?;
             context.write(&region, actor, Mode::Update, None)?;
         }
         Operation::CompoundAssign { target, value, .. } => {
             context.read(context.world.value(*value)?)?;
-            let (region, actor) = context.base(*target)?.ok_or(Failure::Integrity)?;
+            let (region, actor) = context.referent(*target)?.ok_or(Failure::Integrity)?;
             context.write(&region, actor, Mode::Update, None)?;
         }
         Operation::Drop(local) => context.destroy(*local)?,

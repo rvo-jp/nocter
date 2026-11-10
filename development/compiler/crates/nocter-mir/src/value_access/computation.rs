@@ -343,7 +343,7 @@ impl Builder<'_> {
                 };
                 let operation = *operation;
                 let data = self.expression(value)?;
-                let left = self.selected(target, data)?;
+                let left = self.referent(target, data)?;
                 let right = self.value(value)?;
                 binary(operation, left.clone(), right, left).ok_or_else(|| self.invalid())?
             }

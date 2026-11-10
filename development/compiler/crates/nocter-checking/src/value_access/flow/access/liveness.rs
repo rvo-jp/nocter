@@ -109,6 +109,18 @@ fn prepared_use(
     Ok((carrier, argument_updates(arg)))
 }
 
+fn replaced_local(
+    typed: &TypedQuery,
+    target: Referent,
+) -> Result<Option<AccessLocalId>, IntegrityError> {
+    let Some(place) = target.place() else {
+        return Ok(None);
+    };
+    let place = typed.body().places().get(place).ok_or(INVALID)?;
+    let local = typed.body().locals().get(place.local).ok_or(INVALID)?;
+    Ok((place.fields.is_root() && local.access().mode() == Mode::Own).then_some(place.local))
+}
+
 fn plan(
     typed: &TypedQuery,
     operation: &Operation,
@@ -148,25 +160,15 @@ fn plan(
         }
         Operation::Assign { target, value } => {
             uses.push((Carrier::Expression(*value), false));
-            let place = typed.body().places().get(*target).ok_or(INVALID)?;
-            if place.fields.is_root()
-                && typed
-                    .body()
-                    .locals()
-                    .get(place.local)
-                    .ok_or(INVALID)?
-                    .access()
-                    .mode()
-                    == Mode::Own
-            {
-                definitions.push(Carrier::Local(place.local));
+            if let Some(local) = replaced_local(typed, *target)? {
+                definitions.push(Carrier::Local(local));
             } else {
-                uses.push((Carrier::Local(place.local), true));
+                uses.push((referent_carrier(typed, *target)?, true));
             }
         }
         Operation::CompoundAssign { target, value, .. } => {
             uses.push((Carrier::Expression(*value), false));
-            uses.push((Carrier::Local(root(typed, *target)?), true));
+            uses.push((referent_carrier(typed, *target)?, true));
         }
         Operation::Drop(local) => {
             uses.push((Carrier::Local(*local), true));

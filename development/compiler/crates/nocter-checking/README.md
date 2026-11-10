@@ -300,9 +300,9 @@ input does not accidentally acquire a copied or moved value. Unsigned negation f
 checked subtraction operation as zero minus the operand. i32/usize range checks use the model's
 numeric profile; the private source currently qualifies its 64-bit usize only. Header and
 [body-local array lengths](#body-local-required-expressions) use ordinary usize checking and
-required execution. [Listed array values](#array-construction) share the ordinary aggregate path;
-direct indexed replacement/transfer retain explicit implementation gates.
-[Read selection](#array-selection) uses evaluated element addresses.
+required execution. [Listed array values](#array-construction) share the ordinary aggregate path.
+[Selection and complete replacement](#array-selection) use evaluated element addresses;
+element transfer and partial-state operations retain explicit implementation gates.
 
 `ValueType` keeps known result access separately from possible normal completion. Calls,
 construction, operators and compatible branches retain known data on interruption. Type inference
@@ -798,8 +798,8 @@ values are not exposed as named constants or runtime-callable bodies. Listed con
 whole-value handoffs use the [array construction path](#array-construction), and
 [read selection](#array-selection) retains evaluated element addresses. Repetition uses the same
 count authority and a compact value operation. Count completion precedes ordinary seed preparation,
-including at zero. Direct indexed replacement/transfer and native array storage retain explicit
-authored gates; precise element-state proofs remain integration work.
+including at zero. Complete indexed replacement uses the same selected-address path; element
+transfer, partial state and native array storage retain explicit authored gates.
 
 ## Array Construction
 
@@ -855,33 +855,42 @@ The index receives the ordinary expected usize boundary. Signed variables, boole
 names and out-of-range literal magnitudes keep their local diagnostics. Mixed member/index reads
 prepare iteratively through both source checking and graph scheduling. An existing static member
 prefix remains one ordinary selected place; subsequent fields retain the evaluated referent instead
-of copying intermediate records or arrays. Direct indexed transfer/assignment and calls through
-indexed components still check the first index's operands before an explicit unsupported-data
-rejection. Long unclosed postfix chains do not recursively prepare intervening calls. User index
-protocols remain unadmitted.
+of copying intermediate records or arrays. Direct indexed transfer and calls through indexed
+components still check the first index's operands before an explicit unsupported-data rejection.
+Long unclosed postfix chains do not recursively prepare intervening calls. User index protocols
+remain unadmitted.
 
 `Referent` is one typed-body operand for either a static selected place or an evaluated access
 expression, including member projections from an evaluated access. Read reservations, Copy supply,
-alias binding, liveness and evaluator projection consume that operand without synthetic locals or a
-second owner map. A read input reserves the selected address; a taking Copy input snapshots its
+alias binding, assignment targets, liveness and evaluator projection consume that operand without
+synthetic locals or a second owner map. A read input reserves the selected address; a taking Copy input snapshots its
 payload at preparation and holds no later read reservation. The graph evaluates the base and index
 once, in order, before publishing the selection. The evaluator retains the numeric address, rather
 than reloading the user's index variable; computed Copy results use the same bounds/address
 operation with a data destination.
 
-Edit inputs and scoped edit bindings resolve writable source authority through
+Edit inputs, scoped edit bindings and direct assignment resolve writable source authority through
 `Referent::static_base`, using the same declared binding authority as static places. The [shared
 access model](#shared-flow-access-and-resource-validation) separates retained projections from
 active read/edit grants. Edit inputs activate at bundle commit, while a scoped edit binding
 activates at its declaration. Later call operands may read before activation but cannot invalidate a
 reserved array. Captured-element edits use the same base resolution to select invocation mode.
 
+Direct assignment and compound update prepare the RHS before evaluating the target. The target's
+base and indices execute once in the same evaluation frame; a failing or exiting RHS skips them,
+and a target exit cleans the prepared replacement without publishing a write. Compound updates read
+the old selected value after target preparation. Static and evaluated targets share `Referent`;
+static owner restoration retains its ordinary initialization transition. Evaluated replacement
+requires existing complete storage and uses the same exact-address `ReplaceReferent` resource
+handoff as scoped edit aliases, without interpreting the covering conflict footprint as a concrete
+ownership path.
+
 The initial initialization/access proof requires the containing array complete and conservatively
 protects its footprint, including during index evaluation. A covering marker prevents fields of a
 selected record element from being appended directly to that array prefix or creating false
 disjointness. Fields outside the containing array remain independent. This is no precise
-index-equality, element-hole or restoration proof. Direct indexed replacement, transfer and
-partial-state admission still require the [evaluated-selection
+index-equality, element-hole or restoration proof. Element transfer and partial-state admission
+still require the [evaluated-selection
 closure](../../../design/compiler-realization.md#evaluated-array-selection-closure) over the [shared
 path relation](../nocter-model/README.md#structural-projection-relations).
 
@@ -893,7 +902,10 @@ qualify listed/repeated and non-Copy data, edit parameters/aliases, saved indice
 rejection, conservative overlap, preparation ordering, interruption and captured-environment
 invocation. Scoped indexed aliases additionally qualify exact record/field replacement, saved
 indices, Copy snapshots, read-child exclusivity, read-only/computed rejection, bounded error cleanup
-responsibility and deep update-demand propagation. Required bounds failure reports E0325 without
+responsibility and deep update-demand propagation. Direct writes additionally qualify RHS/index
+order, compound reads after RHS effects, mixed record fields, non-Copy replacement, interrupted
+RHS/target cleanup, loop re-execution, maximum-count sparse Copy snapshots, zero/out-of-range
+bounds and read-only/overlapping target rejection. Required bounds failure reports E0325 without
 publishing a value. Compile-time selection also reaches the [common native
 consumer](../../../architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
 when its frozen result is scalar; this does not admit runtime array storage or array ABI.

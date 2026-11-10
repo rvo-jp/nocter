@@ -82,10 +82,6 @@ fn scopes_and_unclosed_writes_cannot_turn_an_existing_element_into_an_editable_c
             "func work(take values: [i32; 2]): void { let selected = values[0]^ }",
             crate::value_access::Rule::UnsupportedData,
         ),
-        (
-            "func work(take values: [i32; 2]): void { values[0] = 1 }",
-            crate::value_access::Rule::UnsupportedData,
-        ),
     ] {
         let (sources, tree) = input(source);
         assert!(

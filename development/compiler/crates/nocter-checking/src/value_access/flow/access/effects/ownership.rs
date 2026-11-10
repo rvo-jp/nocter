@@ -318,26 +318,44 @@ impl Context<'_, '_> {
     }
     fn assign_ownership(
         &mut self,
-        target: nocter_model::AccessPlaceId,
+        target: crate::value_access::Referent,
         value: AccessExpressionId,
     ) -> Result<()> {
-        let selected = self
+        let data = self
             .typed
             .body()
-            .places()
-            .get(target)
+            .referent_data(target)
             .ok_or(Failure::Integrity)?;
-        if self.local_mode(selected.local)? == Mode::Update {
+        let scoped = match target {
+            crate::value_access::Referent::Evaluated(id) => Some(Holder::Expression(id).place()),
+            crate::value_access::Referent::Place(id) => {
+                let place = self
+                    .typed
+                    .body()
+                    .places()
+                    .get(id)
+                    .ok_or(Failure::Integrity)?;
+                match self.local_mode(place.local)? {
+                    Mode::Own => None,
+                    Mode::Update => Some(
+                        Holder::Local(place.local)
+                            .place()
+                            .project_path(&place.fields),
+                    ),
+                    Mode::Read => return Err(Failure::Integrity),
+                }
+            }
+        };
+        if let Some(destination) = scoped {
             self.world.resources.replace_referent(
                 self.typed.program(),
                 &Holder::Expression(value).place(),
-                &Holder::Local(selected.local)
-                    .place()
-                    .project_path(&selected.fields),
-                selected.data,
+                &destination,
+                data,
                 &mut self.steps,
             )?;
         } else {
+            let target = target.place().ok_or(Failure::Integrity)?;
             let (root, _) = self.base(target)?.ok_or(Failure::Integrity)?;
             let Root::Owned(local) = root.root else {
                 return Err(Failure::Integrity);

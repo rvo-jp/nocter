@@ -1,0 +1,23 @@
+const func produce(edit log: i32): i32 {
+    log = log * 10 + 1
+    40
+}
+
+const func position(edit log: i32): usize {
+    log = log * 10 + 2
+    18446744073709551614
+}
+
+const func calculate(): i32 {
+    var values = [0; 18446744073709551615]
+    var log = 0
+    values[position(log)] = produce(log)
+    values[18446744073709551614] += 2
+    values[18446744073709551614] + log - 12
+}
+
+const ANSWER: i32 = calculate()
+
+func run(): i32 {
+    ANSWER
+}

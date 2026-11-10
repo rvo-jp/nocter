@@ -594,16 +594,7 @@ impl<'a, 's> Checker<'a, 's> {
             }
             Mode::Update => {
                 if let Some(referent) = place {
-                    let local = referent
-                        .static_base(|id| self.expressions.get(id))
-                        .ok_or(Failure::InconsistentSyntax)?;
-                    if !self.writable_place(local) {
-                        return self.reject_local(
-                            Rule::InvalidUpdate,
-                            node,
-                            self.selected_place(local).local,
-                        );
-                    }
+                    self.require_writable_referent(referent, node, Rule::InvalidUpdate)?;
                     BoundaryAction::DelegateUpdate
                 } else {
                     return self.reject(Rule::InvalidUpdate, node);

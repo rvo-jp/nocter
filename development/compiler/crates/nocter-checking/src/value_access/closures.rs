@@ -292,7 +292,9 @@ fn invocation(
                     }
                 }
                 Operation::Assign { target, .. } | Operation::CompoundAssign { target, .. }
-                    if selects(target) =>
+                    if target
+                        .static_base(|id| body.expressions().get(id))
+                        .is_some_and(selects) =>
                 {
                     invocation = ValueInvocation::Edit;
                 }

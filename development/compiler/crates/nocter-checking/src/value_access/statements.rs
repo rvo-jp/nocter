@@ -5,8 +5,8 @@ use super::{
     ir::{Boundary, Local, LocalOrigin, Statement, ValueType},
 };
 use nocter_model::{
-    AccessBlockId, AccessPlaceId, AccessStatementId, BuiltinType, ValueAccess as Ty,
-    ValueAccessMode as Mode, ValueBindingKind,
+    AccessBlockId, AccessStatementId, BuiltinType, ValueAccess as Ty, ValueAccessMode as Mode,
+    ValueBindingKind,
 };
 use nocter_syntax::{
     ContextualSpelling, Keyword, NodeId, NodeKind, Punctuation, SyntaxOrigin,
@@ -240,18 +240,30 @@ impl Checker<'_, '_> {
         ))
     }
 
-    fn writable(&mut self, node: NodeId) -> Result<AccessPlaceId, Failure> {
-        let local = self.place(node, Rule::NotWritable)?;
-        if !self.writable_place(local) {
-            return self.reject_local(Rule::NotWritable, node, self.selected_place(local).local);
-        }
-        Ok(local)
+    fn writable(&mut self, node: NodeId, reachable: bool) -> Result<super::Referent, Failure> {
+        let target = if self.first_array_index(node)?.is_some() {
+            let value = self.expression(node, None, reachable)?;
+            let Some(target) = self.expression_referent(value) else {
+                return self.reject(Rule::NotWritable, node);
+            };
+            target
+        } else {
+            self.place(node, Rule::NotWritable)?.into()
+        };
+        self.require_writable_referent(target, node, Rule::NotWritable)?;
+        Ok(target)
     }
     fn assignment(&mut self, node: NodeId, reachable: bool) -> Result<(Statement, bool), Failure> {
         // The target identity is structural; evaluation and flow of the RHS precede replacement.
-        let target = self.writable(self.direct(node, NodeKind::AssignmentTarget)?)?;
+        let target = self.writable(self.direct(node, NodeKind::AssignmentTarget)?, reachable)?;
         let expression = self.direct(node, NodeKind::Expression)?;
-        let data = self.place_ty(target).data();
+        let target_type = target
+            .value_type(|id| self.places.get(id), |id| self.expressions.get(id))
+            .ok_or(Failure::InconsistentSyntax)?;
+        let data = target_type
+            .access()
+            .ok_or(Failure::InconsistentSyntax)?
+            .data();
         let value = self.expression(
             expression,
             Some(Boundary::Binding(Ty::new(data, Mode::Own))),
@@ -269,7 +281,10 @@ impl Checker<'_, '_> {
                 value,
             }
         };
-        Ok((statement, self.ty(value).may_complete()))
+        Ok((
+            statement,
+            self.ty(value).may_complete() && target_type.may_complete(),
+        ))
     }
     fn loop_statement(
         &mut self,

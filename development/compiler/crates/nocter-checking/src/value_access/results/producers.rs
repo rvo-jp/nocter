@@ -78,7 +78,7 @@ pub(super) fn analyze(control: &flow::Control) -> Result<Report, flow::Integrity
                     state.insert(Key::Local(local), producers);
                 }
                 flow::Operation::Assign {
-                    target,
+                    target: crate::value_access::Referent::Place(target),
                     value: source,
                 } => {
                     let place = query.body.places.get(target).ok_or(INVALID)?;

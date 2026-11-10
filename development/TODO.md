@@ -18,18 +18,13 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Close complete direct indexed assignment/compound update through the same evaluated referent and
-replacement handoff. Preserve RHS-first evaluation, one target/index evaluation, interruption
-cleanup, writable authority, saved addresses and the existing conservative array footprint.
-Do not admit element transfer or hole restoration without their separate retained-index proof.
-
 Connect general evaluated selections to one checking-owned source of retained-index facts for
 initialization, access and resource flow. The [selection path](compiler/crates/nocter-checking/README.md#array-selection)
 conservatively covers a complete containing array; the [closed evaluator address mechanism](compiler/crates/nocter-constant-evaluation/README.md#evaluated-array-addresses)
 is an execution consumer, not proof of precise element-state safety. Preserve the evaluated numeric
 index through reservations, aliases and holes; equal recipe keys across a backedge do not establish equal values.
 Use the existing canonical address/value storage and shared structural relation, without a second
-ownership registry. Direct indexed assignment, element transfer and partial-state admission remain gated until the
+ownership registry. Element transfer and partial-state admission remain gated until the
 [evaluated-selection closure](design/compiler-realization.md#evaluated-array-selection-closure)
 closes joins, loops and cleanup alongside the ordinary whole-value construction path. Native array
 storage and ABI remain separate consumers to close before product admission.

@@ -130,6 +130,19 @@ impl Referent {
             Self::Evaluated(_) => None,
         }
     }
+    pub(super) fn value_type<'a>(
+        self,
+        place: impl Fn(AccessPlaceId) -> Option<&'a Place>,
+        expression: impl Fn(AccessExpressionId) -> Option<&'a Expression>,
+    ) -> Option<ValueType> {
+        match self {
+            Self::Place(id) => Some(value_type(place(id)?.data, ValueAccessMode::Read)),
+            Self::Evaluated(id) => {
+                let expression = expression(id)?;
+                (expression.referent(id) == Some(self)).then_some(expression.ty)
+            }
+        }
+    }
     /// Resolve only the existing base authority, never a concrete element path or an index
     /// equality proof. Callers retain the evaluated address separately.
     pub(super) fn static_base<'a>(
@@ -352,11 +365,11 @@ pub enum Statement {
     Discard(AccessExpressionId),
     Evaluate(AccessExpressionId),
     Assign {
-        target: AccessPlaceId,
+        target: Referent,
         value: AccessExpressionId,
     },
     CompoundAssign {
-        target: AccessPlaceId,
+        target: Referent,
         operation: Binary,
         value: AccessExpressionId,
     },
@@ -427,14 +440,10 @@ pub struct TypedBody {
 impl TypedBody {
     #[must_use]
     pub fn referent_data(&self, referent: Referent) -> Option<TypeId> {
-        match referent {
-            Referent::Place(place) => Some(self.places.get(place)?.data),
-            Referent::Evaluated(id) => {
-                let expression = self.expressions.get(id)?;
-                (expression.referent(id) == Some(referent))
-                    .then_some(expression.ty.access()?.data())
-            }
-        }
+        referent
+            .value_type(|id| self.places.get(id), |id| self.expressions.get(id))?
+            .access()
+            .map(ValueAccess::data)
     }
 
     /// Body-local address views, independent of callable input channels and source spelling.

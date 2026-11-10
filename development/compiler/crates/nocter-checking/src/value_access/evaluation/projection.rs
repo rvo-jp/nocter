@@ -269,12 +269,8 @@ impl Builder<'_, '_> {
                 else {
                     return Err(INVALID);
                 };
-                binary(
-                    *operation,
-                    self.selected(target)?,
-                    self.selected(target)?,
-                    self.value(value)?,
-                )?
+                let target = self.referent(target)?;
+                binary(*operation, target.clone(), target, self.value(value)?)?
             }
             flow::Operation::PrepareArgument {
                 call,

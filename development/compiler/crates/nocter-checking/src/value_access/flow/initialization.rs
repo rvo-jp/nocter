@@ -356,7 +356,7 @@ fn transfer(
                 assign(typed, state, *target, location, violations, cleanup)?;
             }
             Operation::CompoundAssign { target, .. } => {
-                require_place(typed, state, *target, location, violations)?;
+                require_referent(typed, state, *target, location, violations)?;
             }
             Operation::Drop(local) => {
                 require(
@@ -455,11 +455,17 @@ fn evaluate(
 fn assign(
     typed: &TypedQuery,
     state: &mut State,
-    target: AccessPlaceId,
+    target: Referent,
     location: Location,
     violations: &mut Vec<InitializationViolation>,
     cleanup: &mut Vec<CleanupFact>,
 ) -> Result<(), IntegrityError> {
+    let Some(place) = target.place() else {
+        // An admitted evaluated target refers to complete existing array storage. Its
+        // preparation owns the bounds/initialization check; replacement preserves completeness.
+        return require_referent(typed, state, target, location, violations);
+    };
+    let target = place;
     let place = selected(typed, target)?;
     let mode = typed
         .body()

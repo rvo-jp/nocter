@@ -354,6 +354,20 @@ impl Checker<'_, '_> {
         self.expressions.get(expr)?.referent(expr)
     }
 
+    pub(super) fn require_writable_referent(
+        &self,
+        source: super::Referent,
+        node: NodeId,
+        rule: Rule,
+    ) -> Result<(), Failure> {
+        let place = source
+            .static_base(|id| self.expressions.get(id))
+            .ok_or(Failure::InconsistentSyntax)?;
+        if !self.writable_place(place) {
+            return self.reject_local(rule, node, self.selected_place(place).local);
+        }
+        Ok(())
+    }
     pub fn writable_place(&self, place: AccessPlaceId) -> bool {
         self.writable_local(self.selected_place(place).local)
     }

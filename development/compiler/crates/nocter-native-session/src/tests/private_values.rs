@@ -504,6 +504,13 @@ fn private_array_computation_is_frozen_before_native_instance_closure() {
                 "/../../tests/fixtures/native/value-access/array-const-scoped-edit.nct"
             )),
         ),
+        (
+            "array-const-indexed-write",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../tests/fixtures/native/value-access/array-const-indexed-write.nct"
+            )),
+        ),
     ] {
         let package = TempPackage::new();
         execute_native_status(&compile(source), &package.0, name, 42);

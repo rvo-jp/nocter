@@ -324,3 +324,5 @@ mod array_repetition;
 mod indexed_edits;
 
 mod indexed_aliases;
+
+mod indexed_writes;

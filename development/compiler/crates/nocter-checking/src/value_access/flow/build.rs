@@ -311,6 +311,21 @@ impl Builder<'_> {
             self.frames.truncate(depth);
             return Ok(None);
         };
+        let target = match &continuation {
+            Operation::Assign { target, .. } | Operation::CompoundAssign { target, .. } => {
+                Some(*target)
+            }
+            _ => None,
+        };
+        let point = if let Some(crate::value_access::Referent::Evaluated(target)) = target {
+            let Some(point) = self.expression(target, point)? else {
+                self.frames.truncate(depth);
+                return Ok(None);
+            };
+            point
+        } else {
+            point
+        };
         self.action(point, origin, continuation)?;
         self.end(value, point)?;
         Ok(Some(point))
