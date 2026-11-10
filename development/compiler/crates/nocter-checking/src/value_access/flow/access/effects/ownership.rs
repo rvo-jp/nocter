@@ -259,6 +259,9 @@ impl Context<'_, '_> {
         fields: &nocter_model::FieldPath,
         action: SelectionAction,
     ) -> Result<()> {
+        if action == SelectionAction::Access {
+            return Ok(());
+        }
         let selected = Holder::Expression(source).place().project_path(fields);
         if action == SelectionAction::MovePayload {
             self.world.resources.move_to(

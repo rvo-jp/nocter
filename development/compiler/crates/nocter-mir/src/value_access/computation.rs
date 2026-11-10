@@ -161,16 +161,16 @@ impl Builder<'_> {
             ExpressionKind::Select {
                 source,
                 fields,
-                action: SelectionAction::CopyPayload,
+                action: action @ (SelectionAction::CopyPayload | SelectionAction::Access),
             } => {
-                let mut source = self.value(source)?;
-                let mut projections = source.projections.to_vec();
-                projections.extend(fields.fields().iter().copied().map(Projection::Field));
-                source.projections = projections.into();
-                source.data = destination.data;
-                Operation::Copy {
-                    source,
-                    destination,
+                let source = self.component(source, &fields, destination.data)?;
+                if action == SelectionAction::Access {
+                    Self::alias(source, destination.slot)
+                } else {
+                    Operation::Copy {
+                        source,
+                        destination,
+                    }
                 }
             }
             ExpressionKind::Move(_)
@@ -184,6 +184,19 @@ impl Builder<'_> {
             ExpressionKind::If { .. } | ExpressionKind::Call { .. } => return Err(self.invalid()),
         };
         Ok(vec![operation])
+    }
+    fn component(
+        &mut self,
+        source: AccessExpressionId,
+        fields: &nocter_model::FieldPath,
+        data: nocter_model::TypeId,
+    ) -> Result<Place, Failure> {
+        let mut source = self.value(source)?;
+        let mut projections = source.projections.to_vec();
+        projections.extend(fields.fields().iter().copied().map(Projection::Field));
+        source.projections = projections.into();
+        source.data = data;
+        Ok(source)
     }
     fn call(&mut self, id: AccessExpressionId) -> Result<Call, Failure> {
         let selected = self

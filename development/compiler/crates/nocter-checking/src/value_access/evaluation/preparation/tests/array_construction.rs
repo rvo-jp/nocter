@@ -136,6 +136,16 @@ fn primitive_index_operands_keep_ordinary_local_diagnostics() {
         ("items: [i32; 2]", "items[true] = 1", BodyRule::TypeMismatch),
         ("items: i32", "let value = items[0]", BodyRule::TypeMismatch),
         (
+            "items: [i32; 2]",
+            "let value = items[0].field",
+            BodyRule::UnknownField,
+        ),
+        (
+            "items: [i32; 2]",
+            "let value = items[true].field",
+            BodyRule::TypeMismatch,
+        ),
+        (
             "index: i32",
             "let value = [1, 2][index]",
             BodyRule::TypeMismatch,

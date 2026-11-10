@@ -174,3 +174,75 @@ fn interrupted_index_preparation_publishes_no_element_or_call_input() {
     let source = "const func consume(take values: [i32; 2], value: i32): i32 { 0 }\nconst func work(): i32 { let values = [1, 2]\nconsume(values^, [3, 4][if true { return 42 } else { 0 }]) }\nconst ANSWER: i32 = work()";
     assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
 }
+
+#[test]
+fn mixed_member_and_index_reads_keep_saved_addresses_without_copying_intermediates() {
+    let source = "struct Row { values: [i32; 2] }\nconst func work(): i32 { let rows = [Row { values: [1, 10] }, Row { values: [2, 32] }]\nvar index: usize = 0\nread first = ((rows[index]).values)[1]\nindex = 1\nfirst + rows[index].values[1] }\nconst ANSWER: i32 = work()";
+    assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
+}
+#[test]
+fn selected_field_reads_reserve_while_taking_copy_fields_snapshot() {
+    let source = "struct Row { value: i32 }\nconst func replace(edit rows: [Row; 1]): i32 { rows = [Row { value: 9 }]\n0 }\nconst func inspect(take value: i32, extra: i32): i32 { value + extra }\nconst func work(): i32 { var rows = [Row { value: 42 }]\ninspect(rows[0].value, replace(rows)) }\nconst ANSWER: i32 = work()";
+    assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
+    let invalid = source.replace("inspect(take value", "inspect(value");
+    let (sources, tree) = input(&invalid);
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Flow { .. }))
+    ));
+}
+#[test]
+fn selected_fields_keep_covering_footprints_and_independent_outer_fields() {
+    let source = "struct Row { value: i32 }\nstruct Pair { rows: [Row; 1]\nother: i32 }\nconst func work(): i32 { var pair = Pair { rows: [Row { value: 10 }], other: 0 }\nread selected = pair.rows[0].value\npair.other = 32\nselected + pair.other }\nconst ANSWER: i32 = work()";
+    assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
+    let invalid = "struct Row { value: i32 }\nfunc work(): void { var rows = [Row { value: 1 }]\nread selected = rows[0].value\nrows = [Row { value: 2 }]\nlet _ = selected }";
+    let (sources, tree) = input(invalid);
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Flow { .. }))
+    ));
+}
+#[test]
+fn computed_selected_fields_remain_values_and_noncopy_reads_do_not_gain_ownership() {
+    let source = "copy struct Row { value: i32 }\nconst func change(edit value: i32): i32 { value += 1\nvalue }\nconst ANSWER: i32 = change([Row { value: 40 }][0].value) + 1";
+    assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
+    for (source, rule) in [
+        (
+            "copy struct Row { value: i32 }\nfunc work(): void { read selected = ([Row { value: 42 }][0]).value }",
+            crate::value_access::Rule::TypeMismatch,
+        ),
+        (
+            "struct Resource { value: i32 }\nstruct Row { resource: Resource }\nfunc work(rows: [Row; 1]): Resource { rows[0].resource }",
+            crate::value_access::Rule::MissingTransfer,
+        ),
+        (
+            "struct Row { value: i32 }\nfunc change(edit value: i32): void {}\nfunc work(take rows: [Row; 1]): void { change(rows[0].value) }",
+            crate::value_access::Rule::UnsupportedData,
+        ),
+    ] {
+        let (sources, tree) = input(source);
+        assert!(
+            matches!(SourceUnit::prepare(bound(&sources, &tree)), Err(SourceFailure::Checking(Failure::Body { failure: crate::value_access::Failure::Rejected(error), .. })) if error.rule() == rule),
+            "{source}"
+        );
+    }
+}
+#[test]
+fn long_alternating_member_index_chains_schedule_each_projection_iteratively() {
+    let mut data = String::from("i32");
+    for _ in 0..128 {
+        data = format!("[({data}, bool); 1]");
+    }
+    accepted(&format!(
+        "func work(values: {data}): i32 {{ values{} }}",
+        "[0].0".repeat(128)
+    ));
+}
+
+#[test]
+fn mixed_projection_indices_run_once_in_order_and_interruption_stops_the_chain() {
+    let source = "struct Row { values: [i32; 1] }\nconst func choose(edit calls: i32, digit: i32): usize { calls = calls * 10 + digit\n0 }\nconst func work(): i32 { let rows = [Row { values: [30] }]\nvar calls = 0\nlet selected = rows[choose(calls, 1)].values[choose(calls, 2)]\nselected + calls }\nconst ANSWER: i32 = work()";
+    assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
+    let source = "struct Row { values: [i32; 1] }\nconst func work(): i32 { let rows = [Row { values: [30] }]\nrows[0].values[if true { return 42 } else { 0 }] }\nconst ANSWER: i32 = work()";
+    assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
+}

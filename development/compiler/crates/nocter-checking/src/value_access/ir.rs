@@ -107,9 +107,10 @@ pub enum BoundaryAction {
     TakeValue,
 }
 
-/// A computed record's selected component supplies a snapshot or a transferred value.
+/// A selected component either identifies existing storage or supplies a computed value.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SelectionAction {
+    Access,
     CopyPayload,
     MovePayload,
 }
@@ -300,6 +301,10 @@ impl Expression {
             ExpressionKind::Place(place) => Some(Referent::Place(place)),
             ExpressionKind::Index {
                 action: IndexAction::Access,
+                ..
+            }
+            | ExpressionKind::Select {
+                action: SelectionAction::Access,
                 ..
             } => Some(Referent::Evaluated(id)),
             _ => None,

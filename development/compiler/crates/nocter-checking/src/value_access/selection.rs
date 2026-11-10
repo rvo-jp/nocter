@@ -28,23 +28,23 @@ impl Checker<'_, '_> {
                 && let [base, suffix] = children.as_slice()
                 && self.kind(*suffix)? == NodeKind::MemberSuffix
             {
-                members.push(
-                    nocter_syntax::direct_token_iter(self.syntax().tree(), *suffix)
-                        .find(|token| {
-                            matches!(
-                                token.kind(),
-                                nocter_syntax::TokenKind::Identifier
-                                    | nocter_syntax::TokenKind::IntegerLiteral
-                            )
-                        })
-                        .ok_or(Failure::InconsistentSyntax)?,
-                );
+                members.push(self.member_token(*suffix)?);
                 current = self.unwrap(*base)?;
             } else {
                 members.reverse();
                 return Ok((current, members));
             }
         }
+    }
+    fn member_token(&self, suffix: NodeId) -> Result<SyntaxToken, Failure> {
+        nocter_syntax::direct_token_iter(self.syntax().tree(), suffix)
+            .find(|token| {
+                matches!(
+                    token.kind(),
+                    nocter_syntax::TokenKind::Identifier | nocter_syntax::TokenKind::IntegerLiteral
+                )
+            })
+            .ok_or(Failure::InconsistentSyntax)
     }
     pub fn transfer(&mut self, node: NodeId) -> Result<AccessExpressionId, Failure> {
         let source = self.unwrap(self.first_child(node)?)?;
@@ -158,6 +158,9 @@ impl Checker<'_, '_> {
         node: NodeId,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
+        if self.first_array_index(node)?.is_some() {
+            return self.indexed_value(node, reachable);
+        }
         let (root, members) = self.selection(node)?;
         if let Some(name) = self.name_token(root)?
             && let Some(local) = self.named_place(name)?
@@ -166,13 +169,32 @@ impl Checker<'_, '_> {
             return self.emit_place(node, place);
         }
         let source = self.expression(root, None, reachable)?;
+        self.component_value(node, source, &members)
+    }
+    fn component_value(
+        &mut self,
+        node: NodeId,
+        source: AccessExpressionId,
+        members: &[SyntaxToken],
+    ) -> Result<AccessExpressionId, Failure> {
         let Some(access) = self.ty(source).access() else {
-            return self.reject(Rule::UnknownResultType, root);
+            return self.reject(Rule::UnknownResultType, node);
         };
+        let (fields, data) = self.fields(access.data(), members)?;
+        if self.expression_referent(source).is_some() {
+            return self.emit(
+                node,
+                value_type(data, Mode::Read).with_continuation(self.ty(source).may_complete()),
+                ExpressionKind::Select {
+                    source,
+                    fields,
+                    action: SelectionAction::Access,
+                },
+            );
+        }
         if access.mode() != Mode::Own {
             return Err(Failure::InconsistentSyntax);
         }
-        let (fields, data) = self.fields(access.data(), &members)?;
         if let ExpressionKind::Constant(mut value) = self
             .expressions
             .get(source)
@@ -221,10 +243,7 @@ impl Checker<'_, '_> {
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
         let node = self.unwrap(node)?;
-        if self.kind(node)? == NodeKind::PostfixExpression
-            && let Some(&suffix) = self.children(node).last()
-            && self.kind(suffix)? == NodeKind::IndexSuffix
-        {
+        if self.first_array_index(node)?.is_some() {
             let value = self.expression(node, None, reachable)?;
             if self.expression_referent(value).is_none() {
                 return self.reject(Rule::TypeMismatch, node);

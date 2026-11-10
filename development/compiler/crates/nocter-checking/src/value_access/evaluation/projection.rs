@@ -439,17 +439,8 @@ impl Builder<'_, '_> {
             ExpressionKind::Select {
                 source,
                 fields,
-                action: SelectionAction::CopyPayload,
-            } => {
-                let mut source = self.value(source)?;
-                let mut path = source.fields.to_vec();
-                path.extend(self.fields(&fields)?);
-                source.fields = path.into();
-                plan::Operation::Copy {
-                    destination: plan::Place::root(destination),
-                    source,
-                }
-            }
+                action: action @ (SelectionAction::CopyPayload | SelectionAction::Access),
+            } => self.component_operation(destination, source, &fields, action)?,
             ExpressionKind::Unary { operation, operand } => plan::Operation::Unary {
                 destination,
                 operation: match operation {
@@ -469,6 +460,29 @@ impl Builder<'_, '_> {
                 self.aux(Key::Operand(id, 1), right)?,
             )?,
             _ => return Err(INVALID),
+        })
+    }
+    fn component_operation(
+        &mut self,
+        destination: usize,
+        source: AccessExpressionId,
+        fields: &FieldPath,
+        action: SelectionAction,
+    ) -> Result<plan::Operation> {
+        let mut source = self.value(source)?;
+        let mut path = source.fields.to_vec();
+        path.extend(self.fields(fields)?);
+        source.fields = path.into();
+        Ok(match action {
+            SelectionAction::Access => plan::Operation::Alias {
+                destination,
+                source,
+            },
+            SelectionAction::CopyPayload => plan::Operation::Copy {
+                destination: plan::Place::root(destination),
+                source,
+            },
+            SelectionAction::MovePayload => return Err(INVALID),
         })
     }
     fn index_operation(

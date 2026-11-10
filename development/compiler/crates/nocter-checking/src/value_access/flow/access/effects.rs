@@ -9,6 +9,7 @@ use super::{
 };
 use crate::value_access::{
     ArgumentAction, BoundaryAction, ExpressionKind, IndexAction, Query as TypedQuery, Referent,
+    SelectionAction,
 };
 use nocter_model::{AccessExpressionId, AccessLocalId, AccessPlaceId, ValueAccessMode as Mode};
 
@@ -354,6 +355,17 @@ impl Context<'_, '_> {
                     self.create(Key::Expression(id), Some((region, actor)), Mode::Read)
                 }
             }
+            ExpressionKind::Select {
+                source,
+                ref fields,
+                action: SelectionAction::Access,
+            } => {
+                let Some((mut region, actor)) = self.base_value(self.world.value(source)?)? else {
+                    return Err(Failure::Integrity);
+                };
+                region.project(fields);
+                self.create(Key::Expression(id), Some((region, actor)), Mode::Read)
+            }
             ExpressionKind::Move(place) => {
                 let (region, actor) = self.base(place)?.ok_or(Failure::Integrity)?;
                 self.write(&region, actor, Mode::Own, None)?;
@@ -399,7 +411,10 @@ impl Context<'_, '_> {
             ExpressionKind::Function(_)
             | ExpressionKind::Closure { .. }
             | ExpressionKind::AdaptFunction { .. }
-            | ExpressionKind::Select { .. }
+            | ExpressionKind::Select {
+                action: SelectionAction::CopyPayload | SelectionAction::MovePayload,
+                ..
+            }
             | ExpressionKind::Aggregate { .. }
             | ExpressionKind::Constant(_)
             | ExpressionKind::Integer(_)

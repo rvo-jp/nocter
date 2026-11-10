@@ -6,86 +6,108 @@ use nocter_model::{AccessExpressionId, BuiltinType, ValueAccessMode as Mode};
 use nocter_syntax::{NodeId, NodeKind};
 
 impl Checker<'_, '_> {
-    pub(in crate::value_access) fn array_index(
+    pub(in crate::value_access) fn indexed_value(
         &mut self,
         node: NodeId,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
-        // Walk joint index chains iteratively. One failed inner selection must not recurse
-        // through an arbitrary number of postfix wrappers before reporting its local cause.
         let mut suffixes = Vec::new();
         let mut root = self.unwrap(node)?;
-        loop {
+        while self.kind(root)? == NodeKind::PostfixExpression {
             let children = self.children(root);
-            if self.kind(root)? != NodeKind::PostfixExpression {
-                break;
-            }
             let [base, suffix] = children.as_slice() else {
                 return Err(Failure::InconsistentSyntax);
             };
-            if self.kind(*suffix)? != NodeKind::IndexSuffix {
+            if !matches!(
+                self.kind(*suffix)?,
+                NodeKind::IndexSuffix | NodeKind::MemberSuffix
+            ) {
                 break;
             }
-            suffixes.push((root, *suffix));
+            suffixes.push((root, *base, *suffix));
             root = self.unwrap(*base)?;
         }
-        let mut value = self.expression(root, None, reachable)?;
-        for (node, suffix) in suffixes.into_iter().rev() {
-            let Some(access) = self.ty(value).access() else {
-                return self.reject(Rule::UnknownResultType, root);
-            };
-            let Some(PayloadSchema::Array(array)) = self.program().data_schema(access.data())
-            else {
-                return self.reject_message(
-                    Rule::TypeMismatch,
-                    node,
-                    "this primitive bracket selection needs fixed-array data".into(),
-                    Vec::new(),
-                );
-            };
-            let element = array.element();
-            let index = self.direct(suffix, NodeKind::Expression)?;
-            let index = self.expression(
-                index,
-                Some(Boundary::Value(self.data(BuiltinType::Usize))),
-                reachable && self.ty(value).may_complete(),
-            )?;
-            self.index_element_headers(element, node)?;
-            if matches!(
-                self.program().data_schema(element),
-                Some(PayloadSchema::Function(_))
-            ) {
-                return self.reject(Rule::UnsupportedData, node);
-            }
-            let action = if access.mode() == Mode::Own {
-                if !self.copyable(element) {
-                    return self.reject(Rule::UnsupportedData, node);
+        suffixes.reverse();
+        let Some(first) = suffixes
+            .iter()
+            .position(|&(_, _, suffix)| matches!(self.kind(suffix), Ok(NodeKind::IndexSuffix)))
+        else {
+            return self.reject_array_selection(node, reachable);
+        };
+        // Keep the static member prefix as one ordinary place, so selecting pair.left[i]
+        // does not acquire access to pair.right or copy the containing pair.
+        let mut value = self.expression(suffixes[first].1, None, reachable)?;
+        for (node, _, suffix) in suffixes.into_iter().skip(first) {
+            value = match self.kind(suffix)? {
+                NodeKind::IndexSuffix => self.index_component(node, suffix, value, reachable)?,
+                NodeKind::MemberSuffix => {
+                    self.component_value(node, value, &[self.member_token(suffix)?])?
                 }
-                IndexAction::CopyPayload
-            } else {
-                IndexAction::Access
+                _ => return Err(Failure::InconsistentSyntax),
             };
-            let continues = self.ty(value).may_complete() && self.ty(index).may_complete();
-            value = self.emit(
-                node,
-                value_type(
-                    element,
-                    if action == IndexAction::Access {
-                        Mode::Read
-                    } else {
-                        Mode::Own
-                    },
-                )
-                .with_continuation(continues),
-                ExpressionKind::Index {
-                    base: value,
-                    index,
-                    action,
-                },
-            )?;
         }
         Ok(value)
     }
+    fn index_component(
+        &mut self,
+        node: NodeId,
+        suffix: NodeId,
+        base: AccessExpressionId,
+        reachable: bool,
+    ) -> Result<AccessExpressionId, Failure> {
+        let Some(access) = self.ty(base).access() else {
+            return self.reject(Rule::UnknownResultType, node);
+        };
+        let Some(PayloadSchema::Array(array)) = self.program().data_schema(access.data()) else {
+            return self.reject_message(
+                Rule::TypeMismatch,
+                node,
+                "this primitive bracket selection needs fixed-array data".into(),
+                Vec::new(),
+            );
+        };
+        let element = array.element();
+        let index = self.direct(suffix, NodeKind::Expression)?;
+        let index = self.expression(
+            index,
+            Some(Boundary::Value(self.data(BuiltinType::Usize))),
+            reachable && self.ty(base).may_complete(),
+        )?;
+        self.index_element_headers(element, node)?;
+        if matches!(
+            self.program().data_schema(element),
+            Some(PayloadSchema::Function(_))
+        ) {
+            return self.reject(Rule::UnsupportedData, node);
+        }
+        let action = if access.mode() == Mode::Own {
+            if !self.copyable(element) {
+                return self.reject(Rule::UnsupportedData, node);
+            }
+            IndexAction::CopyPayload
+        } else {
+            IndexAction::Access
+        };
+        let continues = self.ty(base).may_complete() && self.ty(index).may_complete();
+        self.emit(
+            node,
+            value_type(
+                element,
+                if action == IndexAction::Access {
+                    Mode::Read
+                } else {
+                    Mode::Own
+                },
+            )
+            .with_continuation(continues),
+            ExpressionKind::Index {
+                base,
+                index,
+                action,
+            },
+        )
+    }
+
     fn index_element_headers(
         &self,
         element: nocter_model::TypeId,

@@ -827,14 +827,16 @@ an existing element cannot silently become such a temporary. Named constants con
 while immutable statics retain their existing-place identity.
 
 The index receives the ordinary expected usize boundary. Signed variables, booleans, unavailable
-names and out-of-range literal magnitudes keep their local diagnostics. Joint index chains prepare
-iteratively. Element edit/transfer, assignment and mixed index/member/call composition still check
-the first index's operands before an explicit unsupported-data rejection; long unclosed postfix
-chains do not recursively prepare intervening calls. User index protocols remain unadmitted.
+names and out-of-range literal magnitudes keep their local diagnostics. Mixed member/index reads
+prepare iteratively through both source checking and graph scheduling. An existing static member
+prefix remains one ordinary selected place; subsequent fields retain the evaluated referent instead of
+copying intermediate records or arrays. Element edit/transfer, assignment and calls through indexed
+components still check the first index's operands before an explicit unsupported-data rejection.
+Long unclosed postfix chains do not recursively prepare intervening calls. User index protocols remain unadmitted.
 
 `Referent` is one typed-body operand for either a static selected place or an evaluated access
-expression. Read reservations, Copy supply, alias binding, liveness and evaluator projection consume
-that operand without synthetic locals or a second owner map. A read input reserves the selected
+expression, including member projections from an evaluated access. Read reservations, Copy supply,
+alias binding, liveness and evaluator projection consume that operand without synthetic locals or a second owner map. A read input reserves the selected
 address; a taking Copy input snapshots its payload at preparation and holds no later read
 reservation. The graph evaluates the base and index once, in order, before publishing the
 selection. The evaluator retains the numeric address, rather than reloading the user's index
@@ -849,8 +851,8 @@ admission still require the [evaluated-selection closure](../../../design/compil
 over the [shared path relation](../nocter-model/README.md#structural-projection-relations).
 
 Source tests qualify saved aliases after index mutation, loop re-execution, read reservation versus
-Copy snapshots, non-Copy element reads, covering field views, parent/index-side invalidation,
-interrupted preparation, computed-base alias rejection, zero-sized bounds effects and local
+Copy snapshots, non-Copy element/field reads, covering field views, alternating member/index chains,
+once-in-order index effects, parent/index-side invalidation, interrupted preparation, computed-base alias rejection, zero-sized bounds effects and local
 operand failures. Required bounds failure reports E0325 without publishing a value. Compile-time
 selection also reaches the [common native consumer](../../../architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
 when its frozen result is scalar; this does not admit runtime array storage or array ABI.

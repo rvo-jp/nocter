@@ -409,8 +409,9 @@ impl Builder<'_> {
             ExpressionKind::Call { arguments, .. } => return self.call(id, entry, arguments),
             ExpressionKind::Aggregate { fields } => self.record(entry, fields)?,
             ExpressionKind::Closure { capture, .. } => self.expression(*capture, entry)?,
-            ExpressionKind::AdaptFunction { source } | ExpressionKind::Select { source, .. } => {
-                self.expression(*source, entry)?
+            ExpressionKind::AdaptFunction { source } => self.expression(*source, entry)?,
+            ExpressionKind::Select { .. } | ExpressionKind::Index { .. } => {
+                return self.selection_chain(id, entry);
             }
             ExpressionKind::Boundary { source, .. } => {
                 // A selected place boundary uses the address directly. Do not invent an I child
@@ -424,7 +425,6 @@ impl Builder<'_> {
                     self.expression(*source, entry)?
                 }
             }
-            ExpressionKind::Index { .. } => return self.index_chain(id, entry),
             ExpressionKind::Unary { operand, .. } => self.operand(id, 0, *operand, entry)?,
             ExpressionKind::Binary { left, right, .. } => {
                 let Some(point) = self.operand(id, 0, *left, entry)? else {
@@ -445,22 +445,31 @@ impl Builder<'_> {
         }
         Ok(end)
     }
-    fn index_chain(
+    fn selection_chain(
         &mut self,
         mut id: AccessExpressionId,
         entry: AccessFlowPointId,
     ) -> Result<Option<AccessFlowPointId>> {
         let mut chain = Vec::new();
-        while let ExpressionKind::Index { base, index, .. } =
-            self.body.expressions().get(id).ok_or(INVALID)?.kind
-        {
-            chain.push((id, index));
-            id = base;
+        loop {
+            match self.body.expressions().get(id).ok_or(INVALID)?.kind {
+                ExpressionKind::Index { base, index, .. } => {
+                    chain.push((id, Some(index)));
+                    id = base;
+                }
+                ExpressionKind::Select { source, .. } => {
+                    chain.push((id, None));
+                    id = source;
+                }
+                _ => break,
+            }
         }
         let mut point = self.expression(id, entry)?;
         for (id, index) in chain.into_iter().rev() {
             let Some(current) = point else { break };
-            point = self.expression(index, current)?;
+            if let Some(index) = index {
+                point = self.expression(index, current)?;
+            }
             if let Some(current) = point {
                 self.action(current, Origin::Expression(id), Operation::Evaluate(id))?;
             }

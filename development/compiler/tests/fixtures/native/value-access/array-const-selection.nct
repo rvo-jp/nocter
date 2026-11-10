@@ -1,15 +1,17 @@
-const func total(values: [i32; 2]): i32 {
+struct Row { value: i32 }
+
+const func total(values: [Row; 2]): i32 {
     var index: usize = 0
     var answer = 0
     while index < 2 {
-        read selected = values[index]
+        read selected = values[index].value
         index += 1
         answer += selected
     }
     answer
 }
 
-const ANSWER: i32 = total([10, 32])
+const ANSWER: i32 = total([Row { value: 10 }, Row { value: 32 }])
 
 func run(): i32 {
     ANSWER
