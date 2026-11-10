@@ -307,6 +307,11 @@ fn private_record_constants_are_serialized_and_each_use_receives_an_independent_
             "struct Inner { value: i32 }\nstruct Outer { value: Inner\nflag: bool }\nconst DATA: Outer = Outer { value: Inner { value: -42 }, flag: true }\nfunc run(): i32 { let value = DATA.value\n-value.value }",
             42,
         ),
+        (
+            "selected-constant-evaluation",
+            "struct Inner { value: i32 }\nstruct Outer { ignored: (bool, i32)\nselected: Inner }\nconst DATA: Outer = Outer { ignored: (false, 7), selected: Inner { value: 40 } }\nconst func change(take value: Inner): Inner { value.value += 2\nvalue^ }\nconst ANSWER: Inner = change(DATA.selected)\nfunc run(): i32 { if DATA.selected.value == 40 { ANSWER.value } else { 0 } }",
+            42,
+        ),
     ] {
         execute_native_status(&compile(source), &package.0, name, expected);
     }

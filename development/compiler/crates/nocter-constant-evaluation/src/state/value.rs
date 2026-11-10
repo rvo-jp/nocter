@@ -253,25 +253,37 @@ impl Value {
         }
         FrozenData::new(nodes).expect("postorder frozen data")
     }
-    /// Reconstruct immutable plan data, without executing source or expanding shared records.
+    /// Reconstruct the selected immutable plan datum without visiting unrelated graph nodes.
+    /// Shared records remain shared; no source executes during reconstruction.
     #[must_use]
     pub fn from_frozen(data: &nocter_model::FrozenData) -> Option<Self> {
         use nocter_model::{ConstantValue, FrozenNode};
-        let mut values: Vec<Self> = Vec::new();
-        for node in data.nodes() {
-            values.push(match node {
+        let mut values: BTreeMap<usize, Self> = BTreeMap::new();
+        let mut pending = vec![(data.root(), false)];
+        while let Some((id, expanded)) = pending.pop() {
+            if values.contains_key(&id) {
+                continue;
+            }
+            let node = data.nodes().get(id)?;
+            if !expanded && let FrozenNode::Aggregate(fields) = node {
+                pending.push((id, true));
+                pending.extend(fields.iter().rev().map(|&field| (field, false)));
+                continue;
+            }
+            let value = match node {
                 FrozenNode::Unit => Self::unit(),
                 FrozenNode::Scalar(ConstantValue::Bool(value)) => Self::boolean(*value),
                 FrozenNode::Scalar(ConstantValue::Integer(value)) => Self::integer(*value),
                 FrozenNode::Aggregate(fields) => Self::record(
                     fields
                         .iter()
-                        .map(|&id| values[id].clone())
-                        .collect::<Box<[_]>>(),
+                        .map(|id| values.get(id).cloned())
+                        .collect::<Option<Box<[_]>>>()?,
                 ),
                 FrozenNode::Scalar(_) => return None,
-            });
+            };
+            values.insert(id, value);
         }
-        values.get(data.root()).cloned()
+        values.remove(&data.root())
     }
 }

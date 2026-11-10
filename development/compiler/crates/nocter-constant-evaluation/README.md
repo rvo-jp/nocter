@@ -150,7 +150,10 @@ and diagnostic rendering are outside this working-storage metric.
 `state::Value::freeze` converts a completed value to the model-owned `FrozenData` DAG once per
 required declaration. Identity-memoized postorder preserves sharing and never recursively expands
 aggregates. The artifact has no evaluator leases, scoped addresses, type-store IDs or source identity.
-`from_frozen` reconstructs immutable plan literals from those established nodes without evaluating source;
+`from_frozen` reconstructs immutable plan literals from the selected root's reachable nodes only,
+preserving shared components without rebuilding unrelated siblings or rejecting their unselected
+scalar families. Its scratch depends on that reachable subgraph, not the retained graph's size.
+It does not evaluate source;
 closed plan construction validates the literal against its selected type. These are publication
 and plan-construction transforms, not another evaluator or a source Copy capability.
 

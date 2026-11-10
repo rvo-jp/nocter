@@ -255,6 +255,33 @@ fn publication_roundtrip_preserves_deep_shared_data_without_expanding_a_tree() {
 }
 
 #[test]
+fn publication_views_restore_only_reachable_data_and_preserve_selected_sharing() {
+    use nocter_model::{ConstantValue, FrozenData, FrozenNode};
+    let frozen = FrozenData::new(vec![
+        FrozenNode::Scalar(ConstantValue::Text("unrelated".into())),
+        FrozenNode::Scalar(ConstantValue::Integer(42)),
+        FrozenNode::Aggregate(vec![1, 1].into()),
+        FrozenNode::Scalar(ConstantValue::Float32(0)),
+        FrozenNode::Aggregate(vec![0, 2, 3].into()),
+    ])
+    .unwrap();
+    assert!(Value::from_frozen(&frozen).is_none());
+    assert!(Value::from_frozen(&frozen.at(0).unwrap()).is_none());
+    assert_eq!(
+        Value::from_frozen(&frozen.at(1).unwrap()),
+        Some(Value::integer(42))
+    );
+    let selected = Value::from_frozen(&frozen.at(2).unwrap()).unwrap();
+    let Data::Record(fields) = selected.data() else {
+        panic!("selected aggregate");
+    };
+    assert_eq!(fields.len(), 2);
+    assert_eq!(fields[0], Value::integer(42));
+    assert_eq!(fields[0].identity(), fields[1].identity());
+    assert_eq!(selected.freeze().nodes().len(), 2);
+}
+
+#[test]
 fn static_views_share_metered_data_and_reject_mutation_without_changing_it() {
     use super::memory::{Frame, Memory};
     let budget = budget(100);
