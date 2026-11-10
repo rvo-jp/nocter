@@ -96,6 +96,10 @@ pub fn prepare(
                     return Err(Failure::UnsupportedArray(data));
                 }
                 pending.insert(array.element());
+                // Native homogeneous traversal uses canonical compiler scalar identities.
+                for builtin in [BuiltinType::Usize, BuiltinType::Bool] {
+                    pending.insert(program.data_type(builtin).ok_or_else(invalid)?);
+                }
                 RuntimeType::FixedArray {
                     element: array.element(),
                     length: array.length(),

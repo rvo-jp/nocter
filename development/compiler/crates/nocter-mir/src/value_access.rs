@@ -140,6 +140,11 @@ pub enum Operation {
         destination: Place,
         copy: bool,
     },
+    /// Copy the established seed into the homogeneous result; count belongs to its schema.
+    Repeat {
+        source: Place,
+        destination: Place,
+    },
     Storage(Effect),
     Unary {
         operation: crate::MirUnaryOperation,
@@ -249,7 +254,6 @@ impl Body {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Failure {
     Storage(storage::Failure),
-    UnsupportedRepetition(TypeId),
     InvalidBody(AccessInstanceId),
 }
 
@@ -277,7 +281,12 @@ impl Program {
         let bodies: BTreeMap<AccessInstanceId, Body> = program
             .bodies()
             .iter()
-            .map(|(&id, body)| Ok((id, lower::body(program.instance_program(), id, body)?)))
+            .map(|(&id, body)| {
+                Ok((
+                    id,
+                    lower::body(program.instance_program(), &runtime, id, body)?,
+                ))
+            })
             .collect::<Result<_, Failure>>()?;
         let mut statics = BTreeMap::new();
         for body in bodies.values() {

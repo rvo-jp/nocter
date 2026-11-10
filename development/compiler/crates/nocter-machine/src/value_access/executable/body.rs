@@ -15,8 +15,10 @@ use nocter_model::{AccessInstanceId, MirLocalId, TypeId, ValueInputOperation};
 use nocter_runtime_contract::RuntimeType;
 use std::collections::{BTreeMap, BTreeSet};
 mod arrays;
+mod repetition;
 
 struct Block {
+    parameters: Vec<MachineValueId>,
     operations: Vec<MachineOperationId>,
     terminator: Option<MachineTerminator>,
 }
@@ -52,6 +54,7 @@ impl<'a> Builder<'a> {
             values: Vec::new(),
             operations: Vec::new(),
             blocks: vec![Block {
+                parameters: Vec::new(),
                 operations: Vec::new(),
                 terminator: None,
             }],
@@ -64,6 +67,7 @@ impl<'a> Builder<'a> {
     fn block(&mut self) -> MachineBlockId {
         let id = MachineBlockId::new(self.blocks.len());
         self.blocks.push(Block {
+            parameters: Vec::new(),
             operations: Vec::new(),
             terminator: None,
         });
@@ -101,20 +105,42 @@ impl<'a> Builder<'a> {
         let value = if address {
             MachineValue::address(data, self.context.layouts.target(), definition)
         } else {
-            let layout = self.context.layouts.get(data).ok_or_else(Self::invalid)?;
-            MachineValue::new(
-                data,
-                MachineValueRepresentation::Stored {
-                    size: layout.size(),
-                    alignment: layout.alignment(),
-                    class: self.context.layouts.class(data).ok_or_else(Self::invalid)?,
-                },
-                definition,
-            )
+            self.stored_value(data, definition)?
         };
         let id = MachineValueId::new(self.values.len());
         self.values.push(value);
         self.append(kind, Some(id));
+        Ok(id)
+    }
+    fn stored_value(
+        &self,
+        data: TypeId,
+        definition: MachineValueDefinition,
+    ) -> Result<MachineValue, Failure> {
+        let layout = self.context.layouts.get(data).ok_or_else(Self::invalid)?;
+        Ok(MachineValue::new(
+            data,
+            MachineValueRepresentation::Stored {
+                size: layout.size(),
+                alignment: layout.alignment(),
+                class: self.context.layouts.class(data).ok_or_else(Self::invalid)?,
+            },
+            definition,
+        ))
+    }
+    fn parameter(
+        &mut self,
+        block: MachineBlockId,
+        data: TypeId,
+    ) -> Result<MachineValueId, Failure> {
+        let position = self.blocks[block.index()].parameters.len();
+        let value = self.stored_value(
+            data,
+            MachineValueDefinition::BlockParameter { block, position },
+        )?;
+        let id = MachineValueId::new(self.values.len());
+        self.values.push(value);
+        self.blocks[block.index()].parameters.push(id);
         Ok(id)
     }
     fn address(&mut self, address: MachineAddress) -> MachineAddressId {
@@ -400,6 +426,10 @@ impl<'a> Builder<'a> {
             } => {
                 self.index(base, index, destination, *copy)?;
             }
+            mir::Operation::Repeat {
+                source,
+                destination,
+            } => self.repeat(source, destination)?,
             mir::Operation::Storage(effect) => self.effect(effect)?,
             mir::Operation::Unary {
                 operation,
@@ -547,7 +577,7 @@ impl<'a> Builder<'a> {
             .into_iter()
             .map(|block| {
                 Ok(MachineBlock::new(
-                    [],
+                    block.parameters,
                     block.operations,
                     block.terminator.ok_or(Failure::InvalidRoot)?,
                 ))

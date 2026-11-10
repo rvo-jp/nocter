@@ -171,3 +171,30 @@ fn repeated_array_constants_respect_physical_backing_limits_before_expansion() {
     );
     assert!(program.data().is_empty());
 }
+
+#[test]
+fn native_repetition_has_a_finite_cfg_independent_of_cardinality() {
+    let mut counts = Vec::new();
+    for length in [2, 100_000] {
+        let program = compile(&format!(
+            "func run(): i32 {{ let values = [42; {length}]\nvalues[0] }}"
+        ));
+        counts.push(
+            program
+                .functions()
+                .flat_map(|(_, body)| body.body().operations())
+                .count(),
+        );
+        assert!(
+            program
+                .functions()
+                .flat_map(|(_, f)| f.body().operations())
+                .all(|(_, operation)| !matches!(
+                    operation.kind(),
+                    MachineOperationKind::Aggregate(_)
+                ))
+        );
+    }
+    assert_eq!(counts[0], counts[1]);
+    assert!(counts[0] < 100);
+}

@@ -117,9 +117,7 @@ impl Builder<'_> {
                 destination,
                 copy: action == nocter_checking::value_access::IndexAction::CopyPayload,
             },
-            ExpressionKind::Repeat { .. } => {
-                return Err(Failure::UnsupportedRepetition(destination.data));
-            }
+            ExpressionKind::Repeat { seed } => return self.repetition(seed, destination),
             ExpressionKind::Place(place) => {
                 let source = self.selected(place, destination.data)?;
                 Self::alias(source, destination.slot)
@@ -180,6 +178,25 @@ impl Builder<'_> {
             ExpressionKind::If { .. } | ExpressionKind::Call { .. } => return Err(self.invalid()),
         };
         Ok(vec![operation])
+    }
+    fn repetition(
+        &mut self,
+        seed: AccessExpressionId,
+        destination: Place,
+    ) -> Result<Vec<Operation>, Failure> {
+        let Some(nocter_runtime_contract::RuntimeType::FixedArray { length, .. }) =
+            self.runtime.types().get(destination.data)
+        else {
+            return Err(self.invalid());
+        };
+        if *length <= 1 {
+            // The ordinary resource handoff disposes or assembles the one seed.
+            return Ok(Vec::new());
+        }
+        Ok(vec![Operation::Repeat {
+            source: self.value(seed)?,
+            destination,
+        }])
     }
     fn selected_component(
         &mut self,

@@ -37,13 +37,29 @@ pub(super) fn program(program: &mir::Program) -> Result<MachineProgram, Failure>
     {
         return Err(Failure::InvalidRoot);
     }
-    let roots = program.bodies().values().flat_map(|body| {
-        body.slots()
-            .iter()
-            .flat_map(|(_, slot)| slot.representations.iter().copied())
-            .chain(body.signature().ordered().map(|input| input.data))
-            .chain(std::iter::once(body.signature().result()))
-    });
+    let roots = program
+        .bodies()
+        .values()
+        .flat_map(|body| {
+            body.slots()
+                .iter()
+                .flat_map(|(_, slot)| slot.representations.iter().copied())
+                .chain(body.signature().ordered().map(|input| input.data))
+                .chain(std::iter::once(body.signature().result()))
+        })
+        .chain(
+            program
+                .runtime()
+                .types()
+                .iter()
+                .filter_map(|(data, shape)| {
+                    matches!(
+                        shape,
+                        RuntimeType::Primitive(RuntimePrimitive::Usize | RuntimePrimitive::Bool)
+                    )
+                    .then_some(data)
+                }),
+        );
     let layouts =
         MachineLayoutPlan::from_runtime(program.runtime(), roots).map_err(Failure::Layout)?;
     let functions = program

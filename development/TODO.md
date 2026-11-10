@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Close runtime repetition construction, empty-array representation and nontrivial array cleanup
+Close empty-array representation and nontrivial array cleanup
 through the [native array consumer](compiler/crates/nocter-machine/README.md#private-array-execution).
-Preserve one seed evaluation, homogeneous geometry and finite generated loops; do not expand N
+Preserve homogeneous geometry and finite generated loops; do not expand N
 compiler owners, layout fields or generated operations. Empty logical arrays must not force an
 unavailable element payload or inherit the released zero-count alignment rule without examination.
 

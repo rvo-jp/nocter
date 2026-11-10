@@ -427,3 +427,29 @@ fn frozen_array_schema_rejects_wrong_counts_and_element_types() {
         ));
     }
 }
+
+#[test]
+fn repeated_storage_checks_the_seed_against_its_homogeneous_result() {
+    let mut program = lower("func run(): i32 { let values = [42; 2]\nvalues[0] }");
+    let operation = program
+        .bodies
+        .get_mut(&program.root)
+        .unwrap()
+        .actions
+        .values_mut()
+        .flat_map(|a| a.operations.iter_mut())
+        .find(|op| matches!(op, Operation::Repeat { .. }))
+        .unwrap();
+    let Operation::Repeat {
+        source,
+        destination,
+    } = operation
+    else {
+        unreachable!()
+    };
+    source.data = destination.data;
+    assert!(matches!(
+        validate::program(&program),
+        Err(Failure::InvalidBody(_))
+    ));
+}

@@ -202,6 +202,29 @@ impl Context<'_> {
                 self.require(source.data == destination.data)
             }
             Operation::Storage(effect) => self.effect(effect),
+            Operation::Repeat {
+                source,
+                destination,
+            } => {
+                self.place(source)?;
+                self.place(destination)?;
+                let Some(RuntimeType::FixedArray { element, length }) =
+                    self.program.runtime.types().get(destination.data)
+                else {
+                    return Err(self.invalid());
+                };
+                let slot = self
+                    .body
+                    .slots
+                    .get(destination.slot)
+                    .ok_or_else(|| self.invalid())?;
+                self.require(
+                    source.data == *element
+                        && *length > 1
+                        && destination.projections.is_empty()
+                        && slot.storage == Storage::Payload,
+                )
+            }
             Operation::Index {
                 base,
                 index,

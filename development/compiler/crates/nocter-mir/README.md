@@ -80,7 +80,9 @@ selected data and established access-versus-Copy result role. Validation checks 
 runtime shape, usize index, element identity and destination storage form; it does not grant Copy.
 Concrete assembly fields resolve against that same element/count descriptor. Frozen listed and
 repeated arrays validate their exact count and actual value edges without count expansion.
-Runtime repetition construction retains an explicit `UnsupportedRepetition` gate. The
+Runtime repetition freezes one schema-counted seed fill above count one; the ordinary resource
+assembly handles count one. Validation checks element identity and owning result storage, without
+inferring Copy or expanding the count. The
 [native consumer](../nocter-machine/README.md#private-array-execution) owns executable scope.
 
 The [private activation handoff](../../../architecture/pipeline/value-access-declarations.md#private-activation-storage-handoff)

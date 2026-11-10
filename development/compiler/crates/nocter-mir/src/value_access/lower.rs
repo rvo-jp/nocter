@@ -17,6 +17,7 @@ use nocter_target_program::value_access::{lifecycle, storage};
 use std::collections::BTreeMap;
 
 pub(super) struct Builder<'a> {
+    pub(super) runtime: &'a nocter_runtime_contract::RuntimeEnvironment,
     pub(super) id: AccessInstanceId,
     pub(super) instances: &'a InstanceProgram,
     pub(super) instance: &'a Instance,
@@ -536,6 +537,7 @@ fn bits(values: &[lifecycle::flags::BitValue]) -> Box<[BitValue]> {
 
 pub(super) fn body(
     instances: &InstanceProgram,
+    runtime: &nocter_runtime_contract::RuntimeEnvironment,
     id: AccessInstanceId,
     lifecycle: &lifecycle::Body,
 ) -> Result<Body, Failure> {
@@ -544,6 +546,7 @@ pub(super) fn body(
     let checked = instances.body(id).ok_or(invalid)?;
     let signature = storage::signature(instances, id).map_err(Failure::Storage)?;
     let mut builder = Builder {
+        runtime,
         id,
         instances,
         instance,

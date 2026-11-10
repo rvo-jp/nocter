@@ -129,7 +129,7 @@ encoding. No static initializer becomes a runtime function.
 
 ## Private Array Execution
 
-The private source path qualifies nonempty listed arrays, complete read/edit selections and
+The private source path qualifies nonempty listed/repeated arrays, complete read/edit selections and
 replacement through ordinary Machine bodies and the native consumer. Storage projects one shared
 `RuntimeType::FixedArray` element/count descriptor. The common layout and value-input ABI own
 stride, geometry and direct/indirect transport. Resolving a logical `ValueField::Array` computes one
@@ -142,6 +142,16 @@ reload the user's index variable or repeat the source bounds decision. Zero-byte
 materialize their required bounds effect. Existing lifecycle phases retain RHS-first replacement,
 interruption cleanup, calls and independent Copy snapshots.
 
+`executable::body::repetition` loads the established seed once and emits a counted Machine CFG.
+Its counter is an ordinary SSA block parameter. One homogeneous layout proves the compiler's byte
+offset and successor arithmetic; internal traversal does not manufacture source bounds proofs.
+The runtime environment supplies canonical usize/bool roles for that control. Count one uses the
+ordinary resource assembly, and zero-byte storage requires no physical fill while preserving seed
+evaluation and cleanup. Native cases cover seed effects, non-Copy count-one transfer, nested and
+wide Copy payloads, interrupted seeds and maximum-count zero-byte arrays. Generated operation
+counts remain equal for two and 100,000 nonzero-sized elements; no per-element owner, layout field
+or generated write is introduced.
+
 The frozen-data serializer accepts listed and sparse repeated array DAGs against that same layout.
 Physical repeated storage is emitted with one traversal cursor per nesting level, rather than N
 pending entries. Zero-byte subgraphs are skipped, including maximum-count unit arrays. The existing
@@ -150,7 +160,7 @@ limit. Native qualification covers nested records/arrays, scoped saved indices, 
 read/edit/take calls, direct and indirect array returns, scalar/zero-byte bounds traps, source order,
 frozen constants/statics and independent mutation.
 
-Runtime repetition construction, empty-array geometry, nontrivial array cleanup and partial-array
+Empty-array geometry, nontrivial array cleanup and partial-array
 interval cleanup remain explicit implementation gates. The released zero-count layout rule is not
 used to force the payload of a v2 empty logical element. Precise element transfer and restoration
 also require checking's separate retained-index proof. These limits do not change adopted source

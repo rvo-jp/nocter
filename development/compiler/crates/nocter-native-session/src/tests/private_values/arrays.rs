@@ -164,3 +164,48 @@ fn private_array_bounds_trap_even_when_no_payload_is_read_or_written() {
         assert_eq!(status.signal(), Some(5), "{name}: {status:?}");
     }
 }
+
+#[test]
+fn private_repetition_constructs_once_and_fills_without_generated_element_lists() {
+    for (name, source) in [
+        (
+            "array-repeat-snapshot",
+            "func run(): i32 { var initial = 20\nvar values = [initial; 2]\ninitial = 0\nvalues[0] += 2\nvalues[0] + values[1] + initial }",
+        ),
+        (
+            "array-repeat-one-noncopy",
+            "struct Item { value: i32 }\nfunc run(): i32 { let values = [Item { value: 42 }; 1]\nvalues[0].value }",
+        ),
+        (
+            "array-repeat-seed-effect",
+            "func build(edit calls: i32): i32 { calls += 1\n20 }\nfunc run(): i32 { var calls = 0\nlet values = [build(calls); 3]\nvalues[0] + values[2] + calls + 1 }",
+        ),
+        (
+            "array-repeat-nested",
+            "func run(): i32 { var values = [[20, 2]; 3]\nvalues[1][0] += 20\nvalues[1][0] + values[1][1] }",
+        ),
+        (
+            "array-repeat-copy-record",
+            "copy struct Item { flag: bool\nvalue: i32 }\nfunc run(): i32 { let values = [Item { flag: true, value: 42 }; 5]\nif values[4].flag { values[4].value } else { 0 } }",
+        ),
+        (
+            "array-repeat-wide-seed",
+            "func run(): i32 { let values = [[1, 2, 3, 4, 5, 42]; 3]\nvalues[2][5] }",
+        ),
+        (
+            "array-repeat-large",
+            "func run(): i32 { var values = [40; 4096]\nvalues[4095] += 2\nvalues[4095] }",
+        ),
+        (
+            "array-repeat-max-zero-byte",
+            "func build(edit calls: i32): void { calls += 1 }\nfunc run(): i32 { var calls = 40\nlet values = [build(calls); 18446744073709551615]\nlet _ = values[18446744073709551614]\ncalls + 1 }",
+        ),
+        (
+            "array-repeat-interrupted-seed",
+            "func run(): i32 { let values = [if true { return 42 } else { 0 }; 4096]\nvalues[0] }",
+        ),
+    ] {
+        let package = TempPackage::new();
+        execute_native_status(&compile(source), &package.0, name, 42);
+    }
+}
