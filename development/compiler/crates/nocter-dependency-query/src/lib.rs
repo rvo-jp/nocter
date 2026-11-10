@@ -1,5 +1,6 @@
 //! Construction-scoped dependency state, immutable memoization and explicit request progress.
-use std::collections::HashMap;
+use std::cell::RefCell;
+use std::collections::{BTreeSet, HashMap};
 use std::hash::Hash;
 use std::sync::Arc;
 
@@ -58,12 +59,22 @@ pub trait DependencyProgress<K, V, E> {
 struct Active<K> {
     key: K,
     pending: std::vec::IntoIter<K>,
+    dependencies: RefCell<BTreeSet<usize>>,
 }
 
 #[derive(Debug)]
-enum QueryState<V> {
+enum QueryState {
     Active,
-    Complete(Arc<V>),
+    Complete(usize),
+}
+
+/// One completed fact and its direct successful prerequisites, in completion order.
+/// Every prerequisite index is strictly smaller than this node's index.
+#[derive(Debug)]
+pub struct CompletedDependency<K, V> {
+    pub key: K,
+    pub value: Arc<V>,
+    pub dependencies: Box<[usize]>,
 }
 
 /// One memoized dependency authority for a semantic construction.
@@ -72,8 +83,9 @@ enum QueryState<V> {
 /// remove their active state before returning, so no partial result can be observed or reused.
 #[derive(Debug)]
 pub struct DependencyQuery<K, V> {
-    states: HashMap<K, QueryState<V>>,
+    states: HashMap<K, QueryState>,
     stack: Vec<Active<K>>,
+    completed: Vec<CompletedDependency<K, V>>,
 }
 
 impl<K, V> Default for DependencyQuery<K, V> {
@@ -81,6 +93,7 @@ impl<K, V> Default for DependencyQuery<K, V> {
         Self {
             states: HashMap::new(),
             stack: Vec::new(),
+            completed: Vec::new(),
         }
     }
 }
@@ -166,7 +179,10 @@ where
 
     fn begin<E>(&mut self, key: K) -> Result<Option<Arc<V>>, DependencyQueryError<K, E>> {
         match self.states.get(&key) {
-            Some(QueryState::Complete(value)) => return Ok(Some(Arc::clone(value))),
+            Some(QueryState::Complete(index)) => {
+                self.depend_on(*index);
+                return Ok(Some(Arc::clone(&self.completed[*index].value)));
+            }
             Some(QueryState::Active) => {
                 let start = self
                     .stack
@@ -186,6 +202,7 @@ where
         self.stack.push(Active {
             key,
             pending: Vec::new().into_iter(),
+            dependencies: RefCell::new(BTreeSet::new()),
         });
         Ok(None)
     }
@@ -202,8 +219,14 @@ where
         match result {
             Ok(value) => {
                 let value = Arc::new(value);
-                self.states
-                    .insert(key, QueryState::Complete(Arc::clone(&value)));
+                let index = self.completed.len();
+                self.states.insert(key.clone(), QueryState::Complete(index));
+                self.completed.push(CompletedDependency {
+                    key,
+                    value: Arc::clone(&value),
+                    dependencies: popped.dependencies.into_inner().into_iter().collect(),
+                });
+                self.depend_on(index);
                 Ok(value)
             }
             Err(error) => {
@@ -219,20 +242,27 @@ where
         }
     }
 
+    fn depend_on(&self, index: usize) {
+        if let Some(frame) = self.stack.last() {
+            frame.dependencies.borrow_mut().insert(index);
+        }
+    }
+
+    /// Read a completed value, recording it as a prerequisite of the current active computation.
     #[must_use]
     pub fn completed(&self, key: &K) -> Option<&V> {
         match self.states.get(key) {
-            Some(QueryState::Complete(value)) => Some(value.as_ref()),
+            Some(QueryState::Complete(index)) => {
+                self.depend_on(*index);
+                Some(self.completed[*index].value.as_ref())
+            }
             Some(QueryState::Active) | None => None,
         }
     }
 
     #[must_use]
     pub fn complete_len(&self) -> usize {
-        self.states
-            .values()
-            .filter(|state| matches!(state, QueryState::Complete(_)))
-            .count()
+        self.completed.len()
     }
 
     /// Number of pending dependency computations, including the current computation.
@@ -255,13 +285,18 @@ where
     /// set without cloning either the query state or its values.
     #[must_use]
     pub fn into_completed(self) -> HashMap<K, Arc<V>> {
-        self.states
+        self.completed
             .into_iter()
-            .filter_map(|(key, state)| match state {
-                QueryState::Complete(value) => Some((key, value)),
-                QueryState::Active => None,
-            })
+            .map(|node| (node.key, node.value))
             .collect()
+    }
+
+    /// Freeze successful facts and tracked prerequisites without cloning the query or values.
+    /// Failed and still-active computations have no nodes. Indices form a flat DAG, so deep
+    /// dependency chains do not cause recursive traversal or destruction.
+    #[must_use]
+    pub fn into_dependencies(self) -> Vec<CompletedDependency<K, V>> {
+        self.completed
     }
 }
 

@@ -1,11 +1,11 @@
 //! One value query coordinates unpublished ordinary body drafts and executable const closures.
 use super::{
     Completed, Output, Rule,
-    dependencies::{self, Dependencies, Fact, Request},
+    dependencies::{self, Dependencies, Fact, INVALID, Request},
     final_diagnostic, projection,
 };
 use crate::value_access::staged::SourceFailure;
-use crate::value_access::{self, ExpressionKind, Failure as BodyFailure, Query, accepted, checker};
+use crate::value_access::{ExpressionKind, Failure as BodyFailure, Query, accepted, checker};
 use nocter_constant_evaluation::state;
 use nocter_declaration_lowering::access_declarations::{self as declarations, Context};
 use nocter_declarations::value_access::{DeclarationId, HeaderStep};
@@ -13,18 +13,13 @@ use nocter_dependency_query::{
     DependencyComputation, DependencyProgress, DependencyQueryError, DependencyStep,
 };
 use nocter_diagnostics::SourceDiagnostic;
-use nocter_model::{AccessCodeId, CompileTimeGuarantee, ValueFunctionOrigin};
+use nocter_model::{AccessCodeId, ValueFunctionOrigin};
 use nocter_syntax::SyntaxOrigin;
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
+use std::collections::{BTreeMap, BTreeSet};
 #[cfg(test)]
 mod tests;
 type Failure = accepted::Failure;
 type QueryError = DependencyQueryError<Request, SourceFailure>;
-const INVALID: Failure =
-    Failure::Integrity(value_access::flow::IntegrityError::InconsistentTypedBody);
 enum Headers<'a, 'source> {
     Closed,
     Publishing(&'a mut declarations::Preparation<'source>),
@@ -33,7 +28,6 @@ struct Preparation<'a, 'source> {
     context: Context<'source>,
     headers: Headers<'a, 'source>,
     budget: state::Budget,
-    sources: declarations::BodySources,
 }
 pub(in crate::value_access) fn prepare(
     context: &Context<'_>,
@@ -65,7 +59,10 @@ pub(in crate::value_access) fn prepare_source(
         preparation.require_header(&mut requests, declaration)?;
     }
     let output = preparation.finish(requests)?;
-    Ok((headers.finish()?, output))
+    Ok((
+        headers.finish_with_dependencies(output.header_sources.clone())?,
+        output,
+    ))
 }
 impl<'a, 'source> Preparation<'a, 'source> {
     fn new(
@@ -77,7 +74,6 @@ impl<'a, 'source> Preparation<'a, 'source> {
             context,
             headers,
             budget: state::Budget::new(limits),
-            sources: declarations::BodySources::default(),
         }
     }
     fn all(
@@ -116,25 +112,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
         Ok(())
     }
     fn finish(self, requests: Dependencies) -> Result<Output, Failure> {
-        let mut queries = BTreeMap::new();
-        let mut completed = BTreeMap::new();
-        for (key, fact) in requests.into_completed() {
-            match (key, Arc::unwrap_or_clone(fact)) {
-                (Request::Header(_), Fact::Header) => {}
-                (Request::Body(id), Fact::Body(query)) => {
-                    queries.insert(id, *query);
-                }
-                (Request::Value(id), Fact::Value(value)) => {
-                    completed.insert(id, Arc::new(value.frozen));
-                }
-                _ => return Err(INVALID),
-            }
-        }
-        Ok(Output {
-            queries,
-            values: completed,
-            dependencies: Arc::new(self.sources),
-        })
+        dependencies::finish(requests, &self.context)
     }
     fn require_header(
         &mut self,
@@ -179,16 +157,6 @@ impl<'a, 'source> Preparation<'a, 'source> {
             match checker::prepare(&self.context, id, requests) {
                 Ok(query) => {
                     self.require_statics(requests, &query)?;
-                    if query
-                        .program()
-                        .codes()
-                        .get(id)
-                        .ok_or(INVALID)?
-                        .compile_time()
-                        == CompileTimeGuarantee::Evaluatable
-                    {
-                        self.sources.insert(&query.source).map_err(|_| INVALID)?;
-                    }
                     return Ok(query);
                 }
                 Err(BodyFailure::RequiredHeader { declaration, .. }) => {
@@ -293,13 +261,12 @@ impl<'a, 'source> Preparation<'a, 'source> {
                 Ok(format!("{role} {name}"))
             })
             .collect::<Result<Vec<_>, Failure>>()?;
-        let primary =
-            value_access::source_origin(self.context.syntax(), origin).map_err(|failure| {
-                Failure::Body {
-                    callable: root,
-                    failure,
-                }
-            })?;
+        let primary = crate::value_access::source_origin(self.context.syntax(), origin).map_err(
+            |failure| Failure::Body {
+                callable: root,
+                failure,
+            },
+        )?;
         let (code, message) =
             Rule::DependencyCycle
                 .diagnostic()

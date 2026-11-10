@@ -5,8 +5,10 @@ use nocter_model::{AccessCodeId, NominalTypeId};
 use nocter_syntax::{NodeId, SyntaxOrigin, SyntaxToken};
 use std::{collections::BTreeMap, sync::Arc};
 
+mod dependencies;
 mod recipes;
 mod registration;
+pub use dependencies::{BodyDependencies, BodySourceGraph, BodySourceNode};
 pub(super) use recipes::Recipes;
 
 #[derive(Clone, Debug)]
@@ -21,6 +23,7 @@ pub enum SourceMismatch {
     ChangedAuthority,
     ChangedSource,
     InconsistentSyntax,
+    InconsistentDependencies,
 }
 
 #[derive(Clone, Debug)]

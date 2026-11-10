@@ -116,8 +116,10 @@ normalized type or value is a dependency error, including an authored requiremen
 Callable-only recursion instead closes one checked graph and remains subject to execution budgets.
 Body evidence used by a header value must participate in header reuse invalidation. Extend the
 [shared source evidence](../compiler/crates/nocter-declaration-lowering/README.md#exact-source-evidence)
-from the enclosing type-annotation roots to executable header-expression identities, and retain
-the selected supplying-body dependencies with the normalized header query. Body-independent
+from the enclosing type-annotation roots to executable header-expression identities, and connect
+the selected supplying-body proof to the normalized header query. The common query now retains
+successful prerequisites; checking projects per-body source roots and a compact header guard set
+from that same completion DAG. Body-independent
 header-surface equality cannot certify an evaluated length after a supplying const body changes.
 Preserve exact source recipes and causal edges across those requests. This integration, not
 reservation closure alone, is the remaining gate for array type lengths.

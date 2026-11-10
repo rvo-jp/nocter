@@ -10,7 +10,7 @@
    connecting admitted usize computation to required lengths through the same dependency
    coordinator. Connect the [registered header-expression code roots](compiler/crates/nocter-declaration-lowering/README.md#exact-source-evidence)
    and their selected ordinary usize execution to deferred header normalization. Retain
-   supplying-body dependencies for header invalidation before admitting array source. Extend
+   the selected supplying-body proof with each value-dependent header before admitting array source. Extend
    symbolic conditions and exports as ordinary generic/witness schemas are admitted. Qualify
    comparison and typed literal/conversion/operator support against their owning contracts.
    Then close remaining expression/control, capability/library,

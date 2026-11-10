@@ -103,12 +103,7 @@ impl Unit {
                 flow::IntegrityError::InconsistentTypedBody,
             ));
         }
-        let mut queries = evaluation.queries;
-        if !evaluation.values.is_empty() {
-            for query in queries.values_mut() {
-                query.freeze_constant_sources(&evaluation.dependencies);
-            }
-        }
+        let queries = evaluation.queries;
         let Checked {
             program,
             bodies,

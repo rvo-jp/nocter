@@ -4,7 +4,10 @@ mod headers;
 mod projection;
 mod source;
 use source::RecordSource;
-pub use source::{BodySource, BodySources, CodeSource, HeaderSource, SourceMismatch};
+pub use source::{
+    BodyDependencies, BodySource, BodySourceGraph, BodySourceNode, BodySources, CodeSource,
+    HeaderSource, SourceMismatch,
+};
 mod type_syntax;
 pub use type_syntax::{DataTypeSyntax, FunctionTypeSyntax, ValueTypeSyntax, value_type_syntax};
 #[cfg(test)]
@@ -36,12 +39,14 @@ pub enum Failure {
     ChangedHeader,
 }
 
-/// Closed reusable declaration query; no body syntax or current source identity is retained.
+/// Closed reusable declaration query without current syntax identities.
+/// Selected supplying-body bytes may remain as source guards, never as executable syntax.
 #[derive(Clone, Debug)]
 pub struct Query {
     program: Arc<Program>,
     surface: DeclarationSyntaxSurface,
     source_recipes: source::Recipes,
+    dependencies: Option<BodySources>,
 }
 
 /// One current source/semantic pairing. Callers cannot assemble its parts independently.
@@ -196,7 +201,16 @@ impl<'source> Preparation<'source> {
     /// Finish the complete reusable header query without re-normalizing published contracts.
     /// # Errors
     /// Reports invalid remaining contracts at their declaration-owned source positions.
-    pub fn finish(mut self) -> Result<Query, Failure> {
+    pub fn finish(self) -> Result<Query, Failure> {
+        self.finish_with_sources(None)
+    }
+    /// Close headers while retaining the selected source-only required-value dependency proof.
+    /// # Errors
+    /// Rejects invalid headers or evidence that cannot bind this exact construction.
+    pub fn finish_with_dependencies(self, dependencies: BodySources) -> Result<Query, Failure> {
+        self.finish_with_sources(Some(dependencies))
+    }
+    fn finish_with_sources(mut self, dependencies: Option<BodySources>) -> Result<Query, Failure> {
         let ids: Vec<_> = self.declaration_ids().collect();
         for id in ids {
             self.publish(id)?;
@@ -209,10 +223,22 @@ impl<'source> Preparation<'source> {
                 failure,
             )
         })?;
+        let program = Arc::new(program);
+        if let Some(sources) = &dependencies {
+            let context = Context {
+                program: program.clone(),
+                syntax: self.syntax,
+                sources: self.sources.clone(),
+            };
+            sources
+                .verify(&context)
+                .map_err(|_| Failure::ChangedHeader)?;
+        }
         Ok(Query {
-            program: Arc::new(program),
+            program,
             surface: self.surface,
             source_recipes: self.source_recipes,
+            dependencies,
         })
     }
 }
@@ -269,11 +295,17 @@ impl Query {
             return Err(Failure::ChangedHeader);
         }
         let sources = self.source_recipes.bind(&projection)?;
-        Ok(Context {
+        let context = Context {
             program: Arc::clone(&self.program),
             syntax,
             sources,
-        })
+        };
+        if let Some(dependencies) = &self.dependencies {
+            dependencies
+                .verify(&context)
+                .map_err(|_| Failure::ChangedHeader)?;
+        }
+        Ok(context)
     }
 }
 

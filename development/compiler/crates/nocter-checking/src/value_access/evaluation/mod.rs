@@ -151,7 +151,7 @@ impl Values for dependencies::Dependencies {
 pub(super) struct Output {
     pub(super) queries: BTreeMap<AccessCodeId, super::Query>,
     pub(super) values: BTreeMap<AccessCodeId, Arc<FrozenData>>,
-    pub(super) dependencies: Arc<nocter_declaration_lowering::access_declarations::BodySources>,
+    pub(super) header_sources: nocter_declaration_lowering::access_declarations::BodySources,
 }
 pub(super) use preparation::{prepare, prepare_source};
 fn failure_at(

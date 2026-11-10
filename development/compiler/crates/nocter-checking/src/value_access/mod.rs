@@ -30,7 +30,7 @@ pub use ir::{
     TypedBody, Unary, ValueType, WitnessBinding,
 };
 use nocter_declaration_lowering::access_declarations::{
-    BodySource, BodySources, Context as DeclarationContext, SourceMismatch,
+    BodyDependencies, BodySource, Context as DeclarationContext, SourceMismatch,
 };
 use nocter_declarations::value_access::Program;
 use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic};
@@ -196,7 +196,9 @@ impl From<SourceMismatch> for Failure {
             SourceMismatch::UnknownSource => Self::UnknownCallable,
             SourceMismatch::ChangedAuthority => Self::ChangedAuthority,
             SourceMismatch::ChangedSource => Self::ChangedBody,
-            SourceMismatch::InconsistentSyntax => Self::InconsistentSyntax,
+            SourceMismatch::InconsistentSyntax | SourceMismatch::InconsistentDependencies => {
+                Self::InconsistentSyntax
+            }
         }
     }
 }
@@ -211,13 +213,13 @@ pub struct Query {
     result_data: nocter_model::TypeId,
     results_closed: bool,
     result_evidence: Option<Arc<results::Evidence>>,
-    evaluation_source: Option<Arc<BodySources>>,
+    evaluation_source: Option<BodyDependencies>,
     equalities: Vec<results::Equality>,
     body: TypedBody,
     origins: Origins,
 }
 impl Query {
-    fn freeze_constant_sources(&mut self, source: &Arc<BodySources>) {
+    fn freeze_constant_sources(&mut self, source: &BodyDependencies) {
         self.evaluation_source = Some(source.clone());
         for nested in self.closures.values_mut() {
             Arc::make_mut(&mut nested.typed).freeze_constant_sources(source);

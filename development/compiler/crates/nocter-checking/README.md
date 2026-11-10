@@ -551,7 +551,8 @@ return targets. Runtime instance closure rejects an initializer as an entry root
 `evaluation::preparation` owns the common coordinator for contract readiness, typed bodies and one
 [construction dependency query](../nocter-dependency-query/README.md) for header, typed-body and
 required-value requests. `dependencies` owns those
-disjoint key/fact roles; there is no parallel typed-body cache or active dependency stack. Header
+disjoint key/fact roles and consuming publication; there is no parallel typed-body cache or active
+dependency stack. The common query records successful reads/resolutions, including cache hits. Header
 facts acknowledge the declaration owner's ready contracts without containing another program or
 type store. The coordinator accepts either a closed context or the exact-current
 declaration preparation. A missing callable/record contract advances the ready header view; a
@@ -670,10 +671,14 @@ Each completed dependency retains its evaluator value lease alongside one derive
 frozen artifact until all required evaluation and body preparation finish. Query publication
 consumes those entries into the Unit's sole frozen initializer table and drops evaluator state.
 Bodies share the immutable artifact graph; no public product retains a temporary type authority.
-The completed query is consumed rather than cloned. Bodies and captures
-share an exact-source guard over const initializer/callee definitions. Header reuse cannot reuse
-values or resulting control/access evidence after a supplying body changes, including through a
-standalone typed/flow source binding. Declaration lowering's
+The completed query is consumed rather than cloned. `dependencies::finish` projects its successful
+prerequisites into one source-only graph, eliminating source-free facts and sharing single-child
+conjunctions. Bodies and captures select their own roots over that graph; no global set attaches
+unrelated initializers to every body. Transitive constants and every authored const callee remain
+requirements, including cache hits and unexecuted branches. A standalone typed/flow binding rejects
+changes to those suppliers while allowing unrelated initializer edits; whole-Unit binding still
+validates all definitions. The header-root projection is compacted to selected guards for reusable
+declaration publication. This is source evidence, not a second dependency scheduler or value cache. Declaration lowering's
 [exact source evidence](../nocter-declaration-lowering/README.md#exact-source-evidence) owns
 that verification mechanism for both evaluator products and callable-result evidence. Whole-unit binding still verifies every
 body. Ordinary editing calls have no result-only cache that could erase writes.

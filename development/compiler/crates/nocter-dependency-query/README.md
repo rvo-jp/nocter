@@ -35,3 +35,13 @@ The read-only active-key path lets consumers classify request roles for an execu
 without another stack; the query does not interpret those roles. Each completed value is allocated
 once and shared across requests. The query has no `Clone` implementation, so a construction cannot
 fork a second memoization authority or copy a large frozen aggregate on each edge.
+
+Successful resolutions and reads of `completed` record the selected fact as a prerequisite of the
+current active computation, including cache hits and read-only progress. Incomplete reads grant no
+fact. Consumers must request missing required work rather than complete from its absence. Failed
+frames discard their edges; completed siblings remain independent and a retry records its own
+requirements. One completion-order arena owns values and direct prerequisite indices. Every edge
+points backwards, duplicates are collapsed, and consuming `into_dependencies` freezes that flat
+DAG without another lookup/cache authority or recursive destruction. `into_completed` projects the
+same values when a consumer does not need prerequisite evidence. Tracking uses construction-local
+interior mutation only; published nodes and values are immutable.

@@ -2,7 +2,7 @@
 use super::*;
 use crate::value_access::tests::{bound, input};
 use nocter_declarations::value_access::PayloadSchema;
-use std::fmt::Write as _;
+use std::{fmt::Write as _, sync::Arc};
 
 #[test]
 fn required_values_prepare_deep_shared_headers_without_recursive_queries_or_call_depth_charges() {

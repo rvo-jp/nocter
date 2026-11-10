@@ -194,3 +194,49 @@ fn finite_move_only_records_and_sparse_cleanup_share_the_ordinary_domain() {
     text.push_str("const func dispose(take value: Level63): void {}");
     accepted(&text);
 }
+
+#[test]
+fn source_dependencies_follow_cached_transitive_values_without_unrelated_initializers() {
+    let text = "const BASE: bool = true\nconst USED: bool = helper()\nconst OTHER: bool = other()\nconst func helper(): bool { BASE }\nconst func other(): bool { false }\nfunc run(): i32 { if USED { 42 } else { 0 } }\nfunc plain(): i32 { 7 }";
+    let (sources, tree) = input(text);
+    let source = SourceUnit::prepare(bound(&sources, &tree)).unwrap();
+    for (before, after, run_valid) in [
+        ("BASE: bool = true", "BASE: bool = false", false),
+        ("helper(): bool { BASE }", "helper(): bool { false }", false),
+        ("USED: bool = helper()", "USED: bool = false", false),
+        ("other(): bool { false }", "other(): bool { true }", true),
+        ("OTHER: bool = other()", "OTHER: bool = true", true),
+    ] {
+        let (next_sources, next_tree) = input(&text.replace(before, after));
+        let context = source
+            .declarations()
+            .bind(bound(&next_sources, &next_tree))
+            .unwrap();
+        assert_eq!(
+            named(source.unit(), "run").bind(&context).is_ok(),
+            run_valid,
+            "{before}"
+        );
+        assert!(
+            named(source.unit(), "plain").bind(&context).is_ok(),
+            "{before}"
+        );
+        assert!(
+            source.unit().bind(&context).is_err(),
+            "whole Unit still checks every body"
+        );
+    }
+}
+
+#[test]
+fn source_dependencies_retain_const_callees_in_unexecuted_branches() {
+    let text = "const USED: usize = if true { 42 } else { helper() }\nconst func helper(): usize { 1 }\nfunc run(): usize { USED }";
+    let (sources, tree) = input(text);
+    let source = SourceUnit::prepare(bound(&sources, &tree)).unwrap();
+    let (next_sources, next_tree) = input(&text.replace("usize { 1 }", "usize { 2 }"));
+    let context = source
+        .declarations()
+        .bind(bound(&next_sources, &next_tree))
+        .unwrap();
+    assert!(named(source.unit(), "run").bind(&context).is_err());
+}

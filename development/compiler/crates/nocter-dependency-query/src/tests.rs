@@ -243,6 +243,12 @@ fn iterative_depth_does_not_use_the_host_call_stack() {
     assert_eq!(*query.resolve_steps(&mut steps, 0).unwrap(), DEPTH + 1);
     assert_eq!(query.complete_len(), DEPTH + 1);
     assert_eq!(query.active_depth(), 0);
+    let nodes = query.into_dependencies();
+    assert_eq!(nodes.len(), DEPTH + 1);
+    assert!(nodes[0].dependencies.is_empty());
+    for (index, node) in nodes.iter().enumerate().skip(1) {
+        assert_eq!(node.dependencies.as_ref(), [index - 1]);
+    }
 }
 
 #[test]
@@ -446,4 +452,64 @@ fn unsupported_bounded_computation_unwinds_iterative_ancestors() {
         assert_eq!(query.active_depth(), 0);
         assert_eq!(query.complete_len(), 0);
     }
+}
+
+#[test]
+fn completed_prerequisites_share_a_flat_topological_diamond() {
+    let mut computation = graph(&[(0, &[1, 2, 1]), (1, &[3]), (2, &[3])]);
+    let mut query = DependencyQuery::default();
+    let root = query.resolve(&mut computation, 0).unwrap();
+    let nodes = query.into_dependencies();
+    assert_eq!(
+        nodes.iter().map(|n| n.key).collect::<Vec<_>>(),
+        [3, 1, 2, 0]
+    );
+    assert_eq!(
+        nodes
+            .iter()
+            .map(|n| n.dependencies.as_ref())
+            .collect::<Vec<_>>(),
+        [&[][..], &[0][..], &[0][..], &[1, 2][..]]
+    );
+    assert!(Arc::ptr_eq(&root, &nodes[3].value));
+}
+
+#[test]
+fn progress_reads_of_preexisting_facts_are_tracked_without_requiring_them_again() {
+    struct Reads;
+    impl DependencyProgress<u8, u64, u8> for Reads {
+        fn advance(
+            &mut self,
+            query: &DependencyQuery<u8, u64>,
+            key: u8,
+        ) -> Result<DependencyStep<u8, u64>, u8> {
+            assert_eq!(key, 0);
+            let child = query.completed(&7).ok_or(7)?;
+            assert_eq!(query.completed(&7), Some(child));
+            Ok(DependencyStep::Complete(child + 1))
+        }
+        fn no_progress(&mut self, key: u8) -> u8 {
+            key
+        }
+    }
+    let mut query = DependencyQuery::default();
+    query.resolve(&mut graph(&[]), 7).unwrap();
+    assert_eq!(*query.resolve_steps(&mut Reads, 0).unwrap(), 8);
+    let nodes = query.into_dependencies();
+    assert_eq!(nodes[1].key, 0);
+    assert_eq!(nodes[1].dependencies.as_ref(), [0]);
+}
+
+#[test]
+fn failure_keeps_completed_siblings_without_leaking_old_edges_into_a_retry() {
+    let mut computation = graph(&[(0, &[3, 1])]);
+    computation.reject = Some(1);
+    let mut query = DependencyQuery::default();
+    assert!(query.resolve(&mut computation, 0).is_err());
+    computation.reject = None;
+    computation.edges.insert(0, vec![1]);
+    query.resolve(&mut computation, 0).unwrap();
+    let nodes = query.into_dependencies();
+    assert_eq!(nodes.iter().map(|n| n.key).collect::<Vec<_>>(), [3, 1, 0]);
+    assert_eq!(nodes[2].dependencies.as_ref(), [1]);
 }

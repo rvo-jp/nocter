@@ -125,7 +125,8 @@ header surface, and projection locators. It contains no current syntax IDs, sour
 body syntax, or source coordinates. Binding an equal surface constructs one current context
 with that same program and the current header/body nodes. Changed headers, a wrong parse goal,
 invalid syntax, and mismatched locators cannot create a context or trigger fallback lowering.
-Body-only edits can rebind but receive no body-validity certificate from declaration reuse.
+Independent body-only edits can rebind, but selected supplier guards must also remain equal.
+Declaration reuse grants no independent body-validity certificate.
 The complete neutral surface guards record/field and const-capability header changes too. Record
 recipes retain only neutral name/field-type locators. `source::recipes` owns capture and rebinding
 of the callable and record source catalog as one product. Binding materializes current source
@@ -186,6 +187,17 @@ incomparable authority fails without replacing earlier evidence. Compatible dupl
 retain the strongest header prefix, independently of insertion order; adding an older guard
 cannot weaken reuse requirements. Required evaluation and callable-result evidence consume this
 same source mechanism. Source comparison never performs name lookup, checking or evaluation.
+`source::dependencies` projects successful query prerequisites into a flat `BodySourceGraph` of
+paired source guards and conjunction edges. `BodyDependencies` selects a root over that shared
+graph; unrelated nodes impose no binding requirement. Iterative verification visits each reached
+node once, without rechecking semantics or retaining evaluator values. Unknown, self and forward
+edges reject during graph construction. Deep chains have no recursive destructor chain.
+`collect_sources` compacts one root into the existing checked `BodySources` collection; a standalone
+header query therefore retains only selected supplier guards, rather than the whole Unit graph.
+`Preparation::finish_with_dependencies` validates that evidence against its completed authority
+and retains it with `Query`. Binding checks both header syntax and those supplying bodies.
+This source proof does not establish a computed value or authorize unfinished type normalization.
+
 `HeaderSource` separately identifies one parameter/result or record-field type annotation by its
 own tagged declaration and header position. It shares the same private byte/ancestry verification
 as body evidence, but its current root is an annotation node, never executable code. Capture works
@@ -206,6 +218,7 @@ caller-supplied code/source joins.
 Selected anonymous counts can use ordinary body checking, const-domain validation and required
 usize execution while their enclosing header remains unready. This is isolated expression
 execution, not array admission. Header normalization still rejects arrays; it cannot yet request
-these values or retain selected supplying-body dependencies with a normalized header query.
+these values. Selected supplying-body evidence can accompany a header query, but connecting it
+to actual value-dependent normalization is still required.
 That integration remains part of the
 [structural request work](../../../design/compiler-realization.md#structural-type-request-closure).

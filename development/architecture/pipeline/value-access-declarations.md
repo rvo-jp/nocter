@@ -92,8 +92,10 @@ No borrowed wrapper or released storable-type heuristic supplies a missing futur
 projection. It reserves functions and records in namespace order and maps resolved identities to neutral
 syntax locators. Its exact-current preparation supplies immutable ready declaration contexts while
 checking's common readiness/value coordinator retains successful bodies and executes selected const
-closures. The complete reusable query contains no source identity, syntax ID, range, or body text.
-Binding checks the complete header surface before resolving locators to current syntax.
+closures. The complete reusable query contains no current source identity, syntax ID or range.
+Its [source-only supplier guards](../../compiler/crates/nocter-declaration-lowering/README.md#exact-source-evidence)
+may retain selected body bytes. Binding checks the complete header surface, current locators and
+any retained suppliers without repeating checking or evaluation.
 The same lowering owner captures exact source evidence, including its original header view.
 Checking retains paired body evidence for its own body, required values and callable-result
 producers; it cannot assemble source owners and byte snapshots independently. Type annotations
