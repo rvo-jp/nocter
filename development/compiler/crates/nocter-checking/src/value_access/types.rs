@@ -52,7 +52,7 @@ pub(super) fn canonicalize(
     }
     Ok(program)
 }
-fn bind_program(query: &mut Query, program: &Arc<Program>) {
+pub(super) fn bind_program(query: &mut Query, program: &Arc<Program>) {
     query.program = program.clone();
     for nested in query.closures.values_mut() {
         bind_program(Arc::make_mut(&mut nested.typed), program);

@@ -27,27 +27,55 @@ impl Checker<'_, '_> {
             .map(Some)
     }
     pub(in crate::value_access) fn defer_equal(&mut self, left: Ty, right: Ty) -> bool {
-        if left.mode() != right.mode()
-            || !(is_result(self.program(), left.data()) || is_result(self.program(), right.data()))
-        {
+        if left.mode() != right.mode() {
             return false;
         }
-        let (Some(PayloadSchema::Function(a)), Some(PayloadSchema::Function(b))) = (
-            self.program().data_schema(left.data()),
-            self.program().data_schema(right.data()),
-        ) else {
-            return false;
-        };
-        if a.invocation != b.invocation
-            || self.program().function_contract(a) != self.program().function_contract(b)
-        {
+        let mut pending = vec![(left.data(), right.data())];
+        let mut seen = std::collections::BTreeSet::new();
+        let mut equalities = Vec::new();
+        while let Some((left, right)) = pending.pop() {
+            if left == right || !seen.insert((left, right)) {
+                continue;
+            }
+            match (
+                self.program().data_schema(left),
+                self.program().data_schema(right),
+            ) {
+                (Some(PayloadSchema::Function(a)), Some(PayloadSchema::Function(b)))
+                    if (is_result(self.program(), left) || is_result(self.program(), right))
+                        && a.invocation == b.invocation
+                        && self.program().function_contract(a)
+                            == self.program().function_contract(b) =>
+                {
+                    equalities.push(Equality {
+                        left,
+                        right,
+                        origin: self.expressions.next_id(),
+                    });
+                }
+                (Some(PayloadSchema::Array(a)), Some(PayloadSchema::Array(b)))
+                    if a.length() == b.length() =>
+                {
+                    pending.push((a.element(), b.element()));
+                }
+                (Some(PayloadSchema::Aggregate(a)), Some(PayloadSchema::Aggregate(b))) => {
+                    use nocter_declarations::value_access::AggregateForm;
+                    let (AggregateForm::Tuple(a), AggregateForm::Tuple(b)) = (a.form(), b.form())
+                    else {
+                        return false;
+                    };
+                    if a.len() != b.len() {
+                        return false;
+                    }
+                    pending.extend(a.iter().copied().zip(b.iter().copied()));
+                }
+                _ => return false,
+            }
+        }
+        if equalities.is_empty() {
             return false;
         }
-        self.equalities.push(Equality {
-            left: left.data(),
-            right: right.data(),
-            origin: self.expressions.next_id(),
-        });
+        self.equalities.extend(equalities);
         self.pending_results = true;
         true
     }
@@ -61,6 +89,15 @@ impl Checker<'_, '_> {
             .ty(source)
             .access()
             .ok_or(Failure::InconsistentSyntax)?;
+        if expected.mode() == Mode::Own
+            && !matches!(
+                self.program().data_schema(expected.data()),
+                Some(PayloadSchema::Function(_))
+            )
+            && self.defer_equal(Ty::new(actual.data(), expected.mode()), expected)
+        {
+            return Ok(Some(source));
+        }
         if expected.mode() != Mode::Own
             || !(is_result(self.program(), expected.data())
                 || is_result(self.program(), actual.data()))

@@ -275,7 +275,7 @@ pub(super) fn resolve_queries(
             ))
         })
         .collect::<Result<BTreeMap<_, _>, Failure>>()?;
-    let result_evidence = super::results::close(context, &mut controls)?;
+    let (program, result_evidence) = super::results::close(context, program, &mut controls)?;
     Ok(Resolved {
         program,
         controls,

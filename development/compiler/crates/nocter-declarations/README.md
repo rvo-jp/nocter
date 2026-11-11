@@ -278,13 +278,24 @@ u64 count; it neither evaluates a count nor expands elements. Empty arrays still
 element data. `type_identity_named` resolves the preinterned nominal key independently of
 `type_named` payload readiness. Structural tuple/array descriptors may retain that key without
 granting a payload schema, including nested descriptors beneath a zero-count edge. Actual payload
-construction and selection still require their ready definitions. Exact callable components follow
-the common closed payload predicate; an unknown structural function contract supplies no such evidence.
+construction and selection still require their ready definitions. Structural descriptors may also
+retain valid result/application leaves while their producers are pending. `payload_readiness`
+distinguishes Closed, Pending and Unsupported over actual payload edges; empty arrays require no
+element payload. `owned_payload_supported` accepts only Closed. A pending descriptor is neither an
+environment, a Copy proof nor an executable payload. Formal callable components remain outside
+this structural construction domain.
 Equal header/body array shapes intern as one type. This metadata capability does not admit
 array expressions, resource operations, evaluator array values or native storage.
 Canonical replay remaps nested tuple/array components and every closure-schema data slot with the body
 type suffix in the same program; headers remain unchanged. `closures` owns their immutable
 projection, not body checking.
+
+After checking establishes result relations, `resolve_body_types` validates the selected
+contract-preserving witness substitutions and re-interns containing tuples/arrays in that same
+canonical authority. Its transient projection covers all source type identities and closure-schema
+data slots; immutable header/nominal metadata stays unchanged. Equal normalized shapes become one
+type, including maximum-count arrays, without expanding their cardinality. Checking must project
+every body slot and discharge construction/supply obligations before executable admission.
 
 Canonical replay validates retained ready contracts, exact namespace and sparse-table lineage, persistent
 header-prefix ancestry and each suffix's body owner. It records each body's own prefix boundary;

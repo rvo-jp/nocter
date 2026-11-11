@@ -5,12 +5,22 @@ use nocter_model::{
     ValueCodeRoot, ValueFunctionOrigin, ValueInvocation,
 };
 use std::collections::BTreeMap;
+mod resolution;
+pub use resolution::ResolvedBodyTypes;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BodyTypeError {
     ForeignDeclarations,
     InvalidApplication,
     InvalidExtension,
+}
+
+/// Descriptor readiness is distinct from payload evidence and Copy eligibility.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PayloadReadiness {
+    Closed,
+    Pending,
+    Unsupported,
 }
 
 /// The sole construction capability for one body's closed type extension, with shared header facts.
@@ -37,7 +47,7 @@ impl BodyTypes {
             slot,
         })
     }
-    /// Intern a structural tuple over admitted closed component data.
+    /// Intern a structural tuple over admitted component descriptors, possibly awaiting results.
     /// # Errors
     /// Rejects an invalid arity or a component outside this authority's closed data domain.
     pub fn tuple(&mut self, fields: &[TypeId]) -> Result<TypeId, BodyTypeError> {
@@ -65,7 +75,7 @@ impl BodyTypes {
     }
     /// Intern a homogeneous fixed-array descriptor without expanding its cardinality.
     /// # Errors
-    /// Rejects an element outside this authority's closed payload domain.
+    /// Rejects an element outside this authority's structural descriptor domain.
     pub fn array(&mut self, element: TypeId, length: u64) -> Result<TypeId, BodyTypeError> {
         if !structural_component(&self.program, element) {
             return Err(BodyTypeError::InvalidExtension);
@@ -219,9 +229,46 @@ impl Program {
     /// A structural formal/result witness alone supplies no environment payload evidence.
     #[must_use]
     pub fn owned_payload_supported(&self, data: TypeId) -> bool {
-        ordinary_data(self, data)
-            || matches!(self.data_schema(data), Some(super::PayloadSchema::Function(witness))
-                if matches!(witness.origin, ValueFunctionOrigin::Declaration(_) | ValueFunctionOrigin::Closure(_)))
+        self.payload_readiness(data) == PayloadReadiness::Closed
+    }
+    /// Inspect each represented shape once; a pending descriptor grants no storage or Copy proof.
+    #[must_use]
+    pub fn payload_readiness(&self, data: TypeId) -> PayloadReadiness {
+        use super::PayloadSchema;
+        let mut pending = vec![data];
+        let mut seen = std::collections::BTreeSet::new();
+        let mut readiness = PayloadReadiness::Closed;
+        while let Some(data) = pending.pop() {
+            if !seen.insert(data) {
+                continue;
+            }
+            match self.data_schema(data) {
+                Some(PayloadSchema::Builtin(_)) => {}
+                Some(PayloadSchema::Aggregate(schema)) => {
+                    pending.extend(schema.components().map(|component| component.data));
+                }
+                Some(PayloadSchema::Array(array)) => {
+                    if !array.is_empty() {
+                        pending.push(array.element());
+                    }
+                }
+                Some(PayloadSchema::Function(witness)) => match witness.origin {
+                    ValueFunctionOrigin::Declaration(_) => {}
+                    ValueFunctionOrigin::Closure(id) => {
+                        let Some(schema) = self.closure(id) else {
+                            return PayloadReadiness::Unsupported;
+                        };
+                        pending.push(schema.environment());
+                    }
+                    ValueFunctionOrigin::Result(_) | ValueFunctionOrigin::Application(_) => {
+                        readiness = PayloadReadiness::Pending;
+                    }
+                    ValueFunctionOrigin::Parameter(_) => return PayloadReadiness::Unsupported,
+                },
+                None => return PayloadReadiness::Unsupported,
+            }
+        }
+        readiness
     }
     pub(super) fn has_type_root(&self, root: ValueCodeRoot) -> bool {
         match root {
@@ -321,7 +368,24 @@ fn project_type(
 // A descriptor can retain an unready nominal identity under an empty containment edge.
 // Constructing that descriptor grants no payload or Copy evidence for its components.
 fn structural_component(program: &Program, data: TypeId) -> bool {
-    program.owned_payload_supported(data) || program.record_identity(data).is_some()
+    let mut pending = vec![data];
+    let mut seen = std::collections::BTreeSet::new();
+    while let Some(data) = pending.pop() {
+        if !seen.insert(data) || program.record_identity(data).is_some() {
+            continue;
+        }
+        match program.data_schema(data) {
+            Some(super::PayloadSchema::Builtin(_)) => {}
+            Some(super::PayloadSchema::Aggregate(schema)) => {
+                pending.extend(schema.components().map(|component| component.data));
+            }
+            Some(super::PayloadSchema::Array(array)) => pending.push(array.element()),
+            Some(super::PayloadSchema::Function(witness))
+                if !matches!(witness.origin, ValueFunctionOrigin::Parameter(_)) => {}
+            _ => return false,
+        }
+    }
+    true
 }
 
 fn ordinary_data(program: &Program, data: TypeId) -> bool {

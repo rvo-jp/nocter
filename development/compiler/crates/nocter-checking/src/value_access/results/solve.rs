@@ -89,7 +89,6 @@ pub(super) fn solve(
         evidence.producers.insert(id, witness);
     }
     close_applications(context, &controls, &committed, &mut evidence)?;
-    prove_equalities(context, &controls, &evidence)?;
     Ok(evidence)
 }
 fn single(producers: &Producers) -> Option<FunctionWitness> {
@@ -177,7 +176,7 @@ fn close_applications(
     }
     Ok(())
 }
-fn prove_equalities(
+pub(super) fn prove_equalities(
     context: &DeclarationContext<'_>,
     controls: &BTreeMap<nocter_model::ValueCode, &flow::Control>,
     evidence: &Evidence,

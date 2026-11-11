@@ -24,12 +24,12 @@ fn function_named(text: &str, name: &str) -> Query {
     .unwrap();
     let context = header.bind(syntax).unwrap();
     let mut queries = output.queries;
-    types::canonicalize(&context, &mut queries).unwrap();
+    let program = types::canonicalize(&context, &mut queries).unwrap();
     let mut controls = queries
         .into_iter()
         .map(|(id, query)| (id, super::super::Control::prepare(Arc::new(query)).unwrap()))
         .collect();
-    results::close(&context, &mut controls).unwrap();
+    results::close(&context, program, &mut controls).unwrap();
     let writes = super::super::call_writes::Catalog::prepare(controls.values()).unwrap();
     controls
         .into_values()

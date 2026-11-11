@@ -347,9 +347,11 @@ without a reachable commit closes as explicit Unproduced evidence, preserving th
 contract under the existing application identity. A reachable application still requires a witness.
 Prepared value flow establishes return anchors; declared argument types alone cannot do so.
 
-After deferred identity equalities are proved, `results::projection` replaces result/application
-identities with already interned named or caller-formal keys, or retains a proved-unproduced
-application's contract. During that same traversal, `supply` freezes pending operations against
+After deferred identity equalities are proved, the declaration owner's
+[`resolve_body_types`](../nocter-declarations/README.md#future-value-declaration-boundary)
+normalizes result/application leaves and their containing structural shapes in the same type
+authority. `results::projection` rewrites every data-bearing body slot against that one projection,
+or retains a proved-unproduced application's contract. During that same traversal, `supply` freezes pending operations against
 the resolved data and source access. Unproduced supplies close explicitly without choosing Copy
 or move. `results::unproduced` rejects any reached evaluation, input preparation, forwarding,
 binding, value consumption or call commit using this absent data. This proof runs before
@@ -359,8 +361,26 @@ Known generic formal transfers remain transfers; later concrete
 payload Copy cannot reinterpret them. Only then does Control compute initialization and
 access/resource validation, once each. Control IDs and the type authority do not change, and no
 graph is rebuilt. A taking formal environment can therefore pass through a result without
-acquiring Copy, while a concrete named result at a caller can independently prove Copy. General captured
-producers and their dependency footprints remain separate work.
+acquiring Copy, while a concrete named result at a caller can independently prove Copy.
+
+Inferred arrays/tuples can retain valid pending component descriptors. Compatible structural
+joins/replacements defer only differing callable-leaf identities; arity, array length, invocation,
+input operations and result data must already agree. Once those identities close, construction
+requires actual component payloads, repetition above one requires Copy, and unmarked aggregate
+supply requires Copy of the complete resolved shape. Computed tuple selection chooses Copy/move
+from that closed payload; computed array selection retains its Copy requirement. Explicit postfix
+retirement stays explicit even for a finally Copy shape. Pending evaluated referents use the same
+type projection as locals rather than consulting stale expression data. No placeholder environment,
+new ownership ledger or cardinality expansion is introduced.
+
+The shared `structural-result-values.nct` source qualifies factory-produced named/captured values,
+distinct environments of one code, arrays, nested tuples/arrays, repetition, replacement,
+conditional joins, Copy snapshots and non-Copy retirement through required and native execution.
+Different witnesses, non-Copy repetition and unmarked duplication reject at source. Factory body
+changes invalidate closed callers even when their own source is unchanged. General aggregate
+producer provenance, structural values with proved-absent components, formal callable storage and
+dependent capture footprints remain separate work; a constructor whose component payload cannot
+close reports a local rejection before executable admission.
 
 All closed queries share one result-evidence object with producer-body byte dependencies.
 Standalone query rebinding checks those dependencies; complete Unit projection verifies them once
@@ -996,9 +1016,9 @@ supplies its element data and exact count. Inference checks each listed componen
 equal data identities; the first element supplies no coercion context to the rest. Empty lists
 need contextual element data. Listed expressions retain source-ordered `ValueField::Array` components
 in the existing aggregate expression product and use the same body type authority, including in
-nested arrays and tuples. Exact named/captured callable elements use the same declaration-owned
-`owned_payload_supported` predicate as owned environments; structural formal and unresolved
-result witnesses alone do not supply payload evidence. Native source qualifies independent mutable
+nested arrays and tuples. Pending callable results follow the [result closure](#callable-result-closure)
+before construction can acquire the declaration-owned `owned_payload_supported` evidence used by
+owned environments. Structural formal contracts alone supply no such evidence. Native source qualifies independent mutable
 captured state through tuple components and dynamic array selection; the evaluator's narrower
 callable domain is defined above.
 

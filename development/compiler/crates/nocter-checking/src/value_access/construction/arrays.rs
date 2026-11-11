@@ -4,16 +4,16 @@ use crate::value_access::{
     checker::Checker,
     ir::{Boundary, ExpressionKind, FieldValue, value_type},
 };
-use nocter_declarations::value_access::{ArraySchema, PayloadSchema};
+use nocter_declarations::value_access::{ArraySchema, PayloadReadiness, PayloadSchema};
 use nocter_model::{AccessExpressionId, TypeId, ValueAccessMode as Mode, ValueField};
 use nocter_syntax::NodeId;
 
 impl Checker<'_, '_> {
     fn array_element(&self, node: NodeId, data: TypeId) -> Result<(), Failure> {
-        if self.program().owned_payload_supported(data) {
-            Ok(())
-        } else {
+        if self.program().payload_readiness(data) == PayloadReadiness::Unsupported {
             self.reject(Rule::UnsupportedData, node)
+        } else {
+            Ok(())
         }
     }
     fn array_context(
@@ -55,7 +55,13 @@ impl Checker<'_, '_> {
             else {
                 return self.reject(Rule::UnknownResultType, entry);
             };
-            if element.is_some_and(|element| element != data) {
+            if element.is_some_and(|element| {
+                element != data
+                    && !self.defer_equal(
+                        nocter_model::ValueAccess::new(element, Mode::Own),
+                        nocter_model::ValueAccess::new(data, Mode::Own),
+                    )
+            }) {
                 return self.reject(Rule::TypeMismatch, entry);
             }
             element = Some(data);
@@ -121,7 +127,10 @@ impl Checker<'_, '_> {
         if expected.is_none() {
             value = self.boundary(seed, value, Boundary::Value(element))?;
         }
-        if length > 1 && !self.copyable(element) {
+        if length > 1
+            && !self.copyable(element)
+            && self.program().payload_readiness(element) != PayloadReadiness::Pending
+        {
             return self.reject_message(
                 Rule::InvalidConstruction,
                 seed,

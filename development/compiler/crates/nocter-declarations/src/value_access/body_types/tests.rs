@@ -6,6 +6,63 @@ mod arrays;
 mod expression_roots;
 
 #[test]
+fn result_substitution_replays_nested_shapes_without_publishing_provisional_payloads() {
+    let (header, [root, factory, _]) = application_headers();
+    let target = FunctionWitness {
+        origin: nocter_model::ValueFunctionOrigin::Declaration(root),
+        invocation: ValueInvocation::Read,
+    };
+    let named = header.function_data(target).unwrap();
+    let mut body = header.body_types(root).unwrap();
+    let call = nocter_model::ArenaBuilder::<nocter_model::AccessExpressionId, ()>::new().insert(());
+    let pending = body
+        .application(nocter_model::ValueCode::Declaration(root), call, factory)
+        .unwrap();
+    let Some(PayloadSchema::Function(source)) = body.program().data_schema(pending) else {
+        panic!("application")
+    };
+    let tuple = body.tuple(&[pending, named]).unwrap();
+    let array = body.array(tuple, u64::MAX).unwrap();
+    let closed_tuple = body.tuple(&[named, named]).unwrap();
+    let closed_array = body.array(closed_tuple, u64::MAX).unwrap();
+    assert_eq!(
+        body.program().payload_readiness(array),
+        PayloadReadiness::Pending
+    );
+    assert_eq!(body.program().data_copyable(array), Some(false));
+    let body = body.finish();
+    let canonical = header
+        .canonical_body_types(BTreeMap::from([(root.into(), &body)]))
+        .unwrap();
+    let array = canonical.project(root, array).unwrap();
+    let closed_array = canonical.project(root, closed_array).unwrap();
+    let canonical = canonical.finish();
+    let substitution = BTreeMap::from([(source, target)]);
+    assert!(header.resolve_body_types(&substitution).is_err());
+    assert!(
+        canonical
+            .resolve_body_types(&BTreeMap::from([(target, source)]))
+            .is_err()
+    );
+    let resolved = canonical.resolve_body_types(&substitution).unwrap();
+    assert_eq!(resolved.project(array), Some(closed_array));
+    assert!(resolved.program().preserves_headers(&header));
+    assert_eq!(
+        resolved.program().payload_readiness(array),
+        PayloadReadiness::Pending
+    );
+    assert_eq!(
+        resolved.program().payload_readiness(closed_array),
+        PayloadReadiness::Closed
+    );
+    assert_eq!(resolved.program().data_copyable(closed_array), Some(true));
+    assert_eq!(
+        canonical.payload_readiness(array),
+        PayloadReadiness::Pending
+    );
+}
+
+#[test]
 fn a_late_record_field_type_cannot_reinterpret_an_early_body_tuple() {
     let symbols = SymbolTable::from_spellings(["Late", "value", "run"]);
     let mut reservations = Reservations::new(symbols.clone());
@@ -440,9 +497,14 @@ fn callable_capture_payloads_require_exact_witnesses_and_failed_publication_is_a
         .application(nocter_model::ValueCode::Declaration(root), call, factory)
         .unwrap();
     assert!(!body.program().owned_payload_supported(pending));
-    assert!(body.tuple(&[pending, named]).is_err());
-    assert!(body.array(pending, 1).is_err());
-    // Failing an unresolved component must not prevent later concrete construction.
+    let tuple = body.tuple(&[pending, named]).unwrap();
+    let array = body.array(tuple, u64::MAX).unwrap();
+    assert_eq!(
+        body.program().payload_readiness(array),
+        PayloadReadiness::Pending
+    );
+    assert!(!body.program().owned_payload_supported(array));
+    // A descriptor grants no environment payload evidence and does not affect concrete shapes.
     assert!(body.tuple(&[named, named]).is_ok());
     assert!(body.array(named, u64::MAX).is_ok());
     let id = body.reserve_closure().unwrap();

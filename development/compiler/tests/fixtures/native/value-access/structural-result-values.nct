@@ -1,0 +1,51 @@
+struct Item { value: i32 }
+const func make(amount: i32): func(i32): i32 {
+    (amount; value: i32): i32 { amount + value }
+}
+const func leaf(value: i32): i32 { value + 1 }
+const func named(): func(i32): i32 { leaf }
+const func also_named(): func(i32): i32 { leaf }
+const func owned(value: i32): once(): i32 {
+    let item = Item { value: value }
+    (item^;): i32 { item.value }
+}
+const func arrays(): i32 {
+    let callbacks = [make(1), make(2)]
+    let copied = callbacks
+    let moved = copied^
+    callbacks[0](20) + moved[1](19)
+}
+const func tuples(): i32 {
+    let callbacks = (make(1), (make(2), 0))
+    let copied = callbacks
+    callbacks.0(20) + copied.1.0(19)
+}
+const func repeated(): i32 {
+    let callbacks = [make(1); 2]
+    let nested = [[make(1)], [make(2)]]
+    callbacks[0](19) + nested[1][0](20)
+}
+const func named_arrays(): i32 {
+    let callbacks = [named(), also_named()]
+    callbacks[0](20) + callbacks[1](20)
+}
+const func replaced(flag: bool): i32 {
+    var callbacks = [make(1)]
+    callbacks = [make(2)]
+    let selected = if flag { [make(1)] } else { [make(2)] }
+    callbacks[0](20) + selected[0](19)
+}
+const func noncopy(): i32 {
+    let callbacks = [owned(42); 1]
+    let moved = callbacks^
+    let unused = [owned(0); 0]
+    moved[0]^()
+}
+const func temporary(): i32 {
+    if [make(1)][0](20) + (make(2), 0).0(19) == 42 { (owned(42), 0).0() } else { 0 }
+}
+const func calculate(): i32 {
+    if arrays() == 42 && tuples() == 42 && repeated() == 42 && named_arrays() == 42 && replaced(true) == 42 && noncopy() == 42 && temporary() == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { if ANSWER == 42 { calculate() } else { 0 } }

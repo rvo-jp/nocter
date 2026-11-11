@@ -36,7 +36,7 @@ fn pending_supply_closes_before_initialization_without_rebuilding_control() {
             .iter()
             .map(|(id, _)| (id.into(), TypedQuery::prepare(&context, id).unwrap()))
             .collect::<BTreeMap<_, _>>();
-        crate::value_access::types::canonicalize(&context, &mut queries).unwrap();
+        let program = crate::value_access::types::canonicalize(&context, &mut queries).unwrap();
         let mut controls = queries
             .into_iter()
             .map(|(id, query)| (id, flow::Control::prepare(Arc::new(query)).unwrap()))
@@ -49,7 +49,7 @@ fn pending_supply_closes_before_initialization_without_rebuilding_control() {
             .iter()
             .map(|(&id, control)| (id, control.graph.clone()))
             .collect::<BTreeMap<_, _>>();
-        crate::value_access::results::close(&context, &mut controls).unwrap();
+        crate::value_access::results::close(&context, program, &mut controls).unwrap();
         let writes = flow::call_writes::Catalog::prepare(controls.values()).unwrap();
         for (id, control) in controls {
             assert!(!pending(&control.typed), "{case}");

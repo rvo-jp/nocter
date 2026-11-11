@@ -18,11 +18,12 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Close structural value construction over result-resolved callable witnesses. Preserve one type
-and result authority while preparing inferred arrays/tuples of factory results; defer only genuine
-identity/supply obligations and reject unresolved payloads locally before executable admission.
-Qualify same/different witnesses, Copy and explicit retirement, required/native execution and reuse.
-General formal payload storage and outside R/D/S remain separate obligations.
+Close the structural callable-producer finding below. Carry actual construction/forwarding facts
+through array/tuple selections without deriving a return anchor from a provisional result type.
+Keep one finite producer analysis, the shared type authority and the separate initialization/access
+proofs. Qualify selected factory returns, replacement/branch behavior, absent or unavailable values,
+required/native execution and source reuse. General formal payload storage and outside R/D/S remain
+separate obligations.
 
 ## Retained Selection Closure
 
@@ -91,6 +92,13 @@ not a language restriction derived from the current realization boundary.
 
 ## Open Findings
 
+- [ ] Returning a callable selected from a reached array/tuple of factory results loses its
+  producer evidence: `let callbacks = [make()]; callbacks[0]` cannot yet establish another
+  factory's callable return. Preserve actual structural producer facts through construction,
+  forwarding, replacement and projection with finite homogeneous metadata. An unresolved type
+  schema alone is not a reachable producer; retain unanchored/uninitialized/absent-value rejection.
+  Close interrupted structural payload handling against the same facts before admitting positive
+  payloads whose component is proved unproduced.
 - [ ] Investigate the unclassified status-1 failure of the released native test
   `network_and_tls::public_tls_and_https_reject_plain_peers_and_https_advertises_http1`.
   It is not consistently reproducible. Native exit assertions identify the sync/async image,

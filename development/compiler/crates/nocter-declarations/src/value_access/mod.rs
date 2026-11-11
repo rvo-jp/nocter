@@ -14,7 +14,9 @@ use crate::DefinitionError;
 
 mod body_types;
 mod closures;
-pub use body_types::{BodyTypeError, BodyTypes, CanonicalBodyTypes};
+pub use body_types::{
+    BodyTypeError, BodyTypes, CanonicalBodyTypes, PayloadReadiness, ResolvedBodyTypes,
+};
 pub use closures::Closure;
 mod aggregate;
 pub use aggregate::{AggregateForm, AggregateSchema};

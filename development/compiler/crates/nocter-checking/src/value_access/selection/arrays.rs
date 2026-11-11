@@ -53,12 +53,17 @@ impl Checker<'_, '_> {
         if matches!(
             self.program().data_schema(element),
             Some(PayloadSchema::Function(_))
-        ) && !self.program().owned_payload_supported(element)
+        ) && self.program().payload_readiness(element)
+            == nocter_declarations::value_access::PayloadReadiness::Unsupported
         {
             return self.reject(Rule::UnsupportedData, node);
         }
         let action = if access.mode() == Mode::Own {
-            if continues && !self.copyable(element) {
+            if continues
+                && !self.copyable(element)
+                && self.program().payload_readiness(element)
+                    != nocter_declarations::value_access::PayloadReadiness::Pending
+            {
                 return self.reject(Rule::UnsupportedData, node);
             }
             IndexAction::CopyPayload

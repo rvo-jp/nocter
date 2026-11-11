@@ -20,6 +20,16 @@ fn machine(source: &str) -> nocter_machine::MachineProgram {
             .unwrap();
     nocter_machine::value_access::lower(&mir).unwrap()
 }
+
+#[test]
+fn private_structural_result_values_close_payloads_before_native_execution() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/structural-result-values.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "structural-result-values", 42);
+}
 fn compile(source: &str) -> crate::NativeImage {
     let machine = machine(source);
     let arm = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();

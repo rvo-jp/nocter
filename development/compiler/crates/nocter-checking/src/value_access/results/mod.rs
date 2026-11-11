@@ -137,20 +137,63 @@ pub(super) fn is_result(program: &Program, data: TypeId) -> bool {
 
 pub(super) fn close(
     context: &DeclarationContext<'_>,
+    program: Arc<Program>,
     controls: &mut BTreeMap<nocter_model::ValueCodeRoot, flow::Control>,
-) -> Result<Arc<Evidence>, accepted::Failure> {
+) -> Result<(Arc<Program>, Arc<Evidence>), accepted::Failure> {
+    if controls
+        .values()
+        .any(|control| !Arc::ptr_eq(&program, &control.typed.program))
+    {
+        return Err(accepted::Failure::Integrity(
+            flow::IntegrityError::InconsistentTypedBody,
+        ));
+    }
     let evidence = Arc::new(solve::solve(context, controls)?);
-    for (&root, control) in controls {
-        if flow::scope([&*control])
-            .map_err(accepted::Failure::Integrity)?
-            .values()
-            .all(|nested| nested.typed.results_closed())
-        {
-            continue;
+    let scope = flow::scope(controls.values()).map_err(accepted::Failure::Integrity)?;
+    solve::prove_equalities(context, &scope, &evidence)?;
+    let mut witnesses = BTreeMap::new();
+    for origin in evidence
+        .producers
+        .keys()
+        .copied()
+        .map(ValueFunctionOrigin::Result)
+        .chain(
+            evidence
+                .applications
+                .keys()
+                .copied()
+                .map(ValueFunctionOrigin::Application),
+        )
+    {
+        for invocation in [
+            nocter_model::ValueInvocation::Read,
+            nocter_model::ValueInvocation::Edit,
+            nocter_model::ValueInvocation::Take,
+        ] {
+            let source = FunctionWitness { origin, invocation };
+            if program.function_data(source).is_some() && !evidence.unproduced_origin(origin) {
+                witnesses.insert(
+                    source,
+                    evidence.witness(source).map_err(|_| {
+                        accepted::Failure::Integrity(flow::IntegrityError::InconsistentTypedBody)
+                    })?,
+                );
+            }
         }
+    }
+    // An empty unit still retains its canonical construction role, rather than a header fallback.
+    if controls.is_empty() {
+        return Ok((program, evidence));
+    }
+    let projection = program
+        .resolve_body_types(&witnesses)
+        .map_err(|_| accepted::Failure::Integrity(flow::IntegrityError::InconsistentTypedBody))?;
+    let program = Arc::new(projection.program().clone());
+    for (&root, control) in controls {
         let query = Arc::make_mut(&mut control.typed);
         attach(query, &evidence);
-        projection::project(context, query, &evidence).map_err(|failure| {
+        crate::value_access::types::bind_program(query, &program);
+        projection::project(context, query, &evidence, &projection).map_err(|failure| {
             accepted::Failure::Body {
                 callable: root.source_owner(),
                 failure,
@@ -158,7 +201,7 @@ pub(super) fn close(
         })?;
         seal(query);
     }
-    Ok(evidence)
+    Ok((program, evidence))
 }
 fn attach(query: &mut Query, evidence: &Arc<Evidence>) {
     query.result_evidence = Some(evidence.clone());

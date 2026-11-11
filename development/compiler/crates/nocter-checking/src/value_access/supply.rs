@@ -4,7 +4,7 @@ use super::{
     ir::{ArgumentAction, BoundaryAction, Expression, ExpressionKind, Referent},
 };
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
-use nocter_declarations::value_access::Program;
+use nocter_declarations::value_access::{PayloadReadiness, Program};
 use nocter_model::{AccessExpressionId, TypeId};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -19,13 +19,15 @@ pub(super) fn select(program: &Program, data: TypeId) -> Result<PlaceSupply, Fai
     let copyable = program
         .data_copyable(data)
         .ok_or(Failure::InconsistentSyntax)?;
-    Ok(if super::results::is_result(program, data) {
-        PlaceSupply::Pending
-    } else if copyable {
-        PlaceSupply::Copy
-    } else {
-        PlaceSupply::MissingCopy
-    })
+    Ok(
+        if program.payload_readiness(data) == PayloadReadiness::Pending {
+            PlaceSupply::Pending
+        } else if copyable {
+            PlaceSupply::Copy
+        } else {
+            PlaceSupply::MissingCopy
+        },
+    )
 }
 
 /// Resolve this expression's pending plans during the sole identity-projection traversal.
@@ -35,6 +37,7 @@ pub(super) fn resolve(
     query: &Query,
     id: AccessExpressionId,
     expression: &mut Expression,
+    project: &dyn Fn(TypeId) -> Result<TypeId, Failure>,
 ) -> Result<(), Failure> {
     match &mut expression.kind {
         ExpressionKind::Boundary {
@@ -47,11 +50,11 @@ pub(super) fn resolve(
                 .get(*source)
                 .and_then(|expression| expression.referent(*source))
                 .ok_or(Failure::InconsistentSyntax)?;
-            if unproduced(query, place)? {
+            if unproduced(query, place, project)? {
                 *action = BoundaryAction::Unproduced;
                 return Ok(());
             }
-            match resolved(context, query, id, place)? {
+            match resolved(context, query, id, place, project)? {
                 PlaceSupply::Copy => *action = BoundaryAction::CopyPayload,
                 PlaceSupply::Pending | PlaceSupply::MissingCopy => unreachable!("resolved above"),
             }
@@ -59,16 +62,17 @@ pub(super) fn resolve(
         ExpressionKind::Call { arguments, .. } => {
             for argument in arguments {
                 if let ArgumentAction::PendingValue(place) = argument.action {
-                    if unproduced(query, place)? {
+                    if unproduced(query, place, project)? {
                         argument.action = ArgumentAction::Unproduced;
                         continue;
                     }
-                    argument.action = match resolved(context, query, argument.value, place)? {
-                        PlaceSupply::Copy => ArgumentAction::CopyPlace(place),
-                        PlaceSupply::Pending | PlaceSupply::MissingCopy => {
-                            unreachable!("resolved above")
-                        }
-                    };
+                    argument.action =
+                        match resolved(context, query, argument.value, place, project)? {
+                            PlaceSupply::Copy => ArgumentAction::CopyPlace(place),
+                            PlaceSupply::Pending | PlaceSupply::MissingCopy => {
+                                unreachable!("resolved above")
+                            }
+                        };
                 }
             }
         }
@@ -77,11 +81,16 @@ pub(super) fn resolve(
     Ok(())
 }
 
-fn unproduced(query: &Query, place: Referent) -> Result<bool, Failure> {
+fn unproduced(
+    query: &Query,
+    place: Referent,
+    project: &dyn Fn(TypeId) -> Result<TypeId, Failure>,
+) -> Result<bool, Failure> {
     let data = query
         .body
         .referent_data(place)
         .ok_or(Failure::InconsistentSyntax)?;
+    let data = project(data)?;
     Ok(query
         .result_evidence
         .as_ref()
@@ -93,12 +102,13 @@ fn resolved(
     query: &Query,
     origin: AccessExpressionId,
     place: Referent,
+    project: &dyn Fn(TypeId) -> Result<TypeId, Failure>,
 ) -> Result<PlaceSupply, Failure> {
     let data = query
         .body
         .referent_data(place)
         .ok_or(Failure::InconsistentSyntax)?;
-    match select(query.program(), data)? {
+    match select(query.program(), project(data)?)? {
         PlaceSupply::Pending => Err(Failure::InconsistentSyntax),
         PlaceSupply::MissingCopy => Err(super::diagnostics::query_rejection(
             context,

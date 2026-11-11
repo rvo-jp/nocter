@@ -4,7 +4,7 @@ use super::{
     checker::Checker,
     ir::{Boundary, ExpressionKind, FieldValue, value_type},
 };
-use nocter_declarations::value_access::{AggregateForm, PayloadSchema};
+use nocter_declarations::value_access::{AggregateForm, PayloadReadiness, PayloadSchema};
 use nocter_model::{AccessExpressionId, ValueAccessMode as Mode};
 use nocter_syntax::{NodeId, NodeKind, direct_identifier};
 use std::collections::BTreeSet;
@@ -57,7 +57,7 @@ impl Checker<'_, '_> {
             else {
                 return self.reject(Rule::UnknownResultType, entry);
             };
-            if !self.program().owned_payload_supported(field_data) {
+            if self.program().payload_readiness(field_data) == PayloadReadiness::Unsupported {
                 return self.reject(Rule::InvalidConstruction, entry);
             }
             if constraints.is_none() {
