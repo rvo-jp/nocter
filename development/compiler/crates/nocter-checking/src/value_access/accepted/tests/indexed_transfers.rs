@@ -376,6 +376,16 @@ fn restoring_the_last_prefix_element_does_not_restore_the_entire_prefix() {
 }
 
 #[test]
+fn restoring_a_point_after_another_field_hole_does_not_establish_a_complete_epoch() {
+    let source = "struct Pair { left: i32\nright: i32 }\nfunc work(): void { var rows = [Pair { left: 40, right: 2 }, Pair { left: 20, right: 22 }]\nlet first = rows[0].left^\nlet second = rows[1]^\nrows[1] = second^\nvar index: usize = 0\nwhile index < 2 { let row = rows[index]^\nindex += 1 } }";
+    let (sources, tree) = input(source);
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Flow { .. }))
+    ));
+}
+
+#[test]
 fn retained_restoration_installs_before_retiring_backing_without_destroying_missing_data() {
     let unit = accepted(
         "func work(take original: error, take replacement: error, index: usize): void { var items = [original^]\nlet extracted = items[index]^\nitems[index] = replacement^ }",

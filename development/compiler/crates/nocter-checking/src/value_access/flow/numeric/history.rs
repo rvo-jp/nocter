@@ -14,11 +14,17 @@ use std::collections::{BTreeMap, BTreeSet};
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(super) enum Phase {
     Empty,
+    /// Exactly one whole element retired from a complete epoch, at the history cell's index.
+    Point,
     Prefix,
     Unproved,
 }
 #[derive(Clone, Copy)]
 enum Change {
+    Replace {
+        source: Referent,
+        restored: Option<usize>,
+    },
     Definite {
         source: Referent,
         except: Option<usize>,
@@ -157,7 +163,10 @@ impl Histories {
             let Some(selection) = self.selections.get(&site) else {
                 continue;
             };
-            if phases.get(selection.history) != Some(&Phase::Unproved) {
+            if !matches!(
+                phases.get(selection.history),
+                Some(Phase::Point | Phase::Unproved)
+            ) {
                 continue;
             }
             sources
@@ -200,7 +209,7 @@ impl Histories {
             Phase::Prefix => state
                 .difference(cells.value(selection.index)?, history.cell)
                 .is_some_and(|difference| difference > 0),
-            Phase::Unproved => false,
+            Phase::Point | Phase::Unproved => false,
         };
         available.then(|| history.array.clone())
     }
@@ -255,7 +264,12 @@ impl Histories {
         seen: &mut BTreeSet<AccessExpressionId>,
         change: Change,
     ) {
+        let restored = match change {
+            Change::Replace { restored, .. } => restored,
+            _ => None,
+        };
         let (source, except, definite) = match change {
+            Change::Replace { source, restored } => (source, restored, true),
             Change::Definite { source, except } => (source, except, true),
             Change::MayWrite(source) => (source, None, false),
         };
@@ -290,6 +304,67 @@ impl Histories {
             state.forget(history.cell);
             self.forget_seen(seen, id);
         }
+        if let Some(id) = restored {
+            phases[id] = Phase::Empty;
+            state.forget(self.arrays[id].cell);
+            self.forget_seen(seen, id);
+        }
+    }
+    fn restored_point(
+        &self,
+        cells: &Cells,
+        phases: &[Phase],
+        state: &Equalities,
+        target: Referent,
+    ) -> Option<usize> {
+        let Referent::Evaluated(target) = target else {
+            return None;
+        };
+        let selected = self.selections.get(&target)?;
+        let history = self.arrays.get(selected.history)?;
+        let one = phases.get(selected.history) == Some(&Phase::Point)
+            || (phases.get(selected.history) == Some(&Phase::Prefix)
+                && state.constant(history.cell) == Some(0));
+        (one && state.difference(cells.value(selected.index)?, history.cell) == Some(0))
+            .then_some(selected.history)
+    }
+    fn update_epochs(
+        &self,
+        typed: &TypedQuery,
+        cells: &Cells,
+        phases: &mut [Phase],
+        state: &mut Equalities,
+        seen: &mut BTreeSet<AccessExpressionId>,
+        operation: &Operation,
+    ) {
+        match *operation {
+            Operation::CommitCall(call) => {
+                self.call_writes(typed, cells.call_writes.at(call), phases, state, seen);
+            }
+            Operation::Bind { local, .. } | Operation::Drop(local) => {
+                self.local_epoch(phases, state, seen, local);
+            }
+            Operation::ExitScope { ref locals, .. } => {
+                for &local in locals {
+                    self.local_epoch(phases, state, seen, local);
+                }
+            }
+            Operation::Assign { target, .. } | Operation::CompoundAssign { target, .. } => {
+                let change = if matches!(operation, Operation::Assign { .. }) {
+                    Change::Replace {
+                        source: target,
+                        restored: self.restored_point(cells, phases, state, target),
+                    }
+                } else {
+                    Change::Definite {
+                        source: target,
+                        except: None,
+                    }
+                };
+                self.changed(typed, phases, state, seen, change);
+            }
+            _ => {}
+        }
     }
 }
 pub(super) fn action(
@@ -317,7 +392,7 @@ pub(super) fn action(
             let extends = index.is_some_and(|index| match phases[selection.history] {
                 Phase::Empty => state.constant(index) == Some(0),
                 Phase::Prefix => state.difference(index, history.cell) == Some(1),
-                Phase::Unproved => false,
+                Phase::Point | Phase::Unproved => false,
             });
             if extends {
                 proven.proven.insert(id);
@@ -341,6 +416,8 @@ pub(super) fn action(
             seen.insert(id);
             phases[selection.history] = if extends {
                 Phase::Prefix
+            } else if phases[selection.history] == Phase::Empty {
+                Phase::Point
             } else {
                 Phase::Unproved
             };
@@ -372,31 +449,6 @@ pub(super) fn action(
             );
         }
     }
-    match *operation {
-        Operation::CommitCall(call) => {
-            histories.call_writes(typed, cells.call_writes.at(call), phases, state, seen);
-        }
-        Operation::Bind { local, .. } | Operation::Drop(local) => {
-            histories.local_epoch(phases, state, seen, local);
-        }
-        Operation::ExitScope { ref locals, .. } => {
-            for &local in locals {
-                histories.local_epoch(phases, state, seen, local);
-            }
-        }
-        Operation::Assign { target, .. } | Operation::CompoundAssign { target, .. } => {
-            histories.changed(
-                typed,
-                phases,
-                state,
-                seen,
-                Change::Definite {
-                    source: target,
-                    except: None,
-                },
-            );
-        }
-        _ => {}
-    }
+    histories.update_epochs(typed, cells, phases, state, seen, operation);
     Ok(proven)
 }

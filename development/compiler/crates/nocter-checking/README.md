@@ -954,8 +954,11 @@ array-cardinality-dependent iteration cutoff. Selected builtin equality branches
 relationships. Unsupported operations, alias writes and calls without a closed write summary
 remain conservative. Impossible normal arithmetic supplies no proof. This report neither grants
 access to an unavailable value nor reclassifies a source bounds check. Numerical history
-partitions distinguish no prior extraction, a proven prefix and an unproved epoch; fixed body
-cells retain the last committed index. `NumericFacts::extends_prefix` reports a zero start or
+partitions distinguish a complete epoch, one point taken from completeness, a proven prefix and
+unproved coverage; fixed body cells retain the last committed index. Restoring the sole point
+to its saved index recovers completeness and clears that epoch's source provenance. A prefix
+endpoint of zero is also one missing element. Longer prefixes and generic unproved coverage do
+not acquire this reset. `NumericFacts::extends_prefix` reports a zero start or
 unit-stride continuation for the current transfer, including ordered transfers in an atomic call
 bundle. Preparation/cancellation create no event; containing replacement starts a new epoch,
 overlapping partial writes invalidate its prefix, and distinct containing arrays remain separate.
@@ -1069,6 +1072,8 @@ restoration on both branches and maximum-count zero-byte arrays. A logical owned
 that missing old data is not destroyed and snapshot retirement follows installation; actual native
 owned-error construction remains unqualified. Conditional hole creation, partial-field restoration
 and general relations among multiple retained holes remain separate obligations.
+Source also qualifies a later prefix loop after restoring the sole point, without replacing the
+containing array. Independent negative checks retain earlier field holes and longer-prefix holes.
 
 The shared retained-source corpus executes in required evaluation and through the
 [native consumer](../nocter-machine/README.md#private-array-execution). It covers normal and nested

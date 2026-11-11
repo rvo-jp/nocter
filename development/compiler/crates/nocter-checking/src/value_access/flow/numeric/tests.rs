@@ -269,6 +269,25 @@ fn replacement_starts_a_new_epoch_but_partial_restoration_invalidates_the_prefix
 }
 
 #[test]
+fn restoring_the_sole_point_starts_a_complete_epoch_before_a_later_prefix() {
+    let query = function(
+        "func f(input: usize): void { var items = [(); 3]\nlet old = items[input]^\nitems[input] = old^\nvar index: usize = 0\nwhile index < 3 { let next = items[index]^\nindex += 1 } }",
+    );
+    assert_eq!(prefix_transfers(&query), [false, true]);
+    let backing = frontiers(&query);
+    assert!(backing[0].is_none());
+    assert!(backing[1].is_some());
+}
+
+#[test]
+fn restoring_one_element_of_a_longer_prefix_does_not_reset_the_epoch() {
+    let query = function(
+        "func f(): void { var items = [(); 3]\nvar index: usize = 0\nloop { let old = items[index]^\nindex += 1\nif index == 2 { break } }\nitems[index - 1] = ()\nvar next: usize = 0\nwhile next < 3 { let moved = items[next]^\nnext += 1 } }",
+    );
+    assert_eq!(prefix_transfers(&query), [true, false]);
+}
+
+#[test]
 fn call_bundle_uses_transfer_order_and_consumes_a_closed_callee_write_summary() {
     let query = function(
         "func consume(take a: void, take b: void): void {}\nfunc f(): void { let items = [(); 3]\nvar index: usize = 0\nconsume(items[index]^, items[index + 1]^)\nindex = 2\nlet next = items[index]^ }",

@@ -85,7 +85,7 @@ layout fields, generated operations, an arbitrary iteration cutoff or a constant
   source/native execution, while keeping unproved and multi-hole relations conservative.
   Track scalar read inputs under their existing grant without authorizing updates or retaining
   facts across unknown writes; ordinary input use must not require a redundant local copy.
-- [ ] Recover a complete numerical array epoch after restoring its sole proved point. Distinguish
+- [x] Recover a complete numerical array epoch after restoring its sole proved point. Distinguish
   a point taken from a complete epoch from generic unproved coverage; do not reset after restoring
   only the last element of a longer prefix or after unrelated partial holes. Qualify a later
   prefix loop through the same required/native paths without containing replacement.
@@ -144,6 +144,11 @@ not a language restriction derived from the current realization boundary.
   publication is not implied by qualification.
 
 ## Open Findings
+
+- [ ] Remove the unused initialization `CleanupFact` report and its per-iteration collection if
+  the final consumer audit confirms no independent requirement. The resource transition report
+  already owns exact cleanup and guards; keep initialization responsible for availability and
+  diagnostics rather than a second incomplete cleanup projection.
 
 - [x] Close multiple dynamic field holes without an integrity failure. Source initialization
   and permissions admit different fields even when their indices may coincide, but snapshot

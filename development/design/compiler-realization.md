@@ -255,6 +255,11 @@ not a lifetime or equality proof. A prefix must remain a region, and multiple/un
 must not acquire a single-point proof. Restoration installs the already evaluated replacement
 before retiring the old snapshot; a restored backedge may capture new backing only after that
 obligation closes. Preserve original target evaluation and bounds checks.
+Distinguish one whole point taken from a complete epoch from generic unproved coverage. Restoring
+that sole point can recover a complete epoch for a later prefix loop. The zero endpoint of a
+proved zero-start prefix also describes one point; restoring a later endpoint cannot erase its
+earlier holes. Forget the completed epoch's source provenance so a later loop does not enroll
+an unrelated earlier point in its prefix backing policy.
 
 Use exact difference equalities between current usize cells for unit-stride induction. Keep
 mutable local cells separate from frozen computed values and prepared operands; an assignment

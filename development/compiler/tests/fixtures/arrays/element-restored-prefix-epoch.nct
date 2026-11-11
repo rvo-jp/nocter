@@ -1,0 +1,17 @@
+struct Item { value: i32 }
+const func work(input: usize): i32 {
+    var items = [Item { value: 40 }, Item { value: 2 }]
+    let old = items[input]^
+    items[input] = old^
+    var index: usize = 0
+    var total = 0
+    while index < 2 {
+        let next = items[index]^
+        total += next.value
+        index += 1
+    }
+    total
+}
+const func run(): i32 {
+    if work(0) == 42 && work(1) == 42 { 42 } else { 0 }
+}

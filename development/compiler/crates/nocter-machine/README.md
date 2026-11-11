@@ -252,6 +252,9 @@ replacement is installed before that snapshot's retirement. Shared source execut
 mutation, alternating indices across restored backedges, direct call retirement, both restoration
 branches and maximum-count zero-byte arrays. These cases introduce no new ownership table or
 native operation kind, and retain every original bounds operation.
+The restored-epoch case then consumes the complete array in a new prefix loop. Its earlier point
+snapshot ends before prefix backing is created; a shared structural representative never supplies
+the new endpoint's number.
 A separate native fixture executes a prefix loop through a helper that constructs and destroys
 an exact owned closure with a non-Copy array environment. The dormant body would trap if called;
 cleanup releases the environment without invoking it. This is native evidence; the required
