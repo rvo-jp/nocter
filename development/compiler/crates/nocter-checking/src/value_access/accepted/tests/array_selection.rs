@@ -246,3 +246,21 @@ fn mixed_projection_indices_run_once_in_order_and_interruption_stops_the_chain()
     let source = "struct Row { values: [i32; 1] }\nconst func work(): i32 { let rows = [Row { values: [30] }]\nrows[0].values[if true { return 42 } else { 0 }] }\nconst ANSWER: i32 = work()";
     assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
 }
+
+#[test]
+fn a_retained_indexed_callee_prevents_overlapping_replacement_during_inputs() {
+    let source = "func work(): i32 { let amount = 2\nlet action = (amount; value: i32): i32 { amount + value }\nvar callbacks = [action]\ncallbacks[0](if true { callbacks = [action]\n40 } else { 0 }) }";
+    let (sources, tree) = input(source);
+    let result = SourceUnit::prepare(bound(&sources, &tree));
+    assert!(
+        matches!(&result, Err(SourceFailure::Checking(Failure::Flow { .. }))),
+        "{result:?}"
+    );
+    let source = "struct Item { value: i32 }\nfunc work(): i32 { let item = Item { value: 42 }\nlet action = (item^;): i32 { let owned = item^\nowned.value }\nlet callbacks = [action^]\nlet first = callbacks[0]^()\ncallbacks[0]^() }";
+    let (sources, tree) = input(source);
+    let result = SourceUnit::prepare(bound(&sources, &tree));
+    assert!(
+        matches!(&result, Err(SourceFailure::Checking(Failure::Flow { .. }))),
+        "{result:?}"
+    );
+}

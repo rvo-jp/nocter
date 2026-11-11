@@ -535,3 +535,13 @@ fn private_contextual_closures_keep_selected_contracts_in_runtime_instances() {
     let package = TempPackage::new();
     execute_native_status(&compile(source), &package.0, "contextual-closures", 42);
 }
+
+#[test]
+fn private_direct_indexed_callables_keep_retirement_indices_and_snapshots() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/direct-indexed-callables.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "direct-indexed-callables", 42);
+}

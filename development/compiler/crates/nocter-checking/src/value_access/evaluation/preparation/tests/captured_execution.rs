@@ -193,3 +193,11 @@ fn contextual_closure_contracts_supply_required_answers() {
         "/../../tests/fixtures/native/value-access/contextual-closures.nct"
     )));
 }
+
+#[test]
+fn indexed_callable_invocation_keeps_prepared_indices_and_environment_operations() {
+    assert_answer_42(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/direct-indexed-callables.nct"
+    )));
+}

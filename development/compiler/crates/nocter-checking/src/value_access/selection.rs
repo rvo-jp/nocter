@@ -36,7 +36,7 @@ impl Checker<'_, '_> {
             }
         }
     }
-    fn member_token(&self, suffix: NodeId) -> Result<SyntaxToken, Failure> {
+    pub(super) fn member_token(&self, suffix: NodeId) -> Result<SyntaxToken, Failure> {
         nocter_syntax::direct_token_iter(self.syntax().tree(), suffix)
             .find(|token| {
                 matches!(
@@ -77,7 +77,7 @@ impl Checker<'_, '_> {
     ) -> Result<AccessExpressionId, Failure> {
         self.transfer_referent(node, place.into())
     }
-    fn transfer_referent(
+    pub(super) fn transfer_referent(
         &mut self,
         node: NodeId,
         source: super::Referent,
@@ -197,7 +197,7 @@ impl Checker<'_, '_> {
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
         if self.first_array_index(node)?.is_some() {
-            return self.indexed_value(node, reachable);
+            return self.postfix_value(node, reachable);
         }
         let (root, members) = self.selection(node)?;
         if let Some(name) = self.name_token(root)?
@@ -209,7 +209,7 @@ impl Checker<'_, '_> {
         let source = self.expression(root, None, reachable)?;
         self.component_value(node, source, &members)
     }
-    fn component_value(
+    pub(super) fn component_value(
         &mut self,
         node: NodeId,
         source: AccessExpressionId,

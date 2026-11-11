@@ -330,7 +330,11 @@ still grant neither Copy nor trivial cleanup to formal inputs or unresolved resu
 The private `flow::Control` prepares only the selected graph. Over its reachable successors,
 `results::producers` propagates code/view facts through actual reachable evaluations,
 local bindings, strong replacement, conditional forwarding, prepared arguments and staged returns.
-Actual prepared producer facts, rather than provisional data types, establish recursive anchors. These are static producer facts, not a second owner or
+Input schemas seed received callable witnesses, including owned callable environments. Reached
+structural projections carry their exact named/captured schema witness. Deferred transfers follow
+the already evaluated referent; value boundaries and selected view adapters preserve those same
+producer facts even when ownership execution is deferred to bundle commit. Projected data never
+supplies a symbolic result/application anchor from its provisional signature. Actual prepared producer facts, rather than provisional data types, establish recursive anchors. These are static producer facts, not a second owner or
 availability ledger. Moves and drops remain subject to initialization/access/resource validation.
 
 `results::solve` first closes reachable result relations to one named or own-input witness per
@@ -726,16 +730,16 @@ outer requests restart work without resetting storage. Its accounting contract b
 work/depth/storage exhaustion and unsupported final publication retain
 distinct local diagnostics. `prepare_with_limits` supplies explicit deterministic limits.
 
-Final publication admits bool, i32, usize, unit and finite closed record/tuple compositions of those
-leaves. Publication uses an explicit final-data policy over the shared schema traversal, independently of temporary
+Final publication admits bool, i32, usize, unit and finite closed record/tuple/fixed-array
+compositions under the shared final-data policy. Publication uses an explicit final-data policy over the shared schema traversal, independently of temporary
 execution support and Copy. The admitted aggregate schema has no user destructors or retained
 resources. Each constant reference creates a fresh ordinary value without granting its type Copy.
 Constant names remain non-addressable. Constant member selection resolves fields through the
 ordinary field authority, then selects established frozen components; scalar selections become
 ordinary literals before control facts and flow admission. No runtime initializer call results.
-Fixed-array value evaluation/publication, enums and generic conditions still require integration;
-computed source-header lengths already use this path. General outcome/callback/resource evaluation is not
-admitted by this path. Draft preparation can repeat work before a missing dependency resolves;
+Fixed-array values and computed source-header lengths use this path. Enums, generic conditions,
+general outcomes, unresolved formal callbacks and outside-dependent payload evaluation still require
+integration. Draft preparation can repeat work before a missing dependency resolves;
 resumable checking and reusable closed const plans remain compilation-cost improvements, not
 permission to cache mutable call results or change source validity.
 
@@ -1028,14 +1032,22 @@ temporary. Named constants construct values, while immutable statics retain thei
 identity.
 
 The index receives the ordinary expected usize boundary. Signed variables, booleans, unavailable
-names and out-of-range literal magnitudes keep their local diagnostics. Mixed member/index/transfer chains
-prepare iteratively through both source checking and graph scheduling. An existing static member
-prefix remains one ordinary selected place; subsequent fields retain the evaluated referent instead
-of copying intermediate records or arrays. Calls through indexed components still check the first index's operands before an explicit
-unsupported-data rejection. Long unclosed postfix chains do not recursively prepare intervening
-calls or transfer wrappers. Shared required/native source checks interleaved selector effects and
-an explicit Copy-array retirement; later source use still rejects that retired array. User index protocols
-remain unadmitted.
+names and out-of-range literal magnitudes keep their local diagnostics. `postfix` owns one iterative
+member/index/call/transfer preparation spine. A leading direct call retains its selected direct
+operation, and subsequent value calls use the same argument/bundle preparation. An existing static
+member prefix remains one ordinary place; consecutive computed members become one selected path,
+without intermediate record/array snapshots. Graph scheduling consumes the same selected operations.
+Long invalid chains reach their actual operand/call failure without recursive spine preparation or
+a source-level length ceiling.
+
+Exact callable elements can be invoked directly. Required/native source qualifies named functions,
+independent mutable captured elements, consuming non-Copy elements, Copy once views, mixed
+member/call/index results, factory-returned selections and interrupted inputs. The callee's index
+is prepared before explicit inputs: later index-variable mutation cannot retarget its environment.
+Read/update invocation retains the selected address; taking a Copy invocation view snapshots its
+environment and permits otherwise independent later replacement. Explicit element transfer still
+retires that element, including Copy data; subsequent use and overlapping mutation reject locally.
+General user index protocols and adapted callable-element prefix transfers remain separate gates.
 
 `Referent` is one typed-body operand for either a static selected place or an evaluated access
 expression, including member projections from an evaluated access. Read reservations, Copy supply,

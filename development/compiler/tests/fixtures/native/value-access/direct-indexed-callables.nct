@@ -1,0 +1,93 @@
+struct Item { value: i32 }
+const func increment(value: i32): i32 { value + 1 }
+const func change(edit index: usize): i32 { index = 1
+                                         41 }
+const func named(): i32 {
+    let callbacks = [increment; 2]
+    var index: usize = 0
+    let result = callbacks[index](change(index))
+    if result == 42 && index == 1 && callbacks[0](41) == 42 { 42 } else { 0 }
+}
+const func updating(): i32 {
+    let count = 40
+    let action = (count;): i32 { count += 1
+                                count }
+    var callbacks = [action; 2]
+    let first = callbacks[0]()
+    let second = callbacks[0]()
+    let other = callbacks[1]()
+    if first == 41 && second == 42 && other == 41 && callbacks[1]() == 42 && count == 40 { 42 } else { 0 }
+}
+const func consuming(): i32 {
+    let item = Item { value: 42 }
+    let action = (item^;): i32 { let owned = item^
+                                owned.value }
+    let callbacks = [action^]
+    callbacks[0]^()
+}
+const func snapshots(): i32 {
+    let count = 40
+    let action: once(): i32 = (count;): i32 { count += 1
+                                             count }
+    let callbacks = [action; 2]
+    let first = callbacks[0]()
+    let second = callbacks[0]^()
+    if first == 41 && second == 41 && callbacks[1]^() == 41 { 42 } else { 0 }
+}
+const func replacements(): i32 {
+    let amount = 2
+    let action: once(i32): i32 = (amount; value: i32): i32 { amount + value }
+    var callbacks = [action]
+    callbacks[0](if true { callbacks = [action]
+                           40 } else { 0 })
+}
+const func mixed(): i32 {
+    let amount = 2
+    let action = (amount; value: i32): (i32, [i32; 2]) { (0, [value, amount]) }
+    let tuples = [(action, 9); 2]
+    tuples[0].0(40).1[0] + tuples[1].0(40).1[1]
+}
+const func selected_update(): i32 {
+    let count = 0
+    let action = (count; amount: i32): i32 { count += amount
+                                            count }
+    var callbacks = [action; 2]
+    let unused = callbacks[1](100)
+    var index: usize = 0
+    let result = callbacks[index](if true { index = 1
+                                            42 } else { 0 })
+    if result == 42 && callbacks[0](0) == 42 && callbacks[1](0) == 100 && unused == 100 { 42 } else { 0 }
+}
+const func interrupted(): i32 {
+    let callbacks = [increment]
+    callbacks[0](if true { return 42 } else { return 0 })
+}
+const func selected_function(): func(i32): i32 {
+    let callbacks = [increment]
+    callbacks[0]
+}
+const func selected_environment(): func(i32): i32 {
+    let amount = 1
+    let action = (amount; value: i32): i32 { amount + value }
+    let callbacks = [action]
+    callbacks[0]
+}
+const func calculate(): i32 {
+    if named() == 42 && updating() == 42 && consuming() == 42 && snapshots() == 42 && replacements() == 42 && mixed() == 42 && selected_update() == 42 && interrupted() == 42 && selected_function()(41) == 42 && selected_environment()(41) == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func forward(take action: once(i32): i32): once(i32): i32 { action^ }
+func forwarded_capture(): i32 {
+    let callback = increment
+    let outer = (callback;): i32 { let selected = forward(callback^)
+                                   selected(41) }
+    outer()
+}
+func forwarded_component(): i32 {
+    let callback = increment
+    let other = 0
+    let outer = (callback, other;): i32 { let selected = forward(callback^)
+                                          selected(41) + other }
+    outer()
+}
+func run(): i32 { if ANSWER == 42 && calculate() == 42 && forwarded_capture() == 42 && forwarded_component() == 42 { 42 } else { 0 } }

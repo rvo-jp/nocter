@@ -80,18 +80,7 @@ impl Checker<'_, '_> {
             | NodeKind::OrderingExpression
             | NodeKind::AdditiveExpression
             | NodeKind::MultiplicativeExpression => self.binary(node, hint, reachable)?,
-            NodeKind::PostfixExpression => {
-                let suffix = *self
-                    .children(node)
-                    .last()
-                    .ok_or(Failure::InconsistentSyntax)?;
-                match self.kind(suffix)? {
-                    NodeKind::MemberSuffix => self.member_value(node, reachable)?,
-                    NodeKind::IndexSuffix => self.indexed_value(node, reachable)?,
-                    NodeKind::CallSuffix => self.call(node, reachable)?,
-                    _ => return Err(Failure::InconsistentSyntax),
-                }
-            }
+            NodeKind::PostfixExpression => self.postfix_value(node, reachable)?,
             NodeKind::IfExpression => {
                 return self.if_expression(
                     node,

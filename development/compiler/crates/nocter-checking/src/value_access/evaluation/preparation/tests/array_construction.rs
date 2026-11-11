@@ -162,7 +162,7 @@ fn long_postfix_index_chains_reach_a_local_gate_without_recursive_index_preparat
         assert_eq!(
             rejected("take items: [i32; 2]", &text),
             if suffix == "[0]()" {
-                BodyRule::UnsupportedData
+                BodyRule::InvalidCall
             } else {
                 BodyRule::TypeMismatch
             }

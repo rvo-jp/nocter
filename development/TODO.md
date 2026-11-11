@@ -18,11 +18,11 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Close direct indexed callable invocation through one iterative postfix preparation path. Preserve
-static direct/value selection, source-order argument preparation, explicit retirement, retained
-index identity and ordinary invocation adapters; do not use recursive source rechecking or a chain
-length ceiling. Qualify source, required evaluation and native execution, plus invalid long mixed
-chains and overlapping access. Adapted element transfer remains a separate prefix-handoff proof.
+Compose adapted callable-element transfers with the ordinary atomic prefix handoff. Preserve the
+original source retirement, prepared payload type, selected view and invocation binding through
+before-call adaptation and cleanup. Share the checked ownership phases with required/native consumers;
+qualify monotone dynamic indices, cancellation and local conflicts without weakening the numeric
+proofs or introducing a second owner/adapter registry.
 
 ## Retained Selection Closure
 
@@ -34,8 +34,8 @@ layout fields, generated operations, an arbitrary iteration cutoff or a constant
 
 - [ ] Extend call write summaries to externally dependent captures, user destruction and general
   escaping alias provenance. Generalize evaluated index relations beyond ordered prefix bundles
-  while preserving lifetime-specific evidence for retained aliases across re-evaluation. Close direct
-  indexed callable invocation and compose adapted callable-element transfers with the prefix handoff.
+  while preserving lifetime-specific evidence for retained aliases across re-evaluation. Compose
+  adapted callable-element transfers with the prefix handoff.
 - [ ] Extend saved-index identity and initialization/cleanup to conditional restoration and
   general numeric relations among holes within one array. Keep
   unproved relations local and explicit. Do not read uninitialized alternative backing or choose
@@ -60,7 +60,8 @@ not a language restriction derived from the current realization boundary.
   Preserve count supplier guards, one type authority, shared index relations and homogeneous/sparse
   representations. No constant-index-only policy or source-level cardinality ceiling substitutes
   for the required proofs.
-- [ ] Close remaining value/access/type and callable behavior: contextual/general capture dependencies,
+- [ ] Close remaining value/access/type and callable behavior: standalone anonymous inference and
+  inferred/general capture dependencies,
   general evaluator capture/input dependencies and formal substitution, general R/D/S and survival,
   interfaces/generics/witnesses, constant arguments and symbolic conditions,
   exports and conditional const admission. Follow the [realization obligations](design/compiler-realization.md)

@@ -6,64 +6,7 @@ use nocter_model::{AccessExpressionId, BuiltinType, ValueAccessMode as Mode};
 use nocter_syntax::{NodeId, NodeKind};
 
 impl Checker<'_, '_> {
-    pub(in crate::value_access) fn indexed_value(
-        &mut self,
-        node: NodeId,
-        reachable: bool,
-    ) -> Result<AccessExpressionId, Failure> {
-        let mut suffixes = Vec::new();
-        let mut root = self.unwrap(node)?;
-        loop {
-            if self.kind(root)? == NodeKind::TransferExpression {
-                let base = self.first_child(root)?;
-                suffixes.push((root, base, None));
-                root = self.unwrap(base)?;
-                continue;
-            }
-            if self.kind(root)? != NodeKind::PostfixExpression {
-                break;
-            }
-            let children = self.children(root);
-            let [base, suffix] = children.as_slice() else {
-                return Err(Failure::InconsistentSyntax);
-            };
-            if !matches!(
-                self.kind(*suffix)?,
-                NodeKind::IndexSuffix | NodeKind::MemberSuffix
-            ) {
-                break;
-            }
-            suffixes.push((root, *base, Some(*suffix)));
-            root = self.unwrap(*base)?;
-        }
-        suffixes.reverse();
-        let Some(first) = suffixes.iter().position(|&(_, _, suffix)| {
-            suffix.is_none_or(|suffix| matches!(self.kind(suffix), Ok(NodeKind::IndexSuffix)))
-        }) else {
-            return self.reject_array_selection(node, reachable);
-        };
-        // Keep the static member prefix as one ordinary place, so selecting pair.left[i]
-        // does not acquire access to pair.right or copy the containing pair.
-        let mut value = self.expression(suffixes[first].1, None, reachable)?;
-        for (node, _, suffix) in suffixes.into_iter().skip(first) {
-            let Some(suffix) = suffix else {
-                let Some(referent) = self.expression_referent(value) else {
-                    return self.reject(Rule::MissingTransfer, node);
-                };
-                value = self.transfer_referent(node, referent)?;
-                continue;
-            };
-            value = match self.kind(suffix)? {
-                NodeKind::IndexSuffix => self.index_component(node, suffix, value, reachable)?,
-                NodeKind::MemberSuffix => {
-                    self.component_value(node, value, &[self.member_token(suffix)?])?
-                }
-                _ => return Err(Failure::InconsistentSyntax),
-            };
-        }
-        Ok(value)
-    }
-    fn index_component(
+    pub(in crate::value_access) fn index_component(
         &mut self,
         node: NodeId,
         suffix: NodeId,

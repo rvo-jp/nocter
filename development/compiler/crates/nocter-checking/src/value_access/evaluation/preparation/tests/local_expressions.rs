@@ -403,7 +403,7 @@ fn scoped_element_transfer_and_indexed_calls_keep_distinct_rejections() {
         ),
         (
             "let value = items[0]()",
-            crate::value_access::Rule::UnsupportedData,
+            crate::value_access::Rule::InvalidCall,
         ),
     ] {
         let text = format!("func run(items: [i32; 2]): void {{ {operation} }}");

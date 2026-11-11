@@ -132,6 +132,9 @@ impl Checker<'_, '_> {
             });
         }
         let value = self.expression(node, None, reachable)?;
+        self.value_callee(node, value)
+    }
+    fn value_callee(&self, node: NodeId, value: AccessExpressionId) -> Result<Callee, Failure> {
         let Some(access) = self.ty(value).access() else {
             return self.reject(Rule::InvalidCall, node);
         };
@@ -156,15 +159,31 @@ impl Checker<'_, '_> {
         let [callee, suffix] = children.as_slice() else {
             return Err(Failure::InconsistentSyntax);
         };
-        if self.first_array_index(*callee)?.is_some() {
-            return self.reject_array_selection(*callee, reachable);
-        }
         let selected = self.callee(*callee, reachable)?;
+        self.selected_call(node, *suffix, &selected, reachable)
+    }
+    pub(super) fn call_value(
+        &mut self,
+        node: NodeId,
+        suffix: NodeId,
+        value: AccessExpressionId,
+        reachable: bool,
+    ) -> Result<AccessExpressionId, Failure> {
+        let selected = self.value_callee(node, value)?;
+        self.selected_call(node, suffix, &selected, reachable)
+    }
+    fn selected_call(
+        &mut self,
+        node: NodeId,
+        suffix: NodeId,
+        selected: &Callee,
+        reachable: bool,
+    ) -> Result<AccessExpressionId, Failure> {
         let contract = self
             .program()
             .function_contract(selected.witness)
             .ok_or(Failure::InconsistentSyntax)?;
-        let arguments = self.children(*suffix);
+        let arguments = self.children(suffix);
         if arguments.len() != contract.inputs.len() {
             return self.reject(Rule::InvalidCall, node);
         }
@@ -176,7 +195,7 @@ impl Checker<'_, '_> {
             CallKind::Direct
         };
         if let Some((value, expected)) = selected.environment {
-            plans.push(self.input_plan(*callee, value, expected, None)?);
+            plans.push(self.input_plan(self.first_child(node)?, value, expected, None)?);
         }
         for (syntax, expected) in arguments.into_iter().zip(contract.inputs) {
             let value = self.input_expression(syntax, expected.data, reachable && continues)?;

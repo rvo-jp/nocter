@@ -1,6 +1,6 @@
 //! Static producer flow over the selected control graph, independent of owner availability.
 //! A conditional's provisional type is not evidence that its named branch can execute.
-use crate::value_access::{ExpressionKind, LocalOrigin, Query, flow};
+use crate::value_access::{ExpressionKind, Query, flow};
 use nocter_declarations::value_access::{FunctionWitness, PayloadSchema};
 use nocter_model::{
     AccessExpressionId, AccessLocalId, AccessParameterId, ValueApplication, ValueFunctionOrigin,
@@ -29,8 +29,12 @@ pub(super) fn analyze(control: &flow::Control) -> Result<Report, flow::Integrity
     let query = &control.typed;
     let mut initial = State::new();
     for (local, value) in query.body.locals.iter() {
-        if matches!(value.origin, LocalOrigin::Parameter(_))
+        if value.origin.is_input()
             && let Some(PayloadSchema::Function(witness)) = query.program().data_schema(value.data)
+            && !matches!(
+                witness.origin,
+                ValueFunctionOrigin::Result(_) | ValueFunctionOrigin::Application(_)
+            )
         {
             initial.insert(Key::Local(local), BTreeSet::from([witness]));
         }
@@ -176,31 +180,87 @@ fn value(
     id: AccessExpressionId,
     state: &State,
 ) -> Result<Producers, flow::IntegrityError> {
-    let expression = query.body.expressions.get(id).ok_or(INVALID)?;
-    if !expression.ty.access().is_some_and(|a| {
-        matches!(
-            query.program().data_schema(a.data()),
-            Some(PayloadSchema::Function(_))
-        )
-    }) {
-        return Ok(Producers::new());
-    }
-    match expression.kind {
-        ExpressionKind::Place(_) | ExpressionKind::Move(_) => {
-            let place = match expression.kind {
-                ExpressionKind::Place(place) => place,
-                ExpressionKind::Move(place) => place.place().ok_or(INVALID)?,
-                _ => return Err(INVALID),
-            };
-            let place = query.body.places.get(place).ok_or(INVALID)?;
-            Ok(state
-                .get(&Key::Local(place.local))
-                .cloned()
-                .unwrap_or_default())
+    let mut current = id;
+    let mut adapted = None;
+    loop {
+        let expression = query.body.expressions.get(current).ok_or(INVALID)?;
+        if !expression.ty.access().is_some_and(|a| {
+            matches!(
+                query.program().data_schema(a.data()),
+                Some(PayloadSchema::Function(_))
+            )
+        }) {
+            return Ok(Producers::new());
         }
-        _ => Ok(state.get(&Key::Expression(id)).cloned().unwrap_or_default()),
+        let next = match expression.kind {
+            ExpressionKind::Boundary { source, .. }
+            | ExpressionKind::Move(crate::value_access::Referent::Evaluated(source)) => {
+                Some(source)
+            }
+            ExpressionKind::AdaptFunction { source } => {
+                let Some(PayloadSchema::Function(view)) = expression
+                    .ty
+                    .access()
+                    .and_then(|a| query.program().data_schema(a.data()))
+                else {
+                    return Err(INVALID);
+                };
+                adapted.get_or_insert(view.invocation);
+                Some(source)
+            }
+            _ => None,
+        };
+        if let Some(next) = next {
+            // Frozen expression wrappers point to already prepared values, not future facts.
+            if next >= current {
+                return Err(INVALID);
+            }
+            current = next;
+            continue;
+        }
+        let producers = match expression.kind {
+            ExpressionKind::Place(place)
+            | ExpressionKind::Move(crate::value_access::Referent::Place(place)) => {
+                let place = query.body.places.get(place).ok_or(INVALID)?;
+                if place.fields.is_root() {
+                    state
+                        .get(&Key::Local(place.local))
+                        .cloned()
+                        .unwrap_or_default()
+                } else {
+                    projected(query, place.data)
+                }
+            }
+            _ => state
+                .get(&Key::Expression(current))
+                .cloned()
+                .unwrap_or_default(),
+        };
+        return Ok(producers
+            .into_iter()
+            .map(|witness| FunctionWitness {
+                invocation: adapted.unwrap_or(witness.invocation),
+                ..witness
+            })
+            .collect());
     }
 }
+// A reached structural projection selects a payload with this exact schema. It does not
+// resolve a symbolic result/application from its provisional signature or prove availability.
+fn projected(query: &Query, data: nocter_model::TypeId) -> Producers {
+    match query.program().data_schema(data) {
+        Some(PayloadSchema::Function(witness))
+            if matches!(
+                witness.origin,
+                ValueFunctionOrigin::Declaration(_) | ValueFunctionOrigin::Closure(_)
+            ) =>
+        {
+            BTreeSet::from([witness])
+        }
+        _ => Producers::new(),
+    }
+}
+
 fn evaluate(
     query: &Query,
     id: AccessExpressionId,
@@ -224,24 +284,15 @@ fn evaluate(
             origin: ValueFunctionOrigin::Declaration(declaration),
             invocation: nocter_model::ValueInvocation::Read,
         }])),
-        ExpressionKind::Place(_) | ExpressionKind::Move(_) => value(query, id, state),
-        ExpressionKind::Boundary { source, .. } => value(query, source, state),
-        ExpressionKind::AdaptFunction { source } => {
-            let Some(PayloadSchema::Function(view)) = expression
-                .ty
-                .access()
-                .and_then(|a| query.program().data_schema(a.data()))
-            else {
-                return Err(INVALID);
-            };
-            Ok(value(query, source, state)?
-                .into_iter()
-                .map(|w| FunctionWitness {
-                    origin: w.origin,
-                    invocation: view.invocation,
-                })
-                .collect())
-        }
+        ExpressionKind::Place(_)
+        | ExpressionKind::Move(_)
+        | ExpressionKind::Boundary { .. }
+        | ExpressionKind::AdaptFunction { .. } => value(query, id, state),
+        ExpressionKind::Index { .. } | ExpressionKind::Select { .. } => Ok(expression
+            .ty
+            .access()
+            .map(|access| projected(query, access.data()))
+            .unwrap_or_default()),
         _ => Ok(Producers::new()),
     }
 }
