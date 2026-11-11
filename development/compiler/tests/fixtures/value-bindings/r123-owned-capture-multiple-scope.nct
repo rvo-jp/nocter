@@ -1,5 +1,0 @@
-func run(): void {
-    let first = 1
-    let second = 2
-    let action = (first, second;): i32 { first + second }
-}

@@ -1,0 +1,90 @@
+struct Item { value: i32 }
+const func increment(edit value: i32): void { value += 1 }
+const func both(edit left: i32, edit right: i32): void { left += 1
+                                                       right += 1 }
+const func empty(): i32 {
+    let action = (): i32 { 42 }
+    var editable: mut(): i32 = (): i32 { 42 }
+    let taking: once(): i32 = (): i32 { 42 }
+    if action() == 42 && action() == 42 && editable() == 42 && taking^() == 42 { 42 } else { 0 }
+}
+const func reading(): i32 {
+    var left = 20
+    let right = 22
+    let action = (left, right;): i32 { left + right }
+    left = 0
+    if action() == 42 && action() == 42 && right == 22 { 42 } else { 0 }
+}
+const func updating(): i32 {
+    let left = 40
+    let right = 0
+    var action = (left, right;): i32 {
+        both(left, right)
+        left + right
+    }
+    let first = action()
+    var copy = action
+    let second = copy()
+    let third = action()
+    if first == 42 && second == 44 && third == 44 && left == 40 && right == 0 { 42 } else { 0 }
+}
+const func consuming(): i32 {
+    let item = Item { value: 41 }
+    let spare = Item { value: 999 }
+    let amount = 1
+    let action = (item^, spare^, amount;): i32 {
+        drop spare
+        let moved = item^
+        moved.value + amount
+    }
+    action^()
+}
+const func nested(): i32 {
+    let item = Item { value: 40 }
+    let amount = 2
+    let action = (item^, amount;): i32 {
+        let inner = (item^, amount;): i32 { let moved = item^
+                                         moved.value + amount }
+        inner^()
+    }
+    action^()
+}
+const func components(): i32 {
+    let items = [20, 21]
+    let pair = (1, 2)
+    let add = (pair; value: i32): i32 { value + pair.0 }
+    let action = (items, pair, add;): i32 {
+        read first = items[0]
+        read second = pair.0
+        first + second + add(20)
+    }
+    action()
+}
+const func dropped_component(): i32 {
+    let first = 1
+    let second = 42
+    let action = (first, second;): i32 { drop first
+                                      second }
+    if action() == 42 && action^() == 42 { 42 } else { 0 }
+}
+const func disjoint(): i32 {
+    let left = 20
+    let right = 21
+    var action = (left, right;): i32 { read saved = left
+                                     increment(right)
+                                     saved + right }
+    action()
+}
+const func body_local_transfer(): i32 {
+    let left = 20
+    let right = 22
+    let action = (left, right;): i32 { let local = left
+                                     let moved = local^
+                                     moved + right }
+    if action() == 42 && action() == 42 { 42 } else { 0 }
+}
+const func calculate(): i32 {
+    if empty() == 42 && reading() == 42 && updating() == 42 && consuming() == 42 && nested() == 42 && components() == 42 && dropped_component() == 42 && disjoint() == 42 && body_local_transfer() == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { if ANSWER == 42 && calculate() == 42 { 42 } else { 0 } }

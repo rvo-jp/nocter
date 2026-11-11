@@ -7,6 +7,7 @@ use nocter_model::ValueInvocation;
 fn a_captured_callback_cannot_hide_writes_to_an_explicit_prefix_counter() {
     for setup in [
         "let value = ()\nlet reset = (value; edit index: usize): void { index = 0 }",
+        "let first = 0\nlet second = 0\nlet reset = (first, second; edit index: usize): void { index = 0 }",
         "let value = ()\nlet inner = (value; edit index: usize): void { index = 0 }\nlet reset = (inner; edit index: usize): void { inner(index) }",
     ] {
         let source = format!(
@@ -424,6 +425,74 @@ fn invalid_capture_supply_uses_and_unused_bodies_reject_the_whole_unit() {
                 Unit::prepare(&headers.bind(bound(&sources, &tree)).unwrap()),
                 Err(Failure::Body { .. } | Failure::Flow { .. })
             ),
+            "{source}"
+        );
+    }
+}
+
+#[test]
+fn empty_and_multiple_owned_captures_share_one_environment_input() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/owned-environments.nct"
+    ));
+    let unit = accepted(source);
+    for query in unit.closures().values() {
+        let inputs = query.typed().body().inputs();
+        assert!(inputs.environment.is_some());
+        assert!(query.typed().results_closed());
+        assert!(std::ptr::eq(query.typed().program(), unit.program()));
+    }
+}
+
+#[test]
+fn multiple_capture_names_preserve_source_and_component_retirement() {
+    for source in [
+        "func work(): i32 { let left = 20\nlet right = 22\nlet action = (left, right^;): i32 { left + right }\nright }",
+        "struct Item { value: i32 }\nfunc work(): i32 { let first = Item { value: 20 }\nlet second = Item { value: 22 }\nlet action = (first^, second^;): i32 { drop first\nfirst.value + second.value }\naction^() }",
+        "struct Item { value: i32 }\nfunc work(): void { let first = Item { value: 20 }\nlet second = 22\nlet action = (second, first;): void {} }",
+    ] {
+        let (sources, tree) = input(source);
+        assert!(
+            matches!(
+                SourceUnit::prepare(bound(&sources, &tree)),
+                Err(SourceFailure::Checking(
+                    Failure::Flow { .. } | Failure::Body { .. }
+                ))
+            ),
+            "{source}"
+        );
+    }
+}
+
+#[test]
+fn consuming_one_capture_cleans_only_the_other_live_components() {
+    let unit = accepted(
+        "func work(take first: error, take second: error, take third: error): error { let action = (first^, second^, third^;): error { drop second\nfirst^ }\naction^() }",
+    );
+    let body = unit.closures().values().next().unwrap();
+    let (&id, _) = unit.closures().iter().next().unwrap();
+    assert_eq!(
+        unit.program().closure(id).unwrap().contract().invocation,
+        ValueInvocation::Take
+    );
+    let trace = steps(body);
+    assert_eq!(trace.iter().filter(|s| matches!(s, Step::Dispose { payload, .. } if payload.disposal() == Disposal::OwnedError)).count(), 2);
+}
+
+#[test]
+fn repeated_capture_names_and_parameter_collisions_reject_locally() {
+    for head in [
+        "(left, left;)",
+        "(left, left^;)",
+        "(left, right; left: i32)",
+    ] {
+        let source = format!(
+            "func work(): void {{ let left = 20\nlet right = 22\nlet action = {head}: void {{}} }}"
+        );
+        let (sources, tree) = input(&source);
+        assert!(
+            matches!(SourceUnit::prepare(bound(&sources, &tree)), Err(SourceFailure::Checking(Failure::Body { failure: BodyFailure::Rejected(diagnostic), .. })) if diagnostic.rule() == crate::value_access::Rule::ShadowedName),
             "{source}"
         );
     }

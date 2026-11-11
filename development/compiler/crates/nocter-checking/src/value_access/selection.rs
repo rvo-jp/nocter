@@ -168,13 +168,15 @@ impl Checker<'_, '_> {
         }
         Ok((FieldPath::new(fields), data))
     }
-    fn local_selection(
+    fn member_place(
         &mut self,
-        local: AccessLocalId,
+        base: AccessPlaceId,
         members: &[SyntaxToken],
     ) -> Result<AccessPlaceId, Failure> {
-        let (fields, data) = self.fields(self.local_ty(local).data(), members)?;
-        Ok(self.intern_place(local, fields, data))
+        let selected = self.selected_place(base).clone();
+        let (fields, data) = self.fields(selected.data, members)?;
+        let fields = selected.fields.concat(&fields);
+        Ok(self.intern_place(selected.local, fields, data))
     }
     pub fn place(&mut self, node: NodeId, rule: Rule) -> Result<AccessPlaceId, Failure> {
         let (root, members) = self.selection(node)?;
@@ -186,8 +188,8 @@ impl Checker<'_, '_> {
             };
             return self.reject_message(rule, node, message.to_owned(), Vec::new());
         };
-        let local = self.place_name(name, rule)?;
-        self.local_selection(local, &members)
+        let place = self.place_name(name, rule)?;
+        self.member_place(place, &members)
     }
     pub fn member_value(
         &mut self,
@@ -199,9 +201,9 @@ impl Checker<'_, '_> {
         }
         let (root, members) = self.selection(node)?;
         if let Some(name) = self.name_token(root)?
-            && let Some(local) = self.named_place(name)?
+            && let Some(base) = self.named_place(name)?
         {
-            let place = self.local_selection(local, &members)?;
+            let place = self.member_place(base, &members)?;
             return self.emit_place(node, place);
         }
         let source = self.expression(root, None, reachable)?;
@@ -330,11 +332,11 @@ impl Checker<'_, '_> {
         let selected = self.selected_place(place);
         Ty::new(selected.data, self.local_ty(selected.local).mode())
     }
-    fn named_place(&mut self, token: SyntaxToken) -> Result<Option<AccessLocalId>, Failure> {
+    fn named_place(&mut self, token: SyntaxToken) -> Result<Option<AccessPlaceId>, Failure> {
         self.require_header(token)?;
         let spelling = self.text(token)?;
-        if let Some(local) = self.lookup(spelling) {
-            return Ok(Some(local));
+        if let Some(place) = self.lookup(spelling) {
+            return Ok(Some(place));
         }
         if let Some(id) = self
             .program()
@@ -343,7 +345,11 @@ impl Checker<'_, '_> {
             .and_then(|name| self.program().resolve_static(name))
         {
             if let Some(&local) = self.statics.get(&id) {
-                return Ok(Some(local));
+                return Ok(Some(self.intern_place(
+                    local,
+                    FieldPath::default(),
+                    self.local_ty(local).data(),
+                )));
             }
             let data = self
                 .program()
@@ -359,13 +365,13 @@ impl Checker<'_, '_> {
                 .locals
                 .insert(local, self.site(nocter_syntax::SyntaxOrigin::Token(token))?);
             self.statics.insert(id, local);
-            return Ok(Some(local));
+            return Ok(Some(self.intern_place(local, FieldPath::default(), data)));
         }
         Ok(None)
     }
-    pub fn place_name(&mut self, token: SyntaxToken, rule: Rule) -> Result<AccessLocalId, Failure> {
-        if let Some(local) = self.named_place(token)? {
-            return Ok(local);
+    pub fn place_name(&mut self, token: SyntaxToken, rule: Rule) -> Result<AccessPlaceId, Failure> {
+        if let Some(place) = self.named_place(token)? {
+            return Ok(place);
         }
         let spelling = self.text(token)?;
         if self

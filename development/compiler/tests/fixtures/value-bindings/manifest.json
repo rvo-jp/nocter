@@ -1817,11 +1817,11 @@
       "reason": "Inferred outside captures require a later retained-access scope."
     },
     {
-      "id": "r123-owned-capture-multiple-scope",
-      "file": "r123-owned-capture-multiple-scope.nct",
+      "id": "r123-owned-capture-duplicate-name",
+      "file": "r123-owned-capture-duplicate-name.nct",
       "expectation": "check-reject",
-      "diagnostic": "E0370",
-      "reason": "Multiple explicit environments are recognized but not admitted by the first owned-capture scope."
+      "diagnostic": "E0341",
+      "reason": "One capture name cannot occur twice, even with different transfer markers."
     },
     {
       "id": "r124-owned-capture-view-upgrade",

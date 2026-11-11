@@ -61,7 +61,7 @@ source names, physical offsets or an access grant.
 
 `nocter-declarations` owns the source-independent program, namespace, closed data authority,
 ordered input identities and operations, value results, and concrete named-function
-witnesses. Body-owned lexical closure keys additionally carry exact single-value environment
+witnesses. Body-owned lexical closure keys additionally carry exact owned environment
 schemas and inferred invocation contracts. They replay with body types into the same final
 authority, without changing reusable headers. A flat callable input introduces a symbolic formal witness; a flat callable result
 introduces a symbolic result family. Structural callable
@@ -363,7 +363,7 @@ signature-wide assumption about callable environments.
 Private instance data projection preserves an uninvoked owned environment's payload and its
 environment-data obligation without adding a code instance. A code identity selects the named or
 captured body independently of the value's invocation view. Its derived named source owner guards
-source reuse only and cannot select a closure body. The selected single-value environment uses the same private code-instance authority.
+source reuse only and cannot select a closure body. The selected complete environment uses the same private code-instance authority.
 
 ## Frozen Invocation Handoff
 

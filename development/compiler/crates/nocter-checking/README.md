@@ -513,7 +513,7 @@ retain their own schema cleanup rather than becoming scalars.
 Empty external D/S for those aggregates follows the exact component contracts, not Copy, ownership,
 or a missing outside R. Named-function evidence follows its exact declaration schema; a formal callback does not inherit
 Copy, trivial cleanup or empty D/S. Owning formals retain a symbolic environment cleanup operation
-tied to their witness. The producer domain also admits the bounded single owned-capture schema described below;
+tied to their witness. The producer domain also admits the bounded owned-environment schema described below;
 general retained footprints and concrete executable witness specialization remain separate obligations. Dependent aggregates,
 user destructors, capabilities, general captured environments, nested callback contracts, generics,
 outcomes, async and regions require their own later schemas/validation.
@@ -588,14 +588,14 @@ independent of body availability: a dormant runtime-only body can be formed and 
 unavailable body reports E0421 at its actual call, with causal locations in its own lexical code.
 The same definition/body and inferred func/mut/once contract serve runtime and required evaluation.
 
-The private source corpus qualifies one explicit owned capture with nested captured/named values,
+The private source corpus qualifies empty and multiple explicit owned captures with nested captured/named values,
 read/edit/consuming bodies, weaker read/edit/once views, independent Copy snapshots, explicit edited
 inputs, factory-only results and per-instance state. The shared native source compares embedded
 answers with ordinary execution. Arithmetic, bounds, work and call-depth failures retain actual
 captured-body locations. Captured calls can also supply local/header array counts; supplier body
-changes invalidate header reuse while unrelated body edits do not. General contextual/multiple
-captures, outside R/D/S dependencies, formal callable substitution and opaque error-data operations
-remain outside this evaluator domain. A named actual argument cannot stand in for an unclosed
+changes invalidate header reuse while unrelated body edits do not. General contextual captures,
+outside R/D/S dependencies, formal callable substitution and opaque error-data operations remain
+outside this evaluator domain. A named actual argument cannot stand in for an unclosed
 formal input representation, even when unused. Domain checking reports the actual input before
 projection; interrupted preparation never fabricates a completed call.
 
@@ -789,9 +789,14 @@ body. Ordinary editing calls have no result-only cache that could erase writes.
 
 ## Owned Capture Bodies
 
-`closures` checks one explicit value environment per producer under the private source contract.
-Formation uses the ordinary value-supply boundary. A separate body scope receives that environment
-and flat explicit inputs; names outside it cannot become implicit captures. The body returns
+`closures` checks explicit owned captures under the private source contract. Formation evaluates
+entries in source order through ordinary value supply and assembles one complete environment.
+An empty capture set uses unit, one entry uses its payload, and multiple entries use the existing
+structural tuple authority. A separate body scope receives one environment input and flat explicit
+inputs. All local names resolve to interned places: captured names designate environment components,
+not additional owning locals or an alias registry. Member/index selection, scoped access, update,
+transfer and component disposal retain those same paths. Names outside the scope cannot become
+implicit captures. The body returns
 ordinary closed data and can construct nested closed-data environments under those same rules.
 The body type authority reserves lexical IDs before descending into nested producers; sibling and
 descendant code cannot reuse a pending parent's slot. Canonical program binding, result closure and
@@ -799,7 +804,7 @@ flow admission cover every nested body through the common scope. Exact named/cap
 values can themselves form an owned environment, using the declaration owner's admission predicate.
 Unmarked formation still needs source-context Copy; explicit transfer retires even a Copy function
 value. Selected mut/once views survive capture. Formal and unresolved result/application captures,
-inferred outside access and multiple explicit environments remain outside this qualified scope.
+inferred outside access remain outside this qualified scope.
 Named factory calls inside the body use
 the same callable-result closure as root bodies. Their applications retain actual lexical code,
 not only the shared source/type root. A shared `flow::scope` traversal indexes captured controls
@@ -832,7 +837,10 @@ diagnostics project an input slot directly through its local source locator.
 
 The existing resource ledger's atomic Capture transition transfers a complete environment into
 one closure value. Unmarked capture supply snapshots with Copy evidence; a marked capture transfers one owning
-source, including Copy data.
+source, including Copy data. Component destruction retires only that component; consuming invocation
+cleans the live remainder in reverse construction order. Source cases cover empty environments,
+independent multiple-capture copies, nested transfer, disjoint components and partial disposal through
+required evaluation and native execution. Error-handle cases establish logical disposal counts only.
 OwnedCapture disposal retains the schema's environment cleanup obligation. A consuming body owns
 and cleans its remainder; a read/edit body receives scoped input authority. Adapters preserve the
 code/environment identity. Result equations accept only actually produced closure witnesses.

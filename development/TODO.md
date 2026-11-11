@@ -18,11 +18,11 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Generalize explicit owned closure environments beyond one capture. Preserve one declaration-owned
-payload schema and one body environment input, infer invocation from actual component operations,
-and qualify empty/multiple captures through ordinary flow, required evaluation and native execution.
-Keep contextual outside-reference capture, general formal substitution and final callable
-serialization separate; no duplicate capture owner or alternate invocation path is permitted.
+Complete contextual anonymous callable contracts. Supply omitted parameter data/operations and
+result data from the already selected expected contract, reject conflicting explicit declarations
+locally, and preserve inferred environment invocation and ordinary adaptation. Cover annotations,
+call inputs and conditional result positions through the existing typing/flow and native paths;
+standalone inference and outside-reference capture remain separate obligations.
 
 ## Retained Selection Closure
 
@@ -60,7 +60,7 @@ not a language restriction derived from the current realization boundary.
   Preserve count supplier guards, one type authority, shared index relations and homogeneous/sparse
   representations. No constant-index-only policy or source-level cardinality ceiling substitutes
   for the required proofs.
-- [ ] Close remaining value/access/type and callable behavior: contextual/multiple/general capture dependencies,
+- [ ] Close remaining value/access/type and callable behavior: contextual/general capture dependencies,
   general evaluator capture/input dependencies and formal substitution, general R/D/S and survival,
   interfaces/generics/witnesses, constant arguments and symbolic conditions,
   exports and conditional const admission. Follow the [realization obligations](design/compiler-realization.md)

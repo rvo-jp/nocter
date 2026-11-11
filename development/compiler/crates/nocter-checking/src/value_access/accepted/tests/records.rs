@@ -147,8 +147,24 @@ fn source_field_selection_and_cleanup_preserve_shared_deep_schemas() {
     .unwrap();
     let unit = accepted(&text);
     let query = named(&unit, "deep");
-    // Prefix syntax does not create redundant selected places or expand the conceptual tree.
-    assert_eq!(query.typed().body().places().len(), 1);
+    // The binding root and selected leaf are interned places. Intermediate member syntax
+    // does not create places or expand the conceptual payload tree.
+    let places = query.typed().body().places();
+    assert_eq!(places.len(), 2);
+    assert_eq!(
+        places
+            .iter()
+            .filter(|(_, place)| place.fields.is_root())
+            .count(),
+        1
+    );
+    assert_eq!(
+        places
+            .iter()
+            .filter(|(_, place)| place.fields.fields().len() == DEPTH + 1)
+            .count(),
+        1
+    );
     let trace = steps(query);
     assert_eq!(
         trace

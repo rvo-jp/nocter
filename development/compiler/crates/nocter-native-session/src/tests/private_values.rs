@@ -515,3 +515,13 @@ fn private_const_captured_values_share_runtime_views_and_environment_semantics()
     let package = TempPackage::new();
     execute_native_status(&compile(source), &package.0, "const-captured-values", 42);
 }
+
+#[test]
+fn private_owned_environments_execute_empty_and_multiple_captures() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/owned-environments.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "owned-environments", 42);
+}

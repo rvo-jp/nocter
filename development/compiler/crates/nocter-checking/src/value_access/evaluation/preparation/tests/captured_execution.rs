@@ -177,3 +177,11 @@ fn captured_counts_keep_exact_body_dependencies_and_expression_scope() {
         "const ANSWER: i32 = if true { let values: [i32; if true { let value: usize = 40\nlet action = (value;): usize { value + 2 }\naction() } else { 0 }] = [0; 42]\n42 } else { 0 }",
     );
 }
+
+#[test]
+fn empty_and_multiple_owned_capture_answers_match_their_declared_constant() {
+    assert_answer_42(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/owned-environments.nct"
+    )));
+}

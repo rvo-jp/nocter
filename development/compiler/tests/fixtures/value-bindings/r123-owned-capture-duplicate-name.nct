@@ -1,0 +1,4 @@
+func run(): void {
+    let first = 1
+    let action = (first, first^;): i32 { first }
+}

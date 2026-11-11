@@ -120,11 +120,19 @@ impl Checker<'_, '_> {
                 let token = direct_identifier_iter(self.syntax().tree(), node)
                     .nth(1)
                     .ok_or(Failure::InconsistentSyntax)?;
-                let local = self.place_name(token, Rule::InvalidDrop)?;
-                if self.local_ty(local).mode() != Mode::Own {
-                    return self.reject_local(Rule::InvalidDrop, token, local);
+                let place = self.place_name(token, Rule::InvalidDrop)?;
+                let selected = self.selected_place(place).clone();
+                if self.place_ty(place).mode() != Mode::Own {
+                    return self.reject_local(Rule::InvalidDrop, token, selected.local);
                 }
-                (Statement::Drop(local), true)
+                let statement = if selected.fields.is_root() {
+                    Statement::Drop(selected.local)
+                } else {
+                    // A captured name designates one environment component. Retire that
+                    // component through ordinary transfer/discard, never its siblings.
+                    Statement::Discard(self.transfer_place(node, place)?)
+                };
+                (statement, true)
             }
             NodeKind::AssignmentStatement => self.assignment(node, reachable)?,
             NodeKind::BreakStatement | NodeKind::ContinueStatement => {
@@ -230,10 +238,7 @@ impl Checker<'_, '_> {
         self.origins
             .locals
             .insert(local, self.site(SyntaxOrigin::Token(name))?);
-        self.scopes
-            .last_mut()
-            .expect("active block scope")
-            .insert(spelling, local);
+        self.bind_local(spelling, local);
         Ok((
             Statement::Bind { local, value },
             self.ty(value).may_complete(),

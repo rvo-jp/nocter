@@ -1,4 +1,4 @@
-//! Exact single owned-capture schemas, separate from structural callable constraints.
+//! Exact owned-environment schemas, separate from structural callable constraints.
 use super::{FunctionConstraint, Program};
 use nocter_model::{TypeId, ValueClosure};
 

@@ -225,7 +225,7 @@ impl Checker<'_, '_> {
             && let Some(local) = self.named_place(name)?
         {
             // Identify existing storage without emitting a complete-array read or snapshot.
-            let place = self.local_selection(local, &members)?;
+            let place = self.member_place(local, &members)?;
             (self.place_ty(place).data(), true)
         } else {
             let value = self.expression(*base, None, reachable)?;

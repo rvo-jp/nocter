@@ -1,6 +1,7 @@
-//! One explicit owned capture: body operations select invocation before flow validation.
+//! Owned capture components share one environment; body operations select invocation before flow.
 use super::ir::{
-    ArgumentAction, Boundary, BoundaryAction, ExpressionKind, Local, LocalOrigin, value_type,
+    ArgumentAction, Boundary, BoundaryAction, ExpressionKind, FieldValue, Local, LocalOrigin,
+    value_type,
 };
 use super::{Failure, Rule, annotations::Annotation, checker::Checker};
 use nocter_declarations::value_access::{FunctionConstraint, FunctionInput, PayloadSchema};
@@ -17,8 +18,7 @@ impl Checker<'_, '_> {
         _reachable: bool,
     ) -> Result<nocter_model::AccessExpressionId, Failure> {
         let head = self.direct(node, NodeKind::ClosureHead)?;
-        let (capture_token, captured, data) = self.owned_capture(head)?;
-        let capture_name = self.text(capture_token)?.to_owned();
+        let (capture_names, captured, data) = self.owned_captures(head)?;
         let result_node = self.direct(node, NodeKind::ClosureResult).ok();
         let Some(result_node) = result_node else {
             return self.reject_message(
@@ -56,11 +56,11 @@ impl Checker<'_, '_> {
             local: environment,
             operation: ValueInputOperation::Take,
         });
-        nested.origins.locals.insert(
-            environment,
-            nested.site(SyntaxOrigin::Token(capture_token))?,
-        );
-        nested.scopes[0].insert(capture_name, environment);
+        nested
+            .origins
+            .locals
+            .insert(environment, nested.site(SyntaxOrigin::Node(head))?);
+        nested.bind_captures(&capture_names, environment)?;
         let parameters = self.direct(head, NodeKind::ClosureParameters)?;
         let inputs = nested.closure_inputs(parameters)?;
         let root = nested.block(
@@ -105,12 +105,36 @@ impl Checker<'_, '_> {
             },
         )
     }
-    fn owned_capture(
+    fn bind_captures(
+        &mut self,
+        names: &[nocter_syntax::SyntaxToken],
+        environment: AccessLocalId,
+    ) -> Result<(), Failure> {
+        let data = self.local_ty(environment).data();
+        for (index, token) in names.iter().copied().enumerate() {
+            let (fields, component) = if names.len() == 1 {
+                (nocter_model::FieldPath::default(), data)
+            } else {
+                let field = nocter_model::ValueField::Tuple(index);
+                let component = self
+                    .program()
+                    .component(data, field)
+                    .ok_or(Failure::InconsistentSyntax)?
+                    .data;
+                (nocter_model::FieldPath::new([field]), component)
+            };
+            let place = self.intern_place(environment, fields, component);
+            let name = self.text(token)?.to_owned();
+            self.scopes[0].insert(name, place);
+        }
+        Ok(())
+    }
+    fn owned_captures(
         &mut self,
         head: NodeId,
     ) -> Result<
         (
-            nocter_syntax::SyntaxToken,
+            Vec<nocter_syntax::SyntaxToken>,
             nocter_model::AccessExpressionId,
             nocter_model::TypeId,
         ),
@@ -118,42 +142,66 @@ impl Checker<'_, '_> {
     > {
         let segment = self.direct(head, NodeKind::ClosureCaptures).ok();
         let names = segment.map(|n| self.children(n)).unwrap_or_default();
-        let [capture_node] = names.as_slice() else {
-            return self.reject_message(
-                Rule::TypeMismatch,
-                head,
-                "this private closure scope requires exactly one explicit value capture".into(),
-                Vec::new(),
-            );
-        };
-        let capture_token = self.token(*capture_node)?;
-        let local = self.place_name(capture_token, Rule::UnknownName)?;
-        let place = self.intern_place(
-            local,
-            nocter_model::FieldPath::default(),
-            self.local_ty(local).data(),
-        );
-        let data = self.place_ty(place).data();
-        if matches!(
-            self.program().data_schema(data),
-            Some(PayloadSchema::Function(_))
-        ) && !self.program().owned_payload_supported(data)
-        {
-            return self.reject_message(
-                Rule::TypeMismatch,
-                *capture_node,
-                "this owned-capture scope needs an exact callable payload; formal and unresolved result witnesses are not yet admitted"
-                    .into(),
-                Vec::new(),
-            );
+        let mut seen = std::collections::BTreeSet::new();
+        let mut tokens = Vec::new();
+        let mut fields = Vec::new();
+        let mut data = Vec::new();
+        for (index, capture_node) in names.into_iter().enumerate() {
+            let capture_token = self.token(capture_node)?;
+            if !seen.insert(self.text(capture_token)?.to_owned()) {
+                return self.reject(Rule::ShadowedName, capture_token);
+            }
+            let place = self.place_name(capture_token, Rule::UnknownName)?;
+            let component = self.place_ty(place).data();
+            if matches!(
+                self.program().data_schema(component),
+                Some(PayloadSchema::Function(_))
+            ) && !self.program().owned_payload_supported(component)
+            {
+                return self.reject_message(
+                    Rule::TypeMismatch, capture_node,
+                    "this owned-capture scope needs an exact callable payload; formal and unresolved result witnesses are not yet admitted".into(),
+                    Vec::new(),
+                );
+            }
+            let captured = if self.has(capture_node, nocter_syntax::Punctuation::Caret) {
+                self.transfer_place(capture_node, place)?
+            } else {
+                let captured = self.emit_place(capture_node, place)?;
+                self.boundary(capture_node, captured, Boundary::Value(component))?
+            };
+            tokens.push(capture_token);
+            fields.push(FieldValue {
+                field: nocter_model::ValueField::Tuple(index),
+                value: captured,
+            });
+            data.push(component);
         }
-        let captured = if self.has(*capture_node, nocter_syntax::Punctuation::Caret) {
-            self.transfer_place(*capture_node, place)?
-        } else {
-            let captured = self.emit_place(*capture_node, place)?;
-            self.boundary(*capture_node, captured, Boundary::Value(data))?
+        let captured = match fields.as_slice() {
+            [] => self.unit(head)?,
+            [single] => single.value,
+            _ => {
+                let data = self
+                    .types
+                    .tuple(&data)
+                    .map_err(|_| Failure::InconsistentSyntax)?;
+                self.emit(
+                    head,
+                    value_type(data, ValueAccessMode::Own),
+                    ExpressionKind::Aggregate {
+                        fields: fields.into(),
+                    },
+                )?
+            }
         };
-        Ok((capture_token, captured, data))
+        Ok((
+            tokens,
+            captured,
+            self.ty(captured)
+                .access()
+                .ok_or(Failure::InconsistentSyntax)?
+                .data(),
+        ))
     }
     fn closure_inputs(&mut self, parameters: NodeId) -> Result<Vec<FunctionInput>, Failure> {
         let mut inputs = Vec::new();
@@ -193,7 +241,7 @@ impl Checker<'_, '_> {
             self.origins
                 .locals
                 .insert(local, self.site(SyntaxOrigin::Token(token))?);
-            self.scopes[0].insert(name, local);
+            self.bind_local(name, local);
             inputs.push(FunctionInput { data, operation });
         }
         Ok(inputs)

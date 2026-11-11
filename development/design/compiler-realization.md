@@ -90,8 +90,8 @@ without accepting capability cycles or mistaking budget exhaustion for nontermin
 constant-argument and further structural requests must use the same dependency protocol; no stage
 may publish fabricated type/constant placeholders to break a cycle.
 
-Extend captured evaluation to the adopted general capture/input dependencies, contextual and
-multiple captures, and formal callable substitution. Preserve definition-time witness availability
+Extend captured evaluation to the adopted general capture/input dependencies, contextual outside
+access captures and formal callable substitution. Preserve definition-time witness availability
 and local causes without inferring const for named runtime implementations. General R/D/S and
 survival must qualify transferred-view backing and answer receipt before dependent references or
 nontrivial cleanup enter evaluation. Symbolic generic/witness/resource-existence conditions and

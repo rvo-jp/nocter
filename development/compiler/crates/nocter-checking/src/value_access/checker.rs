@@ -50,7 +50,7 @@ pub(super) struct Checker<'a, 's> {
     pub blocks: ArenaBuilder<AccessBlockId, Block>,
     pub loops: ArenaBuilder<AccessLoopId, ()>,
     pub loop_stack: Vec<LoopFrame>,
-    pub scopes: Vec<BTreeMap<String, AccessLocalId>>,
+    pub scopes: Vec<BTreeMap<String, AccessPlaceId>>,
     pub unavailable: BTreeSet<String>,
     pub required_roots:
         Option<nocter_declaration_lowering::access_declarations::BodyExpressions<'s>>,
@@ -105,7 +105,7 @@ pub(super) fn prepare(
             .locals
             .insert(local, Site::Parameter(parameter_declaration.position()));
         let spelling = checker.text(token)?.to_owned();
-        checker.scopes[0].insert(spelling, local);
+        checker.bind_local(spelling, local);
     }
     let root = if declaration.kind().is_initializer() {
         let value = checker.expression(
@@ -500,11 +500,18 @@ impl<'a, 's> Checker<'a, 's> {
         }
         Ok(())
     }
-    pub fn lookup(&self, name: &str) -> Option<AccessLocalId> {
+    pub fn lookup(&self, name: &str) -> Option<AccessPlaceId> {
         self.scopes
             .iter()
             .rev()
             .find_map(|scope| scope.get(name).copied())
+    }
+    pub fn bind_local(&mut self, name: String, local: AccessLocalId) {
+        let place = self.intern_place(local, FieldPath::default(), self.local_ty(local).data());
+        self.scopes
+            .last_mut()
+            .expect("active scope")
+            .insert(name, place);
     }
     pub fn shadows_name(&self, name: &str) -> bool {
         self.lookup(name).is_some()
