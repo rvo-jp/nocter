@@ -968,8 +968,11 @@ to its saved index recovers completeness and clears that epoch's source provenan
 endpoint of zero is also one missing element. Longer prefixes and generic unproved coverage do
 not acquire this reset. `NumericFacts::extends_prefix` reports a zero start or
 unit-stride continuation for the current transfer, including ordered transfers in an atomic call
-bundle. Preparation/cancellation create no event; containing replacement starts a new epoch,
-overlapping partial writes invalidate its prefix, and distinct containing arrays remain separate.
+bundle. Preparation/cancellation create no event; containing replacement starts a new epoch.
+Ordinary element replacement and compound update preserve an already complete owning-array epoch,
+observed after RHS effects. They cannot erase other holes or reset a partial prefix; compound update
+cannot restore an absent old value. Other overlapping partial writes invalidate the prefix, and
+distinct containing arrays remain separate.
 No prefix history crosses a call without a closed write summary. May-executed transfer sites
 form a finite provenance set alongside the difference facts; binding, containing replacement
 and scope exit forget the affected epoch. `NumericFacts::prefix_frontier` selects a prefix

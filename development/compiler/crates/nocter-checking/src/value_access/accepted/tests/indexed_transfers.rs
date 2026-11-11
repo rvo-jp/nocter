@@ -690,6 +690,16 @@ fn mixed_remainders_preserve_point_and_prefix_coverage_roles() {
     );
 }
 #[test]
+fn initialized_element_replacement_does_not_hide_a_hole_created_by_its_rhs() {
+    let source = "func work(): void { var items = [1, 2]\nitems[0] = items[1]^\nvar index: usize = 0\nwhile index < 2 { let moved = items[index]^\nindex += 1 } }";
+    let (sources, tree) = input(source);
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Flow { .. }))
+    ));
+}
+
+#[test]
 fn repeated_known_selection_is_safe_only_when_restored_on_each_backedge() {
     let source = format!(
         "{}\nconst ANSWER: i32 = run()",

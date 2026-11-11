@@ -259,6 +259,9 @@ Conditional-restoration cases execute both complete and missing-point alternativ
 different saved-index slots holding equal numbers. Existing ownership guards select a live
 snapshot path or initialized referent replacement; no index comparison chooses a lifetime or
 reads backing from an inactive route. Maximum-count zero-byte cases use the same transitions.
+Initialized-element replacement and compound update also precede a later prefix loop in shared
+source execution. Conditional restoration reaches that loop from both the complete and missing-point
+routes; changed payloads make an omitted replacement observable.
 A separate native fixture executes a prefix loop through a helper that constructs and destroys
 an exact owned closure with a non-Copy array environment. The dormant body would trap if called;
 cleanup releases the environment without invoking it. This is native evidence; the required

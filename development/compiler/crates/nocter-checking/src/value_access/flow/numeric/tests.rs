@@ -280,6 +280,16 @@ fn restoring_the_sole_point_starts_a_complete_epoch_before_a_later_prefix() {
 }
 
 #[test]
+fn initialized_element_writes_preserve_a_complete_epoch_for_prefix_extraction() {
+    for (array, update) in [("[(); 3]", "items[0] = ()"), ("[0; 3]", "items[0] += 1")] {
+        let query = function(&format!(
+            "func f(): void {{ var items = {array}\n{update}\nvar index: usize = 0\nwhile index < 3 {{ let next = items[index]^\nindex += 1 }} }}"
+        ));
+        assert_eq!(prefix_transfers(&query), [true], "{update}");
+    }
+}
+
+#[test]
 fn restoring_one_element_of_a_longer_prefix_does_not_reset_the_epoch() {
     let query = function(
         "func f(): void { var items = [(); 3]\nvar index: usize = 0\nloop { let old = items[index]^\nindex += 1\nif index == 2 { break } }\nitems[index - 1] = ()\nvar next: usize = 0\nwhile next < 3 { let moved = items[next]^\nnext += 1 } }",

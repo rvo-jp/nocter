@@ -1,0 +1,41 @@
+struct Item { value: i32 }
+const func replace(): i32 {
+    var items = [Item { value: 1 }, Item { value: 2 }]
+    items[0] = Item { value: 40 }
+    var index: usize = 0
+    var total = 0
+    while index < 2 {
+        let next = items[index]^
+        total += next.value
+        index += 1
+    }
+    total
+}
+const func compound(): i32 {
+    var items = [20, 20]
+    items[0] += 2
+    var index: usize = 0
+    var total = 0
+    while index < 2 {
+        let next = items[index]^
+        total += next
+        index += 1
+    }
+    total
+}
+const func conditional(input: usize, flag: bool): i32 {
+    var items = [Item { value: 20 }, Item { value: 22 }]
+    if flag { let old = items[input]^ }
+    items[input] = Item { value: 40 }
+    var index: usize = 0
+    var total = 0
+    while index < 2 {
+        let next = items[index]^
+        total += next.value
+        index += 1
+    }
+    if input == 0 { total - 20 } else { total - 18 }
+}
+const func run(): i32 {
+    if replace() == 42 && compound() == 42 && conditional(0, false) == 42 && conditional(0, true) == 42 && conditional(1, false) == 42 && conditional(1, true) == 42 { 42 } else { 0 }
+}

@@ -95,6 +95,10 @@ layout fields, generated operations, an arbitrary iteration cutoff or a constant
   a point taken from a complete epoch from generic unproved coverage; do not reset after restoring
   only the last element of a longer prefix or after unrelated partial holes. Qualify a later
   prefix loop through the same required/native paths without containing replacement.
+- [x] Preserve already complete numerical epochs through initialized owning-root replacement and
+  compound update. Do not hide holes created while evaluating the RHS or reset existing partial
+  coverage. Qualify later prefix extraction, including a conditional restoration's complete route,
+  without requiring a containing replacement.
 - [x] Share current numerical constant selection facts across availability, access creation and
   resource paths. Freeze constants when a place/hole is created and elide unnecessary saved-index
   owners; retain snapshots for unproved values. Do not refine old aliases from a recipe's later

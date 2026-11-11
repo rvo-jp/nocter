@@ -300,6 +300,7 @@ impl Histories {
         seen: &mut BTreeSet<AccessExpressionId>,
         change: Change,
     ) {
+        let initialized = matches!(change, Change::Replace { .. });
         let restored = match change {
             Change::Replace { restored, .. } => restored,
             _ => None,
@@ -325,10 +326,10 @@ impl Histories {
                 if Holder::Local(*local) != history.array.holder() || !path.overlaps(array) {
                     continue;
                 }
-                // An initialized edit preserves an already empty extraction history. It
-                // cannot turn a prefix/unproved history into a fresh epoch by may-write alone.
+                // Replacement observes the history after RHS effects. An initialized write
+                // preserves completeness, but cannot erase holes created by those effects.
                 phases[id] = if (definite && path.is_prefix_of(array))
-                    || (!definite && phases[id] == Phase::Empty)
+                    || ((!definite || initialized) && phases[id] == Phase::Empty)
                 {
                     Phase::Empty
                 } else {
@@ -386,18 +387,18 @@ impl Histories {
                 }
             }
             Operation::Assign { target, .. } | Operation::CompoundAssign { target, .. } => {
-                let change = if matches!(operation, Operation::Assign { .. }) {
+                self.changed(
+                    typed,
+                    phases,
+                    state,
+                    seen,
                     Change::Replace {
                         source: target,
-                        restored: self.restored_point(cells, phases, state, target),
-                    }
-                } else {
-                    Change::Definite {
-                        source: target,
-                        except: None,
-                    }
-                };
-                self.changed(typed, phases, state, seen, change);
+                        restored: matches!(operation, Operation::Assign { .. })
+                            .then(|| self.restored_point(cells, phases, state, target))
+                            .flatten(),
+                    },
+                );
             }
             _ => {}
         }
