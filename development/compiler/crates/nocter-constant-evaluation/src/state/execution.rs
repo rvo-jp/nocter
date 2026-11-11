@@ -91,16 +91,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             return Err(Rule::InvalidPlan);
         }
         let mut frame = Frame::new(&self.memory.storage, plan.slots.clone())?;
-        for (&(slot, operation), input) in plan.inputs.iter().zip(inputs) {
-            match (operation, input) {
-                (ValueInputOperation::Take, Cell::Data(_)) => {
-                    frame.own(&self.memory.storage, slot)?;
-                }
-                (ValueInputOperation::Read | ValueInputOperation::Edit, Cell::Alias(_)) => {}
-                _ => return Err(Rule::InvalidPlan),
-            }
-            frame.set(&self.memory.storage, slot, input.clone())?;
-        }
+        self.bind_inputs(code, plan, &mut frame, inputs)?;
         for &(slot, id) in &plan.statics {
             let value = &self
                 .program
@@ -125,6 +116,43 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         self.site = saved;
         self.memory.frames.pop();
         result
+    }
+    fn bind_inputs(
+        &self,
+        code: ValueCode,
+        plan: &Plan,
+        frame: &mut Frame,
+        inputs: &[Cell],
+    ) -> Result<()> {
+        for (index, (&(slot, operation), input)) in plan.inputs.iter().zip(inputs).enumerate() {
+            match (operation, input) {
+                (ValueInputOperation::Take, Cell::Data(_)) => {
+                    frame.own(&self.memory.storage, slot)?;
+                }
+                (ValueInputOperation::Read | ValueInputOperation::Edit, Cell::Alias(_)) => {}
+                (ValueInputOperation::Read | ValueInputOperation::Edit, Cell::Data(_))
+                    if index == 0 && matches!(code, ValueCode::Closure(_)) =>
+                {
+                    let backing = plan.environment_backing.ok_or(Rule::InvalidPlan)?;
+                    frame.set(&self.memory.storage, backing, input.clone())?;
+                    frame.set(
+                        &self.memory.storage,
+                        slot,
+                        Cell::Alias(Address {
+                            root: super::memory::Root::Local {
+                                frame: self.memory.frames.len(),
+                                slot: backing,
+                            },
+                            fields: super::memory::Path::default(),
+                        }),
+                    )?;
+                    continue;
+                }
+                _ => return Err(Rule::InvalidPlan),
+            }
+            frame.set(&self.memory.storage, slot, input.clone())?;
+        }
+        Ok(())
     }
     fn run(&mut self, code: ValueCode, plan: &Plan, frame: usize) -> Result<Value> {
         let mut point = plan.entry;

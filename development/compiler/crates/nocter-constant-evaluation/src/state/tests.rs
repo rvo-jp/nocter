@@ -4,6 +4,7 @@ use crate::CompileTimeEvaluationLimits;
 use nocter_model::ArenaBuilder;
 use std::num::{NonZeroU32, NonZeroU64};
 mod arrays;
+mod captured_invocation;
 mod captured_values;
 mod expression_roots;
 mod lexical_codes;
@@ -44,6 +45,7 @@ pub(super) fn literal() -> Plan {
         ]
         .into(),
         statics: Box::new([]),
+        environment_backing: None,
         inputs: Box::new([]),
         result: 0,
         initializer: true,
@@ -136,6 +138,7 @@ fn exhausted_work_is_not_replenished_by_another_closed_request() {
     let loop_plan = Plan {
         slots: Vec::new().into(),
         statics: Box::new([]),
+        environment_backing: None,
         inputs: Box::new([]),
         result: 0,
         initializer: true,

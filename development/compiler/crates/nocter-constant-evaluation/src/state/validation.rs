@@ -2,7 +2,14 @@ use super::{Data, Effect, Operation, Place, Program, Rule, Storage, Terminator, 
 use std::collections::{BTreeMap, BTreeSet};
 type Result<T> = std::result::Result<T, Rule>;
 const INVALID: Rule = Rule::InvalidPlan;
+fn ordinary_slot(plan: &super::Plan, id: usize) -> Result<&super::Slot> {
+    if plan.environment_backing == Some(id) {
+        return Err(INVALID);
+    }
+    plan.slots.get(id).ok_or(INVALID)
+}
 pub(super) fn place(program: &Program, plan: &super::Plan, place: &Place) -> Result<usize> {
+    ordinary_slot(plan, place.slot)?;
     place_data(program, &plan.slots, place)
 }
 pub(super) fn place_data(program: &Program, slots: &[super::Slot], place: &Place) -> Result<usize> {
@@ -119,6 +126,18 @@ pub(super) fn validate(program: &Program) -> Result<()> {
             _ => {}
         }
         validate_plan(program, plan)?;
+        if let Some(backing) = plan.environment_backing {
+            let &(input, operation) = plan.inputs.first().ok_or(INVALID)?;
+            let source = plan.slots.get(input).ok_or(INVALID)?;
+            let target = plan.slots.get(backing).ok_or(INVALID)?;
+            if !matches!(code, nocter_model::ValueCode::Closure(_))
+                || operation == nocter_model::ValueInputOperation::Take
+                || target.storage != Storage::Auxiliary
+                || target.data != source.data
+            {
+                return Err(INVALID);
+            }
+        }
     }
     Ok(())
 }
@@ -271,7 +290,7 @@ fn validate_action(program: &Program, plan: &super::Plan, action: &super::Action
     Ok(())
 }
 fn operation(program: &Program, plan: &super::Plan, op: &Operation) -> Result<()> {
-    let slot = |id: usize| plan.slots.get(id).ok_or(INVALID);
+    let slot = |id: usize| ordinary_slot(plan, id);
     let data = |p: &Place| place(program, plan, p);
     let equal = |a: usize, b: usize| if a == b { Ok(()) } else { Err(INVALID) };
     match op {
@@ -401,7 +420,7 @@ fn repeat_operation(
     destination: usize,
     source: &Place,
 ) -> Result<()> {
-    let result = plan.slots.get(destination).ok_or(INVALID)?;
+    let result = ordinary_slot(plan, destination)?;
     let Some(Type::Array { element, length }) = program.types.get(result.data) else {
         return Err(INVALID);
     };
@@ -422,7 +441,7 @@ fn index_operation(
     let Some(Type::Array { element, .. }) = program.types.get(place(program, plan, base)?) else {
         return Err(INVALID);
     };
-    let result = plan.slots.get(destination).ok_or(INVALID)?;
+    let result = ordinary_slot(plan, destination)?;
     if (result.storage == Storage::Alias) != alias
         || result.data != *element
         || program.types.get(place(program, plan, index)?) != Some(&Type::Usize)
@@ -441,12 +460,26 @@ fn call(
     let callee = program.plans.get(&target).ok_or(INVALID)?;
     if callee.initializer
         || inputs.len() != callee.inputs.len()
-        || plan.slots.get(destination).ok_or(INVALID)?.data != callee.result
+        || ordinary_slot(plan, destination)?.data != callee.result
     {
         return Err(INVALID);
     }
-    for (input, &(parameter, operation)) in inputs.iter().zip(&callee.inputs) {
-        if input.operation != operation
+    for (index, (input, &(parameter, operation))) in inputs.iter().zip(&callee.inputs).enumerate() {
+        let environment_adapter = index == 0
+            && matches!(target, nocter_model::ValueCode::Closure(_))
+            && match (input.operation, operation) {
+                (
+                    nocter_model::ValueInputOperation::Edit,
+                    nocter_model::ValueInputOperation::Read,
+                ) => true,
+                (
+                    nocter_model::ValueInputOperation::Take,
+                    nocter_model::ValueInputOperation::Read
+                    | nocter_model::ValueInputOperation::Edit,
+                ) => callee.environment_backing.is_some(),
+                _ => false,
+            };
+        if (!environment_adapter && input.operation != operation)
             || place(program, plan, &input.place)?
                 != callee.slots.get(parameter).ok_or(INVALID)?.data
         {

@@ -222,6 +222,8 @@ pub enum Operation {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Input {
+    /// Frozen caller handoff. A captured environment may be edited for a read body, or taken
+    /// into that body's auxiliary backing while the actual body retains a read/edit input.
     pub operation: nocter_model::ValueInputOperation,
     pub place: Place,
 }
@@ -250,6 +252,9 @@ pub struct Point {
 pub struct Plan {
     pub slots: Arc<[Slot]>,
     pub inputs: Box<[(usize, nocter_model::ValueInputOperation)]>,
+    /// Stable auxiliary storage for a taking view of this captured read/edit body.
+    /// It is adapter storage, not another body-owned input or invocation frame.
+    pub environment_backing: Option<usize>,
     pub statics: Box<[(usize, nocter_model::ValueStatic)]>,
     pub result: usize,
     pub initializer: bool,

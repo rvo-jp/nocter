@@ -120,6 +120,7 @@ fn expression_failure_retains_its_root_and_real_helper_call_sites_without_a_pare
         slots: Vec::new().into(),
         inputs: Box::new([]),
         statics: Box::new([]),
+        environment_backing: None,
         result: 0,
         initializer: false,
         entry,

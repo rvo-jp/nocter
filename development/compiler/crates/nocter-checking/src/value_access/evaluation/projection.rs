@@ -11,8 +11,8 @@ use nocter_constant_evaluation::{
 };
 use nocter_declarations::value_access::Program;
 use nocter_model::{
-    AccessCodeId, AccessExpressionId, AccessPlaceId, FieldPath, TypeId, ValueAccessMode,
-    ValueInputOperation,
+    AccessCodeId, AccessExpressionId, AccessFlowPointId, AccessPlaceId, FieldPath, TypeId,
+    ValueAccessMode, ValueInputOperation,
 };
 use std::collections::BTreeMap;
 const INVALID: flow::IntegrityError = flow::IntegrityError::InconsistentTypedBody;
@@ -21,6 +21,7 @@ use super::Types;
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum Key {
     Resource(Holder),
+    EnvironmentBacking,
     Operand(AccessExpressionId, usize),
     Predicate(AccessExpressionId),
 }
@@ -616,6 +617,91 @@ impl Builder<'_, '_> {
             })
             .collect()
     }
+    fn environment_backing(&mut self) -> Result<Option<usize>> {
+        self.query
+            .typed()
+            .body()
+            .inputs()
+            .environment()
+            .filter(|input| input.operation != ValueInputOperation::Take)
+            .map(|input| {
+                let data = self
+                    .query
+                    .typed()
+                    .body()
+                    .locals()
+                    .get(input.local)
+                    .ok_or(INVALID)?
+                    .data;
+                self.slot(Key::EnvironmentBacking, data, plan::Storage::Auxiliary)
+            })
+            .transpose()
+    }
+    fn point(&mut self, id: AccessFlowPointId, point: &flow::Point) -> Result<plan::Point> {
+        let reachable = self.query.initialization().reachable(id);
+        let mut actions = Vec::new();
+        if reachable {
+            for (index, action) in point.actions.iter().enumerate() {
+                let location = flow::Location {
+                    point: id,
+                    action: index,
+                };
+                let mut alternatives = Vec::new();
+                for transition in self.query.access().resources().at(location) {
+                    let owned = transition
+                        .condition()
+                        .owned()
+                        .map(|(holder, holes)| {
+                            Ok((
+                                self.holder(holder)?,
+                                holes
+                                    .iter()
+                                    .map(|path| self.missing(path))
+                                    .collect::<Result<_>>()?,
+                            ))
+                        })
+                        .collect::<Result<_>>()?;
+                    alternatives.push(plan::Alternative {
+                        owned,
+                        before: transition
+                            .before_steps()
+                            .iter()
+                            .map(|step| self.effect(step))
+                            .collect::<Result<_>>()?,
+                        after: transition
+                            .after_steps()
+                            .iter()
+                            .map(|step| self.effect(step))
+                            .collect::<Result<_>>()?,
+                    });
+                }
+                actions.push(plan::Action {
+                    operation: self.computation(&action.operation)?,
+                    alternatives: alternatives.into(),
+                });
+            }
+        }
+        let terminator = if reachable {
+            match point.terminator {
+                flow::Terminator::Jump(next) => plan::Terminator::Jump(next),
+                flow::Terminator::Branch { condition, yes, no } => plan::Terminator::Branch {
+                    condition: self.aux(Key::Predicate(condition), condition)?,
+                    yes,
+                    no,
+                },
+                flow::Terminator::Return => {
+                    plan::Terminator::Return(plan::Place::root(self.holder(Holder::Return)?))
+                }
+                flow::Terminator::Unreachable => plan::Terminator::Unreachable,
+            }
+        } else {
+            plan::Terminator::Unreachable
+        };
+        Ok(plan::Point {
+            actions: actions.into(),
+            terminator,
+        })
+    }
     fn build(mut self) -> Result<plan::Plan> {
         let inputs = self
             .query
@@ -627,75 +713,14 @@ impl Builder<'_, '_> {
             .collect::<Result<_>>()?;
         let mut points = nocter_model::ArenaBuilder::new();
         for (id, point) in self.query.graph().points().iter() {
-            let reachable = self.query.initialization().reachable(id);
-            let mut actions = Vec::new();
-            if reachable {
-                for (index, action) in point.actions.iter().enumerate() {
-                    let location = flow::Location {
-                        point: id,
-                        action: index,
-                    };
-                    let mut alternatives = Vec::new();
-                    for transition in self.query.access().resources().at(location) {
-                        let owned = transition
-                            .condition()
-                            .owned()
-                            .map(|(holder, holes)| {
-                                Ok((
-                                    self.holder(holder)?,
-                                    holes
-                                        .iter()
-                                        .map(|path| self.missing(path))
-                                        .collect::<Result<_>>()?,
-                                ))
-                            })
-                            .collect::<Result<_>>()?;
-                        alternatives.push(plan::Alternative {
-                            owned,
-                            before: transition
-                                .before_steps()
-                                .iter()
-                                .map(|step| self.effect(step))
-                                .collect::<Result<_>>()?,
-                            after: transition
-                                .after_steps()
-                                .iter()
-                                .map(|step| self.effect(step))
-                                .collect::<Result<_>>()?,
-                        });
-                    }
-                    actions.push(plan::Action {
-                        operation: self.computation(&action.operation)?,
-                        alternatives: alternatives.into(),
-                    });
-                }
-            }
-            let terminator = if reachable {
-                match point.terminator {
-                    flow::Terminator::Jump(next) => plan::Terminator::Jump(next),
-                    flow::Terminator::Branch { condition, yes, no } => plan::Terminator::Branch {
-                        condition: self.aux(Key::Predicate(condition), condition)?,
-                        yes,
-                        no,
-                    },
-                    flow::Terminator::Return => {
-                        plan::Terminator::Return(plan::Place::root(self.holder(Holder::Return)?))
-                    }
-                    flow::Terminator::Unreachable => plan::Terminator::Unreachable,
-                }
-            } else {
-                plan::Terminator::Unreachable
-            };
-            if points.insert(plan::Point {
-                actions: actions.into(),
-                terminator,
-            }) != id
-            {
+            if points.insert(self.point(id, point)?) != id {
                 return Err(INVALID);
             }
         }
         let statics = self.static_views();
+        let environment_backing = self.environment_backing()?;
         Ok(plan::Plan {
+            environment_backing,
             statics,
             inputs,
             slots: self.slots.into(),

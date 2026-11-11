@@ -106,8 +106,18 @@ the payload. Invocation-view adaptation preserves both code and environment iden
 updates use the same aggregate path copying and live leases as other values; destruction releases
 the environment without invoking its code. The schema is finite through positive containment,
 while empty-array edges retain their existing identity-only behavior. Captured payload transport
-is not captured invocation eligibility, adapter backing or source closure admission. Those remain
-checking/invocation obligations; callable payloads still cannot be final serialized data.
+is not captured invocation eligibility or source closure admission. Those remain checking
+obligations; callable payloads still cannot be final serialized data.
+
+Closed captured calls retain the actual body's ordered input contract. An edited environment may
+serve a read body. A taking view of a read/edit body receives stable auxiliary environment storage
+inside that body's ordinary frame; its input aliases that backing instead of acquiring body-owned
+destruction. A consuming body owns its environment normally. No extra invocation frame or owner
+registry is created. The backing slot is private to input binding: ordinary operations and places
+cannot address it directly. Frozen taking values survive caller retirement, and ending the frame
+releases adapter backing before the caller stores the answer. Closed-plan cases qualify persistent
+updates, independent taking copies, consuming bodies, exact call-depth accounting, invalid backing
+and storage-failure recovery. They do not themselves enable source const invocation of closures.
 
 A selected comparison with a fixed result arrives as a literal operation after the original
 operand actions. This does not authorize skipping calls, access validation or failure before that
