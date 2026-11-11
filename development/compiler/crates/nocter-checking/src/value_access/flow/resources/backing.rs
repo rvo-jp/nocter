@@ -22,7 +22,8 @@ impl State {
         }
         Ok(())
     }
-    /// Stage one whole-element extraction beneath a concrete array. The caller commits this
+    /// Stage one extraction beneath a concrete array, optionally within its selected element.
+    /// The caller commits this
     /// together with its transfer; cancellation and integrity failures publish neither change.
     pub(super) fn retain_source(
         &mut self,
@@ -34,13 +35,23 @@ impl State {
         if source.fields().retained().next().is_none() {
             return Ok(());
         }
-        let Some((ValueProjection::Array(Index::Retained(index)), prefix)) = fields.split_last()
+        let Some((position, index)) =
+            fields
+                .iter()
+                .enumerate()
+                .find_map(|(position, field)| match field {
+                    ValueProjection::Array(Index::Retained(index)) => Some((position, index)),
+                    _ => None,
+                })
         else {
             return Err(INVALID);
         };
+        if source.fields().retained().nth(1).is_some() {
+            return Err(INVALID);
+        }
         let container = Place {
             holder: source.holder(),
-            fields: Path(ValuePath::new(prefix.iter().copied())),
+            fields: Path(ValuePath::new(fields[..position].iter().copied())),
         };
         if self.code != Some(index.owner())
             || container.fields().concrete().is_none()

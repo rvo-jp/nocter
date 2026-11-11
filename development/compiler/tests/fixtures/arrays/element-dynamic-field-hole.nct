@@ -1,0 +1,61 @@
+struct Item { value: i32 }
+struct Pair { first: Item
+    second: Item }
+const func selected(index: usize): i32 {
+    let items = [Pair { first: Item { value: 40 }, second: Item { value: 2 } },
+                 Pair { first: Item { value: 40 }, second: Item { value: 2 } }]
+    var cursor = index
+    let first = items[cursor].first^
+    cursor = 1 - cursor
+    first.value + items[cursor].second.value
+}
+const func consume(take item: Item): i32 { item.value }
+const func late(take item: Item, ready: void): i32 { item.value }
+const func called(index: usize): i32 {
+    let items = [Pair { first: Item { value: 40 }, second: Item { value: 2 } },
+                 Pair { first: Item { value: 40 }, second: Item { value: 2 } }]
+    consume(items[index].first^) + items[index].second.value
+}
+const func cancelled(index: usize): i32 {
+    let items = [Pair { first: Item { value: 40 }, second: Item { value: 2 } },
+                 Pair { first: Item { value: 40 }, second: Item { value: 2 } }]
+    late(items[index].first^, if true { return items[index].first.value + items[index].second.value } else { () })
+}
+const func choice(index: usize, flag: bool): i32 {
+    let items = [Pair { first: Item { value: 40 }, second: Item { value: 2 } },
+                 Pair { first: Item { value: 40 }, second: Item { value: 2 } }]
+    if flag {
+        let part = items[index].first^
+        part.value + items[index].second.value
+    } else {
+        let part = items[index].second^
+        items[index].first.value + part.value
+    }
+}
+const func nested(index: usize): i32 {
+    let items = [[Item { value: 40 }, Item { value: 2 }],
+                 [Item { value: 40 }, Item { value: 2 }]]
+    let part = items[index][0]^
+    part.value + items[index][1].value
+}
+const func replaced(index: usize): i32 {
+    var items = [Pair { first: Item { value: 40 }, second: Item { value: 2 } },
+                 Pair { first: Item { value: 40 }, second: Item { value: 2 } }]
+    let part = items[index].first^
+    items = [Pair { first: Item { value: 0 }, second: Item { value: 2 } },
+             Pair { first: Item { value: 0 }, second: Item { value: 2 } }]
+    part.value + items[0].second.value
+}
+copy struct Empty { first: void
+    second: void }
+const func maximum(index: usize): i32 {
+    let items = [Empty { first: (), second: () }; 18446744073709551615]
+    let part = items[index].first^
+    42
+}
+const func run(): i32 {
+    let a = selected(0) + selected(1) + called(0) + called(1) + cancelled(0) + cancelled(1)
+    let b = choice(0, true) + choice(1, true) + choice(0, false) + choice(1, false)
+    let c = nested(0) + nested(1) + replaced(0) + replaced(1)
+    a + b + c + maximum(0) + maximum(18446744073709551614) - 630
+}

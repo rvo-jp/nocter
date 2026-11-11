@@ -386,6 +386,40 @@ fn partial_record_elements_allow_disjoint_unknown_index_fields_without_restoring
         Err(SourceFailure::Checking(Failure::Flow { .. }))
     ));
 }
+
+#[test]
+fn partial_dynamic_fields_do_not_restore_unproved_holes_or_capture_cancelled_arguments() {
+    let source = nocter_test_support::RETAINED_ARRAY_SOURCES
+        .iter()
+        .find(|(name, _)| *name == "dynamic-element-field-hole")
+        .unwrap()
+        .1;
+    let unit = accepted(source);
+    let cancelled = named(&unit, "cancelled");
+    let trace = super::support::steps(cancelled);
+    assert!(!trace.iter().any(|step| matches!(step, Step::Invoke { .. })));
+    assert!(!trace.iter().any(|step| matches!(step,
+        Step::Move { destination, .. }
+            if matches!(destination.holder(), crate::value_access::flow::resources::Holder::IndexSnapshot(_)))));
+    for use_after in [
+        "read view = items[index]",
+        "let _ = items[other].first.value",
+        "let _ = items[index].first^",
+        "items[other].first = Item { value: 9 }",
+    ] {
+        let source = format!(
+            "struct Item {{ value: i32 }}\nstruct Pair {{ first: Item\nsecond: Item }}\nfunc work(index: usize, other: usize): void {{ var items = [Pair {{ first: Item {{ value: 40 }}, second: Item {{ value: 2 }} }}; 1]\nlet moved = items[index].first^\n{use_after} }}"
+        );
+        let (sources, tree) = input(&source);
+        assert!(
+            matches!(
+                SourceUnit::prepare(bound(&sources, &tree)),
+                Err(SourceFailure::Checking(Failure::Flow { .. }))
+            ),
+            "{source}"
+        );
+    }
+}
 #[test]
 fn repeated_known_selection_is_safe_only_when_restored_on_each_backedge() {
     let source = format!(
@@ -462,7 +496,7 @@ fn a_marker_grants_no_ownership_or_unproved_dynamic_hole_identity() {
             crate::value_access::Rule::MissingTransfer,
         ),
         (
-            "func work(take values: [[i32; 2]; 2], index: usize): void { let moved = values[index][0]^ }",
+            "func work(take values: [[i32; 2]; 2], index: usize, inner: usize): void { let moved = values[index][inner]^ }",
             crate::value_access::Rule::UnsupportedData,
         ),
         (

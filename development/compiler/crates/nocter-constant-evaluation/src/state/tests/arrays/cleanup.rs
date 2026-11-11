@@ -255,6 +255,115 @@ fn retained_cleanup_uses_saved_numbers_and_skips_empty_sides_with_bounded_storag
     assert!(minima.iter().all(|&minimum| minimum == minima[0]));
 }
 
+fn retained_partial_remainder(length: u64, position: u64) -> Plan {
+    let mut plan = retained_remainder(length, position);
+    let mut slots = plan.slots.to_vec();
+    slots[0].data = 3;
+    slots[2].data = 2;
+    slots[6].data = 3;
+    plan.slots = slots.into();
+    let selected = Place {
+        slot: 0,
+        fields: vec![Projection::Index {
+            slot: 7,
+            bound: length,
+        }]
+        .into(),
+    };
+    let mut first = selected.clone();
+    first.fields = vec![
+        Projection::Index {
+            slot: 7,
+            bound: length,
+        },
+        Projection::Field(0),
+    ]
+    .into();
+    let second = Place {
+        slot: 0,
+        fields: vec![
+            Projection::Index {
+                slot: 7,
+                bound: length,
+            },
+            Projection::Field(1),
+        ]
+        .into(),
+    };
+    plan.points = plan.points.map(|_, point| {
+        let mut point = point.clone();
+        point.actions[0].operation = Operation::Literal {
+            destination: 0,
+            value: Value::repeated(array(&[11, 22]), NonZeroU64::new(length).unwrap()),
+        };
+        point.actions[4].alternatives[0].after = vec![Effect::Move {
+            source: first.clone(),
+            destination: Place::root(8),
+        }]
+        .into();
+        for index in [5, 6] {
+            point.actions[index].alternatives[0]
+                .owned
+                .insert(0, vec![first.fields.clone().into()].into());
+        }
+        let done = &mut point.actions[6].alternatives[0].after;
+        let mut effects = done.to_vec();
+        effects.splice(
+            1..1,
+            [
+                Effect::Dispose(second.clone()),
+                Effect::Release(selected.clone()),
+            ],
+        );
+        *done = effects.into();
+        point
+    });
+    plan
+}
+
+#[test]
+fn retained_partial_elements_preserve_sparse_cleanup_and_recover_exhausted_budgets() {
+    let (code, _) = code_ids();
+    let mut minima = Vec::new();
+    for length in [2, u64::MAX] {
+        for position in [0, length - 1] {
+            let program = Program::new(
+                vec![
+                    Type::I32,
+                    Type::Usize,
+                    Type::Record(vec![0, 0].into()),
+                    Type::Array { element: 2, length },
+                ],
+                BTreeMap::from([(code.into(), retained_partial_remainder(length, position))]),
+                BTreeMap::new(),
+            )
+            .unwrap();
+            let mut success = None;
+            for limit in 1..=128 {
+                let mut budget = Budget::new(Limits::new(
+                    CompileTimeEvaluationLimits::default(),
+                    NonZeroU64::new(limit).unwrap(),
+                ));
+                // Reuse the budget after both successful and interrupted executions.
+                for _ in 0..2 {
+                    match Executor::new(&program, &mut budget, 0).evaluate_initializer(code) {
+                        Ok(value) => {
+                            assert_eq!(value, Value::integer(42));
+                            success.get_or_insert(limit);
+                        }
+                        Err(error) => assert_eq!(error.rule, Rule::StorageLimit),
+                    }
+                    assert_eq!(budget.storage_used(), 0);
+                }
+            }
+            minima.push(success.unwrap());
+        }
+    }
+    // First/last cleanup order can have different peaks. Increasing the array length must
+    // not increase either peak or add element-count-dependent working state.
+    assert_eq!(minima[..2], minima[2..]);
+}
+
 #[test]
 fn retiring_the_snapshot_before_its_last_range_use_is_an_integrity_failure() {
     let (code, _) = code_ids();

@@ -217,6 +217,9 @@ source annotation is introduced.
 Selective-call cases execute a transitive update to a disjoint record field beside the partial
 array, plus an edit of each transferred element temporary. The original array's endpoint and
 remainder remain correct while the ordinary calls perform their actual writes.
+Dynamic partial-element cases execute record-field and constant inner-array extraction, index
+mutation, conditional holes, containing replacement and cancelled call preparation. Small and
+maximum-count zero-byte arrays use the same saved-index projections and sparse cleanup path.
 
 Shared source fixtures execute element take, field holes, structurally disjoint unknown-index edits,
 exact restoration on loop backedges and maximum-count zero-byte remainder cleanup. The checking

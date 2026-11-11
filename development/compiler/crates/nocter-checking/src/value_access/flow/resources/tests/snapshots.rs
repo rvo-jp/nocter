@@ -1,4 +1,4 @@
-//! Ledger qualification; source dynamic transfer and its executable cleanup remain gated.
+//! Saved-index ownership, sparse cleanup, restoration and atomic rejection.
 use super::*;
 use crate::value_access::{
     ExpressionKind,
@@ -368,4 +368,80 @@ fn possible_overlap_with_a_missing_ancestor_never_grants_concrete_child_cleanup(
             .project(nocter_model::ValueField::Array(0)),
     );
     assert!(value.cleanup(typed.program(), &concrete).is_err());
+}
+
+#[test]
+fn partial_selected_element_cleans_its_remaining_field_between_intact_spans() {
+    let unit = prepare(
+        "struct Pair { first: error\nsecond: error }\nfunc work(take values: [Pair; 2], index: usize): void { read selected = values[index] }",
+    );
+    let typed = query(&unit, "work");
+    let index = indices(typed)[0];
+    let element = source(typed, index);
+    let root = element.holder().place();
+    let root_data = typed
+        .body()
+        .locals()
+        .get(typed.body().inputs().explicit()[0].local)
+        .unwrap()
+        .data;
+    let PayloadSchema::Array(array) = typed.program().data_schema(root_data).unwrap() else {
+        panic!()
+    };
+    let PayloadSchema::Aggregate(pair) = typed.program().data_schema(array.element()).unwrap()
+    else {
+        panic!()
+    };
+    let fields: Vec<_> = pair.components().map(|field| field.field).collect();
+    let first = element.project(fields[0]);
+    let second = element.project(fields[1]);
+    let mut state = State::entry(typed).unwrap();
+    let original = state.clone();
+    // A restored partial field ends the snapshot, allowing this same recipe to capture again.
+    for restore in [true, false] {
+        operand(&mut state, typed, index, BuiltinType::Usize);
+        let mut steps = Vec::new();
+        state
+            .move_to(
+                typed.program(),
+                &first,
+                &Holder::Return.place(),
+                false,
+                &mut steps,
+            )
+            .unwrap();
+        assert!(
+            matches!(steps.as_slice(), [Step::Move { destination, .. }, Step::Move { source, .. }]
+            if destination.holder() == Holder::IndexSnapshot(index) && source == &first)
+        );
+        state.end(index.selection()).unwrap();
+        if restore {
+            state
+                .move_to(
+                    typed.program(),
+                    &Holder::Return.place(),
+                    &first,
+                    false,
+                    &mut steps,
+                )
+                .unwrap();
+            assert_eq!(state, original);
+        }
+    }
+    let mut steps = Vec::new();
+    state.dispose(typed.program(), &root, &mut steps).unwrap();
+    assert!(matches!(steps.as_slice(), [
+        Step::DisposeArrayElements { range: nocter_model::ArrayRange::After(a), .. },
+        Step::Dispose { source: remaining, payload },
+        Step::ReleaseContainer { source: selected, .. },
+        Step::DisposeArrayElements { range: nocter_model::ArrayRange::Before(b), .. },
+        Step::ReleaseContainer { source: container, .. },
+        Step::Dispose { source: snapshot, .. },
+    ] if *a == IndexBacking::Selection(index) && *b == *a
+        && remaining == &second && payload.disposal() == Disposal::OwnedError
+        && selected == &element && container == &root
+        && snapshot.holder() == Holder::IndexSnapshot(index)));
+    assert!(state.contains(Holder::Return));
+    assert!(!state.contains(root.holder()));
+    assert!(!state.contains(Holder::IndexSnapshot(index)));
 }

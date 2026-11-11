@@ -191,6 +191,10 @@ the original bounds check before capture, move an element, mutate the original i
 clean from the snapshot. First/last positions at small and maximum lengths share the same minimum
 live-storage requirement; all failed-budget runs recover their leases. Early snapshot retirement
 is an integrity error even if its bytes remain readable.
+Partial-element tests also move one field through a saved index and clean the surviving field
+between the intact spans. Repeated storage-limit failures recover all leases. Small and maximum
+lengths have equal minimum budgets for the same first/last position; those two cleanup orders may
+have different peaks.
 
 `ProjectionPath` contains ordinary component ordinals or an index through a named owned usize
 snapshot with its original bound. Validation requires an array of that exact positive length;
@@ -227,7 +231,7 @@ numbers cannot select conflicting lifecycle routes by alternative order. Executi
 transfers, saved-number cleanup, original-variable changes, uninitialized alternative backing,
 reverse numeric/slot ordering and budget-failure recovery.
 The [source selection owner](../nocter-checking/README.md#array-selection) qualifies the retained
-whole-element stage and states its remaining precision/frontier limits.
+element/partial-element stage and states its remaining precision/frontier limits.
 
 ### Live Working Storage
 

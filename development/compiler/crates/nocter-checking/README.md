@@ -1006,10 +1006,13 @@ omit only a checking-proven check. Access disjointness alone does not prove a mi
 identity, restoration or cleanup interval.
 
 Postfix transfer carries the same `Referent` as ordinary selection and assignment. Proven
-numeric singleton paths can retire an exact element or nested field. A final unknown index beneath
-a concrete containing-array path can retire one whole element using an owned retained usize
+numeric singleton paths can retire an exact element or nested field. One unknown index beneath
+a concrete containing-array path can retire an element or a concrete subplace within it using an owned retained usize
 snapshot. The shared `Referent::projection_path` traversal supplies both conservative access facts
 and the resource recipe; an unknown conflict footprint never becomes an owning key.
+For a partial selected element, remainder cleanup descends into that element between the higher
+and lower intact spans. It cleans its surviving fields in reverse order, ends its container and
+keeps the snapshot owned until every dependent cleanup finishes. No per-element metadata is added.
 
 The graph evaluates base/index effects and the original bounds operation before immediate transfer.
 A direct call instead prepares its selected address and delays the snapshot/source retirement until
@@ -1035,6 +1038,10 @@ while the other survives backedges and conditional/final cleanup, including phys
 zero-byte arrays. Source cancellation
 has no retained steps; zero-byte out-of-range transfers fail before capture. Existing cases also
 cover concrete field holes/restoration, disjoint indexed edits and consuming captures.
+Dynamic partial-element cases cover record fields, constant inner-array selections, later index
+mutation, distinct conditional holes, whole replacement and cancellation, including maximum-count
+zero-byte elements. Logical error-field tests independently qualify remaining-field cleanup and
+exact snapshot retirement; these do not establish source construction/native execution of error graphs.
 
 Unit-stride repeated immediate extraction without containing replacement uses the selected prefix
 lifecycle. The first transfer starts at zero and every later transfer advances by one under the
@@ -1058,7 +1065,7 @@ Selective-call cases update a disjoint field beside the partially moved array an
 element temporaries while retaining the correct prefix and exact remainder cleanup.
 
 Outside a proven prefix this stage supports one retained whole-element hole per complete containing
-array. Unknown indices in the containing path, partial fields below a retained selector, conditional
+array. Multiple unknown indices in the selected path, conditional
 restoration of a possibly missing element, non-prefix repeated extraction, adapted callable-element
 handoffs, general relations outside ordered prefix bundles and unclosed call writes still require the
 [evaluated-selection closure](../../../design/compiler-realization.md#evaluated-array-selection-closure).

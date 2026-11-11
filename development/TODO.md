@@ -18,7 +18,7 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Extend the qualified [retained whole-element stage](compiler/crates/nocter-checking/README.md#array-selection)
+Extend the qualified [retained-selection stage](compiler/crates/nocter-checking/README.md#array-selection)
 while preserving one typed projection traversal, conservative access facts, actual saved-number
 ownership, sparse cleanup and the original source bounds disposition. A recipe key alone never
 proves equal numbers across a backedge. Do not add a parallel ownership registry, N element owners,
@@ -48,8 +48,12 @@ layout fields, generated operations, an arbitrary iteration cutoff or a constant
   Generalize evaluated index relations beyond ordered prefix bundles while preserving lifetime-
   specific evidence for retained aliases across re-evaluation. Adapted callable-element transfers
   must also compose their selected adapters with the prefix handoff.
-- [ ] Extend saved-index identity and initialization/cleanup to nested selectors, partial fields
-  below a retained index, conditional restoration and multiple holes within one array. Keep
+- [x] Close partial-field extraction below one retained index, including constant nested selectors,
+  reverse remaining-field cleanup, snapshot retirement/restoration, call commit/cancellation,
+  conditional holes, parent replacement and maximum-count zero-byte execution. Qualify bounded
+  evaluator storage and recovery without equating different cleanup-order peaks.
+- [ ] Extend saved-index identity and initialization/cleanup to multiple dynamic selectors,
+  conditional restoration and multiple holes within one array. Keep
   unproved relations local and explicit. Do not read uninitialized alternative backing or choose
   guards from numeric equality alone; preserve actual original-index mutation and empty/MAX spans.
 - [ ] Qualify actual nontrivial array cleanup effects through the
@@ -101,6 +105,11 @@ not a language restriction derived from the current realization boundary.
   publication is not implied by qualification.
 
 ## Open Findings
+
+- [ ] Select an expression's actual operator token across admitted continuation newlines. The
+  parser accepts an operator on the next line, but binary checking currently treats the leading
+  newline as its operator and returns an integrity failure. Qualify source execution and preserve
+  the syntax-owned continuation rules.
 
 - [x] Bind flow-effect reuse to actual callee-body and value/count/result dependencies. Typed calls can survive a
   callee-only body edit, but inferred numeric/availability proofs cannot. Preserve reuse after

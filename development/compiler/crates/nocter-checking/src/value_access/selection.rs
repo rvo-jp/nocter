@@ -99,15 +99,20 @@ impl Checker<'_, '_> {
         let (_, path) = source
             .selection_path(|id| self.places.get(id), |id| self.expressions.get(id))
             .ok_or(Failure::InconsistentSyntax)?;
-        let retained_whole_element = path.fields().split_last().is_some_and(|(last, prefix)| {
-            matches!(
-                last,
-                nocter_model::ValueProjection::Array(super::IndexFact::Unknown)
-            ) && super::paths::concrete(&super::AccessPath::new(prefix.iter().copied())).is_some()
-        });
-        if ty.may_complete() && super::paths::concrete(&path).is_none() && !retained_whole_element {
+        let retained_selection = path
+            .fields()
+            .iter()
+            .filter(|field| {
+                matches!(
+                    field,
+                    nocter_model::ValueProjection::Array(super::IndexFact::Unknown)
+                )
+            })
+            .count()
+            == 1;
+        if ty.may_complete() && super::paths::concrete(&path).is_none() && !retained_selection {
             return self.reject_message(Rule::UnsupportedData, node,
-                "the compiler currently retains one whole-element index beneath a concrete containing array path; this nested or partial dynamic selection is not yet supported".into(), Vec::new());
+                "the compiler currently retains one dynamic index beneath a concrete containing array path; multiple dynamic selectors in a transfer are not yet supported".into(), Vec::new());
         }
         self.emit(
             node,

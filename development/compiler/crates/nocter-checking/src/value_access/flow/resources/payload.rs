@@ -145,22 +145,27 @@ impl OwnedValue {
             if holes.len() != 1
                 || holes[0]
                     .value()
-                    .is_none_or(|path| path.fields().len() != depth + 1)
+                    .is_none_or(|path| path.fields().len() < depth + 1)
                 || index.bound() != array.length()
             {
                 return Err(INVALID);
             }
-            // Stack order is opposite destruction order. The moved element has no payload here.
-            for range in [
-                nocter_model::ArrayRange::Before(IndexBacking::Selection(index)),
-                nocter_model::ArrayRange::After(IndexBacking::Selection(index)),
-            ] {
-                pending.push(Pending::Emit(Step::DisposeArrayElements {
-                    source: place.clone(),
-                    payload: selected,
-                    range,
-                }));
-            }
+            // Stack order is opposite destruction order. Descend into the selected element
+            // between the intact spans; a whole-element hole skips that child entirely.
+            pending.push(Pending::Emit(Step::DisposeArrayElements {
+                source: place.clone(),
+                payload: selected,
+                range: nocter_model::ArrayRange::Before(IndexBacking::Selection(index)),
+            }));
+            pending.push(Pending::Value(
+                place.project_retained(index),
+                payload(program, array.element())?,
+            ));
+            pending.push(Pending::Emit(Step::DisposeArrayElements {
+                source: place.clone(),
+                payload: selected,
+                range: nocter_model::ArrayRange::After(IndexBacking::Selection(index)),
+            }));
             return Ok(());
         }
         let indices = self

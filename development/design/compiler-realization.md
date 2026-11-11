@@ -230,7 +230,7 @@ cleanup consumes its captured result and must handle empty remainder intervals a
 at the maximum usize count. The [resource ledger](../compiler/crates/nocter-checking/README.md#concrete-array-resource-frontiers)
 owns the qualified logical backing/restore/cleanup stage. The [evaluator consumer](../compiler/crates/nocter-constant-evaluation/README.md#evaluated-array-addresses)
 projects saved numeric paths and guards. The [source selection owner](../compiler/crates/nocter-checking/README.md#array-selection)
-defines the retained whole-element and proven-prefix stages through shared availability and native
+defines the retained element/partial-element and proven-prefix stages through shared availability and native
 projection; general nested/multiple frontiers remain separate closure obligations.
 
 A loop may execute the same selection recipe more than once. Equal recipe keys across a backedge
