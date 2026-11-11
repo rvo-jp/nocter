@@ -1,0 +1,9 @@
+struct Item { value: i32 }
+func run(): i32 {
+    let items = [Item { value: 20 }, Item { value: 22 }]
+    let action = (items^;): i32 {
+        let first = items[0]^
+        first.value + items[1].value
+    }
+    action^()
+}

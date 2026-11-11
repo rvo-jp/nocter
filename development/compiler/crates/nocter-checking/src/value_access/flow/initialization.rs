@@ -187,23 +187,6 @@ fn require(
         violations,
     )
 }
-fn require_place(
-    typed: &TypedQuery,
-    state: &State,
-    place: AccessPlaceId,
-    at: Location,
-    violations: &mut Vec<InitializationViolation>,
-) -> Result<(), IntegrityError> {
-    let p = selected(typed, place)?;
-    require(
-        state,
-        p.local,
-        &p.fields,
-        InitializationRequirement::Value,
-        at,
-        violations,
-    )
-}
 fn require_referent(
     typed: &TypedQuery,
     state: &State,
@@ -320,14 +303,15 @@ fn remove(
         .set(fields, InitializationState::Uninitialized, Some(at));
     Ok(())
 }
-fn remove_place(
+fn remove_referent(
     typed: &TypedQuery,
     state: &mut State,
-    place: AccessPlaceId,
+    referent: Referent,
     at: Location,
 ) -> Result<(), IntegrityError> {
-    let p = selected(typed, place)?;
-    remove(state, p.local, &p.fields, at)
+    let (local, path) = typed.body().referent_path(referent).ok_or(INVALID)?;
+    let fields = paths::concrete(&path).ok_or(INVALID)?;
+    remove(state, local, &fields, at)
 }
 fn initialize(
     state: &mut State,
@@ -447,7 +431,7 @@ fn transfer(
                 }
                 for argument in arguments(typed, *call)? {
                     if let ArgumentAction::ReserveTransfer { place, .. } = argument.action {
-                        remove_place(typed, state, place.place().ok_or(INVALID)?, location)?;
+                        remove_referent(typed, state, place, location)?;
                     }
                 }
             }
@@ -508,8 +492,8 @@ fn evaluate(
 ) -> Result<(), IntegrityError> {
     match &typed.body().expressions().get(id).ok_or(INVALID)?.kind {
         ExpressionKind::Move(place) => {
-            require_place(typed, state, *place, location, violations)?;
-            remove_place(typed, state, *place, location)?;
+            require_referent(typed, state, *place, location, violations)?;
+            remove_referent(typed, state, *place, location)?;
         }
         // Pending supply has no availability semantics. Calls/control use their own graph events.
         ExpressionKind::Boundary {
@@ -556,13 +540,27 @@ fn assign(
     violations: &mut Vec<InitializationViolation>,
     cleanup: &mut Vec<CleanupFact>,
 ) -> Result<(), IntegrityError> {
-    let Some(place) = target.place() else {
-        // An admitted evaluated target refers to complete existing array storage. Its
-        // preparation owns the bounds/initialization check; replacement preserves completeness.
-        return require_referent(typed, state, target, location, violations);
+    let place = if let Some(place) = target.place() {
+        selected(typed, place)?.clone()
+    } else {
+        let (local, fields) = typed.body().referent_path(target).ok_or(INVALID)?;
+        let mode = typed
+            .body()
+            .locals()
+            .get(local)
+            .ok_or(INVALID)?
+            .access()
+            .mode();
+        let Some(fields) = paths::concrete(&fields).filter(|_| mode == ValueAccessMode::Own) else {
+            // An unproved selection cannot erase a hole. Scoped replacement requires a value.
+            return require_referent(typed, state, target, location, violations);
+        };
+        crate::value_access::Place {
+            local,
+            fields,
+            data: typed.body().referent_data(target).ok_or(INVALID)?,
+        }
     };
-    let target = place;
-    let place = selected(typed, target)?;
     let mode = typed
         .body()
         .locals()
@@ -571,7 +569,7 @@ fn assign(
         .access()
         .mode();
     if mode == ValueAccessMode::Update {
-        require_place(typed, state, target, location, violations)?;
+        require_referent(typed, state, target, location, violations)?;
     } else {
         // Replacing a missing field is allowed; missing containing records are not.
         for len in 0..place.fields.fields().len() {

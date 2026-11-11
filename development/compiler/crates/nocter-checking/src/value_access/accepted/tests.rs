@@ -330,3 +330,4 @@ mod indexed_writes;
 mod indexed_regions;
 
 mod indexed_bounds;
+mod indexed_transfers;

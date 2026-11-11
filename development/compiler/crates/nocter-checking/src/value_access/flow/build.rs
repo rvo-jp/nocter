@@ -448,13 +448,16 @@ impl Builder<'_> {
                 };
                 self.operand(id, 1, *right, point)?
             }
+            ExpressionKind::Move(source) => match source {
+                crate::value_access::Referent::Place(_) => Some(entry),
+                crate::value_access::Referent::Evaluated(id) => self.expression(*id, entry)?,
+            },
             ExpressionKind::Function(_)
             | ExpressionKind::Constant(_)
             | ExpressionKind::Integer(_)
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Unit
-            | ExpressionKind::Place(_)
-            | ExpressionKind::Move(_) => Some(entry),
+            | ExpressionKind::Place(_) => Some(entry),
         };
         if let Some(point) = end {
             self.action(point, origin, Operation::Evaluate(id))?;
@@ -554,19 +557,17 @@ impl Builder<'_> {
             let Some(point) = current else {
                 break;
             };
-            let static_source = match argument.action {
+            current = match argument.action {
                 ArgumentAction::ReserveRead(source)
                 | ArgumentAction::ReserveUpdate(source)
                 | ArgumentAction::ReserveTransfer { place: source, .. }
                 | ArgumentAction::CopyPlace(source)
-                | ArgumentAction::PendingValue(source) => source.place().is_some(),
-                ArgumentAction::Unproduced => true,
-                _ => false,
-            };
-            current = if static_source {
-                Some(point)
-            } else {
-                self.expression(argument.value, point)?
+                | ArgumentAction::PendingValue(source) => match source {
+                    crate::value_access::Referent::Place(_) => Some(point),
+                    crate::value_access::Referent::Evaluated(id) => self.expression(id, point)?,
+                },
+                ArgumentAction::Unproduced => Some(point),
+                _ => self.expression(argument.value, point)?,
             };
             if let Some(point) = current {
                 self.action(

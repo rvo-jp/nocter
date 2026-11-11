@@ -188,7 +188,12 @@ fn value(
         return Ok(Producers::new());
     }
     match expression.kind {
-        ExpressionKind::Place(place) | ExpressionKind::Move(place) => {
+        ExpressionKind::Place(_) | ExpressionKind::Move(_) => {
+            let place = match expression.kind {
+                ExpressionKind::Place(place) => place,
+                ExpressionKind::Move(place) => place.place().ok_or(INVALID)?,
+                _ => return Err(INVALID),
+            };
             let place = query.body.places.get(place).ok_or(INVALID)?;
             Ok(state
                 .get(&Key::Local(place.local))

@@ -2,7 +2,6 @@ use super::super::super::{
     Operation,
     resources::{self, Holder},
 };
-use super::super::Root;
 use super::{Context, Failure, Result};
 use crate::value_access::{ArgumentAction, BoundaryAction, ExpressionKind, SelectionAction};
 use nocter_model::{AccessExpressionId, ValueAccessMode as Mode};
@@ -208,7 +207,7 @@ impl Context<'_, '_> {
             }
             ExpressionKind::Move(place) => self.world.resources.move_to(
                 self.typed.program(),
-                &self.resource_place(place)?,
+                &self.resource_referent(place)?,
                 &Holder::Expression(id).place(),
                 false,
                 &mut self.steps,
@@ -327,45 +326,44 @@ impl Context<'_, '_> {
             .body()
             .referent_data(target)
             .ok_or(Failure::Integrity)?;
-        let scoped = match target {
-            crate::value_access::Referent::Evaluated(id) => Some(Holder::Expression(id).place()),
-            crate::value_access::Referent::Place(id) => {
-                let place = self
-                    .typed
-                    .body()
-                    .places()
-                    .get(id)
-                    .ok_or(Failure::Integrity)?;
-                match self.local_mode(place.local)? {
-                    Mode::Own => None,
-                    Mode::Update => Some(
-                        Holder::Local(place.local)
-                            .place()
-                            .project_path(&place.fields),
-                    ),
-                    Mode::Read => return Err(Failure::Integrity),
+        let (local, fields) = self
+            .typed
+            .body()
+            .referent_path(target)
+            .ok_or(Failure::Integrity)?;
+        let owning = self.local_mode(local)? == Mode::Own
+            && crate::value_access::paths::concrete(&fields).is_some();
+        if owning {
+            let destination = self.resource_referent(target)?;
+            self.world.resources.replace(
+                self.typed.program(),
+                &Holder::Expression(value).place(),
+                &destination,
+                &mut self.steps,
+            )?;
+        } else {
+            let destination = match target {
+                crate::value_access::Referent::Evaluated(id) => Holder::Expression(id).place(),
+                crate::value_access::Referent::Place(id) => {
+                    let place = self
+                        .typed
+                        .body()
+                        .places()
+                        .get(id)
+                        .ok_or(Failure::Integrity)?;
+                    if self.local_mode(place.local)? != Mode::Update {
+                        return Err(Failure::Integrity);
+                    }
+                    Holder::Local(place.local)
+                        .place()
+                        .project_path(&place.fields)
                 }
-            }
-        };
-        if let Some(destination) = scoped {
+            };
             self.world.resources.replace_referent(
                 self.typed.program(),
                 &Holder::Expression(value).place(),
                 &destination,
                 data,
-                &mut self.steps,
-            )?;
-        } else {
-            let target = target.place().ok_or(Failure::Integrity)?;
-            let (root, _) = self.base(target)?.ok_or(Failure::Integrity)?;
-            let Root::Owned(local) = root.root else {
-                return Err(Failure::Integrity);
-            };
-            let fields = root.concrete_fields().ok_or(Failure::Integrity)?;
-            self.world.resources.replace(
-                self.typed.program(),
-                &Holder::Expression(value).place(),
-                &Holder::Local(local).place().project_path(&fields),
                 &mut self.steps,
             )?;
         }
@@ -429,7 +427,7 @@ impl Context<'_, '_> {
                 ref adapters,
             } = argument.action
             {
-                let mut source = self.resource_place(place.place().ok_or(Failure::Integrity)?)?;
+                let mut source = self.resource_referent(place)?;
                 for &adapter in adapters {
                     let payload = resources::expression_payload(self.typed, adapter)?;
                     // Replay the selected operation, never infer an adapter from type inequality.

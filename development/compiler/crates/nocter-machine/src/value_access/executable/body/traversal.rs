@@ -47,8 +47,14 @@ impl Builder<'_> {
         )
     }
     pub(super) fn begin_array(&mut self, length: u64) -> Result<Traversal, Failure> {
-        let limit = self.size_constant(length)?;
-        let zero = self.size_constant(0)?;
+        self.begin_array_range(0, length)
+    }
+    pub(super) fn begin_array_range(&mut self, start: u64, end: u64) -> Result<Traversal, Failure> {
+        if start >= end {
+            return Err(Self::invalid());
+        }
+        let limit = self.size_constant(end)?;
+        let lower = self.size_constant(start)?;
         let one = self.size_constant(1)?;
         let header = self.block();
         let body = self.block();
@@ -64,7 +70,7 @@ impl Builder<'_> {
             false,
             MachineOperationKind::Binary {
                 operation: MachineBinaryOperation::Less,
-                left: zero,
+                left: lower,
                 right: remaining,
                 check: MachineArithmeticCheck::NotRequired,
             },

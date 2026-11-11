@@ -538,3 +538,50 @@ fn proven_bounds_failure_is_a_terminal_action_without_a_selected_result() {
         ));
     }
 }
+
+#[test]
+fn source_partial_array_cleanup_freezes_half_open_intervals_and_rejects_invalid_bounds() {
+    let program = lower(
+        "struct Item { value: i32 }\nfunc run(): i32 { let items = [Item { value: 40 }, Item { value: 2 }]\nlet first = items[0]^\nfirst.value + items[1].value }",
+    );
+    let body = program.bodies.get(&program.root).unwrap();
+    assert!(
+        body.actions
+            .values()
+            .flat_map(|a| &a.alternatives)
+            .flat_map(|a| a.before.iter().chain(&a.after))
+            .any(|effect| matches!(
+                effect,
+                Effect::DisposeArrayElements {
+                    start: 1,
+                    end: 2,
+                    ..
+                }
+            ))
+    );
+    for (start, end) in [(0, 0), (2, 1), (0, 3)] {
+        let mut bad = program.clone();
+        let effect = bad
+            .bodies
+            .get_mut(&bad.root)
+            .unwrap()
+            .actions
+            .values_mut()
+            .flat_map(|a| &mut a.alternatives)
+            .flat_map(|a| a.before.iter_mut().chain(&mut a.after))
+            .find(|effect| matches!(effect, Effect::DisposeArrayElements { .. }))
+            .unwrap();
+        let Effect::DisposeArrayElements {
+            start: a, end: b, ..
+        } = effect
+        else {
+            unreachable!()
+        };
+        *a = start;
+        *b = end;
+        assert!(matches!(
+            validate::program(&bad),
+            Err(Failure::InvalidBody(_))
+        ));
+    }
+}

@@ -117,7 +117,8 @@ closed type metadata. Header evidence alone grants no value/storage admission. C
 separately qualifies whole-array body/resource/evaluator handoffs. Its
 [read-selection path](../../compiler/crates/nocter-checking/README.md#array-selection) retains evaluated
 element addresses and qualifies bounded edit call inputs, scoped edit aliases and complete direct
-replacement. Element transfer and partial state remain gated; the
+replacement and source-proven concrete element holes. General retained-index transfer and
+partial state remain gated; the
 [native array consumer](../../compiler/crates/nocter-machine/README.md#private-array-execution)
 owns the separately qualified stored scope and its remaining gates.
 Body contents, source coordinates, declaration traversal order, and later Copy specialization cannot

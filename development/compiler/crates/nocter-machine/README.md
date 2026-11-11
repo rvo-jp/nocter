@@ -180,6 +180,15 @@ helper. Source with a divergent error-array producer qualifies helper structure 
 it does not establish execution of an owned error graph. Actual error construction and nontrivial
 resource-release effects still need source/native qualification.
 
-Partial-array interval cleanup remains an explicit implementation gate. Precise element transfer
-and restoration also require checking's separate retained-index proof. These limits do not change adopted source
-semantics or qualify the ordinary released CLI as v2.
+Partial-array cleanup consumes private MIR's checked half-open intervals. The same countdown CFG
+starts at the interval end and stops at its lower bound, addressing the original array with each
+original index. It calls the existing element helper once per surviving element in reverse order;
+trivial elements need no physical cleanup. Generated structure stays finite for three and 100,000
+elements around a source-proven hole. This nontrivial helper evidence remains image/structure
+qualification until actual source error construction is available.
+
+Shared source fixtures execute element take, field holes, structurally disjoint unknown-index edits,
+exact restoration on loop backedges and maximum-count zero-byte remainder cleanup. The checking
+owner qualifies their concrete-path admission; general saved dynamic holes still require its
+retained-index proof. These limits do not change adopted source semantics or qualify the ordinary
+released CLI as v2.

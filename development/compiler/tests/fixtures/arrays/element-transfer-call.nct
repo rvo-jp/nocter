@@ -1,0 +1,6 @@
+struct Item { value: i32 }
+const func consume(take item: Item, extra: i32): i32 { item.value + extra }
+const func run(): i32 {
+    let items = [Item { value: 20 }, Item { value: 22 }]
+    consume(items[0]^, items[1].value)
+}

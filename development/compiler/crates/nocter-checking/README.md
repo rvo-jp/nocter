@@ -808,7 +808,8 @@ whole-value handoffs use the [array construction path](#array-construction), and
 [read selection](#array-selection) retains evaluated element addresses. Repetition uses the same
 count authority and a compact value operation. Count completion precedes ordinary seed preparation,
 including at zero. Complete indexed replacement uses the same selected-address path; element
-transfer, partial state and native array storage retain explicit authored gates.
+general retained-index transfer and partial state retain explicit authored gates; the linked
+selection and native consumers qualify their bounded scopes.
 
 ## Array Construction
 
@@ -847,8 +848,8 @@ seeds, source effects, interrupted seeds, seed disposal order, independent whole
 compact frozen constants, nested selection, seed-supplier invalidation and a small live-storage
 budget. A scalar result of maximum-count repetition reaches the common native consumer.
 This closes listed/repeated construction and whole-value handoffs in the private Unit. Element
-reads use the [selection path](#array-selection); partial element initialization and native storage
-remain separate consumers. The [native path](../nocter-machine/README.md#private-array-execution)
+reads and proven element holes use the [selection path](#array-selection); general retained-index
+partial state and native storage remain separately qualified consumers. The [native path](../nocter-machine/README.md#private-array-execution)
 qualifies its own stored array scope.
 
 ## Array Selection
@@ -865,9 +866,9 @@ The index receives the ordinary expected usize boundary. Signed variables, boole
 names and out-of-range literal magnitudes keep their local diagnostics. Mixed member/index reads
 prepare iteratively through both source checking and graph scheduling. An existing static member
 prefix remains one ordinary selected place; subsequent fields retain the evaluated referent instead
-of copying intermediate records or arrays. Direct indexed transfer and calls through indexed
-components still check the first index's operands before an explicit unsupported-data rejection.
-Long unclosed postfix chains do not recursively prepare intervening calls. User index protocols
+of copying intermediate records or arrays. Calls through indexed components still check the first index's operands before an explicit
+unsupported-data rejection. Long unclosed postfix chains do not recursively prepare intervening
+calls. User index protocols
 remain unadmitted.
 
 `Referent` is one typed-body operand for either a static selected place or an evaluated access
@@ -916,8 +917,7 @@ effects. Sparse availability queries conservatively include every possibly overl
 later disjoint fields can exclude a hole without inventing a concrete unknown index. Concrete
 and symbolic availability use the same query, with joins solved before reporting. Exhaustive
 small-domain enumeration compares symbolic queries with all possible concrete selections,
-including missing parents, partial children and maybe-initialized state. Source element transfer
-and resource-hole admission remain gated by the closure below. Base identity stays protected
+including missing parents, partial children and maybe-initialized state. General retained-index element transfer and resource-hole admission still require the closure below. Base identity stays protected
 during index evaluation, and saved addresses remain the exact execution authority. Checking freezes
 `ProvenInBounds` when an established normal-result singleton is below the normalized array count,
 and `ProvenTrap` for an empty array or an established singleton at or above that count; other
@@ -930,9 +930,29 @@ No payload header is requested for an element that is never produced; a later au
 selection still requires its structural definition. Empty local annotations retain element identity
 without requiring its payload header. The closed evaluator checks actual values for ordinary
 selection and executes explicit guaranteed failure at its exact source site; native lowering may
-omit only a checking-proven check. Element transfer and partial-state admission still require the
+omit only a checking-proven check. General retained-index transfer and partial-state admission still require the
 [evaluated-selection closure](../../../design/compiler-realization.md#evaluated-array-selection-closure).
 Access disjointness does not prove a missing element's identity, restoration or cleanup interval.
+
+Postfix transfer now carries the same `Referent` as ordinary selection and assignment. A path whose
+indices all have established numeric singletons can retire that exact element or nested field from
+an owning local. The graph evaluates its base/index effects before an immediate transfer. A direct
+call instead prepares its selected address and delays source retirement until full bundle commit;
+cancellation releases the reservation without dereferencing it or creating a hole. Resource keys
+come from the typed concrete path, never a discarded evaluation carrier or an unknown conflict
+footprint. Read/edit sources do not acquire ownership from a marker. A guaranteed-trap source
+still produces no moved value.
+
+Known owning replacements use ordinary sparse owner replacement and can restore a missing element.
+Unproved or scoped replacements still require complete selected storage and cannot erase a hole.
+Remaining initialized fields may be accessed through an unknown index when structural disjointness
+excludes every known hole. Source/required-execution cases cover whole element and field transfer,
+alternative holes, exact restoration, disjoint unknown-index edits, reservation cancellation,
+read/edit temporaries, consuming capture bodies, restoration on every loop backedge, forbidden repeated extraction and maximum-count zero-byte
+cleanup. Shared source fixtures also execute through the [native consumer](../nocter-machine/README.md#private-array-execution).
+This finite concrete-path stage is not a constant-index-only source rule: a normal transfer whose
+index remains unknown still rejects at the compiler realization gate until saved numeric holes,
+joins and finite loop progression close. It cannot equate repeated recipe keys across a backedge.
 
 Source tests qualify saved aliases after index mutation, loop re-execution, read reservation versus
 Copy snapshots, non-Copy element/field reads, structural field views, alternating member/index chains,
@@ -980,8 +1000,10 @@ These tests start with declaration-backed logical owners. Source construction ha
 precise source element initialization/access/conflict analysis or a runtime-selected hole. Distinct dynamic
 index expressions cannot be encoded as disjoint concrete keys. Their evaluated identity and
 checked equality/disjointness conditions must close across reservations, joins and loops before
-source element mutation/transfer admission. The evaluator projector and private MIR explicitly reject array interval
-cleanup until their value/storage realization is implemented.
+general retained-index element transfer admission. `DisposeArrayElements` now reaches the closed
+evaluator's metered retirement frontier and private MIR as a half-open interval, without element
+expansion. Their consumers qualify exact interval validation and cleanup separately from the
+remaining dynamic-hole proof.
 
 ## Frozen Body Input Channels
 

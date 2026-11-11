@@ -50,7 +50,7 @@ impl Checker<'_, '_> {
     fn deferred_transfer(
         &self,
         mut value: AccessExpressionId,
-    ) -> Option<(nocter_model::AccessPlaceId, Vec<AccessExpressionId>)> {
+    ) -> Option<(super::Referent, Vec<AccessExpressionId>)> {
         let mut adapters = Vec::new();
         loop {
             match self.expressions.get(value)?.kind {
@@ -81,10 +81,7 @@ impl Checker<'_, '_> {
         let mode = expected.operation.access_mode();
         let action = if let Some(actual) = self.ty(value).normal() {
             if let Some((place, adapters)) = self.deferred_transfer(value) {
-                ArgumentAction::ReserveTransfer {
-                    place: place.into(),
-                    adapters,
-                }
+                ArgumentAction::ReserveTransfer { place, adapters }
             } else if let Some(place) = self.expression_referent(value) {
                 match mode {
                     Mode::Read => ArgumentAction::ReserveRead(place),

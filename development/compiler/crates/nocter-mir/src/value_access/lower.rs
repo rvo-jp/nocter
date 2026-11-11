@@ -392,7 +392,18 @@ impl Builder<'_> {
                             disposal: self.disposal(*payload)?,
                         });
                     }
-                    Step::DisposeArrayElements { .. } => return Err(self.invalid()),
+                    Step::DisposeArrayElements {
+                        source,
+                        payload,
+                        start,
+                        end,
+                    } => {
+                        output.push(Effect::DisposeArrayElements {
+                            source: self.place(source, payload.data())?,
+                            start: *start,
+                            end: *end,
+                        });
+                    }
                     Step::ReleaseContainer { source, payload } => {
                         output.push(Effect::End(self.place(source, payload.data())?));
                     }

@@ -53,7 +53,7 @@ impl Checker<'_, '_> {
             NodeKind::ReferenceExpression => self.reference_value(node)?,
             NodeKind::ScalarLiteral => self.literal(node, false, hint)?,
             NodeKind::UnitExpression => self.unit(node)?,
-            NodeKind::TransferExpression => self.transfer(node)?,
+            NodeKind::TransferExpression => self.transfer(node, reachable)?,
             NodeKind::ClosureExpression => self.closure(node, reachable)?,
             NodeKind::StructLiteral => self.record_value(node, reachable)?,
             NodeKind::TupleExpression => {

@@ -295,7 +295,7 @@ fn expression_uses(
     match typed.body().expressions().get(id).ok_or(INVALID)?.kind {
         ExpressionKind::Place(place) => uses.push((Carrier::Local(root(typed, place)?), update)),
         ExpressionKind::Move(place) => {
-            uses.push((Carrier::Local(root(typed, place)?), true));
+            uses.push((referent_carrier(typed, place)?, true));
         }
         ExpressionKind::Boundary { source, action } => {
             let carrier = match typed.body().expressions().get(source).ok_or(INVALID)?.kind {

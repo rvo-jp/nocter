@@ -18,16 +18,15 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Extend the [selection path](compiler/crates/nocter-checking/README.md#array-selection) from complete-value
-access disjointness to one checking-owned source of retained-index facts for initialization and
-resource flow. Extend the shared typed selection path and container/value availability queries
-into source element transfer, restoration and the existing sparse ledger. Preserve address
-formation separately from complete-payload reads; a logical path with an unknown index is not a
-concrete ownership key. Do not add a second ownership registry or a separate bounds evaluator.
+Extend the [selection path](compiler/crates/nocter-checking/README.md#array-selection) beyond proven
+concrete element holes to retained numeric dynamic indices. Preserve the shared typed path,
+container/value availability queries, sparse ledger and interval cleanup consumers. A logical
+path with an unknown index is not a concrete ownership key. Do not add a second ownership
+registry or a separate bounds evaluator.
 The [closed evaluator address mechanism](compiler/crates/nocter-constant-evaluation/README.md#evaluated-array-addresses)
 is an execution consumer, not proof of precise element-state safety. Preserve the evaluated numeric
 index through reservations, aliases and holes; equal recipe keys across a backedge do not establish equal values.
-Element transfer and partial-state admission remain gated until the
+General retained-index transfer and partial-state admission remain gated until the
 [evaluated-selection closure](design/compiler-realization.md#evaluated-array-selection-closure)
 closes joins, loops and cleanup alongside the ordinary whole-value construction path. A finite
 concrete-path stage must not become a constant-index-only source policy or substitute for retained
@@ -38,8 +37,8 @@ Qualify actual nontrivial array cleanup effects through the
 source error construction. Respect its stated qualification boundary: emitted/image-only cleanup
 is not execution of an owned error graph.
 Preserve homogeneous geometry, payload-free empty arrays and the existing lifecycle ownership;
-do not add N compiler owners, layout fields or generated operations. Native nontrivial and partial-array
-cleanup remain separate consumers to close before product admission.
+do not add N compiler owners, layout fields or generated operations. Actual native nontrivial effects
+and general dynamic-hole cleanup remain separate consumers to close before product admission.
 
 ## Migration Checklist
 

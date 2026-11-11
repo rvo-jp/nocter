@@ -346,3 +346,27 @@ fn proven_failure_has_a_bounds_terminator_without_an_element_address_or_layout()
         }
     }
 }
+
+#[test]
+fn partial_array_cleanup_uses_finite_reverse_intervals_from_source_holes() {
+    let mut counts = Vec::new();
+    for length in [3, 100_000] {
+        let program = compile(&format!(
+            "struct Item {{ reason: error }}\nfunc make(): [Item; {length}] {{ loop {{}} }}\nfunc run(): void {{ let values = make()\nlet moved = values[1]^ }}"
+        ));
+        counts.push(
+            program
+                .functions()
+                .flat_map(|(_, f)| f.body().operations())
+                .count(),
+        );
+        assert!(
+            program
+                .functions()
+                .flat_map(|(_, f)| f.body().operations())
+                .any(|(_, op)| matches!(op.kind(), MachineOperationKind::ReleaseError { .. }))
+        );
+    }
+    assert_eq!(counts[0], counts[1]);
+    assert!(counts[0] < 200);
+}

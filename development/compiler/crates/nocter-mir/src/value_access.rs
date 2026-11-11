@@ -90,6 +90,11 @@ pub enum Effect {
         source: Place,
         disposal: Disposal,
     },
+    DisposeArrayElements {
+        source: Place,
+        start: u64,
+        end: u64,
+    },
     End(Place),
     BindAddress {
         destination: MirLocalId,

@@ -206,16 +206,21 @@ impl Context<'_, '_> {
         }
         self.base_value(self.world.local(self.typed, local)?)
     }
-    fn resource_place(&self, place: AccessPlaceId) -> Result<super::super::resources::Place> {
-        let selected = self
+    fn resource_referent(&self, referent: Referent) -> Result<super::super::resources::Place> {
+        // A prepared source need not retain its evaluation carrier after reservation. The
+        // typed path grants a concrete key only for proven numeric facts under an owning slot.
+        let (local, path) = self
             .typed
             .body()
-            .places()
-            .get(place)
+            .referent_path(referent)
             .ok_or(Failure::Integrity)?;
-        Ok(super::super::resources::Holder::Local(selected.local)
+        if self.local_mode(local)? != Mode::Own {
+            return Err(Failure::Integrity);
+        }
+        let fields = crate::value_access::paths::concrete(&path).ok_or(Failure::Integrity)?;
+        Ok(super::super::resources::Holder::Local(local)
             .place()
-            .project_path(&selected.fields))
+            .project_path(&fields))
     }
     fn referent(&self, source: Referent) -> Result<Option<(Region, Option<Key>)>> {
         match source {
@@ -356,7 +361,7 @@ impl Context<'_, '_> {
                 action: SelectionAction::Access,
             } => self.select(id, source, fields),
             ExpressionKind::Move(place) => {
-                let (region, actor) = self.base(place)?.ok_or(Failure::Integrity)?;
+                let (region, actor) = self.referent(place)?.ok_or(Failure::Integrity)?;
                 self.write(&region, actor, Mode::Own, None)?;
                 Ok(Value::without_referent(Mode::Own))
             }

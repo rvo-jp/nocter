@@ -196,9 +196,14 @@ impl Builder<'_, '_> {
                     })
                     .collect::<Result<_>>()?,
             },
-            Step::Capture { .. }
-            | Step::AdaptFunction { .. }
-            | Step::DisposeArrayElements { .. } => return Err(INVALID),
+            Step::DisposeArrayElements {
+                source, start, end, ..
+            } => plan::Effect::DisposeArrayElements {
+                source: self.resource(source)?,
+                start: *start,
+                end: *end,
+            },
+            Step::Capture { .. } | Step::AdaptFunction { .. } => return Err(INVALID),
         })
     }
     fn computation(&mut self, op: &flow::Operation) -> Result<plan::Operation> {

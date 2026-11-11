@@ -46,7 +46,11 @@ impl Checker<'_, '_> {
             })
             .ok_or(Failure::InconsistentSyntax)
     }
-    pub fn transfer(&mut self, node: NodeId) -> Result<AccessExpressionId, Failure> {
+    pub fn transfer(
+        &mut self,
+        node: NodeId,
+        reachable: bool,
+    ) -> Result<AccessExpressionId, Failure> {
         let source = self.unwrap(self.first_child(node)?)?;
         if self.kind(source)? == NodeKind::TransferExpression {
             return self.reject_message(
@@ -56,6 +60,13 @@ impl Checker<'_, '_> {
                 Vec::new(),
             );
         }
+        if self.first_array_index(source)?.is_some() {
+            let value = self.expression(source, None, reachable)?;
+            let Some(referent) = self.expression_referent(value) else {
+                return self.reject(Rule::MissingTransfer, node);
+            };
+            return self.transfer_referent(node, referent);
+        }
         let place = self.place(source, Rule::MissingTransfer)?;
         self.transfer_place(node, place)
     }
@@ -64,7 +75,17 @@ impl Checker<'_, '_> {
         node: NodeId,
         place: AccessPlaceId,
     ) -> Result<AccessExpressionId, Failure> {
-        let access = self.place_ty(place);
+        self.transfer_referent(node, place.into())
+    }
+    fn transfer_referent(
+        &mut self,
+        node: NodeId,
+        source: super::Referent,
+    ) -> Result<AccessExpressionId, Failure> {
+        let base = source
+            .static_base(|id| self.expressions.get(id))
+            .ok_or(Failure::InconsistentSyntax)?;
+        let access = self.place_ty(base);
         if access.mode() != Mode::Own {
             return self.reject_message(
                 Rule::MissingTransfer, node,
@@ -72,10 +93,24 @@ impl Checker<'_, '_> {
                 Vec::new(),
             );
         }
+        let ty = source
+            .value_type(|id| self.places.get(id), |id| self.expressions.get(id))
+            .ok_or(Failure::InconsistentSyntax)?;
+        let (_, path) = source
+            .selection_path(|id| self.places.get(id), |id| self.expressions.get(id))
+            .ok_or(Failure::InconsistentSyntax)?;
+        if ty.may_complete() && super::paths::concrete(&path).is_none() {
+            return self.reject_message(Rule::UnsupportedData, node,
+                "the compiler cannot yet retain this selected index through element ownership and cleanup".into(), Vec::new());
+        }
         self.emit(
             node,
-            value_type(access.data(), Mode::Own),
-            ExpressionKind::Move(place),
+            value_type(
+                ty.access().ok_or(Failure::InconsistentSyntax)?.data(),
+                Mode::Own,
+            )
+            .with_continuation(ty.may_complete()),
+            ExpressionKind::Move(source),
         )
     }
     pub fn field(&self, data: TypeId, token: SyntaxToken) -> Result<ValueField, Failure> {

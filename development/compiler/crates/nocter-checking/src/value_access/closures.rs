@@ -243,7 +243,11 @@ fn invocation(
                     .ok_or(Failure::InconsistentSyntax)?
                     .kind
                 {
-                    ExpressionKind::Move(place) if selects(*place) => {
+                    ExpressionKind::Move(place)
+                        if place
+                            .static_base(|id| body.expressions().get(id))
+                            .is_some_and(selects) =>
+                    {
                         return Ok(ValueInvocation::Take);
                     }
                     ExpressionKind::Boundary {

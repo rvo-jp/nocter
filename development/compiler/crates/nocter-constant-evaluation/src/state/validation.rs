@@ -403,6 +403,13 @@ fn check_effect(program: &Program, plan: &super::Plan, effect: &Effect) -> Resul
         }
     };
     match effect {
+        Effect::DisposeArrayElements { source, start, end } => {
+            let data = owned(source)?;
+            if !matches!(program.types.get(data), Some(Type::Array { length, .. }) if start < end && end <= length)
+            {
+                return Err(INVALID);
+            }
+        }
         Effect::Construct(slot) => {
             owned(&Place::root(*slot))?;
         }

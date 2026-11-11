@@ -1,7 +1,9 @@
+mod ownership;
 use super::{
     Place, Rule, Slot, Storage as SlotStorage, Value,
     budget::{Lease, Resident, Storage},
 };
+use ownership::Ownership;
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, btree_map::Entry},
@@ -71,7 +73,7 @@ pub(super) enum Cell {
 pub(super) struct Frame {
     pub slots: Arc<[Slot]>,
     pub cells: BTreeMap<usize, Resident<Cell>>,
-    pub owned: BTreeMap<usize, Resident<BTreeMap<Path, Resident<()>>>>,
+    pub owned: BTreeMap<usize, Resident<Ownership>>,
 }
 impl Frame {
     pub fn new(storage: &Storage, slots: Arc<[Slot]>) -> Result<Resident<Self>> {
@@ -100,7 +102,7 @@ impl Frame {
         let Entry::Vacant(entry) = self.owned.entry(slot) else {
             return Err(Rule::InvalidPlan);
         };
-        entry.insert(storage.entry(BTreeMap::new())?);
+        entry.insert(storage.entry(Ownership::default())?);
         Ok(())
     }
 }
@@ -241,31 +243,29 @@ impl Memory {
             frame.own(&self.storage, slot)
         } else {
             let holes = frame.owned.get_mut(&slot).ok_or(Rule::InvalidPlan)?;
-            if holes
-                .keys()
-                .any(|hole| hole != &address.fields && address.fields.starts_with(hole))
-            {
-                return Err(Rule::InvalidPlan);
-            }
-            holes.retain(|hole, _| !hole.starts_with(&address.fields));
+            holes.restore(&address.fields)?;
             Ok(())
         }
+    }
+    pub fn retire_array(&mut self, address: &Address, start: u64, end: u64) -> Result<()> {
+        let (frame_id, slot) = address.local()?;
+        self.frames
+            .get_mut(frame_id)
+            .and_then(|frame| frame.owned.get_mut(&slot))
+            .ok_or(Rule::InvalidPlan)?
+            .retire_array(&self.storage, &address.fields, start, end)
     }
     pub fn retire(&mut self, address: &Address, partial: bool) -> Result<()> {
         let (frame_id, slot) = address.local()?;
         let frame = self.frames.get_mut(frame_id).ok_or(Rule::InvalidPlan)?;
         let holes = frame.owned.get_mut(&slot).ok_or(Rule::InvalidPlan)?;
-        if holes
-            .keys()
-            .any(|h| address.fields.starts_with(h) || (!partial && h.starts_with(&address.fields)))
-        {
-            return Err(Rule::InvalidPlan);
-        }
         if address.fields.is_empty() {
+            if !holes.can_release(&address.fields, partial) {
+                return Err(Rule::InvalidPlan);
+            }
             frame.owned.remove(&slot);
         } else {
-            holes.retain(|h, _| !h.starts_with(&address.fields));
-            holes.insert(address.fields.clone(), self.storage.entry(())?);
+            holes.retire(&self.storage, &address.fields, partial)?;
         }
         Ok(())
     }

@@ -395,13 +395,22 @@ fn repetition_counts_execute_without_executing_the_runtime_seed() {
 }
 
 #[test]
-fn element_transfers_and_indexed_calls_remain_gated() {
-    for operation in ["let value = items[0]^", "let value = items[0]()"] {
+fn scoped_element_transfer_and_indexed_calls_keep_distinct_rejections() {
+    for (operation, rule) in [
+        (
+            "let value = items[0]^",
+            crate::value_access::Rule::MissingTransfer,
+        ),
+        (
+            "let value = items[0]()",
+            crate::value_access::Rule::UnsupportedData,
+        ),
+    ] {
         let text = format!("func run(items: [i32; 2]): void {{ {operation} }}");
         let (sources, tree) = input(&text);
         let failure = accepted::SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
         assert!(
-            matches!(&failure, SourceFailure::Checking(Failure::Body { failure: BodyFailure::Rejected(error), .. }) if error.rule() == crate::value_access::Rule::UnsupportedData),
+            matches!(&failure, SourceFailure::Checking(Failure::Body { failure: BodyFailure::Rejected(error), .. }) if error.rule() == rule),
             "{operation}: {failure:?}"
         );
     }

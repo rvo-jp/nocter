@@ -1,5 +1,6 @@
 //! Closed execution evidence; checking still owns source access and initialization proofs.
 use super::*;
+mod cleanup;
 
 fn action(operation: Operation, owned: &[usize], after: Vec<Effect>) -> Action {
     Action {

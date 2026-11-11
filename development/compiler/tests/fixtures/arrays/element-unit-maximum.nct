@@ -1,0 +1,5 @@
+const func run(): i32 {
+    let values = [(); 18446744073709551615]
+    let moved = values[18446744073709551614]^
+    42
+}

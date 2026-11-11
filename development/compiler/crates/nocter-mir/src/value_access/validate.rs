@@ -118,6 +118,17 @@ impl Context<'_> {
     }
     fn effect(&self, effect: &Effect) -> Result<(), Failure> {
         match effect {
+            Effect::DisposeArrayElements { source, start, end } => {
+                self.place(source)?;
+                self.require(
+                    self.program
+                        .runtime
+                        .types()
+                        .get(source.data)
+                        .and_then(nocter_runtime_contract::RuntimeType::array)
+                        .is_some_and(|(_, length)| start < end && *end <= length),
+                )
+            }
             Effect::Initialize(place)
             | Effect::End(place)
             | Effect::Dispose { source: place, .. } => self.place(place),

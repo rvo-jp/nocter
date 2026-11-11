@@ -174,12 +174,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             .find(|a| {
                 a.owned.len() == owners.len()
                     && a.owned.iter().all(|(slot, holes)| {
-                        owners.get(slot).is_some_and(|actual| {
-                            actual
-                                .keys()
-                                .map(|path| &path[..])
-                                .eq(holes.iter().map(AsRef::as_ref))
-                        })
+                        owners.get(slot).is_some_and(|actual| actual.matches(holes))
                     })
             })
             .ok_or(Rule::InvalidPlan)?;
@@ -396,6 +391,10 @@ impl<'a, 'budget> Executor<'a, 'budget> {
     }
     fn effect(&mut self, frame: usize, effect: &Effect) -> Result<()> {
         match effect {
+            Effect::DisposeArrayElements { source, start, end } => {
+                let address = self.memory.address(frame, source)?;
+                self.memory.retire_array(&address, *start, *end)
+            }
             Effect::Construct(slot) => Ok(self
                 .memory
                 .construct(&self.memory.address(frame, &Place::root(*slot))?)?),

@@ -175,6 +175,15 @@ This domain alone proves neither precise source element conflict/initialization 
 dynamic resource-hole cleanup nor native array storage. The remaining integration follows the
 [evaluated-selection obligations](../../../design/compiler-realization.md#evaluated-array-selection-closure).
 
+`Effect::DisposeArrayElements` retires an intact half-open interval under one owning slot. Type
+validation requires an owned array place and `start < end <= length`. `memory::ownership` keeps
+individual missing paths and cleanup intervals in one metered sparse frontier, rejecting overlap
+and retirement of unavailable parents. Container release collapses its retired descendants without
+visiting elements. Intervals are cleanup state, not restorable per-element initialization or a new
+input ownership condition. Repeated failed execution releases their leases. Maximum-count and
+small repeated arrays have the same minimum live-storage budget for interval cleanup; nested
+partial elements and intact intervals share that same owner.
+
 ### Live Working Storage
 
 `state::Limits` adds a deterministic storage limit without giving the expression-tree executor an

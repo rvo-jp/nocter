@@ -106,6 +106,12 @@ pub enum Effect {
         destination: Place,
     },
     Dispose(Place),
+    /// Retire an intact half-open element interval without cardinality-sized state.
+    DisposeArrayElements {
+        source: Place,
+        start: u64,
+        end: u64,
+    },
     Release(Place),
     Assemble {
         destination: usize,

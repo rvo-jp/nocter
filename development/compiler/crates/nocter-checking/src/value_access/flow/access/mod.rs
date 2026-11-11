@@ -45,9 +45,6 @@ impl Region {
             .fields
             .concat(&crate::value_access::paths::known(fields));
     }
-    fn concrete_fields(&self) -> Option<FieldPath> {
-        crate::value_access::paths::concrete(&self.fields)
-    }
     fn overlaps(&self, other: &Self) -> bool {
         self.root == other.root
             && crate::value_access::paths::relation(&self.fields, &other.fields)

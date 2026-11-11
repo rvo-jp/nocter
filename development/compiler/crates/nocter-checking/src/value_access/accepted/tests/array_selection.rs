@@ -79,7 +79,7 @@ fn scopes_and_unclosed_writes_cannot_turn_an_existing_element_into_an_editable_c
             crate::value_access::Rule::InvalidUpdate,
         ),
         (
-            "func work(take values: [i32; 2]): void { let selected = values[0]^ }",
+            "func work(take values: [i32; 2], index: usize): void { let selected = values[index]^ }",
             crate::value_access::Rule::UnsupportedData,
         ),
     ] {

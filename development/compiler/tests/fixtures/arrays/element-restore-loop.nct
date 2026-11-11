@@ -1,0 +1,11 @@
+struct Item { value: i32 }
+const func run(): i32 {
+    var items = [Item { value: 0 }, Item { value: 42 }]
+    var count = 0
+    while count < 3 {
+        let moved = items[0]^
+        items[0] = Item { value: moved.value + 1 }
+        count += 1
+    }
+    items[0].value + items[1].value - 3
+}

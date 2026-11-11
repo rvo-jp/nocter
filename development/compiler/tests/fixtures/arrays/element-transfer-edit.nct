@@ -1,0 +1,8 @@
+struct Item { value: i32 }
+const func update(edit item: Item): i32 { item.value += 1
+item.value }
+const func run(): i32 {
+    let items = [Item { value: 40 }, Item { value: 1 }]
+    let answer = update(items[0]^)
+    answer + items[1].value
+}

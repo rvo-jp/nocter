@@ -1,7 +1,8 @@
 //! Checking-owned numeric selection facts shared by availability and access analysis.
 use super::{Expression, ExpressionKind, IndexAction, Referent, SelectionAction, TypedBody};
 use nocter_model::{
-    AccessLocalId, FieldPath, IndexRelation, PathRelation, ValuePath, ValueProjection,
+    AccessExpressionId, AccessLocalId, AccessPlaceId, FieldPath, IndexRelation, PathRelation,
+    ValuePath, ValueProjection,
 };
 
 /// Evaluated numeric evidence, never an expression-site or loop-generation identity.
@@ -51,15 +52,21 @@ impl Expression {
 impl TypedBody {
     /// Logical availability path relative to its local slot. Outside referent identity remains
     /// access analysis's responsibility; unknown indices grant no concrete ownership path.
-    pub(super) fn referent_path(
-        &self,
-        mut referent: Referent,
+    pub(super) fn referent_path(&self, referent: Referent) -> Option<(AccessLocalId, AccessPath)> {
+        referent.selection_path(|id| self.places().get(id), |id| self.expressions().get(id))
+    }
+}
+impl Referent {
+    pub(super) fn selection_path<'a>(
+        mut self,
+        place: impl Fn(AccessPlaceId) -> Option<&'a super::Place>,
+        expression: impl Fn(AccessExpressionId) -> Option<&'a Expression>,
     ) -> Option<(AccessLocalId, AccessPath)> {
         let mut suffixes: Vec<AccessPath> = Vec::new();
         loop {
-            match referent {
+            match self {
                 Referent::Place(id) => {
-                    let place = self.places().get(id)?;
+                    let place = place(id)?;
                     let mut fields = known(&place.fields).fields().to_vec();
                     for suffix in suffixes.into_iter().rev() {
                         fields.extend_from_slice(suffix.fields());
@@ -67,7 +74,7 @@ impl TypedBody {
                     return Some((place.local, AccessPath::new(fields)));
                 }
                 Referent::Evaluated(id) => {
-                    let source = match &self.expressions().get(id)?.kind {
+                    let source = match &expression(id)?.kind {
                         ExpressionKind::Index {
                             base,
                             index,
@@ -75,7 +82,7 @@ impl TypedBody {
                             ..
                         } => {
                             suffixes.push(AccessPath::new([ValueProjection::Array(
-                                self.expressions().get(*index)?.index_fact(),
+                                expression(*index)?.index_fact(),
                             )]));
                             *base
                         }
@@ -89,7 +96,7 @@ impl TypedBody {
                         }
                         _ => return None,
                     };
-                    referent = self.expressions().get(source)?.referent(source)?;
+                    self = expression(source)?.referent(source)?;
                 }
             }
         }

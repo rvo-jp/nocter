@@ -306,7 +306,7 @@ pub enum ExpressionKind {
         bounds: nocter_model::IndexBoundsCheck,
     },
     Place(AccessPlaceId),
-    Move(AccessPlaceId),
+    Move(Referent),
     Boundary {
         source: AccessExpressionId,
         action: BoundaryAction,

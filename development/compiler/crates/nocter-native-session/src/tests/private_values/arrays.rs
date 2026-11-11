@@ -268,13 +268,17 @@ fn private_empty_arrays_have_no_element_geometry_or_payload_dependency() {
 }
 
 #[test]
-fn private_complete_array_cleanup_can_reach_image_lowering() {
+fn private_complete_and_partial_array_cleanup_can_reach_image_lowering() {
     // No source error-construction path is qualified here. Keep this evidence at image lowering;
     // executing the divergent producer would not validate element destruction.
     let image = compile(
         "struct Item { reason: error }\nfunc make(): [Item; 3] { loop {} }\nfunc run(): void { let values = make() }",
     );
     assert!(!image.bytes().is_empty());
+    let partial = compile(
+        "struct Item { reason: error }\nfunc make(): [Item; 3] { loop {} }\nfunc run(): void { let values = make()\nlet moved = values[1]^ }",
+    );
+    assert!(!partial.bytes().is_empty());
     let package = TempPackage::new();
     execute_native_status(
         &compile("func build(): [error; 0] { [] }\nfunc run(): i32 { let values = build()\n42 }"),
@@ -331,6 +335,57 @@ fn private_proven_bounds_failure_preserves_earlier_operand_exits_and_effects() {
         (
             "array-trap-target-return",
             "func produce(edit log: i32): i32 { log += 1\n0 }\nfunc inner(edit log: i32): i32 { var empty: [i32; 0] = []\nempty[if true { return 41 } else { 0 }] = produce(log)\n0 }\nfunc run(): i32 { var log = 0\nlet result = inner(log)\nresult + log }",
+        ),
+    ] {
+        let package = TempPackage::new();
+        execute_native_status(&compile(source), &package.0, name, 42);
+    }
+}
+
+#[test]
+fn private_sparse_element_holes_restore_and_clean_through_the_native_path() {
+    for (name, source) in [
+        (
+            "element-capture",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../tests/fixtures/arrays/element-capture.nct"
+            )),
+        ),
+        (
+            "element-field-hole",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../tests/fixtures/arrays/element-field-hole.nct"
+            )),
+        ),
+        (
+            "element-restore-loop",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../tests/fixtures/arrays/element-restore-loop.nct"
+            )),
+        ),
+        (
+            "element-unit-maximum",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../tests/fixtures/arrays/element-unit-maximum.nct"
+            )),
+        ),
+        (
+            "element-transfer-edit",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../tests/fixtures/arrays/element-transfer-edit.nct"
+            )),
+        ),
+        (
+            "element-transfer-call",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../tests/fixtures/arrays/element-transfer-call.nct"
+            )),
         ),
     ] {
         let package = TempPackage::new();
