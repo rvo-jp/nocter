@@ -464,7 +464,7 @@ impl Builder<'_, '_> {
         }
         Ok(plan::Operation::Call {
             destination: self.holder(Holder::Expression(id))?,
-            target,
+            target: target.into(),
             inputs: inputs.into(),
         })
     }
@@ -600,8 +600,7 @@ impl Builder<'_, '_> {
             .typed()
             .body()
             .inputs()
-            .explicit()
-            .iter()
+            .ordered()
             .map(|i| Ok((self.holder(Holder::Local(i.local))?, i.operation)))
             .collect::<Result<_>>()?;
         let mut points = nocter_model::ArenaBuilder::new();
@@ -690,7 +689,7 @@ impl Builder<'_, '_> {
                     .kind()
                     .is_initializer(),
                 nocter_model::ValueCode::Expression(_) => true,
-                nocter_model::ValueCode::Closure(_) => return Err(INVALID),
+                nocter_model::ValueCode::Closure(_) => false,
             },
             entry: self.query.graph().entry(),
             points: points.finish(),
@@ -748,19 +747,19 @@ fn binary(
     })
 }
 pub(super) fn prepare(
-    program: &Program,
-    bodies: &BTreeMap<nocter_model::ValueCodeRoot, flow::Query>,
+    checked: &super::super::accepted::Checked,
     root: nocter_model::ValueCodeRoot,
     values: impl Fn(AccessCodeId) -> Option<plan::Value>,
 ) -> Result<plan::Program> {
-    let mut pending = vec![root];
+    let program = &checked.program;
+    let mut pending = vec![root.code()];
     let mut types = Types::default();
     let mut plans = BTreeMap::new();
     while let Some(id) = pending.pop() {
         if plans.contains_key(&id) {
             continue;
         }
-        let query = bodies.get(&id).ok_or(INVALID)?;
+        let query = checked.code(id).ok_or(INVALID)?;
         let plan = Builder {
             query,
             program,
@@ -772,7 +771,7 @@ pub(super) fn prepare(
         for (_, point) in plan.points.iter() {
             for action in &point.actions {
                 if let plan::Operation::Call { target, .. } = action.operation {
-                    pending.push(target.into());
+                    pending.push(target);
                 }
             }
         }

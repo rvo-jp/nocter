@@ -77,11 +77,11 @@ impl Diagnostic {
 }
 fn origin(
     context: &DeclarationContext<'_>,
-    bodies: &BTreeMap<nocter_model::ValueCodeRoot, flow::Query>,
+    checked: &super::accepted::Checked,
     site: state::Site,
 ) -> Result<nocter_syntax::SyntaxOrigin, BodyFailure> {
-    let bound = bodies
-        .get(&site.code)
+    let bound = checked
+        .code(site.code)
         .ok_or(BodyFailure::InconsistentSyntax)?
         .bind(context)?;
     bound.origin(flow::Location {
@@ -91,10 +91,11 @@ fn origin(
 }
 fn project(
     context: &DeclarationContext<'_>,
-    bodies: &BTreeMap<nocter_model::ValueCodeRoot, flow::Query>,
+    checked: &super::accepted::Checked,
     error: &state::Error,
 ) -> Result<Diagnostic, BodyFailure> {
-    let root = bodies
+    let root = checked
+        .bodies
         .get(&error.code)
         .ok_or(BodyFailure::InconsistentSyntax)?
         .typed()
@@ -107,11 +108,11 @@ fn project(
     for &site in &error.trace {
         notes.push(DiagnosticNote::new(
             "constant evaluation depends on this operation",
-            source_origin(context.syntax(), origin(context, bodies, site)?)?,
+            source_origin(context.syntax(), origin(context, checked, site)?)?,
         ));
     }
     let origin = if let Some(site) = error.site {
-        origin(context, bodies, site)?
+        origin(context, checked, site)?
     } else {
         nocter_syntax::SyntaxOrigin::Node(root.body())
     };

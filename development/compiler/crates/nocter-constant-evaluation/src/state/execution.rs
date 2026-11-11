@@ -3,7 +3,7 @@ use super::{
     memory::{Address, Cell, Frame, Memory},
 };
 use crate::{ConstantScalarType, scalar};
-use nocter_model::{ConstantValue, ValueCodeRoot, ValueInputOperation};
+use nocter_model::{ConstantValue, ValueCode, ValueCodeRoot, ValueInputOperation};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Rule {
     InvalidPlan,
@@ -56,8 +56,13 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         self.site = None;
         self.failed_site = None;
         self.trace.clear();
-        let result = if self.program.plans.get(&code).is_some_and(|p| p.initializer) {
-            self.invoke(code, &[])
+        let result = if self
+            .program
+            .plans
+            .get(&code.code())
+            .is_some_and(|p| p.initializer)
+        {
+            self.invoke(code.code(), &[])
         } else {
             Err(Rule::InvalidPlan)
         };
@@ -71,7 +76,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
     fn tick(&mut self) -> Result<()> {
         self.budget.step()
     }
-    fn invoke(&mut self, code: ValueCodeRoot, inputs: &[Cell]) -> Result<Value> {
+    fn invoke(&mut self, code: ValueCode, inputs: &[Cell]) -> Result<Value> {
         if self
             .memory
             .frames
@@ -121,7 +126,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         self.memory.frames.pop();
         result
     }
-    fn run(&mut self, code: ValueCodeRoot, plan: &Plan, frame: usize) -> Result<Value> {
+    fn run(&mut self, code: ValueCode, plan: &Plan, frame: usize) -> Result<Value> {
         let mut point = plan.entry;
         loop {
             let block = plan.points.get(point).ok_or(Rule::InvalidPlan)?;
@@ -353,7 +358,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             } => {
                 let _input_storage = self.memory.storage.items(inputs.len())?;
                 let inputs = self.inputs(frame, inputs, taken)?;
-                (*destination, self.invoke((*target).into(), &inputs)?)
+                (*destination, self.invoke(*target, &inputs)?)
             }
         };
         self.write(frame, &Place::root(destination), value)

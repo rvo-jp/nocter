@@ -147,6 +147,16 @@ pub enum ValueCode {
     Expression(ValueExpression),
     Closure(ValueClosure),
 }
+impl From<crate::AccessCodeId> for ValueCode {
+    fn from(id: crate::AccessCodeId) -> Self {
+        Self::Declaration(id)
+    }
+}
+impl From<ValueCodeRoot> for ValueCode {
+    fn from(root: ValueCodeRoot) -> Self {
+        root.code()
+    }
+}
 impl ValueCode {
     #[must_use]
     pub const fn origin(self) -> Option<ValueFunctionOrigin> {

@@ -480,7 +480,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
                 diagnostic: Box::new(diagnostic),
             });
         }
-        let program = projection::prepare(&checked.program, &checked.bodies, id, |id| {
+        let program = projection::prepare(&checked, id, |id| {
             dependencies::value(requests, id).map(|value| value.execution.clone())
         })
         .map_err(Failure::Integrity)?;
@@ -489,29 +489,30 @@ impl<'a, 'source> Preparation<'a, 'source> {
             &mut self.budget,
             dependencies::value_depth(requests) - 1,
         );
-        let value =
-            match executor.evaluate_initializer(id) {
-                Ok(value) => value,
-                Err(error)
-                    if matches!(
-                        error.rule,
-                        state::Rule::InvalidPlan | state::Rule::ReachedUnreachable
-                    ) =>
-                {
-                    return Err(INVALID);
-                }
-                Err(error) => {
-                    let diagnostic = super::project(&self.context, &checked.bodies, &error)
-                        .map_err(|failure| Failure::Body {
+        let value = match executor.evaluate_initializer(id) {
+            Ok(value) => value,
+            Err(error)
+                if matches!(
+                    error.rule,
+                    state::Rule::InvalidPlan | state::Rule::ReachedUnreachable
+                ) =>
+            {
+                return Err(INVALID);
+            }
+            Err(error) => {
+                let diagnostic =
+                    super::project(&self.context, &checked, &error).map_err(|failure| {
+                        Failure::Body {
                             callable: id.source_owner(),
                             failure,
-                        })?;
-                    return Err(Failure::Evaluation {
-                        callable: id.source_owner(),
-                        diagnostic: Box::new(diagnostic),
-                    });
-                }
-            };
+                        }
+                    })?;
+                return Err(Failure::Evaluation {
+                    callable: id.source_owner(),
+                    diagnostic: Box::new(diagnostic),
+                });
+            }
+        };
         Ok(Completed {
             frozen: value.freeze(),
             execution: value,

@@ -597,7 +597,7 @@ fn selected_addresses_cross_call_frames_without_reloading_the_index_variable() {
             integer(1, 1),
             Operation::Call {
                 destination: 5,
-                target: helper,
+                target: helper.into(),
                 inputs: vec![Input {
                     operation: nocter_model::ValueInputOperation::Edit,
                     place: Place::root(2),

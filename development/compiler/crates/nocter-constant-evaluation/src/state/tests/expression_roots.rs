@@ -22,14 +22,14 @@ fn expression_value_domain_comes_from_the_validated_plan_not_its_code_identity()
     assert!(
         Program::new(
             [Type::I32],
-            BTreeMap::from([(root, number(u64::MAX))]),
+            BTreeMap::from([(root.code(), number(u64::MAX))]),
             BTreeMap::new()
         )
         .is_err()
     );
     let program = Program::new(
         [Type::Usize],
-        BTreeMap::from([(root, number(u64::MAX))]),
+        BTreeMap::from([(root.code(), number(u64::MAX))]),
         BTreeMap::new(),
     )
     .unwrap();
@@ -48,7 +48,7 @@ fn call(target: AccessCodeId) -> Plan {
         let mut point = point.clone();
         point.actions[0].operation = Operation::Call {
             destination: 0,
-            target,
+            target: target.into(),
             inputs: Box::new([]),
         };
         point
@@ -65,8 +65,8 @@ fn expression_roots_execute_independently_of_their_source_owner_and_siblings() {
         [Type::I32],
         BTreeMap::from([
             (owner.into(), number(3)),
-            (first, number(42)),
-            (second, number(7)),
+            (first.code(), number(42)),
+            (second.code(), number(7)),
         ]),
         BTreeMap::new(),
     )
@@ -83,7 +83,7 @@ fn expression_roots_execute_independently_of_their_source_owner_and_siblings() {
     assert_eq!(budget.storage_used(), 0);
     let without_parent = Program::new(
         [Type::I32],
-        BTreeMap::from([(first, number(42))]),
+        BTreeMap::from([(first.code(), number(42))]),
         BTreeMap::new(),
     )
     .unwrap();
@@ -130,7 +130,7 @@ fn expression_failure_retains_its_root_and_real_helper_call_sites_without_a_pare
     };
     let program = Program::new(
         [Type::I32],
-        BTreeMap::from([(root, call(helper)), (helper.into(), helper_plan)]),
+        BTreeMap::from([(root.code(), call(helper)), (helper.into(), helper_plan)]),
         BTreeMap::new(),
     )
     .unwrap();
@@ -145,7 +145,7 @@ fn expression_failure_retains_its_root_and_real_helper_call_sites_without_a_pare
     assert_eq!(error.code, root);
     assert_eq!(error.site.unwrap().code, helper.into());
     assert_eq!(error.trace.len(), 1);
-    assert_eq!(error.trace[0].code, root);
+    assert_eq!(error.trace[0].code, root.code());
     assert_eq!(budget.storage_used(), 0);
 }
 
@@ -158,7 +158,7 @@ fn expression_roots_are_required_initializers_and_never_declared_call_targets() 
     assert!(matches!(
         Program::new(
             [Type::I32],
-            BTreeMap::from([(root, callable)]),
+            BTreeMap::from([(root.code(), callable)]),
             BTreeMap::new()
         ),
         Err(Rule::InvalidPlan)
@@ -168,7 +168,7 @@ fn expression_roots_are_required_initializers_and_never_declared_call_targets() 
     assert!(matches!(
         Program::new(
             [Type::I32],
-            BTreeMap::from([(root, with_input)]),
+            BTreeMap::from([(root.code(), with_input)]),
             BTreeMap::new()
         ),
         Err(Rule::InvalidPlan)
@@ -176,7 +176,7 @@ fn expression_roots_are_required_initializers_and_never_declared_call_targets() 
     assert!(matches!(
         Program::new(
             [Type::I32],
-            BTreeMap::from([(root, call(owner))]),
+            BTreeMap::from([(root.code(), call(owner))]),
             BTreeMap::new()
         ),
         Err(Rule::InvalidPlan)

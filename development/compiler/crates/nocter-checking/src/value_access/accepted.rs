@@ -230,6 +230,17 @@ pub(super) struct Checked {
     closures: BTreeMap<nocter_model::ValueClosure, flow::Query>,
     result_evidence: Arc<super::results::Evidence>,
 }
+impl Checked {
+    /// Internal plan/diagnostic lookup includes required-expression bodies as well as callables.
+    pub(super) fn code(&self, code: nocter_model::ValueCode) -> Option<&flow::Query> {
+        match code {
+            nocter_model::ValueCode::Closure(id) => self.closures.get(&id),
+            nocter_model::ValueCode::Declaration(_) | nocter_model::ValueCode::Expression(_) => {
+                self.bodies.get(&code.root())
+            }
+        }
+    }
+}
 /// The same ordinary acceptance authority serves required const closures and final whole-unit closure.
 pub(super) fn check_queries(
     context: &DeclarationContext<'_>,

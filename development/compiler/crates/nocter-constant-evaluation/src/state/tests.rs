@@ -5,6 +5,7 @@ use nocter_model::ArenaBuilder;
 use std::num::{NonZeroU32, NonZeroU64};
 mod arrays;
 mod expression_roots;
+mod lexical_codes;
 mod named_functions;
 mod unavailable;
 pub(super) fn literal() -> Plan {
@@ -107,7 +108,7 @@ fn invalid_value_shapes_call_edges_and_recursive_schema_edges_reject_before_exec
         let mut point = point.clone();
         point.actions[0].operation = Operation::Call {
             destination: 0,
-            target: id,
+            target: id.into(),
             inputs: Box::new([]),
         };
         point
@@ -280,7 +281,7 @@ fn unread_scoped_inputs_still_require_initialized_caller_data() {
         let mut point = point.clone();
         point.actions[0].operation = Operation::Call {
             destination: 0,
-            target: function,
+            target: function.into(),
             inputs: vec![Input {
                 place: Place::root(0),
                 operation: nocter_model::ValueInputOperation::Read,

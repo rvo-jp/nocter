@@ -103,8 +103,10 @@ pub(super) fn validate(program: &Program) -> Result<()> {
         }
     }
     for (&code, plan) in &program.plans {
-        if matches!(code, nocter_model::ValueCodeRoot::Expression(_)) && !plan.initializer {
-            return Err(INVALID);
+        match code {
+            nocter_model::ValueCode::Expression(_) if !plan.initializer => return Err(INVALID),
+            nocter_model::ValueCode::Closure(_) if plan.initializer => return Err(INVALID),
+            _ => {}
         }
         validate_plan(program, plan)?;
     }
@@ -423,10 +425,10 @@ fn call(
     program: &Program,
     plan: &super::Plan,
     destination: usize,
-    target: nocter_model::AccessCodeId,
+    target: nocter_model::ValueCode,
     inputs: &[super::Input],
 ) -> Result<()> {
-    let callee = program.plans.get(&target.into()).ok_or(INVALID)?;
+    let callee = program.plans.get(&target).ok_or(INVALID)?;
     if callee.initializer
         || inputs.len() != callee.inputs.len()
         || plan.slots.get(destination).ok_or(INVALID)?.data != callee.result
