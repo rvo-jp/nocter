@@ -751,7 +751,14 @@ body. Ordinary editing calls have no result-only cache that could erase writes.
 `closures` checks a first explicit single-value environment under the private source contract.
 Formation uses the ordinary value-supply boundary. A separate body scope receives that environment
 and flat explicit inputs; names outside it cannot become implicit captures. The body returns
-ordinary closed data and cannot introduce nested closures or callable-result applications.
+ordinary closed data and cannot introduce nested closures. Named factory calls inside the body use
+the same callable-result closure as root bodies. Their applications retain actual lexical code,
+not only the shared source/type root. A shared `flow::scope` traversal indexes captured controls
+for result solving and caller-write evidence; distinct code never shares an operation arena.
+Result projection seals each affected body and its dependency evidence before flow admission,
+including a closure whose enclosing body had no pending result. Tests cover sibling/root calls,
+distinct callees, incompatible witnesses and factory-body reuse invalidation. A shared native source
+also invokes both thin returned functions and returned captured environments inside closures.
 The enclosing header remains its source-reuse owner, while lexical owner/slot identifies its code.
 
 The environment's provisional construction authority permits demand collection, not accepted
@@ -920,12 +927,13 @@ temporary. Named constants construct values, while immutable statics retain thei
 identity.
 
 The index receives the ordinary expected usize boundary. Signed variables, booleans, unavailable
-names and out-of-range literal magnitudes keep their local diagnostics. Mixed member/index reads
+names and out-of-range literal magnitudes keep their local diagnostics. Mixed member/index/transfer chains
 prepare iteratively through both source checking and graph scheduling. An existing static member
 prefix remains one ordinary selected place; subsequent fields retain the evaluated referent instead
 of copying intermediate records or arrays. Calls through indexed components still check the first index's operands before an explicit
 unsupported-data rejection. Long unclosed postfix chains do not recursively prepare intervening
-calls. User index protocols
+calls or transfer wrappers. Shared required/native source checks interleaved selector effects and
+an explicit Copy-array retirement; later source use still rejects that retired array. User index protocols
 remain unadmitted.
 
 `Referent` is one typed-body operand for either a static selected place or an evaluated access

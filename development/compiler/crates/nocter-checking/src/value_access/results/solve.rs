@@ -18,12 +18,13 @@ pub(super) fn solve(
     context: &DeclarationContext<'_>,
     controls: &BTreeMap<nocter_model::ValueCodeRoot, flow::Control>,
 ) -> Result<Evidence, accepted::Failure> {
+    let controls = flow::scope(controls.values()).map_err(accepted::Failure::Integrity)?;
     let mut evidence = Evidence::default();
     let mut equations = Relations::new();
     let mut committed = BTreeSet::new();
-    for (&id, control) in controls {
+    for (&id, control) in &controls {
         let report = super::producers::analyze(control).map_err(accepted::Failure::Integrity)?;
-        if let nocter_model::ValueCodeRoot::Declaration(id) = id
+        if let nocter_model::ValueCode::Declaration(id) = id
             && control
                 .typed
                 .program()
@@ -56,7 +57,10 @@ pub(super) fn solve(
     let solved = relations::solve(&equations).map_err(|()| INVALID)?;
     for (&origin, producers) in &solved {
         let Origin::Result(id) = origin else { continue };
-        let query = &controls.get(&id.into()).ok_or(INVALID)?.typed;
+        let query = &controls
+            .get(&nocter_model::ValueCode::Declaration(id))
+            .ok_or(INVALID)?
+            .typed;
         let Some(witness) = single(producers) else {
             let message = if producers.is_empty() {
                 "callable result has no established code or input producer; recursive forwarding needs a reachable return anchor".to_owned()
@@ -84,8 +88,8 @@ pub(super) fn solve(
         }
         evidence.producers.insert(id, witness);
     }
-    close_applications(context, controls, &committed, &mut evidence)?;
-    prove_equalities(context, controls, &evidence)?;
+    close_applications(context, &controls, &committed, &mut evidence)?;
+    prove_equalities(context, &controls, &evidence)?;
     Ok(evidence)
 }
 fn single(producers: &Producers) -> Option<FunctionWitness> {
@@ -93,7 +97,7 @@ fn single(producers: &Producers) -> Option<FunctionWitness> {
 }
 fn close_applications(
     context: &DeclarationContext<'_>,
-    controls: &BTreeMap<nocter_model::ValueCodeRoot, flow::Control>,
+    controls: &BTreeMap<nocter_model::ValueCode, &flow::Control>,
     committed: &BTreeSet<nocter_model::ValueApplication>,
     evidence: &mut Evidence,
 ) -> Result<(), accepted::Failure> {
@@ -126,7 +130,7 @@ fn close_applications(
             let Origin::Application(application) = witness.origin else {
                 continue;
             };
-            if application.owner != query.code().root()
+            if application.owner != query.code()
                 || application.call != id
                 || *target != Origin::Declaration(application.callee)
             {
@@ -162,7 +166,7 @@ fn close_applications(
             "this callable result application has no single established witness; an unknown-shaped input cannot supply a dependent result witness"))?;
         if let Origin::Parameter(parameter) = witness.origin
             && query.program().parameters().get(parameter).is_none_or(|p| {
-                nocter_model::ValueCodeRoot::Declaration(p.owner()) != application.owner
+                nocter_model::ValueCode::Declaration(p.owner()) != application.owner
             })
         {
             return Err(INVALID);
@@ -175,7 +179,7 @@ fn close_applications(
 }
 fn prove_equalities(
     context: &DeclarationContext<'_>,
-    controls: &BTreeMap<nocter_model::ValueCodeRoot, flow::Control>,
+    controls: &BTreeMap<nocter_model::ValueCode, &flow::Control>,
     evidence: &Evidence,
 ) -> Result<(), accepted::Failure> {
     for control in controls.values() {

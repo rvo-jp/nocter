@@ -158,53 +158,26 @@ fn earlier_body_types_replay_past_later_header_keys_at_the_same_raw_position() {
 #[test]
 fn application_suffixes_replay_by_body_owner_without_changing_the_header() {
     use nocter_model::{AccessExpressionId, ArenaBuilder, ValueFunctionOrigin as Origin};
-    let symbols = SymbolTable::from_spellings(["first", "second", "make"]);
-    let mut reservations = Reservations::new(symbols.clone());
-    let first = reservations.reserve(symbols.get("first").unwrap(), 0);
-    let second = reservations.reserve(symbols.get("second").unwrap(), 0);
-    let make = reservations.reserve(symbols.get("make").unwrap(), 0);
-    let mut builder = reservations.finish().unwrap();
-    builder
-        .define(
-            first,
-            crate::value_access::CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
-            [],
-            BuiltinType::Void,
-        )
-        .unwrap();
-    builder
-        .define(
-            second,
-            crate::value_access::CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
-            [],
-            ValueDefinition::Function(FunctionDefinition {
-                invocation: ValueInvocation::Read,
-                inputs: Box::new([]),
-                result: BuiltinType::Void.into(),
-            }),
-        )
-        .unwrap();
-    builder
-        .define(
-            make,
-            crate::value_access::CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
-            [],
-            ValueDefinition::Function(FunctionDefinition {
-                invocation: ValueInvocation::Read,
-                inputs: Box::new([]),
-                result: BuiltinType::Void.into(),
-            }),
-        )
-        .unwrap();
-    let header = builder.finish().unwrap();
+    let (header, [first, second, make]) = application_headers();
     let call = ArenaBuilder::<AccessExpressionId, ()>::new().insert(());
     let mut a = header.body_types(first).unwrap();
-    let da = a.application(call, make).unwrap();
-    assert_eq!(a.application(call, make).unwrap(), da);
-    assert!(a.application(call, second).is_err());
+    let da = a
+        .application(nocter_model::ValueCode::Declaration(first), call, make)
+        .unwrap();
+    assert_eq!(
+        a.application(nocter_model::ValueCode::Declaration(first), call, make)
+            .unwrap(),
+        da
+    );
+    assert!(
+        a.application(nocter_model::ValueCode::Declaration(first), call, second)
+            .is_err()
+    );
     let a = a.finish();
     let mut b = header.body_types(second).unwrap();
-    let db = b.application(call, make).unwrap();
+    let db = b
+        .application(nocter_model::ValueCode::Declaration(second), call, make)
+        .unwrap();
     let b = b.finish();
     assert_eq!(da, db, "branch-local suffix positions may coincide");
     let Some(PayloadSchema::Function(wa)) = a.data_schema(da) else {
@@ -238,7 +211,7 @@ fn application_suffixes_replay_by_body_owner_without_changing_the_header() {
         header
             .body_types(first)
             .unwrap()
-            .application(call, first)
+            .application(nocter_model::ValueCode::Declaration(first), call, first)
             .is_err()
     );
     assert!(
@@ -325,4 +298,94 @@ fn owned_closure_schemas_replay_with_their_own_body_and_preserve_capture_copy_ev
             .canonical_body_types(std::collections::BTreeMap::from([(first.into(), &b)]))
             .is_err()
     );
+}
+
+fn application_headers() -> (Program, [nocter_model::AccessCodeId; 3]) {
+    let symbols = SymbolTable::from_spellings(["first", "second", "make"]);
+    let mut reservations = Reservations::new(symbols.clone());
+    let first = reservations.reserve(symbols.get("first").unwrap(), 0);
+    let second = reservations.reserve(symbols.get("second").unwrap(), 0);
+    let make = reservations.reserve(symbols.get("make").unwrap(), 0);
+    let mut builder = reservations.finish().unwrap();
+    builder
+        .define(
+            first,
+            crate::value_access::CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            [],
+            BuiltinType::Void,
+        )
+        .unwrap();
+    builder
+        .define(
+            second,
+            crate::value_access::CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            [],
+            ValueDefinition::Function(FunctionDefinition {
+                invocation: ValueInvocation::Read,
+                inputs: Box::new([]),
+                result: BuiltinType::Void.into(),
+            }),
+        )
+        .unwrap();
+    builder
+        .define(
+            make,
+            crate::value_access::CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            [],
+            ValueDefinition::Function(FunctionDefinition {
+                invocation: ValueInvocation::Read,
+                inputs: Box::new([]),
+                result: BuiltinType::Void.into(),
+            }),
+        )
+        .unwrap();
+    (builder.finish().unwrap(), [first, second, make])
+}
+
+#[test]
+fn lexical_code_owns_application_reservations_within_one_type_root() {
+    let (header, [first, second, make]) = application_headers();
+    let call = nocter_model::ArenaBuilder::<nocter_model::AccessExpressionId, ()>::new().insert(());
+    let mut a = header.body_types(first).unwrap();
+    let da = a
+        .application(nocter_model::ValueCode::Declaration(first), call, make)
+        .unwrap();
+    let void = header.data_type(BuiltinType::Void).unwrap();
+    let mut nested = Vec::new();
+    for (slot, callee) in [(0, make), (1, second)] {
+        let id = nocter_model::ValueClosure {
+            owner: first.into(),
+            slot,
+        };
+        a.closure(
+            id,
+            void,
+            FunctionConstraint {
+                invocation: ValueInvocation::Read,
+                inputs: Box::new([]),
+                result: void,
+            },
+        )
+        .unwrap();
+        nested.push(
+            a.application(nocter_model::ValueCode::Closure(id), call, callee)
+                .unwrap(),
+        );
+    }
+    assert_ne!(
+        nested[0], da,
+        "a closure's operation is separate from its root's operation"
+    );
+    assert_ne!(
+        nested[0], nested[1],
+        "sibling code has independent call/callee reservations"
+    );
+    assert!(
+        a.application(nocter_model::ValueCode::Declaration(second), call, make)
+            .is_err()
+    );
+    let a = a.finish();
+    header
+        .canonical_body_types(std::collections::BTreeMap::from([(first.into(), &a)]))
+        .unwrap();
 }

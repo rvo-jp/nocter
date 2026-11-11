@@ -13,7 +13,16 @@ impl Checker<'_, '_> {
     ) -> Result<AccessExpressionId, Failure> {
         let mut suffixes = Vec::new();
         let mut root = self.unwrap(node)?;
-        while self.kind(root)? == NodeKind::PostfixExpression {
+        loop {
+            if self.kind(root)? == NodeKind::TransferExpression {
+                let base = self.first_child(root)?;
+                suffixes.push((root, base, None));
+                root = self.unwrap(base)?;
+                continue;
+            }
+            if self.kind(root)? != NodeKind::PostfixExpression {
+                break;
+            }
             let children = self.children(root);
             let [base, suffix] = children.as_slice() else {
                 return Err(Failure::InconsistentSyntax);
@@ -24,20 +33,26 @@ impl Checker<'_, '_> {
             ) {
                 break;
             }
-            suffixes.push((root, *base, *suffix));
+            suffixes.push((root, *base, Some(*suffix)));
             root = self.unwrap(*base)?;
         }
         suffixes.reverse();
-        let Some(first) = suffixes
-            .iter()
-            .position(|&(_, _, suffix)| matches!(self.kind(suffix), Ok(NodeKind::IndexSuffix)))
-        else {
+        let Some(first) = suffixes.iter().position(|&(_, _, suffix)| {
+            suffix.is_none_or(|suffix| matches!(self.kind(suffix), Ok(NodeKind::IndexSuffix)))
+        }) else {
             return self.reject_array_selection(node, reachable);
         };
         // Keep the static member prefix as one ordinary place, so selecting pair.left[i]
         // does not acquire access to pair.right or copy the containing pair.
         let mut value = self.expression(suffixes[first].1, None, reachable)?;
         for (node, _, suffix) in suffixes.into_iter().skip(first) {
+            let Some(suffix) = suffix else {
+                let Some(referent) = self.expression_referent(value) else {
+                    return self.reject(Rule::MissingTransfer, node);
+                };
+                value = self.transfer_referent(node, referent)?;
+                continue;
+            };
             value = match self.kind(suffix)? {
                 NodeKind::IndexSuffix => self.index_component(node, suffix, value, reachable)?,
                 NodeKind::MemberSuffix => {

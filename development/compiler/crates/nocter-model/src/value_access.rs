@@ -174,7 +174,7 @@ impl ValueCode {
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ValueApplication {
-    pub owner: ValueCodeRoot,
+    pub owner: ValueCode,
     pub call: crate::AccessExpressionId,
     pub callee: crate::AccessCodeId,
 }

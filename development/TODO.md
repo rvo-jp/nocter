@@ -18,6 +18,12 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
+Extend owned capture formation into nested closed-data environments. Preserve unique root-scoped
+lexical code, recursively canonical types and the existing result/input/resource authorities;
+qualify separate activations, capture demand, source reuse and native invocation.
+
+## Retained Selection Closure
+
 Extend the qualified [retained-selection stage](compiler/crates/nocter-checking/README.md#array-selection)
 while preserving one typed projection traversal, conservative access facts, actual saved-number
 ownership, sparse cleanup and the original source bounds disposition. A recipe key alone never
@@ -159,11 +165,21 @@ not a language restriction derived from the current realization boundary.
 
 ## Open Findings
 
-- [ ] Give callable-result applications their actual lexical code identity, including closure
+- [x] Remove recursive preparation across interleaved postfix index/transfer chains. Prevent
+  stack exhaustion in the existing 1,024-suffix case;
+  preserve operation order and local rejection without a source-length ceiling or larger test stack.
+
+- [x] Give callable-result applications their actual lexical code identity, including closure
   bodies. A root and its closures have independent expression arenas; a shared source/type root
   plus expression ID can collide and either reject valid factories or merge separate result
   evidence. Preserve one root-scoped type authority and qualify reuse, distinct callees and native
   invocation before extending nested environments.
+
+- [ ] Admit nested owned closed-data capture producers. Allocate lexical closure IDs once per
+  root through the existing body type construction authority, and project/seal/admit every nested
+  body through the common scope. Qualify sibling/deep IDs, Copy snapshots, mutable and consuming
+  capture demand, factory applications, source reuse and native execution. General inferred/multiple
+  captures and evaluator callable values remain separate obligations.
 
 - [x] Keep same-operator short-circuit chains in one lazy control region. Avoid impossible
   ownership combinations after decided prefixes; preserve operand order, final values and

@@ -1,0 +1,47 @@
+func increment(value: i32): i32 { value + 1 }
+func decrement(value: i32): i32 { value - 1 }
+func forward(take action: func(i32): i32): func(i32): i32 { action^ }
+func relay(take action: func(i32): i32): func(i32): i32 { action^ }
+func make(value: i32): func(): i32 { (value;): i32 { value + 1 } }
+func root_same(): i32 {
+    let callback = forward(increment)
+    let value = 20
+    let action = (value;): i32 {
+        let next = forward(decrement)
+        next(value)
+    }
+    callback(action())
+}
+func root_distinct(): i32 {
+    let callback = forward(increment)
+    let value = 20
+    let action = (value;): i32 {
+        let next = relay(decrement)
+        next(value)
+    }
+    callback(action())
+}
+func interrupted(): i32 {
+    let value = 42
+    let action = (value;): i32 {
+        let absent = forward(if true { return value } else { return 0 })
+        absent(0)
+    }
+    action()
+}
+func run(): i32 {
+    let value = 20
+    let first = (value;): i32 {
+        let next = forward(increment)
+        next(value)
+    }
+    let second = (value;): i32 {
+        let next = forward(decrement)
+        next(value)
+    }
+    let captured = (value;): i32 {
+        let next = make(value)
+        next()
+    }
+    if root_same() == 20 && root_distinct() == 20 && first() == 21 && second() == 19 && captured() == 21 && interrupted() == 42 { 42 } else { 0 }
+}

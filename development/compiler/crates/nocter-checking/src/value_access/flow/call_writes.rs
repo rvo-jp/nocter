@@ -52,7 +52,6 @@ impl Catalog {
     ) -> Result<Self, IntegrityError> {
         let roots: Vec<_> = controls.into_iter().collect();
         let program = roots.first().map(|control| control.typed.program.clone());
-        let mut scope = BTreeMap::new();
         for &control in &roots {
             if program
                 .as_ref()
@@ -60,8 +59,11 @@ impl Catalog {
             {
                 return Err(INVALID);
             }
-            retain_scope(control, &mut scope)?;
         }
+        let scope = super::scope(roots.iter().copied())?
+            .into_iter()
+            .map(|(code, control)| (code, control.typed.clone()))
+            .collect();
         let closed = summary::close(&roots)?;
         let sources = Arc::new(sources::Graph::new(&scope, closed.callees));
         Ok(Self {
@@ -116,21 +118,4 @@ impl Catalog {
         result.sources = self.sources.select(typed.code(), dependencies);
         Ok(result)
     }
-}
-fn retain_scope(
-    control: &Control,
-    scope: &mut BTreeMap<ValueCode, Arc<TypedQuery>>,
-) -> Result<(), IntegrityError> {
-    let mut pending = vec![control];
-    while let Some(control) = pending.pop() {
-        if let Some(previous) = scope.get(&control.typed.code()) {
-            if !Arc::ptr_eq(previous, &control.typed) {
-                return Err(INVALID);
-            }
-            continue;
-        }
-        scope.insert(control.typed.code(), control.typed.clone());
-        pending.extend(control.typed.closures.values());
-    }
-    Ok(())
 }

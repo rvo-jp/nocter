@@ -164,16 +164,6 @@ impl Checker<'_, '_> {
             .program()
             .function_contract(selected.witness)
             .ok_or(Failure::InconsistentSyntax)?;
-        if matches!(self.code, nocter_model::ValueCode::Closure(_))
-            && super::results::is_result(self.program(), contract.result)
-        {
-            return self.reject_message(
-                Rule::TypeMismatch,
-                node,
-                "callable results inside closure bodies require a later witness scope".to_owned(),
-                Vec::new(),
-            );
-        }
         let arguments = self.children(*suffix);
         if arguments.len() != contract.inputs.len() {
             return self.reject(Rule::InvalidCall, node);
@@ -202,7 +192,7 @@ impl Checker<'_, '_> {
                     .is_some_and(|callable| callable.result_contract().is_some()) =>
             {
                 self.types
-                    .application(self.expressions.next_id(), callee)
+                    .application(self.code, self.expressions.next_id(), callee)
                     .map_err(|_| Failure::InconsistentSyntax)?
             }
             _ => contract.result,

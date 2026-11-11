@@ -4,6 +4,63 @@ use super::*;
 use nocter_model::ValueInvocation;
 
 #[test]
+fn a_factory_call_inside_a_closure_closes_its_own_result_application() {
+    let unit = accepted(
+        "func increment(value: i32): i32 { value + 1 }\nfunc factory(): func(i32): i32 { increment }\nfunc run(): i32 { let value = 40\nlet action = (value;): i32 { let callback = factory()\ncallback(value + 1) }\naction() }",
+    );
+    assert!(
+        unit.closures()
+            .values()
+            .all(|query| query.typed().results_closed())
+    );
+}
+
+#[test]
+fn closure_factory_applications_keep_separate_witnesses_and_reuse_dependencies() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/closure-result-applications.nct"
+    ));
+    let (sources, tree) = input(source);
+    let headers = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+    let context = headers.bind(bound(&sources, &tree)).unwrap();
+    let unit = Unit::prepare(&context).unwrap();
+    for query in unit.closures().values() {
+        assert!(query.typed().results_closed());
+        assert!(query.typed().bind(&context).is_ok());
+        for point in query.graph().reachable().unwrap() {
+            for action in &query.graph().points().get(point).unwrap().actions {
+                if let Operation::CommitCall(call) = action.operation {
+                    let expression = query.typed().body().expressions().get(call).unwrap();
+                    assert!(!expression.ty.access().is_some_and(|access| {
+                        crate::value_access::results::is_result(unit.program(), access.data())
+                    }));
+                }
+            }
+        }
+    }
+    let (changed, changed_tree) = input(&source.replace(
+        "func forward(take action: func(i32): i32): func(i32): i32 { action^ }",
+        "func forward(take action: func(i32): i32): func(i32): i32 { increment }",
+    ));
+    let current = headers.bind(bound(&changed, &changed_tree)).unwrap();
+    assert!(
+        unit.closures()
+            .values()
+            .any(|query| matches!(query.typed().bind(&current), Err(BodyFailure::ChangedBody)))
+    );
+}
+
+#[test]
+fn closure_application_closure_still_rejects_incompatible_witnesses() {
+    let source = "func increment(value: i32): i32 { value + 1 }\nfunc decrement(value: i32): i32 { value - 1 }\nfunc forward(take action: func(i32): i32): func(i32): i32 { action^ }\nfunc work(flag: bool): i32 { let action = (flag;): i32 { let next = if flag { forward(increment) } else { forward(decrement) }\nnext(42) }\naction() }";
+    let (sources, tree) = input(source);
+    assert!(
+        matches!(SourceUnit::prepare(bound(&sources, &tree)), Err(SourceFailure::Checking(Failure::Body { failure: BodyFailure::Rejected(diagnostic), .. })) if diagnostic.rule() == crate::value_access::Rule::TypeMismatch && diagnostic.source().message().contains("different callable witnesses"))
+    );
+}
+
+#[test]
 fn owning_a_capture_does_not_make_an_observing_closure_once() {
     let unit = accepted(
         "func observe(input: error): void {}\nfunc run(take input: error): void {\nlet reader = (input^;): void { observe(input) }\nreader()\nreader()\n}",

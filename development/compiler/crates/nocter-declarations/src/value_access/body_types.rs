@@ -1,7 +1,7 @@
 //! Owner-scoped body type construction and canonical replay over one immutable header prefix.
 use super::{Program, TypeScope};
 use nocter_model::{
-    AccessCodeId, AccessExpressionId, TypeCursor, TypeId, TypeKind, ValueApplication,
+    AccessCodeId, AccessExpressionId, TypeCursor, TypeId, TypeKind, ValueApplication, ValueCode,
     ValueCodeRoot, ValueFunctionOrigin, ValueInvocation,
 };
 use std::collections::BTreeMap;
@@ -18,7 +18,7 @@ pub enum BodyTypeError {
 pub struct BodyTypes {
     owner: ValueCodeRoot,
     program: Program,
-    applications: BTreeMap<AccessExpressionId, AccessCodeId>,
+    applications: BTreeMap<(ValueCode, AccessExpressionId), AccessCodeId>,
 }
 impl BodyTypes {
     #[must_use]
@@ -129,13 +129,15 @@ impl BodyTypes {
     /// Rejects a non-factory callee or an inconsistent semantic type extension.
     pub fn application(
         &mut self,
+        owner: ValueCode,
         call: AccessExpressionId,
         callee: AccessCodeId,
     ) -> Result<TypeId, BodyTypeError> {
-        if self
-            .applications
-            .get(&call)
-            .is_some_and(|selected| *selected != callee)
+        if owner.root() != self.owner
+            || self
+                .applications
+                .get(&(owner, call))
+                .is_some_and(|selected| *selected != callee)
         {
             return Err(BodyTypeError::InvalidApplication);
         }
@@ -147,7 +149,7 @@ impl BodyTypes {
             .ok_or(BodyTypeError::InvalidApplication)?
             .invocation;
         let origin = ValueFunctionOrigin::Application(ValueApplication {
-            owner: self.owner,
+            owner,
             call,
             callee,
         });
@@ -170,7 +172,7 @@ impl BodyTypes {
         self.program.types = types
             .commit(&self.program.types)
             .map_err(|_| BodyTypeError::InvalidExtension)?;
-        self.applications.insert(call, callee);
+        self.applications.insert((owner, call), callee);
         selected.ok_or(BodyTypeError::InvalidApplication)
     }
     #[must_use]
@@ -332,7 +334,11 @@ fn replay_types(
                 origin: ValueFunctionOrigin::Application(application),
                 invocation,
             } => {
-                application.owner == owner
+                application.owner.root() == owner
+                    && match application.owner {
+                        ValueCode::Closure(id) => body.closure(id).is_some(),
+                        ValueCode::Declaration(_) | ValueCode::Expression(_) => true,
+                    }
                     && header
                         .codes
                         .get(application.callee)

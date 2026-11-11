@@ -690,6 +690,17 @@ fn mixed_remainders_preserve_point_and_prefix_coverage_roles() {
     );
 }
 #[test]
+fn interleaved_selection_transfer_still_retires_the_selected_copy_array() {
+    let source =
+        "func work(): i32 { let items = [[7, 40], [8, 9]]\nlet value = items[0]^[1]\nitems[0][0] }";
+    let (sources, tree) = input(source);
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Flow { .. }))
+    ));
+}
+
+#[test]
 fn direct_scalar_alias_updates_cannot_reset_a_counter_or_widen_an_element_replacement() {
     for source in [
         "func work(): void { let items = [1, 2]\nvar index: usize = 0\nedit cursor = index\nwhile cursor < 2 { let moved = items[cursor]^\ncursor = 0 } }",

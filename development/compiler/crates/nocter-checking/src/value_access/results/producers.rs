@@ -141,9 +141,7 @@ fn commit(
     else {
         return Err(INVALID);
     };
-    if application.owner != query.code().root()
-        || application.call != id
-        || application.callee != *factory
+    if application.owner != query.code() || application.call != id || application.callee != *factory
     {
         return Err(INVALID);
     }

@@ -37,8 +37,9 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
 - root/captured body code identities: `AccessCodeId` identifies reserved declarations and header
   type-expression code. `ValueExpression` identifies a required root by enclosing body and local
   slot without appending a declaration. `ValueCodeRoot` separates their checking/type branches;
-  closure and application keys retain that complete root. `ValueCode` selects a root or captured
-  body, independently of its source owner. A body-local expression has no function origin;
+  closure keys retain that complete root. `ValueCode` selects a root or captured
+  body, independently of its source owner. Applications retain that actual lexical `ValueCode`,
+  so equal expression IDs in a root and its closures remain distinct. A body-local expression has no function origin;
   declaration roles and callable witnesses remain declaration-owned facts
 - body-owned closure code keys independent of runtime environments; data/schema owners, rather
   than the key or invocation view, establish capture Copy and destruction properties

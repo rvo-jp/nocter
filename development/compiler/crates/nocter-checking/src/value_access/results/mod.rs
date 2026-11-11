@@ -141,20 +141,37 @@ pub(super) fn close(
 ) -> Result<Arc<Evidence>, accepted::Failure> {
     let evidence = Arc::new(solve::solve(context, controls)?);
     for (&root, control) in controls {
-        if control.typed.results_closed() {
+        if flow::scope([&*control])
+            .map_err(accepted::Failure::Integrity)?
+            .values()
+            .all(|nested| nested.typed.results_closed())
+        {
             continue;
         }
         let query = Arc::make_mut(&mut control.typed);
-        query.result_evidence = Some(evidence.clone());
+        attach(query, &evidence);
         projection::project(context, query, &evidence).map_err(|failure| {
             accepted::Failure::Body {
                 callable: root.source_owner(),
                 failure,
             }
         })?;
-        query.results_closed = true;
+        seal(query);
     }
     Ok(evidence)
+}
+fn attach(query: &mut Query, evidence: &Arc<Evidence>) {
+    query.result_evidence = Some(evidence.clone());
+    for nested in query.closures.values_mut() {
+        attach(Arc::make_mut(&mut nested.typed), evidence);
+    }
+}
+fn seal(query: &mut Query) {
+    query.results_closed = true;
+    query.equalities.clear();
+    for nested in query.closures.values_mut() {
+        seal(Arc::make_mut(&mut nested.typed));
+    }
 }
 
 fn reject(

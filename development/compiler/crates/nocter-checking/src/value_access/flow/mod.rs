@@ -21,7 +21,10 @@ use nocter_model::{
 };
 pub use numeric::NumericFacts;
 pub use projection::{Context, InitializationDiagnostic};
-use std::{collections::BTreeSet, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 fn owned_base(typed: &TypedQuery, source: Referent) -> bool {
     source
@@ -226,6 +229,28 @@ impl Query {
 pub(super) struct Control {
     pub(super) typed: Arc<TypedQuery>,
     pub(super) graph: Graph,
+}
+/// One lexical code index for consumers of root bodies and their captured code.
+pub(super) fn scope<'a>(
+    controls: impl IntoIterator<Item = &'a Control>,
+) -> Result<BTreeMap<nocter_model::ValueCode, &'a Control>, IntegrityError> {
+    let mut scope = BTreeMap::new();
+    let mut pending: Vec<_> = controls.into_iter().collect();
+    while let Some(control) = pending.pop() {
+        if let Some(previous) = scope.insert(control.typed.code(), control) {
+            if !Arc::ptr_eq(&previous.typed, &control.typed) {
+                return Err(IntegrityError::InconsistentTypedBody);
+            }
+            continue;
+        }
+        for (&id, nested) in &control.typed.closures {
+            if nested.typed.code() != nocter_model::ValueCode::Closure(id) {
+                return Err(IntegrityError::InconsistentTypedBody);
+            }
+            pending.push(nested);
+        }
+    }
+    Ok(scope)
 }
 impl Control {
     pub(super) fn prepare(typed: Arc<TypedQuery>) -> Result<Self, IntegrityError> {

@@ -250,7 +250,8 @@ declaration validation rejects all private witness keys.
 
 `body_types` owns the narrow body-type construction capability. A selected factory call interns
 its caller/operation/callee key and all permitted views over its immutable ready-header prefix. A
-construction-only reservation forbids selecting two callees for one operation. It is discarded
+construction-only reservation forbids selecting two callees for one operation within the same lexical
+`ValueCode`. A root and its closures have independent operation arenas and reservations. It is discarded
 on freeze; no dispatch search or source syntax enters the program. Branches share declaration,
 namespace and record metadata instead of cloning those authorities.
 Its owner is a complete `ValueCodeRoot`, including a body-local expression identity when selected.

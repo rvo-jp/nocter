@@ -51,7 +51,7 @@ fn expressions_share_source_ownership_without_sharing_type_or_application_branch
         let mut body = header.body_types(root).unwrap();
         assert_eq!(body.owner(), root);
         let array = body.array(integer, 3).unwrap();
-        let application = body.application(call, factory).unwrap();
+        let application = body.application(root.code(), call, factory).unwrap();
         let closure = ValueClosure {
             owner: root,
             slot: 0,
@@ -147,7 +147,7 @@ fn an_expression_branch_does_not_inherit_its_unready_parent_contract() {
     let boolean = early.data_type(BuiltinType::Bool).unwrap();
     let array = branch.array(boolean, 3).unwrap();
     let call = ArenaBuilder::<AccessExpressionId, ()>::new().insert(());
-    let application = branch.application(call, factory).unwrap();
+    let application = branch.application(root.code(), call, factory).unwrap();
     let branch = branch.finish();
     assert!(matches!(
         branch.data_schema(application),

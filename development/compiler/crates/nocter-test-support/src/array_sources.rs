@@ -2,6 +2,13 @@
 /// Each complete fixture exposes `run(): i32` and computes 42. Source text lives only in fixtures.
 pub const RETAINED_ARRAY_SOURCES: &[(&str, &str)] = &[
     (
+        "interleaved-index-transfer",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/arrays/element-interleaved-transfer.nct"
+        )),
+    ),
+    (
         "prefix-scalar-alias",
         include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),

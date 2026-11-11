@@ -1,0 +1,10 @@
+const func selected(edit log: i32, digit: i32, index: usize): usize {
+    log = log * 10 + digit
+    index
+}
+const func run(): i32 {
+    var log = 0
+    let items = [[7, 40], [8, 9]]
+    let value = items[selected(log, 1, 0)]^[selected(log, 2, 1)]
+    value + log - 10
+}

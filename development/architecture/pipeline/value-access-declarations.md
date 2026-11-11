@@ -394,9 +394,10 @@ prefixes retain payload/cleanup evidence without creating code instances. Source
 transfers do not become non-invalidating copies merely because concrete projection finds Copy.
 The physical executable consumer must lower these same frozen channels, body graphs, resource steps
 and normal adapter exits into environment/input/result realization. This graph grants no ABI,
-physical storage, executable cleanup, MIR or native capability. Nested closure/factory-result
-bodies still require code-scoped application identities before source admission; they cannot reuse
-the enclosing named function's operation identity domain.
+physical storage, executable cleanup, MIR or native capability. Captured bodies retain actual
+lexical operation domains. Checking owns callable-result application closure within those scopes;
+a shared source/type root cannot replace the code identity. Extending nested environments must
+preserve this distinction rather than reuse the enclosing function's operation arena.
 
 ## Private Lifecycle Schedule Handoff
 

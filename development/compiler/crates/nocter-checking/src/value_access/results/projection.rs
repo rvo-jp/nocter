@@ -27,6 +27,5 @@ pub(super) fn project(
             crate::value_access::supply::resolve(context, query, id, expression)
         },
     )?;
-    query.equalities.clear();
     Ok(())
 }

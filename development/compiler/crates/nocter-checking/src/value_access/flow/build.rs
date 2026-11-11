@@ -451,7 +451,9 @@ impl Builder<'_> {
             }
             ExpressionKind::Move(source) => match source {
                 crate::value_access::Referent::Place(_) => Some(entry),
-                crate::value_access::Referent::Evaluated(id) => self.expression(*id, entry)?,
+                crate::value_access::Referent::Evaluated(_) => {
+                    return self.selection_chain(id, entry);
+                }
             },
             ExpressionKind::Function(_)
             | ExpressionKind::Constant(_)
@@ -477,7 +479,8 @@ impl Builder<'_> {
                     chain.push((id, Some(index)));
                     id = base;
                 }
-                ExpressionKind::Select { source, .. } => {
+                ExpressionKind::Select { source, .. }
+                | ExpressionKind::Move(crate::value_access::Referent::Evaluated(source)) => {
                     chain.push((id, None));
                     id = source;
                 }

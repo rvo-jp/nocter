@@ -27,6 +27,21 @@ fn compile(source: &str) -> crate::NativeImage {
 }
 
 #[test]
+fn private_closure_factory_applications_keep_their_lexical_code_and_environment() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/closure-result-applications.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "closure-result-applications",
+        42,
+    );
+}
+
+#[test]
 fn private_scalar_computation_and_scoped_input_calls_execute_natively() {
     for (name, source, expected) in [
         ("constant", "func run(): i32 { 42 }", 42),
