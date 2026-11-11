@@ -1,0 +1,15 @@
+struct Item { value: i32 }
+const func position(): usize { 0 }
+const func choose(flag: bool): i32 {
+    let items = [Item { value: 21 }, Item { value: 0 }]
+    var answer = 0
+    if flag {
+        let selected = items[position()]^
+        answer = selected.value
+    } else {
+        let selected = items[position()]^
+        answer = selected.value
+    }
+    answer
+}
+const func run(): i32 { choose(true) + choose(false) }

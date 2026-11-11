@@ -370,3 +370,44 @@ fn partial_array_cleanup_uses_finite_reverse_intervals_from_source_holes() {
     assert_eq!(counts[0], counts[1]);
     assert!(counts[0] < 200);
 }
+
+#[test]
+fn retained_nontrivial_array_cleanup_keeps_source_bounds_and_finite_generated_work() {
+    let mut counts = Vec::new();
+    for length in [3, 100_000] {
+        // Structural lowering only: make never returns. This verifies retained projections and
+        // dynamic cleanup endpoints, not actual destruction of a constructed error graph.
+        let program = compile(&format!(
+            "struct Item {{ reason: error }}\nfunc make(): [Item; {length}] {{ loop {{}} }}\nfunc consume(take values: [Item; {length}], index: usize): void {{ let moved = values[index]^ }}\nfunc run(): void {{ consume(make(), 1) }}"
+        ));
+        counts.push(
+            program
+                .functions()
+                .flat_map(|(_, f)| f.body().operations())
+                .count(),
+        );
+        assert!(
+            program
+                .functions()
+                .flat_map(|(_, f)| f.body().operations())
+                .any(|(_, operation)| matches!(
+                    operation.kind(),
+                    MachineOperationKind::ReleaseError { .. }
+                ))
+        );
+        assert!(
+            program
+                .functions()
+                .flat_map(|(_, f)| f.body().addresses())
+                .any(|(_, address)| address.steps().iter().any(|step| matches!(
+                    step,
+                    crate::MachineAddressStep::Index {
+                        check: crate::MachineIndexCheck::Required,
+                        ..
+                    }
+                )))
+        );
+    }
+    assert_eq!(counts[0], counts[1]);
+    assert!(counts[0] < 300);
+}

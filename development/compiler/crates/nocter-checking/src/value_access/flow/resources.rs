@@ -51,6 +51,9 @@ pub struct Place {
     fields: Path,
 }
 impl Place {
+    pub(super) fn with_fields(self, fields: Path) -> Self {
+        Self { fields, ..self }
+    }
     #[must_use]
     pub const fn holder(&self) -> Holder {
         self.holder

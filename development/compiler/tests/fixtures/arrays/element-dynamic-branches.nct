@@ -1,0 +1,11 @@
+struct Item { value: i32 }
+const func select(take items: [Item; 2], index: usize, flag: bool): i32 {
+    let extra = Item { value: 0 }
+    if flag { let consumed = extra^ }
+    let selected = items[index]^
+    selected.value
+}
+const func run(): i32 {
+    select([Item { value: 20 }, Item { value: 0 }], 0, true) +
+    select([Item { value: 0 }, Item { value: 22 }], 1, false)
+}

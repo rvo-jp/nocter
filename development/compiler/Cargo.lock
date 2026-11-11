@@ -1753,6 +1753,7 @@ dependencies = [
  "nocter-source",
  "nocter-source-index",
  "nocter-syntax",
+ "nocter-test-support",
  "nocter-toolchain-contract",
 ]
 

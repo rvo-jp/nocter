@@ -1,0 +1,7 @@
+const func select(take items: [void; 18446744073709551615], index: usize): i32 {
+    let selected = items[index]^
+    42
+}
+const func run(): i32 {
+    select([(); 18446744073709551615], 18446744073709551614)
+}

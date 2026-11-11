@@ -310,8 +310,8 @@ fn remove_referent(
     at: Location,
 ) -> Result<(), IntegrityError> {
     let (local, path) = typed.body().referent_path(referent).ok_or(INVALID)?;
-    let fields = paths::concrete(&path).ok_or(INVALID)?;
-    remove(state, local, &fields, at)
+    state.get_mut(&local).ok_or(INVALID)?.remove_path(&path, at);
+    Ok(())
 }
 fn initialize(
     state: &mut State,
@@ -582,6 +582,22 @@ fn assign(
                 violations,
             )?;
         }
+    }
+    if state
+        .get(&place.local)
+        .ok_or(INVALID)?
+        .uncertain_replacement(&place.fields)
+    {
+        // Until conditional retained-hole restoration is realized, a possibly absent selected
+        // value cannot acquire a guessed old-payload cleanup branch.
+        require(
+            state,
+            place.local,
+            &place.fields,
+            InitializationRequirement::Value,
+            location,
+            violations,
+        )?;
     }
     cleanup_fact(typed, state, place.local, &place.fields, location, cleanup)?;
     initialize(state, place.local, &place.fields)?;

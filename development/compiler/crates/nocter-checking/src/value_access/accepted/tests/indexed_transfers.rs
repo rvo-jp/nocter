@@ -1,7 +1,91 @@
-//! Source-qualified concrete holes; unproved retained dynamic indices remain gated.
+//! Source-qualified concrete and retained whole-element holes; general frontiers remain gated.
 use super::initializers::answer;
 use super::*;
 use nocter_constant_evaluation::state::Value as Datum;
+
+#[test]
+fn retained_element_sources_and_whole_replacement_backedges_execute() {
+    for &(_, source) in nocter_test_support::RETAINED_ARRAY_SOURCES {
+        assert_eq!(
+            answer(&format!("{source}\nconst ANSWER: i32 = run()"), "ANSWER"),
+            Datum::integer(42)
+        );
+    }
+}
+
+#[test]
+fn dynamic_holes_block_unproved_reads_restoration_and_repeated_recipe_execution() {
+    for after in [
+        "read later = items",
+        "read later = items[index]",
+        "let later = items[index]^",
+        "items[index] = Item { value: 0 }",
+        "items[0] = Item { value: 0 }",
+    ] {
+        let source = format!(
+            "struct Item {{ value: i32 }}\nfunc work(take items: [Item; 2], index: usize): void {{ let selected = items[index]^\n{after} }}"
+        );
+        let (sources, tree) = input(&source);
+        assert!(
+            matches!(
+                SourceUnit::prepare(bound(&sources, &tree)),
+                Err(SourceFailure::Checking(Failure::Flow { .. }))
+            ),
+            "{source}"
+        );
+    }
+    let (sources, tree) = input(
+        "struct Item { value: i32 }\nfunc work(take items: [Item; 2]): void { var index: usize = 0\nwhile index < 2 { let selected = items[index]^\nindex += 1 } }",
+    );
+    // This needs finite progression evidence; a source recipe is not a fresh value generation.
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Flow { .. }))
+    ));
+}
+
+#[test]
+fn dynamic_transfer_cancellation_creates_no_snapshot_or_hole_and_bounds_fail_first() {
+    let copied = "const func work(take values: [i32; 2], index: usize): i32 { let selected = values[index]^\nselected }\nconst ANSWER: i32 = work([20, 22], 0) + work([20, 22], 1)";
+    assert_eq!(answer(copied, "ANSWER"), Datum::integer(42));
+
+    let source = "struct Item { value: i32 }\nconst func consume(take item: Item, other: i32): i32 { item.value + other }\nconst func work(take items: [Item; 2], index: usize): i32 { consume(items[index]^, if true { return 42 } else { 0 }) }\nconst func run(): i32 { work([Item { value: 1 }, Item { value: 2 }], 0) }\nconst ANSWER: i32 = run()";
+    assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
+    let unit = accepted(source);
+    let trace = super::support::steps(named(&unit, "work"));
+    assert!(!trace.iter().any(|step| matches!(step,
+        Step::Move { destination, .. } if matches!(destination.holder(), crate::value_access::flow::resources::Holder::IndexSnapshot(_)))));
+    assert!(!trace.iter().any(|step| matches!(
+        step,
+        Step::DisposeArrayElements { .. } | Step::Invoke { .. }
+    )));
+    let (sources, tree) = input(
+        "const func work(take items: [void; 2], index: usize): i32 { let selected = items[index]^\n42 }\nconst ANSWER: i32 = work([(), ()], 2)",
+    );
+    assert!(
+        matches!(SourceUnit::prepare(bound(&sources, &tree)), Err(SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })) if diagnostic.rule() == crate::value_access::evaluation::Rule::Execution(nocter_constant_evaluation::state::Rule::IndexOutOfBounds))
+    );
+}
+
+#[test]
+fn terminal_bounds_failure_never_grants_access_through_a_missing_array() {
+    // Identifying the outer slot is allowed, but no inner place/value is ever produced.
+    let (sources, tree) = input(
+        "const func work(): void { let values: [[void; 0]; 2] = [[], []]\nlet moved = values[0]^\nlet _ = values[0][0] }\nconst ANSWER: void = work()",
+    );
+    assert!(
+        matches!(SourceUnit::prepare(bound(&sources, &tree)), Err(SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })) if diagnostic.rule() == crate::value_access::evaluation::Rule::Execution(nocter_constant_evaluation::state::Rule::IndexOutOfBounds))
+    );
+    // A normally completed inner selection does need the missing containing array.
+    let (sources, tree) = input(
+        "func work(): void { let values: [[void; 1]; 2] = [[()], [()]]\nlet moved = values[0]^\nlet _ = values[0][0] }",
+    );
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Flow { .. }))
+    ));
+}
+
 #[test]
 fn a_proven_element_transfer_leaves_siblings_and_retires_the_exact_source() {
     let source = "struct Item { value: i32 }\nconst func work(): i32 { let items = [Item { value: 40 }, Item { value: 2 }]\nlet first = items[0]^\nfirst.value + items[1].value }\nconst ANSWER: i32 = work()";
@@ -138,7 +222,7 @@ fn a_marker_grants_no_ownership_or_unproved_dynamic_hole_identity() {
             crate::value_access::Rule::MissingTransfer,
         ),
         (
-            "func work(take values: [i32; 2], index: usize): void { let moved = values[index]^ }",
+            "func work(take values: [[i32; 2]; 2], index: usize): void { let moved = values[index][0]^ }",
             crate::value_access::Rule::UnsupportedData,
         ),
         (

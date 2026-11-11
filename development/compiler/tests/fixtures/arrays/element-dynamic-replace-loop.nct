@@ -1,0 +1,13 @@
+struct Item { value: i32 }
+const func run(): i32 {
+    var items = [Item { value: 40 }, Item { value: 2 }]
+    var index: usize = 0
+    var total = 0
+    while index < 2 {
+        let selected = items[index]^
+        total += selected.value
+        items = [Item { value: 40 }, Item { value: 2 }]
+        index += 1
+    }
+    total
+}

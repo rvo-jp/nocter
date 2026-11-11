@@ -82,6 +82,27 @@ impl Path {
             fields.fields().iter().map(|field| project(*field)),
         ))
     }
+    pub(in crate::value_access::flow) fn for_referent(
+        typed: &TypedQuery,
+        referent: crate::value_access::Referent,
+    ) -> Option<(nocter_model::AccessLocalId, Self)> {
+        let (local, path) = referent.projection_path(
+            |id| typed.body().places().get(id),
+            |id| typed.body().expressions().get(id),
+            Index::Constant,
+            |selection, operand| {
+                Some(
+                    match typed.body().expressions().get(operand)?.index_fact() {
+                        crate::value_access::IndexFact::Known(value) => Index::Constant(value),
+                        crate::value_access::IndexFact::Unknown => {
+                            Index::Retained(RetainedIndex::for_selection(typed, selection)?)
+                        }
+                    },
+                )
+            },
+        )?;
+        Some((local, Self(path)))
+    }
     #[must_use]
     pub fn fields(&self) -> &[ValueProjection<Index>] {
         self.0.fields()

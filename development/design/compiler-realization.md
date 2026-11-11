@@ -229,8 +229,9 @@ bounds evidence, without substituting index zero. Preserve that original bounds 
 cleanup consumes its captured result and must handle empty remainder intervals and a successor
 at the maximum usize count. The [resource ledger](../compiler/crates/nocter-checking/README.md#concrete-array-resource-frontiers)
 owns the qualified logical backing/restore/cleanup stage. The [evaluator consumer](../compiler/crates/nocter-constant-evaluation/README.md#evaluated-array-addresses)
-projects saved numeric paths and guards. Source admission, shared availability and native retained
-path integration remain open.
+projects saved numeric paths and guards. The [source selection owner](../compiler/crates/nocter-checking/README.md#array-selection)
+qualifies the retained whole-element stage through shared availability and native projection;
+general nested/multiple frontiers and finite progression remain open.
 
 A loop may execute the same selection recipe more than once. Equal recipe keys across a backedge
 are not proof of equal values. Qualify retained indices, invalidation, joins and restoration before

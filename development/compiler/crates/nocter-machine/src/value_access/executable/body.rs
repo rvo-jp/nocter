@@ -5,9 +5,10 @@ use crate::{
     MachineArithmeticCheck, MachineBlock, MachineBlockId, MachineBranchTarget, MachineCall,
     MachineCallAllocation, MachineCallTarget, MachineConstant, MachineDropFlag, MachineDropFlagId,
     MachineFunction, MachineFunctionExecution, MachineFunctionId, MachineFunctionKind,
-    MachineLinkageId, MachineOperation, MachineOperationId, MachineOperationKind, MachineStackId,
-    MachineStackObject, MachineStackPurpose, MachineTerminator, MachineUnaryOperation,
-    MachineValue, MachineValueDefinition, MachineValueId, MachineValueRepresentation,
+    MachineLayoutKind, MachineLinkageId, MachineOperation, MachineOperationId,
+    MachineOperationKind, MachineStackId, MachineStackObject, MachineStackPurpose,
+    MachineTerminator, MachineUnaryOperation, MachineValue, MachineValueDefinition, MachineValueId,
+    MachineValueRepresentation,
 };
 use nocter_mir::value_access as mir;
 use nocter_model::{AccessInstanceId, MirLocalId, TypeId, ValueInputOperation};
@@ -161,7 +162,13 @@ impl<'a> Builder<'a> {
         ))
     }
     fn place(&mut self, place: &mir::Place) -> Result<MachineAddressId, Failure> {
-        if let Some(&id) = self.places.get(place) {
+        // A saved scalar is loaded at each use. Caching a projected address would retain an
+        // SSA definition from another branch or an earlier execution of this recipe.
+        let cacheable = !place
+            .projections
+            .iter()
+            .any(|projection| matches!(projection, mir::Projection::Index(_)));
+        if cacheable && let Some(&id) = self.places.get(place) {
             return Ok(id);
         }
         let source = self.source.ok_or_else(Self::invalid)?;
@@ -189,6 +196,33 @@ impl<'a> Builder<'a> {
                         .ok_or_else(Self::invalid)?;
                     data = field.ty();
                 }
+                mir::Projection::Index(snapshot) => {
+                    let Some(MachineLayoutKind::FixedArray {
+                        element,
+                        length,
+                        stride,
+                    }) = self
+                        .context
+                        .layouts
+                        .get(data)
+                        .map(crate::MachineLayout::kind)
+                    else {
+                        return Err(Self::invalid());
+                    };
+                    let (element, length, stride) = (*element, *length, *stride);
+                    if offset != 0 {
+                        steps.push(MachineAddressStep::Offset(offset));
+                        offset = 0;
+                    }
+                    let index = self.retained_index(*snapshot, length)?;
+                    steps.push(MachineAddressStep::Index {
+                        index: crate::MachineIndex::Value(index),
+                        stride,
+                        bound: crate::MachineIndexBound::Fixed(length),
+                        check: crate::MachineIndexCheck::ProvenInBounds,
+                    });
+                    data = element;
+                }
                 mir::Projection::Environment => {
                     let Some(RuntimeType::StaticCallable {
                         environment: Some(environment),
@@ -214,7 +248,9 @@ impl<'a> Builder<'a> {
             MachineAddressRoot::Stack(stack),
             steps,
         ));
-        self.places.insert(place.clone(), address);
+        if cacheable {
+            self.places.insert(place.clone(), address);
+        }
         Ok(address)
     }
     fn load(&mut self, place: &mir::Place) -> Result<MachineValueId, Failure> {

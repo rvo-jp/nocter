@@ -97,7 +97,9 @@ Sparse array cleanup freezes `DisposeArrayElements` with its containing array pl
 Constant validation requires `start < end <= length`. Retained spans require a payload usize
 `SlotKey::IndexSnapshot` whose original checked bound equals the positive array length. Slot role
 and representation mutants test this structural consumer contract; they do not prove snapshot
-initialization, source admission or executed native cleanup. No span invents a subarray type or
+initialization or executed native cleanup. [Source selection](../nocter-checking/README.md#array-selection)
+qualifies admission. `Projection::Index` uses the same checked snapshot-slot validation as cleanup
+spans, preserving its original bound while selecting element data. No span invents a subarray type or
 expands element projections. Checking owns the surviving
 intervals and their order. The native consumer selects element geometry/helpers and qualifies
 executable scope; MIR does not infer source holes from byte offsets.

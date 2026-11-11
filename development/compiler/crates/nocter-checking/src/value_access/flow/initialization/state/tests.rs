@@ -48,12 +48,14 @@ fn check(storage: &Storage, query: &AccessPath) {
         let expected = expand(query).iter().all(|path| {
             storage.root.state == I::Initialized
                 && storage.selections.iter().all(|(hole, slot)| {
-                    let overlaps = if requirement == Requirement::Value {
-                        hole.is_prefix_of(path) || path.is_prefix_of(hole)
-                    } else {
-                        hole.is_prefix_of(path)
-                    };
-                    !overlaps || slot.state == I::Initialized
+                    expand(hole).iter().all(|hole| {
+                        let overlaps = if requirement == Requirement::Value {
+                            hole.is_prefix_of(path) || path.is_prefix_of(hole)
+                        } else {
+                            hole.is_prefix_of(path)
+                        };
+                        !overlaps || slot.state == I::Initialized
+                    })
                 })
         });
         assert_eq!(
@@ -91,5 +93,45 @@ fn symbolic_selection_never_reads_a_possible_hole_and_keeps_disjoint_later_field
                 check(&storage, query);
             }
         }
+    }
+}
+
+#[test]
+fn symbolic_holes_keep_every_possible_selection_unavailable_without_losing_the_container() {
+    let queries = queries();
+    let hole = AccessPath::new([
+        ValueProjection::Array(IndexFact::Unknown),
+        ValueProjection::Array(IndexFact::Known(0)),
+        ValueProjection::Tuple(0),
+    ]);
+    let mut storage = Storage::new(I::Initialized);
+    storage.set_path(&hole, I::Uninitialized, None);
+    for query in &queries {
+        check(&storage, query);
+    }
+    assert_eq!(storage.present(&FieldPath::default()).state, I::Initialized);
+    let mut other = Storage::new(I::Initialized);
+    assert!(other.merge(&storage));
+    for query in &queries {
+        check(&other, query);
+    }
+    assert!(!other.merge(&storage));
+    // A possibly overlapping replacement cannot erase symbolic descendants. Only a proven
+    // containing replacement can do so; no equality is assumed for unknown selectors.
+    storage.set(
+        &FieldPath::new([ValueField::Array(1)]),
+        I::Initialized,
+        None,
+    );
+    assert!(
+        !storage
+            .complete(&FieldPath::default())
+            .state
+            .eq(&I::Initialized)
+    );
+    storage.set(&FieldPath::default(), I::Initialized, None);
+    assert!(storage.selections.is_empty());
+    for query in &queries {
+        check(&storage, query);
     }
 }

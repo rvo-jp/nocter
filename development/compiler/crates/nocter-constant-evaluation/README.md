@@ -205,7 +205,8 @@ comparison with the one sparse retirement frontier; symbolic slot order never be
 ordering or a disjointness proof. Guard projections and address paths charge their working storage
 before allocation. Execution tests cover transfers, saved-number cleanup, original-variable changes,
 uninitialized alternative backing, reverse numeric/slot ordering and budget-failure recovery.
-These are consumer contracts; source dynamic transfer and initialization proofs remain unqualified.
+The [source selection owner](../nocter-checking/README.md#array-selection) qualifies the retained
+whole-element stage and states its remaining precision/frontier limits.
 
 ### Live Working Storage
 

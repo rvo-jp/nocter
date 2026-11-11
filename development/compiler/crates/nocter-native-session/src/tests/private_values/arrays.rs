@@ -2,6 +2,14 @@
 use super::{TempPackage, compile, execute_native_status};
 
 #[test]
+fn private_retained_element_transfers_and_replacement_backedges_execute() {
+    for &(name, source) in nocter_test_support::RETAINED_ARRAY_SOURCES {
+        let package = TempPackage::new();
+        execute_native_status(&compile(source), &package.0, name, 42);
+    }
+}
+
+#[test]
 fn private_computed_array_headers_reach_native_without_runtime_array_values() {
     for (name, source) in [
         (
@@ -171,6 +179,10 @@ fn private_array_bounds_trap_even_when_no_payload_is_read_or_written() {
         (
             "array-maximum-index-bounds",
             "func run(): i32 { let values = [1]\nlet index: usize = 18446744073709551615\nlet _ = values[index]\n42 }",
+        ),
+        (
+            "array-dynamic-transfer-bounds",
+            "func work(take items: [void; 2], index: usize): i32 { let selected = items[index]^\n42 }\nfunc run(): i32 { work([(), ()], 2) }",
         ),
     ] {
         let package = TempPackage::new();

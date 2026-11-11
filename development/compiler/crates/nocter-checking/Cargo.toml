@@ -26,6 +26,7 @@ nocter-source-index = { path = "../nocter-source-index" }
 nocter-syntax = { path = "../nocter-syntax" }
 
 [dev-dependencies]
+nocter-test-support = { path = "../nocter-test-support" }
 nocter-json = { path = "../nocter-json" }
 nocter-declaration-lowering = { path = "../nocter-declaration-lowering", features = ["test-api"] }
 

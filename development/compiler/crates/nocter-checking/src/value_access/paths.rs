@@ -14,10 +14,13 @@ pub enum IndexFact {
 pub type AccessPath = ValuePath<IndexFact>;
 
 pub(super) fn known(fields: &FieldPath) -> AccessPath {
-    AccessPath::new(fields.fields().iter().map(|field| match *field {
+    known_by(fields, IndexFact::Known)
+}
+fn known_by<I>(fields: &FieldPath, index: impl Fn(u64) -> I) -> ValuePath<I> {
+    ValuePath::new(fields.fields().iter().map(|field| match *field {
         ValueProjection::Record(id) => ValueProjection::Record(id),
-        ValueProjection::Tuple(index) => ValueProjection::Tuple(index),
-        ValueProjection::Array(index) => ValueProjection::Array(IndexFact::Known(index)),
+        ValueProjection::Tuple(position) => ValueProjection::Tuple(position),
+        ValueProjection::Array(value) => ValueProjection::Array(index(value)),
     }))
 }
 pub(super) fn concrete(fields: &AccessPath) -> Option<FieldPath> {
@@ -58,32 +61,43 @@ impl TypedBody {
 }
 impl Referent {
     pub(super) fn selection_path<'a>(
-        mut self,
+        self,
         place: impl Fn(AccessPlaceId) -> Option<&'a super::Place>,
         expression: impl Fn(AccessExpressionId) -> Option<&'a Expression>,
     ) -> Option<(AccessLocalId, AccessPath)> {
-        let mut suffixes: Vec<AccessPath> = Vec::new();
+        self.projection_path(&place, &expression, IndexFact::Known, |_, operand| {
+            Some(expression(operand)?.index_fact())
+        })
+    }
+    pub(super) fn projection_path<'a, I: Copy>(
+        mut self,
+        place: impl Fn(AccessPlaceId) -> Option<&'a super::Place>,
+        expression: impl Fn(AccessExpressionId) -> Option<&'a Expression>,
+        constant: impl Fn(u64) -> I,
+        index: impl Fn(AccessExpressionId, AccessExpressionId) -> Option<I>,
+    ) -> Option<(AccessLocalId, ValuePath<I>)> {
+        let mut suffixes: Vec<ValuePath<I>> = Vec::new();
         loop {
             match self {
                 Referent::Place(id) => {
                     let place = place(id)?;
-                    let mut fields = known(&place.fields).fields().to_vec();
+                    let mut fields = known_by(&place.fields, &constant).fields().to_vec();
                     for suffix in suffixes.into_iter().rev() {
                         fields.extend_from_slice(suffix.fields());
                     }
-                    return Some((place.local, AccessPath::new(fields)));
+                    return Some((place.local, ValuePath::new(fields)));
                 }
                 Referent::Evaluated(id) => {
                     let source = match &expression(id)?.kind {
                         ExpressionKind::Index {
                             base,
-                            index,
+                            index: operand,
                             action: IndexAction::Access,
                             ..
                         } => {
-                            suffixes.push(AccessPath::new([ValueProjection::Array(
-                                expression(*index)?.index_fact(),
-                            )]));
+                            suffixes.push(ValuePath::new([ValueProjection::Array(index(
+                                id, *operand,
+                            )?)]));
                             *base
                         }
                         ExpressionKind::Select {
@@ -91,7 +105,7 @@ impl Referent {
                             fields,
                             action: SelectionAction::Access,
                         } => {
-                            suffixes.push(known(fields));
+                            suffixes.push(known_by(fields, &constant));
                             *source
                         }
                         _ => return None,

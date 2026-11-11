@@ -207,20 +207,16 @@ impl Context<'_, '_> {
         self.base_value(self.world.local(self.typed, local)?)
     }
     fn resource_referent(&self, referent: Referent) -> Result<super::super::resources::Place> {
-        // A prepared source need not retain its evaluation carrier after reservation. The
-        // typed path grants a concrete key only for proven numeric facts under an owning slot.
-        let (local, path) = self
-            .typed
-            .body()
-            .referent_path(referent)
+        // The typed recipe outlives a trimmed reservation carrier. Numeric identity is supplied
+        // only by proven constants or by the actual scalar owner installed at transfer commit.
+        let (local, fields) = super::super::resources::Path::for_referent(self.typed, referent)
             .ok_or(Failure::Integrity)?;
         if self.local_mode(local)? != Mode::Own {
             return Err(Failure::Integrity);
         }
-        let fields = crate::value_access::paths::concrete(&path).ok_or(Failure::Integrity)?;
         Ok(super::super::resources::Holder::Local(local)
             .place()
-            .project_path(&fields))
+            .with_fields(fields))
     }
     fn referent(&self, source: Referent) -> Result<Option<(Region, Option<Key>)>> {
         match source {

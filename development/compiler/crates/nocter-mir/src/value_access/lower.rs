@@ -227,13 +227,30 @@ impl Builder<'_> {
         let mut place = self.root(source.holder(), data, !source.fields().is_root())?;
         place.projections = source
             .fields()
-            .concrete()
-            .ok_or_else(|| self.invalid())?
             .fields()
             .iter()
-            .copied()
-            .map(Projection::Field)
-            .collect();
+            .map(|field| {
+                Ok(match *field {
+                    nocter_model::ValueProjection::Record(id) => {
+                        Projection::Field(nocter_model::ValueField::Record(id))
+                    }
+                    nocter_model::ValueProjection::Tuple(index) => {
+                        Projection::Field(nocter_model::ValueField::Tuple(index))
+                    }
+                    nocter_model::ValueProjection::Array(flow::resources::Index::Constant(
+                        index,
+                    )) => Projection::Field(nocter_model::ValueField::Array(index)),
+                    nocter_model::ValueProjection::Array(flow::resources::Index::Retained(
+                        index,
+                    )) => {
+                        let data = self.expression(index.operand())?;
+                        Projection::Index(
+                            self.root(Holder::IndexSnapshot(index), data, false)?.slot,
+                        )
+                    }
+                })
+            })
+            .collect::<Result<_, Failure>>()?;
         Ok(place)
     }
     pub(super) fn selected(

@@ -1,0 +1,53 @@
+/// Shared private source corpus for required and native retained-element execution.
+/// Each complete fixture exposes `run(): i32` and computes 42. Source text lives only in fixtures.
+pub const RETAINED_ARRAY_SOURCES: &[(&str, &str)] = &[
+    (
+        "dynamic-element",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/arrays/element-dynamic.nct"
+        )),
+    ),
+    (
+        "dynamic-element-replace-loop",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/arrays/element-dynamic-replace-loop.nct"
+        )),
+    ),
+    (
+        "dynamic-element-branches",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/arrays/element-dynamic-branches.nct"
+        )),
+    ),
+    (
+        "dynamic-element-call",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/arrays/element-dynamic-call.nct"
+        )),
+    ),
+    (
+        "dynamic-element-join",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/arrays/element-dynamic-join.nct"
+        )),
+    ),
+    (
+        "dynamic-element-unit-maximum",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/arrays/element-dynamic-unit-maximum.nct"
+        )),
+    ),
+    (
+        "dynamic-element-nested",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/arrays/element-dynamic-nested.nct"
+        )),
+    ),
+];

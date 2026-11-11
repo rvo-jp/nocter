@@ -153,8 +153,8 @@ established Copy seed is loaded before traversal. One homogeneous layout proves 
 offset and successor arithmetic; internal traversal does not manufacture source bounds proofs.
 The shared traversal accepts SSA lower/upper endpoints and skips empty runtime intervals. A
 retained cleanup span loads its dedicated usize snapshot slot; its checked original bound proves
-the successor and it does not reload the source index. Source dynamic-hole and native-effect
-qualification remain open; constant-span and complete traversal retain their executable coverage.
+the successor and it does not reload the source index. The [source owner](../nocter-checking/README.md#array-selection) defines retained-hole admission;
+actual native nontrivial effects remain separately unqualified.
 The runtime environment supplies canonical usize/bool roles for that control. Count one uses the
 ordinary resource assembly, and zero-byte storage requires no physical fill while preserving seed
 evaluation and cleanup. Native cases cover seed effects, non-Copy count-one transfer, nested and
@@ -188,11 +188,20 @@ Partial-array cleanup consumes private MIR's checked half-open intervals. The sa
 starts at the interval end and stops at its lower bound, addressing the original array with each
 original index. It calls the existing element helper once per surviving element in reverse order;
 trivial elements need no physical cleanup. Generated structure stays finite for three and 100,000
-elements around a source-proven hole. This nontrivial helper evidence remains image/structure
+elements around either a source-proven constant hole or a retained index. The required original
+bounds check survives before capture; helper endpoints read the captured scalar. Retained element
+projections load that same slot at each use; their addresses are not cached across alternative
+blocks, where the first load would fail to dominate another route. This nontrivial helper evidence
+remains image/structure
 qualification until actual source error construction is available.
+
+The shared retained-source corpus executes immediate and reserved take/read/edit handoffs, later
+index mutation, ownership alternatives, equal-number snapshots on different routes, containing
+replacement across backedges, concrete nested parents and maximum-count zero-byte moves. Dynamic
+out-of-range transfer still traps before capture, including unused zero-byte payloads. The corpus
+catalog is shared with required evaluation; no additional compiler array ownership map is used.
 
 Shared source fixtures execute element take, field holes, structurally disjoint unknown-index edits,
 exact restoration on loop backedges and maximum-count zero-byte remainder cleanup. The checking
-owner qualifies their concrete-path admission; general saved dynamic holes still require its
-retained-index proof. These limits do not change adopted source semantics or qualify the ordinary
+owner defines their admission and remaining frontier/progression limits. These limits do not change adopted source semantics or qualify the ordinary
 released CLI as v2.

@@ -93,4 +93,38 @@ impl Builder<'_> {
         }
         Ok(())
     }
+    pub(super) fn retained_index(
+        &mut self,
+        id: nocter_model::MirLocalId,
+        length: u64,
+    ) -> Result<crate::MachineValueId, Failure> {
+        let slot = self
+            .source
+            .ok_or_else(Self::invalid)?
+            .slots()
+            .get(id)
+            .ok_or_else(Self::invalid)?;
+        let nocter_mir::value_access::SlotKey::IndexSnapshot(index) = slot.key else {
+            return Err(Self::invalid());
+        };
+        let data = self
+            .context
+            .program
+            .runtime()
+            .types()
+            .primitive(nocter_runtime_contract::RuntimePrimitive::Usize)
+            .ok_or_else(Self::invalid)?;
+        if index.bound() != length
+            || slot.storage != nocter_mir::value_access::Storage::Payload
+            || slot.representations.as_ref() != [data]
+        {
+            return Err(Self::invalid());
+        }
+        self.load(&nocter_mir::value_access::Place {
+            slot: id,
+            root: data,
+            data,
+            projections: Box::new([]),
+        })
+    }
 }

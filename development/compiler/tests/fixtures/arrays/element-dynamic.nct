@@ -1,0 +1,9 @@
+struct Item { value: i32 }
+const func select(take items: [Item; 2], index: usize): i32 {
+    let selected = items[index]^
+    selected.value
+}
+const func run(): i32 {
+    select([Item { value: 40 }, Item { value: 0 }], 0) +
+    select([Item { value: 0 }, Item { value: 2 }], 1)
+}

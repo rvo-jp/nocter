@@ -1,0 +1,18 @@
+struct Item { value: i32 }
+struct Packet {
+    prefix: i32
+    rows: [[Item; 2]; 2]
+    suffix: i32
+}
+const func run(): i32 {
+    let packet = Packet {
+        prefix: 0,
+        rows: [[Item { value: 40 }, Item { value: 0 }],
+               [Item { value: 0 }, Item { value: 2 }]],
+        suffix: 0,
+    }
+    var index: usize = 1
+    let selected = packet.rows[1][index]^
+    index = 0
+    selected.value + packet.rows[0][0].value + packet.prefix + packet.suffix
+}

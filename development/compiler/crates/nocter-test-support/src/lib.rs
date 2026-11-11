@@ -2,6 +2,8 @@
 
 use std::{path::PathBuf, sync::OnceLock};
 
+mod array_sources;
+pub use array_sources::RETAINED_ARRAY_SOURCES;
 mod public_examples;
 mod value_source;
 pub use value_source::ValueSourceFixture;

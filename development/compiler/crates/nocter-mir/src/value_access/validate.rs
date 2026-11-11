@@ -103,6 +103,17 @@ impl Context<'_> {
                         .ok_or_else(|| self.invalid())?
                         .ty()
                 }
+                Projection::Index(id) => {
+                    let (element, length) = self
+                        .program
+                        .runtime
+                        .types()
+                        .get(data)
+                        .and_then(RuntimeType::array)
+                        .ok_or_else(|| self.invalid())?;
+                    self.snapshot(*id, length)?;
+                    element
+                }
                 Projection::Environment => {
                     let Some(RuntimeType::StaticCallable {
                         environment: Some(data),
@@ -115,6 +126,24 @@ impl Context<'_> {
             };
         }
         self.require(data == place.data && self.program.runtime.types().get(data).is_some())
+    }
+    fn snapshot(&self, id: nocter_model::MirLocalId, length: u64) -> Result<(), Failure> {
+        let slot = self.body.slots.get(id).ok_or_else(|| self.invalid())?;
+        let SlotKey::IndexSnapshot(index) = slot.key else {
+            return Err(self.invalid());
+        };
+        let data = self
+            .program
+            .runtime
+            .types()
+            .primitive(RuntimePrimitive::Usize)
+            .ok_or_else(|| self.invalid())?;
+        self.require(
+            length > 0
+                && index.bound() == length
+                && slot.storage == Storage::Payload
+                && slot.representations.as_ref() == [data],
+        )
     }
     fn effect(&self, effect: &Effect) -> Result<(), Failure> {
         match effect {
@@ -132,22 +161,7 @@ impl Context<'_> {
                         self.require(range.resolve(length, |_| None).is_some())
                     }
                     nocter_model::ArrayRange::Before(id) | nocter_model::ArrayRange::After(id) => {
-                        let slot = self.body.slots.get(*id).ok_or_else(|| self.invalid())?;
-                        let SlotKey::IndexSnapshot(index) = slot.key else {
-                            return Err(self.invalid());
-                        };
-                        let data = self
-                            .program
-                            .runtime
-                            .types()
-                            .primitive(RuntimePrimitive::Usize)
-                            .ok_or_else(|| self.invalid())?;
-                        self.require(
-                            length > 0
-                                && index.bound() == length
-                                && slot.storage == Storage::Payload
-                                && slot.representations.as_ref() == [data],
-                        )
+                        self.snapshot(*id, length)
                     }
                 }
             }

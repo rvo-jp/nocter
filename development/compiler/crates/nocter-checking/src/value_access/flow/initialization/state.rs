@@ -8,7 +8,7 @@ mod tests;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct Storage {
     root: Slot,
-    selections: BTreeMap<FieldPath, Slot>,
+    selections: BTreeMap<crate::value_access::AccessPath, Slot>,
 }
 impl Slot {
     pub(super) fn new(state: I) -> Self {
@@ -63,8 +63,7 @@ impl Storage {
             // instead exclude every possibly overlapping hole, including unknown indices.
             if (requirement == super::InitializationRequirement::Value
                 || selected.fields().len() <= path.fields().len())
-                && paths::relation(&paths::known(selected), path)
-                    != nocter_model::PathRelation::Disjoint
+                && paths::relation(selected, path) != nocter_model::PathRelation::Disjoint
             {
                 state.and(slot);
             }
@@ -72,6 +71,20 @@ impl Storage {
         state
     }
     pub(super) fn set(&mut self, path: &FieldPath, state: I, at: Option<Location>) {
+        self.set_path(&crate::value_access::paths::known(path), state, at);
+    }
+    pub(super) fn remove_path(&mut self, path: &crate::value_access::AccessPath, at: Location) {
+        self.set_path(path, I::Uninitialized, Some(at));
+    }
+    pub(super) fn uncertain_replacement(&self, path: &FieldPath) -> bool {
+        let path = crate::value_access::paths::known(path);
+        self.selections.iter().any(|(hole, slot)| {
+            slot.state != I::Initialized
+                && crate::value_access::paths::relation(hole, &path)
+                    == nocter_model::PathRelation::MayOverlap
+        })
+    }
+    fn set_path(&mut self, path: &crate::value_access::AccessPath, state: I, at: Option<Location>) {
         let slot = Slot {
             state,
             causes: at.into_iter().collect(),
@@ -80,8 +93,12 @@ impl Storage {
             self.root = slot;
             self.selections.clear();
         } else {
-            self.selections
-                .retain(|selected, _| !path.is_prefix_of(selected));
+            self.selections.retain(|selected, _| {
+                !matches!(
+                    crate::value_access::paths::relation(path, selected),
+                    nocter_model::PathRelation::Equal | nocter_model::PathRelation::Ancestor
+                )
+            });
             self.selections.insert(path.clone(), slot);
         }
     }
@@ -96,7 +113,9 @@ impl Storage {
         let selections = keys
             .into_iter()
             .filter_map(|path| {
-                let joined = self.present(&path).join(&incoming.present(&path));
+                let joined = self
+                    .selection(&path, super::InitializationRequirement::Container)
+                    .join(&incoming.selection(&path, super::InitializationRequirement::Container));
                 (joined != root).then_some((path, joined))
             })
             .collect();

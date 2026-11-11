@@ -807,9 +807,8 @@ values are not exposed as named constants or runtime-callable bodies. Listed con
 whole-value handoffs use the [array construction path](#array-construction), and
 [read selection](#array-selection) retains evaluated element addresses. Repetition uses the same
 count authority and a compact value operation. Count completion precedes ordinary seed preparation,
-including at zero. Complete indexed replacement uses the same selected-address path; element
-general retained-index transfer and partial state retain explicit authored gates; the linked
-selection and native consumers qualify their bounded scopes.
+including at zero. Indexed replacement and partial-state admission follow the
+[selection owner](#array-selection); the linked native consumer qualifies its own execution scope.
 
 ## Array Construction
 
@@ -848,8 +847,7 @@ seeds, source effects, interrupted seeds, seed disposal order, independent whole
 compact frozen constants, nested selection, seed-supplier invalidation and a small live-storage
 budget. A scalar result of maximum-count repetition reaches the common native consumer.
 This closes listed/repeated construction and whole-value handoffs in the private Unit. Element
-reads and proven element holes use the [selection path](#array-selection); general retained-index
-partial state and native storage remain separately qualified consumers. The [native path](../nocter-machine/README.md#private-array-execution)
+reads and element transfers use the [selection path](#array-selection). The [native path](../nocter-machine/README.md#private-array-execution)
 qualifies its own stored array scope.
 
 ## Array Selection
@@ -891,10 +889,9 @@ Direct assignment and compound update prepare the RHS before evaluating the targ
 base and indices execute once in the same evaluation frame; a failing or exiting RHS skips them,
 and a target exit cleans the prepared replacement without publishing a write. Compound updates read
 the old selected value after target preparation. Static and evaluated targets share `Referent`;
-static owner restoration retains its ordinary initialization transition. Evaluated replacement
-requires existing complete storage and uses the same exact-address `ReplaceReferent` resource
-handoff as scoped edit aliases, without interpreting an abstract conflict footprint as a concrete
-ownership path.
+proven owning targets retain their ordinary sparse replacement transition. Unproved/scoped
+targets use the exact-address `ReplaceReferent` handoff without interpreting a conflict footprint
+as an ownership key; the partial-transfer rules below define restoration and completeness.
 
 Access regions retain `ValuePath<IndexFact>` under the same owning/input/temporary root. Known
 numeric results select concrete indices; unknown indices remain unknown even when their recipe
@@ -917,7 +914,10 @@ effects. Sparse availability queries conservatively include every possibly overl
 later disjoint fields can exclude a hole without inventing a concrete unknown index. Concrete
 and symbolic availability use the same query, with joins solved before reporting. Exhaustive
 small-domain enumeration compares symbolic queries with all possible concrete selections,
-including missing parents, partial children and maybe-initialized state. General retained-index element transfer and resource-hole admission still require the closure below. Base identity stays protected
+including missing parents, partial children, symbolic holes and maybe-initialized state. Missing
+unknown selectors never become equal merely because their syntax or availability-map key matches.
+Proven containing replacement clears their descendants; unproved overlap cannot choose an old-value
+cleanup branch. Base identity stays protected
 during index evaluation, and saved addresses remain the exact execution authority. Checking freezes
 `ProvenInBounds` when an established normal-result singleton is below the normalized array count,
 and `ProvenTrap` for an empty array or an established singleton at or above that count; other
@@ -930,29 +930,43 @@ No payload header is requested for an element that is never produced; a later au
 selection still requires its structural definition. Empty local annotations retain element identity
 without requiring its payload header. The closed evaluator checks actual values for ordinary
 selection and executes explicit guaranteed failure at its exact source site; native lowering may
-omit only a checking-proven check. General retained-index transfer and partial-state admission still require the
+omit only a checking-proven check. Access disjointness alone does not prove a missing element's
+identity, restoration or cleanup interval.
+
+Postfix transfer carries the same `Referent` as ordinary selection and assignment. Proven
+numeric singleton paths can retire an exact element or nested field. A final unknown index beneath
+a concrete containing-array path can retire one whole element using an owned retained usize
+snapshot. The shared `Referent::projection_path` traversal supplies both conservative access facts
+and the resource recipe; an unknown conflict footprint never becomes an owning key.
+
+The graph evaluates base/index effects and the original bounds operation before immediate transfer.
+A direct call instead prepares its selected address and delays the snapshot/source retirement until
+full bundle commit. Cancellation releases reservations and creates neither snapshot nor hole.
+Read/edit sources cannot surrender their referents through a marker. A guaranteed-trap source
+produces no moved value. Source availability retains symbolic holes conservatively, while the
+resource ledger retains the actual snapshot identity. Existing reads, writes and repeated extraction
+must exclude every possible hole; an unproved selector cannot restore one by key equality.
+
+Known owning replacements can restore proven missing elements. Replacing a containing array cleans
+its old remainder, ends the old snapshot and permits reuse of that selection recipe on a backedge.
+The same rule applies beneath a concrete record/array prefix. Unknown or possibly overlapping
+selected replacement still requires complete storage. Partial fields can remain available when
+structural disjointness excludes every hole.
+
+The shared retained-source corpus executes in required evaluation and through the
+[native consumer](../nocter-machine/README.md#private-array-execution). It covers normal and nested
+concrete parents, later-argument/original-index mutation, take/read/edit handoffs, ownership
+alternatives at one selection, different snapshots capturing equal numbers across a join,
+containing replacement on loop backedges and maximum-count zero-byte cleanup. Source cancellation
+has no retained steps; zero-byte out-of-range transfers fail before capture. Existing cases also
+cover concrete field holes/restoration, disjoint indexed edits and consuming captures.
+
+This stage supports one retained whole-element hole per complete containing array. Unknown indices
+in the containing path, partial fields below a retained selector, conditional restoration of a
+possibly missing element, and repeated extraction without containing replacement still require the
 [evaluated-selection closure](../../../design/compiler-realization.md#evaluated-array-selection-closure).
-Access disjointness does not prove a missing element's identity, restoration or cleanup interval.
-
-Postfix transfer now carries the same `Referent` as ordinary selection and assignment. A path whose
-indices all have established numeric singletons can retire that exact element or nested field from
-an owning local. The graph evaluates its base/index effects before an immediate transfer. A direct
-call instead prepares its selected address and delays source retirement until full bundle commit;
-cancellation releases the reservation without dereferencing it or creating a hole. Resource keys
-come from the typed concrete path, never a discarded evaluation carrier or an unknown conflict
-footprint. Read/edit sources do not acquire ownership from a marker. A guaranteed-trap source
-still produces no moved value.
-
-Known owning replacements use ordinary sparse owner replacement and can restore a missing element.
-Unproved or scoped replacements still require complete selected storage and cannot erase a hole.
-Remaining initialized fields may be accessed through an unknown index when structural disjointness
-excludes every known hole. Source/required-execution cases cover whole element and field transfer,
-alternative holes, exact restoration, disjoint unknown-index edits, reservation cancellation,
-read/edit temporaries, consuming capture bodies, restoration on every loop backedge, forbidden repeated extraction and maximum-count zero-byte
-cleanup. Shared source fixtures also execute through the [native consumer](../nocter-machine/README.md#private-array-execution).
-This finite concrete-path stage is not a constant-index-only source rule: a normal transfer whose
-index remains unknown still rejects at the compiler realization gate until saved numeric holes,
-joins and finite loop progression close. It cannot equate repeated recipe keys across a backedge.
+Finite loop progression needs a compact frontier, not unbounded snapshot generations or a source
+cardinality limit. Repeated recipe keys alone never prove equal numbers across a backedge.
 
 Source tests qualify saved aliases after index mutation, loop re-execution, read reservation versus
 Copy snapshots, non-Copy element/field reads, structural field views, alternating member/index chains,
@@ -993,10 +1007,9 @@ the existing ledger and branch conditions after its operand frame ends. Restorin
 retires its backing after the final use; whole-container cleanup/replacement does the same after
 its remaining spans and container end. Live backing cannot be overwritten by recipe reuse, and
 failed transfer/install leaves both state and steps unchanged. Snapshot owners cannot be constructed
-or consumed through the generic value APIs. This is logical-ledger qualification, not source
-admission: source availability and native retained-path integration remain gated.
-The evaluator projects retained paths to saved numeric slots; the MIR place consumer still
-requires concrete paths. Neither substitutes a number for a retained descriptor.
+or consumed through the generic value APIs. The [selection owner](#array-selection) defines source
+admission; evaluator and MIR project the retained identity to an actual scalar slot without
+substituting a number for its descriptor.
 
 Concrete element paths use the [declaration-owned projection](../nocter-declarations/README.md#future-value-declaration-boundary).
 The existing prefix-free missing-path set records transferred elements and partial element fields.
@@ -1012,19 +1025,15 @@ For one retained whole-element hole, the same effect carries `ArrayRange::After(
 `Before(index)` in destruction order. These spans consume the original checked bound and backing;
 either side can be empty. No descriptor ordering is interpreted as numeric ordering. Cleanup and
 restoration reject a concrete path which may intersect a missing ancestor: possible overlap is
-not proof of a contained hole. Nested/multiple retained frontiers remain outside this stage.
+not proof of a contained hole. This frontier supports one retained whole-element hole per
+containing array; general nested selectors or multiple holes within that array need further proof.
 
 Ledger qualification covers listed component assembly, maximum u64 cardinality, first/last and out-of-bounds positions,
 empty arrays, zero-sized elements, partial record elements, replacement and container retirement.
-These tests start with declaration-backed logical owners. Source construction has its separate
-[ordinary-source qualification](#array-construction); the concrete ledger does not qualify
-precise source element initialization/access/conflict analysis or a runtime-selected hole. Distinct dynamic
-index expressions cannot be encoded as disjoint concrete keys. Their evaluated identity and
-checked equality/disjointness conditions must close across reservations, joins and loops before
-general retained-index element transfer admission. `DisposeArrayElements` now reaches the closed
-evaluator's metered retirement frontier and private MIR as a half-open interval, without element
-expansion. Their consumers qualify exact interval validation and cleanup separately from the
-remaining dynamic-hole proof.
+These tests start with declaration-backed logical owners; the [selection owner](#array-selection)
+separately defines source qualification. Distinct dynamic recipe keys are never disjoint numeric
+positions. `DisposeArrayElements` reaches the evaluator's metered retirement frontier and private
+MIR without element expansion; each consumer owns its physical/execution qualification.
 
 ## Frozen Body Input Channels
 

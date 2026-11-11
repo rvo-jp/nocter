@@ -68,7 +68,7 @@ fn a_covering_element_read_does_not_protect_unrelated_record_fields() {
     assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
 }
 #[test]
-fn scopes_and_unclosed_writes_cannot_turn_an_existing_element_into_an_editable_copy() {
+fn scoped_inputs_do_not_grant_update_authority_or_survive_owner_retirement() {
     for (source, rule) in [
         (
             "func work(index: usize): void { read selected = [1, 2][index] }",
@@ -77,10 +77,6 @@ fn scopes_and_unclosed_writes_cannot_turn_an_existing_element_into_an_editable_c
         (
             "func change(edit value: i32): void {}\nfunc work(values: [i32; 2]): void { change(values[0]) }",
             crate::value_access::Rule::InvalidUpdate,
-        ),
-        (
-            "func work(take values: [i32; 2], index: usize): void { let selected = values[index]^ }",
-            crate::value_access::Rule::UnsupportedData,
         ),
     ] {
         let (sources, tree) = input(source);

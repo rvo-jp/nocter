@@ -57,6 +57,7 @@ pub struct Slot {
 pub enum Projection {
     Field(nocter_model::ValueField),
     Environment,
+    Index(MirLocalId),
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]

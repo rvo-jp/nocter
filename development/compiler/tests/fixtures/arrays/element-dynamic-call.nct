@@ -1,0 +1,27 @@
+struct Item { value: i32 }
+const func consume(take item: Item, extra: i32): i32 { item.value + extra }
+const func change(edit index: usize): i32 { index = 1
+    0 }
+const func inspect(item: Item): i32 { item.value }
+const func increase(edit item: Item): i32 { item.value += 2
+    item.value }
+const func taking(): i32 {
+    let items = [Item { value: 20 }, Item { value: 0 }]
+    var index: usize = 0
+    consume(items[index]^, change(index))
+}
+const func reading(): i32 {
+    let items = [Item { value: 20 }, Item { value: 0 }]
+    var index: usize = 0
+    let answer = inspect(items[index]^)
+    index = 1
+    answer
+}
+const func editing(): i32 {
+    let items = [Item { value: 0 }, Item { value: 0 }]
+    var index: usize = 0
+    let answer = increase(items[index]^)
+    index = 1
+    answer
+}
+const func run(): i32 { taking() + reading() + editing() }
