@@ -924,6 +924,11 @@ prefix arguments use that operation's ordered extension proofs after whole-bundl
 Each selected payload enters its existing prepared argument owner before endpoint replacement,
 then follows the ordinary taking or read/edit temporary handoff. No numerical prefix crosses the
 invocation without a closed write summary.
+Within one direct marked bundle, ordered extension proofs for distinct selectors of the same
+prefix establish distinct consecutive elements. Bundle validation consumes these closed proofs
+before exempting its own neutral frozen-place nodes from per-source checks. Existing access grants,
+external aliases and outer-call reservations remain checked. General unknown index relations and
+retained aliases remain conservative; a source key alone supplies no numerical identity.
 
 Access regions retain `ValuePath<IndexFact>` under the same owning/input/temporary root. Known
 numeric results select concrete indices; unknown indices remain unknown even when their recipe
@@ -1008,11 +1013,14 @@ Normal direct calls after a prefix loop qualify taking and marked read/edit hand
 mutation of the user's counter in a later argument. Source transition tests require payload
 protection, endpoint replacement and region consolidation before the invocation handoff; a stale
 element remains a local flow rejection.
+Ordered prefix bundles also qualify two distinct payloads, later counter mutation and cancellation
+after two reserved elements, including maximum-count zero-byte arrays. Each payload uses its own
+frozen address and ordinary argument owner before the shared endpoint changes again.
 
 Outside a proven prefix this stage supports one retained whole-element hole per complete containing
 array. Unknown indices in the containing path, partial fields below a retained selector, conditional
 restoration of a possibly missing element, non-prefix repeated extraction, adapted callable-element
-handoffs, multiple dynamic arguments from one array and carrying prefix proofs across calls still require the
+handoffs, general relations outside ordered prefix bundles and carrying prefix proofs across calls still require the
 [evaluated-selection closure](../../../design/compiler-realization.md#evaluated-array-selection-closure).
 Repeated recipe keys alone never prove equal numbers across a backedge.
 

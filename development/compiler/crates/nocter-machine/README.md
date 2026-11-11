@@ -208,6 +208,9 @@ owner before entering the ordinary taking or read/edit temporary channel, includ
 argument's mutation of the original counter. Concrete nested parents and maximum-count zero-byte prefixes
 use the same lowering. These executions qualify lifecycle/geometry with trivial element cleanup;
 actual owned error-graph cleanup remains the separate obligation above.
+Ordered bundles execute distinct nonzero payloads through separate argument owners before reusing
+one endpoint slot. Cases also cover a later counter mutation, cancellation after two reservations
+and maximum-count zero-byte bundles; endpoint reuse does not retarget a frozen argument address.
 
 Shared source fixtures execute element take, field holes, structurally disjoint unknown-index edits,
 exact restoration on loop backedges and maximum-count zero-byte remainder cleanup. The checking

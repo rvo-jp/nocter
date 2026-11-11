@@ -1,0 +1,14 @@
+const func consume(take left: void, take right: void, other: usize): i32 { 42 }
+const func work(early: bool): i32 {
+    let items = [(); 18446744073709551615]
+    var index: usize = 0
+    var turns = 0
+    while turns < 2 {
+        let selected = items[index]^
+        index += 1
+        turns += 1
+    }
+    consume(items[index]^, items[index + 1]^, if early { return 42 } else { index = 0
+        0 })
+}
+const func run(): i32 { work(false) + work(true) - 42 }

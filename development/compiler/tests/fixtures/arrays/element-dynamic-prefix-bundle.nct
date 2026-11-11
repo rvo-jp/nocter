@@ -1,0 +1,15 @@
+struct Item { value: i32 }
+const func consume(take left: Item, take right: Item, other: usize): i32 { left.value + right.value }
+const func work(early: bool): i32 {
+    let items = [Item { value: 0 }, Item { value: 0 }, Item { value: 40 }, Item { value: 2 }]
+    var index: usize = 0
+    var total = 0
+    while index < 2 {
+        let selected = items[index]^
+        total += selected.value
+        index += 1
+    }
+    total + consume(items[index]^, items[index + 1]^, if early { return 42 } else { index = 0
+        0 })
+}
+const func run(): i32 { work(false) + work(true) - 42 }

@@ -284,6 +284,12 @@ For a direct call argument, protect the payload in its existing prepared argumen
 the endpoint changes, then use the established invocation or scoped-temporary handoff. Whole-bundle
 validation precedes these transfers; cancellation performs none of them. Calling a function still
 invalidates numerical histories unless its closed write summary proves what survives.
+Ordered prefix-extension proofs within one atomic bundle establish that its distinct selected
+elements are consecutive and disjoint. After checking every input pair, per-source validation can
+exempt the bundle's own neutral frozen-place nodes; actual access grants, external aliases and
+outer reservations remain obligations. This contextual proof does not refine a retained alias
+from the current contents of a reused source-expression cell. General index relations must retain
+their evidence for the actual selected-address lifetime before crossing re-evaluation or backedges.
 
 Project the resulting sparse remainder and its exact captured indices into cleanup. Excluding
 one checked index i from [0, N) gives [0, i) and [i + 1, N); the same bounds fact justifies the

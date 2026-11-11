@@ -164,6 +164,79 @@ fn prefix_call_handoffs_protect_each_payload_before_replacing_the_endpoint() {
 }
 
 #[test]
+fn a_prefix_bundle_needs_ordered_numeric_proofs_and_cancellation_retires_no_argument() {
+    use crate::value_access::flow::resources::Holder;
+    let source = nocter_test_support::RETAINED_ARRAY_SOURCES
+        .iter()
+        .find(|(name, _)| *name == "dynamic-element-prefix-bundle")
+        .unwrap()
+        .1;
+    let unit = accepted(source);
+    let query = named(&unit, "work");
+    let mut committed = 0;
+    let mut cancelled = 0;
+    for (point, block) in query.graph().points().iter() {
+        for (action, event) in block.actions.iter().enumerate() {
+            let transitions: Vec<_> = query
+                .access()
+                .resources()
+                .at(Location { point, action })
+                .collect();
+            match event.operation {
+                flow::Operation::CommitCall(call) => {
+                    committed += 1;
+                    assert!(!transitions.is_empty());
+                    for transition in transitions {
+                        let arguments: Vec<_> = transition
+                            .before_steps()
+                            .iter()
+                            .filter_map(|step| {
+                                if let Step::MoveArrayElement {
+                                    destination:
+                                        Holder::Prepared {
+                                            call: actual,
+                                            index,
+                                        },
+                                    ..
+                                } = step
+                                {
+                                    assert_eq!(*actual, call);
+                                    Some(*index)
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
+                        assert_eq!(arguments, [0, 1]);
+                    }
+                }
+                flow::Operation::CancelCall { prepared: 2, .. } => {
+                    cancelled += 1;
+                    assert!(!transitions.is_empty());
+                    assert!(
+                        transitions
+                            .iter()
+                            .all(|transition| transition.steps().is_empty())
+                    );
+                }
+                _ => {}
+            }
+        }
+    }
+    assert_eq!((committed, cancelled), (1, 1));
+    for replacement in [
+        "items[index]^",
+        "items[if true { index = 0\nindex } else { index }]^",
+    ] {
+        let (sources, tree) = input(&source.replace("items[index + 1]^", replacement));
+        assert!(matches!(
+            SourceUnit::prepare(bound(&sources, &tree)),
+            Err(SourceFailure::Checking(Failure::Flow { .. }))
+        ));
+    }
+}
+
+#[test]
 fn dynamic_holes_block_unproved_reads_restoration_and_nonprogressing_recipe_execution() {
     for after in [
         "read later = items",

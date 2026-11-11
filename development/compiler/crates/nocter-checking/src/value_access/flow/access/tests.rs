@@ -73,6 +73,20 @@ fn reservation_blocks_a_later_argument_from_modifying_its_target() {
 }
 
 #[test]
+fn atomic_bundle_place_validation_preserves_external_grants_and_outer_reservations() {
+    let consume = "func consume(edit first: i32, edit second: i32): i32 { first += 1\nsecond += 1\nfirst + second }\n";
+    pass(&format!(
+        "{consume}func f(): i32 {{ var items = [20, 20]\nconsume(items[0], items[1]) }}"
+    ));
+    reject(&format!(
+        "{consume}func f(): i32 {{ var items = [20, 20]\nread kept = items[0]\nlet _ = consume(items[0], items[1])\nkept }}"
+    ));
+    reject(&format!(
+        "{consume}func outer(first: i32, second: i32): i32 {{ first + second }}\nfunc f(): i32 {{ var items = [20, 20]\nouter(items[0], consume(items[0], items[1])) }}"
+    ));
+}
+
+#[test]
 fn index_side_invalidation_reports_a_retained_place_rather_than_an_activated_read() {
     let source = "func work(): i32 { var values = [42, 7]\nvalues[if true { values = [1, 2]\n0 } else { 0 }] }";
     assert!(

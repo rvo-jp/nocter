@@ -286,6 +286,19 @@ impl World {
         location: Location,
         live: &Liveness,
     ) -> Result<(), Violation> {
+        self.check_excluding_places(region, actor, permission, location, live, &BTreeSet::new())
+    }
+    /// A validated atomic bundle already checks its frozen places against each other. Only
+    /// those neutral place nodes may be exempt here; existing read/edit grants never are.
+    pub fn check_excluding_places(
+        &self,
+        region: &Region,
+        actor: Option<Key>,
+        permission: Mode,
+        location: Location,
+        live: &Liveness,
+        places: &BTreeSet<Key>,
+    ) -> Result<(), Violation> {
         self.check_lifetime(region, location)?;
         let mut ancestors = BTreeSet::new();
         let mut cursor = actor;
@@ -296,6 +309,7 @@ impl World {
         for (&key, node) in &self.nodes {
             if node.region.overlaps(region)
                 && !ancestors.contains(&key)
+                && !(node.kind == RetentionKind::Place && places.contains(&key))
                 && (permission != Mode::Read || node.kind == RetentionKind::Access(Mode::Update))
             {
                 return Err(Violation {

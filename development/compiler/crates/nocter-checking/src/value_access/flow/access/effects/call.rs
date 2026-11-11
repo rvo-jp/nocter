@@ -2,8 +2,9 @@ use super::super::liveness::Carrier;
 use super::super::state::{Prepared, Value, World};
 use super::super::{AccessRule, Creation, RetainedAccess, RetentionKind, Violation};
 use super::{Context, Failure, Result};
-use crate::value_access::ExpressionKind;
+use crate::value_access::{ArgumentAction, ExpressionKind, Referent};
 use nocter_model::{AccessExpressionId, ValueAccessMode as Mode};
+use std::collections::BTreeSet;
 impl Context<'_, '_> {
     pub(super) fn commit(&mut self, call: AccessExpressionId) -> Result<Vec<World>> {
         let ExpressionKind::Call { arguments, .. } = &self
@@ -56,6 +57,7 @@ impl Context<'_, '_> {
                     if let Some((other_region, _, other_mode)) = right
                         && region.overlaps(other_region)
                         && (*mode != Mode::Read || *other_mode != Mode::Read)
+                        && !self.disjoint_prefix_arguments(call, index, other)?
                     {
                         let created = match &prepared[other] {
                             Prepared::Reserved { at, .. } => Creation::Action(*at),
@@ -83,14 +85,60 @@ impl Context<'_, '_> {
                 }
             }
         }
+        let places: BTreeSet<_> = caps
+            .iter()
+            .flatten()
+            .filter_map(|(_, actor, _)| *actor)
+            .collect();
         for (region, actor, permission) in caps.iter().flatten() {
-            if *permission == Mode::Read {
-                self.world
-                    .check(region, *actor, *permission, self.at, self.live)?;
-            } else {
-                self.write(region, *actor, *permission, Some(call))?;
+            if *permission != Mode::Read {
+                self.world.check_reserved(region, self.at, Some(call))?;
+                if *permission == Mode::Update && !self.world.writable_actor(*actor)? {
+                    return Err(Failure::Integrity);
+                }
             }
+            self.world.check_excluding_places(
+                region,
+                *actor,
+                *permission,
+                self.at,
+                self.live,
+                &places,
+            )?;
         }
         Ok(())
+    }
+    fn disjoint_prefix_arguments(
+        &self,
+        call: AccessExpressionId,
+        left: usize,
+        right: usize,
+    ) -> Result<bool> {
+        let ExpressionKind::Call { ref arguments, .. } = self
+            .typed
+            .body()
+            .expressions()
+            .get(call)
+            .ok_or(Failure::Integrity)?
+            .kind
+        else {
+            return Err(Failure::Integrity);
+        };
+        let selection = |index: usize| match &arguments.get(index)?.action {
+            ArgumentAction::ReserveTransfer {
+                place: Referent::Evaluated(id),
+                adapters,
+            } if adapters.is_empty() => Some(*id),
+            _ => None,
+        };
+        let Some((left, right)) = selection(left).zip(selection(right)) else {
+            return Ok(false);
+        };
+        let Some(frontier) = self.numeric.prefix(self.at, left) else {
+            return Ok(false);
+        };
+        // Both ordered extension proofs belong to this atomic operation and one array epoch:
+        // each advances its predecessor by one. Distinct source keys alone prove nothing.
+        Ok(left != right && self.numeric.prefix(self.at, right) == Some(frontier))
     }
 }
