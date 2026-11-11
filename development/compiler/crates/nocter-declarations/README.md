@@ -165,7 +165,11 @@ supplier evidence. Array value operations remain part of the
 The declaration product also admits closed fixed-array metadata as `PayloadSchema::Array` with an
 `ArraySchema` element TypeId and u64 cardinality. It reuses the model's `FixedArray` identity and
 closed `UsizeTerm`; array cardinality never expands metadata or becomes a tuple identity. The
-schema does not grant tuple/record component selectors or runtime value operations. Structural
+schema does not grant tuple/record component selectors or runtime value operations. `component`,
+concrete `project_data` and generic `project_data_by` share one schema projector. The latter
+consumes caller-owned bounds evidence for an opaque index without substituting a guessed number.
+An empty array never admits an element projection, even with a permissive callback. This metadata
+query grants no access, ownership, payload readiness or executable bounds proof. Structural
 Copy is true for a zero count, otherwise it consumes the element's evidence once. A zero-byte
 non-Copy element with positive count remains non-Copy.
 

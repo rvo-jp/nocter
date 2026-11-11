@@ -430,3 +430,66 @@ fn cycle_diagnostics_choose_the_positive_field_after_an_empty_array_of_the_same_
         DeclarationRule::RecursivePayload { through: b }
     );
 }
+
+#[test]
+fn symbolic_projection_uses_the_same_shapes_and_cannot_authorize_an_empty_array() {
+    use nocter_model::{ValuePath, ValueProjection};
+    struct Bounds {
+        exclusive_limit: u64,
+    }
+    for length in [0, 2, u64::MAX] {
+        let symbols = SymbolTable::from_spellings(["run"]);
+        let mut reservations = Reservations::new(symbols.clone());
+        let run = reservations.reserve(symbols.get("run").unwrap(), 0);
+        let mut builder = reservations.finish().unwrap();
+        builder
+            .define(
+                run,
+                CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
+                [],
+                DataReference::Array {
+                    element: Box::new(DataReference::Tuple(TupleData::new(
+                        BuiltinType::I32.into(),
+                        BuiltinType::Bool.into(),
+                        [],
+                    ))),
+                    length,
+                },
+            )
+            .unwrap();
+        let program = builder.finish().unwrap();
+        let data = program.codes().get(run).unwrap().result();
+        let path = ValuePath::new([
+            ValueProjection::Array(Bounds { exclusive_limit: 2 }),
+            ValueProjection::Tuple(1),
+        ]);
+        assert_eq!(
+            program.project_data_by(data, &path, |proof, count| proof.exclusive_limit > 0
+                && proof.exclusive_limit <= count),
+            (length != 0).then(|| program.data_type(BuiltinType::Bool).unwrap())
+        );
+        assert_eq!(
+            program.project_data_by(data, &path, |_, _| true),
+            (length != 0).then(|| program.data_type(BuiltinType::Bool).unwrap())
+        );
+        assert_eq!(program.project_data_by(data, &path, |_, _| false), None);
+        assert_eq!(
+            program.project_data(
+                data,
+                &FieldPath::new([
+                    nocter_model::ValueField::Array(length),
+                    nocter_model::ValueField::Tuple(1),
+                ])
+            ),
+            None
+        );
+        assert_eq!(
+            program.project_data_by(
+                data,
+                &ValuePath::<Bounds>::new([ValueProjection::Tuple(0)]),
+                |_, _| true
+            ),
+            None
+        );
+    }
+}

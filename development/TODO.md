@@ -23,6 +23,22 @@ concrete element holes to retained numeric dynamic indices. Preserve the shared 
 container/value availability queries, sparse ledger and interval cleanup consumers. A logical
 path with an unknown index is not a concrete ownership key. Do not add a second ownership
 registry or a separate bounds evaluator.
+
+- [ ] Retain each selected dynamic usize snapshot in the existing ownership ledger, tied to the
+  containing array obligation. Capture only after normal bounds completion, and commit with an
+  immediate transfer or the complete call bundle. Cancellation creates no retained hole. A live
+  snapshot owner cannot be overwritten by another execution of the same recipe.
+- [ ] Extend the shared path, availability and cleanup representation to retained whole-element
+  indices under a concrete containing-array path. Source recipe IDs alone never prove equal
+  values. Keep snapshot ownership in branch conditions: equal runtime numbers from different
+  paths must not erase their distinct backing lifetimes. Preserve the original required bounds
+  check, captured numeric data, empty dynamic remainder intervals and checked successor at MAX.
+- [ ] Qualify source transfer, read/edit lending, original-index mutation, normal replacement and
+  cleanup through required execution and native execution. Check joins and backedges, snapshot
+  retirement with its array, cancellation, zero-sized elements and storage-failure recovery.
+  Keep unsupported nested/multiple dynamic frontiers local and explicit while closing finite loop
+  progression; do not turn a staged realization boundary into a language restriction.
+
 The [closed evaluator address mechanism](compiler/crates/nocter-constant-evaluation/README.md#evaluated-array-addresses)
 is an execution consumer, not proof of precise element-state safety. Preserve the evaluated numeric
 index through reservations, aliases and holes; equal recipe keys across a backedge do not establish equal values.

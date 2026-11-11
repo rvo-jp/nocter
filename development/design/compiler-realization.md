@@ -213,6 +213,23 @@ Keep code-site/slot identity separate from evaluated-value identity and its reta
 The backing and lifetime of a saved index must close with its existing access/resource obligation,
 not a second ownership registry or repeated evaluation of the source expression.
 
+Retained-index backing is an ordinary pure usize snapshot in the existing ownership ledger,
+attached to the containing array obligation. Create it only after a normal checked selection and
+at the transfer's established commit point. Keep its owner in branch conditions; two paths can
+capture equal numbers while requiring different backing lifetimes. The implementation must not
+choose a cleanup alternative from numeric equality alone or read an uninitialized alternative's
+snapshot. End the retained snapshot when its associated hole/container ends, including whole
+replacement, and create none on call cancellation. A recipe may name reusable storage, but an
+already live snapshot owner cannot be overwritten by a later execution of that recipe.
+
+A source access footprint can remain unknown while a resource path refers to such an actual saved
+value. These are different facts: neither an unknown footprint nor a code-site key is a concrete
+number. Project element data through the shared declaration schemas and the original normal
+bounds evidence, without substituting index zero. Preserve that original bounds check; later
+cleanup consumes its captured result and must handle empty remainder intervals and a successor
+at the maximum usize count. This backing and general dynamic-hole realization remain unimplemented;
+the linked selection owner states the qualified concrete-path stage.
+
 A loop may execute the same selection recipe more than once. Equal recipe keys across a backedge
 are not proof of equal values. Qualify retained indices, invalidation, joins and restoration before
 using those facts; an unproved relation cannot erase a prior hole. Repeated extraction with a

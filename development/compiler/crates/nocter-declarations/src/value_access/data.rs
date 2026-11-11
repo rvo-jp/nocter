@@ -247,18 +247,29 @@ impl Program {
         data: TypeId,
         field: nocter_model::ValueField,
     ) -> Option<super::Component> {
-        match self.data_schema(data)? {
-            PayloadSchema::Aggregate(schema) => schema.component(field),
-            PayloadSchema::Array(array) => {
-                let nocter_model::ValueField::Array(index) = field else {
-                    return None;
-                };
-                (index < array.length()).then_some(super::Component {
-                    field,
-                    data: array.element(),
-                })
+        Some(super::Component {
+            field,
+            data: self.project_component(data, &field, &|index, length| *index < length)?,
+        })
+    }
+    fn project_component<I>(
+        &self,
+        data: TypeId,
+        field: &nocter_model::ValueProjection<I>,
+        in_bounds: &impl Fn(&I, u64) -> bool,
+    ) -> Option<TypeId> {
+        use nocter_model::ValueProjection;
+        match (self.data_schema(data)?, field) {
+            (PayloadSchema::Aggregate(schema), ValueProjection::Record(id)) => schema
+                .component(nocter_model::ValueField::Record(*id))
+                .map(|c| c.data),
+            (PayloadSchema::Aggregate(schema), ValueProjection::Tuple(position)) => schema
+                .component(nocter_model::ValueField::Tuple(*position))
+                .map(|c| c.data),
+            (PayloadSchema::Array(array), ValueProjection::Array(index)) => {
+                (!array.is_empty() && in_bounds(index, array.length())).then_some(array.element())
             }
-            PayloadSchema::Builtin(_) | PayloadSchema::Function(_) => None,
+            _ => None,
         }
     }
     /// Packed record/tuple ordinal of an established selection, without projection rights.
@@ -274,10 +285,21 @@ impl Program {
     /// Validates an already selected logical path against its exact containing data schemas.
     /// No name lookup, permission inference or physical offset participates in this projection.
     #[must_use]
-    pub fn project_data(&self, mut data: TypeId, path: &FieldPath) -> Option<TypeId> {
+    pub fn project_data(&self, data: TypeId, path: &FieldPath) -> Option<TypeId> {
+        self.project_data_by(data, path, |index, length| *index < length)
+    }
+    /// Project declared data through caller-proven array positions without inventing numeric
+    /// indices. The caller owns each index's bounds evidence; this grants no access or payload.
+    #[must_use]
+    pub fn project_data_by<I>(
+        &self,
+        mut data: TypeId,
+        path: &nocter_model::ValuePath<I>,
+        in_bounds: impl Fn(&I, u64) -> bool,
+    ) -> Option<TypeId> {
         self.data_schema(data)?;
-        for &field in path.fields() {
-            data = self.component(data, field)?.data;
+        for field in path.fields() {
+            data = self.project_component(data, field, &in_bounds)?;
         }
         Some(data)
     }
