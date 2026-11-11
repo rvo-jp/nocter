@@ -549,3 +549,14 @@ fn an_array_frontier_cannot_be_projected_in_another_body_namespace() {
     assert!(frontier.array(owner.typed()).is_some());
     assert!(frontier.array(other.typed()).is_none());
 }
+
+#[test]
+fn a_single_iteration_still_carries_its_prefix_through_the_loop_header() {
+    let source = "func f(take items: [void; 1]): void { var index: usize = 0\nwhile index < 1 { let moved = items[index]^\nindex += 1 } }";
+    let query = function(source);
+    let selected = frontiers(&query);
+    assert_eq!(selected.len(), 1);
+    assert!(selected[0].is_some());
+    let (sources, tree) = input(source);
+    crate::value_access::accepted::SourceUnit::prepare(bound(&sources, &tree)).unwrap();
+}

@@ -352,9 +352,8 @@ fn require_committed_argument(
 ) -> Result<(), IntegrityError> {
     if let ArgumentAction::ReserveTransfer {
         place: Referent::Evaluated(selection),
-        adapters,
+        ..
     } = argument
-        && adapters.is_empty()
         && let Some(frontier) = numeric.prefix(location, *selection)
     {
         let array = frontier.array(typed).ok_or(INVALID)?;

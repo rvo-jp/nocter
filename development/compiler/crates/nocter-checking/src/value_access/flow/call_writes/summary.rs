@@ -1,8 +1,8 @@
 //! Finite may-write footprints over environment/explicit input roots; unknown effects are the top element.
 use super::super::{Operation, aliases::Aliases};
-use super::{Control, INVALID, IntegrityError, TypedQuery, bindings};
-use crate::value_access::{ExpressionKind, Referent};
-use nocter_declarations::value_access::{CodeKind, PayloadSchema};
+use super::{Control, INVALID, IntegrityError, TypedQuery, bindings, requests::Request};
+use crate::value_access::Referent;
+use nocter_declarations::value_access::PayloadSchema;
 use nocter_model::{
     AccessExpressionId, BuiltinType, ValueAccessMode, ValueCode, ValueFunctionOrigin,
 };
@@ -17,61 +17,69 @@ struct Body<'a> {
     typed: &'a TypedQuery,
     roots: Aliases,
     local: Writes,
-    calls: Vec<(AccessExpressionId, ValueCode)>,
+    calls: Vec<AccessExpressionId>,
+    targets: Vec<Referent>,
 }
 pub(super) struct Closed {
-    pub(super) writes: BTreeMap<ValueCode, Writes>,
-    pub(super) callees: BTreeMap<ValueCode, BTreeSet<ValueCode>>,
+    pub(super) writes: BTreeMap<Request, Writes>,
+    pub(super) callees: BTreeMap<Request, BTreeSet<Request>>,
 }
-
+struct BoundBody {
+    local: Writes,
+    calls: Vec<(AccessExpressionId, Option<Request>)>,
+}
 pub(super) fn close(controls: &[&Control]) -> Result<Closed, IntegrityError> {
     let mut bodies = BTreeMap::new();
     let program = controls.first().map(|control| &control.typed.program);
     for (code, control) in super::super::scope(controls.iter().copied())? {
-        // Earlier standalone type suffixes are not cross-body evidence.
         if program.is_none_or(|program| !std::sync::Arc::ptr_eq(program, &control.typed.program)) {
             continue;
         }
-        let callable = match code {
-            ValueCode::Declaration(id) => control
-                .typed
-                .program()
-                .codes()
-                .get(id)
-                .is_some_and(|code| matches!(code.kind(), CodeKind::Function(_))),
-            ValueCode::Closure(_) => true,
-            ValueCode::Expression(_) => false,
-        };
-        if callable {
-            bodies.insert(code, local_summary(control)?);
-        }
+        // Every checked frame can supply root calls, including required expressions. Its
+        // effect facts do not turn a non-callable frame into an invocation target.
+        bodies.insert(code, local_summary(control)?);
     }
-    let mut effects: BTreeMap<_, _> = bodies
+    let bound_bodies = bind_bodies(&bodies)?;
+    let mut effects: BTreeMap<_, _> = bound_bodies
         .iter()
-        .map(|(&code, body)| (code, body.local.clone()))
+        .map(|(key, instance)| (key.clone(), instance.local.clone()))
         .collect();
-    let mut reverse: BTreeMap<_, BTreeSet<_>> = BTreeMap::new();
-    for (&caller, body) in &bodies {
-        for &(_, callee) in &body.calls {
-            reverse.entry(callee).or_default().insert(caller);
-        }
-    }
-    let mut pending: BTreeSet<_> = bodies.keys().copied().collect();
-    while let Some(code) = pending.pop_first() {
-        let next = combine(bodies.get(&code).ok_or(INVALID)?, &effects)?;
-        if effects.get(&code) != Some(&next) {
-            effects.insert(code, next);
-            if let Some(affected) = reverse.get(&code) {
-                pending.extend(affected);
+    let mut reverse = BTreeMap::<Request, BTreeSet<Request>>::new();
+    for (key, instance) in &bound_bodies {
+        for (_, target) in &instance.calls {
+            if let Some(target) = target {
+                reverse
+                    .entry(target.clone())
+                    .or_default()
+                    .insert(key.clone());
             }
         }
     }
-    let callees = bodies
+    let mut pending: BTreeSet<_> = bound_bodies.keys().cloned().collect();
+    while let Some(key) = pending.pop_first() {
+        let instance = bound_bodies.get(&key).ok_or(INVALID)?;
+        let next = if let Some(body) = bodies.get(&key.code) {
+            combine(body, instance, &effects)?
+        } else {
+            Writes::Unknown
+        };
+        if effects.get(&key) != Some(&next) {
+            effects.insert(key.clone(), next);
+            if let Some(affected) = reverse.get(&key) {
+                pending.extend(affected.iter().cloned());
+            }
+        }
+    }
+    let callees = bound_bodies
         .into_iter()
-        .map(|(code, body)| {
+        .map(|(key, instance)| {
             (
-                code,
-                body.calls.into_iter().map(|(_, callee)| callee).collect(),
+                key,
+                instance
+                    .calls
+                    .into_iter()
+                    .filter_map(|(_, target)| target)
+                    .collect(),
             )
         })
         .collect();
@@ -80,19 +88,57 @@ pub(super) fn close(controls: &[&Control]) -> Result<Closed, IntegrityError> {
         callees,
     })
 }
+fn bind_bodies(
+    bodies: &BTreeMap<ValueCode, Body<'_>>,
+) -> Result<BTreeMap<Request, BoundBody>, IntegrityError> {
+    let mut pending: BTreeSet<_> = bodies.keys().copied().map(Request::unbound).collect();
+    let mut bound_bodies = BTreeMap::new();
+    while let Some(request) = pending.pop_first() {
+        if bound_bodies.contains_key(&request) {
+            continue;
+        }
+        let Some(body) = bodies.get(&request.code) else {
+            bound_bodies.insert(
+                request,
+                BoundBody {
+                    local: Writes::Unknown,
+                    calls: Vec::new(),
+                },
+            );
+            continue;
+        };
+        let local = if closed_cleanup(body.typed, &body.targets, &request)? {
+            body.local.clone()
+        } else {
+            Writes::Unknown
+        };
+        let mut calls = Vec::new();
+        for &call in &body.calls {
+            let target = request.call(body.typed, call)?;
+            if let Some(target) = &target {
+                pending.insert(target.clone());
+            }
+            calls.push((call, target));
+        }
+        bound_bodies.insert(request, BoundBody { local, calls });
+    }
+    Ok(bound_bodies)
+}
 
 fn combine(
     body: &Body<'_>,
-    effects: &BTreeMap<ValueCode, Writes>,
+    instance: &BoundBody,
+    effects: &BTreeMap<Request, Writes>,
 ) -> Result<Writes, IntegrityError> {
-    let Writes::Known(mut writes) = body.local.clone() else {
+    let Writes::Known(mut writes) = instance.local.clone() else {
         return Ok(Writes::Unknown);
     };
-    for &(call, code) in &body.calls {
-        let Some(Writes::Known(inputs)) = effects.get(&code) else {
+    for (call, target) in &instance.calls {
+        let Some(Writes::Known(inputs)) = target.as_ref().and_then(|target| effects.get(target))
+        else {
             return Ok(Writes::Unknown);
         };
-        let Some(sources) = bindings::actual_writes(body.typed, &body.roots, call, inputs)? else {
+        let Some(sources) = bindings::actual_writes(body.typed, &body.roots, *call, inputs)? else {
             return Ok(Writes::Unknown);
         };
         for source in sources {
@@ -118,14 +164,14 @@ fn local_summary(control: &Control) -> Result<Body<'_>, IntegrityError> {
         roots: Aliases::prepare(typed)?,
         local: Writes::Known(BTreeSet::new()),
         calls: Vec::new(),
+        targets: Vec::new(),
     };
-    let mut targets = Vec::new();
     for point in control.graph.reachable()? {
         let point = control.graph.points().get(point).ok_or(INVALID)?;
         for action in &point.actions {
             match action.operation {
                 Operation::Assign { target, .. } | Operation::CompoundAssign { target, .. } => {
-                    targets.push(target);
+                    body.targets.push(target);
                     match bindings::classify(typed, &body.roots, target) {
                         Some(bindings::Root::Input(input)) => {
                             if let Writes::Known(writes) = &mut body.local {
@@ -136,27 +182,19 @@ fn local_summary(control: &Control) -> Result<Body<'_>, IntegrityError> {
                         None => body.local = Writes::Unknown,
                     }
                 }
-                Operation::CommitCall(id) => {
-                    if let ExpressionKind::Call { target, .. } =
-                        typed.body().expressions().get(id).ok_or(INVALID)?.kind
-                        && let Some(code) = super::target_code(target)
-                    {
-                        body.calls.push((id, code));
-                    } else {
-                        body.local = Writes::Unknown;
-                    }
-                }
+                Operation::CommitCall(id) => body.calls.push(id),
                 _ => {}
             }
         }
     }
-    if !closed_cleanup(typed, &targets) {
-        body.local = Writes::Unknown;
-    }
     Ok(body)
 }
 
-fn closed_cleanup(typed: &TypedQuery, targets: &[Referent]) -> bool {
+fn closed_cleanup(
+    typed: &TypedQuery,
+    targets: &[Referent],
+    request: &Request,
+) -> Result<bool, IntegrityError> {
     // Edit targets also dispose their old values. Their cleanup cannot be inferred from
     // the replacement's type or from the absence of an owned parameter holder.
     let mut pending: Vec<_> = typed
@@ -181,14 +219,14 @@ fn closed_cleanup(typed: &TypedQuery, targets: &[Referent]) -> bool {
         .collect();
     if let ValueCode::Closure(id) = typed.code() {
         let Some(schema) = typed.program().closure(id) else {
-            return false;
+            return Ok(false);
         };
         // A taking view may dispose a read/edit body's received environment after normal return.
         pending.push(schema.environment());
     }
     for &target in targets {
         let Some(data) = typed.body().referent_data(target) else {
-            return false;
+            return Ok(false);
         };
         pending.push(data);
     }
@@ -213,19 +251,21 @@ fn closed_cleanup(typed: &TypedQuery, targets: &[Referent]) -> bool {
                     pending.push(schema.element());
                 }
             }
-            Some(PayloadSchema::Function(witness)) => match witness.origin {
-                ValueFunctionOrigin::Declaration(_) => {}
-                ValueFunctionOrigin::Closure(id) => {
-                    let Some(closure) = typed.program().closure(id) else {
-                        return false;
-                    };
-                    // Destruction releases the captured payload; it does not call the body.
-                    pending.push(closure.environment());
+            Some(PayloadSchema::Function(witness)) => {
+                match request.resolve(witness)?.map(|witness| witness.origin) {
+                    Some(ValueFunctionOrigin::Declaration(_)) => {}
+                    Some(ValueFunctionOrigin::Closure(id)) => {
+                        let Some(closure) = typed.program().closure(id) else {
+                            return Ok(false);
+                        };
+                        // Destruction releases the captured payload; it does not call the body.
+                        pending.push(closure.environment());
+                    }
+                    _ => return Ok(false),
                 }
-                _ => return false,
-            },
-            _ => return false,
+            }
+            _ => return Ok(false),
         }
     }
-    true
+    Ok(true)
 }

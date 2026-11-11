@@ -71,9 +71,6 @@ pub(super) fn actual_writes(
                 };
                 writes.push(footprint);
             }
-            ArgumentAction::ReserveTransfer { adapters, .. } if !adapters.is_empty() => {
-                return Ok(None);
-            }
             // The transfer already retired the old source. The callee edits its ordinary
             // owned temporary, not the caller's remaining storage.
             ArgumentAction::ReserveTransfer { .. }

@@ -127,8 +127,8 @@ impl Context<'_, '_> {
         let selection = |index: usize| match &arguments.get(index)?.action {
             ArgumentAction::ReserveTransfer {
                 place: Referent::Evaluated(id),
-                adapters,
-            } if adapters.is_empty() => Some(*id),
+                ..
+            } => Some(*id),
             _ => None,
         };
         let Some((left, right)) = selection(left).zip(selection(right)) else {

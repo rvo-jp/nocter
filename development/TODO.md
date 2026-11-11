@@ -18,11 +18,11 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Compose adapted callable-element transfers with the ordinary atomic prefix handoff. Preserve the
-original source retirement, prepared payload type, selected view and invocation binding through
-before-call adaptation and cleanup. Share the checked ownership phases with required/native consumers;
-qualify monotone dynamic indices, cancellation and local conflicts without weakening the numeric
-proofs or introducing a second owner/adapter registry.
+Close structural value construction over result-resolved callable witnesses. Preserve one type
+and result authority while preparing inferred arrays/tuples of factory results; defer only genuine
+identity/supply obligations and reject unresolved payloads locally before executable admission.
+Qualify same/different witnesses, Copy and explicit retirement, required/native execution and reuse.
+General formal payload storage and outside R/D/S remain separate obligations.
 
 ## Retained Selection Closure
 
@@ -34,8 +34,7 @@ layout fields, generated operations, an arbitrary iteration cutoff or a constant
 
 - [ ] Extend call write summaries to externally dependent captures, user destruction and general
   escaping alias provenance. Generalize evaluated index relations beyond ordered prefix bundles
-  while preserving lifetime-specific evidence for retained aliases across re-evaluation. Compose
-  adapted callable-element transfers with the prefix handoff.
+  while preserving lifetime-specific evidence for retained aliases across re-evaluation.
 - [ ] Extend saved-index identity and initialization/cleanup to conditional restoration and
   general numeric relations among holes within one array. Keep
   unproved relations local and explicit. Do not read uninitialized alternative backing or choose

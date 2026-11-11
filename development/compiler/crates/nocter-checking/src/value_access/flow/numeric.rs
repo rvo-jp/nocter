@@ -142,8 +142,9 @@ impl NumericFacts {
     pub fn extends_prefix(&self, selection: AccessExpressionId) -> bool {
         self.prefix_extensions.contains(&selection)
     }
-    /// A finite cyclic progression needs this array's prefix lifecycle. Straight-line moves and
-    /// complete replacement loops retain their selected-point realization. No backing is created.
+    /// A proved prefix carried through cyclic control needs this array's lifecycle, even when
+    /// its next transfer is unreachable. Straight-line moves and epochs closed before a
+    /// backedge retain their selected-point realization. This fact creates no backing.
     #[must_use]
     pub fn prefix_frontier(&self, selection: AccessExpressionId) -> Option<ArrayFrontier> {
         self.prefix_frontiers.get(&selection).copied()

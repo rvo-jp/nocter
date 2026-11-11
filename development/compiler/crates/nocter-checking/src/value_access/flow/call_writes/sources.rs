@@ -1,5 +1,5 @@
 //! Shared recursive call-dependency guards, retaining typed/value prerequisites without body IR.
-use super::TypedQuery;
+use super::{TypedQuery, requests::Request};
 use crate::value_access::{Failure, results::Evidence};
 use nocter_declaration_lowering::access_declarations::{BodyDependencies, BodySource, Context};
 use nocter_model::ValueCode;
@@ -17,16 +17,16 @@ enum Guard {
 struct Node {
     guard: Guard,
     results: Option<Arc<Evidence>>,
-    dependencies: BTreeSet<ValueCode>,
 }
 #[derive(Debug, Default)]
 pub(super) struct Graph {
     nodes: BTreeMap<ValueCode, Node>,
+    dependencies: BTreeMap<Request, BTreeSet<Request>>,
 }
 impl Graph {
     pub(super) fn new(
         scope: &BTreeMap<ValueCode, Arc<TypedQuery>>,
-        mut dependencies: BTreeMap<ValueCode, BTreeSet<ValueCode>>,
+        dependencies: BTreeMap<Request, BTreeSet<Request>>,
     ) -> Self {
         let nodes = scope
             .iter()
@@ -42,17 +42,19 @@ impl Graph {
                     Node {
                         guard,
                         results: typed.result_evidence.clone(),
-                        dependencies: dependencies.remove(&code).unwrap_or_default(),
                     },
                 )
             })
             .collect();
-        Self { nodes }
+        Self {
+            nodes,
+            dependencies,
+        }
     }
     pub(super) fn select(
         self: &Arc<Self>,
         caller: ValueCode,
-        roots: BTreeSet<ValueCode>,
+        roots: BTreeSet<Request>,
     ) -> Selected {
         Selected {
             graph: self.clone(),
@@ -66,21 +68,26 @@ impl Graph {
 pub(super) struct Selected {
     graph: Arc<Graph>,
     caller: Option<ValueCode>,
-    roots: BTreeSet<ValueCode>,
+    roots: BTreeSet<Request>,
 }
 impl Selected {
     pub(super) fn verify(&self, context: &Context<'_>) -> Result<(), Failure> {
         let mut pending = self.roots.clone();
         let mut visited = BTreeSet::new();
         let mut checked: Vec<&Arc<Evidence>> = Vec::new();
-        while let Some(code) = pending.pop_first() {
-            if !visited.insert(code) {
+        let mut codes = BTreeSet::new();
+        while let Some(request) = pending.pop_first() {
+            if !visited.insert(request.clone()) {
                 continue;
             }
+            if let Some(edges) = self.graph.dependencies.get(&request) {
+                pending.extend(edges.iter().cloned());
+            }
+            let code = request.code;
             let Some(node) = self.graph.nodes.get(&code) else {
                 continue;
             };
-            if Some(code) != self.caller {
+            if Some(code) != self.caller && codes.insert(code) {
                 match &node.guard {
                     Guard::Body(source) => {
                         source.bind(context)?;
@@ -94,7 +101,6 @@ impl Selected {
                     checked.push(proof);
                 }
             }
-            pending.extend(&node.dependencies);
         }
         Ok(())
     }

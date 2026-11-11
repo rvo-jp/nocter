@@ -1,5 +1,6 @@
 //! Body-scoped closed caller-write evidence, projected through the selected input plans.
 mod bindings;
+mod requests;
 mod sources;
 mod summary;
 #[cfg(test)]
@@ -10,6 +11,7 @@ use crate::value_access::{ExpressionKind, Query as TypedQuery, Referent};
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::Program;
 use nocter_model::{AccessExpressionId, ValueCode, ValueFunctionOrigin};
+use requests::Request;
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
@@ -43,7 +45,7 @@ impl Calls {
 pub(in crate::value_access) struct Catalog {
     program: Option<Arc<Program>>,
     scope: BTreeMap<ValueCode, Arc<TypedQuery>>,
-    summaries: BTreeMap<ValueCode, Writes>,
+    summaries: BTreeMap<Request, Writes>,
     sources: Arc<sources::Graph>,
 }
 impl Catalog {
@@ -101,11 +103,11 @@ impl Catalog {
                     continue;
                 };
                 let expression = typed.body().expressions().get(id).ok_or(INVALID)?;
-                if let ExpressionKind::Call { target, .. } = expression.kind
-                    && let Some(code) = target_code(target)
+                if matches!(expression.kind, ExpressionKind::Call { .. })
+                    && let Some(request) = Request::unbound(typed.code()).call(typed, id)?
                 {
-                    dependencies.insert(code);
-                    if let Some(Writes::Known(inputs)) = self.summaries.get(&code)
+                    dependencies.insert(request.clone());
+                    if let Some(Writes::Known(inputs)) = self.summaries.get(&request)
                         && let Some(writes) = bindings::actual_writes(typed, &roots, id, inputs)?
                     {
                         result.writes.insert(id, writes.into());

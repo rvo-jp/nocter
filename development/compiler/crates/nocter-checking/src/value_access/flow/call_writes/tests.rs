@@ -40,8 +40,10 @@ fn captured_code_summaries_separate_retained_environments_and_explicit_inputs() 
     ] {
         let root = code(&controls, name);
         let mut found = false;
-        for (code, summary) in &catalog.summaries {
-            if matches!(code, ValueCode::Closure(id) if id.owner.source_owner() == root) {
+        for (request, summary) in &catalog.summaries {
+            if request.bindings.is_empty()
+                && matches!(request.code, ValueCode::Closure(id) if id.owner.source_owner() == root)
+            {
                 found = true;
                 assert_eq!(summary, &Writes::Known(expected.clone()), "{name}");
             }
@@ -110,7 +112,9 @@ fn closed_recursive_components_preserve_caller_storage_and_external_writes_propa
         assert!(
             catalog
                 .summaries
-                .get(&ValueCode::Declaration(code(&controls, name)))
+                .get(&Request::unbound(ValueCode::Declaration(code(
+                    &controls, name
+                ))))
                 == Some(&Writes::Known(BTreeSet::new())),
             "{name}"
         );
@@ -119,7 +123,9 @@ fn closed_recursive_components_preserve_caller_storage_and_external_writes_propa
         assert!(
             catalog
                 .summaries
-                .get(&ValueCode::Declaration(code(&controls, name)))
+                .get(&Request::unbound(ValueCode::Declaration(code(
+                    &controls, name
+                ))))
                 == Some(&Writes::Known(BTreeSet::from([bindings::Input::Explicit(
                     0
                 )]))),
@@ -141,7 +147,9 @@ fn formal_invocation_and_environment_cleanup_do_not_gain_closed_effects() {
         assert!(
             catalog
                 .summaries
-                .get(&ValueCode::Declaration(code(&controls, name)))
+                .get(&Request::unbound(ValueCode::Declaration(code(
+                    &controls, name
+                ))))
                 == Some(&Writes::Unknown),
             "{name}"
         );
@@ -149,7 +157,9 @@ fn formal_invocation_and_environment_cleanup_do_not_gain_closed_effects() {
     assert!(
         catalog
             .summaries
-            .get(&ValueCode::Declaration(code(&controls, "leaf")))
+            .get(&Request::unbound(ValueCode::Declaration(code(
+                &controls, "leaf"
+            ))))
             == Some(&Writes::Known(BTreeSet::new()))
     );
 }
@@ -166,7 +176,9 @@ fn exact_owned_environment_cleanup_does_not_invoke_the_captured_body() {
         assert_eq!(
             catalog
                 .summaries
-                .get(&ValueCode::Declaration(code(&controls, name))),
+                .get(&Request::unbound(ValueCode::Declaration(code(
+                    &controls, name
+                )))),
             Some(&Writes::Known(BTreeSet::new())),
             "{name}"
         );
@@ -201,7 +213,9 @@ fn recursive_input_permutations_and_lexical_aliases_keep_the_written_root() {
         assert_eq!(
             catalog
                 .summaries
-                .get(&ValueCode::Declaration(code(&controls, name))),
+                .get(&Request::unbound(ValueCode::Declaration(code(
+                    &controls, name
+                )))),
             Some(&Writes::Known(BTreeSet::from([bindings::Input::Explicit(
                 input
             )]))),
@@ -227,7 +241,9 @@ fn lexical_alias_chains_separate_owned_storage_from_explicit_input_positions() {
         assert_eq!(
             catalog
                 .summaries
-                .get(&ValueCode::Declaration(code(&controls, name))),
+                .get(&Request::unbound(ValueCode::Declaration(code(
+                    &controls, name
+                )))),
             Some(&Writes::Known(writes)),
             "{name}"
         );
@@ -309,4 +325,87 @@ fn flow_binding_guards_value_suppliers_that_change_a_callees_reached_writes() {
     let context = source.declarations().bind(changed.syntax()).unwrap();
     assert!(query.typed().bind(&context).is_ok());
     assert!(query.bind(&context).is_err());
+}
+
+#[test]
+fn known_actual_callbacks_close_invocation_and_cleanup_but_not_unbound_templates() {
+    let controls = controls(
+        "func pure(): void {}\nfunc invoke(action: func(): void): void { action() }\nfunc discard(take action: once(): void): void {}\nfunc relay(action: func(): void, flag: bool): void { if flag { action() } else { relay(action, true) } }\nfunc run(): void { invoke(pure)\ndiscard(pure)\nrelay(pure, false) }",
+    );
+    let catalog = Catalog::prepare(&controls).unwrap();
+    for name in ["invoke", "discard", "relay"] {
+        let code = ValueCode::Declaration(code(&controls, name));
+        assert_eq!(
+            catalog.summaries.get(&Request::unbound(code)),
+            Some(&Writes::Unknown)
+        );
+        let selected: Vec<_> = catalog
+            .summaries
+            .iter()
+            .filter(|(key, _)| key.code == code && !key.bindings.is_empty())
+            .collect();
+        assert_eq!(selected.len(), 1, "{name}");
+        assert_eq!(selected[0].1, &Writes::Known(BTreeSet::new()), "{name}");
+    }
+    let root = controls
+        .iter()
+        .find(|control| control.typed.code() == ValueCode::Declaration(code(&controls, "run")))
+        .unwrap();
+    let calls = catalog.calls(root).unwrap();
+    assert_eq!(calls.writes.len(), 3);
+    assert!(calls.writes.values().all(|writes| writes.is_empty()));
+}
+
+#[test]
+fn actual_callback_edits_keep_their_explicit_caller_input_position() {
+    let controls = controls(
+        "func write(edit value: usize): void { value = 0 }\nfunc invoke(action: func(edit usize): void, edit value: usize): void { action(value) }\nfunc run(edit value: usize): void { invoke(write, value) }",
+    );
+    let catalog = Catalog::prepare(&controls).unwrap();
+    let invoke = ValueCode::Declaration(code(&controls, "invoke"));
+    let selected = catalog
+        .summaries
+        .iter()
+        .find(|(key, _)| key.code == invoke && !key.bindings.is_empty())
+        .unwrap();
+    assert_eq!(
+        selected.1,
+        &Writes::Known(BTreeSet::from([bindings::Input::Explicit(1)]))
+    );
+    let root = controls
+        .iter()
+        .find(|control| control.typed.code() == ValueCode::Declaration(code(&controls, "run")))
+        .unwrap();
+    let calls = catalog.calls(root).unwrap();
+    assert_eq!(calls.writes.len(), 1);
+    assert_eq!(calls.writes.values().next().unwrap().len(), 1);
+}
+
+#[test]
+fn bound_effect_source_guards_do_not_union_callbacks_selected_by_other_callers() {
+    let text = "func first(): void {}\nfunc second(): void {}\nfunc invoke(action: func(): void): void { action() }\nfunc discard(take action: once(): void): void {}\nfunc use_first(): void { invoke(first) }\nfunc use_second(): void { invoke(second) }\nfunc discard_only(): void { discard(second) }";
+    let fixture = ValueSourceFixture::new(text);
+    let source = SourceUnit::prepare(fixture.syntax()).unwrap();
+    let changed =
+        ValueSourceFixture::new(&text.replace("second(): void {}", "second(): void { loop {} }"));
+    let context = source.declarations().bind(changed.syntax()).unwrap();
+    for (name, reusable) in [
+        ("use_first", true),
+        ("use_second", false),
+        ("discard_only", true),
+    ] {
+        let id = source
+            .unit()
+            .program()
+            .resolve(source.unit().program().symbols().get(name).unwrap())
+            .unwrap();
+        let query = source
+            .unit()
+            .bodies()
+            .find(|(code, _)| *code == id)
+            .unwrap()
+            .1;
+        assert!(query.typed().bind(&context).is_ok());
+        assert_eq!(query.bind(&context).is_ok(), reusable, "{name}");
+    }
 }

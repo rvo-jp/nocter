@@ -153,6 +153,20 @@ impl Histories {
         }
         Ok(result)
     }
+    pub(super) fn carried_prefixes(
+        &self,
+        phases: &[Phase],
+        seen: &BTreeSet<AccessExpressionId>,
+    ) -> BTreeSet<AccessExpressionId> {
+        seen.iter()
+            .copied()
+            .filter(|site| {
+                self.selections
+                    .get(site)
+                    .is_some_and(|selection| phases.get(selection.history) == Some(&Phase::Prefix))
+            })
+            .collect()
+    }
     pub(super) fn point_sources(
         &self,
         phases: &[Phase],

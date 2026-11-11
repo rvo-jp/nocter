@@ -929,8 +929,16 @@ without invoking the captured body; body invocation effects do not become destru
 The shared lexical scope supplies captured bodies to that same solver. An edited environment has
 its own input root; a consuming body owns its received environment instead. Closure environments
 also participate in cleanup eligibility, including read/edit bodies driven through taking adapters.
-Formal cleanup, unavailable callees and unsupported alias provenance remain unknown. Earlier
+Unbound formal cleanup, unavailable callees and unsupported alias provenance remain unknown. Earlier
 standalone type suffixes cannot supply cross-body evidence without the shared final program.
+
+`call_writes::requests` substitutes the already frozen actual callable bindings into effect-only
+requests keyed by lexical code and known witness/view bindings. Runtime environment contents do not
+enter those keys. The existing checked body supplies every operation; no body is retyped and no
+new callable type or capability is inferred. The finite monotone solver discovers reached requests,
+including recursive forwarding, and resolves formal invocation and cleanup only when those actual
+bindings supply evidence. Unbound templates retain their conservative effects. Required-expression
+frames use that same catalog as roots, without becoming callable targets.
 
 At each reached commit, input roots project to conservative caller write footprints. Projection
 uses `CallKind::explicit_arguments`, so a prepared callable-value environment never
@@ -967,14 +975,17 @@ its dormant body would trap if incorrectly invoked. This qualifies checking and 
 not evaluator closure construction. Separate native source qualifies prefix loops through exact
 read/mutating captured code, nested callable environments, later explicit edit inputs, copied once
 views and consuming bodies, including maximum-count zero-byte geometry. Source tests reject
-explicit counter resets and preserve transitive body/value reuse guards. General alias/root
-precision, unknown formal invocation and user destruction need further closure.
+explicit counter resets and preserve transitive body/value reuse guards. Known actual callbacks close effects without strengthening an unbound formal contract. Source
+cases retain real explicit-input counter writes and separate invocation-body guards from dormant
+cleanup. General alias/root precision, unbound formal invocation and user destruction need further
+closure.
 
 Flow-query rebinding verifies the reached callee bodies and their typed value/count and result
 prerequisites through one shared recursive dependency graph. A typed call may survive a callee-only
-body edit while its old flow proof cannot. Unrelated bodies are not dependencies. Each selected
-code is visited once per verification, including recursive components; the graph retains existing
-source guards rather than body IR or a second source fingerprint. Whole-unit rebinding already
+body edit while its old flow proof cannot. Unrelated bodies are not dependencies. Dependency edges retain the bound request, so callbacks selected by other callers do not become
+this caller's dependencies. Each lexical source guard is checked once per verification, including
+recursive requests; dormant callable cleanup adds no invocation-body dependency. The graph retains
+existing source guards rather than body IR or a second source fingerprint. Whole-unit rebinding already
 verifies every body before publication and does not repeat this traversal for each body.
 
 ## Array Construction
@@ -1047,7 +1058,7 @@ is prepared before explicit inputs: later index-variable mutation cannot retarge
 Read/update invocation retains the selected address; taking a Copy invocation view snapshots its
 environment and permits otherwise independent later replacement. Explicit element transfer still
 retires that element, including Copy data; subsequent use and overlapping mutation reject locally.
-General user index protocols and adapted callable-element prefix transfers remain separate gates.
+General user index protocols remain a separate gate.
 
 `Referent` is one typed-body operand for either a static selected place or an evaluated access
 expression, including member projections from an evaluated access. Read reservations, Copy supply,
@@ -1101,19 +1112,22 @@ distinct containing arrays remain separate.
 No prefix history crosses a call without a closed write summary. May-executed transfer sites
 form a finite provenance set alongside the difference facts; binding, containing replacement
 and scope exit forget the affected epoch. `NumericFacts::prefix_frontier` selects a prefix
-lifecycle only when a proved site can execute again before that epoch ends. Finite co-executed-site
-relationships connect initial and later transfers; merely sharing an array local does not connect
+lifecycle when a proved site repeats, or its prefix crosses a backedge within the site's own loop.
+The latter includes a condition that permits just one transfer: initialization joins still need the
+stable prefix relation. A backedge does not enroll a one-time move outside that loop or a disjoint
+containing array. Epoch resets still forget their sites. Finite co-executed-site relationships connect initial and later transfers; merely sharing an array local does not connect
 an earlier point-restoration epoch to a later prefix loop after replacement. Straight-line moves,
-point restoration and arrays recreated/replaced each iteration retain their point realization.
+point restoration and epochs ended or fully reset before the backedge retain their point realization.
 An initial seed and later repeated selectors for the same concrete parent share one body-scoped
 `ArrayFrontier` key. Its representative identifies backing storage, never the current number to
 capture. Parent projection consumes the same typed structural traversal and exact array schema.
 The numerical report creates no resource backing or holes. Its source consumer below independently
 checks containing storage and uses the existing access/resource transition. A prepared whole-element
 argument can use the same history to establish that its evaluated index is strictly beyond every
-committed endpoint; preparation does not extend the prefix. At normal call commit, direct marked
-prefix arguments use that operation's ordered extension proofs after whole-bundle validation.
-Each selected payload enters its existing prepared argument owner before endpoint replacement,
+committed endpoint; preparation does not extend the prefix. At normal call commit, marked prefix arguments use that operation's ordered extension proofs
+after whole-bundle validation. Function-view adaptation retains the original payload type in its
+existing source-expression owner; intermediate adapters use their own expression owners and the
+final view enters the prepared argument owner. Each selected payload is protected before endpoint replacement,
 then follows the ordinary taking or read/edit temporary handoff. No numerical prefix crosses the
 invocation without a closed write summary.
 Within one direct marked bundle, ordered extension proofs for distinct selectors of the same
@@ -1271,9 +1285,17 @@ Multiple dynamic holes also compose when structural field disjointness excludes 
 equal, ascending and descending actual saved indices. Each transfer still requires an initialized
 selected payload; a recipe key or cleanup predicate cannot prove distinctness for the same field.
 General conditional/multi-hole restoration, non-prefix repeated extraction without proved
-intervening restoration, adapted callable-element handoffs, broader numeric relations and unclosed call writes still require the
+intervening restoration, broader numeric relations and unclosed call writes still require the
 [evaluated-selection closure](../../../design/compiler-realization.md#evaluated-array-selection-closure).
 Repeated recipe keys alone never prove equal numbers across a backedge.
+
+The shared adapted-element source qualifies atomic view changes while draining a prefix, paired
+arguments, independent read/edit environments, a non-Copy capture, zero-byte named function values
+and cancellation before commit. Local adapted views also compute required answers through the
+same ledger/evaluator operations; deferred formal calls execute through native instances. General
+formal callable evaluator substitution remains outside the [constant domain](#constant-domain-acceptance).
+Overlapping argument sources and callbacks that really reset the counter still reject. The one-
+iteration regression also uses ordinary unit elements, independently of callable representation.
 
 Source tests qualify saved aliases after index mutation, loop re-execution, read reservation versus
 Copy snapshots, non-Copy element/field reads, structural field views, alternating member/index chains,

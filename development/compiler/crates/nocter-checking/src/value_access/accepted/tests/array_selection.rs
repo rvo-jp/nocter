@@ -264,3 +264,37 @@ fn a_retained_indexed_callee_prevents_overlapping_replacement_during_inputs() {
         "{result:?}"
     );
 }
+
+#[test]
+fn adapted_callable_element_transfers_preserve_prefix_handoff_and_cancellation() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/adapted-element-transfers.nct"
+    ));
+    let unit = accepted(source);
+    let cancelled = super::support::steps(named(&unit, "cancelled"));
+    assert!(!cancelled.iter().any(|step| matches!(
+        step,
+        Step::MoveArrayElement { .. } | Step::AdaptFunction { .. } | Step::Invoke { .. }
+    )));
+}
+
+#[test]
+fn specializing_a_callback_effect_does_not_hide_a_real_prefix_counter_write() {
+    let source = "func reset(edit index: usize): void { index = 0 }\nfunc invoke(take callback: once(edit usize): void, edit index: usize): void { callback^(index) }\nfunc work(): void { let callbacks = [reset; 3]\nvar index: usize = 0\nwhile index < 3 { invoke(callbacks[index]^, index)\nindex += 1 } }";
+    let (sources, tree) = input(source);
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Flow { .. }))
+    ));
+}
+
+#[test]
+fn view_adaptation_does_not_make_repeated_element_transfers_disjoint() {
+    let source = "func pair(take left: once(): i32, take right: once(): i32): i32 { left^() + right^() }\nfunc work(): void { let value = 1\nlet action = (value;): i32 { value }\nlet callbacks = [action; 2]\nvar index: usize = 0\nwhile index < 2 { let unused = pair(callbacks[index]^, callbacks[index]^)\nindex += 1 } }";
+    let (sources, tree) = input(source);
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Flow { .. }))
+    ));
+}

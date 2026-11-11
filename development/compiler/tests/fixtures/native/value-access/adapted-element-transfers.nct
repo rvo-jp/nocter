@@ -1,0 +1,91 @@
+struct Item { value: i32 }
+const func local_views(): i32 {
+    let amount = 2
+    let action = (amount; value: i32): i32 { amount += value
+                                            amount }
+    let callbacks = [action; 3]
+    var index: usize = 0
+    var total = 0
+    while index < 3 {
+        let selected: once(i32): i32 = callbacks[index]^
+        index += 1
+        total += selected^(12)
+    }
+    total
+}
+const func leaf(value: i32): i32 { value + 2 }
+const func local_named_views(): i32 {
+    let callbacks = [leaf; 3]
+    var index: usize = 0
+    var total = 0
+    while index < 3 {
+        let selected: once(i32): i32 = callbacks[index]^
+        index += 1
+        total += selected^(12)
+    }
+    total
+}
+const ANSWER: i32 = if local_views() == 42 && local_named_views() == 42 { 42 } else { 0 }
+func apply(take callback: once(i32): i32): i32 { callback^(12) }
+func apply_with(take callback: once(i32): i32, value: i32): i32 { callback^(value) }
+func deferred_views(): i32 {
+    let amount = 2
+    let action = (amount; value: i32): i32 { amount += value
+                                            amount }
+    let callbacks = [action; 3]
+    var index: usize = 0
+    var total = 0
+    while index < 3 {
+        total += apply(callbacks[index]^)
+        index += 1
+    }
+    total
+}
+func deferred_named_views(): i32 {
+    let callbacks = [leaf; 3]
+    var index: usize = 0
+    var total = 0
+    while index < 3 {
+        total += apply(callbacks[index]^)
+        index += 1
+    }
+    total
+}
+func pair(take left: once(i32): i32, take right: once(i32): i32): i32 {
+    left^(5) + right^(5)
+}
+func paired_views(): i32 {
+    let amount = 2
+    let action = (amount; value: i32): i32 { amount + value }
+    let callbacks = [action; 6]
+    var index: usize = 0
+    var total = 0
+    while index < 6 {
+        total += pair(callbacks[index]^, callbacks[index + 1]^)
+        index += 2
+    }
+    total
+}
+func noncopy_view(): i32 {
+    let item = Item { value: 30 }
+    let action = (item^; value: i32): i32 { item.value + value }
+    let callbacks = [action^]
+    var index: usize = 0
+    var total = 0
+    while index < 1 {
+        total += apply(callbacks[index]^)
+        index += 1
+    }
+    total
+}
+func cancelled(flag: bool): i32 {
+    let amount = 2
+    let action = (amount; value: i32): i32 { amount + value }
+    let callbacks = [action]
+    var index: usize = 0
+    if flag { let unused = apply_with(callbacks[index]^, if true { return 42 } else { 0 }) }
+    callbacks[0](40)
+}
+func run(): i32 {
+    if ANSWER == 42 && local_views() == 42 && deferred_views() == 42 && deferred_named_views() == 42 && paired_views() == 42 && noncopy_view() == 42 && cancelled(true) == 42 && cancelled(false) == 42 { 42 } else { 0 }
+}

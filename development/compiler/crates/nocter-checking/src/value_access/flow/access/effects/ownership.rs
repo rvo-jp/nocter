@@ -481,20 +481,39 @@ impl Context<'_, '_> {
                 ref adapters,
             } = argument.action
             {
-                let mut source =
-                    self.transfer_input_source(place, adapters.is_empty(), call, index)?;
-                for &adapter in adapters {
+                let staging = if let Some(&adapter) = adapters.first() {
+                    let ExpressionKind::AdaptFunction { source } = self
+                        .typed
+                        .body()
+                        .expressions()
+                        .get(adapter)
+                        .ok_or(Failure::Integrity)?
+                        .kind
+                    else {
+                        return Err(Failure::Integrity);
+                    };
+                    Holder::Expression(source)
+                } else {
+                    prepared
+                };
+                let mut source = self.transfer_input_source(place, staging)?;
+                for (position, &adapter) in adapters.iter().enumerate() {
                     let payload = resources::expression_payload(self.typed, adapter)?;
                     // Replay the selected operation, never infer an adapter from type inequality.
                     // Complete bundle validation still precedes any source retirement.
+                    let destination = if position + 1 == adapters.len() {
+                        prepared
+                    } else {
+                        Holder::Expression(adapter)
+                    };
                     self.world.resources.adapt_function(
                         self.typed.program(),
                         &source,
-                        prepared,
+                        destination,
                         payload,
                         &mut self.steps,
                     )?;
-                    source = prepared.place();
+                    source = destination.place();
                 }
                 if argument.operation.access_mode() == Mode::Own {
                     self.world.resources.invoke(
@@ -539,20 +558,13 @@ impl Context<'_, '_> {
     fn transfer_input_source(
         &mut self,
         place: Referent,
-        direct: bool,
-        call: AccessExpressionId,
-        argument: usize,
+        destination: Holder,
     ) -> Result<resources::Place> {
-        if direct
-            && let Referent::Evaluated(selection) = place
+        if let Referent::Evaluated(selection) = place
             && let Some(frontier) = self.numeric.prefix(self.at, selection)
         {
             let index = resources::RetainedIndex::for_selection(self.typed, selection)
                 .ok_or(Failure::Integrity)?;
-            let destination = Holder::Prepared {
-                call,
-                index: argument,
-            };
             // The bundle was validated before any element retires. Protect this payload in
             // its ordinary argument owner before replacing the array's endpoint, then use
             // the existing invocation/temporary handoff. Cancellation never enters this path.

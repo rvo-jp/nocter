@@ -545,3 +545,18 @@ fn private_direct_indexed_callables_keep_retirement_indices_and_snapshots() {
     let package = TempPackage::new();
     execute_native_status(&compile(source), &package.0, "direct-indexed-callables", 42);
 }
+
+#[test]
+fn private_adapted_callable_element_transfers_share_prefix_and_cancellation_phases() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/adapted-element-transfers.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "adapted-element-transfers",
+        42,
+    );
+}

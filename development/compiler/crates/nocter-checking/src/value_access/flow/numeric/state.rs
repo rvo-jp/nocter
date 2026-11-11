@@ -67,6 +67,12 @@ impl State {
         }
         Some(result)
     }
+    pub(super) fn carried_prefixes(&self, cells: &Cells) -> BTreeSet<AccessExpressionId> {
+        self.partitions
+            .iter()
+            .flat_map(|(phases, state)| cells.histories.carried_prefixes(phases, &state.seen))
+            .collect()
+    }
     pub(super) fn points(&self, cells: &Cells) -> BTreeSet<AccessExpressionId> {
         let mut entries = self.partitions.iter();
         let Some((phases, first)) = entries.next() else {
