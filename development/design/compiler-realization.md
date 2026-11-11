@@ -231,7 +231,8 @@ at the maximum usize count. The [resource ledger](../compiler/crates/nocter-chec
 owns the qualified logical backing/restore/cleanup stage. The [evaluator consumer](../compiler/crates/nocter-constant-evaluation/README.md#evaluated-array-addresses)
 projects saved numeric paths and guards. The [source selection owner](../compiler/crates/nocter-checking/README.md#array-selection)
 defines the retained element/partial-element and proven-prefix stages through shared availability and native
-projection; general nested/multiple frontiers remain separate closure obligations.
+projection; multiple independent holes and more general progression relations remain separate
+closure obligations.
 
 A loop may execute the same selection recipe more than once. Equal recipe keys across a backedge
 are not proof of equal values. Qualify retained indices, invalidation, joins and restoration before

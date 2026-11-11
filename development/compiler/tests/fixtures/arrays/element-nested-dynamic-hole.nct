@@ -1,0 +1,40 @@
+struct Item { value: i32 }
+struct Pair { first: Item
+    second: Item }
+const func expected(row: usize, column: usize): i32 {
+    if row == 0 { if column == 0 { 40 } else { 50 } } else { if column == 0 { 60 } else { 70 } }
+}
+const func selected(row: usize, column: usize, late: bool): i32 {
+    let items = [[Pair { first: Item { value: 40 }, second: Item { value: 2 } },
+                  Pair { first: Item { value: 50 }, second: Item { value: 2 } }],
+                 [Pair { first: Item { value: 60 }, second: Item { value: 2 } },
+                  Pair { first: Item { value: 70 }, second: Item { value: 2 } }]]
+    var outer = row
+    var inner = column
+    let part = items[outer][if late { outer = 1 - outer
+        inner } else { inner }].first^
+    outer = 1 - outer
+    inner = 1 - inner
+    part.value + items[outer][inner].second.value + 40 - expected(row, column)
+}
+const func consume(take item: Item): i32 { item.value }
+const func called(row: usize, column: usize): i32 {
+    let items = [[Pair { first: Item { value: 40 }, second: Item { value: 2 } },
+                  Pair { first: Item { value: 50 }, second: Item { value: 2 } }],
+                 [Pair { first: Item { value: 60 }, second: Item { value: 2 } },
+                  Pair { first: Item { value: 70 }, second: Item { value: 2 } }]]
+    consume(items[row][column].first^) + 42 - expected(row, column)
+}
+copy struct Empty { first: void
+    second: void }
+const func maximum(row: usize, column: usize): i32 {
+    let items = [[Empty { first: (), second: () }; 18446744073709551615]; 18446744073709551615]
+    let part = items[row][column].first^
+    42
+}
+const func run(): i32 {
+    let a = selected(0, 0, false) + selected(0, 1, false) + selected(1, 0, false) + selected(1, 1, false)
+    let b = selected(0, 0, true) + selected(0, 1, true) + selected(1, 0, true) + selected(1, 1, true)
+    let c = called(0, 0) + called(0, 1) + called(1, 0) + called(1, 1)
+    a + b + c + maximum(0, 0) + maximum(18446744073709551614, 18446744073709551614) - 546
+}

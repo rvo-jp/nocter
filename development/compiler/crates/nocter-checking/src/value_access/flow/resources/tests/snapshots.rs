@@ -445,3 +445,103 @@ fn partial_selected_element_cleans_its_remaining_field_between_intact_spans() {
     assert!(!state.contains(root.holder()));
     assert!(!state.contains(Holder::IndexSnapshot(index)));
 }
+
+fn nested_unit() -> Unit {
+    prepare(
+        "func work(take values: [[error; 3]; 2], row: usize, column: usize): void { read selected = values[row][column] }",
+    )
+}
+
+#[test]
+fn nested_capture_rolls_back_outer_snapshot_when_the_inner_operand_is_invalid() {
+    let unit = nested_unit();
+    let typed = query(&unit, "work");
+    let indices = indices(typed);
+    assert_eq!(indices.len(), 2);
+    let mut state = State::entry(typed).unwrap();
+    operand(&mut state, typed, indices[0], BuiltinType::Usize);
+    operand(&mut state, typed, indices[1], BuiltinType::Bool);
+    let nested = source(typed, indices[0]).project_retained(indices[1]);
+    let before = state.clone();
+    let mut steps = Vec::new();
+    assert!(
+        state
+            .move_to(
+                typed.program(),
+                &nested,
+                &Holder::Return.place(),
+                false,
+                &mut steps
+            )
+            .is_err()
+    );
+    assert_eq!(state, before);
+    assert!(steps.is_empty());
+}
+
+#[test]
+fn nested_snapshots_follow_one_hole_through_restoration_and_reverse_cleanup() {
+    let unit = nested_unit();
+    let typed = query(&unit, "work");
+    let indices = indices(typed);
+    let outer = indices[0];
+    let inner = indices[1];
+    assert_eq!((outer.bound(), inner.bound()), (2, 3));
+    let row = source(typed, outer);
+    let selected = row.project_retained(inner);
+    let root = row.holder().place();
+    let mut state = State::entry(typed).unwrap();
+    let original = state.clone();
+    for restore in [true, false] {
+        for &index in &indices {
+            operand(&mut state, typed, index, BuiltinType::Usize);
+        }
+        let mut steps = Vec::new();
+        state
+            .move_to(
+                typed.program(),
+                &selected,
+                &Holder::Return.place(),
+                false,
+                &mut steps,
+            )
+            .unwrap();
+        for &index in indices.iter().rev() {
+            state.end(index.selection()).unwrap();
+            assert!(state.contains(Holder::IndexSnapshot(index)));
+        }
+        if restore {
+            state
+                .move_to(
+                    typed.program(),
+                    &Holder::Return.place(),
+                    &selected,
+                    false,
+                    &mut steps,
+                )
+                .unwrap();
+            assert_eq!(state, original);
+        }
+    }
+    let mut steps = Vec::new();
+    state.dispose(typed.program(), &root, &mut steps).unwrap();
+    assert!(matches!(steps.as_slice(), [
+        Step::DisposeArrayElements { source: high, range: nocter_model::ArrayRange::After(a), .. },
+        Step::DisposeArrayElements { source: inner_high, range: nocter_model::ArrayRange::After(b), .. },
+        Step::DisposeArrayElements { source: inner_low, range: nocter_model::ArrayRange::Before(c), .. },
+        Step::ReleaseContainer { source: inner_container, .. },
+        Step::DisposeArrayElements { source: low, range: nocter_model::ArrayRange::Before(d), .. },
+        Step::ReleaseContainer { source: container, .. },
+        Step::Dispose { source: first_snapshot, .. }, Step::Dispose { source: second_snapshot, .. },
+    ] if high == &root && low == high && container == high
+        && inner_high == &row && inner_low == inner_high && inner_container == inner_high
+        && *a == IndexBacking::Selection(outer) && *d == *a
+        && *b == IndexBacking::Selection(inner) && *c == *b
+        && first_snapshot.holder() == Holder::IndexSnapshot(outer)
+        && second_snapshot.holder() == Holder::IndexSnapshot(inner)));
+    assert!(state.contains(Holder::Return));
+    assert!(!state.contains(root.holder()));
+    for index in indices {
+        assert!(!state.contains(Holder::IndexSnapshot(index)));
+    }
+}

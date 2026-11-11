@@ -496,8 +496,8 @@ fn a_marker_grants_no_ownership_or_unproved_dynamic_hole_identity() {
             crate::value_access::Rule::MissingTransfer,
         ),
         (
-            "func work(take values: [[i32; 2]; 2], index: usize, inner: usize): void { let moved = values[index][inner]^ }",
-            crate::value_access::Rule::UnsupportedData,
+            "func work(values: [[i32; 2]; 2], index: usize, inner: usize): void { let moved = values[index][inner]^ }",
+            crate::value_access::Rule::MissingTransfer,
         ),
         (
             "func work(): void { let moved = [1, 2][0]^ }",

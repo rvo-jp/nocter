@@ -52,8 +52,12 @@ layout fields, generated operations, an arbitrary iteration cutoff or a constant
   reverse remaining-field cleanup, snapshot retirement/restoration, call commit/cancellation,
   conditional holes, parent replacement and maximum-count zero-byte execution. Qualify bounded
   evaluator storage and recovery without equating different cleanup-order peaks.
-- [ ] Extend saved-index identity and initialization/cleanup to multiple dynamic selectors,
-  conditional restoration and multiple holes within one array. Keep
+- [x] Close one nested missing path through multiple dynamic selectors. Capture outer-to-inner
+  with atomic rollback, preserve each saved value across index-side mutation, and retire all
+  backing through restoration or reverse nested cleanup. Qualify distinct payloads and two-
+  dimensional maximum-count zero-byte geometry through required and native execution.
+- [ ] Extend saved-index identity and initialization/cleanup to conditional restoration and
+  multiple holes within one array. Keep
   unproved relations local and explicit. Do not read uninitialized alternative backing or choose
   guards from numeric equality alone; preserve actual original-index mutation and empty/MAX spans.
 - [ ] Qualify actual nontrivial array cleanup effects through the

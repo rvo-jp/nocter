@@ -1,5 +1,7 @@
 //! Saved indices and prefix endpoints are scalar owners linked by sparse missing coverage.
-use super::{Holder, INVALID, Index, OwnedValue, Path, Place, Program, Result, State, Step};
+use super::{
+    Holder, INVALID, Index, OwnedValue, Path, Place, Program, Result, RetainedIndex, State, Step,
+};
 use nocter_declarations::value_access::PayloadSchema;
 use nocter_model::{BuiltinType, ValuePath, ValueProjection};
 use std::collections::BTreeSet;
@@ -22,9 +24,8 @@ impl State {
         }
         Ok(())
     }
-    /// Stage one extraction beneath a concrete array, optionally within its selected element.
-    /// The caller commits this
-    /// together with its transfer; cancellation and integrity failures publish neither change.
+    /// Stage each evaluated index along one extraction path, from outer to inner. The caller
+    /// commits all snapshots with its transfer; cancellation and rejection publish no change.
     pub(super) fn retain_source(
         &mut self,
         program: &Program,
@@ -32,31 +33,27 @@ impl State {
         steps: &mut Vec<Step>,
     ) -> Result<()> {
         let fields = source.fields().fields();
-        if source.fields().retained().next().is_none() {
-            return Ok(());
+        for (position, field) in fields.iter().enumerate() {
+            if let ValueProjection::Array(Index::Retained(index)) = field {
+                let container = Place {
+                    holder: source.holder(),
+                    fields: Path(ValuePath::new(fields[..position].iter().copied())),
+                };
+                self.retain_index(program, &container, *index, steps)?;
+            }
         }
-        let Some((position, index)) =
-            fields
-                .iter()
-                .enumerate()
-                .find_map(|(position, field)| match field {
-                    ValueProjection::Array(Index::Retained(index)) => Some((position, index)),
-                    _ => None,
-                })
-        else {
-            return Err(INVALID);
-        };
-        if source.fields().retained().nth(1).is_some() {
-            return Err(INVALID);
-        }
-        let container = Place {
-            holder: source.holder(),
-            fields: Path(ValuePath::new(fields[..position].iter().copied())),
-        };
+        Ok(())
+    }
+    fn retain_index(
+        &mut self,
+        program: &Program,
+        container: &Place,
+        index: RetainedIndex,
+        steps: &mut Vec<Step>,
+    ) -> Result<()> {
         if self.code != Some(index.owner())
-            || container.fields().concrete().is_none()
-            || !self.initialized(program, &container)?
-            || self.contains(Holder::IndexSnapshot(*index))
+            || !self.initialized(program, container)?
+            || self.contains(Holder::IndexSnapshot(index))
         {
             return Err(INVALID);
         }
@@ -73,7 +70,7 @@ impl State {
         if program.data_kind(payload.data()) != Some(BuiltinType::Usize) {
             return Err(INVALID);
         }
-        let holder = Holder::IndexSnapshot(*index);
+        let holder = Holder::IndexSnapshot(index);
         // Deliberately unframed: the array's missing path owns this lifetime, not the index's
         // evaluation frame. No second snapshot or ownership registry is introduced.
         self.owned.insert(holder, OwnedValue::new(payload));

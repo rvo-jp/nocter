@@ -96,24 +96,6 @@ impl Checker<'_, '_> {
         let ty = source
             .value_type(|id| self.places.get(id), |id| self.expressions.get(id))
             .ok_or(Failure::InconsistentSyntax)?;
-        let (_, path) = source
-            .selection_path(|id| self.places.get(id), |id| self.expressions.get(id))
-            .ok_or(Failure::InconsistentSyntax)?;
-        let retained_selection = path
-            .fields()
-            .iter()
-            .filter(|field| {
-                matches!(
-                    field,
-                    nocter_model::ValueProjection::Array(super::IndexFact::Unknown)
-                )
-            })
-            .count()
-            == 1;
-        if ty.may_complete() && super::paths::concrete(&path).is_none() && !retained_selection {
-            return self.reject_message(Rule::UnsupportedData, node,
-                "the compiler currently retains one dynamic index beneath a concrete containing array path; multiple dynamic selectors in a transfer are not yet supported".into(), Vec::new());
-        }
         self.emit(
             node,
             value_type(

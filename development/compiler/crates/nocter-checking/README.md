@@ -1006,9 +1006,9 @@ omit only a checking-proven check. Access disjointness alone does not prove a mi
 identity, restoration or cleanup interval.
 
 Postfix transfer carries the same `Referent` as ordinary selection and assignment. Proven
-numeric singleton paths can retire an exact element or nested field. One unknown index beneath
-a concrete containing-array path can retire an element or a concrete subplace within it using an owned retained usize
-snapshot. The shared `Referent::projection_path` traversal supplies both conservative access facts
+numeric singleton paths can retire an exact element or nested field. Evaluated nested selectors
+can retire an element or subplace using one owned retained usize snapshot for each unknown index
+along that path. The shared `Referent::projection_path` traversal supplies both conservative access facts
 and the resource recipe; an unknown conflict footprint never becomes an owning key.
 For a partial selected element, remainder cleanup descends into that element between the higher
 and lower intact spans. It cleans its surviving fields in reverse order, ends its container and
@@ -1042,6 +1042,10 @@ Dynamic partial-element cases cover record fields, constant inner-array selectio
 mutation, distinct conditional holes, whole replacement and cancellation, including maximum-count
 zero-byte elements. Logical error-field tests independently qualify remaining-field cleanup and
 exact snapshot retirement; these do not establish source construction/native execution of error graphs.
+Nested dynamic cases freeze each index independently, including mutation of the outer variable
+while evaluating the inner index, and qualify direct call commit and two-dimensional maximum-count
+zero-byte cleanup. A later capture failure rolls back the entire staged transfer. Restoration and
+cleanup end every snapshot attached to the one missing path.
 
 Unit-stride repeated immediate extraction without containing replacement uses the selected prefix
 lifecycle. The first transfer starts at zero and every later transfer advances by one under the
@@ -1064,9 +1068,8 @@ that path in required evaluation and native code; no source effect annotation is
 Selective-call cases update a disjoint field beside the partially moved array and edit transferred
 element temporaries while retaining the correct prefix and exact remainder cleanup.
 
-Outside a proven prefix this stage supports one retained whole-element hole per complete containing
-array. Multiple unknown indices in the selected path, conditional
-restoration of a possibly missing element, non-prefix repeated extraction, adapted callable-element
+Outside a proven prefix this stage supports one retained element/subplace hole per complete containing
+array. Conditional restoration of a possibly missing element, non-prefix repeated extraction, adapted callable-element
 handoffs, general relations outside ordered prefix bundles and unclosed call writes still require the
 [evaluated-selection closure](../../../design/compiler-realization.md#evaluated-array-selection-closure).
 Repeated recipe keys alone never prove equal numbers across a backedge.
@@ -1103,9 +1106,9 @@ parallel array ownership map or new subarray type is constructed.
 `resources::Path` separates constant numeric indices from descriptors for retained checked-index
 backing. It has no unknown-index variant: an access footprint cannot become an ownership key.
 The descriptor names reusable body-local storage and its original bound, not equal numbers across
-activations; it alone creates neither a snapshot nor ownership. Internally, a whole-element
-transfer beneath a concrete containing-array path atomically moves the evaluated usize operand
-into `Holder::IndexSnapshot` and records the retained hole. This ordinary scalar owner remains in
+activations; it alone creates neither a snapshot nor ownership. Internally, a transfer stages its
+evaluated usize operands from the outermost selector inward into `Holder::IndexSnapshot`, validating
+each containing array through already captured outer indices, then records one retained hole. Each ordinary scalar owner remains in
 the existing ledger and branch conditions after its operand frame ends. Restoring the same hole
 retires its backing after the final use; whole-container cleanup/replacement does the same after
 its remaining spans and container end. Live backing cannot be overwritten by recipe reuse, and
@@ -1125,8 +1128,9 @@ ordinals or a guessed tuple schema. `ReleaseContainer` ends the array after its 
 including when every element has moved. Restoration, initialized replacement and absence of the
 parent use the same atomic transfer/replacement rules as other structural places.
 
-For one retained whole-element hole, the same effect carries `ArrayRange::After(index)` and
-`Before(index)` in destruction order. These spans consume the original checked bound and backing;
+For one retained hole, the same effect carries `ArrayRange::After(index)` and
+`Before(index)` around the selected child's remaining cleanup, recursively for nested arrays.
+These spans consume the original checked bound and backing;
 either side can be empty. No descriptor ordering is interpreted as numeric ordering. Cleanup and
 restoration reject a concrete path which may intersect a missing ancestor: possible overlap is
 not proof of a contained hole. A proven prefix instead carries one `Missing::ArrayPrefix` with its
@@ -1136,8 +1140,8 @@ the actual selected payload first; the same staged transition then replaces the 
 the region and consolidates coverage. Cleanup emits only `After(frontier)`, then the container end,
 then backing retirement. Generic value operations cannot create or consume either backing role.
 Independent ledger tests qualify finite owner counts, ordering and atomic rejection of malformed
-operands, occupied destinations, point/prefix mixing and foreign body descriptors. General nested
-selectors or unrelated multiple holes within one array still need further proof.
+operands, occupied destinations, point/prefix mixing and foreign body descriptors. Unrelated
+multiple holes within one array still need further proof.
 
 Ledger qualification covers listed component assembly, maximum u64 cardinality, first/last and out-of-bounds positions,
 empty arrays, zero-sized elements, partial record elements, replacement and container retirement.

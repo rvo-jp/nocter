@@ -220,6 +220,9 @@ remainder remain correct while the ordinary calls perform their actual writes.
 Dynamic partial-element cases execute record-field and constant inner-array extraction, index
 mutation, conditional holes, containing replacement and cancelled call preparation. Small and
 maximum-count zero-byte arrays use the same saved-index projections and sparse cleanup path.
+Nested dynamic cases also execute two independently saved indices, outer-variable mutation during
+inner-index evaluation, and maximum-count zero-byte arrays in both dimensions. Selected payloads
+have distinct nonzero values so incorrectly recapturing an outer index changes the answer.
 
 Shared source fixtures execute element take, field holes, structurally disjoint unknown-index edits,
 exact restoration on loop backedges and maximum-count zero-byte remainder cleanup. The checking
