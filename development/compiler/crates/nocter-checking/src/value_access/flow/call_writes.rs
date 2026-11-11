@@ -5,7 +5,7 @@ mod summary;
 #[cfg(test)]
 mod tests;
 
-use super::{Control, IntegrityError, Operation};
+use super::{Control, IntegrityError, Operation, aliases::Aliases};
 use crate::value_access::{ExpressionKind, Query as TypedQuery, Referent};
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::Program;
@@ -91,7 +91,7 @@ impl Catalog {
             return Ok(result);
         }
         let mut dependencies = BTreeSet::new();
-        let roots = bindings::Roots::prepare(typed)?;
+        let roots = Aliases::prepare(typed)?;
         for point in control.graph.reachable()? {
             let point = control.graph.points().get(point).ok_or(INVALID)?;
             for action in &point.actions {

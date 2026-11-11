@@ -262,6 +262,9 @@ reads backing from an inactive route. Maximum-count zero-byte cases use the same
 Initialized-element replacement and compound update also precede a later prefix loop in shared
 source execution. Conditional restoration reaches that loop from both the complete and missing-point
 routes; changed payloads make an omitted replacement observable.
+Shared scalar-alias cases execute prefix loops through an outer edit-alias chain and an alias
+recreated within each iteration. A read alias supplies a proved constant selection. These use ordinary
+alias addresses and existing scalar/frontier storage, without alias-owned numerical backing.
 A separate native fixture executes a prefix loop through a helper that constructs and destroys
 an exact owned closure with a non-Copy array environment. The dormant body would trap if called;
 cleanup releases the environment without invoking it. This is native evidence; the required

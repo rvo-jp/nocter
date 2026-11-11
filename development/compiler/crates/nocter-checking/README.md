@@ -822,8 +822,8 @@ including at zero. Indexed replacement and partial-state admission follow the
 initialization and access analysis. One catalog retains exact typed-body owners in the shared final
 program. Its summary solver computes finite may-write sets over explicit edit-input roots; unknown
 effects are the top element. Recursive input permutations and transitive calls use one selected-input
-projection in `bindings`. Owned local updates have no external root. A body-local derived index
-follows lexical edit aliases through their typed binding initializers, preserving the original
+projection in `bindings`. Owned local updates have no external root. The shared `flow::aliases`
+index follows lexical read/edit aliases through their typed binding initializers, preserving the original
 explicit input position or owned-local root. It supplies no numeric path, address or lifetime
 evidence; projected input writes remain conservative over that input root. Alias chains are
 followed iteratively with cycle rejection. Replacement additionally checks the old edited
@@ -959,7 +959,11 @@ access grant; they create no owner or update authority. Unknown writes forget th
 as well. Assignment preserves relationships between older snapshots while changing
 the current cell; joins keep common exact differences and reach a fixed point without an
 array-cardinality-dependent iteration cutoff. Selected builtin equality branches refine those
-relationships. Unsupported operations, alias writes and calls without a closed write summary
+relationships. Whole-local read/edit alias chains resolve to the same existing scalar cell. Binding
+or ending such an alias creates or retires no numerical owner; copied operands remain frozen across
+later aliased writes. Exact whole-local writes also preserve separation from distinct owning arrays.
+Fields and evaluated selections receive no scalar identity from that lexical root evidence.
+Unsupported operations, unresolved alias writes and calls without a closed write summary
 remain conservative. Impossible normal arithmetic supplies no proof. This report neither grants
 access to an unavailable value nor reclassifies a source bounds check. Numerical history
 partitions distinguish a complete epoch, one point taken from completeness, a proven prefix and

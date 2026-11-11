@@ -304,6 +304,11 @@ Use that resolver for caller-side alias footprints too. Widen a frozen dynamic s
 containing storage when exact retained-index evidence is unavailable; never re-evaluate the old
 selection with a newer user index. A may-write footprint can overapproximate the invocation's
 actual address and must not be used as a definite replacement or an address-producing recipe.
+Share that lexical provenance with scalar numerical analysis. An exact chain of whole-local
+read/edit aliases identifies the existing current scalar cell, not an additional owner or a copied
+value. Alias binding and scope end must not overwrite or retire that cell; prepared operands still
+freeze their value before later effects. Evaluated selectors and fields require their own evidence:
+a containing may-write footprint must never become an exact scalar or definite replacement.
 Keep effect reuse distinct from typed-call reuse: a callee-only body edit may preserve the call's
 type but invalidate its write proof. Verify transitive reached bodies and their value/count/result
 prerequisites through existing source guards. Share the dependency graph, handle recursive components

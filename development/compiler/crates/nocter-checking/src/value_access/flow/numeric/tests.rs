@@ -89,6 +89,46 @@ fn read_input_copies_share_their_current_value_without_becoming_update_authority
 }
 
 #[test]
+fn lexical_scalar_aliases_share_the_current_cell_without_owning_it() {
+    for body in [
+        "edit next = value\nnext += 2\nnext",
+        "edit first = value\nedit next = first\nnext += 2\nnext",
+        "if true { edit next = value\nnext += 2 }\nvalue",
+        "read next = value\nnext + 2",
+    ] {
+        let query = function(&format!(
+            "func f(): usize {{ var value: usize = 40\n{body} }}"
+        ));
+        let result = returns(&query);
+        assert_eq!(result[0].1.constant(result[0].0), Some(42), "{body}");
+    }
+}
+
+#[test]
+fn scalar_aliases_keep_frozen_operands_and_forget_actual_call_writes() {
+    let query = function(
+        "func change(edit value: usize): usize { value = 9\n1 }\nfunc f(): usize { var value: usize = 4\nedit alias = value\nalias + change(alias) }",
+    );
+    let result = returns(&query);
+    let call = query
+        .typed()
+        .body()
+        .expressions()
+        .iter()
+        .find_map(|(id, value)| matches!(value.kind, ExpressionKind::Call { .. }).then_some(id))
+        .unwrap();
+    assert_eq!(result[0].1.constant(result[0].0), None);
+    assert_eq!(result[0].1.difference(result[0].0, call), Some(4));
+
+    // The alias selected an element earlier; neither its root nor its old index is a scalar cell.
+    let query = function(
+        "func f(input: usize): usize { var values: [usize; 2] = [4, 8]\nvar index = input\nedit alias = values[index]\nindex = 1\nalias = 9\nalias }",
+    );
+    let result = returns(&query);
+    assert_eq!(result[0].1.constant(result[0].0), None);
+}
+
+#[test]
 fn calls_invalidate_mutable_local_facts_but_not_prepared_operands() {
     let query = function(
         "func change(edit value: usize): usize { value = 9\nreturn 1 }\nfunc f(): usize { var input: usize = 4\nreturn input + change(input) }",
@@ -147,7 +187,7 @@ fn loop_reexecution_does_not_reuse_a_previous_expression_value() {
 }
 
 #[test]
-fn unknown_operations_and_alias_writes_do_not_create_offset_proofs() {
+fn unknown_operations_stay_conservative_and_exact_alias_writes_update_the_current_cell() {
     for body in ["input * 2", "input / 2", "input % 2"] {
         let query = function(&format!("func f(take input: usize): usize {{ {body} }}"));
         let result = returns(&query);
@@ -157,7 +197,7 @@ fn unknown_operations_and_alias_writes_do_not_create_offset_proofs() {
         "func f(): usize { var index: usize = 4\nedit alias = index\nalias = 9\nreturn index }",
     );
     let result = returns(&query);
-    assert_eq!(result[0].1.constant(result[0].0), None);
+    assert_eq!(result[0].1.constant(result[0].0), Some(9));
 }
 
 #[test]

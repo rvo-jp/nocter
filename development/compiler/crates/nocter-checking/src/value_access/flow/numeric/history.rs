@@ -393,7 +393,10 @@ impl Histories {
                     state,
                     seen,
                     Change::Replace {
-                        source: target,
+                        source: cells
+                            .aliases
+                            .whole_local(typed, target)
+                            .map_or(target, Referent::Place),
                         restored: matches!(operation, Operation::Assign { .. })
                             .then(|| self.restored_point(cells, phases, state, target))
                             .flatten(),

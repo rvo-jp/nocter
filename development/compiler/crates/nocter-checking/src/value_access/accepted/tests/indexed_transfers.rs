@@ -690,6 +690,23 @@ fn mixed_remainders_preserve_point_and_prefix_coverage_roles() {
     );
 }
 #[test]
+fn direct_scalar_alias_updates_cannot_reset_a_counter_or_widen_an_element_replacement() {
+    for source in [
+        "func work(): void { let items = [1, 2]\nvar index: usize = 0\nedit cursor = index\nwhile cursor < 2 { let moved = items[cursor]^\ncursor = 0 } }",
+        "func work(): void { var items = [1, 2]\nlet old = items[0]^\nif true { edit selected = items[1]\nselected = 9 }\nvar index: usize = 0\nwhile index < 2 { let moved = items[index]^\nindex += 1 } }",
+    ] {
+        let (sources, tree) = input(source);
+        assert!(
+            matches!(
+                SourceUnit::prepare(bound(&sources, &tree)),
+                Err(SourceFailure::Checking(Failure::Flow { .. }))
+            ),
+            "{source}"
+        );
+    }
+}
+
+#[test]
 fn initialized_element_replacement_does_not_hide_a_hole_created_by_its_rhs() {
     let source = "func work(): void { var items = [1, 2]\nitems[0] = items[1]^\nvar index: usize = 0\nwhile index < 2 { let moved = items[index]^\nindex += 1 } }";
     let (sources, tree) = input(source);

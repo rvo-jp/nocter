@@ -43,6 +43,7 @@ struct Transfers {
 struct Cells {
     count: usize,
     locals: BTreeMap<AccessLocalId, usize>,
+    aliases: super::aliases::Aliases,
     values: BTreeMap<AccessExpressionId, usize>,
     operands: BTreeMap<(AccessExpressionId, usize), usize>,
     histories: history::Histories,
@@ -54,7 +55,10 @@ impl Cells {
         Ok(self.count)
     }
     fn prepare(typed: &TypedQuery, graph: &Graph) -> Result<Self, IntegrityError> {
-        let mut cells = Self::default();
+        let mut cells = Self {
+            aliases: super::aliases::Aliases::prepare(typed)?,
+            ..Self::default()
+        };
         for (id, local) in typed.body().locals().iter() {
             if (local.access().mode() == ValueAccessMode::Own
                 || (local.access().mode() == ValueAccessMode::Read && local.origin.is_input()))
@@ -96,16 +100,11 @@ impl Cells {
         Ok(cells)
     }
     fn local(&self, typed: &TypedQuery, referent: Referent) -> Option<usize> {
-        let Referent::Place(id) = referent else {
-            return None;
-        };
+        let id = self.aliases.whole_local(typed, referent)?;
         let place = typed.body().places().get(id)?;
-        place
-            .fields
-            .is_root()
-            .then(|| self.locals.get(&place.local).copied())
-            .flatten()
+        self.locals.get(&place.local).copied()
     }
+
     fn value(&self, expression: AccessExpressionId) -> Option<usize> {
         self.values.get(&expression).copied()
     }

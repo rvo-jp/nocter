@@ -60,6 +60,10 @@ layout fields, generated operations, an arbitrary iteration cutoff or a constant
   that same binding resolver. Preserve original invocation addresses and never reload the index
   of an older alias; use containing storage when an exact selection cannot be retained. Qualify
   disjoint prefix preservation and aliased counter invalidation in source/native execution.
+- [x] Share lexical read/edit alias provenance between write summaries and numerical analysis.
+  Resolve whole scalar aliases to their existing current cell without creating alias-owned cells;
+  preserve scope-end behavior and frozen operands. Keep evaluated selectors conservative instead
+  of reloading their old index. Qualify aliased prefix counters, direct updates and invalidation.
 - [x] Close partial-field extraction below one retained index, including constant nested selectors,
   reverse remaining-field cleanup, snapshot retirement/restoration, call commit/cancellation,
   conditional holes, parent replacement and maximum-count zero-byte execution. Qualify bounded
@@ -154,6 +158,12 @@ not a language restriction derived from the current realization boundary.
   publication is not implied by qualification.
 
 ## Open Findings
+
+- [ ] Give callable-result applications their actual lexical code identity, including closure
+  bodies. A root and its closures have independent expression arenas; a shared source/type root
+  plus expression ID can collide and either reject valid factories or merge separate result
+  evidence. Preserve one root-scoped type authority and qualify reuse, distinct callees and native
+  invocation before extending nested environments.
 
 - [x] Keep same-operator short-circuit chains in one lazy control region. Avoid impossible
   ownership combinations after decided prefixes; preserve operand order, final values and

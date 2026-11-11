@@ -1,6 +1,7 @@
 //! Shared evaluation/control, initialization, referent permissions and logical ownership.
 //! An intermediate query is not complete whole-unit acceptance or native validity.
 pub mod access;
+mod aliases;
 mod build;
 pub(super) mod call_writes;
 mod initialization;

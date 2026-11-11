@@ -1,0 +1,36 @@
+struct Item { value: i32 }
+const func outer(): i32 {
+    let items = [Item { value: 20 }, Item { value: 22 }]
+    var index: usize = 0
+    edit first = index
+    edit cursor = first
+    var total = 0
+    while cursor < 2 {
+        let next = items[cursor]^
+        total += next.value
+        cursor += 1
+    }
+    total
+}
+const func inner(): i32 {
+    let items = [Item { value: 20 }, Item { value: 22 }]
+    var index: usize = 0
+    var total = 0
+    while index < 2 {
+        let next = items[index]^
+        total += next.value
+        edit cursor = index
+        cursor += 1
+    }
+    total
+}
+const func read_index(): i32 {
+    let items = [Item { value: 40 }, Item { value: 2 }]
+    let zero: usize = 0
+    read index = zero
+    let first = items[index]^
+    first.value + items[1].value
+}
+const func run(): i32 {
+    if outer() == 42 && inner() == 42 && read_index() == 42 { 42 } else { 0 }
+}

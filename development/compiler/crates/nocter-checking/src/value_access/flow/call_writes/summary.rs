@@ -1,5 +1,5 @@
 //! Finite may-write footprints over explicit input roots; unknown effects are the top element.
-use super::super::Operation;
+use super::super::{Operation, aliases::Aliases};
 use super::{Control, INVALID, IntegrityError, TypedQuery, bindings};
 use crate::value_access::{ExpressionKind, Referent};
 use nocter_declarations::value_access::{CodeKind, PayloadSchema};
@@ -15,7 +15,7 @@ pub(super) enum Writes {
 }
 struct Body<'a> {
     typed: &'a TypedQuery,
-    roots: bindings::Roots,
+    roots: Aliases,
     local: Writes,
     calls: Vec<(AccessExpressionId, AccessCodeId)>,
 }
@@ -88,7 +88,7 @@ fn combine(
             return Ok(Writes::Unknown);
         };
         for source in sources {
-            match body.roots.classify(body.typed, source) {
+            match bindings::classify(body.typed, &body.roots, source) {
                 Some(bindings::Root::Input(input)) => {
                     writes.insert(input);
                 }
@@ -107,7 +107,7 @@ fn local_summary(control: &Control) -> Result<Body<'_>, IntegrityError> {
     }
     let mut body = Body {
         typed,
-        roots: bindings::Roots::prepare(typed)?,
+        roots: Aliases::prepare(typed)?,
         local: Writes::Known(BTreeSet::new()),
         calls: Vec::new(),
     };
@@ -118,7 +118,7 @@ fn local_summary(control: &Control) -> Result<Body<'_>, IntegrityError> {
             match action.operation {
                 Operation::Assign { target, .. } | Operation::CompoundAssign { target, .. } => {
                     targets.push(target);
-                    match body.roots.classify(typed, target) {
+                    match bindings::classify(typed, &body.roots, target) {
                         Some(bindings::Root::Input(input)) => {
                             if let Writes::Known(writes) = &mut body.local {
                                 writes.insert(input);
