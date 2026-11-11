@@ -93,8 +93,8 @@ fn cancelling_a_tail_reservation_preserves_the_last_committed_prefix() {
             )))
     );
     // The same source recipe is insufficient: a cancelled reservation still needs an
-    // initialized element. Also keep a normally committed tail call gated until its atomic
-    // resource handoff consumes the prefix proof.
+    // initialized element. A committed call inside the loop also prevents the next prefix
+    // proof until its closed write summary is available.
     for source in [
         source.replace("items[index + 1]^", "items[index]^"),
         source.replace("if true { return total } else { 0 }", "0"),
@@ -105,6 +105,62 @@ fn cancelling_a_tail_reservation_preserves_the_last_committed_prefix() {
             Err(SourceFailure::Checking(Failure::Flow { .. }))
         ));
     }
+}
+
+#[test]
+fn prefix_call_handoffs_protect_each_payload_before_replacing_the_endpoint() {
+    use crate::value_access::flow::resources::Holder;
+    let source = nocter_test_support::RETAINED_ARRAY_SOURCES
+        .iter()
+        .find(|(name, _)| *name == "dynamic-element-prefix-call")
+        .unwrap()
+        .1;
+    let unit = accepted(source);
+    let query = named(&unit, "work");
+    let mut calls = 0;
+    for (point, block) in query.graph().points().iter() {
+        for (action, event) in block.actions.iter().enumerate() {
+            let flow::Operation::CommitCall(call) = event.operation else {
+                continue;
+            };
+            calls += 1;
+            let transitions: Vec<_> = query
+                .access()
+                .resources()
+                .at(Location { point, action })
+                .collect();
+            assert!(!transitions.is_empty());
+            for transition in transitions {
+                let before = transition.before_steps();
+                let delivery = before.iter().position(|step| matches!(step,
+                    Step::MoveArrayElement { destination: Holder::Prepared { call: actual, index: 0 }, .. }
+                        if *actual == call)).unwrap();
+                let endpoint = before.iter().position(|step| matches!(step,
+                    Step::Move { destination, .. } if matches!(destination.holder(), Holder::ArrayFrontier(_)))).unwrap();
+                let consolidate = before
+                    .iter()
+                    .position(|step| matches!(step, Step::ConsolidateArrayPrefix { .. }))
+                    .unwrap();
+                let handoff = before
+                    .iter()
+                    .position(|step| match step {
+                        Step::Invoke { source, .. } | Step::Move { source, .. } => {
+                            source.holder() == Holder::Prepared { call, index: 0 }
+                        }
+                        _ => false,
+                    })
+                    .unwrap();
+                assert!(delivery < endpoint && endpoint < consolidate && consolidate < handoff);
+            }
+        }
+    }
+    assert_eq!(calls, 3);
+    let (sources, tree) =
+        input(&source.replace("consume(items[index]^", "consume(items[index - 1]^"));
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Flow { .. }))
+    ));
 }
 
 #[test]

@@ -447,7 +447,8 @@ impl Context<'_, '_> {
                 ref adapters,
             } = argument.action
             {
-                let mut source = self.resource_referent(place)?;
+                let mut source =
+                    self.transfer_input_source(place, adapters.is_empty(), call, index)?;
                 for &adapter in adapters {
                     let payload = resources::expression_payload(self.typed, adapter)?;
                     // Replay the selected operation, never infer an adapter from type inequality.
@@ -500,6 +501,38 @@ impl Context<'_, '_> {
             }
         }
         Ok(())
+    }
+    fn transfer_input_source(
+        &mut self,
+        place: Referent,
+        direct: bool,
+        call: AccessExpressionId,
+        argument: usize,
+    ) -> Result<resources::Place> {
+        if direct
+            && let Referent::Evaluated(selection) = place
+            && let Some(frontier) = self.numeric.prefix(self.at, selection)
+        {
+            let index = resources::RetainedIndex::for_selection(self.typed, selection)
+                .ok_or(Failure::Integrity)?;
+            let destination = Holder::Prepared {
+                call,
+                index: argument,
+            };
+            // The bundle was validated before any element retires. Protect this payload in
+            // its ordinary argument owner before replacing the array's endpoint, then use
+            // the existing invocation/temporary handoff. Cancellation never enters this path.
+            self.world.resources.advance_array(
+                self.typed,
+                index,
+                frontier,
+                destination,
+                &mut self.steps,
+            )?;
+            Ok(destination.place())
+        } else {
+            self.resource_referent(place)
+        }
     }
     pub(super) fn receive_result(&mut self, call: AccessExpressionId) -> Result<()> {
         if self.owns_expression(call)? {

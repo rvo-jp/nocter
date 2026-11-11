@@ -280,6 +280,10 @@ replacing the prefix endpoint. In particular, several taking arguments cannot al
 through a repeatedly overwritten endpoint slot. Save the last committed operand and consolidate
 the region within the same guarded transfer phase; before/after guards must agree with actual
 coverage and backing ownership. No new element owner is introduced for each iteration.
+For a direct call argument, protect the payload in its existing prepared argument owner before
+the endpoint changes, then use the established invocation or scoped-temporary handoff. Whole-bundle
+validation precedes these transfers; cancellation performs none of them. Calling a function still
+invalidates numerical histories unless its closed write summary proves what survives.
 
 Project the resulting sparse remainder and its exact captured indices into cleanup. Excluding
 one checked index i from [0, N) gives [0, i) and [i + 1, N); the same bounds fact justifies the

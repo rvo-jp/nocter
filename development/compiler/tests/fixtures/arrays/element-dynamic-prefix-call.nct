@@ -1,0 +1,22 @@
+struct Item { value: i32 }
+const func consume(take item: Item, other: usize): i32 { item.value }
+const func observe(item: Item): i32 { item.value }
+const func update(edit item: Item): i32 { item.value += 1
+    item.value }
+const func work(mode: i32): i32 {
+    let items = [Item { value: 20 }, Item { value: 20 }, Item { value: 2 }, Item { value: 99 }]
+    var index: usize = 0
+    var total = 0
+    while index < 2 {
+        let selected = items[index]^
+        total += selected.value
+        index += 1
+    }
+    if mode == 0 {
+        total + consume(items[index]^, if true { index = 0
+            0 } else { 0 })
+    } else {
+        if mode == 1 { total + observe(items[index]^) } else { total + update(items[index]^) - 1 }
+    }
+}
+const func run(): i32 { work(0) + work(1) + work(2) - 84 }

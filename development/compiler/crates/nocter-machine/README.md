@@ -203,7 +203,9 @@ catalog is shared with required evaluation; no additional compiler array ownersh
 It also executes proven unit-stride prefix loops without containing replacement. Element delivery
 uses the frozen evaluated alias before replacing the saved endpoint, and remainder cleanup reads
 that endpoint rather than the user's counter. Early exits include a cancelled tail-element
-reservation before the counter update. Concrete nested parents and maximum-count zero-byte prefixes
+reservation before the counter update. Normal prefix argument handoffs use the existing prepared
+owner before entering the ordinary taking or read/edit temporary channel, including a later
+argument's mutation of the original counter. Concrete nested parents and maximum-count zero-byte prefixes
 use the same lowering. These executions qualify lifecycle/geometry with trivial element cleanup;
 actual owned error-graph cleanup remains the separate obligation above.
 

@@ -919,8 +919,11 @@ capture. Parent projection consumes the same typed structural traversal and exac
 The numerical report creates no resource backing or holes. Its source consumer below independently
 checks containing storage and uses the existing access/resource transition. A prepared whole-element
 argument can use the same history to establish that its evaluated index is strictly beyond every
-committed endpoint; preparation does not extend the prefix. A normally committed taking bundle
-still needs its own prefix-aware handoff before that admission can be extended.
+committed endpoint; preparation does not extend the prefix. At normal call commit, direct marked
+prefix arguments use that operation's ordered extension proofs after whole-bundle validation.
+Each selected payload enters its existing prepared argument owner before endpoint replacement,
+then follows the ordinary taking or read/edit temporary handoff. No numerical prefix crosses the
+invocation without a closed write summary.
 
 Access regions retain `ValuePath<IndexFact>` under the same owning/input/temporary root. Known
 numeric results select concrete indices; unknown indices remain unknown even when their recipe
@@ -1001,11 +1004,15 @@ element holes; exact remainder cleanup uses that endpoint even on an early retur
 counter update. Shared required/native cases cover a concrete nested parent beside another missing
 row, maximum-count zero-byte arrays, and cancellation after reserving an initialized tail element.
 That pending transfer creates no snapshot, element move or endpoint update.
+Normal direct calls after a prefix loop qualify taking and marked read/edit handoffs, including
+mutation of the user's counter in a later argument. Source transition tests require payload
+protection, endpoint replacement and region consolidation before the invocation handoff; a stale
+element remains a local flow rejection.
 
 Outside a proven prefix this stage supports one retained whole-element hole per complete containing
 array. Unknown indices in the containing path, partial fields below a retained selector, conditional
-restoration of a possibly missing element, non-prefix repeated extraction, and prefix-aware atomic
-taking bundles still require the
+restoration of a possibly missing element, non-prefix repeated extraction, adapted callable-element
+handoffs, multiple dynamic arguments from one array and carrying prefix proofs across calls still require the
 [evaluated-selection closure](../../../design/compiler-realization.md#evaluated-array-selection-closure).
 Repeated recipe keys alone never prove equal numbers across a backedge.
 

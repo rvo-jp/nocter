@@ -404,6 +404,33 @@ fn require_array_container(
     )
 }
 
+fn require_committed_argument(
+    typed: &TypedQuery,
+    numeric: &super::numeric::Analysis,
+    state: &State,
+    argument: &ArgumentAction,
+    location: Location,
+    violations: &mut Vec<InitializationViolation>,
+) -> Result<(), IntegrityError> {
+    if let ArgumentAction::ReserveTransfer {
+        place: Referent::Evaluated(selection),
+        adapters,
+    } = argument
+        && adapters.is_empty()
+        && let Some(frontier) = numeric.prefix(location, *selection)
+    {
+        let array = frontier.array(typed).ok_or(INVALID)?;
+        require_array_container(state, &array, location, violations)
+    } else if let ArgumentAction::ReserveRead(place)
+    | ArgumentAction::ReserveUpdate(place)
+    | ArgumentAction::ReserveTransfer { place, .. } = *argument
+    {
+        require_referent(typed, state, place, location, violations)
+    } else {
+        Ok(())
+    }
+}
+
 fn transfer(
     typed: &TypedQuery,
     graph: &Graph,
@@ -452,12 +479,14 @@ fn transfer(
                 // Validate the whole reserved bundle first; consuming one argument cannot make
                 // another appear uninitialized inside the atomic transition. Aliasing is separate.
                 for argument in arguments(typed, *call)? {
-                    if let ArgumentAction::ReserveRead(place)
-                    | ArgumentAction::ReserveUpdate(place)
-                    | ArgumentAction::ReserveTransfer { place, .. } = argument.action
-                    {
-                        require_referent(typed, state, place, location, violations)?;
-                    }
+                    require_committed_argument(
+                        typed,
+                        numeric,
+                        state,
+                        &argument.action,
+                        location,
+                        violations,
+                    )?;
                 }
                 for argument in arguments(typed, *call)? {
                     if let ArgumentAction::ReserveTransfer { place, .. } = argument.action {

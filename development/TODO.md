@@ -30,10 +30,12 @@ layout fields, generated operations, an arbitrary iteration cutoff or a constant
   cancellation and exact cleanup when execution leaves before the user counter update. Do not
   overwrite a live selected-index owner or invent unbounded generations from repeated execution
   of the same source recipe.
-- [ ] Extend proven prefix extraction through normal taking call bundles, preserving frozen
-  arguments and atomic commit/cancellation. Reuse the same endpoint transition and resource ledger;
-  then close shared index-relation proofs and call write summaries before admitting general
-  multi-element bundles or carrying numerical prefixes across invocation.
+- [x] Extend proven prefix extraction through direct marked take/read/edit argument handoffs,
+  preserving frozen arguments and atomic commit/cancellation. Reuse the same endpoint transition,
+  prepared argument owners and ordinary invocation/temporary channels.
+- [ ] Close shared index-relation proofs and call write summaries before admitting general
+  multi-element bundles or carrying numerical prefixes across invocation. Adapted callable-element
+  transfers must also compose their selected adapters with the prefix handoff.
 - [ ] Extend saved-index identity and initialization/cleanup to nested selectors, partial fields
   below a retained index, conditional restoration and multiple holes within one array. Keep
   unproved relations local and explicit. Do not read uninitialized alternative backing or choose
