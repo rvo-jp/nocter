@@ -270,6 +270,9 @@ aliases/captures conservative. A may-write never proves a containing replacement
 Include cleanup of an edited old value, not only newly produced/owned values. These root effects
 apply to primitive structural referents; capability/dereference projections require their actual
 dependency/storage mapping. Detached completion points of an interrupted call supply no effects.
+For an exact owned closure, classify destruction through its environment's actual payload schema,
+independently of invocation. Releasing captured data must not execute the captured body; unknown
+environment cleanup must remain unknown rather than inherit a named function's trivial cleanup.
 Keep effect reuse distinct from typed-call reuse: a callee-only body edit may preserve the call's
 type but invalidate its write proof. Verify transitive reached bodies and their value/count/result
 prerequisites through existing source guards. Share the dependency graph, handle recursive components

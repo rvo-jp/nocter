@@ -241,6 +241,10 @@ Flow-proved constant cases execute disjoint reads and transfers, frozen aliases/
 restoration and a two-element call bundle after mutation of the user's index. Checking supplies
 constant resource paths without saved-index owners; native lowering retains the original bounds
 operations and the selected evaluated addresses.
+A separate native fixture executes a prefix loop through a helper that constructs and destroys
+an exact owned closure with a non-Copy array environment. The dormant body would trap if called;
+cleanup releases the environment without invoking it. This is native evidence; the required
+evaluator's closure construction/invocation remains outside its qualified domain.
 
 Shared source fixtures execute element take, field holes, structurally disjoint unknown-index edits,
 exact restoration on loop backedges and maximum-count zero-byte remainder cleanup. The checking

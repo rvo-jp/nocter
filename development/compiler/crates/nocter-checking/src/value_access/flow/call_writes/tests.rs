@@ -64,6 +64,23 @@ fn formal_invocation_and_environment_cleanup_do_not_gain_closed_effects() {
 }
 
 #[test]
+fn exact_owned_environment_cleanup_does_not_invoke_the_captured_body() {
+    let controls = controls(
+        "func discard(take input: error): void { let held = (input^;): error { input^ } }\n\
+         func aggregate(take input: [error; 2]): void { let held = (input^;): void {} }\n\
+         func dormant(): void { let value = 7\nlet action = (value;): void { loop {} } }",
+    );
+    let catalog = Catalog::prepare(&controls).unwrap();
+    for name in ["discard", "aggregate", "dormant"] {
+        assert_eq!(
+            catalog.summaries.get(&code(&controls, name)),
+            Some(&Writes::Known(BTreeSet::new())),
+            "{name}"
+        );
+    }
+}
+
+#[test]
 fn summaries_require_the_exact_typed_body_owner_and_the_available_closed_callees() {
     let controls = controls("func leaf(): usize { 7 }\nfunc caller(): usize { leaf() }");
     let caller = controls

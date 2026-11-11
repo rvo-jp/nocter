@@ -197,8 +197,17 @@ fn closed_cleanup(typed: &TypedQuery, targets: &[Referent]) -> bool {
                     pending.push(schema.element());
                 }
             }
-            Some(PayloadSchema::Function(witness))
-                if matches!(witness.origin, ValueFunctionOrigin::Declaration(_)) => {}
+            Some(PayloadSchema::Function(witness)) => match witness.origin {
+                ValueFunctionOrigin::Declaration(_) => {}
+                ValueFunctionOrigin::Closure(id) => {
+                    let Some(closure) = typed.program().closure(id) else {
+                        return false;
+                    };
+                    // Destruction releases the captured payload; it does not call the body.
+                    pending.push(closure.environment());
+                }
+                _ => return false,
+            },
             _ => return false,
         }
     }

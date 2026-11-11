@@ -48,6 +48,10 @@ layout fields, generated operations, an arbitrary iteration cutoff or a constant
   Generalize evaluated index relations beyond ordered prefix bundles while preserving lifetime-
   specific evidence for retained aliases across re-evaluation. Adapted callable-element transfers
   must also compose their selected adapters with the prefix handoff.
+- [x] Close cleanup write effects for exact owned closure environments through their declaration
+  schema, without executing or attributing the closure body's invocation effects to destruction.
+  Preserve unknown formal cleanup and qualify surrounding scalar/prefix inference through
+  source checking and native execution, including aggregate environment payloads.
 - [x] Close partial-field extraction below one retained index, including constant nested selectors,
   reverse remaining-field cleanup, snapshot retirement/restoration, call commit/cancellation,
   conditional holes, parent replacement and maximum-count zero-byte execution. Qualify bounded
@@ -92,7 +96,8 @@ not a language restriction derived from the current realization boundary.
   representations. No constant-index-only policy or source-level cardinality ceiling substitutes
   for the required proofs.
 - [ ] Close remaining value/access/type and callable behavior: contextual/multiple/nested captures,
-  general R/D/S and survival, interfaces/generics/witnesses, constant arguments and symbolic conditions,
+  evaluator closure construction/invocation/cleanup, general R/D/S and survival,
+  interfaces/generics/witnesses, constant arguments and symbolic conditions,
   exports and conditional const admission. Follow the [realization obligations](design/compiler-realization.md)
   and owning specifications, with ordinary source evidence for safe and unsafe cases.
 - [ ] Close outcomes, runtime error construction, source-level nontrivial record/capture destruction,

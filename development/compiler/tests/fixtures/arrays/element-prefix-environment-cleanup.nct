@@ -1,0 +1,17 @@
+struct Item { value: i32 }
+func cleanup(): void {
+    let values = [Item { value: 7 }, Item { value: 9 }]
+    let dormant = (values^;): i32 { values[2].value }
+}
+func run(): i32 {
+    let items = [Item { value: 40 }, Item { value: 2 }]
+    var index: usize = 0
+    var total = 0
+    while index < 2 {
+        cleanup()
+        let item = items[index]^
+        total += item.value
+        index += 1
+    }
+    total
+}

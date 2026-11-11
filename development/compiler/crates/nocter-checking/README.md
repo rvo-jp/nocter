@@ -493,15 +493,13 @@ Return owner with the checking-closed result data type, including unit. Trapping
 not acquire unwind guarantees.
 
 `admission` validates known body result/input/local/expression data before a typed query freezes,
-including callable constraints and capture environments. Declaration-owned array descriptors do
-not yet grant source body operations or evaluator representation in this fragment. Array-bearing
-body data rejects locally with E0370 before flow; unused array declarations do not affect scalar
-bodies. The internal [concrete array resource frontier](#concrete-array-resource-frontiers) does not
-relax this source gate. Evaluator and runtime boundaries still reject arrays, including empty Copy
-arrays; zero count is not permission to substitute tuple or scalar behavior.
+including callable constraints and capture environments. Array-bearing operations follow the
+[construction](#array-construction), [selection](#array-selection) and
+[resource](#concrete-array-resource-frontiers) owners below. A declaration schema alone does not
+qualify an executable operation; zero count does not substitute tuple or scalar behavior.
 
 Source-admitted payload evidence consumes the declaration authority's exact bool/i32/usize/void and opaque owned-error
-snapshot contracts, plus its closed record/tuple compositions over those leaves and exact
+snapshot contracts, plus qualified array/record/tuple compositions and exact
 capture-free named-function witnesses. Scalars/unit/named functions have trivial disposal; error owns graph cleanup; aggregates
 retain their own schema cleanup rather than becoming scalars.
 Empty external D/S for those aggregates follows the exact component contracts, not Copy, ownership,
@@ -817,8 +815,10 @@ initialization and access analysis. One catalog retains exact typed-body owners 
 program. Its summary solver computes finite may-write sets over explicit edit-input roots; unknown
 effects are the top element. Recursive input permutations and transitive calls use one selected-input
 projection in `bindings`. Owned local updates have no external root. Replacement additionally checks
-the old edited referent's cleanup type. Formal/captured cleanup, unavailable callees and unsupported
-alias provenance remain unknown.
+the old edited referent's cleanup type. Exact owned-closure cleanup follows its declaration-owned
+environment schema recursively, including aggregate payloads. Destruction releases that environment
+without invoking the captured body; body invocation effects do not become destruction effects.
+Formal cleanup, unavailable callees and unsupported alias provenance remain unknown.
 
 At each reached commit, input roots project to the actual reserved existing places. Editing a
 transferred/fresh temporary has no further write into the caller's remaining storage; the original
@@ -835,8 +835,11 @@ body queries have only their available closed definitions. Effect projection and
 validation use the graph's shared structural reachability; detached call-completion points furnish
 no effects or input bindings. Tests qualify recursive/transitive/root-permutation closure, selective
 invalidation, interrupted calls, formal cleanup, missing callees and exact body-owner rejection.
-Header-count execution consumes the evidence before final whole-unit closure. Captured effects,
-general alias/root precision and user destruction need further closure.
+Header-count execution consumes the evidence before final whole-unit closure. A native source
+case preserves a prefix loop through a call that constructs and drops a captured non-Copy array;
+its dormant body would trap if incorrectly invoked. This qualifies checking and native cleanup,
+not evaluator closure construction. Captured invocation effects, general alias/root precision
+and user destruction need further closure.
 
 Flow-query rebinding verifies the reached callee bodies and their typed value/count and result
 prerequisites through one shared recursive dependency graph. A typed call may survive a callee-only

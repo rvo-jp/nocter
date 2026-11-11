@@ -358,6 +358,13 @@ fn private_proven_bounds_failure_preserves_earlier_operand_exits_and_effects() {
 fn private_sparse_element_holes_restore_and_clean_through_the_native_path() {
     for (name, source) in [
         (
+            "element-prefix-environment-cleanup",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../tests/fixtures/arrays/element-prefix-environment-cleanup.nct"
+            )),
+        ),
+        (
             "element-capture",
             include_str!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
