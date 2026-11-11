@@ -49,8 +49,8 @@ retargeting, hidden clone or destructor postponement repairs a failed obligation
 
 Contextual closure completion must retain the selected contract's input operations even when a
 body reads less. Inferred read/update captures must preserve outside roots and exclusivity;
-non-Copy value capture still needs explicit formation permission. General nested captures and
-factory-result closure bodies need code-scoped application identities, not their parent's domain.
+non-Copy value capture still needs explicit formation permission. Nested captures and
+factory-result closure bodies must preserve code-scoped application identities, not their parent's domain.
 
 ## Integrated Source Families
 

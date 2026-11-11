@@ -27,6 +27,16 @@ fn compile(source: &str) -> crate::NativeImage {
 }
 
 #[test]
+fn private_nested_captures_keep_distinct_activations_and_invocation_demands() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/nested-closed-captures.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "nested-closed-captures", 42);
+}
+
+#[test]
 fn private_closure_factory_applications_keep_their_lexical_code_and_environment() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

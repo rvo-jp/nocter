@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Extend owned capture formation into nested closed-data environments. Preserve unique root-scoped
-lexical code, recursively canonical types and the existing result/input/resource authorities;
-qualify separate activations, capture demand, source reuse and native invocation.
+Extend explicit value captures to exact known callable payloads through existing witness and
+environment schemas. Preserve source-selected Copy/transfer, invocation demand and recursive
+cleanup; keep unresolved formal/result payloads conservative and qualify ordinary native execution.
 
 ## Retained Selection Closure
 
@@ -134,7 +134,7 @@ not a language restriction derived from the current realization boundary.
   Preserve count supplier guards, one type authority, shared index relations and homogeneous/sparse
   representations. No constant-index-only policy or source-level cardinality ceiling substitutes
   for the required proofs.
-- [ ] Close remaining value/access/type and callable behavior: contextual/multiple/nested captures,
+- [ ] Close remaining value/access/type and callable behavior: contextual/multiple/general capture dependencies,
   evaluator closure construction/invocation/cleanup, general R/D/S and survival,
   interfaces/generics/witnesses, constant arguments and symbolic conditions,
   exports and conditional const admission. Follow the [realization obligations](design/compiler-realization.md)
@@ -175,11 +175,17 @@ not a language restriction derived from the current realization boundary.
   evidence. Preserve one root-scoped type authority and qualify reuse, distinct callees and native
   invocation before extending nested environments.
 
-- [ ] Admit nested owned closed-data capture producers. Allocate lexical closure IDs once per
+- [x] Admit nested owned closed-data capture producers. Allocate lexical closure IDs once per
   root through the existing body type construction authority, and project/seal/admit every nested
   body through the common scope. Qualify sibling/deep IDs, Copy snapshots, mutable and consuming
   capture demand, factory applications, source reuse and native execution. General inferred/multiple
   captures and evaluator callable values remain separate obligations.
+
+- [ ] Admit exact known named/captured callable values as explicit owned environments. Reuse
+  their declaration-owned schemas and concrete invocation views rather than assuming a structural
+  callable contract supplies Copy or cleanup evidence. Qualify nested value captures, mutable/once
+  invocation and ordinary cleanup; keep formal and unresolved result/application captures gated
+  until their dependencies and payload projection close.
 
 - [x] Keep same-operator short-circuit chains in one lazy control region. Avoid impossible
   ownership combinations after decided prefixes; preserve operand order, final values and

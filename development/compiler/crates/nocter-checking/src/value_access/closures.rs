@@ -5,8 +5,7 @@ use super::ir::{
 use super::{Failure, Rule, annotations::Annotation, checker::Checker};
 use nocter_declarations::value_access::{FunctionConstraint, FunctionInput, PayloadSchema};
 use nocter_model::{
-    AccessLocalId, ValueAccessMode, ValueBindingKind, ValueClosure, ValueInputOperation,
-    ValueInvocation,
+    AccessLocalId, ValueAccessMode, ValueBindingKind, ValueInputOperation, ValueInvocation,
 };
 use nocter_syntax::{ContextualSpelling, NodeId, NodeKind, SyntaxOrigin};
 use std::sync::Arc;
@@ -17,14 +16,6 @@ impl Checker<'_, '_> {
         node: NodeId,
         _reachable: bool,
     ) -> Result<nocter_model::AccessExpressionId, Failure> {
-        if matches!(self.code, nocter_model::ValueCode::Closure(_)) {
-            return self.reject_message(
-                Rule::TypeMismatch,
-                node,
-                "nested closure producers require a later environment scope".into(),
-                Vec::new(),
-            );
-        }
         let head = self.direct(node, NodeKind::ClosureHead)?;
         let (capture_token, captured, data) = self.owned_capture(head)?;
         let capture_name = self.text(capture_token)?.to_owned();
@@ -42,14 +33,10 @@ impl Checker<'_, '_> {
         else {
             return self.reject(Rule::UnknownType, result_node);
         };
-        let closure = ValueClosure {
-            owner: self.types.owner(),
-            slot: self
-                .closures
-                .len()
-                .try_into()
-                .map_err(|_| Failure::InconsistentSyntax)?,
-        };
+        let closure = self
+            .types
+            .reserve_closure()
+            .map_err(|_| Failure::InconsistentSyntax)?;
         let mut nested = Checker::new(
             self.context,
             result,

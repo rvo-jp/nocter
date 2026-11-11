@@ -4,6 +4,67 @@ use super::*;
 use nocter_model::ValueInvocation;
 
 #[test]
+fn nested_owned_captures_have_distinct_lexical_code_and_one_canonical_program() {
+    let unit = accepted(
+        "func run(): i32 { let value = 40\nlet outer = (value;): i32 { let inner = (value;): i32 { value + 2 }\ninner() }\nouter() }",
+    );
+    assert_eq!(unit.closures().len(), 2);
+    for query in unit.closures().values() {
+        assert!(std::ptr::eq(query.typed().program(), unit.program()));
+        assert!(query.typed().results_closed());
+    }
+}
+
+#[test]
+fn deep_and_sibling_capture_bodies_keep_schema_and_source_evidence() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/nested-closed-captures.nct"
+    ));
+    let (sources, tree) = input(source);
+    let headers = declarations::Query::prepare(bound(&sources, &tree)).unwrap();
+    let context = headers.bind(bound(&sources, &tree)).unwrap();
+    let unit = Unit::prepare(&context).unwrap();
+    assert_eq!(unit.closures().len(), 10);
+    for (&id, query) in unit.closures() {
+        assert_eq!(query.typed().code(), nocter_model::ValueCode::Closure(id));
+        assert!(std::ptr::eq(query.typed().program(), unit.program()));
+        assert!(query.typed().bind(&context).is_ok());
+    }
+    let (changed, changed_tree) =
+        input(&source.replace("callback(value + 1)", "callback(value + 2)"));
+    let current = headers.bind(bound(&changed, &changed_tree)).unwrap();
+    assert!(
+        unit.closures()
+            .values()
+            .all(|query| query.typed().source_owner()
+                != named(&unit, "snapshots").typed().source_owner()
+                || matches!(query.typed().bind(&current), Err(BodyFailure::ChangedBody)))
+    );
+}
+
+#[test]
+fn nested_capture_formation_and_body_consumption_keep_separate_once_demands() {
+    let unit = accepted(
+        "func work(take reason: error): error { let outer = (reason^;): error { let inner = (reason^;): error { reason^ }\ninner^() }\nouter^() }",
+    );
+    assert_eq!(unit.closures().len(), 2);
+    for (&id, query) in unit.closures() {
+        assert_eq!(
+            unit.program().closure(id).unwrap().contract().invocation,
+            ValueInvocation::Take
+        );
+        assert!(!steps(query).iter().any(|step| matches!(step, Step::Dispose { payload, .. } if payload.disposal() == Disposal::OwnedError)));
+    }
+    let source = "struct Item { value: i32 }\nfunc work(): void { let value = Item { value: 42 }\nlet outer = (value^;): void { let inner = (value^;): void {}\ninner() }\nouter^()\nouter^() }";
+    let (sources, tree) = input(source);
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Flow { .. }))
+    ));
+}
+
+#[test]
 fn a_factory_call_inside_a_closure_closes_its_own_result_application() {
     let unit = accepted(
         "func increment(value: i32): i32 { value + 1 }\nfunc factory(): func(i32): i32 { increment }\nfunc run(): i32 { let value = 40\nlet action = (value;): i32 { let callback = factory()\ncallback(value + 1) }\naction() }",

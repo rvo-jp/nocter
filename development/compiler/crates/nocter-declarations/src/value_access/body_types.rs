@@ -19,11 +19,23 @@ pub struct BodyTypes {
     owner: ValueCodeRoot,
     program: Program,
     applications: BTreeMap<(ValueCode, AccessExpressionId), AccessCodeId>,
+    next_closure: Option<u32>,
 }
 impl BodyTypes {
     #[must_use]
     pub const fn owner(&self) -> ValueCodeRoot {
         self.owner
+    }
+    /// Reserve one lexical code slot before checking its body, including nested producers.
+    /// # Errors
+    /// Rejects exhaustion of the existing closure-key domain.
+    pub fn reserve_closure(&mut self) -> Result<nocter_model::ValueClosure, BodyTypeError> {
+        let slot = self.next_closure.ok_or(BodyTypeError::InvalidExtension)?;
+        self.next_closure = slot.checked_add(1);
+        Ok(nocter_model::ValueClosure {
+            owner: self.owner,
+            slot,
+        })
     }
     /// Intern a structural tuple over admitted closed ordinary component data.
     /// # Errors
@@ -118,6 +130,9 @@ impl BodyTypes {
                 contract,
             },
         );
+        if self.next_closure.is_some_and(|next| id.slot >= next) {
+            self.next_closure = id.slot.checked_add(1);
+        }
         selected.ok_or(BodyTypeError::InvalidExtension)
     }
     #[must_use]
@@ -223,6 +238,7 @@ impl Program {
             owner,
             program,
             applications: BTreeMap::new(),
+            next_closure: Some(0),
         })
     }
     /// Replay body-owned witnesses and structural shapes into one final authority in owner order.

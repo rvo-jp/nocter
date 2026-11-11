@@ -262,6 +262,10 @@ contract need not close for an independent expression. Neither grants source exp
 or evaluator admission. The source
 owner must establish that pairing before ordinary checking. Canonical replay preserves these
 full roots while interning equal structural data as one type.
+The same body construction authority reserves closure slots before their bodies are checked.
+Nested checking advances that root's lexical cursor; publishing an inner schema cannot reuse a
+pending outer slot. Publication and key exhaustion preserve existing reservations. This cursor is
+discarded on freeze and supplies no runtime environment identity or ownership registry.
 That branch also publishes closed single-value closure environment schemas under lexical
 owner/slot code keys. Environment, flat input/result data and inferred invocation are distinct
 schema components. The environment is ordinary closed builtin/record/tuple/array data; Copy follows that

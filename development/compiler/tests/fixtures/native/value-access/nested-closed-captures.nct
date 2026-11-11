@@ -1,0 +1,48 @@
+struct Item { value: i32 }
+func increment(value: i32): i32 { value + 1 }
+func forward(take action: func(i32): i32): func(i32): i32 { action^ }
+func snapshots(): i32 {
+    var value = 40
+    let outer = (value;): i32 {
+        let first = (value;): i32 {
+            let inner = (value;): i32 {
+                let callback = forward(increment)
+                callback(value + 1)
+            }
+            inner()
+        }
+        let second = (value;): i32 { value + 1 }
+        if first() == 42 && second() == 41 { 42 } else { 0 }
+    }
+    value = 99
+    outer()
+}
+func updates(): i32 {
+    let value = 40
+    var outer = (value;): i32 {
+        value += 1
+        let inner = (value;): i32 { value }
+        inner()
+    }
+    let first = outer()
+    let second = outer()
+    if first == 41 && second == 42 { 42 } else { 0 }
+}
+func consuming(): i32 {
+    let item = Item { value: 42 }
+    let outer = (item^;): i32 {
+        let inner = (item^;): i32 { item.value }
+        inner()
+    }
+    outer^()
+}
+func make(value: i32): func(): i32 {
+    (value;): i32 {
+        let inner = (value;): i32 { value + 2 }
+        inner()
+    }
+}
+func run(): i32 {
+    let returned = make(40)
+    if snapshots() == 42 && updates() == 42 && consuming() == 42 && returned() == 42 { 42 } else { 0 }
+}

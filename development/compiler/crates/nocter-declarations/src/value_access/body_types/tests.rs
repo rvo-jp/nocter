@@ -389,3 +389,36 @@ fn lexical_code_owns_application_reservations_within_one_type_root() {
         .canonical_body_types(std::collections::BTreeMap::from([(first.into(), &a)]))
         .unwrap();
 }
+
+#[test]
+fn pending_closure_reservations_survive_child_publication_and_key_exhaustion() {
+    let (header, [root, _, _]) = application_headers();
+    let mut parent = header.body_types(root).unwrap();
+    let outer = parent.reserve_closure().unwrap();
+    let mut child = parent.clone();
+    let inner = child.reserve_closure().unwrap();
+    assert_ne!(outer, inner);
+    let void = header.data_type(BuiltinType::Void).unwrap();
+    let contract = FunctionConstraint {
+        invocation: ValueInvocation::Read,
+        inputs: Box::new([]),
+        result: void,
+    };
+    child.closure(inner, void, contract.clone()).unwrap();
+    parent = child;
+    let last = nocter_model::ValueClosure {
+        owner: root.into(),
+        slot: u32::MAX,
+    };
+    parent.closure(last, void, contract.clone()).unwrap();
+    assert_eq!(
+        parent.reserve_closure(),
+        Err(super::BodyTypeError::InvalidExtension)
+    );
+    parent.closure(outer, void, contract).unwrap();
+    let body = parent.finish();
+    assert_eq!(body.closures.len(), 3);
+    header
+        .canonical_body_types(std::collections::BTreeMap::from([(root.into(), &body)]))
+        .unwrap();
+}

@@ -748,10 +748,15 @@ body. Ordinary editing calls have no result-only cache that could erase writes.
 
 ## Owned Capture Bodies
 
-`closures` checks a first explicit single-value environment under the private source contract.
+`closures` checks one explicit value environment per producer under the private source contract.
 Formation uses the ordinary value-supply boundary. A separate body scope receives that environment
 and flat explicit inputs; names outside it cannot become implicit captures. The body returns
-ordinary closed data and cannot introduce nested closures. Named factory calls inside the body use
+ordinary closed data and can construct nested closed-data environments under those same rules.
+The body type authority reserves lexical IDs before descending into nested producers; sibling and
+descendant code cannot reuse a pending parent's slot. Canonical program binding, result closure and
+flow admission cover every nested body through the common scope. Callable captures, inferred
+outside access and multiple explicit environments remain outside this qualified scope.
+Named factory calls inside the body use
 the same callable-result closure as root bodies. Their applications retain actual lexical code,
 not only the shared source/type root. A shared `flow::scope` traversal indexes captured controls
 for result solving and caller-write evidence; distinct code never shares an operation arena.
@@ -759,6 +764,9 @@ Result projection seals each affected body and its dependency evidence before fl
 including a closure whose enclosing body had no pending result. Tests cover sibling/root calls,
 distinct callees, incompatible witnesses and factory-body reuse invalidation. A shared native source
 also invokes both thin returned functions and returned captured environments inside closures.
+Nested source/native cases qualify three-level and sibling code, Copy snapshots, persistent updates,
+consuming formation, returned environments and deep factory calls. Error-handle source tests retain
+ordinary ownership handoff without repeated disposal; these do not execute native owned error graphs.
 The enclosing header remains its source-reuse owner, while lexical owner/slot identifies its code.
 
 The environment's provisional construction authority permits demand collection, not accepted

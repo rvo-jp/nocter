@@ -254,15 +254,17 @@ pub(super) fn check_queries(
     let mut bodies = BTreeMap::new();
     let mut closures = BTreeMap::new();
     for (root, control) in controls {
-        for (&id, nested) in &control.typed.closures {
-            if nested.typed.code() != nocter_model::ValueCode::Closure(id) {
+        for (code, nested) in flow::scope([&control]).map_err(Failure::Integrity)? {
+            let nocter_model::ValueCode::Closure(id) = code else {
+                continue;
+            };
+            let checked = nested.clone().finish(&writes).map_err(Failure::Integrity)?;
+            let checked = admit(checked, &verified)?;
+            if closures.insert(id, checked).is_some() {
                 return Err(Failure::Integrity(
                     flow::IntegrityError::InconsistentTypedBody,
                 ));
             }
-            let checked = nested.clone().finish(&writes).map_err(Failure::Integrity)?;
-            let checked = admit(checked, &verified)?;
-            closures.insert(id, checked);
         }
         let query = control.finish(&writes).map_err(Failure::Integrity)?;
         let query = admit(query, &verified)?;

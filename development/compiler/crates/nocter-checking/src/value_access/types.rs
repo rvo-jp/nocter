@@ -48,12 +48,15 @@ pub(super) fn canonicalize(
     }
     let program = Arc::new(canonical.finish());
     for query in queries.values_mut() {
-        query.program = program.clone();
-        for nested in query.closures.values_mut() {
-            Arc::make_mut(&mut nested.typed).program = program.clone();
-        }
+        bind_program(query, &program);
     }
     Ok(program)
+}
+fn bind_program(query: &mut Query, program: &Arc<Program>) {
+    query.program = program.clone();
+    for nested in query.closures.values_mut() {
+        bind_program(Arc::make_mut(&mut nested.typed), program);
+    }
 }
 
 /// All data-bearing slots are rewritten together. Source and semantic operation identities stay fixed.
