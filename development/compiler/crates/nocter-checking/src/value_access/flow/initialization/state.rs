@@ -76,6 +76,25 @@ impl Storage {
     pub(super) fn remove_path(&mut self, path: &crate::value_access::AccessPath, at: Location) {
         self.set_path(path, I::Uninitialized, Some(at));
     }
+    /// The caller proved one matching committed point and a present parent. Unknown key
+    /// equality alone cannot close a hole, and conditional completeness is not repaired here.
+    pub(super) fn restore_point(
+        &mut self,
+        path: &crate::value_access::AccessPath,
+        retirements: &BTreeSet<Location>,
+    ) -> bool {
+        let Some(slot) = self.selections.get(path) else {
+            return false;
+        };
+        if slot.state != I::Uninitialized
+            || slot.causes.is_empty()
+            || !slot.causes.is_subset(retirements)
+        {
+            return false;
+        }
+        self.selections.remove(path);
+        true
+    }
     pub(super) fn uncertain_replacement(&self, path: &FieldPath) -> bool {
         let path = crate::value_access::paths::known(path);
         self.selections.iter().any(|(hole, slot)| {

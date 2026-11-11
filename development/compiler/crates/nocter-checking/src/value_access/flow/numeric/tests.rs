@@ -80,6 +80,15 @@ fn checked_offset_chain_survives_local_reassignment_and_compound_updates() {
 }
 
 #[test]
+fn read_input_copies_share_their_current_value_without_becoming_update_authority() {
+    let query = function(
+        "func noop(): void {}\nfunc f(input: usize): usize { let saved = input\nnoop()\ninput - saved }",
+    );
+    let result = returns(&query);
+    assert_eq!(result[0].1.constant(result[0].0), Some(0));
+}
+
+#[test]
 fn calls_invalidate_mutable_local_facts_but_not_prepared_operands() {
     let query = function(
         "func change(edit value: usize): usize { value = 9\nreturn 1 }\nfunc f(): usize { var input: usize = 4\nreturn input + change(input) }",

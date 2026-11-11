@@ -350,8 +350,18 @@ impl Context<'_, '_> {
             .ok_or(Failure::Integrity)?;
         let owning = self.local_mode(local)? == Mode::Own
             && crate::value_access::paths::concrete(&fields).is_some();
-        if owning {
-            let destination = self.resource_referent(target)?;
+        let restored = self
+            .facts
+            .and_then(|facts| facts.restoration_path(self.typed, target))
+            .filter(|destination| self.world.resources.missing_point(destination));
+        let destination = if let Some(destination) = restored {
+            Some(destination)
+        } else if owning {
+            Some(self.resource_referent(target)?)
+        } else {
+            None
+        };
+        if let Some(destination) = destination {
             self.world.resources.replace(
                 self.typed.program(),
                 &Holder::Expression(value).place(),

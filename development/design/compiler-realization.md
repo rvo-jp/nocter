@@ -247,6 +247,15 @@ checked progression needs a finite region/interval summary rather than unbounded
 one entry per array element or an arbitrary iteration cutoff. Preserve conservative local failure
 when that proof is unavailable, without imposing a constant-index-only language rule.
 
+For a single whole-element retained point, restoration can reuse the existing committed-index
+history. Require a current index equal to that saved value on every reached history, one matching
+retirement source in that array epoch, the corresponding unavailable source slot, a present
+containing array and the actual matching sparse hole/snapshot. Source-site provenance alone is
+not a lifetime or equality proof. A prefix must remain a region, and multiple/unproved sources
+must not acquire a single-point proof. Restoration installs the already evaluated replacement
+before retiring the old snapshot; a restored backedge may capture new backing only after that
+obligation closes. Preserve original target evaluation and bounds checks.
+
 Use exact difference equalities between current usize cells for unit-stride induction. Keep
 mutable local cells separate from frozen computed values and prepared operands; an assignment
 changes only its target cell. Join retains only common differences. In a fixed body, every strict

@@ -40,10 +40,12 @@ impl Cursor<'_> {
             return Ok(None);
         };
         let equalities = state.common();
+        let point_sources = state.points(&self.analysis.cells);
         let transfers = state.action(self.typed, &self.analysis.cells, operation)?;
         Ok(equalities.map(|equalities| NumericFacts {
             cells: Arc::clone(&self.analysis.cells),
             equalities,
+            point_sources,
             prefix_extensions: transfers.proven,
             prefix_frontiers: self
                 .analysis

@@ -78,6 +78,17 @@ layout fields, generated operations, an arbitrary iteration cutoff or a constant
   general numeric relations among holes within one array. Keep
   unproved relations local and explicit. Do not read uninitialized alternative backing or choose
   guards from numeric equality alone; preserve actual original-index mutation and empty/MAX spans.
+- [x] Restore one retained whole-element hole from a proved equal current index using the
+  existing committed-index history and actual sparse hole/snapshot. Validate the retiring source
+  site and present parent; never identify lifetimes from recipe equality alone. Qualify index
+  mutation, direct calls, restoration on both branches/backedges and maximum-count zero-byte
+  source/native execution, while keeping unproved and multi-hole relations conservative.
+  Track scalar read inputs under their existing grant without authorizing updates or retaining
+  facts across unknown writes; ordinary input use must not require a redundant local copy.
+- [ ] Recover a complete numerical array epoch after restoring its sole proved point. Distinguish
+  a point taken from a complete epoch from generic unproved coverage; do not reset after restoring
+  only the last element of a longer prefix or after unrelated partial holes. Qualify a later
+  prefix loop through the same required/native paths without containing replacement.
 - [x] Share current numerical constant selection facts across availability, access creation and
   resource paths. Freeze constants when a place/hole is created and elide unnecessary saved-index
   owners; retain snapshots for unproved values. Do not refine old aliases from a recipe's later

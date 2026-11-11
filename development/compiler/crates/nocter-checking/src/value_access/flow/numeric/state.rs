@@ -67,6 +67,18 @@ impl State {
         }
         Some(result)
     }
+    pub(super) fn points(&self, cells: &Cells) -> BTreeSet<AccessExpressionId> {
+        let mut entries = self.partitions.iter();
+        let Some((phases, first)) = entries.next() else {
+            return BTreeSet::new();
+        };
+        let mut result = cells.histories.point_sources(phases, &first.seen);
+        for (phases, state) in entries {
+            let incoming = cells.histories.point_sources(phases, &state.seen);
+            result.retain(|source| incoming.contains(source));
+        }
+        result
+    }
     pub(super) fn available(
         &self,
         cells: &Cells,

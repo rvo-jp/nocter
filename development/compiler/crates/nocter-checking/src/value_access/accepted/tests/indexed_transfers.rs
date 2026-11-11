@@ -340,8 +340,8 @@ fn dynamic_holes_block_unproved_reads_restoration_and_nonprogressing_recipe_exec
         "read later = items",
         "read later = items[index]",
         "let later = items[index]^",
-        "items[index] = Item { value: 0 }",
-        "items[0] = Item { value: 0 }",
+        "items[index + 1] = Item { value: 0 }\nlet complete = items^",
+        "items[0] = Item { value: 0 }\nlet complete = items^",
     ] {
         let source = format!(
             "struct Item {{ value: i32 }}\nfunc work(take items: [Item; 2], index: usize): void {{ let selected = items[index]^\n{after} }}"
@@ -363,6 +363,74 @@ fn dynamic_holes_block_unproved_reads_restoration_and_nonprogressing_recipe_exec
         SourceUnit::prepare(bound(&sources, &tree)),
         Err(SourceFailure::Checking(Failure::Flow { .. }))
     ));
+}
+
+#[test]
+fn restoring_the_last_prefix_element_does_not_restore_the_entire_prefix() {
+    let source = "func work(): void { var items = [(); 3]\nvar index: usize = 0\nloop { let old = items[index]^\nindex += 1\nif index == 2 { break } }\nitems[index - 1] = ()\nlet complete = items^ }";
+    let (sources, tree) = input(source);
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Flow { .. }))
+    ));
+}
+
+#[test]
+fn retained_restoration_installs_before_retiring_backing_without_destroying_missing_data() {
+    let unit = accepted(
+        "func work(take original: error, take replacement: error, index: usize): void { var items = [original^]\nlet extracted = items[index]^\nitems[index] = replacement^ }",
+    );
+    let query = named(&unit, "work");
+    let location = query
+        .graph()
+        .points()
+        .iter()
+        .find_map(|(point, block)| {
+            block
+                .actions
+                .iter()
+                .enumerate()
+                .find_map(|(action, event)| {
+                    matches!(event.operation, Operation::Assign { .. })
+                        .then_some(Location { point, action })
+                })
+        })
+        .unwrap();
+    let transitions: Vec<_> = query.access().resources().at(location).collect();
+    assert!(!transitions.is_empty());
+    for transition in transitions {
+        let steps = transition.steps();
+        let (installed, destination) = steps
+            .iter()
+            .enumerate()
+            .find_map(|(at, step)| match step {
+                Step::Move { destination, .. }
+                    if destination.fields().retained().next().is_some() =>
+                {
+                    Some((at, destination))
+                }
+                _ => None,
+            })
+            .unwrap();
+        let snapshot = Holder::IndexSnapshot(destination.fields().retained().next().unwrap());
+        let retired = steps
+            .iter()
+            .position(|step| {
+                matches!(step,
+            Step::Dispose { source, .. } if source.holder() == snapshot)
+            })
+            .unwrap();
+        assert!(installed < retired);
+        assert!(transition.initialized_after(destination.holder()));
+        assert!(
+            !transition
+                .after_condition()
+                .owned()
+                .any(|(holder, _)| holder == snapshot)
+        );
+        assert!(!steps.iter().any(|step| matches!(step,
+            Step::Dispose { payload, .. } if payload.disposal() == Disposal::OwnedError)));
+    }
 }
 
 #[test]

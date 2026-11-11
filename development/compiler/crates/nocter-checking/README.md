@@ -945,8 +945,10 @@ targets use the exact-address `ReplaceReferent` handoff without interpreting a c
 as an ownership key; the partial-transfer rules below define restoration and completeness.
 
 `flow::Query::numeric_at` reports normal checked usize difference equalities at an existing graph
-operation. The analysis distinguishes current owned scalar locals, computed results and frozen
-prepared operands. Assignment preserves relationships between older snapshots while changing
+operation. The analysis distinguishes current owned scalar locals, scalar read inputs, computed
+results and frozen prepared operands. Read-input cells describe values under their existing
+access grant; they create no owner or update authority. Unknown writes forget their current facts
+as well. Assignment preserves relationships between older snapshots while changing
 the current cell; joins keep common exact differences and reach a fixed point without an
 array-cardinality-dependent iteration cutoff. Selected builtin equality branches refine those
 relationships. Unsupported operations, alias writes and calls without a closed write summary
@@ -1053,6 +1055,20 @@ its old remainder, ends the old snapshot and permits reuse of that selection rec
 The same rule applies beneath a concrete record/array prefix. Unknown or possibly overlapping
 selected replacement still requires complete storage. Partial fields can remain available when
 structural disjointness excludes every hole.
+
+One retained whole-element hole beneath a concrete parent can also be restored without a constant
+index. The existing committed-index history must prove equality with the current target and
+identify one retirement source on every reached history. Availability checks the actual unavailable
+slot's causes and present array; resources require the matching `Missing::Value` and live snapshot.
+Prefix histories and multiple/unproved sources provide no point-restoration evidence. The replacement
+uses the old retained path, installs its evaluated value, then retires unused backing. Original
+target evaluation, bounds checks and access conflicts remain in force. Restored backedges may
+reuse that snapshot recipe for a newly evaluated number after its prior lifetime ends.
+Shared source qualifies changed user indices, repeated alternating indices, direct call retirement,
+restoration on both branches and maximum-count zero-byte arrays. A logical owned-error case checks
+that missing old data is not destroyed and snapshot retirement follows installation; actual native
+owned-error construction remains unqualified. Conditional hole creation, partial-field restoration
+and general relations among multiple retained holes remain separate obligations.
 
 The shared retained-source corpus executes in required evaluation and through the
 [native consumer](../nocter-machine/README.md#private-array-execution). It covers normal and nested

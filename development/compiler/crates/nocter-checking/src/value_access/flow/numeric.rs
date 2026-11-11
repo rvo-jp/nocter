@@ -4,6 +4,7 @@ mod cursor;
 mod equalities;
 mod history;
 mod progressions;
+mod restoration;
 mod selection;
 mod state;
 #[cfg(test)]
@@ -55,7 +56,8 @@ impl Cells {
     fn prepare(typed: &TypedQuery, graph: &Graph) -> Result<Self, IntegrityError> {
         let mut cells = Self::default();
         for (id, local) in typed.body().locals().iter() {
-            if local.access().mode() == ValueAccessMode::Own
+            if (local.access().mode() == ValueAccessMode::Own
+                || (local.access().mode() == ValueAccessMode::Read && local.origin.is_input()))
                 && typed.program().data_kind(local.data) == Some(BuiltinType::Usize)
             {
                 let cell = cells.fresh()?;
@@ -118,6 +120,7 @@ impl Cells {
 pub struct NumericFacts {
     cells: Arc<Cells>,
     equalities: Equalities,
+    point_sources: BTreeSet<AccessExpressionId>,
     prefix_extensions: BTreeSet<AccessExpressionId>,
     prefix_frontiers: BTreeMap<AccessExpressionId, ArrayFrontier>,
 }

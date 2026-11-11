@@ -1,0 +1,55 @@
+struct Item { value: i32 }
+const func same(input: usize): i32 {
+    var items = [Item { value: 0 }, Item { value: 2 }]
+    var index = input
+    let position = index
+    let old = items[index]^
+    index = 1
+    items[position] = Item { value: old.value + 40 }
+    let complete = items^
+    complete[0].value + complete[1].value
+}
+const func repeated(input: usize): i32 {
+    var items = [Item { value: 40 }, Item { value: 2 }]
+    var count: usize = 0
+    var index = input
+    var total = 0
+    while count < 3 {
+        let old = items[index]^
+        total += old.value
+        items[index] = old^
+        index = if index == 0 { 1 } else { 0 }
+        count += 1
+    }
+    let complete = items^
+    let expected = if input == 0 { 82 } else { 44 }
+    if total == expected { complete[0].value + complete[1].value } else { 0 }
+}
+const func conditional(input: usize, flag: bool): i32 {
+    var items = [Item { value: 40 }, Item { value: 2 }]
+    let old = items[input]^
+    if flag { items[input] = old^ } else { items[input] = old^ }
+    let complete = items^
+    complete[0].value + complete[1].value
+}
+const func consume(take item: Item): i32 { item.value }
+const func called(input: usize): i32 {
+    var items = [Item { value: 0 }, Item { value: 2 }]
+    let value = consume(items[input]^)
+    items[input] = Item { value: value + 40 }
+    let complete = items^
+    complete[0].value + complete[1].value
+}
+const func maximum(input: usize): i32 {
+    var items = [(); 18446744073709551615]
+    let old = items[input]^
+    items[input] = old^
+    let complete = items^
+    42
+}
+const func run(): i32 {
+    if same(0) == 42 && same(1) == 42 && repeated(0) == 42 && repeated(1) == 42
+        && conditional(0, true) == 42 && conditional(1, false) == 42
+        && called(0) == 42 && called(1) == 42
+        && maximum(0) == 42 && maximum(18446744073709551614) == 42 { 42 } else { 0 }
+}

@@ -4,7 +4,7 @@ use super::{Cells, Equalities, INVALID};
 use crate::value_access::{
     ArgumentAction, ExpressionKind, Query as TypedQuery, Referent,
     flow::{
-        Graph, IntegrityError, Operation,
+        Graph, IntegrityError, Location, Operation,
         resources::{ArrayFrontier, Holder, Path, Place, RetainedIndex},
     },
 };
@@ -40,6 +40,7 @@ struct Selection {
 pub(super) struct Histories {
     arrays: Vec<History>,
     selections: BTreeMap<AccessExpressionId, Selection>,
+    retirements: BTreeMap<AccessExpressionId, BTreeSet<Location>>,
 }
 fn selected(typed: &TypedQuery, source: Referent) -> Option<(Place, RetainedIndex)> {
     let Referent::Evaluated(id) = source else {
@@ -91,8 +92,8 @@ impl Histories {
     ) -> Result<Self, IntegrityError> {
         let mut result = Self::default();
         let mut arrays = BTreeMap::new();
-        for (_, point) in graph.points().iter() {
-            for action in &point.actions {
+        for (point_id, point) in graph.points().iter() {
+            for (action_id, action) in point.actions.iter().enumerate() {
                 for source in transfers(typed, &action.operation)? {
                     let Some((array, index)) = selected(typed, source) else {
                         continue;
@@ -117,6 +118,14 @@ impl Histories {
                             index: index.operand(),
                         },
                     );
+                    result
+                        .retirements
+                        .entry(index.selection())
+                        .or_default()
+                        .insert(Location {
+                            point: point_id,
+                            action: action_id,
+                        });
                 }
             }
         }
@@ -137,6 +146,45 @@ impl Histories {
             }
         }
         Ok(result)
+    }
+    pub(super) fn point_sources(
+        &self,
+        phases: &[Phase],
+        seen: &BTreeSet<AccessExpressionId>,
+    ) -> BTreeSet<AccessExpressionId> {
+        let mut sources = BTreeMap::new();
+        for &site in seen {
+            let Some(selection) = self.selections.get(&site) else {
+                continue;
+            };
+            if phases.get(selection.history) != Some(&Phase::Unproved) {
+                continue;
+            }
+            sources
+                .entry(selection.history)
+                .and_modify(|source| *source = None)
+                .or_insert(Some(site));
+        }
+        sources.into_values().flatten().collect()
+    }
+    pub(super) fn matching_point(
+        &self,
+        cells: &Cells,
+        state: &Equalities,
+        points: &BTreeSet<AccessExpressionId>,
+        current: AccessExpressionId,
+    ) -> Option<(AccessExpressionId, &BTreeSet<Location>)> {
+        let current = self.selections.get(&current)?;
+        let history = self.arrays.get(current.history)?;
+        if state.difference(cells.value(current.index)?, history.cell) != Some(0) {
+            return None;
+        }
+        let source = *points.iter().find(|source| {
+            self.selections
+                .get(source)
+                .is_some_and(|selection| selection.history == current.history)
+        })?;
+        Some((source, self.retirements.get(&source)?))
     }
     pub(super) fn available(
         &self,

@@ -25,6 +25,14 @@ impl State {
     pub fn contains(&self, holder: Holder) -> bool {
         self.owned.contains_key(&holder)
     }
+    pub(in crate::value_access::flow) fn missing_point(&self, source: &Place) -> bool {
+        self.owned.get(&source.holder()).is_some_and(|value| {
+            value
+                .missing
+                .iter()
+                .any(|hole| hole.value() == Some(source.fields()))
+        })
+    }
     pub fn initialized_root(&self, holder: Holder) -> bool {
         self.owned
             .get(&holder)

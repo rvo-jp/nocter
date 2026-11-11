@@ -632,6 +632,30 @@ fn evaluate(
     Ok(())
 }
 
+fn restore_point(
+    typed: &TypedQuery,
+    facts: Option<&super::numeric::NumericFacts>,
+    state: &mut State,
+    target: Referent,
+) -> Result<bool, IntegrityError> {
+    let Referent::Evaluated(selection) = target else {
+        return Ok(false);
+    };
+    let Some(point) = facts.and_then(|facts| facts.restoration(typed, selection)) else {
+        return Ok(false);
+    };
+    let array = point.source.array(typed).ok_or(INVALID)?;
+    let parent = array.fields().concrete().ok_or(INVALID)?;
+    let (local, hole) =
+        super::numeric::path(typed, None, Referent::Evaluated(point.source.selection()))
+            .ok_or(INVALID)?;
+    let storage = state.get_mut(&local).ok_or(INVALID)?;
+    if storage.present(&parent).state != InitializationState::Initialized {
+        return Ok(false);
+    }
+    Ok(storage.restore_point(&hole, point.retirements))
+}
+
 fn assign(
     typed: &TypedQuery,
     facts: Option<&super::numeric::NumericFacts>,
@@ -641,6 +665,9 @@ fn assign(
     violations: &mut Vec<InitializationViolation>,
     cleanup: &mut Vec<CleanupFact>,
 ) -> Result<(), IntegrityError> {
+    if restore_point(typed, facts, state, target)? {
+        return Ok(());
+    }
     let place = if let Some(place) = target.place() {
         selected(typed, place)?.clone()
     } else {
