@@ -646,7 +646,7 @@ fn retained_cleanup_integrity_requires_a_matching_scalar_backing_slot() {
     let Effect::DisposeArrayElements { range, .. } = effect else {
         unreachable!()
     };
-    *range = ArrayRange::After(snapshot);
+    *range = ArrayRange::Through(snapshot);
     // A representation-only mutation verifies the consumer contract. It does not qualify
     // source dynamic transfer, snapshot initialization, dominance or executed native cleanup.
     validate::program(&program).unwrap();

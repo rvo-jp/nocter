@@ -99,3 +99,10 @@ owns those remaining integration obligations.
 schema or index fact by itself. Consumers must preserve the selected disposition rather than
 strengthen it from a constant representation or target layout; each product separately qualifies
 the continuations it can realize. The model does not derive or execute those proofs.
+
+`ArrayRange<I>` describes a constant half-open interval or a before/inclusive-through/after span
+around an existing checked index. `try_map_index` changes its backing identity without treating a
+key as a number; `resolve` checks that an actual saved value remains below the containing length.
+Through and after share the same safe successor at maximum usize counts and partition an array
+without per-element state. These span operations create no initialization, ownership or source
+bounds proof.

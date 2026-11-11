@@ -163,6 +163,14 @@ impl Builder<'_> {
             nocter_model::ArrayRange::Before(slot) => {
                 (self.size_constant(0)?, self.retained_index(slot, length)?)
             }
+            nocter_model::ArrayRange::Through(slot) => {
+                let index = self.retained_index(slot, length)?;
+                let one = self.size_constant(1)?;
+                (
+                    self.size_constant(0)?,
+                    self.size_binary(crate::MachineBinaryOperation::Add, index, one)?,
+                )
+            }
             nocter_model::ArrayRange::After(slot) => {
                 let index = self.retained_index(slot, length)?;
                 let one = self.size_constant(1)?;

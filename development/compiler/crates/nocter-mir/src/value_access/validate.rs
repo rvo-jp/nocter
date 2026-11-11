@@ -160,9 +160,9 @@ impl Context<'_> {
                     nocter_model::ArrayRange::Constant { .. } => {
                         self.require(range.resolve(length, |_| None).is_some())
                     }
-                    nocter_model::ArrayRange::Before(id) | nocter_model::ArrayRange::After(id) => {
-                        self.snapshot(*id, length)
-                    }
+                    nocter_model::ArrayRange::Before(id)
+                    | nocter_model::ArrayRange::Through(id)
+                    | nocter_model::ArrayRange::After(id) => self.snapshot(*id, length),
                 }
             }
             Effect::Initialize(place)

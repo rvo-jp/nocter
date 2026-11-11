@@ -168,7 +168,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
     }
     fn action(&mut self, frame: usize, action: &Action) -> Result<()> {
         let owners = &self.memory.frames[frame].owned;
-        let mut selected = None;
+        let mut selected: Option<&super::Alternative> = None;
         for alternative in &action.alternatives {
             // Test complete owner presence before resolving any hole. Another route can have
             // the same numbers but no initialized backing for this alternative's snapshot.
@@ -198,8 +198,15 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                 }
             }
             if matches {
+                if let Some(previous) = selected
+                    && (previous.before != alternative.before
+                        || previous.after != alternative.after)
+                {
+                    // Equal numbers do not establish which logical backing/lifecycle route
+                    // occurred. Never let ordering choose between conflicting matching phases.
+                    return Err(Rule::InvalidPlan);
+                }
                 selected = Some(alternative);
-                break;
             }
         }
         let alternative = selected.ok_or(Rule::InvalidPlan)?;
@@ -429,6 +436,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                 let captured = match range {
                     nocter_model::ArrayRange::Constant { .. } => None,
                     nocter_model::ArrayRange::Before(slot)
+                    | nocter_model::ArrayRange::Through(slot)
                     | nocter_model::ArrayRange::After(slot) => {
                         Some(self.memory.snapshot_index(frame, *slot, *length)?)
                     }

@@ -439,7 +439,9 @@ fn check_effect(program: &Program, plan: &super::Plan, effect: &Effect) -> Resul
                         return Err(INVALID);
                     }
                 }
-                nocter_model::ArrayRange::Before(slot) | nocter_model::ArrayRange::After(slot) => {
+                nocter_model::ArrayRange::Before(slot)
+                | nocter_model::ArrayRange::Through(slot)
+                | nocter_model::ArrayRange::After(slot) => {
                     let data = owned(&Place::root(*slot))?;
                     if *length == 0 || !matches!(program.types.get(data), Some(Type::Usize)) {
                         return Err(INVALID);

@@ -417,3 +417,134 @@ fn guard_holes_are_compared_by_numbers_rather_than_snapshot_slot_order() {
     // is intentionally the opposite of the actual ownership frontier's numeric order.
     assert_eq!(execute(plan, types(2)), Value::integer(42));
 }
+
+#[test]
+fn numerically_equal_snapshot_guards_cannot_select_conflicting_phases() {
+    let (code, _) = code_ids();
+    for (conflicting, reversed) in [(false, false), (false, true), (true, false), (true, true)] {
+        let mut plan = retained_remainder(2, 0);
+        let mut slots = plan.slots.to_vec();
+        slots.push(Slot {
+            data: 1,
+            storage: Storage::Owned,
+        });
+        plan.slots = slots.into();
+        plan.points = plan.points.map(|_, point| {
+            let mut point = point.clone();
+            let old = &point.actions;
+            let mut moved = old[4].clone();
+            moved.alternatives[0].owned.insert(9, Box::new([]));
+            let mut changed = old[5].clone();
+            changed.alternatives[0].owned.insert(9, Box::new([]));
+            let mut equal_number = changed.alternatives[0].clone();
+            equal_number.owned.insert(
+                0,
+                vec![ProjectionPath::from(vec![Projection::Index {
+                    slot: 9,
+                    bound: 2,
+                }])]
+                .into(),
+            );
+            if conflicting {
+                equal_number.after = vec![Effect::Dispose(Place::root(8))].into();
+            }
+            changed.alternatives = vec![changed.alternatives[0].clone(), equal_number].into();
+            if reversed {
+                changed.alternatives.reverse();
+            }
+            let mut done = old[6].clone();
+            done.alternatives[0].owned.insert(9, Box::new([]));
+            let mut cleanup = done.alternatives[0].after.to_vec();
+            cleanup.push(Effect::Dispose(Place::root(9)));
+            done.alternatives[0].after = cleanup.into();
+            let mut actions = old[..4].to_vec();
+            actions.extend([
+                action(copy(9, 7), &[0, 7], vec![Effect::Construct(9)]),
+                moved,
+                changed,
+                done,
+            ]);
+            point.actions = actions.into();
+            point
+        });
+        let program = Program::new(
+            types(2),
+            BTreeMap::from([(code.into(), plan)]),
+            BTreeMap::new(),
+        )
+        .unwrap();
+        let mut budget = Budget::new(CompileTimeEvaluationLimits::default());
+        for _ in 0..2 {
+            let answer = Executor::new(&program, &mut budget, 0).evaluate_initializer(code);
+            if conflicting {
+                let failure = answer.unwrap_err();
+                assert_eq!(failure.rule, Rule::InvalidPlan);
+                assert_eq!(failure.site.unwrap().action, 6);
+            } else {
+                assert_eq!(answer.unwrap(), Value::integer(42));
+            }
+            assert_eq!(budget.storage_used(), 0);
+        }
+    }
+}
+
+#[test]
+fn inclusive_prefix_and_suffix_cleanup_consume_the_saved_endpoint_at_maximum_length() {
+    let (code, _) = code_ids();
+    for last in [false, true] {
+        let mut minima = Vec::new();
+        for length in [2, u64::MAX] {
+            let position = if last { length - 1 } else { 0 };
+            let mut plan = retained_remainder(length, position);
+            plan.points = plan.points.map(|_, point| {
+                let mut point = point.clone();
+                let mut actions = point.actions[..4].to_vec();
+                actions.extend([
+                    action(integer(1, u64::MAX), &[0, 7], vec![]),
+                    action(
+                        integer(4, 42),
+                        &[0, 7],
+                        vec![
+                            Effect::DisposeArrayElements {
+                                source: Place::root(0),
+                                range: nocter_model::ArrayRange::After(7),
+                            },
+                            Effect::DisposeArrayElements {
+                                source: Place::root(0),
+                                range: nocter_model::ArrayRange::Through(7),
+                            },
+                            Effect::Release(Place::root(0)),
+                            Effect::Dispose(Place::root(7)),
+                            Effect::Construct(4),
+                        ],
+                    ),
+                ]);
+                point.actions = actions.into();
+                point
+            });
+            let program = Program::new(
+                types(length),
+                BTreeMap::from([(code.into(), plan)]),
+                BTreeMap::new(),
+            )
+            .unwrap();
+            let mut first = None;
+            for limit in 1..=96 {
+                let mut budget = Budget::new(Limits::new(
+                    CompileTimeEvaluationLimits::default(),
+                    NonZeroU64::new(limit).unwrap(),
+                ));
+                match Executor::new(&program, &mut budget, 0).evaluate_initializer(code) {
+                    Ok(value) => {
+                        assert_eq!(value, Value::integer(42));
+                        first.get_or_insert(limit);
+                    }
+                    Err(error) => assert_eq!(error.rule, Rule::StorageLimit),
+                }
+                assert_eq!(budget.storage_used(), 0);
+            }
+            minima.push(first.unwrap());
+        }
+        assert_eq!(minima[0], minima[1]);
+    }
+}

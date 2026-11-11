@@ -177,7 +177,7 @@ source retained-hole admission nor native array storage. The remaining integrati
 
 `Effect::DisposeArrayElements` retires an intact half-open interval under one owning slot. Type
 validation requires an owned array place. Constant spans satisfy `start < end <= length`;
-`ArrayRange::Before/After` uses an owned usize snapshot and a positive array length. Execution
+`ArrayRange::Before/Through/After` uses an owned usize snapshot and a positive array length. Execution
 requires that scalar still owned and initialized, resolves its saved number below the original
 array length, and skips an empty side. This integrity check never substitutes for source bounds
 completion. Source availability and guarded source admission remain separate. `memory::ownership` keeps
@@ -203,7 +203,9 @@ alternative with another snapshot lifetime therefore cannot read that route's un
 backing, even if both routes could capture equal numbers. Resolved numeric holes are sorted for
 comparison with the one sparse retirement frontier; symbolic slot order never becomes numeric
 ordering or a disjointness proof. Guard projections and address paths charge their working storage
-before allocation. Execution tests cover transfers, saved-number cleanup, original-variable changes,
+before allocation. All matching alternatives must agree on their before/after phases; equal
+numbers cannot select conflicting lifecycle routes by alternative order. Execution tests cover
+transfers, saved-number cleanup, original-variable changes,
 uninitialized alternative backing, reverse numeric/slot ordering and budget-failure recovery.
 The [source selection owner](../nocter-checking/README.md#array-selection) qualifies the retained
 whole-element stage and states its remaining precision/frontier limits.
