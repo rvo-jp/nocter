@@ -127,7 +127,7 @@ impl Builder<'_, '_> {
     fn resource(&mut self, place: &flow::resources::Place) -> Result<plan::Place> {
         Ok(plan::Place {
             slot: self.holder(place.holder())?,
-            fields: self.fields(place.fields())?,
+            fields: self.fields(&place.fields().concrete().ok_or(INVALID)?)?,
         })
     }
     fn selected(&mut self, id: AccessPlaceId) -> Result<plan::Place> {
@@ -529,7 +529,7 @@ impl Builder<'_, '_> {
                                     self.holder(holder)?,
                                     holes
                                         .iter()
-                                        .map(|path| self.fields(path))
+                                        .map(|path| self.fields(&path.concrete().ok_or(INVALID)?))
                                         .collect::<Result<_>>()?,
                                 ))
                             })

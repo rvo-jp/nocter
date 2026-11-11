@@ -28,11 +28,17 @@ fn component_mapping_keeps_authored_order_and_completed_cleanup_uses_declaration
     let cleanup = trace
         .iter()
         .filter_map(|step| match step {
-            Step::Dispose { source, .. } => Some(source.fields().fields()),
+            Step::Dispose { source, .. } => Some(source.fields().concrete().unwrap()),
             _ => None,
         })
         .collect::<Vec<_>>();
-    assert_eq!(cleanup, [&[third][..], &[second][..]]);
+    assert_eq!(
+        cleanup,
+        [
+            nocter_model::FieldPath::new([third]),
+            nocter_model::FieldPath::new([second])
+        ]
+    );
     assert!(!trace.iter().any(|step| matches!(step, Step::Construct { payload, .. } if payload.disposal() == Disposal::Aggregate)));
 }
 

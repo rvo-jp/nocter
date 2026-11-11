@@ -9,7 +9,9 @@ use std::collections::{BTreeMap, BTreeSet};
 mod assembly;
 mod capture;
 mod function_view;
+mod path;
 mod payload;
+pub use path::{Index, Path, RetainedIndex};
 mod storage;
 #[cfg(test)]
 mod tests;
@@ -34,7 +36,7 @@ impl Holder {
     pub fn place(self) -> Place {
         Place {
             holder: self,
-            fields: FieldPath::default(),
+            fields: Path::default(),
         }
     }
 }
@@ -43,7 +45,7 @@ impl Holder {
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Place {
     holder: Holder,
-    fields: FieldPath,
+    fields: Path,
 }
 impl Place {
     #[must_use]
@@ -51,7 +53,7 @@ impl Place {
         self.holder
     }
     #[must_use]
-    pub const fn fields(&self) -> &FieldPath {
+    pub const fn fields(&self) -> &Path {
         &self.fields
     }
     #[must_use]
@@ -65,7 +67,7 @@ impl Place {
     pub fn project_path(&self, suffix: &FieldPath) -> Self {
         Self {
             holder: self.holder,
-            fields: self.fields.concat(suffix),
+            fields: self.fields.concat_fields(suffix),
         }
     }
     /// Relation for declaration-validated selections; not an availability or permission proof.
@@ -215,12 +217,12 @@ impl Step {
 /// This is a checked guard projection, not an access grant or a physical drop-flag layout.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Condition {
-    owned: Box<[(Holder, Box<[FieldPath]>)]>,
+    owned: Box<[(Holder, Box<[Path]>)]>,
 }
 impl Condition {
     /// Listed holders carry an owning container; unlisted holders carry no ownership.
     /// Scoped input storage is independent. Missing paths stay prefix-free.
-    pub fn owned(&self) -> impl Iterator<Item = (Holder, &[FieldPath])> {
+    pub fn owned(&self) -> impl Iterator<Item = (Holder, &[Path])> {
         self.owned
             .iter()
             .map(|(holder, missing)| (*holder, missing.as_ref()))

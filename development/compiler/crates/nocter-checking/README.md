@@ -983,6 +983,13 @@ resource edge. `Disposal::Aggregate` retains the structural container obligation
 declaration schema selects record/tuple or homogeneous cleanup. No element-sized metadata list,
 parallel array ownership map or new subarray type is constructed.
 
+`resources::Path` separates constant numeric indices from descriptors for retained checked-index
+backing. It has no unknown-index variant: an access footprint cannot become an ownership key.
+The descriptor names reusable body-local storage and its original bound, not equal numbers across
+activations; it alone creates neither a snapshot nor ownership. Actual retained backing remains
+unimplemented. Executable evaluator/MIR consumers explicitly require concrete paths until its
+ownership, guards and cleanup close; they never substitute a number for a retained descriptor.
+
 Concrete element paths use the [declaration-owned projection](../nocter-declarations/README.md#future-value-declaration-boundary).
 The existing prefix-free missing-path set records transferred elements and partial element fields.
 An intact array remains one whole-payload disposal. For an incomplete array, `resources::payload`

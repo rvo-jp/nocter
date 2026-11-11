@@ -40,8 +40,8 @@ fn tuple_components_preserve_noncopy_moves_reverse_cleanup_and_restoration() {
         "func run(take first: error, take second: error): error {\nlet pair = (first^, second^)\npair.0^\n}",
     );
     let trace = steps(named(&unit, "run"));
-    assert!(trace.iter().any(|step| matches!(step, Step::Dispose { source, payload } if source.fields().fields() == [ValueField::Tuple(1)] && payload.disposal() == Disposal::OwnedError)));
-    assert!(!trace.iter().any(|step| matches!(step, Step::Dispose { source, .. } if source.fields().fields() == [ValueField::Tuple(0)])));
+    assert!(trace.iter().any(|step| matches!(step, Step::Dispose { source, payload } if source.fields().concrete().unwrap().fields() == [ValueField::Tuple(1)] && payload.disposal() == Disposal::OwnedError)));
+    assert!(!trace.iter().any(|step| matches!(step, Step::Dispose { source, .. } if source.fields().concrete().unwrap().fields() == [ValueField::Tuple(0)])));
 }
 
 #[test]

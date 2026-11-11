@@ -1,5 +1,5 @@
 //! Sparse availability and cleanup frontiers. Fully initialized subtrees remain shared schemas.
-use super::{Disposal, FieldPath, INVALID, Payload, Place, Program, Result, Step, payload};
+use super::{Disposal, INVALID, Index, Path, Payload, Place, Program, Result, Step, payload};
 use nocter_declarations::value_access::{ArraySchema, PayloadSchema};
 use std::collections::BTreeSet;
 
@@ -8,7 +8,7 @@ pub(super) struct OwnedValue {
     pub payload: Payload,
     // Prefix-free unavailable selections. Do not merge missing siblings into their parent:
     // the parent container still exists and permits restoring an individual child.
-    pub missing: BTreeSet<FieldPath>,
+    pub missing: BTreeSet<Path>,
 }
 enum Pending {
     Value(Place, Payload),
@@ -21,18 +21,16 @@ impl OwnedValue {
             missing: BTreeSet::new(),
         }
     }
-    pub fn complete(&self, path: &FieldPath) -> bool {
+    pub fn complete(&self, path: &Path) -> bool {
         !self.missing.iter().any(|hole| hole.overlaps(path))
     }
-    pub fn selected(&self, program: &Program, path: &FieldPath) -> Result<Payload> {
+    pub fn selected(&self, program: &Program, path: &Path) -> Result<Payload> {
         payload(
             program,
-            program
-                .project_data(self.payload.data(), path)
-                .ok_or(INVALID)?,
+            path.data(program, self.payload.data()).ok_or(INVALID)?,
         )
     }
-    pub fn container(&self, program: &Program, path: &FieldPath) -> Result<Payload> {
+    pub fn container(&self, program: &Program, path: &Path) -> Result<Payload> {
         let selected = self.selected(program, path)?;
         if self
             .missing
@@ -43,7 +41,7 @@ impl OwnedValue {
         }
         Ok(selected)
     }
-    pub fn remove(&mut self, path: &FieldPath) {
+    pub fn remove(&mut self, path: &Path) {
         self.missing.retain(|hole| !path.is_prefix_of(hole));
         self.missing.insert(path.clone());
     }
@@ -108,7 +106,9 @@ impl OwnedValue {
             .iter()
             .filter(|hole| place.fields().is_prefix_of(hole))
             .map(|hole| {
-                let Some(nocter_model::ValueField::Array(index)) = hole.fields().get(depth) else {
+                let Some(nocter_model::ValueProjection::Array(Index::Constant(index))) =
+                    hole.fields().get(depth)
+                else {
                     return Err(INVALID);
                 };
                 (*index < array.length()).then_some(*index).ok_or(INVALID)

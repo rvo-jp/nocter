@@ -39,11 +39,11 @@ fn call_result_moves_one_field_before_return_staging_and_sibling_cleanup() {
             .count(),
         1
     );
-    let extracted = trace.iter().position(|step| matches!(step, Step::Move { source: place, .. } if place.holder() == Holder::Expression(source) && place.fields().fields() == [first])).unwrap();
+    let extracted = trace.iter().position(|step| matches!(step, Step::Move { source: place, .. } if place.holder() == Holder::Expression(source) && place.fields().concrete().unwrap().fields() == [first])).unwrap();
     let staged = trace.iter().position(|step| matches!(step, Step::Move { destination, .. } if destination.holder() == Holder::Return)).unwrap();
-    let cleanup = trace.iter().position(|step| matches!(step, Step::Dispose { source: place, .. } if place.holder() == Holder::Expression(source) && place.fields().fields() == [second])).unwrap();
+    let cleanup = trace.iter().position(|step| matches!(step, Step::Dispose { source: place, .. } if place.holder() == Holder::Expression(source) && place.fields().concrete().unwrap().fields() == [second])).unwrap();
     assert!(extracted < staged && staged < cleanup);
-    assert!(!trace.iter().any(|step| matches!(step, Step::Dispose { source: place, .. } if place.fields().fields() == [first])));
+    assert!(!trace.iter().any(|step| matches!(step, Step::Dispose { source: place, .. } if place.fields().concrete().unwrap().fields() == [first])));
 }
 
 #[test]
@@ -81,7 +81,7 @@ fn read_supply_retains_the_selected_owner_and_its_source_remainder_until_frame_c
         .rposition(|step| matches!(step, Step::Receive { .. }))
         .unwrap();
     let selected_cleanup = trace.iter().position(|step| matches!(step, Step::Dispose { source: place, payload } if matches!(place.holder(), Holder::Temporary { .. }) && payload.disposal() == Disposal::OwnedError)).unwrap();
-    let remainder = trace.iter().position(|step| matches!(step, Step::Dispose { source: place, .. } if place.holder() == Holder::Expression(source) && place.fields().fields() == [second])).unwrap();
+    let remainder = trace.iter().position(|step| matches!(step, Step::Dispose { source: place, .. } if place.holder() == Holder::Expression(source) && place.fields().concrete().unwrap().fields() == [second])).unwrap();
     assert!(received < selected_cleanup && selected_cleanup < remainder);
 }
 

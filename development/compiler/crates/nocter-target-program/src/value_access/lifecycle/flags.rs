@@ -2,9 +2,8 @@
 use super::{Action, Alternative, Body, Draft, Failure, INVALID};
 use nocter_checking::value_access::flow::{
     Location,
-    resources::{Condition, Holder},
+    resources::{Condition, Holder, Path},
 };
-use nocter_model::FieldPath;
 use std::collections::{BTreeMap, BTreeSet};
 
 /// A one-bit equality test or assignment, depending on its recipe position.
@@ -77,7 +76,7 @@ impl Layout {
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum Fact {
     Container(Holder),
-    Missing(Holder, FieldPath),
+    Missing(Holder, Path),
 }
 type Snapshot = BTreeSet<Fact>;
 

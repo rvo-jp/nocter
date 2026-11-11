@@ -207,6 +207,8 @@ impl Builder<'_> {
         let mut place = self.root(source.holder(), data, !source.fields().is_root())?;
         place.projections = source
             .fields()
+            .concrete()
+            .ok_or_else(|| self.invalid())?
             .fields()
             .iter()
             .copied()

@@ -298,7 +298,7 @@ fn field_ownership_and_logical_overlap_never_depend_on_names_or_physical_offsets
     assert!(!left.project(f.a).overlaps(&right.project(f.a)));
     assert!(!left.project(f.a).overlaps(&left.project(f.b)));
     assert!(!left.overlaps(&f.locals[1].place().project(f.left)));
-    assert_eq!(f.program.project_data(f.data, left.fields()), Some(f.leaf));
+    assert_eq!(left.fields().data(&f.program, f.data), Some(f.leaf));
     assert_eq!(f.program.project_data(f.data, &FieldPath::new([f.a])), None);
     assert_eq!(
         f.program

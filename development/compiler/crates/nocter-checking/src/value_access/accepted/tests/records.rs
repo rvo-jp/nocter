@@ -12,13 +12,13 @@ fn source_field_return_stages_the_exact_selected_value_before_sibling_cleanup() 
     let first = record_field(&unit, "Pair", "first");
     let second = record_field(&unit, "Pair", "second");
     let trace = steps(named(&unit, "first"));
-    let selected = trace.iter().position(|step| matches!(step, Step::Move { source, payload, .. } if source.fields().fields() == [first] && payload.disposal() == Disposal::OwnedError)).unwrap();
+    let selected = trace.iter().position(|step| matches!(step, Step::Move { source, payload, .. } if source.fields().concrete().unwrap().fields() == [first] && payload.disposal() == Disposal::OwnedError)).unwrap();
     let returned = trace.iter().position(|step| matches!(step, Step::Move { destination, .. } if destination.holder() == Holder::Return)).unwrap();
-    let disposed = trace.iter().position(|step| matches!(step, Step::Dispose { source, payload } if source.fields().fields() == [second] && payload.disposal() == Disposal::OwnedError)).unwrap();
+    let disposed = trace.iter().position(|step| matches!(step, Step::Dispose { source, payload } if source.fields().concrete().unwrap().fields() == [second] && payload.disposal() == Disposal::OwnedError)).unwrap();
     let released = trace.iter().position(|step| matches!(step, Step::ReleaseContainer { source, .. } if source.fields().is_root())).unwrap();
     assert!(selected < returned && returned < disposed && disposed < released);
     assert!(!trace.iter().any(
-        |step| matches!(step, Step::Dispose { source, .. } if source.fields().fields() == [first])
+        |step| matches!(step, Step::Dispose { source, .. } if source.fields().concrete().unwrap().fields() == [first])
     ));
 }
 
@@ -67,8 +67,8 @@ fn source_partial_drop_does_not_destroy_values_already_moved_into_other_bindings
     let first = record_field(&unit, "Pair", "first");
     let second = record_field(&unit, "Pair", "second");
     for field in [first, second] {
-        assert_eq!(trace.iter().filter(|step| matches!(step, Step::Move { source, .. } if source.fields().fields() == [field])).count(), 1);
-        assert!(!trace.iter().any(|step| matches!(step, Step::Dispose { source, .. } if source.fields().fields() == [field])));
+        assert_eq!(trace.iter().filter(|step| matches!(step, Step::Move { source, .. } if source.fields().concrete().unwrap().fields() == [field])).count(), 1);
+        assert!(!trace.iter().any(|step| matches!(step, Step::Dispose { source, .. } if source.fields().concrete().unwrap().fields() == [field])));
     }
     assert_eq!(
         trace
@@ -89,7 +89,7 @@ fn source_branch_replacement_retains_both_old_value_cleanup_alternatives() {
         for (action, event) in block.actions.iter().enumerate() {
             if matches!(event.operation, Operation::Assign { .. }) {
                 for transition in query.access().resources().at(Location { point, action }) {
-                    cleanup.push(transition.steps().iter().any(|step| matches!(step, Step::Dispose { source, .. } if source.fields().fields() == [first])));
+                    cleanup.push(transition.steps().iter().any(|step| matches!(step, Step::Dispose { source, .. } if source.fields().concrete().unwrap().fields() == [first])));
                 }
             }
         }
@@ -123,7 +123,7 @@ fn external_record_update_retains_the_selected_field_in_its_effect() {
     let unit = accepted(&source_case("a31-edit-record-input.nct"));
     let first = record_field(&unit, "Pair", "first");
     let trace = steps(named(&unit, "replace"));
-    assert!(trace.iter().any(|step| matches!(step, Step::ReplaceReferent { destination, payload, .. } if destination.fields().fields() == [first] && payload.disposal() == Disposal::OwnedError)));
+    assert!(trace.iter().any(|step| matches!(step, Step::ReplaceReferent { destination, payload, .. } if destination.fields().concrete().unwrap().fields() == [first] && payload.disposal() == Disposal::OwnedError)));
 }
 
 #[test]
