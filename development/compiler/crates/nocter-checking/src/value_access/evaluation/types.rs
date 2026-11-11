@@ -86,18 +86,23 @@ impl Types {
                     self.insert(data, ty.unwrap_or(Type::Unavailable), supported);
                     continue;
                 }
-                PayloadSchema::Function(witness) => {
-                    let ty = match witness.origin {
-                        nocter_model::ValueFunctionOrigin::Declaration(code) => {
-                            Type::NamedFunction(code)
-                        }
-                        _ => Type::Unavailable,
-                    };
-                    let supported = !matches!(ty, Type::Unavailable);
-                    let id = self.insert(data, ty, supported);
-                    self.shapes[id].serializable = false;
-                    continue;
-                }
+                PayloadSchema::Function(witness) => match witness.origin {
+                    nocter_model::ValueFunctionOrigin::Closure(code) => {
+                        vec![program.closure(code).ok_or(INVALID)?.environment()]
+                    }
+                    origin => {
+                        let ty = match origin {
+                            nocter_model::ValueFunctionOrigin::Declaration(code) => {
+                                Type::NamedFunction(code)
+                            }
+                            _ => Type::Unavailable,
+                        };
+                        let supported = !matches!(ty, Type::Unavailable);
+                        let id = self.insert(data, ty, supported);
+                        self.shapes[id].serializable = false;
+                        continue;
+                    }
+                },
                 PayloadSchema::Array(array) if array.is_empty() => {
                     // A private self-edge is a valid zero containment shape even before linking.
                     // Nothing observes this draft table until all element identities are linked.
@@ -132,14 +137,24 @@ impl Types {
                 .map(|child| self.ids.get(&child).copied().ok_or(INVALID))
                 .collect::<Result<Vec<_>>>()?;
             let supported = children.iter().all(|&id| self.shapes[id].supported);
-            let serializable = children.iter().all(|&id| self.shapes[id].serializable);
+            let serializable = !matches!(schema, PayloadSchema::Function(_))
+                && children.iter().all(|&id| self.shapes[id].serializable);
             let ty = match schema {
                 PayloadSchema::Aggregate(_) => Type::Record(children.into()),
                 PayloadSchema::Array(array) => Type::Array {
                     element: *children.first().ok_or(INVALID)?,
                     length: array.length(),
                 },
-                PayloadSchema::Builtin(_) | PayloadSchema::Function(_) => return Err(INVALID),
+                PayloadSchema::Function(witness) => {
+                    let nocter_model::ValueFunctionOrigin::Closure(code) = witness.origin else {
+                        return Err(INVALID);
+                    };
+                    Type::CapturedFunction {
+                        code,
+                        environment: *children.first().ok_or(INVALID)?,
+                    }
+                }
+                PayloadSchema::Builtin(_) => return Err(INVALID),
             };
             let id = self.insert(data, ty, supported);
             self.shapes[id].serializable = serializable;

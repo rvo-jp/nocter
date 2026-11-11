@@ -316,3 +316,36 @@ fn interrupted_named_argument_preparation_does_not_invent_a_formal_call() {
         nocter_constant_evaluation::state::Value::integer(42)
     );
 }
+
+#[test]
+fn captured_shape_evidence_is_independent_of_source_const_and_final_admission() {
+    for (source, supported) in [
+        (
+            "func run(): i32 { let value = 42\nlet action = (value;): i32 { value }\naction() }",
+            true,
+        ),
+        (
+            "func run(): i32 { let value = 42\nlet inner = (value;): i32 { value }\nlet outer = (inner;): i32 { inner() }\nouter() }",
+            true,
+        ),
+        (
+            "func run(take failure: error): void { let action = (failure^;): void {}\ndrop action }",
+            false,
+        ),
+    ] {
+        let unit = accepted(source);
+        let mut shapes = crate::value_access::evaluation::Types::default();
+        assert!(!unit.closures().is_empty());
+        for &code in unit.closures().keys() {
+            let data = unit
+                .program()
+                .function_data(nocter_declarations::value_access::FunctionWitness {
+                    origin: nocter_model::ValueFunctionOrigin::Closure(code),
+                    invocation: unit.program().closure(code).unwrap().contract().invocation,
+                })
+                .unwrap();
+            assert_eq!(shapes.supports(unit.program(), data).unwrap(), supported);
+            assert!(!shapes.supports_final(unit.program(), data).unwrap());
+        }
+    }
+}

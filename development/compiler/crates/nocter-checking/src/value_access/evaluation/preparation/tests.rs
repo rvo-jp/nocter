@@ -4,6 +4,7 @@ use crate::value_access::tests::{bound, input};
 use nocter_declarations::value_access::PayloadSchema;
 use std::{fmt::Write as _, sync::Arc};
 mod array_construction;
+mod callable_dependencies;
 mod local_expressions;
 
 #[test]

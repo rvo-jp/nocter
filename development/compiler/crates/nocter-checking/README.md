@@ -580,8 +580,10 @@ original argument positions and preparation effects. Known factories, array-sele
 scoped views and edited ordinary inputs use the same executor and runtime body. Dormant runtime-only
 named values may be formed and destroyed, but every authored invocation still requires const evidence,
 including dead source. Callable-bearing tuples and nonempty arrays are temporary data without final
-constant-publication permission. Captured/formal/unresolved callable values and opaque error-data
-operations still have no evaluator domain here. A named actual argument cannot substitute for an
+constant-publication permission. Exact captured schemas also project their environment shape for
+internal payload transport, independently of source const eligibility. Captured formation/invocation,
+formal/unresolved callable values and opaque error-data operations still have no source evaluator
+domain here. A named actual argument cannot substitute for an
 unclosed formal input representation, even when that parameter is unused. Domain checking reports
 the actual input before plan projection; interrupted preparation never fabricates a completed call.
 Explicit unsupported drops fail even in dead source. Implicit disposal and edit-input replacement
@@ -637,8 +639,17 @@ Constant references become validated primitive literals or immutable frozen-aggr
 ordinary expression checking,
 before conditional completion, reachable breaks, capture invocation inference or control freezing.
 All authored source remains structurally checked, including unevaluated branches. Selected const
-callees are prepared through all authored call edges; callable-only recursion remains a graph,
-while a constant reference requests a value and exposes an active declaration cycle.
+callees are prepared through authored call edges and concrete targets revealed by result resolution;
+callable-only recursion remains a graph, while a constant reference requests a value and exposes an
+active declaration cycle. Forming a dormant named value does not request its body. The shared
+`accepted::Resolved` stage closes canonical typing, results and control before effect-sensitive
+admission. If that closure reveals another target, preparation loads its ordinary body fact and
+resolves the expanded set through the same authority; raw completed body facts remain unchanged.
+Only the closed call set proceeds to writes, numerical/resource checks, const admission and plans.
+One parent call edge per reached root reconstructs dependency notes on demand, instead of retaining
+complete paths at every root. Source cases qualify factory-only results, recursive/transitive
+bodies, independent local counts, prefix inference and actual failure causes without dormant-body
+initializer cycles.
 
 Header, body and value requests advance through explicit dependency groups, without host recursion
 through constant chains. A body draft requests its missing contract/value or static prerequisite;

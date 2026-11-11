@@ -20,6 +20,11 @@ pub enum Type {
     Unit,
     /// A concrete code witness with no runtime environment; Unit is its payload.
     NamedFunction(AccessCodeId),
+    /// One owned environment in internal component zero; code is static metadata, not payload.
+    CapturedFunction {
+        code: nocter_model::ValueClosure,
+        environment: usize,
+    },
     Bool,
     I32,
     Usize,
@@ -33,6 +38,7 @@ impl Type {
     fn component(&self, index: usize) -> Option<usize> {
         match self {
             Self::Record(fields) => fields.get(index).copied(),
+            Self::CapturedFunction { environment, .. } if index == 0 => Some(*environment),
             Self::Array { element, length } if u64::try_from(index).ok()? < *length => {
                 Some(*element)
             }
@@ -42,6 +48,7 @@ impl Type {
     fn component_count(&self) -> Option<u64> {
         match self {
             Self::Record(fields) => u64::try_from(fields.len()).ok(),
+            Self::CapturedFunction { .. } => Some(1),
             Self::Array { length, .. } => Some(*length),
             _ => None,
         }

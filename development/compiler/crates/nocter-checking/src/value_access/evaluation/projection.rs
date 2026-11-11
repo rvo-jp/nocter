@@ -296,7 +296,28 @@ impl Builder<'_, '_> {
                     destination: plan::Place::root(self.holder(*destination)?),
                 }
             }
-            Step::Capture { .. } => return Err(INVALID),
+            Step::Capture {
+                source,
+                destination,
+                environment,
+                payload,
+            } => {
+                let Some(nocter_declarations::value_access::PayloadSchema::Function(witness)) =
+                    self.program.data_schema(payload.data())
+                else {
+                    return Err(INVALID);
+                };
+                let nocter_model::ValueFunctionOrigin::Closure(code) = witness.origin else {
+                    return Err(INVALID);
+                };
+                if self.program.closure(code).ok_or(INVALID)?.environment() != environment.data() {
+                    return Err(INVALID);
+                }
+                plan::Effect::Assemble {
+                    destination: self.holder(*destination)?,
+                    fields: Box::new([(0, self.resource(source)?)]),
+                }
+            }
         })
     }
     fn computation(&mut self, op: &flow::Operation) -> Result<plan::Operation> {
@@ -527,6 +548,7 @@ impl Builder<'_, '_> {
             }
             | ExpressionKind::Move(_)
             | ExpressionKind::AdaptFunction { .. }
+            | ExpressionKind::Closure { .. }
             | ExpressionKind::Aggregate { .. }
             | ExpressionKind::Select {
                 action: SelectionAction::MovePayload,

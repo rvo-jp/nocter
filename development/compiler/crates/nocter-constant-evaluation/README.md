@@ -98,8 +98,16 @@ prefix from explicit declaration inputs; the evaluator performs no dispatch look
 code identities without conflating them with unit or another function. Copies, moves and cleanup
 use the ordinary slots, leases and resource phases. This temporary representation grants no final
 serialization permission; checking's shared shape projection separately validates final data,
-including callable-bearing containers. Captured environments and formal invocation remain outside
-this plan domain.
+including callable-bearing containers.
+
+`Type::CapturedFunction` retains a lexical code key and the exact environment type. Its internal
+component zero holds one environment value; ordinary assembly transfers that existing owner into
+the payload. Invocation-view adaptation preserves both code and environment identity. Copies and
+updates use the same aggregate path copying and live leases as other values; destruction releases
+the environment without invoking its code. The schema is finite through positive containment,
+while empty-array edges retain their existing identity-only behavior. Captured payload transport
+is not captured invocation eligibility, adapter backing or source closure admission. Those remain
+checking/invocation obligations; callable payloads still cannot be final serialized data.
 
 A selected comparison with a fixed result arrives as a literal operation after the original
 operand actions. This does not authorize skipping calls, access validation or failure before that

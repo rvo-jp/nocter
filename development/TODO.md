@@ -18,10 +18,11 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Extend required constant evaluation from exact named callable values to captured code. Reuse checked
-lexical code identities, environment schemas and ordinary invocation/resource transitions; preserve
-evaluator budgets and reject callable environments as final serialized constants. Qualify ordinary
-source execution and local domain failures before extending general callable dependencies.
+Extend the result-resolved evaluator call closure to captured code. Close per-witness invocation
+eligibility and frozen environment/adapter handoff using declaration-owned schemas and existing
+budgets. Qualify read/edit/take bodies, taking adapters, independent copies and local domain
+failures through ordinary source. General formal substitution and final callable serialization
+remain separate boundaries.
 
 ## Retained Selection Closure
 

@@ -241,11 +241,24 @@ impl Checked {
         }
     }
 }
-/// The same ordinary acceptance authority serves required const closures and final whole-unit closure.
-pub(super) fn check_queries(
+/// Canonical typing/result/control closure before effect-sensitive admission. This is an
+/// intermediate product, not executable or whole-unit evidence.
+pub(super) struct Resolved {
+    program: Arc<Program>,
+    controls: BTreeMap<nocter_model::ValueCodeRoot, flow::Control>,
+    result_evidence: Arc<super::results::Evidence>,
+}
+impl Resolved {
+    pub(super) fn roots(&self) -> impl Iterator<Item = (nocter_model::ValueCodeRoot, &TypedQuery)> {
+        self.controls
+            .iter()
+            .map(|(&root, control)| (root, control.typed.as_ref()))
+    }
+}
+pub(super) fn resolve_queries(
     context: &DeclarationContext<'_>,
     mut queries: BTreeMap<nocter_model::ValueCodeRoot, TypedQuery>,
-) -> Result<Checked, Failure> {
+) -> Result<Resolved, Failure> {
     let program = super::types::canonicalize(context, &mut queries)?;
     let mut controls = queries
         .into_iter()
@@ -257,6 +270,28 @@ pub(super) fn check_queries(
         })
         .collect::<Result<BTreeMap<_, _>, Failure>>()?;
     let result_evidence = super::results::close(context, &mut controls)?;
+    Ok(Resolved {
+        program,
+        controls,
+        result_evidence,
+    })
+}
+/// The same ordinary acceptance authority serves required const closures and final whole-unit closure.
+pub(super) fn check_queries(
+    context: &DeclarationContext<'_>,
+    queries: BTreeMap<nocter_model::ValueCodeRoot, TypedQuery>,
+) -> Result<Checked, Failure> {
+    admit_resolved(context, resolve_queries(context, queries)?)
+}
+pub(super) fn admit_resolved(
+    context: &DeclarationContext<'_>,
+    resolved: Resolved,
+) -> Result<Checked, Failure> {
+    let Resolved {
+        program,
+        controls,
+        result_evidence,
+    } = resolved;
     let writes =
         flow::call_writes::Catalog::prepare(controls.values()).map_err(Failure::Integrity)?;
     let verified = result_evidence

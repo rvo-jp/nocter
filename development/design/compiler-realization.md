@@ -90,6 +90,17 @@ without accepting capability cycles or mistaking budget exhaustion for nontermin
 constant-argument and further structural requests must use the same dependency protocol; no stage
 may publish fabricated type/constant placeholders to break a cycle.
 
+Close exact captured-code evaluation by separating environment formation/destruction from body
+invocation eligibility. Derive per-witness availability with the checked code, independently of
+func/mut/once and Copy; do not grant a named runtime helper const capability by inspecting its body.
+A dormant runtime-only body need not prevent eligible environment transport. An actual invocation
+must retain local forbidden-operation causes and the selected code's input/cleanup obligations.
+Taking invocation views of read/edit bodies need stable owned adapter backing, destroyed before
+answer receipt without transferring body-owned destruction to a second registry. Qualify these
+through ordinary source and the existing evaluator budgets before admitting captured calls; the
+closed payload/lexical-plan representation alone is insufficient. Final callable serialization
+and general formal callable substitution remain separate boundaries.
+
 ### Structural Type Request Closure
 
 The [source header path](../compiler/crates/nocter-declaration-lowering/README.md#exact-source-evidence)

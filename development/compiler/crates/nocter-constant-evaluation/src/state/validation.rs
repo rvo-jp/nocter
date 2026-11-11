@@ -53,6 +53,11 @@ pub(super) fn value(program: &Program, data: usize, value: &Value) -> bool {
                         _ => None,
                     })
                     .is_some_and(|spec| spec.contains(*value)) => {}
+            (Some(Type::CapturedFunction { environment, .. }), Data::Aggregate(values))
+                if values.len() == 1 =>
+            {
+                pending.push((*environment, values[0].clone()));
+            }
             (Some(Type::Record(fields)), Data::Aggregate(values))
                 if fields.len() == values.len() =>
             {
@@ -88,6 +93,11 @@ pub(super) fn validate(program: &Program) -> Result<()> {
     for (id, data) in program.types.iter().enumerate() {
         if let Type::Record(fields) = data
             && fields.iter().any(|&field| field >= id)
+        {
+            return Err(INVALID);
+        }
+        if let Type::CapturedFunction { environment, .. } = data
+            && *environment >= id
         {
             return Err(INVALID);
         }
@@ -561,7 +571,7 @@ fn check_effect(program: &Program, plan: &super::Plan, effect: &Effect) -> Resul
         } => {
             let from = program.types.get(owned(source)?).ok_or(INVALID)?;
             let to = program.types.get(owned(destination)?).ok_or(INVALID)?;
-            if !matches!((from, to), (Type::NamedFunction(a), Type::NamedFunction(b)) if a == b) {
+            if !same_function_payload(from, to) {
                 return Err(INVALID);
             }
         }
@@ -599,4 +609,22 @@ fn check_effect(program: &Program, plan: &super::Plan, effect: &Effect) -> Resul
         }
     }
     Ok(())
+}
+
+// Invocation permission is a producer fact; this check preserves its exact payload representation.
+fn same_function_payload(from: &Type, to: &Type) -> bool {
+    match (from, to) {
+        (Type::NamedFunction(a), Type::NamedFunction(b)) => a == b,
+        (
+            Type::CapturedFunction {
+                code: a,
+                environment: left,
+            },
+            Type::CapturedFunction {
+                code: b,
+                environment: right,
+            },
+        ) => a == b && left == right,
+        _ => false,
+    }
 }

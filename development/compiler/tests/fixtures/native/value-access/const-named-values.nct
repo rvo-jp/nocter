@@ -28,6 +28,7 @@ const func calculate(): i32 {
     if tuple_result == 42 && first == 41 && second == 42 && mutable(41) == 42 && once(41) == 42 && once^(41) == 42 && made(41) == 42 && value == 42 && total == 42 { 42 } else { 0 }
 }
 const ANSWER: i32 = calculate()
+const ONLY: i32 = create()(41)
 func closure_containers(): i32 {
     let seed = 40
     var action = (seed;): i32 { seed += 1
@@ -50,4 +51,4 @@ func closure_containers(): i32 {
     let array_separate = separate_action()
     if first == 41 && second == 42 && separate == 41 && array_first == 41 && array_second == 42 && array_separate == 41 && action() == 41 { 42 } else { 0 }
 }
-func run(): i32 { if ANSWER == 42 && calculate() == 42 && closure_containers() == 42 { 42 } else { 0 } }
+func run(): i32 { if ANSWER == 42 && ONLY == 42 && create()(41) == 42 && calculate() == 42 && closure_containers() == 42 { 42 } else { 0 } }

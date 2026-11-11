@@ -14,7 +14,7 @@ use nocter_dependency_query::{DependencyProgress, DependencyQueryError, Dependen
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{AccessCodeId, ValueCodeRoot, ValueExpression, ValueFunctionOrigin};
 use nocter_syntax::SyntaxOrigin;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, HashMap};
 #[cfg(test)]
 mod tests;
 type Failure = accepted::Failure;
@@ -35,9 +35,26 @@ enum DependencyCause {
     Value(SyntaxOrigin),
     Calls(Vec<SyntaxOrigin>),
 }
+#[derive(Clone, Copy)]
+struct CallOrigin {
+    parent: ValueCodeRoot,
+    site: SyntaxOrigin,
+}
+fn call_path(
+    selected: &BTreeMap<ValueCodeRoot, Option<CallOrigin>>,
+    mut edge: Option<CallOrigin>,
+) -> Result<Vec<SyntaxOrigin>, Failure> {
+    let mut path = Vec::new();
+    while let Some(origin) = edge {
+        path.push(origin.site);
+        edge = *selected.get(&origin.parent).ok_or(INVALID)?;
+    }
+    path.reverse();
+    Ok(path)
+}
 enum GraphProgress {
     Require(ValueCodeRoot, Vec<SyntaxOrigin>),
-    Ready(BTreeMap<ValueCodeRoot, Query>),
+    Ready(accepted::Resolved),
 }
 pub(in crate::value_access) fn prepare(
     context: &Context<'_>,
@@ -376,43 +393,86 @@ impl<'a, 'source> Preparation<'a, 'source> {
             }),
         })
     }
+    fn callees(&self, query: &Query) -> Result<Vec<(AccessCodeId, SyntaxOrigin)>, Failure> {
+        let bound = query.bind(&self.context).map_err(|failure| Failure::Body {
+            callable: query.code().source_owner(),
+            failure,
+        })?;
+        query
+            .body()
+            .expressions()
+            .iter()
+            .filter_map(|(id, expression)| {
+                let ExpressionKind::Call {
+                    target: ValueFunctionOrigin::Declaration(target),
+                    ..
+                } = expression.kind
+                else {
+                    return None;
+                };
+                Some(
+                    bound
+                        .expression_origin(id)
+                        .ok_or(INVALID)
+                        .map(|origin| (target, origin)),
+                )
+            })
+            .collect()
+    }
     fn graph(
         &self,
         requests: &Dependencies,
         root: ValueCodeRoot,
     ) -> Result<GraphProgress, SourceFailure> {
-        let mut selected = BTreeSet::new();
-        let mut pending = vec![(root, Vec::new())];
-        while let Some((id, through)) = pending.pop() {
-            if !selected.insert(id) {
-                continue;
+        let mut selected = BTreeMap::new();
+        let mut pending = vec![(root, None)];
+        loop {
+            while let Some((id, through)) = pending.pop() {
+                if selected.contains_key(&id) {
+                    continue;
+                }
+                let Some(query) = dependencies::body(requests, id) else {
+                    return Ok(GraphProgress::Require(id, call_path(&selected, through)?));
+                };
+                // Authored calls include dead source. A function reference alone is not a
+                // body dependency: dormant formation must not invent initializer cycles.
+                for (target, origin) in self.callees(query)? {
+                    pending.push((
+                        target.into(),
+                        Some(CallOrigin {
+                            parent: id,
+                            site: origin,
+                        }),
+                    ));
+                }
+                selected.insert(id, through);
             }
-            let Some(query) = dependencies::body(requests, id) else {
-                return Ok(GraphProgress::Require(id, through));
-            };
-            // All authored direct callees participate in ordinary closure, including dead source.
-            // Const-domain rejection follows ordinary safety; runtime callees are never executed.
-            let bound = query.bind(&self.context).map_err(|failure| Failure::Body {
-                callable: id.source_owner(),
-                failure,
-            })?;
-            for (expression_id, expression) in query.body().expressions().iter() {
-                if let ExpressionKind::Call {
-                    target: ValueFunctionOrigin::Declaration(target),
-                    ..
-                } = expression.kind
-                {
-                    let mut path = through.clone();
-                    path.push(bound.expression_origin(expression_id).ok_or(INVALID)?);
-                    pending.push((target.into(), path));
+            let queries = selected
+                .keys()
+                .map(|&id| Ok((id, dependencies::body(requests, id).ok_or(INVALID)?.clone())))
+                .collect::<Result<_, Failure>>()?;
+            // Result resolution can reveal another concrete call target. Close that dependency
+            // before write-sensitive flow, const admission or plan projection, through the same
+            // canonical/result authority used by final Unit acceptance.
+            let resolved = accepted::resolve_queries(&self.context, queries)?;
+            for (id, query) in resolved.roots() {
+                for (target, origin) in self.callees(query)? {
+                    let target = ValueCodeRoot::from(target);
+                    if !selected.contains_key(&target) {
+                        pending.push((
+                            target,
+                            Some(CallOrigin {
+                                parent: id,
+                                site: origin,
+                            }),
+                        ));
+                    }
                 }
             }
+            if pending.is_empty() {
+                return Ok(GraphProgress::Ready(resolved));
+            }
         }
-        let queries = selected
-            .into_iter()
-            .map(|id| Ok((id, dependencies::body(requests, id).ok_or(INVALID)?.clone())))
-            .collect::<Result<_, Failure>>()?;
-        Ok(GraphProgress::Ready(queries))
     }
     fn advance_value(
         &mut self,
@@ -448,8 +508,8 @@ impl<'a, 'source> Preparation<'a, 'source> {
                 Request::Body(target),
                 DependencyCause::Calls(through),
             )),
-            GraphProgress::Ready(queries) => self
-                .execute(requests, id, result_data, queries)
+            GraphProgress::Ready(resolved) => self
+                .execute(requests, id, result_data, resolved)
                 .map(|value| DependencyStep::Complete(Fact::Value(value)))
                 .map_err(Into::into),
         }
@@ -459,11 +519,11 @@ impl<'a, 'source> Preparation<'a, 'source> {
         requests: &Dependencies,
         id: ValueCodeRoot,
         result_data: nocter_model::TypeId,
-        queries: BTreeMap<ValueCodeRoot, Query>,
+        resolved: accepted::Resolved,
     ) -> Result<Completed, Failure> {
         // This is the ordinary acceptance routine over the selected const closure, not another
         // source checker or evaluator. Only established frozen data crosses into final Unit typing.
-        let checked = accepted::check_queries(&self.context, queries)?;
+        let checked = accepted::admit_resolved(&self.context, resolved)?;
         if !super::super::constant::supports_final(&checked.program, result_data)
             .map_err(Failure::Integrity)?
         {
