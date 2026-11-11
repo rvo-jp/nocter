@@ -821,6 +821,28 @@ consuming calls, Copy of once-view named functions and recursive cleanup without
 dormant trapping body. No signature-wide Copy/cleanup assumption or extra callable registry is used.
 The enclosing header remains its source-reuse owner, while lexical owner/slot identifies its code.
 
+### Contextual Anonymous Contracts
+
+A selected callable contract can supply omitted closure parameter data, input operations and result
+data. `annotations` represents either ordinary data or that static callable constraint; the same
+expression context reaches annotated values, selected call operands, declared callable results and
+conditional result positions. It does not assert that a formal witness is the concrete expression's
+payload identity. Ordinary constraint matching and invocation adaptation still close that identity.
+
+`closures` checks parameter count and conflicting explicit parameter data/operations or result data
+before body checking. An unmarked anonymous input inherits the selected operation even when its body
+uses less authority. With no expected callable contract it remains read, and this bounded scope
+requires explicit parameter/result data. Later uses do not repair missing context. Named declaration
+operations remain their own contracts. Environment invocation is inferred separately from reached
+capture operations; an expected view cannot grant a stronger invocation capability.
+
+The shared contextual-closure source qualifies annotation/call/result completion, nested conditional
+result positions, edited caller state, taking non-Copy inputs and mut/once adapters through required
+and native execution. Formal callable invocation remains outside the evaluator domain; the fixture's
+required paths invoke exact local/factory witnesses, while native source also calls selected formals.
+General standalone inference, outside-reference capture and symbolic dependency contracts remain
+separate realization obligations.
+
 The environment's provisional construction authority permits demand collection, not accepted
 execution. Its control graph is prepared once. Reached environment moves/drops or transfer inputs
 select once; updates/delegations select mut; otherwise invocation is func. Unreachable moves do

@@ -185,3 +185,11 @@ fn empty_and_multiple_owned_capture_answers_match_their_declared_constant() {
         "/../../tests/fixtures/native/value-access/owned-environments.nct"
     )));
 }
+
+#[test]
+fn contextual_closure_contracts_supply_required_answers() {
+    assert_answer_42(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-closures.nct"
+    )));
+}

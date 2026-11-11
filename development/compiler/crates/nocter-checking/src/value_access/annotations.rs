@@ -91,6 +91,18 @@ impl Checker<'_, '_> {
             }
         }
     }
+    pub fn contextual_type(&self, data: TypeId) -> Result<Annotation, Failure> {
+        if let Some(nocter_declarations::value_access::PayloadSchema::Function(witness)) =
+            self.program().data_schema(data)
+        {
+            self.program()
+                .function_contract(witness)
+                .map(Annotation::Function)
+                .ok_or(Failure::InconsistentSyntax)
+        } else {
+            Ok(Annotation::Data(data))
+        }
+    }
     pub fn function_constraint_data(
         &mut self,
         node: NodeId,

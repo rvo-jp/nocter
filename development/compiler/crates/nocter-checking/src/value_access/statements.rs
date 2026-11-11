@@ -20,6 +20,18 @@ impl Checker<'_, '_> {
         expected: Option<Boundary>,
         reachable: bool,
     ) -> Result<AccessBlockId, Failure> {
+        let hint = expected
+            .map(|boundary| self.contextual_type(boundary.ty().data()))
+            .transpose()?;
+        self.block_with_hint(node, expected, hint.as_ref(), reachable)
+    }
+    pub(super) fn block_with_hint(
+        &mut self,
+        node: NodeId,
+        expected: Option<Boundary>,
+        hint: Option<&Annotation>,
+        reachable: bool,
+    ) -> Result<AccessBlockId, Failure> {
         self.scopes.push(std::collections::BTreeMap::new());
         let entries = if let Ok(sequence) = self.direct(node, NodeKind::ExecutableSequence) {
             self.children(sequence)
@@ -32,8 +44,9 @@ impl Checker<'_, '_> {
         for entry in entries {
             if self.kind(entry)? == NodeKind::BodyResult {
                 let expression = self.first_child(entry)?;
-                let mut value = self.expression(
+                let mut value = self.expression_with_hint(
                     expression,
+                    hint,
                     expected.filter(|_| continues),
                     reachable && continues,
                 )?;
@@ -207,8 +220,9 @@ impl Checker<'_, '_> {
         } else if kind == ValueBindingKind::EditAlias {
             self.alias_value(expression, Rule::InvalidUpdate, reachable)?
         } else {
-            self.expression(
+            self.expression_with_hint(
                 expression,
+                annotation.as_ref(),
                 annotation
                     .as_ref()
                     .and_then(Annotation::data)

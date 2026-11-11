@@ -1,5 +1,6 @@
 use super::{
     Failure, Rule,
+    annotations::Annotation,
     checker::Checker,
     ir::{Binary, Boundary, ExpressionKind, Unary, ValueType, value_type},
 };
@@ -30,16 +31,10 @@ impl Checker<'_, '_> {
         data: nocter_model::TypeId,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
-        // Code contracts select invocation adapters later; their formal witness is not a
-        // concrete expected value identity. Ordinary data can constrain literal construction.
-        let hint = (!matches!(
-            self.program().data_schema(data),
-            Some(nocter_declarations::value_access::PayloadSchema::Function(
-                _
-            ))
-        ))
-        .then_some(data);
-        self.expression_with_context(node, hint, None, reachable)
+        // A selected contract can complete anonymous inputs/results without turning its
+        // formal witness into the concrete value identity expected by ordinary boundaries.
+        let hint = self.contextual_type(data)?;
+        self.expression_with_hint(node, Some(&hint), None, reachable)
     }
     pub(super) fn expression_with_context(
         &mut self,
@@ -48,13 +43,30 @@ impl Checker<'_, '_> {
         expected: Option<Boundary>,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
+        let hint = hint.map(|data| self.contextual_type(data)).transpose()?;
+        self.expression_with_hint(node, hint.as_ref(), expected, reachable)
+    }
+    pub(super) fn expression_with_hint(
+        &mut self,
+        node: NodeId,
+        context: Option<&Annotation>,
+        expected: Option<Boundary>,
+        reachable: bool,
+    ) -> Result<AccessExpressionId, Failure> {
+        let hint = context.and_then(Annotation::data);
         let node = self.unwrap(node)?;
         let expr = match self.kind(node)? {
             NodeKind::ReferenceExpression => self.reference_value(node)?,
             NodeKind::ScalarLiteral => self.literal(node, false, hint)?,
             NodeKind::UnitExpression => self.unit(node)?,
             NodeKind::TransferExpression => self.transfer(node, reachable)?,
-            NodeKind::ClosureExpression => self.closure(node, reachable)?,
+            NodeKind::ClosureExpression => {
+                let contract = match context {
+                    Some(Annotation::Function(contract)) => Some(contract),
+                    _ => None,
+                };
+                self.closure(node, contract, reachable)?
+            }
             NodeKind::StructLiteral => self.record_value(node, reachable)?,
             NodeKind::TupleExpression => {
                 self.tuple_value(node, hint.map(Boundary::Value), reachable)?
@@ -84,6 +96,7 @@ impl Checker<'_, '_> {
                 return self.if_expression(
                     node,
                     expected.or_else(|| hint.map(Boundary::Value)),
+                    context,
                     reachable,
                 );
             }
@@ -305,6 +318,7 @@ impl Checker<'_, '_> {
         &mut self,
         node: NodeId,
         expected: Option<Boundary>,
+        hint: Option<&Annotation>,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
         let condition_node = self.first_child(self.direct(node, NodeKind::IfCondition)?)?;
@@ -323,23 +337,32 @@ impl Checker<'_, '_> {
                 Mode::Own,
             )))
         });
-        let then_block = self.block(
+        let unit_hint = Annotation::Data(self.data(BuiltinType::Void));
+        let branch_hint = if alternative.is_none() {
+            Some(&unit_hint)
+        } else {
+            hint
+        };
+        let then_block = self.block_with_hint(
             self.direct(node, NodeKind::Block)?,
             branch_expected,
+            branch_hint,
             branches_reachable && known_condition != Some(false),
         )?;
         let else_block = if let Some(clause) = alternative {
             let child = self.first_child(clause)?;
             if self.kind(child)? == NodeKind::Block {
-                self.block(
+                self.block_with_hint(
                     child,
                     expected,
+                    hint,
                     branches_reachable && known_condition != Some(true),
                 )?
             } else {
                 let value = self.if_expression(
                     child,
                     expected,
+                    hint,
                     branches_reachable && known_condition != Some(true),
                 )?;
                 self.emit_block(clause, Vec::new(), Some(value), self.ty(value))?

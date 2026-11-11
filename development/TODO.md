@@ -18,11 +18,11 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Complete contextual anonymous callable contracts. Supply omitted parameter data/operations and
-result data from the already selected expected contract, reject conflicting explicit declarations
-locally, and preserve inferred environment invocation and ordinary adaptation. Cover annotations,
-call inputs and conditional result positions through the existing typing/flow and native paths;
-standalone inference and outside-reference capture remain separate obligations.
+Close direct indexed callable invocation through one iterative postfix preparation path. Preserve
+static direct/value selection, source-order argument preparation, explicit retirement, retained
+index identity and ordinary invocation adapters; do not use recursive source rechecking or a chain
+length ceiling. Qualify source, required evaluation and native execution, plus invalid long mixed
+chains and overlapping access. Adapted element transfer remains a separate prefix-handoff proof.
 
 ## Retained Selection Closure
 

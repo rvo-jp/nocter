@@ -1,0 +1,54 @@
+struct Item { value: i32 }
+const func annotated(): i32 {
+    let action: func(i32): i32 = (value) { value + 2 }
+    let consume: func(take Item): i32 = (item) { let moved = item^
+                                              moved.value }
+    var number = 40
+    let update: func(edit i32): i32 = (value: i32) { value += 1
+                                                   value }
+    let item = Item { value: 42 }
+    let first = update(number)
+    let second = update(number)
+    if action(40) == 42 && consume(item^) == 42 && first == 41 && second == 42 { 42 } else { 0 }
+}
+const func make(): func(edit i32): i32 { (value) { value += 1
+                                                 value } }
+const func factory(): i32 {
+    let action = make()
+    var value = 40
+    let first = action(value)
+    let second = action(value)
+    if first == 41 && second == 42 { 42 } else { 0 }
+}
+const func views(): i32 {
+    let amount = 2
+    var editable: mut(i32): i32 = (amount; value) { value + amount }
+    let consuming: once(take i32): i32 = (value) { value }
+    if editable(40) == 42 && consuming^(42) == 42 { 42 } else { 0 }
+}
+const func branch(): i32 {
+    let action: func(i32): i32 = if false { return 0 } else if true { (value) { value + 2 } } else { return 0 }
+    action(40)
+}
+const func calculate(): i32 {
+    if annotated() == 42 && factory() == 42 && views() == 42 && branch() == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func apply_edit(action: func(edit i32): i32, edit value: i32): i32 { action(value) }
+func apply_take(action: func(take Item): i32, take item: Item): i32 { action(item^) }
+func apply_read(action: func(i32): i32): i32 { action(40) }
+func contextual_inputs(): i32 {
+    var value = 40
+    let first = apply_edit((input) { input += 1
+                                    input }, value)
+    let second = apply_edit((input: i32) { input += 1
+                                         input }, value)
+    let item = Item { value: 42 }
+    let moved = apply_take((input) { let owned = input^
+                                    owned.value }, item^)
+    let read = apply_read((input) { input + 2 })
+    if first == 41 && second == 42 && moved == 42 && read == 42 { 42 } else { 0 }
+}
+func run(): i32 {
+    if ANSWER == 42 && calculate() == 42 && contextual_inputs() == 42 { 42 } else { 0 }
+}

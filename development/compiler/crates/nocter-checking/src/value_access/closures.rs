@@ -15,24 +15,12 @@ impl Checker<'_, '_> {
     pub fn closure(
         &mut self,
         node: NodeId,
+        expected: Option<&FunctionConstraint>,
         _reachable: bool,
     ) -> Result<nocter_model::AccessExpressionId, Failure> {
         let head = self.direct(node, NodeKind::ClosureHead)?;
         let (capture_names, captured, data) = self.owned_captures(head)?;
-        let result_node = self.direct(node, NodeKind::ClosureResult).ok();
-        let Some(result_node) = result_node else {
-            return self.reject_message(
-                Rule::UnknownType,
-                node,
-                "this private closure scope needs an explicit result data type".into(),
-                Vec::new(),
-            );
-        };
-        let Annotation::Data(result) =
-            self.annotation(self.direct(result_node, NodeKind::Type)?)?
-        else {
-            return self.reject(Rule::UnknownType, result_node);
-        };
+        let result = self.closure_result(node, expected)?;
         let closure = self
             .types
             .reserve_closure()
@@ -62,7 +50,7 @@ impl Checker<'_, '_> {
             .insert(environment, nested.site(SyntaxOrigin::Node(head))?);
         nested.bind_captures(&capture_names, environment)?;
         let parameters = self.direct(head, NodeKind::ClosureParameters)?;
-        let inputs = nested.closure_inputs(parameters)?;
+        let inputs = nested.closure_inputs(parameters, expected)?;
         let root = nested.block(
             self.direct(node, NodeKind::Block)?,
             Some(Boundary::Result(result)),
@@ -203,34 +191,88 @@ impl Checker<'_, '_> {
                 .data(),
         ))
     }
-    fn closure_inputs(&mut self, parameters: NodeId) -> Result<Vec<FunctionInput>, Failure> {
+    fn closure_result(
+        &mut self,
+        node: NodeId,
+        expected: Option<&FunctionConstraint>,
+    ) -> Result<nocter_model::TypeId, Failure> {
+        let result = if let Ok(result_node) = self.direct(node, NodeKind::ClosureResult) {
+            let Annotation::Data(result) =
+                self.annotation(self.direct(result_node, NodeKind::Type)?)?
+            else {
+                return self.reject(Rule::UnknownType, result_node);
+            };
+            if expected.is_some_and(|contract| contract.result != result) {
+                return self.reject_message(
+                    Rule::TypeMismatch,
+                    result_node,
+                    "the explicit result data does not match the selected callable contract".into(),
+                    Vec::new(),
+                );
+            }
+            result
+        } else if let Some(contract) = expected {
+            contract.result
+        } else {
+            return self.reject_message(Rule::UnknownType, node, "this private closure scope needs result data from an expected contract or explicit annotation".into(), Vec::new());
+        };
+        Ok(result)
+    }
+    fn closure_inputs(
+        &mut self,
+        parameters: NodeId,
+        expected: Option<&FunctionConstraint>,
+    ) -> Result<Vec<FunctionInput>, Failure> {
         let mut inputs = Vec::new();
-        for parameter in self.children(parameters) {
+        let parameters_syntax = self.children(parameters);
+        if expected.is_some_and(|contract| contract.inputs.len() != parameters_syntax.len()) {
+            return self.reject_message(
+                Rule::TypeMismatch,
+                parameters,
+                "the number of closure inputs does not match the selected callable contract".into(),
+                Vec::new(),
+            );
+        }
+        for (index, parameter) in parameters_syntax.into_iter().enumerate() {
+            let selected = expected.map(|contract| contract.inputs[index]);
             let token = self.token(parameter)?;
             let name = self.text(token)?.to_owned();
             if self.shadows_name(&name) {
                 return self.reject(Rule::ShadowedName, token);
             }
-            let Some(ty) = self.direct(parameter, NodeKind::Type).ok() else {
-                return self.reject_message(
-                    Rule::UnknownType,
-                    parameter,
-                    "this private closure scope needs explicit parameter data types".into(),
-                    Vec::new(),
-                );
-            };
-            let Annotation::Data(data) = self.annotation(ty)? else {
-                return self.reject(Rule::UnknownType, ty);
+            let data = if let Ok(ty) = self.direct(parameter, NodeKind::Type) {
+                let Annotation::Data(data) = self.annotation(ty)? else {
+                    return self.reject(Rule::UnknownType, ty);
+                };
+                if selected.is_some_and(|input| input.data != data) {
+                    return self.reject_message(
+                        Rule::TypeMismatch,
+                        ty,
+                        "the explicit parameter data does not match the selected callable contract"
+                            .into(),
+                        Vec::new(),
+                    );
+                }
+                data
+            } else if let Some(input) = selected {
+                input.data
+            } else {
+                return self.reject_message(Rule::UnknownType, parameter, "this private closure scope needs parameter data from an expected contract or explicit annotation".into(), Vec::new());
             };
             let operation = if let Ok(operation) = self.direct(parameter, NodeKind::InputOperation)
             {
-                match ContextualSpelling::from_spelling(self.text(self.token(operation)?)?) {
-                    Some(ContextualSpelling::Edit) => ValueInputOperation::Edit,
-                    Some(ContextualSpelling::Take) => ValueInputOperation::Take,
-                    _ => return Err(Failure::InconsistentSyntax),
+                let explicit =
+                    match ContextualSpelling::from_spelling(self.text(self.token(operation)?)?) {
+                        Some(ContextualSpelling::Edit) => ValueInputOperation::Edit,
+                        Some(ContextualSpelling::Take) => ValueInputOperation::Take,
+                        _ => return Err(Failure::InconsistentSyntax),
+                    };
+                if selected.is_some_and(|input| input.operation != explicit) {
+                    return self.reject_message(Rule::TypeMismatch, operation, "the explicit parameter operation does not match the selected callable contract".into(), Vec::new());
                 }
+                explicit
             } else {
-                ValueInputOperation::Read
+                selected.map_or(ValueInputOperation::Read, |input| input.operation)
             };
             let local = self.locals.insert(Local {
                 data,
