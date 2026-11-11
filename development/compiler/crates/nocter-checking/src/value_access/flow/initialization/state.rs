@@ -83,17 +83,54 @@ impl Storage {
         path: &crate::value_access::AccessPath,
         retirements: &BTreeSet<Location>,
     ) -> bool {
-        let Some(slot) = self.selections.get(path) else {
+        let Some(slot) = self.point_from_sources(path, retirements) else {
             return false;
         };
-        if slot.state != I::Uninitialized
-            || slot.causes.is_empty()
-            || !slot.causes.is_subset(retirements)
-        {
+        if slot.state != I::Uninitialized {
             return false;
         }
         self.selections.remove(path);
         true
+    }
+    fn point_from_sources(
+        &self,
+        path: &crate::value_access::AccessPath,
+        retirements: &BTreeSet<Location>,
+    ) -> Option<&Slot> {
+        self.selections.get(path).filter(|slot| {
+            slot.state != I::Initialized
+                && !slot.causes.is_empty()
+                && slot.causes.is_subset(retirements)
+        })
+    }
+    pub(super) fn restore_conditional_point(
+        &mut self,
+        parent: &FieldPath,
+        retirements: &BTreeSet<Location>,
+    ) -> bool {
+        let array = crate::value_access::paths::known(parent);
+        let mut closed = Vec::new();
+        for (path, slot) in &self.selections {
+            let relation = crate::value_access::paths::relation(&array, path);
+            if slot.state == I::Initialized || relation == nocter_model::PathRelation::Disjoint {
+                continue;
+            }
+            if relation != nocter_model::PathRelation::Ancestor
+                || path.fields().len() != parent.fields().len() + 1
+                || !matches!(
+                    path.fields().last(),
+                    Some(nocter_model::ValueProjection::Array(_))
+                )
+                || self.point_from_sources(path, retirements).is_none()
+            {
+                return false;
+            }
+            closed.push(path.clone());
+        }
+        for path in &closed {
+            self.selections.remove(path);
+        }
+        !closed.is_empty()
     }
     pub(super) fn uncertain_replacement(&self, path: &FieldPath) -> bool {
         let path = crate::value_access::paths::known(path);

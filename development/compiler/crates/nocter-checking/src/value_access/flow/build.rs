@@ -1,5 +1,7 @@
 use super::{Action, Graph, IntegrityError, Operation, Origin, Point, Terminator};
-use crate::value_access::{ArgumentAction, Binary, ExpressionKind, Statement, TypedBody};
+use crate::value_access::{
+    ArgumentAction, Binary, BoundaryAction, ExpressionKind, Statement, TypedBody,
+};
 use nocter_model::{
     AccessBlockId, AccessExpressionId, AccessFlowPointId, AccessLocalId, AccessLoopId,
     AccessStatementId, ArenaBuilder,
@@ -418,9 +420,8 @@ impl Builder<'_> {
             }
             ExpressionKind::Binary {
                 operation: Binary::And | Binary::Or,
-                left,
-                right,
-            } => return self.logical(id, *left, *right, entry),
+                ..
+            } => return self.logical(id, entry),
             ExpressionKind::Call { arguments, .. } => return self.call(id, entry, arguments),
             ExpressionKind::Aggregate { fields } => self.record(entry, fields)?,
             ExpressionKind::Closure { capture, .. } => self.expression(*capture, entry)?,
@@ -590,32 +591,72 @@ impl Builder<'_> {
         }
         Ok(current)
     }
+    /// Intermediate owned bool values have no observable identity or cleanup. Keep a same-
+    /// operator chain in one control region instead of joining false/true prefixes and then
+    /// branching on an already decided value again. Leaf evaluation and its frame stay intact.
+    fn logical_terms(
+        &self,
+        id: AccessExpressionId,
+        operation: Binary,
+    ) -> Result<Vec<AccessExpressionId>> {
+        let mut pending = vec![id];
+        let mut terms = Vec::new();
+        while let Some(original) = pending.pop() {
+            let mut current = original;
+            while let ExpressionKind::Boundary {
+                source,
+                action: BoundaryAction::TakeValue,
+            } = self.body.expressions().get(current).ok_or(INVALID)?.kind
+            {
+                current = source;
+            }
+            match self.body.expressions().get(current).ok_or(INVALID)?.kind {
+                ExpressionKind::Binary {
+                    operation: actual,
+                    left,
+                    right,
+                } if actual == operation => {
+                    pending.push(right);
+                    pending.push(left);
+                }
+                _ => terms.push(original),
+            }
+        }
+        Ok(terms)
+    }
     fn logical(
         &mut self,
         id: AccessExpressionId,
-        left: AccessExpressionId,
-        right: AccessExpressionId,
         entry: AccessFlowPointId,
     ) -> Result<Option<AccessFlowPointId>> {
-        let Some(end) = self.expression(left, entry)? else {
+        let ExpressionKind::Binary {
+            operation: operation @ (Binary::And | Binary::Or),
+            ..
+        } = self.body.expressions().get(id).ok_or(INVALID)?.kind
+        else {
+            return Err(INVALID);
+        };
+        let mut terms = self.logical_terms(id, operation)?.into_iter();
+        let mut source = terms.next().ok_or(INVALID)?;
+        let Some(end) = self.expression(source, entry)? else {
             return Ok(None);
         };
         let short = self.point();
-        let long = self.point();
         let join = self.point();
-        let conjunction = matches!(
-            self.body.expressions().get(id).ok_or(INVALID)?.kind,
-            ExpressionKind::Binary {
-                operation: Binary::And,
-                ..
-            }
-        );
-        self.branch(
-            end,
-            left,
-            if conjunction { long } else { short },
-            if conjunction { short } else { long },
-        )?;
+        let conjunction = operation == Binary::And;
+        let mut current = Some(end);
+        for term in terms {
+            let Some(end) = current else { break };
+            let long = self.point();
+            self.branch(
+                end,
+                source,
+                if conjunction { long } else { short },
+                if conjunction { short } else { long },
+            )?;
+            source = term;
+            current = self.expression(term, long)?;
+        }
         self.action(
             short,
             Origin::Expression(id),
@@ -625,14 +666,11 @@ impl Builder<'_> {
             },
         )?;
         self.terminate(short, Terminator::Jump(join))?;
-        if let Some(end) = self.expression(right, long)? {
+        if let Some(end) = current {
             self.action(
                 end,
                 Origin::Expression(id),
-                Operation::BooleanAnswer {
-                    source: right,
-                    result: id,
-                },
+                Operation::BooleanAnswer { source, result: id },
             )?;
             self.terminate(end, Terminator::Jump(join))?;
         }

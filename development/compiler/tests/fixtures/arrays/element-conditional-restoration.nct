@@ -1,0 +1,65 @@
+struct Item { value: i32 }
+const func maybe(input: usize, flag: bool): i32 {
+    var items = [Item { value: 20 }, Item { value: 22 }]
+    var index = input
+    let position = input
+    if flag { let removed = items[index]^ }
+    index = if index == 0 { 1 } else { 0 }
+    items[position] = Item { value: if input == 0 { 60 } else { 62 } }
+    let complete = items^
+    complete[0].value + complete[1].value - 40
+}
+const func alternatives(input: usize, flag: bool): i32 {
+    var items = [Item { value: 20 }, Item { value: 22 }]
+    let value = if flag {
+        let old = items[input]^
+        old.value
+    } else {
+        let old = items[input]^
+        old.value
+    }
+    items[input] = Item { value: value + 40 }
+    let complete = items^
+    complete[0].value + complete[1].value - 40
+}
+const func maximum(input: usize, flag: bool): i32 {
+    var items = [(); 18446744073709551615]
+    if flag { let old = items[input]^ }
+    items[input] = ()
+    let complete = items^
+    42
+}
+const func refined(flag: bool): i32 {
+    var items = [Item { value: 20 }, Item { value: 22 }]
+    var index: usize = 1
+    if flag { let old = items[index]^ }
+    items[index] = Item { value: 42 }
+    let complete = items^
+    complete[0].value + complete[1].value - 20
+}
+const func mixed(input: usize, flag: bool): i32 {
+    var items = [Item { value: 20 }, Item { value: 22 }]
+    var index = input
+    let value = if flag {
+        index = 1
+        let old = items[1]^
+        old.value
+    } else {
+        let old = items[index]^
+        old.value
+    }
+    items[index] = Item { value: value + 40 }
+    let complete = items^
+    complete[0].value + complete[1].value - 40
+}
+const func run(): i32 {
+    if maybe(0, true) == 42 && maybe(1, true) == 42
+        && maybe(0, false) == 42 && maybe(1, false) == 42
+        && alternatives(0, true) == 42 && alternatives(1, true) == 42
+        && alternatives(0, false) == 42 && alternatives(1, false) == 42
+        && maximum(0, true) == 42 && maximum(18446744073709551614, true) == 42
+        && maximum(0, false) == 42 && maximum(18446744073709551614, false) == 42
+        && refined(true) == 42 && refined(false) == 42
+        && mixed(0, true) == 42 && mixed(1, true) == 42
+        && mixed(0, false) == 42 && mixed(1, false) == 42 { 42 } else { 0 }
+}

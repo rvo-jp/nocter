@@ -689,6 +689,56 @@ fn prefix_backing_can_drive_ranges_but_cannot_become_an_immutable_element_addres
 }
 
 #[test]
+fn conditional_constant_point_restoration_keeps_old_error_cleanup_guarded_without_snapshots() {
+    let program = lower(
+        "func run(take first: error, take second: error, take next: error, flag: bool): void { var items = [first^, second^]\nvar index: usize = 1\nif flag { let old = items[index]^ }\nitems[index] = next^ }",
+    );
+    let body = &program.bodies[&program.root];
+    assert!(
+        !body
+            .slots
+            .iter()
+            .any(|(_, slot)| matches!(slot.key, SlotKey::IndexSnapshot(_)))
+    );
+    let selected = |place: &Place| {
+        place.projections.as_ref() == [Projection::Field(nocter_model::ValueField::Array(1))]
+    };
+    let action = body
+        .actions
+        .values()
+        .find(|action| {
+            action.alternatives.len() > 1
+                && action.alternatives.iter().all(|alternative| {
+                    alternative
+                        .before
+                        .iter()
+                        .chain(&alternative.after)
+                        .any(|effect| {
+                            matches!(effect,
+                Effect::Transfer { destination, .. } if selected(destination))
+                        })
+                })
+        })
+        .unwrap();
+    let mut counts = std::collections::BTreeSet::new();
+    for alternative in &action.alternatives {
+        assert!(!alternative.tests.is_empty());
+        counts.insert(
+            alternative
+                .before
+                .iter()
+                .chain(&alternative.after)
+                .filter(|effect| {
+                    matches!(effect,
+            Effect::Dispose { source, disposal: Disposal::Error } if selected(source))
+                })
+                .count(),
+        );
+    }
+    assert_eq!(counts, std::collections::BTreeSet::from([0, 1]));
+}
+
+#[test]
 fn retained_cleanup_integrity_requires_a_matching_scalar_backing_slot() {
     use nocter_checking::value_access::flow::resources::RetainedIndex;
     use nocter_model::ArrayRange;

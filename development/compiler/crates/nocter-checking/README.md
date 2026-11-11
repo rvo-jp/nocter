@@ -404,6 +404,12 @@ interrupted operand cannot manufacture a value. Known results retain the complet
 evaluation and its effects. These are proofs under the [Boolean contract](../../../spec/language/booleans.md),
 not constant replacement of calls or permission to skip name/data checks in dead branches. A dead break cannot create a normal loop exit or a missing-result
 obligation; a reachable break still can. Selected terminating branches have no continuing value.
+Same-operator builtin logical chains share one lazy control region. Iterative traversal passes
+through their owned-bool supply boundaries, retaining leaf evaluation, operand order and the
+original evaluation frame. It does not materialize intermediate bool results and then invent
+paths that continue after a decided short-circuit result. Read-input call chains are qualified
+with a linear prefix bound on ownership alternatives, alongside execution checks for every
+short-circuit position and the final operand's value. No source length cutoff is introduced.
 `integers` derives the integer alternative from established literals, value-preserving boundaries
 and the common result of every reachable normal conditional branch. Named constant data arrives
 through the ordinary required-value authority. Unknown storage/call results remain unknown; no
@@ -1065,17 +1071,33 @@ One retained whole-element hole beneath a concrete parent can also be restored w
 index. The existing committed-index history must prove equality with the current target and
 identify one retirement source on every reached history. Availability checks the actual unavailable
 slot's causes and present array; resources require the matching `Missing::Value` and live snapshot.
-Prefix histories and multiple/unproved sources provide no point-restoration evidence. The replacement
+Prefix histories and unproved index equality provide no single-origin restoration proof. The replacement
 uses the old retained path, installs its evaluated value, then retires unused backing. Original
 target evaluation, bounds checks and access conflicts remain in force. Restored backedges may
 reuse that snapshot recipe for a newly evaluated number after its prior lifetime ends.
 Shared source qualifies changed user indices, repeated alternating indices, direct call retirement,
 restoration on both branches and maximum-count zero-byte arrays. A logical owned-error case checks
 that missing old data is not destroyed and snapshot retirement follows installation; actual native
-owned-error construction remains unqualified. Conditional hole creation, partial-field restoration
-and general relations among multiple retained holes remain separate obligations.
+owned-error construction remains unqualified. Partial-field restoration and general relations
+among multiple retained holes remain separate obligations.
 Source also qualifies a later prefix loop after restoring the sole point, without replacing the
 containing array. Independent negative checks retain earlier field holes and longer-prefix holes.
+
+Conditional restoration additionally supports complete-or-single-point histories at one assignment.
+Equality with the saved index is required only on the histories that contain a point; complete
+histories supply no invented snapshot. The proof retains every possible retirement source.
+Availability closes only whole-element constraints beneath that array whose causes all match
+those sources; its parent must be present and any other overlapping unavailable coverage rejects
+the proof. Concrete and symbolic constraints may describe different branches of that same point.
+Prefixes and general unproved histories do not acquire this conditional proof.
+Resources select the actual unique missing-point path from each ownership alternative, preserving
+constant paths whose saved index was elided. An alternative without a missing point must have a
+complete array and uses ordinary initialized referent replacement. No numerical-equality predicate selects a backing lifetime, and inactive backing is
+never read. Shared required/native source covers absent holes, distinct retirement sites with equal
+indices, changed user indices and maximum-count zero-byte arrays. Logical error data checks the
+initialized-replacement versus saved-point alternatives; it does not qualify native error graphs.
+Cases replace elements with different values so an omitted or wrongly addressed write changes
+the result, including a flow-refined constant whose snapshot is elided.
 
 The shared retained-source corpus executes in required evaluation and through the
 [native consumer](../nocter-machine/README.md#private-array-execution). It covers normal and nested
@@ -1120,8 +1142,8 @@ element temporaries while retaining the correct prefix and exact remainder clean
 Multiple dynamic holes also compose when structural field disjointness excludes overlap, including
 equal, ascending and descending actual saved indices. Each transfer still requires an initialized
 selected payload; a recipe key or cleanup predicate cannot prove distinctness for the same field.
-Conditional restoration of a possibly missing element, non-prefix repeated extraction, adapted callable-element
-handoffs, general relations outside ordered prefix bundles and unclosed call writes still require the
+General conditional/multi-hole restoration, non-prefix repeated extraction without proved
+intervening restoration, adapted callable-element handoffs, broader numeric relations and unclosed call writes still require the
 [evaluated-selection closure](../../../design/compiler-realization.md#evaluated-array-selection-closure).
 Repeated recipe keys alone never prove equal numbers across a backedge.
 

@@ -562,12 +562,32 @@ fn evaluate(
     Ok(())
 }
 
+fn restore_conditional_point(
+    typed: &TypedQuery,
+    facts: Option<&super::numeric::NumericFacts>,
+    state: &mut State,
+    target: Referent,
+) -> Result<bool, IntegrityError> {
+    let Some(point) = facts.and_then(|facts| facts.conditional_restoration(typed, target)) else {
+        return Ok(false);
+    };
+    let parent = point.array.fields().concrete().ok_or(INVALID)?;
+    let storage = state.get_mut(&point.local).ok_or(INVALID)?;
+    if storage.present(&parent).state != InitializationState::Initialized {
+        return Ok(false);
+    }
+    Ok(storage.restore_conditional_point(&parent, &point.retirements))
+}
+
 fn restore_point(
     typed: &TypedQuery,
     facts: Option<&super::numeric::NumericFacts>,
     state: &mut State,
     target: Referent,
 ) -> Result<bool, IntegrityError> {
+    if restore_conditional_point(typed, facts, state, target)? {
+        return Ok(true);
+    }
     let Referent::Evaluated(selection) = target else {
         return Ok(false);
     };

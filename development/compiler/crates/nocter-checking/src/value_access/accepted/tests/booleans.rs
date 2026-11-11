@@ -2,6 +2,61 @@
 use super::*;
 use crate::value_access::evaluation::Rule as EvaluationRule;
 use nocter_constant_evaluation::state::{Rule as ExecutionRule, Value as Constant};
+
+#[test]
+fn logical_chains_keep_only_linear_prefix_ownership_alternatives() {
+    for operation in ["&&", "||"] {
+        for terms in [4, 8, 16, 32] {
+            let guard = vec!["probe(1)"; terms].join(operation);
+            let unit = accepted(&format!(
+                "func probe(value: i32): bool {{ value == 1 }}\nfunc run(): i32 {{ if {guard} {{ 42 }} else {{ 0 }} }}"
+            ));
+            let query = named(&unit, "run");
+            let largest = query
+                .graph()
+                .points()
+                .iter()
+                .flat_map(|(point, block)| {
+                    (0..block.actions.len()).map(move |action| {
+                        query
+                            .access()
+                            .resources()
+                            .at(Location { point, action })
+                            .count()
+                    })
+                })
+                .max()
+                .unwrap();
+            assert!(
+                largest <= terms + 1,
+                "{operation}: {largest} alternatives for {terms} terms"
+            );
+        }
+    }
+}
+
+#[test]
+fn flattened_logical_chains_preserve_operand_order_short_circuiting_and_final_values() {
+    for (operation, arguments, result, log) in [
+        ("&&", "false, true, true", false, 1),
+        ("&&", "true, false, true", false, 12),
+        ("&&", "true, true, false", false, 123),
+        ("&&", "true, true, true", true, 123),
+        ("||", "true, false, false", true, 1),
+        ("||", "false, true, false", true, 12),
+        ("||", "false, false, true", true, 123),
+        ("||", "false, false, false", false, 123),
+    ] {
+        let source = format!(
+            "const func probe(edit log: i32, digit: i32, bit: bool): bool {{ log = log * 10 + digit\nbit }}\nconst func run(a: bool, b: bool, c: bool): (bool, i32) {{ var log = 0\nlet result = probe(log, 1, a) {operation} probe(log, 2, b) {operation} probe(log, 3, c)\n(result, log) }}\nconst ANSWER: (bool, i32) = run({arguments})"
+        );
+        assert_eq!(
+            constant(&source),
+            Constant::aggregate(vec![Constant::boolean(result), Constant::integer(log)]),
+            "{operation}: {arguments}"
+        );
+    }
+}
 fn constant(source: &str) -> Constant {
     let unit = accepted(source);
     let id = unit

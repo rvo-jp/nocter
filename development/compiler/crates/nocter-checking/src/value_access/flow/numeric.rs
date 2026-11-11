@@ -121,6 +121,7 @@ pub struct NumericFacts {
     cells: Arc<Cells>,
     equalities: Equalities,
     point_sources: BTreeSet<AccessExpressionId>,
+    conditional_restoration: Option<(AccessExpressionId, BTreeSet<AccessExpressionId>)>,
     prefix_extensions: BTreeSet<AccessExpressionId>,
     prefix_frontiers: BTreeMap<AccessExpressionId, ArrayFrontier>,
 }

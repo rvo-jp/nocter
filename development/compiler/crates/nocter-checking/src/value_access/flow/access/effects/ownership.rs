@@ -336,6 +336,36 @@ impl Context<'_, '_> {
         }
         Ok(())
     }
+    fn restored_destination(
+        &self,
+        target: crate::value_access::Referent,
+    ) -> Result<Option<resources::Place>> {
+        let Some(facts) = self.facts else {
+            return Ok(None);
+        };
+        if let Some(destination) = facts
+            .restoration_path(self.typed, target)
+            .filter(|destination| self.world.resources.missing_point(destination))
+        {
+            return Ok(Some(destination));
+        }
+        let Some(point) = facts.conditional_restoration(self.typed, target) else {
+            return Ok(None);
+        };
+        if let Some(destination) = self.world.resources.unique_array_point(&point.array)? {
+            return Ok(Some(destination));
+        }
+        // Absence of a matching snapshot is the initialized alternative, not permission
+        // to read another route's backing or replace an unproved missing element.
+        if !self
+            .world
+            .resources
+            .initialized(self.typed.program(), &point.array)?
+        {
+            return Err(Failure::Integrity);
+        }
+        Ok(None)
+    }
     fn assign_ownership(
         &mut self,
         target: crate::value_access::Referent,
@@ -350,10 +380,7 @@ impl Context<'_, '_> {
             .ok_or(Failure::Integrity)?;
         let owning = self.local_mode(local)? == Mode::Own
             && crate::value_access::paths::concrete(&fields).is_some();
-        let restored = self
-            .facts
-            .and_then(|facts| facts.restoration_path(self.typed, target))
-            .filter(|destination| self.world.resources.missing_point(destination));
+        let restored = self.restored_destination(target)?;
         let destination = if let Some(destination) = restored {
             Some(destination)
         } else if owning {

@@ -260,6 +260,15 @@ that sole point can recover a complete epoch for a later prefix loop. The zero e
 proved zero-start prefix also describes one point; restoring a later endpoint cannot erase its
 earlier holes. Forget the completed epoch's source provenance so a later loop does not enroll
 an unrelated earlier point in its prefix backing policy.
+For conditional single holes, prove target equality on each point history and permit complete
+histories without constructing fictitious backing. Retain possible retirement sites and validate
+the actual unavailable slot and absence of other overlapping holes. Distinct source sites may
+save equal numbers while owning different snapshots; select the existing ownership alternative,
+not a numerical-equality guard. The initialized alternative must clean its old payload, while the
+missing-point alternative installs without destroying absent data and then retires its backing.
+Project that destination from the actual sparse missing coverage, including a constant point
+whose index backing was elided. Absence of a snapshot does not imply that the element is
+initialized. Any overlapping non-point or multiple-point geometry must reject this proof.
 
 Use exact difference equalities between current usize cells for unit-stride induction. Keep
 mutable local cells separate from frozen computed values and prepared operands; an assignment

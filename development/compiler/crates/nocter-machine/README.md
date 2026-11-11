@@ -255,6 +255,10 @@ native operation kind, and retain every original bounds operation.
 The restored-epoch case then consumes the complete array in a new prefix loop. Its earlier point
 snapshot ends before prefix backing is created; a shared structural representative never supplies
 the new endpoint's number.
+Conditional-restoration cases execute both complete and missing-point alternatives, including
+different saved-index slots holding equal numbers. Existing ownership guards select a live
+snapshot path or initialized referent replacement; no index comparison chooses a lifetime or
+reads backing from an inactive route. Maximum-count zero-byte cases use the same transitions.
 A separate native fixture executes a prefix loop through a helper that constructs and destroys
 an exact owned closure with a non-Copy array environment. The dormant body would trap if called;
 cleanup releases the environment without invoking it. This is native evidence; the required

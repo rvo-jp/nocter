@@ -195,6 +195,42 @@ impl Histories {
         })?;
         Some((source, self.retirements.get(&source)?))
     }
+    pub(super) fn retirement_sites(
+        &self,
+        source: AccessExpressionId,
+    ) -> Option<&BTreeSet<Location>> {
+        self.retirements.get(&source)
+    }
+    pub(super) fn conditional_point(
+        &self,
+        cells: &Cells,
+        phases: &[Phase],
+        state: &Equalities,
+        seen: &BTreeSet<AccessExpressionId>,
+        selection: AccessExpressionId,
+    ) -> Option<BTreeSet<AccessExpressionId>> {
+        let selection = self.selections.get(&selection)?;
+        match phases.get(selection.history)? {
+            Phase::Empty => Some(BTreeSet::new()),
+            Phase::Point => {
+                let history = self.arrays.get(selection.history)?;
+                if state.difference(cells.value(selection.index)?, history.cell) != Some(0) {
+                    return None;
+                }
+                let sources: BTreeSet<_> = seen
+                    .iter()
+                    .copied()
+                    .filter(|site| {
+                        self.selections
+                            .get(site)
+                            .is_some_and(|site| site.history == selection.history)
+                    })
+                    .collect();
+                (!sources.is_empty()).then_some(sources)
+            }
+            Phase::Prefix | Phase::Unproved => None,
+        }
+    }
     pub(super) fn available(
         &self,
         cells: &Cells,

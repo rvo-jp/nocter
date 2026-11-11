@@ -444,6 +444,68 @@ fn retained_restoration_installs_before_retiring_backing_without_destroying_miss
 }
 
 #[test]
+fn conditional_restoration_uses_initialized_and_saved_point_alternatives() {
+    let unit = accepted(
+        "func work(take original: error, take replacement: error, index: usize, flag: bool): void { var items = [original^]\nif flag { let old = items[index]^ }\nitems[index] = replacement^ }",
+    );
+    let query = named(&unit, "work");
+    let mut kinds = [false; 2];
+    for (point, block) in query.graph().points().iter() {
+        for (action, event) in block.actions.iter().enumerate() {
+            if !matches!(event.operation, Operation::Assign { .. }) {
+                continue;
+            }
+            for transition in query.access().resources().at(Location { point, action }) {
+                let snapshots: Vec<_> = transition
+                    .condition()
+                    .owned()
+                    .filter_map(|(holder, _)| {
+                        matches!(holder, Holder::IndexSnapshot(_)).then_some(holder)
+                    })
+                    .collect();
+                let replace = transition
+                    .steps()
+                    .iter()
+                    .any(|step| matches!(step, Step::ReplaceReferent { .. }));
+                kinds[usize::from(replace)] = true;
+                if replace {
+                    assert!(snapshots.is_empty());
+                } else {
+                    assert_eq!(snapshots.len(), 1);
+                }
+                assert!(
+                    !transition
+                        .after_condition()
+                        .owned()
+                        .any(|(holder, _)| matches!(holder, Holder::IndexSnapshot(_)))
+                );
+            }
+        }
+    }
+    assert_eq!(kinds, [true, true]);
+}
+
+#[test]
+fn conditional_restoration_does_not_assume_different_origin_indices_are_equal() {
+    for body in [
+        "if flag { let old = items[left]^ }\nitems[left + 1] = Item { value: 42 }",
+        "if flag { let old = items[left]^ } else { let old = items[right]^ }\nitems[left] = Item { value: 42 }",
+    ] {
+        let source = format!(
+            "struct Item {{ value: i32 }}\nfunc work(left: usize, right: usize, flag: bool): void {{ var items = [Item {{ value: 20 }}, Item {{ value: 22 }}]\n{body}\nlet complete = items^ }}"
+        );
+        let (sources, tree) = input(&source);
+        assert!(
+            matches!(
+                SourceUnit::prepare(bound(&sources, &tree)),
+                Err(SourceFailure::Checking(Failure::Flow { .. }))
+            ),
+            "{source}"
+        );
+    }
+}
+
+#[test]
 fn dynamic_transfer_cancellation_creates_no_snapshot_or_hole_and_bounds_fail_first() {
     let copied = "const func work(take values: [i32; 2], index: usize): i32 { let selected = values[index]^\nselected }\nconst ANSWER: i32 = work([20, 22], 0) + work([20, 22], 1)";
     assert_eq!(answer(copied, "ANSWER"), Datum::integer(42));

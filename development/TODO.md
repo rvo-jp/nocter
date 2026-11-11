@@ -78,6 +78,12 @@ layout fields, generated operations, an arbitrary iteration cutoff or a constant
   general numeric relations among holes within one array. Keep
   unproved relations local and explicit. Do not read uninitialized alternative backing or choose
   guards from numeric equality alone; preserve actual original-index mutation and empty/MAX spans.
+- [x] Restore conditional single-element holes from complete-or-point histories. Keep numeric
+  equality conditional on the hole's presence, validate source causes and exclude other overlapping
+  holes, and choose actual snapshot lifetimes from existing ownership alternatives. Qualify no-hole
+  and distinct-origin branches, changed indices and maximum-count zero-byte execution without
+  reading inactive backing or using numerical equality as a cleanup guard. Preserve exact
+  constant holes when flow proof elides their saved-index owner.
 - [x] Restore one retained whole-element hole from a proved equal current index using the
   existing committed-index history and actual sparse hole/snapshot. Validate the retiring source
   site and present parent; never identify lifetimes from recipe equality alone. Qualify index
@@ -144,6 +150,11 @@ not a language restriction derived from the current realization boundary.
   publication is not implied by qualification.
 
 ## Open Findings
+
+- [x] Keep same-operator short-circuit chains in one lazy control region. Avoid impossible
+  ownership combinations after decided prefixes; preserve operand order, final values and
+  temporary frames. Qualify linear prefix alternatives for simple read-input calls and long
+  required/native guards without introducing a source length cutoff.
 
 - [x] Remove the unused initialization `CleanupFact` report and its per-iteration collection after
   confirming no independent consumer. The resource transition report

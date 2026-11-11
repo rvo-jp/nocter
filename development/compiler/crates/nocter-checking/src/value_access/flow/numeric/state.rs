@@ -79,6 +79,30 @@ impl State {
         }
         result
     }
+    pub(super) fn conditional_restoration(
+        &self,
+        cells: &Cells,
+        operation: &Operation,
+    ) -> Option<(AccessExpressionId, BTreeSet<AccessExpressionId>)> {
+        let Operation::Assign {
+            target: crate::value_access::Referent::Evaluated(selection),
+            ..
+        } = *operation
+        else {
+            return None;
+        };
+        let mut sources = BTreeSet::new();
+        for (phases, state) in &self.partitions {
+            sources.extend(cells.histories.conditional_point(
+                cells,
+                phases,
+                &state.equalities,
+                &state.seen,
+                selection,
+            )?);
+        }
+        (!sources.is_empty()).then_some((selection, sources))
+    }
     pub(super) fn available(
         &self,
         cells: &Cells,
