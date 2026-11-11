@@ -117,7 +117,7 @@ fn unknown_callable_environments_cannot_inherit_one_concrete_payloads_properties
     ] {
         let (sources, tree) = input(source);
         assert!(
-            matches!(SourceUnit::prepare(bound(&sources, &tree)), Err(SourceFailure::Checking(Failure::Body { failure: BodyFailure::Rejected(diagnostic), .. })) if diagnostic.rule() == crate::value_access::Rule::TypeMismatch && diagnostic.source().message().contains("exact callable payload")),
+            matches!(SourceUnit::prepare(bound(&sources, &tree)), Err(SourceFailure::Checking(Failure::Body { failure: BodyFailure::Rejected(diagnostic), .. })) if diagnostic.rule() == crate::value_access::Rule::TypeMismatch && diagnostic.source().message().contains("component payloads")),
             "{source}"
         );
     }

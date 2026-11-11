@@ -50,6 +50,15 @@ fn validate_payload(
     let Some(access) = expression.ty.access() else {
         return Ok(());
     };
+    if query
+        .result_evidence
+        .as_ref()
+        .is_some_and(|evidence| evidence.unproduced(query.program(), access.data()))
+    {
+        // No constructor, snapshot or cleanup can execute for this absent shape. The common
+        // reachable-use validator proves that fact over the original control graph.
+        return Ok(());
+    }
     if matches!(
         expression.kind,
         ExpressionKind::Aggregate { .. } | ExpressionKind::Repeat { .. }

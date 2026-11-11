@@ -4,7 +4,7 @@ use super::ir::{
     value_type,
 };
 use super::{Failure, Rule, annotations::Annotation, checker::Checker};
-use nocter_declarations::value_access::{FunctionConstraint, FunctionInput, PayloadSchema};
+use nocter_declarations::value_access::{FunctionConstraint, FunctionInput};
 use nocter_model::{
     AccessLocalId, ValueAccessMode, ValueBindingKind, ValueInputOperation, ValueInvocation,
 };
@@ -141,14 +141,10 @@ impl Checker<'_, '_> {
             }
             let place = self.place_name(capture_token, Rule::UnknownName)?;
             let component = self.place_ty(place).data();
-            if matches!(
-                self.program().data_schema(component),
-                Some(PayloadSchema::Function(_))
-            ) && !self.program().owned_payload_supported(component)
-            {
+            if !self.program().owned_payload_supported(component) {
                 return self.reject_message(
                     Rule::TypeMismatch, capture_node,
-                    "this owned-capture scope needs an exact callable payload; formal and unresolved result witnesses are not yet admitted".into(),
+                    "this owned-capture scope needs established component payloads; formal and unresolved callable results are not yet admitted".into(),
                     Vec::new(),
                 );
             }

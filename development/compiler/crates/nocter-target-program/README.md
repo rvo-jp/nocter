@@ -87,8 +87,9 @@ Callable results arrive with checking-closed code or caller-formal witnesses. Th
 result data enters the same projection table; no target-side result inference or second instance
 graph exists. Exact formal identity coverage is verified without repeating signature matching or
 target search. One table maps source data IDs to concrete payload obligations or checked unproduced
-structural contracts in the existing program authority. Unproduced data has no payload or code
-instance. Captured payloads include their ordinary environment-data obligations even when reached
+shapes in the existing program authority. The unproduced marker supplies neither a duplicate
+signature nor a payload or code instance; shape/contract lookup stays with Program. It also covers
+positive tuple/array shapes with a proved-unproduced callable component. Captured payloads include their ordinary environment-data obligations even when reached
 through a formal witness. Aggregate schemas are visited iteratively, without expanding payload trees.
 Source-selected moves, reservations and snapshots remain unchanged after concrete projection.
 

@@ -129,7 +129,7 @@ pub(super) fn data(
         let evidence = unit
             .data_evidence(source)
             .map_err(|_| Failure::InvalidAcceptedUnit)?;
-        if matches!(evidence, DataEvidence::Unproduced(_)) {
+        if matches!(evidence, DataEvidence::Unproduced) {
             concrete.insert(source, evidence);
             continue;
         }

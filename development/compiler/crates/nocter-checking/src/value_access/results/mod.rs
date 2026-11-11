@@ -120,8 +120,36 @@ impl Evidence {
             if matches!(self.applications.get(&application), Some(ApplicationEvidence::Unproduced)))
     }
     pub(super) fn unproduced(&self, program: &Program, data: TypeId) -> bool {
-        matches!(program.data_schema(data), Some(PayloadSchema::Function(witness))
-            if self.unproduced_origin(witness.origin))
+        let mut pending = vec![data];
+        let mut seen = std::collections::BTreeSet::new();
+        while let Some(data) = pending.pop() {
+            if !seen.insert(data) {
+                continue;
+            }
+            match program.data_schema(data) {
+                Some(PayloadSchema::Function(witness))
+                    if self.unproduced_origin(witness.origin) =>
+                {
+                    return true;
+                }
+                Some(PayloadSchema::Function(FunctionWitness {
+                    origin: ValueFunctionOrigin::Closure(id),
+                    ..
+                })) => {
+                    if let Some(schema) = program.closure(id) {
+                        pending.push(schema.environment());
+                    }
+                }
+                Some(PayloadSchema::Aggregate(schema)) => {
+                    pending.extend(schema.components().map(|component| component.data));
+                }
+                Some(PayloadSchema::Array(array)) if !array.is_empty() => {
+                    pending.push(array.element());
+                }
+                _ => {}
+            }
+        }
+        false
     }
 }
 pub(super) use unproduced::validate;

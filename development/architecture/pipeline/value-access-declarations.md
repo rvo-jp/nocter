@@ -330,7 +330,7 @@ One immutable instance arena closes root reachability; recursive keys are reserv
 edges are followed. Only reachable invocation commits add instances. Interrupted inputs lacking a
 witness therefore create no unbound executable edge. Source data IDs map once to concrete payload
 obligations or checked unproduced structural contracts in the same declaration TypeAuthority.
-The accepted Unit owns that distinction; a type-only application has no payload, cleanup or
+The accepted Unit owns that distinction; an unproduced structural shape has no payload, cleanup or
 environment to specialize. Checking rejects any reached value use of it before flow admission.
 Checking owns the payload classifier; the
 projection resolves a symbolic code environment to its exact cleanup contract without

@@ -13,7 +13,7 @@ fn absent(unit: &Unit, name: &str) -> Vec<nocter_model::TypeId> {
         if let Some(access) = expression.ty.access()
             && matches!(
                 unit.data_evidence(access.data()).unwrap(),
-                DataEvidence::Unproduced(_)
+                DataEvidence::Unproduced
             )
         {
             data.insert(access.data());
@@ -21,11 +21,41 @@ fn absent(unit: &Unit, name: &str) -> Vec<nocter_model::TypeId> {
         }
     }
     assert!(!data.is_empty());
-    assert!(!steps(query).iter().any(|step| matches!(step,
-        Step::Construct { payload, .. } | Step::Receive { payload, .. }
-        | Step::Dispose { payload, .. } | Step::Move { payload, .. }
-        if data.contains(&payload.data()))));
+    for step in steps(query) {
+        step.try_map_payloads::<()>(|payload| {
+            assert!(!data.contains(&payload.data()));
+            Ok(payload)
+        })
+        .unwrap();
+    }
     data.into_iter().collect()
+}
+
+#[test]
+fn interrupted_structures_keep_shapes_without_payloads_and_clean_only_completed_components() {
+    let unit = accepted(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/structural-result-values.nct"
+    )));
+    let data = absent(&unit, "interrupted");
+    assert!(data.iter().any(|&data| matches!(
+        unit.program().data_schema(data),
+        Some(nocter_declarations::value_access::PayloadSchema::Array(_))
+    )));
+    assert!(data.iter().any(|&data| matches!(
+        unit.program().data_schema(data),
+        Some(nocter_declarations::value_access::PayloadSchema::Aggregate(
+            _
+        ))
+    )));
+    absent(&unit, "interrupted_components");
+    let trace = steps(named(&unit, "interrupted_components"));
+    assert_eq!(trace.iter().filter(|step| matches!(step, Step::Dispose { payload, .. } if payload.disposal() == Disposal::OwnedCapture)).count(), 1);
+    assert!(
+        !trace
+            .iter()
+            .any(|step| matches!(step, Step::Assemble { .. }))
+    );
 }
 
 #[test]

@@ -44,8 +44,65 @@ const func noncopy(): i32 {
 const func temporary(): i32 {
     if [make(1)][0](20) + (make(2), 0).0(19) == 42 { (owned(42), 0).0() } else { 0 }
 }
+const func selected_array(index: usize): func(i32): i32 {
+    let callbacks = [make(1), make(2)]
+    callbacks[index]
+}
+const func selected_tuple(): func(i32): i32 {
+    let callbacks = (named(), make(2))
+    callbacks.1
+}
+const func selected_nested(): func(i32): i32 {
+    let callbacks = [(named(), make(2)); 2]
+    callbacks[1].1
+}
+const func selected_computed(): func(i32): i32 {
+    ([named(), also_named()], make(2)).1
+}
+const func selected_join(flag: bool): func(i32): i32 {
+    var callbacks = (named(), [make(1)])
+    callbacks = (also_named(), [make(2)])
+    let selected = if flag { callbacks } else { (named(), [make(3)]) }
+    selected.1[0]
+}
+const func selected_replacement(): func(i32): i32 {
+    var callbacks = [make(1)]
+    callbacks[0] = make(2)
+    callbacks[0]
+}
+const func selected_noncopy(): once(): i32 {
+    let callbacks = [owned(42)]
+    callbacks[0]^
+}
+const func selected_maximum(): func(i32): i32 {
+    let callbacks = [named(); 18446744073709551615]
+    callbacks[18446744073709551614]
+}
 const func calculate(): i32 {
-    if arrays() == 42 && tuples() == 42 && repeated() == 42 && named_arrays() == 42 && replaced(true) == 42 && noncopy() == 42 && temporary() == 42 { 42 } else { 0 }
+    if arrays() == 42 && tuples() == 42 && repeated() == 42 && named_arrays() == 42 && replaced(true) == 42 && noncopy() == 42 && temporary() == 42 && selected_array(1)(40) == 42 && selected_tuple()(40) == 42 && selected_nested()(40) == 42 && selected_computed()(40) == 42 && selected_join(true)(40) == 42 && selected_join(false)(39) == 42 && selected_replacement()(40) == 42 && selected_noncopy()() == 42 && selected_maximum()(41) == 42 { 42 } else { 0 }
 }
 const ANSWER: i32 = calculate()
-func run(): i32 { if ANSWER == 42 { calculate() } else { 0 } }
+func relay(take callback: func(i32): i32): func(i32): i32 { callback^ }
+func forwarded(): func(i32): i32 {
+    let callbacks = [relay(named()), relay(also_named())]
+    callbacks[0]
+}
+func interrupted(): i32 {
+    let values = [relay(if true { return 42 } else { return 0 })]
+    let copied = values
+    let tuple = (copied, 0)
+    let pending_repetitions = [tuple; 3]
+    read alias = values
+    let callback = alias[0]
+    callback(1)
+}
+func interrupted_components(): i32 {
+    let values = (owned(0), relay(if true { return 42 } else { return 0 }))
+    values.1(41)
+}
+func interrupted_empty(): i32 {
+    let values = [relay(if true { return 42 } else { return 0 }); 0]
+    let copied = values
+    0
+}
+func run(): i32 { if ANSWER == 42 && forwarded()(41) == 42 && interrupted() == 42 && interrupted_components() == 42 && interrupted_empty() == 42 { calculate() } else { 0 } }

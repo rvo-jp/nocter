@@ -31,19 +31,20 @@ pub enum Failure {
     Integrity(flow::IntegrityError),
 }
 
-/// Known data either has a logical payload contract or is a proved-unproduced callable shape.
+/// Known data either has a logical payload contract or is a proved-unproduced shape.
 /// The latter grants no storage, cleanup or executable environment obligation.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DataEvidence {
     Payload(flow::resources::Payload),
-    Unproduced(nocter_declarations::value_access::FunctionConstraint),
+    /// The program remains the sole shape/contract authority; no payload is supplied here.
+    Unproduced,
 }
 impl DataEvidence {
     #[must_use]
     pub const fn payload(&self) -> Option<flow::resources::Payload> {
         match self {
             Self::Payload(payload) => Some(*payload),
-            Self::Unproduced(_) => None,
+            Self::Unproduced => None,
         }
     }
 }
@@ -169,16 +170,7 @@ impl Unit {
     /// Rejects an unknown type or a result identity without closed evidence.
     pub fn data_evidence(&self, data: TypeId) -> Result<DataEvidence, flow::IntegrityError> {
         if self.result_evidence.unproduced(self.program(), data) {
-            let Some(nocter_declarations::value_access::PayloadSchema::Function(witness)) =
-                self.program().data_schema(data)
-            else {
-                return Err(flow::IntegrityError::InconsistentTypedBody);
-            };
-            return self
-                .program()
-                .function_contract(witness)
-                .map(DataEvidence::Unproduced)
-                .ok_or(flow::IntegrityError::InconsistentTypedBody);
+            return Ok(DataEvidence::Unproduced);
         }
         flow::resources::payload(self.program(), data).map(DataEvidence::Payload)
     }

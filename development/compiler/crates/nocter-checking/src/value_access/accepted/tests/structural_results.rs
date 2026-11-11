@@ -59,12 +59,53 @@ fn structural_results_share_one_closed_authority_in_required_execution() {
         assert!(std::ptr::eq(body.typed().program(), unit.program()));
         assert!(body.typed().results_closed());
         for (_, local) in body.typed().body().locals().iter() {
-            assert_eq!(
-                unit.program().payload_readiness(local.data),
-                PayloadReadiness::Closed
+            assert!(
+                unit.program().payload_readiness(local.data) == PayloadReadiness::Closed
+                    || unit
+                        .data_evidence(local.data)
+                        .is_ok_and(|evidence| evidence.payload().is_none())
+                    || matches!(unit.program().data_schema(local.data), Some(nocter_declarations::value_access::PayloadSchema::Function(witness)) if matches!(witness.origin, nocter_model::ValueFunctionOrigin::Parameter(_)))
             );
         }
     }
+}
+
+#[test]
+fn structural_projections_do_not_anchor_unproduced_recursion_or_hide_retirement() {
+    let source = "func ghost(): func(i32): i32 { let callbacks = [ghost()]\ncallbacks[0] }";
+    let (sources, tree) = input(source);
+    let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+    assert!(
+        matches!(failure, SourceFailure::Checking(Failure::Body { failure: crate::value_access::Failure::Rejected(error), .. }) if error.rule() == crate::value_access::Rule::TypeMismatch)
+    );
+    let source = format!(
+        "{SOURCE}\nfunc retired(): func(i32): i32 {{ let callbacks = [make(2)]\ndrop callbacks\ncallbacks[0] }}"
+    );
+    let (sources, tree) = input(&source);
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Flow { .. }))
+    ));
+}
+
+#[test]
+fn unclosed_structural_capture_payloads_report_a_local_scope_rejection() {
+    let source = format!(
+        "{SOURCE}\nfunc pending_capture(): void {{ let callbacks = [make(2)]\nlet action = (callbacks;): i32 {{ callbacks[0](40) }} }}"
+    );
+    let (sources, tree) = input(&source);
+    assert!(
+        matches!(SourceUnit::prepare(bound(&sources, &tree)), Err(SourceFailure::Checking(Failure::Body { failure: crate::value_access::Failure::Rejected(error), .. })) if error.rule() == crate::value_access::Rule::TypeMismatch)
+    );
+}
+
+#[test]
+fn a_closed_selected_result_witness_does_not_elide_its_producing_bounds_check() {
+    let source = format!("{SOURCE}\nconst BAD: i32 = selected_array(2)(0)");
+    let (sources, tree) = input(&source);
+    assert!(
+        matches!(SourceUnit::prepare(bound(&sources, &tree)), Err(SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })) if diagnostic.rule() == crate::value_access::evaluation::Rule::Execution(nocter_constant_evaluation::state::Rule::IndexOutOfBounds))
+    );
 }
 
 #[test]

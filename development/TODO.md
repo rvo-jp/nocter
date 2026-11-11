@@ -18,12 +18,13 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Close the structural callable-producer finding below. Carry actual construction/forwarding facts
-through array/tuple selections without deriving a return anchor from a provisional result type.
-Keep one finite producer analysis, the shared type authority and the separate initialization/access
-proofs. Qualify selected factory returns, replacement/branch behavior, absent or unavailable values,
-required/native execution and source reuse. General formal payload storage and outside R/D/S remain
-separate obligations.
+Extend explicit owned capture environments over result-resolved callable payloads. Reuse the shared
+type/result authority and actual formation facts across lexical code. Close Copy and frozen
+func/mut/once operations without strengthening a formal contract from actual callers. Validate
+finite environment containment after substitution, including result-induced cycles and zero-array
+containment edges. Qualify nested capture/views, non-Copy retirement, required/native execution and
+source reuse. Keep unsupported formal/absent payloads locally diagnosed until their own evidence
+closes; general formal storage and outside R/D/S remain separate obligations.
 
 ## Retained Selection Closure
 
@@ -92,13 +93,6 @@ not a language restriction derived from the current realization boundary.
 
 ## Open Findings
 
-- [ ] Returning a callable selected from a reached array/tuple of factory results loses its
-  producer evidence: `let callbacks = [make()]; callbacks[0]` cannot yet establish another
-  factory's callable return. Preserve actual structural producer facts through construction,
-  forwarding, replacement and projection with finite homogeneous metadata. An unresolved type
-  schema alone is not a reachable producer; retain unanchored/uninitialized/absent-value rejection.
-  Close interrupted structural payload handling against the same facts before admitting positive
-  payloads whose component is proved unproduced.
 - [ ] Investigate the unclassified status-1 failure of the released native test
   `network_and_tls::public_tls_and_https_reject_plain_peers_and_https_advertises_http1`.
   It is not consistently reproducible. Native exit assertions identify the sync/async image,

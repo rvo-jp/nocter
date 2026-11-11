@@ -330,12 +330,18 @@ still grant neither Copy nor trivial cleanup to formal inputs or unresolved resu
 The private `flow::Control` prepares only the selected graph. Over its reachable successors,
 `results::producers` propagates code/view facts through actual reachable evaluations,
 local bindings, strong replacement, conditional forwarding, prepared arguments and staged returns.
-Input schemas seed received callable witnesses, including owned callable environments. Reached
-structural projections carry their exact named/captured schema witness. Deferred transfers follow
-the already evaluated referent; value boundaries and selected view adapters preserve those same
-producer facts even when ownership execution is deferred to bundle commit. Projected data never
-supplies a symbolic result/application anchor from its provisional signature. Actual prepared producer facts, rather than provisional data types, establish recursive anchors. These are static producer facts, not a second owner or
-availability ledger. Moves and drops remain subject to initialization/access/resource validation.
+Input schemas seed received callable witnesses, including owned callable environments. Construction
+transports actual component facts into each structural value; member/index selection filters those
+facts rather than manufacturing a producer from the selected schema. `producers::facts` indexes
+actual alternative terms by callable-leaf data identity. Equal leaf data denotes one static witness
+after result equalities close, so homogeneous arrays and shared tuple shapes need no per-element or
+expanded-path metadata. Structural forwarding aligns those leaves positionally without erasing
+their actual terms. Whole replacement is strong; component replacement retains conservative terms
+without guessing evaluated indices or maintaining another alias registry. Deferred transfers and
+prepared arguments retain the already evaluated facts; view adapters preserve their code identity.
+No provisional result/application signature supplies a return anchor. These are static code facts,
+not an owner, availability or numerical-disjointness proof. Moves and drops remain subject to the
+separate initialization/access/resource validation.
 
 `results::solve` first closes reachable result relations to one named or own-input witness per
 function. `results::relations` owns one finite positive-equation solver for unions and selected
@@ -356,7 +362,12 @@ the resolved data and source access. Unproduced supplies close explicitly withou
 or move. `results::unproduced` rejects any reached evaluation, input preparation, forwarding,
 binding, value consumption or call commit using this absent data. This proof runs before
 initialization over the same graph. Schema cleanup projection rejects result/application keys;
-the accepted Unit's `DataEvidence` distinguishes payloads from unproduced structural contracts.
+the accepted Unit's `DataEvidence` distinguishes payloads from unproduced structural shapes.
+Positive tuple/array payload edges propagate an unproduced component; a zero array has no such
+element edge. The marker adds no duplicate signature: the existing Program remains the shape and
+contract authority. Interrupted structural construction retains typing but supplies no aggregate
+owner, Copy operation, storage or instance edge; already completed component owners still clean
+normally. Reached use of any such shape rejects before flow admission.
 Known generic formal transfers remain transfers; later concrete
 payload Copy cannot reinterpret them. Only then does Control compute initialization and
 access/resource validation, once each. Control IDs and the type authority do not change, and no
@@ -375,12 +386,16 @@ new ownership ledger or cardinality expansion is introduced.
 
 The shared `structural-result-values.nct` source qualifies factory-produced named/captured values,
 distinct environments of one code, arrays, nested tuples/arrays, repetition, replacement,
-conditional joins, Copy snapshots and non-Copy retirement through required and native execution.
-Different witnesses, non-Copy repetition and unmarked duplication reject at source. Factory body
-changes invalidate closed callers even when their own source is unchanged. General aggregate
-producer provenance, structural values with proved-absent components, formal callable storage and
-dependent capture footprints remain separate work; a constructor whose component payload cannot
-close reports a local rejection before executable admission.
+conditional joins, Copy snapshots, non-Copy retirement and factory returns of selected components
+through required and native execution, including maximum-count zero-byte arrays. Runtime source
+also qualifies formal forwarding into arrays and interrupted nested structural values, with no
+unbound storage/instance edges and cleanup only for completed components. Different witnesses,
+non-Copy repetition, unmarked duplication and unanchored structural recursion reject at source;
+producer facts cannot hide retirement. Factory body changes invalidate closed callers even when
+their own source is unchanged. General formal callable storage and dependent capture footprints
+remain separate work; a constructor whose component payload cannot close reports a local rejection
+before executable admission. Owned capture of unresolved callable-bearing structure also reports
+its existing scope boundary locally rather than failing type publication internally.
 
 All closed queries share one result-evidence object with producer-body byte dependencies.
 Standalone query rebinding checks those dependencies; complete Unit projection verifies them once

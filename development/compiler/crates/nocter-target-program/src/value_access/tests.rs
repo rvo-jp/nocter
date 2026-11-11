@@ -244,13 +244,27 @@ fn unknown_interrupted_result_contracts_do_not_acquire_payloads_or_instance_edge
         .data()
         .iter()
         .filter_map(|(&data, evidence)| match evidence {
-            DataEvidence::Unproduced(contract) => Some((data, contract)),
+            DataEvidence::Unproduced => Some(data),
             DataEvidence::Payload(_) => None,
         })
         .collect::<Vec<_>>();
     assert_eq!(absent.len(), 1);
-    assert!(absent[0].1.inputs.len() == 1);
-    assert!(flow::resources::payload(graph.unit().program(), absent[0].0).is_err());
+    let Some(nocter_declarations::value_access::PayloadSchema::Function(witness)) =
+        graph.unit().program().data_schema(absent[0])
+    else {
+        panic!("callable shape")
+    };
+    assert_eq!(
+        graph
+            .unit()
+            .program()
+            .function_contract(witness)
+            .unwrap()
+            .inputs
+            .len(),
+        1
+    );
+    assert!(flow::resources::payload(graph.unit().program(), absent[0]).is_err());
 }
 
 #[test]
@@ -268,10 +282,45 @@ fn dead_adapted_locals_keep_contract_only_data_through_instance_projection() {
         instance
             .data()
             .values()
-            .filter(|e| matches!(e, DataEvidence::Unproduced(_)))
+            .filter(|e| matches!(e, DataEvidence::Unproduced))
             .count(),
         2
     );
+}
+
+#[test]
+fn interrupted_structural_shapes_do_not_gain_storage_or_callee_instances() {
+    let fixture = ValueSourceFixture::new(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/structural-result-values.nct"
+    )));
+    let unit = accepted(&fixture);
+    let root = callable(&unit, "interrupted");
+    let graph = InstanceProgram::prepare(unit, root).unwrap();
+    assert_eq!(graph.instances().len(), 1);
+    let instance = graph.instances().get(graph.root()).unwrap();
+    assert!(instance.calls().is_empty());
+    let absent = instance
+        .data()
+        .iter()
+        .filter_map(|(&data, evidence)| {
+            matches!(evidence, DataEvidence::Unproduced).then_some(data)
+        })
+        .collect::<Vec<_>>();
+    assert!(absent.iter().any(|&data| matches!(
+        graph.unit().program().data_schema(data),
+        Some(nocter_declarations::value_access::PayloadSchema::Array(_))
+    )));
+    assert!(
+        absent
+            .iter()
+            .all(|&data| flow::resources::payload(graph.unit().program(), data).is_err())
+    );
+    storage::prepare(
+        &graph,
+        nocter_runtime_contract::RuntimeAbiIdentity::Arm64DarwinV1,
+    )
+    .unwrap();
 }
 
 #[test]
