@@ -422,3 +422,34 @@ fn pending_closure_reservations_survive_child_publication_and_key_exhaustion() {
         .canonical_body_types(std::collections::BTreeMap::from([(root.into(), &body)]))
         .unwrap();
 }
+
+#[test]
+fn callable_capture_payloads_require_exact_witnesses_and_failed_publication_is_atomic() {
+    let (header, [root, factory, _]) = application_headers();
+    let named = header
+        .function_data(FunctionWitness {
+            origin: nocter_model::ValueFunctionOrigin::Declaration(root),
+            invocation: ValueInvocation::Read,
+        })
+        .unwrap();
+    assert!(header.capture_environment_supported(named));
+    assert!(!header.capture_environment_supported(header.codes().get(factory).unwrap().result()));
+    let mut body = header.body_types(root).unwrap();
+    let call = nocter_model::ArenaBuilder::<nocter_model::AccessExpressionId, ()>::new().insert(());
+    let pending = body
+        .application(nocter_model::ValueCode::Declaration(root), call, factory)
+        .unwrap();
+    assert!(!body.program().capture_environment_supported(pending));
+    let id = body.reserve_closure().unwrap();
+    let contract = FunctionConstraint {
+        invocation: ValueInvocation::Read,
+        inputs: Box::new([]),
+        result: header.data_type(BuiltinType::Void).unwrap(),
+    };
+    assert_eq!(
+        body.closure(id, pending, contract.clone()),
+        Err(super::BodyTypeError::InvalidExtension)
+    );
+    assert!(body.program().closure(id).is_none());
+    body.closure(id, named, contract).unwrap();
+}

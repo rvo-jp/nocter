@@ -4,6 +4,105 @@ use super::*;
 use nocter_model::ValueInvocation;
 
 #[test]
+fn an_exact_named_callable_can_be_captured_as_an_ordinary_value() {
+    let unit = accepted(
+        "func increment(value: i32): i32 { value + 1 }\nfunc run(): i32 { let callback = increment\nlet outer = (callback;): i32 { callback(41) }\nouter() }",
+    );
+    assert_eq!(unit.closures().len(), 1);
+}
+
+#[test]
+fn callable_value_captures_preserve_copy_transfer_and_selected_invocation_views() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/callable-value-captures.nct"
+    ));
+    let unit = accepted(source);
+    for (name, expected) in [
+        ("mutable_view", ValueInvocation::Edit),
+        ("once_copy", ValueInvocation::Read),
+        ("consuming", ValueInvocation::Take),
+    ] {
+        let root = named(&unit, name).typed().source_owner();
+        let outer = unit
+            .closures()
+            .keys()
+            .filter(|id| id.owner.source_owner() == root)
+            .max_by_key(|id| id.slot)
+            .unwrap();
+        assert_eq!(
+            unit.program()
+                .closure(*outer)
+                .unwrap()
+                .contract()
+                .invocation,
+            expected,
+            "{name}"
+        );
+    }
+    let prefix = "func increment(value: i32): i32 { value + 1 }\n";
+    let source = format!(
+        "{prefix}func work(): i32 {{ let callback = increment\nlet outer = (callback^;): i32 {{ callback(41) }}\ncallback(41) }}"
+    );
+    let (sources, tree) = input(&source);
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Flow { .. }))
+    ));
+}
+
+#[test]
+fn destroying_a_captured_callable_releases_its_schema_without_invocation_or_duplicate_owners() {
+    let unit = accepted(
+        "func work(take reason: error): void { let inner = (reason^;): void {}\nlet outer = (inner^;): void {}\ndrop outer }",
+    );
+    let root = steps(named(&unit, "work"));
+    assert_eq!(
+        root.iter()
+            .filter(|step| matches!(step, Step::Capture { .. }))
+            .count(),
+        2
+    );
+    assert_eq!(root.iter().filter(|step| matches!(step, Step::Dispose { payload, .. } if payload.disposal() == Disposal::OwnedCapture)).count(), 1);
+    assert!(!root.iter().any(|step| matches!(step, Step::Invoke { .. })));
+    assert!(!root.iter().any(|step| matches!(step, Step::Dispose { payload, .. } if payload.disposal() == Disposal::OwnedError)));
+}
+
+#[test]
+fn named_callback_writes_map_explicit_inputs_after_the_frozen_environment() {
+    let unit = accepted(
+        "func update(edit value: i32): void { value += 1 }\nfunc work(): i32 { var value = 40\nlet callback = update\ncallback(value)\ncallback(value)\nvalue }",
+    );
+    assert!(named(&unit, "work").typed().results_closed());
+}
+
+#[test]
+fn a_named_mut_callback_cannot_hide_reset_of_a_prefix_counter() {
+    let source = "func reset(edit value: usize): void { value = 0 }\nfunc work(): void { var callback: mut(edit usize): void = reset\nlet items = [1, 2]\nvar index: usize = 0\nwhile index < 2 { let moved = items[index]^\nindex += 1\ncallback(index) } }";
+    let (sources, tree) = input(source);
+    let actual = SourceUnit::prepare(bound(&sources, &tree));
+    assert!(
+        matches!(&actual, Err(SourceFailure::Checking(Failure::Flow { .. }))),
+        "accepted={}",
+        actual.is_ok()
+    );
+}
+
+#[test]
+fn unknown_callable_environments_cannot_inherit_one_concrete_payloads_properties() {
+    for source in [
+        "func work(take callback: func(i32): i32): void { let outer = (callback^;): i32 { callback(41) } }",
+        "func increment(value: i32): i32 { value + 1 }\nfunc make(): func(i32): i32 { increment }\nfunc work(): void { let callback = make()\nlet outer = (callback^;): i32 { callback(41) } }",
+    ] {
+        let (sources, tree) = input(source);
+        assert!(
+            matches!(SourceUnit::prepare(bound(&sources, &tree)), Err(SourceFailure::Checking(Failure::Body { failure: BodyFailure::Rejected(diagnostic), .. })) if diagnostic.rule() == crate::value_access::Rule::TypeMismatch && diagnostic.source().message().contains("exact callable payload")),
+            "{source}"
+        );
+    }
+}
+
+#[test]
 fn nested_owned_captures_have_distinct_lexical_code_and_one_canonical_program() {
     let unit = accepted(
         "func run(): i32 { let value = 40\nlet outer = (value;): i32 { let inner = (value;): i32 { value + 2 }\ninner() }\nouter() }",

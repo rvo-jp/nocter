@@ -137,11 +137,12 @@ impl Checker<'_, '_> {
         if matches!(
             self.program().data_schema(data),
             Some(PayloadSchema::Function(_))
-        ) {
+        ) && !self.program().capture_environment_supported(data)
+        {
             return self.reject_message(
                 Rule::TypeMismatch,
                 *capture_node,
-                "this owned-capture scope admits ordinary closed data, not callable environments"
+                "this owned-capture scope needs an exact callable payload; formal and unresolved result witnesses are not yet admitted"
                     .into(),
                 Vec::new(),
             );

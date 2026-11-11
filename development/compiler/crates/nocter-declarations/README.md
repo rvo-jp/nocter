@@ -268,8 +268,10 @@ pending outer slot. Publication and key exhaustion preserve existing reservation
 discarded on freeze and supplies no runtime environment identity or ownership registry.
 That branch also publishes closed single-value closure environment schemas under lexical
 owner/slot code keys. Environment, flat input/result data and inferred invocation are distinct
-schema components. The environment is ordinary closed builtin/record/tuple/array data; Copy follows that
-schema, independently of invocation. All permitted views belong to the same body-owned key.
+schema components. `capture_environment_supported` owns the current environment domain:
+closed builtin/record/tuple/array data and exact named/captured callable payloads. Formal and
+unresolved result/application witnesses supply no such payload evidence. Copy and recursive cleanup
+follow the actual environment schema, independently of invocation. All permitted views belong to the same body-owned key.
 Tuples and closed fixed-array descriptors use that same body construction authority, including
 within a capture body. Its array constructor takes an established element TypeId and closed
 u64 count; it neither evaluates a count nor expands elements. Empty arrays still require valid

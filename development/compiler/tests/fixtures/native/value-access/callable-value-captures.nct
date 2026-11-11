@@ -1,0 +1,63 @@
+struct Item { value: i32 }
+func increment(value: i32): i32 { value + 1 }
+func named(): i32 {
+    let callback = increment
+    let outer = (callback;): i32 { callback(41) }
+    if outer() == 42 && callback(41) == 42 { 42 } else { 0 }
+}
+func updated(): i32 {
+    let value = 40
+    var counter = (value;): i32 { value += 1
+                                value }
+    var outer = (counter^;): i32 { counter() }
+    let first = outer()
+    let second = outer()
+    if first == 41 && second == 42 { 42 } else { 0 }
+}
+func snapshots(): i32 {
+    let value = 40
+    var counter = (value;): i32 { value += 1
+                                value }
+    let seed = counter()
+    var outer = (counter;): i32 { counter() }
+    let direct = counter()
+    let first = outer()
+    let second = outer()
+    if seed == 41 && direct == 42 && first == 42 && second == 43 && counter() == 43 { 42 } else { 0 }
+}
+func consuming(): i32 {
+    let item = Item { value: 42 }
+    let inner = (item^;): i32 { let moved = item^
+                              moved.value }
+    let outer = (inner^;): i32 { inner^() }
+    outer^()
+}
+func mutable_view(): i32 {
+    let callback: mut(i32): i32 = increment
+    var outer = (callback;): i32 { callback(41) }
+    outer()
+}
+func once_copy(): i32 {
+    let callback: once(i32): i32 = increment
+    let outer = (callback;): i32 { callback(41) }
+    if outer() == 42 && outer() == 42 { 42 } else { 0 }
+}
+func dormant_cleanup(): i32 {
+    let items = [Item { value: 42 }]
+    let inner = (items^;): void { let moved = items[9]^ }
+    let outer = (inner^;): void {}
+    drop outer
+    42
+}
+func update(extra: i32, edit value: i32): void { value += extra }
+func edited_inputs(): i32 {
+    let callback = update
+    let outer = (callback; edit value: i32): void { callback(1, value) }
+    var value = 40
+    outer(value)
+    outer(value)
+    value
+}
+func run(): i32 {
+    if named() == 42 && updated() == 42 && snapshots() == 42 && consuming() == 42 && mutable_view() == 42 && once_copy() == 42 && dormant_cleanup() == 42 && edited_inputs() == 42 { 42 } else { 0 }
+}

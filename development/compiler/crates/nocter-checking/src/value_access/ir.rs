@@ -266,11 +266,21 @@ pub struct FieldValue {
     pub value: AccessExpressionId,
 }
 
-/// Whether the frozen argument bundle starts with a runtime environment input.
+/// Identify the frozen callable-value prefix separately from explicit source inputs.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CallKind {
     Direct,
     Value,
+}
+impl CallKind {
+    /// Ordinary inputs exclude a value call's prepared callable, even when it has zero-byte data.
+    #[must_use]
+    pub fn explicit_arguments(self, arguments: &[Argument]) -> Option<&[Argument]> {
+        match self {
+            Self::Direct => Some(arguments),
+            Self::Value => arguments.get(1..),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

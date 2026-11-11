@@ -754,8 +754,11 @@ and flat explicit inputs; names outside it cannot become implicit captures. The 
 ordinary closed data and can construct nested closed-data environments under those same rules.
 The body type authority reserves lexical IDs before descending into nested producers; sibling and
 descendant code cannot reuse a pending parent's slot. Canonical program binding, result closure and
-flow admission cover every nested body through the common scope. Callable captures, inferred
-outside access and multiple explicit environments remain outside this qualified scope.
+flow admission cover every nested body through the common scope. Exact named/captured callable
+values can themselves form an owned environment, using the declaration owner's admission predicate.
+Unmarked formation still needs source-context Copy; explicit transfer retires even a Copy function
+value. Selected mut/once views survive capture. Formal and unresolved result/application captures,
+inferred outside access and multiple explicit environments remain outside this qualified scope.
 Named factory calls inside the body use
 the same callable-result closure as root bodies. Their applications retain actual lexical code,
 not only the shared source/type root. A shared `flow::scope` traversal indexes captured controls
@@ -767,6 +770,9 @@ also invokes both thin returned functions and returned captured environments ins
 Nested source/native cases qualify three-level and sibling code, Copy snapshots, persistent updates,
 consuming formation, returned environments and deep factory calls. Error-handle source tests retain
 ordinary ownership handoff without repeated disposal; these do not execute native owned error graphs.
+Callable-value source/native cases qualify independent mutable snapshots, nested state updates,
+consuming calls, Copy of once-view named functions and recursive cleanup without invocation of a
+dormant trapping body. No signature-wide Copy/cleanup assumption or extra callable registry is used.
 The enclosing header remains its source-reuse owner, while lexical owner/slot identifies its code.
 
 The environment's provisional construction authority permits demand collection, not accepted
@@ -847,8 +853,12 @@ environment schema recursively, including aggregate payloads. Destruction releas
 without invoking the captured body; body invocation effects do not become destruction effects.
 Formal cleanup, unavailable callees and unsupported alias provenance remain unknown.
 
-At each reached commit, input roots project to conservative caller write footprints. Caller-side
-lexical aliases use that same binding resolver. A frozen evaluated alias widens to its existing
+At each reached commit, input roots project to conservative caller write footprints. Projection
+uses `CallKind::explicit_arguments`, so a prepared callable-value environment never
+stands in for the first ordinary input. This remains true for zero-byte named values and mut/once
+views. Tests reject a named mutable callback that resets a prefix counter; the captured-callback
+native case also writes a later explicit input.
+Caller-side lexical aliases use that same binding resolver. A frozen evaluated alias widens to its existing
 containing static place, so invalidation never reloads the old selector's now-changed index.
 Unaliased operands preserve their selected footprint. These summaries do not change invocation
 addresses or establish a definite replacement. Editing a

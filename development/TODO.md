@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Extend explicit value captures to exact known callable payloads through existing witness and
-environment schemas. Preserve source-selected Copy/transfer, invocation demand and recursive
-cleanup; keep unresolved formal/result payloads conservative and qualify ordinary native execution.
+Close exact captured-code call write summaries, distinguishing environment and explicit-input
+effects. Preserve the selected call-input mapping and exact body/source guards; qualify prefix
+loops, counter invalidation, nested callable environments and reuse through ordinary native execution.
 
 ## Retained Selection Closure
 
@@ -54,6 +54,10 @@ layout fields, generated operations, an arbitrary iteration cutoff or a constant
   Generalize evaluated index relations beyond ordered prefix bundles while preserving lifetime-
   specific evidence for retained aliases across re-evaluation. Adapted callable-element transfers
   must also compose their selected adapters with the prefix handoff.
+- [ ] Close exact captured-code invocation writes through the common lexical scope. Distinguish
+  edits of a retained environment from explicit edit inputs and consumed/copied environments;
+  propagate transitive known code and reuse guards. Qualify pure/mutable closure calls beside a
+  prefix loop and reject edited-counter reset without assuming unknown formal effects are empty.
 - [x] Close cleanup write effects for exact owned closure environments through their declaration
   schema, without executing or attributing the closure body's invocation effects to destruction.
   Preserve unknown formal cleanup and qualify surrounding scalar/prefix inference through
@@ -165,6 +169,12 @@ not a language restriction derived from the current realization boundary.
 
 ## Open Findings
 
+- [x] Project named write summaries through explicit call inputs for both direct and value calls.
+  A value call's environment precedes ordinary inputs and must never receive a formal input's
+  write footprint. Qualify read/edit invocation views, an edited captured callback and rejection
+  of counter reset through a named callback.
+  Do not confuse this mapping with callee body slots.
+
 - [x] Remove recursive preparation across interleaved postfix index/transfer chains. Prevent
   stack exhaustion in the existing 1,024-suffix case;
   preserve operation order and local rejection without a source-length ceiling or larger test stack.
@@ -181,7 +191,7 @@ not a language restriction derived from the current realization boundary.
   capture demand, factory applications, source reuse and native execution. General inferred/multiple
   captures and evaluator callable values remain separate obligations.
 
-- [ ] Admit exact known named/captured callable values as explicit owned environments. Reuse
+- [x] Admit exact known named/captured callable values as explicit owned environments. Reuse
   their declaration-owned schemas and concrete invocation views rather than assuming a structural
   callable contract supplies Copy or cleanup evidence. Qualify nested value captures, mutable/once
   invocation and ordinary cleanup; keep formal and unresolved result/application captures gated

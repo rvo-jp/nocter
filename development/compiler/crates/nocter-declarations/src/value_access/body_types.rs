@@ -84,7 +84,7 @@ impl BodyTypes {
     }
     /// Publish one closed owned environment; it has no inferred external R/D/S.
     /// # Errors
-    /// Rejects a foreign/duplicate code identity or data outside the closed ordinary data domain.
+    /// Rejects a foreign/duplicate code identity, unsupported environment or nonordinary contract data.
     pub fn closure(
         &mut self,
         id: nocter_model::ValueClosure,
@@ -94,7 +94,7 @@ impl BodyTypes {
         let ordinary = |data| ordinary_data(&self.program, data);
         if id.owner != self.owner
             || self.program.closures.contains_key(&id)
-            || !ordinary(environment)
+            || !self.program.capture_environment_supported(environment)
             || !ordinary(contract.result)
             || contract.inputs.iter().any(|input| !ordinary(input.data))
         {
@@ -215,6 +215,14 @@ impl CanonicalBodyTypes {
     }
 }
 impl Program {
+    /// Closed payloads admitted by the current owned-environment construction boundary.
+    /// A structural formal/result witness alone supplies no environment payload evidence.
+    #[must_use]
+    pub fn capture_environment_supported(&self, data: TypeId) -> bool {
+        ordinary_data(self, data)
+            || matches!(self.data_schema(data), Some(super::PayloadSchema::Function(witness))
+                if matches!(witness.origin, ValueFunctionOrigin::Declaration(_) | ValueFunctionOrigin::Closure(_)))
+    }
     pub(super) fn has_type_root(&self, root: ValueCodeRoot) -> bool {
         match root {
             ValueCodeRoot::Declaration(id) => self.codes.get(id).is_some(),

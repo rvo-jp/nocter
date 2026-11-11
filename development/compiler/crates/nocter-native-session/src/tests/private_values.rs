@@ -27,6 +27,16 @@ fn compile(source: &str) -> crate::NativeImage {
 }
 
 #[test]
+fn private_callable_value_captures_preserve_views_state_and_recursive_cleanup() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/callable-value-captures.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "callable-value-captures", 42);
+}
+
+#[test]
 fn private_nested_captures_keep_distinct_activations_and_invocation_demands() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

@@ -31,11 +31,13 @@ pub(super) fn actual_writes(
     call: AccessExpressionId,
     inputs: &BTreeSet<usize>,
 ) -> Result<Option<Vec<Referent>>, IntegrityError> {
-    let ExpressionKind::Call { ref arguments, .. } =
-        typed.body().expressions().get(call).ok_or(INVALID)?.kind
+    let ExpressionKind::Call {
+        kind, arguments, ..
+    } = &typed.body().expressions().get(call).ok_or(INVALID)?.kind
     else {
         return Err(INVALID);
     };
+    let arguments = kind.explicit_arguments(arguments).ok_or(INVALID)?;
     let mut writes = Vec::new();
     for &input in inputs {
         let argument = arguments.get(input).ok_or(INVALID)?;
