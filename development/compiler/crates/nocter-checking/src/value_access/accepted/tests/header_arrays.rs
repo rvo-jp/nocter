@@ -50,6 +50,14 @@ fn computed_array_fields_close_through_the_ordinary_source_unit() {
 }
 
 #[test]
+fn a_header_count_closes_prefix_calls_before_final_whole_unit_acceptance() {
+    let text = "struct Data { items: [void; width()] }\nstruct Item { value: usize }\nconst func consume(take item: Item): usize { item.value }\nconst func width(): usize { let items = [Item { value: 40 }, Item { value: 2 }]\nvar index: usize = 0\nvar total: usize = 0\nwhile index < 2 { total += consume(items[index]^)\nindex += 1 }\ntotal }\nfunc run(): i32 { 42 }";
+    let (sources, tree) = input(text);
+    let source = SourceUnit::prepare(bound(&sources, &tree)).unwrap();
+    assert_eq!(array(source.unit(), "Data", 0).length(), 42);
+}
+
+#[test]
 fn computed_zero_breaks_containment_while_maximum_counts_remain_compact() {
     for copy in ["", "copy "] {
         let text = format!(

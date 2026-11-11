@@ -50,10 +50,11 @@ fn pending_supply_closes_before_initialization_without_rebuilding_control() {
             .map(|(&id, control)| (id, control.graph.clone()))
             .collect::<BTreeMap<_, _>>();
         crate::value_access::results::close(&context, &mut controls).unwrap();
+        let writes = flow::call_writes::Catalog::prepare(controls.values()).unwrap();
         for (id, control) in controls {
             assert!(!pending(&control.typed), "{case}");
             assert_eq!(control.graph, graphs[&id]);
-            let complete = control.finish().unwrap();
+            let complete = control.finish(&writes).unwrap();
             assert!(complete.initialization().violations().is_empty(), "{case}");
             assert_eq!(complete.access().status(), flow::access::Status::Analyzed);
             assert!(complete.access().violations().is_empty(), "{case}");

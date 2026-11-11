@@ -2,6 +2,7 @@
 //! An intermediate query is not complete whole-unit acceptance or native validity.
 pub mod access;
 mod build;
+pub(super) mod call_writes;
 mod initialization;
 mod numeric;
 mod projection;
@@ -20,6 +21,14 @@ use nocter_model::{
 pub use numeric::NumericFacts;
 pub use projection::{Context, InitializationDiagnostic};
 use std::sync::Arc;
+
+fn owned_base(typed: &TypedQuery, source: Referent) -> bool {
+    source
+        .static_base(|id| typed.body().expressions().get(id))
+        .and_then(|id| typed.body().places().get(id))
+        .and_then(|place| typed.body().locals().get(place.local))
+        .is_some_and(|local| local.access().mode() == nocter_model::ValueAccessMode::Own)
+}
 
 /// Source-neutral diagnostic subject in the owning typed query.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -165,7 +174,9 @@ impl Query {
         if !typed.results_closed() {
             return Err(IntegrityError::UnclosedResultWitnesses);
         }
-        Control::prepare(typed)?.finish()
+        let control = Control::prepare(typed)?;
+        let writes = call_writes::Catalog::prepare([&control])?;
+        control.finish(&writes)
     }
     #[must_use]
     pub fn typed(&self) -> &TypedQuery {
@@ -203,13 +214,13 @@ impl Control {
         let graph = build::build(typed.body())?;
         Ok(Self { typed, graph })
     }
-    pub(super) fn finish(self) -> Result<Query, IntegrityError> {
+    pub(super) fn finish(self, writes: &call_writes::Catalog) -> Result<Query, IntegrityError> {
         super::body_inputs::contract(&self.typed)?;
         if !self.typed.results_closed() {
             return Err(IntegrityError::UnclosedResultWitnesses);
         }
         super::results::validate(&self.typed, &self.graph)?;
-        let numeric = numeric::analyze(&self.typed, &self.graph)?;
+        let numeric = numeric::analyze(&self.typed, &self.graph, writes.calls(&self.typed)?)?;
         let initialization = initialization::analyze(&self.typed, &self.graph, &numeric)?;
         let access = access::analyze(&self.typed, &self.graph, &initialization, &numeric)?;
         Ok(Query {

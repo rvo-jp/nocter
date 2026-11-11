@@ -250,6 +250,12 @@ forget potentially changed local facts. This analysis consumes typed normal-valu
 the existing operation graph; it does not become another source bounds classifier. Before
 admitting user-defined destruction, apply its closed write effects at explicit and implicit
 cleanup sites as well; today's closed payload cleanup is not a general purity assumption.
+Close named caller-write evidence over the same final typed program after result/supply closure,
+retaining its exact body owners. Recursion alone introduces no new write; unknown calls and cleanup
+effects must propagate through dependencies. Absence of writes into existing caller storage may
+preserve numerical histories, while source transfers and input permissions remain obligations.
+Required execution and whole-unit acceptance must consume that same evidence. General selective
+write footprints and captured/user destruction effects remain separate closure obligations.
 
 Select a prefix realization from possible re-execution of a transfer site within the same array
 epoch, rather than from a loop's syntax or the mere existence of an earlier extraction. Track

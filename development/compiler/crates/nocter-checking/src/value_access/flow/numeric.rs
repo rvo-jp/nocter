@@ -8,6 +8,7 @@ mod state;
 mod tests;
 mod transfer;
 
+use super::owned_base;
 use super::resources::ArrayFrontier;
 use super::{Graph, IntegrityError, Location};
 use crate::value_access::{ExpressionKind, Query as TypedQuery, Referent};
@@ -32,14 +33,6 @@ struct Transfers {
     peers: BTreeMap<AccessExpressionId, BTreeSet<AccessExpressionId>>,
 }
 
-fn owned_base(typed: &TypedQuery, source: Referent) -> bool {
-    source
-        .static_base(|id| typed.body().expressions().get(id))
-        .and_then(|id| typed.body().places().get(id))
-        .and_then(|place| typed.body().locals().get(place.local))
-        .is_some_and(|local| local.access().mode() == ValueAccessMode::Own)
-}
-
 /// Fixed body-local cells. Reassigning a cell changes its current value; a syntax identity does
 /// not denote the same number on every execution. Prepared operands have their own frozen cells.
 #[derive(Clone, Debug, Default)]
@@ -49,6 +42,7 @@ struct Cells {
     values: BTreeMap<AccessExpressionId, usize>,
     operands: BTreeMap<(AccessExpressionId, usize), usize>,
     histories: history::Histories,
+    no_caller_writes: BTreeSet<AccessExpressionId>,
 }
 impl Cells {
     fn fresh(&mut self) -> Result<usize, IntegrityError> {
@@ -206,8 +200,14 @@ impl Analysis {
     }
 }
 
-pub(super) fn analyze(typed: &TypedQuery, graph: &Graph) -> Result<Analysis, IntegrityError> {
-    let cells = Arc::new(Cells::prepare(typed, graph)?);
+pub(super) fn analyze(
+    typed: &TypedQuery,
+    graph: &Graph,
+    no_caller_writes: BTreeSet<AccessExpressionId>,
+) -> Result<Analysis, IntegrityError> {
+    let mut cells = Cells::prepare(typed, graph)?;
+    cells.no_caller_writes = no_caller_writes;
+    let cells = Arc::new(cells);
     let entry = State::entry(&cells).ok_or(INVALID)?;
     let mut entries = BTreeMap::from([(graph.entry(), entry)]);
     let mut pending = BTreeSet::from([graph.entry()]);

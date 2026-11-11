@@ -271,9 +271,9 @@ pub(super) fn action(
         }
     }
     match *operation {
-        Operation::CommitCall(_) => {
+        Operation::CommitCall(call) if !cells.no_caller_writes.contains(&call) => {
             // An invoked callback/capture can reach an array beyond explicit edit operands.
-            // Until closed write summaries are consumed, no prefix history crosses invocation.
+            // Only the exact closed no-caller-write evidence preserves a prefix across a call.
             // The transfer proofs above still describe the pre-invocation atomic bundle.
             phases.fill(Phase::Unproved);
             seen.clear();

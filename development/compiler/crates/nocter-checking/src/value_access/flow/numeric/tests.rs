@@ -30,6 +30,7 @@ fn function_named(text: &str, name: &str) -> Query {
         .map(|(id, query)| (id, super::super::Control::prepare(Arc::new(query)).unwrap()))
         .collect();
     results::close(&context, &mut controls).unwrap();
+    let writes = super::super::call_writes::Catalog::prepare(controls.values()).unwrap();
     controls
         .into_values()
         .find(|control| {
@@ -45,7 +46,7 @@ fn function_named(text: &str, name: &str) -> Query {
                     == Some(name)
         })
         .unwrap()
-        .finish()
+        .finish(&writes)
         .unwrap()
 }
 fn returns(query: &Query) -> Vec<(AccessExpressionId, NumericFacts)> {
@@ -259,11 +260,15 @@ fn replacement_starts_a_new_epoch_but_partial_restoration_invalidates_the_prefix
 }
 
 #[test]
-fn call_bundle_uses_transfer_order_and_does_not_assume_a_callee_write_summary() {
+fn call_bundle_uses_transfer_order_and_consumes_a_closed_callee_write_summary() {
     let query = function(
         "func consume(take a: void, take b: void): void {}\nfunc f(): void { let items = [(); 3]\nvar index: usize = 0\nconsume(items[index]^, items[index + 1]^)\nindex = 2\nlet next = items[index]^ }",
     );
-    assert_eq!(prefix_transfers(&query), vec![true, true, false]);
+    assert_eq!(prefix_transfers(&query), vec![true, true, true]);
+    let query = function(
+        "func consume(take a: void, edit index: usize): void { index += 1 }\nfunc f(): void { let items = [(); 3]\nvar index: usize = 0\nconsume(items[index]^, index)\nlet next = items[index]^ }",
+    );
+    assert_eq!(prefix_transfers(&query), vec![true, false]);
 }
 
 #[test]

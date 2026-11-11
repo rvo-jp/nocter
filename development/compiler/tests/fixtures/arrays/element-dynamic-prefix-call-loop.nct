@@ -1,0 +1,16 @@
+struct Item { value: i32 }
+const func first(value: i32, depth: usize): i32 {
+    if depth == 0 { value } else { second(value, depth - 1) }
+}
+const func second(value: i32, depth: usize): i32 { first(value, depth) }
+const func consume(take item: Item): i32 { first(item.value, 1) }
+const func run(): i32 {
+    let items = [Item { value: 40 }, Item { value: 2 }]
+    var index: usize = 0
+    var total = 0
+    while index < 2 {
+        total += consume(items[index]^)
+        index += 1
+    }
+    total
+}

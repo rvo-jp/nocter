@@ -37,10 +37,14 @@ layout fields, generated operations, an arbitrary iteration cutoff or a constant
   whole bundle before exempting its neutral frozen-place nodes; preserve actual grants and outer
   reservations. Qualify distinct payloads, late counter mutation, two-reservation cancellation and
   maximum-count zero-byte execution in required and native paths.
-- [ ] Generalize evaluated index relations beyond ordered prefix bundles and consume closed call
-  write summaries before carrying numerical prefixes across invocation. Preserve lifetime-specific
-  evidence for retained aliases across re-evaluation. Adapted callable-element transfers must also
-  compose their selected adapters with the prefix handoff.
+- [x] Preserve numerical locals and prefix epochs across exact closed named calls without writes
+  into existing caller storage. Close recursive/transitive dependencies and cleanup eligibility,
+  retain exact typed owners, and qualify loop calls plus early header-count execution. Unknown
+  writes, formal/captured cleanup and absent callee evidence remain conservative.
+- [ ] Extend call write summaries to selective input targets and captured/destruction effects.
+  Generalize evaluated index relations beyond ordered prefix bundles while preserving lifetime-
+  specific evidence for retained aliases across re-evaluation. Adapted callable-element transfers
+  must also compose their selected adapters with the prefix handoff.
 - [ ] Extend saved-index identity and initialization/cleanup to nested selectors, partial fields
   below a retained index, conditional restoration and multiple holes within one array. Keep
   unproved relations local and explicit. Do not read uninitialized alternative backing or choose

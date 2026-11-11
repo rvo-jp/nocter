@@ -211,6 +211,9 @@ actual owned error-graph cleanup remains the separate obligation above.
 Ordered bundles execute distinct nonzero payloads through separate argument owners before reusing
 one endpoint slot. Cases also cover a later counter mutation, cancellation after two reservations
 and maximum-count zero-byte bundles; endpoint reuse does not retarget a frozen argument address.
+The corpus also executes a taking call on each prefix-loop iteration through mutually recursive
+callees whose caller-write effects are closed by checking. No new native effect interpretation or
+source annotation is introduced.
 
 Shared source fixtures execute element take, field holes, structurally disjoint unknown-index edits,
 exact restoration on loop backedges and maximum-count zero-byte remainder cleanup. The checking

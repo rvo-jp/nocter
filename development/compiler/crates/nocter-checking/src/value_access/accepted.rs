@@ -246,6 +246,8 @@ pub(super) fn check_queries(
         })
         .collect::<Result<BTreeMap<_, _>, Failure>>()?;
     let result_evidence = super::results::close(context, &mut controls)?;
+    let writes =
+        flow::call_writes::Catalog::prepare(controls.values()).map_err(Failure::Integrity)?;
     let verified = result_evidence
         .verify(context)
         .map_err(|_| Failure::Integrity(flow::IntegrityError::InconsistentTypedBody))?;
@@ -258,11 +260,11 @@ pub(super) fn check_queries(
                     flow::IntegrityError::InconsistentTypedBody,
                 ));
             }
-            let checked = nested.clone().finish().map_err(Failure::Integrity)?;
+            let checked = nested.clone().finish(&writes).map_err(Failure::Integrity)?;
             let checked = admit(checked, &verified)?;
             closures.insert(id, checked);
         }
-        let query = control.finish().map_err(Failure::Integrity)?;
+        let query = control.finish(&writes).map_err(Failure::Integrity)?;
         let query = admit(query, &verified)?;
         bodies.insert(root, query);
     }

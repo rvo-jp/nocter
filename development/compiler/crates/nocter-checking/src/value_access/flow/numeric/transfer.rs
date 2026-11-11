@@ -155,9 +155,11 @@ pub(super) fn action(
             }
         }
         Operation::CommitCall(id) => {
-            // Until a closed write summary is consumed here, an invoked body can mutate through
-            // edit inputs or captures. Frozen computed/operand cells retain their earlier values.
-            forget_locals(cells, state);
+            // Unknown callees can mutate through edit inputs or captures. A closed no-caller-
+            // write proof preserves current locals; frozen operands keep their earlier values.
+            if !cells.no_caller_writes.contains(&id) {
+                forget_locals(cells, state);
+            }
             if let Some(target) = cells.value(id) {
                 state.forget(target);
                 if let Some(value) = typed

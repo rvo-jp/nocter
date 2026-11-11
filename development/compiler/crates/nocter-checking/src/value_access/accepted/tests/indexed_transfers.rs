@@ -237,6 +237,17 @@ fn a_prefix_bundle_needs_ordered_numeric_proofs_and_cancellation_retires_no_argu
 }
 
 #[test]
+fn a_no_caller_write_proof_does_not_restore_a_consumed_counter() {
+    let (sources, tree) = input(
+        "struct Item { value: i32 }\nfunc consume(take index: usize): void {}\nfunc work(): void { let items = [Item { value: 40 }, Item { value: 2 }]\nvar index: usize = 0\nwhile index < 2 { let selected = items[index]^\nconsume(index^)\nindex += 1 } }",
+    );
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Flow { .. }))
+    ));
+}
+
+#[test]
 fn dynamic_holes_block_unproved_reads_restoration_and_nonprogressing_recipe_execution() {
     for after in [
         "read later = items",
