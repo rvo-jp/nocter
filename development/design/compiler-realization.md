@@ -240,6 +240,28 @@ checked progression needs a finite region/interval summary rather than unbounded
 one entry per array element or an arbitrary iteration cutoff. Preserve conservative local failure
 when that proof is unavailable, without imposing a constant-index-only language rule.
 
+Use exact difference equalities between current usize cells for unit-stride induction. Keep
+mutable local cells separate from frozen computed values and prepared operands; an assignment
+changes only its target cell. Join retains only common differences. In a fixed body, every strict
+join splits an equivalence class, so convergence does not depend on the array count or a widening
+threshold. Checked arithmetic relationships describe normal completions only; impossible
+continuations furnish no proof. Unknown writes and calls without a closed write summary must
+forget potentially changed local facts. This analysis consumes typed normal-value evidence and
+the existing operation graph; it does not become another source bounds classifier. Before
+admitting user-defined destruction, apply its closed write effects at explicit and implicit
+cleanup sites as well; today's closed payload cleanup is not a general purity assumption.
+
+The progression closure must distinguish an array epoch with no extracted prefix from one with
+a proven prefix. Its first transfer proves index zero; a later transfer proves the new evaluated
+index equals the last committed one plus one. Record the last committed index in the existing
+resource lifecycle, separately from immutable point snapshots. Update it together with the
+actual transfer, after the original normal bounds check, never at preparation or cancellation.
+Represent the missing prefix as one region, and clean only the suffix after its saved endpoint.
+The endpoint is the transferred index, not the user's possibly later-updated counter; early exit
+therefore preserves exact cleanup. Whole containing replacement ends that epoch. Do not admit
+this progression from numerical facts alone: availability, guarded resource state and every
+execution consumer must agree on the region transition first.
+
 Project the resulting sparse remainder and its exact captured indices into cleanup. Excluding
 one checked index i from [0, N) gives [0, i) and [i + 1, N); the same bounds fact justifies the
 successor arithmetic even at the maximum usize count. Symbolic cleanup must retain that fact and

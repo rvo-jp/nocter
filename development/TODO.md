@@ -25,8 +25,9 @@ proves equal numbers across a backedge. Do not add a parallel ownership registry
 layout fields, generated operations, an arbitrary iteration cutoff or a constant-index-only policy.
 
 - [ ] Close finite repeated extraction without containing replacement using a compact proven
-  progression/frontier. Preserve each normal bounds check, cancellation and exact cleanup when
-  execution leaves before the user counter update. Do not overwrite a live selected-index owner
+  progression/frontier. Consume the checking-owned normal usize difference facts through the
+  prefix-definedness and region transitions. Preserve each normal bounds check, cancellation and
+  exact cleanup when execution leaves before the user counter update. Do not overwrite a live selected-index owner
   or invent unbounded generations from repeated execution of the same source recipe.
 - [ ] Extend saved-index identity and initialization/cleanup to nested selectors, partial fields
   below a retained index, conditional restoration and multiple holes within one array. Keep

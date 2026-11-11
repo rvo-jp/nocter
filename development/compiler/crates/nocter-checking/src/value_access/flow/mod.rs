@@ -3,6 +3,7 @@
 pub mod access;
 mod build;
 mod initialization;
+mod numeric;
 mod projection;
 pub mod resources;
 #[cfg(test)]
@@ -16,6 +17,7 @@ pub use initialization::{
 use nocter_model::{
     AccessBlockId, AccessExpressionId, AccessFlowPointId, AccessLocalId, AccessStatementId, Arena,
 };
+pub use numeric::NumericFacts;
 pub use projection::{Context, InitializationDiagnostic};
 use std::sync::Arc;
 
@@ -151,6 +153,7 @@ pub enum IntegrityError {
 pub struct Query {
     typed: Arc<TypedQuery>,
     graph: Graph,
+    numeric: numeric::Analysis,
     initialization: Initialization,
     access: access::Analysis,
 }
@@ -171,6 +174,11 @@ impl Query {
     #[must_use]
     pub const fn graph(&self) -> &Graph {
         &self.graph
+    }
+    /// Numeric relationships before a reached operation. These grant no access or bounds waiver.
+    #[must_use]
+    pub fn numeric_at(&self, location: Location) -> Option<NumericFacts> {
+        self.numeric.at(&self.typed, &self.graph, location)
     }
     #[must_use]
     pub const fn initialization(&self) -> &Initialization {
@@ -201,11 +209,13 @@ impl Control {
             return Err(IntegrityError::UnclosedResultWitnesses);
         }
         super::results::validate(&self.typed, &self.graph)?;
+        let numeric = numeric::analyze(&self.typed, &self.graph)?;
         let initialization = initialization::analyze(&self.typed, &self.graph)?;
         let access = access::analyze(&self.typed, &self.graph, &initialization)?;
         Ok(Query {
             typed: self.typed,
             graph: self.graph,
+            numeric,
             initialization,
             access,
         })

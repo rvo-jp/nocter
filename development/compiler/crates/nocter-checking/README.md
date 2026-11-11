@@ -893,6 +893,16 @@ proven owning targets retain their ordinary sparse replacement transition. Unpro
 targets use the exact-address `ReplaceReferent` handoff without interpreting a conflict footprint
 as an ownership key; the partial-transfer rules below define restoration and completeness.
 
+`flow::Query::numeric_at` reports normal checked usize difference equalities at an existing graph
+operation. The analysis distinguishes current owned scalar locals, computed results and frozen
+prepared operands. Assignment preserves relationships between older snapshots while changing
+the current cell; joins keep common exact differences and reach a fixed point without an
+array-cardinality-dependent iteration cutoff. Selected builtin equality branches refine those
+relationships. Unsupported operations, alias writes and calls without a closed write summary
+remain conservative. Impossible normal arithmetic supplies no proof. This report neither grants
+access to an unavailable value nor reclassifies a source bounds check. The progression/region
+consumer remains unqualified; the source admission rules below still apply.
+
 Access regions retain `ValuePath<IndexFact>` under the same owning/input/temporary root. Known
 numeric results select concrete indices; unknown indices remain unknown even when their recipe
 keys or representations compare equal. The [shared structural relation](../nocter-model/README.md#structural-projection-relations)
