@@ -151,6 +151,10 @@ The target owns the numeric trap encoding; general MIR failure retains its disti
 Its countdown counter is an ordinary SSA block parameter. Fill order has no user callback; the
 established Copy seed is loaded before traversal. One homogeneous layout proves the compiler's byte
 offset and successor arithmetic; internal traversal does not manufacture source bounds proofs.
+The shared traversal accepts SSA lower/upper endpoints and skips empty runtime intervals. A
+retained cleanup span loads its dedicated usize snapshot slot; its checked original bound proves
+the successor and it does not reload the source index. Source dynamic-hole and native-effect
+qualification remain open; constant-span and complete traversal retain their executable coverage.
 The runtime environment supplies canonical usize/bool roles for that control. Count one uses the
 ordinary resource assembly, and zero-byte storage requires no physical fill while preserving seed
 evaluation and cleanup. Native cases cover seed effects, non-Copy count-one transfer, nested and

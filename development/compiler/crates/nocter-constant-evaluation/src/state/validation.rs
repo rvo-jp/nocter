@@ -403,11 +403,23 @@ fn check_effect(program: &Program, plan: &super::Plan, effect: &Effect) -> Resul
         }
     };
     match effect {
-        Effect::DisposeArrayElements { source, start, end } => {
+        Effect::DisposeArrayElements { source, range } => {
             let data = owned(source)?;
-            if !matches!(program.types.get(data), Some(Type::Array { length, .. }) if start < end && end <= length)
-            {
+            let Some(Type::Array { length, .. }) = program.types.get(data) else {
                 return Err(INVALID);
+            };
+            match range {
+                nocter_model::ArrayRange::Constant { .. } => {
+                    if range.resolve(*length, |_| None).is_none() {
+                        return Err(INVALID);
+                    }
+                }
+                nocter_model::ArrayRange::Before(slot) | nocter_model::ArrayRange::After(slot) => {
+                    let data = owned(&Place::root(*slot))?;
+                    if *length == 0 || !matches!(program.types.get(data), Some(Type::Usize)) {
+                        return Err(INVALID);
+                    }
+                }
             }
         }
         Effect::Construct(slot) => {

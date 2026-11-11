@@ -117,13 +117,14 @@ impl Builder<'_> {
             true,
             MachineOperationKind::AddressOf { source: base },
         )?;
-        self.cleanup_range(data, pointer, 0, length, stride)
+        let start = self.size_constant(0)?;
+        let end = self.size_constant(length)?;
+        self.cleanup_range(data, pointer, start, end, stride)
     }
     pub(super) fn dispose_array_elements(
         &mut self,
         source: &nocter_mir::value_access::Place,
-        start: u64,
-        end: u64,
+        range: nocter_model::ArrayRange<nocter_model::MirLocalId>,
     ) -> Result<(), Failure> {
         let layout = self
             .context
@@ -138,7 +139,12 @@ impl Builder<'_> {
         else {
             return Err(Self::invalid());
         };
-        if start >= end || end > length {
+        if length == 0 {
+            return Err(Self::invalid());
+        }
+        if let nocter_model::ArrayRange::Constant { .. } = range
+            && range.resolve(length, |_| None).is_none()
+        {
             return Err(Self::invalid());
         }
         if !self.context.cleanup.contains_key(&element) {
@@ -150,14 +156,64 @@ impl Builder<'_> {
             true,
             MachineOperationKind::AddressOf { source: place },
         )?;
+        let (start, end) = match range {
+            nocter_model::ArrayRange::Constant { start, end } => {
+                (self.size_constant(start)?, self.size_constant(end)?)
+            }
+            nocter_model::ArrayRange::Before(slot) => {
+                (self.size_constant(0)?, self.retained_index(slot, length)?)
+            }
+            nocter_model::ArrayRange::After(slot) => {
+                let index = self.retained_index(slot, length)?;
+                let one = self.size_constant(1)?;
+                (
+                    self.size_binary(crate::MachineBinaryOperation::Add, index, one)?,
+                    self.size_constant(length)?,
+                )
+            }
+        };
         self.cleanup_range(element, pointer, start, end, stride)
+    }
+    fn retained_index(
+        &mut self,
+        id: nocter_model::MirLocalId,
+        length: u64,
+    ) -> Result<crate::MachineValueId, Failure> {
+        let slot = self
+            .source
+            .ok_or_else(Self::invalid)?
+            .slots()
+            .get(id)
+            .ok_or_else(Self::invalid)?;
+        let nocter_mir::value_access::SlotKey::IndexSnapshot(index) = slot.key else {
+            return Err(Self::invalid());
+        };
+        let data = self
+            .context
+            .program
+            .runtime()
+            .types()
+            .primitive(nocter_runtime_contract::RuntimePrimitive::Usize)
+            .ok_or_else(Self::invalid)?;
+        if index.bound() != length
+            || slot.storage != nocter_mir::value_access::Storage::Payload
+            || slot.representations.as_ref() != [data]
+        {
+            return Err(Self::invalid());
+        }
+        self.load(&nocter_mir::value_access::Place {
+            slot: id,
+            root: data,
+            data,
+            projections: Box::new([]),
+        })
     }
     fn cleanup_range(
         &mut self,
         data: TypeId,
         pointer: crate::MachineValueId,
-        start: u64,
-        end: u64,
+        start: crate::MachineValueId,
+        end: crate::MachineValueId,
         stride: u64,
     ) -> Result<(), Failure> {
         let target = *self.context.cleanup.get(&data).ok_or_else(Self::invalid)?;

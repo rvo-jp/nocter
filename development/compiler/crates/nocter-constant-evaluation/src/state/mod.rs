@@ -109,8 +109,7 @@ pub enum Effect {
     /// Retire an intact half-open element interval without cardinality-sized state.
     DisposeArrayElements {
         source: Place,
-        start: u64,
-        end: u64,
+        range: nocter_model::ArrayRange<usize>,
     },
     Release(Place),
     Assemble {

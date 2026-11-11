@@ -22,14 +22,14 @@ impl Builder<'_> {
             .primitive(role)
             .ok_or_else(Self::invalid)
     }
-    fn size_constant(&mut self, value: u64) -> Result<MachineValueId, Failure> {
+    pub(super) fn size_constant(&mut self, value: u64) -> Result<MachineValueId, Failure> {
         self.value(
             self.primitive(RuntimePrimitive::Usize)?,
             false,
             MachineOperationKind::Constant(MachineConstant::Integer(i128::from(value))),
         )
     }
-    fn size_binary(
+    pub(super) fn size_binary(
         &mut self,
         operation: MachineBinaryOperation,
         left: MachineValueId,
@@ -47,14 +47,15 @@ impl Builder<'_> {
         )
     }
     pub(super) fn begin_array(&mut self, length: u64) -> Result<Traversal, Failure> {
-        self.begin_array_range(0, length)
+        let start = self.size_constant(0)?;
+        let end = self.size_constant(length)?;
+        self.begin_array_range(start, end)
     }
-    pub(super) fn begin_array_range(&mut self, start: u64, end: u64) -> Result<Traversal, Failure> {
-        if start >= end {
-            return Err(Self::invalid());
-        }
-        let limit = self.size_constant(end)?;
-        let lower = self.size_constant(start)?;
+    pub(super) fn begin_array_range(
+        &mut self,
+        lower: MachineValueId,
+        limit: MachineValueId,
+    ) -> Result<Traversal, Failure> {
         let one = self.size_constant(1)?;
         let header = self.block();
         let body = self.block();

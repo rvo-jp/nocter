@@ -273,8 +273,8 @@ impl<'a> Builder<'a> {
                 let destination = self.slot_address(stack);
                 self.emit(MachineOperationKind::Store { destination, value });
             }
-            mir::Effect::DisposeArrayElements { source, start, end } => {
-                self.dispose_array_elements(source, *start, *end)?;
+            mir::Effect::DisposeArrayElements { source, range } => {
+                self.dispose_array_elements(source, *range)?;
             }
             mir::Effect::Dispose { source, disposal } => {
                 if *disposal == mir::Disposal::Trivial {

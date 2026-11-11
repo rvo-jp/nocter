@@ -164,8 +164,7 @@ pub enum Step {
     DisposeArrayElements {
         source: Place,
         payload: Payload,
-        start: u64,
-        end: u64,
+        range: nocter_model::ArrayRange<RetainedIndex>,
     },
     /// End a partial structural container's slot after cleaning its surviving regions. This does
     /// not destroy its payload again or prescribe physical allocation/deallocation.

@@ -11,8 +11,7 @@ fn a_proven_element_transfer_leaves_siblings_and_retires_the_exact_source() {
     assert!(trace.iter().any(|step| matches!(
         step,
         Step::DisposeArrayElements {
-            start: 1,
-            end: 2,
+            range: nocter_model::ArrayRange::Constant { start: 1, end: 2 },
             ..
         }
     )));
@@ -183,10 +182,12 @@ fn owned_error_holes_leave_reverse_surviving_intervals_without_duplicate_disposa
                 Some("moved")
             }
             Step::DisposeArrayElements {
-                start: 2, end: 3, ..
+                range: nocter_model::ArrayRange::Constant { start: 2, end: 3 },
+                ..
             } => Some("last"),
             Step::DisposeArrayElements {
-                start: 0, end: 1, ..
+                range: nocter_model::ArrayRange::Constant { start: 0, end: 1 },
+                ..
             } => Some("first"),
             Step::ReleaseContainer { .. } => Some("container"),
             _ => None,

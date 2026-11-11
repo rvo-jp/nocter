@@ -92,9 +92,13 @@ cleanup after that non-unwinding failure. The [native consumer](../nocter-machin
 
 The [private activation handoff](../../../architecture/pipeline/value-access-declarations.md#private-activation-storage-handoff)
 owns cross-stage ordering and remaining execution obligations.
-Sparse array cleanup freezes `DisposeArrayElements` with its containing array place and half-open
-u64 interval. Validation requires a homogeneous array and `start < end <= length`; the operation
-neither invents a subarray type nor expands element projections. Checking owns the surviving
+Sparse array cleanup freezes `DisposeArrayElements` with its containing array place and an
+`ArrayRange`: a half-open constant u64 interval, or the portion before/after a retained index slot.
+Constant validation requires `start < end <= length`. Retained spans require a payload usize
+`SlotKey::IndexSnapshot` whose original checked bound equals the positive array length. Slot role
+and representation mutants test this structural consumer contract; they do not prove snapshot
+initialization, source admission or executed native cleanup. No span invents a subarray type or
+expands element projections. Checking owns the surviving
 intervals and their order. The native consumer selects element geometry/helpers and qualifies
 executable scope; MIR does not infer source holes from byte offsets.
 

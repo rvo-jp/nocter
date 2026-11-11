@@ -7,6 +7,7 @@
 //! source ranges, or rendered type spellings.
 
 mod arena;
+mod array_range;
 mod attachment_family;
 mod closure_sequence;
 mod constant;
@@ -27,6 +28,7 @@ mod type_transaction;
 mod value_access;
 
 pub use arena::{Arena, ArenaBuilder, ArenaCheckpoint};
+pub use array_range::ArrayRange;
 pub use attachment_family::AttachmentFamily;
 pub use closure_sequence::{ClosureSequence, ClosureSequenceIter, UnknownClosureSequenceId};
 pub use constant::{ConstantValue, FrozenValue, GenericApplication, GenericValue, UsizeTerm};

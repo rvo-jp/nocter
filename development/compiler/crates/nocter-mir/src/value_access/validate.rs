@@ -118,16 +118,38 @@ impl Context<'_> {
     }
     fn effect(&self, effect: &Effect) -> Result<(), Failure> {
         match effect {
-            Effect::DisposeArrayElements { source, start, end } => {
+            Effect::DisposeArrayElements { source, range } => {
                 self.place(source)?;
-                self.require(
-                    self.program
-                        .runtime
-                        .types()
-                        .get(source.data)
-                        .and_then(nocter_runtime_contract::RuntimeType::array)
-                        .is_some_and(|(_, length)| start < end && *end <= length),
-                )
+                let (_, length) = self
+                    .program
+                    .runtime
+                    .types()
+                    .get(source.data)
+                    .and_then(RuntimeType::array)
+                    .ok_or_else(|| self.invalid())?;
+                match range {
+                    nocter_model::ArrayRange::Constant { .. } => {
+                        self.require(range.resolve(length, |_| None).is_some())
+                    }
+                    nocter_model::ArrayRange::Before(id) | nocter_model::ArrayRange::After(id) => {
+                        let slot = self.body.slots.get(*id).ok_or_else(|| self.invalid())?;
+                        let SlotKey::IndexSnapshot(index) = slot.key else {
+                            return Err(self.invalid());
+                        };
+                        let data = self
+                            .program
+                            .runtime
+                            .types()
+                            .primitive(RuntimePrimitive::Usize)
+                            .ok_or_else(|| self.invalid())?;
+                        self.require(
+                            length > 0
+                                && index.bound() == length
+                                && slot.storage == Storage::Payload
+                                && slot.representations.as_ref() == [data],
+                        )
+                    }
+                }
             }
             Effect::Initialize(place)
             | Effect::End(place)

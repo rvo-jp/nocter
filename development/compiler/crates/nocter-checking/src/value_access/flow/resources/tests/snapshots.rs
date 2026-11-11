@@ -1,4 +1,4 @@
-//! Ledger qualification; source dynamic transfer and executable cleanup remain gated.
+//! Ledger qualification; source dynamic transfer and its executable cleanup remain gated.
 use super::*;
 use crate::value_access::{
     ExpressionKind,
@@ -7,12 +7,15 @@ use crate::value_access::{
 };
 
 fn unit() -> Unit {
-    let (sources, tree) = input(
-        "func work(take values: [error; 2], index: usize): error {\n\
+    prepare(
+        "func work(take values: [error; 2], take replacement: [error; 2], index: usize): error {\n\
          read first = values[index]\nread second = values[index]\nvalues[0]^\n}\n\
-         func other(take values: [error; 2], index: usize): error {\n\
+         func other(take values: [error; 2], take replacement: [error; 2], index: usize): error {\n\
          read first = values[index]\nvalues[0]^\n}",
-    );
+    )
+}
+fn prepare(source: &str) -> Unit {
+    let (sources, tree) = input(source);
     SourceUnit::prepare(bound(&sources, &tree))
         .unwrap()
         .into_unit()
@@ -274,4 +277,95 @@ fn invocation_keeps_snapshot_ownership_and_distinct_alternatives_keep_distinct_b
                 .any(|(holder, _)| holder == Holder::IndexSnapshot(*other))
         );
     }
+}
+
+#[test]
+fn remainder_cleanup_uses_backing_until_both_spans_and_the_container_end() {
+    let unit = unit();
+    let typed = query(&unit, "work");
+    let index = indices(typed)[0];
+    let mut state = State::entry(typed).unwrap();
+    operand(&mut state, typed, index, BuiltinType::Usize);
+    extract(&mut state, typed, index);
+    state.end(index.selection()).unwrap();
+    let mut steps = Vec::new();
+    let root = source(typed, index).holder().place();
+    state.dispose(typed.program(), &root, &mut steps).unwrap();
+    assert!(matches!(steps.as_slice(), [
+        Step::DisposeArrayElements { source: high, range: nocter_model::ArrayRange::After(a), .. },
+        Step::DisposeArrayElements { source: low, range: nocter_model::ArrayRange::Before(b), .. },
+        Step::ReleaseContainer { source: container, .. },
+        Step::Dispose { source: snapshot, .. },
+    ] if high == &root && low == high && container == high && *a == index && *b == index && snapshot.holder() == Holder::IndexSnapshot(index)));
+    assert!(!state.contains(root.holder()));
+    assert!(!state.contains(Holder::IndexSnapshot(index)));
+    assert!(state.contains(Holder::Return));
+}
+
+#[test]
+fn whole_replacement_retires_the_old_snapshot_without_affecting_the_moved_element() {
+    let unit = unit();
+    let typed = query(&unit, "work");
+    let index = indices(typed)[0];
+    let mut state = State::entry(typed).unwrap();
+    operand(&mut state, typed, index, BuiltinType::Usize);
+    extract(&mut state, typed, index);
+    state.end(index.selection()).unwrap();
+    let root = source(typed, index).holder().place();
+    let replacement = Holder::Local(typed.body().inputs().explicit()[1].local).place();
+    let mut steps = Vec::new();
+    state
+        .replace(typed.program(), &replacement, &root, &mut steps)
+        .unwrap();
+    assert!(matches!(steps.as_slice(), [
+        Step::DisposeArrayElements { range: nocter_model::ArrayRange::After(a), .. },
+        Step::DisposeArrayElements { range: nocter_model::ArrayRange::Before(b), .. },
+        Step::ReleaseContainer { .. },
+        Step::Move { source, destination, .. },
+        Step::Dispose { source: snapshot, .. },
+    ] if *a == index && *b == index && source == &replacement && destination == &root && snapshot.holder() == Holder::IndexSnapshot(index)));
+    assert!(state.initialized_root(root.holder()));
+    assert!(!state.contains(replacement.holder()));
+    assert!(!state.contains(Holder::IndexSnapshot(index)));
+    assert!(state.contains(Holder::Return));
+}
+
+#[test]
+fn possible_overlap_with_a_missing_ancestor_never_grants_concrete_child_cleanup() {
+    let unit = prepare(
+        "func work(take values: [[error; 2]; 2], index: usize): [error; 2] { read selected = values[index]\nvalues[0]^ }",
+    );
+    let typed = query(&unit, "work");
+    let index = indices(typed)[0];
+    let root = source(typed, index).holder().place();
+    let concrete = root.project(nocter_model::ValueField::Array(0));
+    let mut state = State::entry(typed).unwrap();
+    operand(&mut state, typed, index, BuiltinType::Usize);
+    extract(&mut state, typed, index);
+    state.end(index.selection()).unwrap();
+    let before = state.clone();
+    let mut steps = Vec::new();
+    assert!(
+        state
+            .dispose(typed.program(), &concrete, &mut steps)
+            .is_err()
+    );
+    assert_eq!(state, before);
+    assert!(steps.is_empty());
+
+    // A partial inner-array hole must likewise not become a full cleanup interval merely
+    // because its unknown outer selector is not a proven prefix of this concrete child.
+    let data = typed
+        .body()
+        .locals()
+        .get(typed.body().inputs().explicit()[0].local)
+        .unwrap()
+        .data;
+    let mut value = OwnedValue::new(payload(typed.program(), data).unwrap());
+    value.remove(
+        &source(typed, index)
+            .fields()
+            .project(nocter_model::ValueField::Array(0)),
+    );
+    assert!(value.cleanup(typed.program(), &concrete).is_err());
 }

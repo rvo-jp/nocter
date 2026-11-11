@@ -553,8 +553,7 @@ fn source_partial_array_cleanup_freezes_half_open_intervals_and_rejects_invalid_
             .any(|effect| matches!(
                 effect,
                 Effect::DisposeArrayElements {
-                    start: 1,
-                    end: 2,
+                    range: nocter_model::ArrayRange::Constant { start: 1, end: 2 },
                     ..
                 }
             ))
@@ -572,7 +571,8 @@ fn source_partial_array_cleanup_freezes_half_open_intervals_and_rejects_invalid_
             .find(|effect| matches!(effect, Effect::DisposeArrayElements { .. }))
             .unwrap();
         let Effect::DisposeArrayElements {
-            start: a, end: b, ..
+            range: nocter_model::ArrayRange::Constant { start: a, end: b },
+            ..
         } = effect
         else {
             unreachable!()
@@ -584,4 +584,106 @@ fn source_partial_array_cleanup_freezes_half_open_intervals_and_rejects_invalid_
             Err(Failure::InvalidBody(_))
         ));
     }
+}
+
+#[test]
+fn retained_cleanup_integrity_requires_a_matching_scalar_backing_slot() {
+    use nocter_checking::value_access::flow::resources::RetainedIndex;
+    use nocter_model::ArrayRange;
+    let fixture = ValueSourceFixture::new(
+        "struct Item { value: i32 }\nfunc run(): i32 { let items = [Item { value: 40 }, Item { value: 2 }]\nlet index: usize = 0\nread selected = items[index]\nlet first = items[0]^\nfirst.value + items[1].value }",
+    );
+    let unit = Arc::new(SourceUnit::prepare(fixture.syntax()).unwrap().into_unit());
+    let root = unit
+        .program()
+        .resolve(unit.program().symbols().get("run").unwrap())
+        .unwrap();
+    let instances = Arc::new(InstanceProgram::prepare(unit, root).unwrap());
+    let typed = instances.body(instances.root()).unwrap().typed();
+    let index = typed
+        .body()
+        .expressions()
+        .iter()
+        .find_map(|(id, expression)| {
+            if matches!(
+                expression.kind,
+                nocter_checking::value_access::ExpressionKind::Index {
+                    bounds: nocter_model::IndexBoundsCheck::Required,
+                    ..
+                }
+            ) {
+                RetainedIndex::for_selection(typed, id)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    let lifecycle = lifecycle::Program::prepare(instances).unwrap();
+    let mut program = Program::lower(&lifecycle, RuntimeAbiIdentity::Arm64DarwinV1).unwrap();
+    let size = program
+        .runtime
+        .types()
+        .primitive(nocter_runtime_contract::RuntimePrimitive::Usize)
+        .unwrap();
+    let body = program.bodies.get_mut(&program.root).unwrap();
+    let mut slots = nocter_model::ArenaBuilder::new();
+    for (id, slot) in body.slots.iter() {
+        assert_eq!(slots.insert(slot.clone()), id);
+    }
+    let snapshot = slots.insert(Slot {
+        key: SlotKey::IndexSnapshot(index),
+        storage: Storage::Payload,
+        representations: Box::new([size]),
+    });
+    body.slots = slots.finish();
+    let effect = body
+        .actions
+        .values_mut()
+        .flat_map(|action| &mut action.alternatives)
+        .flat_map(|alt| alt.before.iter_mut().chain(&mut alt.after))
+        .find(|effect| matches!(effect, Effect::DisposeArrayElements { .. }))
+        .unwrap();
+    let Effect::DisposeArrayElements { range, .. } = effect else {
+        unreachable!()
+    };
+    *range = ArrayRange::After(snapshot);
+    // A representation-only mutation verifies the consumer contract. It does not qualify
+    // source dynamic transfer, snapshot initialization, dominance or executed native cleanup.
+    validate::program(&program).unwrap();
+    for wrong in [Storage::Address, Storage::Payload] {
+        let mut bad = program.clone();
+        let body = bad.bodies.get_mut(&bad.root).unwrap();
+        body.slots = body.slots.map(|id, slot| {
+            let mut slot = slot.clone();
+            if id == snapshot {
+                slot.storage = wrong;
+                if wrong == Storage::Payload {
+                    slot.key = SlotKey::Expression(index.operand());
+                }
+            }
+            slot
+        });
+        assert!(matches!(
+            validate::program(&bad),
+            Err(Failure::InvalidBody(_))
+        ));
+    }
+    let mut bad = program.clone();
+    let signed = bad
+        .runtime
+        .types()
+        .primitive(nocter_runtime_contract::RuntimePrimitive::Signed(32))
+        .unwrap();
+    let body = bad.bodies.get_mut(&bad.root).unwrap();
+    body.slots = body.slots.map(|id, slot| {
+        let mut slot = slot.clone();
+        if id == snapshot {
+            slot.representations = Box::new([signed]);
+        }
+        slot
+    });
+    assert!(matches!(
+        validate::program(&bad),
+        Err(Failure::InvalidBody(_))
+    ));
 }

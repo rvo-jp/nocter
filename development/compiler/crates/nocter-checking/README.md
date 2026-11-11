@@ -990,10 +990,11 @@ activations; it alone creates neither a snapshot nor ownership. Internally, a wh
 transfer beneath a concrete containing-array path atomically moves the evaluated usize operand
 into `Holder::IndexSnapshot` and records the retained hole. This ordinary scalar owner remains in
 the existing ledger and branch conditions after its operand frame ends. Restoring the same hole
-retires its backing after the final use; live backing cannot be overwritten by recipe reuse, and
+retires its backing after the final use; whole-container cleanup/replacement does the same after
+its remaining spans and container end. Live backing cannot be overwritten by recipe reuse, and
 failed transfer/install leaves both state and steps unchanged. Snapshot owners cannot be constructed
 or consumed through the generic value APIs. This is logical-ledger qualification, not source
-admission: retained remainder cleanup, source availability and executable paths remain gated.
+admission: source availability and executable retained-path/guard integration remain gated.
 Executable evaluator/MIR place consumers explicitly require concrete paths until those obligations
 close; they never substitute a number for a retained descriptor.
 
@@ -1006,6 +1007,12 @@ u64 bounds and array payload survive payload projection unchanged; they do not b
 ordinals or a guessed tuple schema. `ReleaseContainer` ends the array after its remainder,
 including when every element has moved. Restoration, initialized replacement and absence of the
 parent use the same atomic transfer/replacement rules as other structural places.
+
+For one retained whole-element hole, the same effect carries `ArrayRange::After(index)` and
+`Before(index)` in destruction order. These spans consume the original checked bound and backing;
+either side can be empty. No descriptor ordering is interpreted as numeric ordering. Cleanup and
+restoration reject a concrete path which may intersect a missing ancestor: possible overlap is
+not proof of a contained hole. Nested/multiple retained frontiers remain outside this stage.
 
 Ledger qualification covers listed component assembly, maximum u64 cardinality, first/last and out-of-bounds positions,
 empty arrays, zero-sized elements, partial record elements, replacement and container retirement.

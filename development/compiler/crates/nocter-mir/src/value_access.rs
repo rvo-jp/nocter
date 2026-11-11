@@ -93,8 +93,7 @@ pub enum Effect {
     },
     DisposeArrayElements {
         source: Place,
-        start: u64,
-        end: u64,
+        range: nocter_model::ArrayRange<MirLocalId>,
     },
     End(Place),
     BindAddress {

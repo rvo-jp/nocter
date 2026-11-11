@@ -391,9 +391,42 @@ impl<'a, 'budget> Executor<'a, 'budget> {
     }
     fn effect(&mut self, frame: usize, effect: &Effect) -> Result<()> {
         match effect {
-            Effect::DisposeArrayElements { source, start, end } => {
+            Effect::DisposeArrayElements { source, range } => {
                 let address = self.memory.address(frame, source)?;
-                self.memory.retire_array(&address, *start, *end)
+                let data = super::validation::place_data(
+                    self.program,
+                    &self.memory.frames[frame].slots,
+                    source,
+                )?;
+                let Some(super::Type::Array { length, .. }) = self.program.types.get(data) else {
+                    return Err(Rule::InvalidPlan);
+                };
+                let captured = match range {
+                    nocter_model::ArrayRange::Constant { .. } => None,
+                    nocter_model::ArrayRange::Before(slot)
+                    | nocter_model::ArrayRange::After(slot) => {
+                        if !self.memory.frames[frame]
+                            .owned
+                            .get(slot)
+                            .is_some_and(|owner| owner.matches(&[]))
+                        {
+                            return Err(Rule::InvalidPlan);
+                        }
+                        let value = self.read(frame, &Place::root(*slot))?;
+                        let Data::Integer(value) = value.data() else {
+                            return Err(Rule::InvalidPlan);
+                        };
+                        Some(u64::try_from(*value).map_err(|_| Rule::InvalidPlan)?)
+                    }
+                };
+                let interval = range
+                    .resolve(*length, |_| captured)
+                    .ok_or(Rule::InvalidPlan)?;
+                if interval.is_empty() {
+                    return Ok(());
+                }
+                self.memory
+                    .retire_array(&address, interval.start, interval.end)
             }
             Effect::Construct(slot) => Ok(self
                 .memory

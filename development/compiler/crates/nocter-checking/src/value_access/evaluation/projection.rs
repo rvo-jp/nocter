@@ -211,13 +211,13 @@ impl Builder<'_, '_> {
                     })
                     .collect::<Result<_>>()?,
             },
-            Step::DisposeArrayElements {
-                source, start, end, ..
-            } => plan::Effect::DisposeArrayElements {
-                source: self.resource(source)?,
-                start: *start,
-                end: *end,
-            },
+            Step::DisposeArrayElements { source, range, .. } => {
+                plan::Effect::DisposeArrayElements {
+                    source: self.resource(source)?,
+                    range: range
+                        .try_map_index(|index| self.holder(Holder::IndexSnapshot(index)))?,
+                }
+            }
             Step::Capture { .. } | Step::AdaptFunction { .. } => return Err(INVALID),
         })
     }

@@ -32,11 +32,9 @@ impl OwnedValue {
     }
     pub fn container(&self, program: &Program, path: &Path) -> Result<Payload> {
         let selected = self.selected(program, path)?;
-        if self
-            .missing
-            .iter()
-            .any(|hole| hole != path && hole.is_prefix_of(path))
-        {
+        if self.missing.iter().any(|hole| {
+            hole != path && hole.fields().len() <= path.fields().len() && hole.overlaps(path)
+        }) {
             return Err(INVALID);
         }
         Ok(selected)
@@ -67,6 +65,15 @@ impl OwnedValue {
                     payload: selected,
                 });
                 continue;
+            }
+            // A possible intersection is not proof of a contained hole. In particular, a
+            // concrete child may itself be the element already moved through a retained index.
+            if self
+                .missing
+                .iter()
+                .any(|hole| hole.overlaps(place.fields()) && !place.fields().is_prefix_of(hole))
+            {
+                return Err(INVALID);
             }
             if selected.disposal() != Disposal::Aggregate {
                 return Err(INVALID);
@@ -101,6 +108,37 @@ impl OwnedValue {
         pending: &mut Vec<Pending>,
     ) -> Result<()> {
         let depth = place.fields().fields().len();
+        let holes: Vec<_> = self
+            .missing
+            .iter()
+            .filter(|hole| place.fields().is_prefix_of(hole))
+            .collect();
+        if let Some(index) = holes
+            .iter()
+            .find_map(|hole| match hole.fields().get(depth) {
+                Some(nocter_model::ValueProjection::Array(Index::Retained(index))) => Some(*index),
+                _ => None,
+            })
+        {
+            if holes.len() != 1
+                || holes[0].fields().len() != depth + 1
+                || index.bound() != array.length()
+            {
+                return Err(INVALID);
+            }
+            // Stack order is opposite destruction order. The moved element has no payload here.
+            for range in [
+                nocter_model::ArrayRange::Before(index),
+                nocter_model::ArrayRange::After(index),
+            ] {
+                pending.push(Pending::Emit(Step::DisposeArrayElements {
+                    source: place.clone(),
+                    payload: selected,
+                    range,
+                }));
+            }
+            return Ok(());
+        }
         let indices = self
             .missing
             .iter()
@@ -122,8 +160,7 @@ impl OwnedValue {
                 pending.push(Pending::Emit(Step::DisposeArrayElements {
                     source: place.clone(),
                     payload: selected,
-                    start,
-                    end: index,
+                    range: nocter_model::ArrayRange::Constant { start, end: index },
                 }));
             }
             if index < array.length() {

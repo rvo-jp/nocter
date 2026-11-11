@@ -172,17 +172,26 @@ logical equality, deep mixed DAGs and storage-failure recovery. Checking separat
 qualifies [source listed construction and whole-value handoffs](../nocter-checking/README.md#array-construction)
 and [source read selection](../nocter-checking/README.md#array-selection).
 This domain alone proves neither precise source element conflict/initialization safety,
-dynamic resource-hole cleanup nor native array storage. The remaining integration follows the
+source retained-hole admission nor native array storage. The remaining integration follows the
 [evaluated-selection obligations](../../../design/compiler-realization.md#evaluated-array-selection-closure).
 
 `Effect::DisposeArrayElements` retires an intact half-open interval under one owning slot. Type
-validation requires an owned array place and `start < end <= length`. `memory::ownership` keeps
+validation requires an owned array place. Constant spans satisfy `start < end <= length`;
+`ArrayRange::Before/After` uses an owned usize snapshot and a positive array length. Execution
+requires that scalar still owned and initialized, resolves its saved number below the original
+array length, and skips an empty side. This integrity check never substitutes for source bounds
+completion. Source availability, retained path projection and guarded source admission remain
+separate. `memory::ownership` keeps
 individual missing paths and cleanup intervals in one metered sparse frontier, rejecting overlap
 and retirement of unavailable parents. Container release collapses its retired descendants without
 visiting elements. Intervals are cleanup state, not restorable per-element initialization or a new
 input ownership condition. Repeated failed execution releases their leases. Maximum-count and
 small repeated arrays have the same minimum live-storage budget for interval cleanup; nested
-partial elements and intact intervals share that same owner.
+partial elements and intact intervals share that same owner. Retained-span execution tests perform
+the original bounds check before capture, move an element, mutate the original index variable and
+clean from the snapshot. First/last positions at small and maximum lengths share the same minimum
+live-storage requirement; all failed-budget runs recover their leases. Early snapshot retirement
+is an integrity error even if its bytes remain readable.
 
 ### Live Working Storage
 

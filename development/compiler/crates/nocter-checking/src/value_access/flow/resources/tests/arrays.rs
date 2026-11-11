@@ -106,8 +106,8 @@ fn a_hole_in_a_maximum_length_array_leaves_two_reverse_cleanup_spans() {
     let mut steps = Vec::new();
     state.dispose(program, &fixture.root(), &mut steps).unwrap();
     assert!(matches!(steps.as_slice(), [
-        Step::DisposeArrayElements { source: high, payload: a, start: 2, end: u64::MAX },
-        Step::DisposeArrayElements { source: low, payload: b, start: 0, end: 1 },
+        Step::DisposeArrayElements { source: high, payload: a, range: nocter_model::ArrayRange::Constant { start: 2, end: u64::MAX } },
+        Step::DisposeArrayElements { source: low, payload: b, range: nocter_model::ArrayRange::Constant { start: 0, end: 1 } },
         Step::ReleaseContainer { source: root, .. },
     ] if high == &fixture.root() && low == high && root == high && a == b && a.data() == fixture.data));
     assert!(!state.contains(fixture.locals[0]));
@@ -183,10 +183,10 @@ fn partially_moved_element_fields_are_cleaned_between_surviving_array_spans() {
     let mut steps = Vec::new();
     state.dispose(program, &fixture.root(), &mut steps).unwrap();
     assert!(matches!(steps.as_slice(), [
-        Step::DisposeArrayElements { start: 3, end: 4, .. },
+        Step::DisposeArrayElements { range: nocter_model::ArrayRange::Constant { start: 3, end: 4 }, .. },
         Step::Dispose { source: remaining, payload },
         Step::ReleaseContainer { source: element, .. },
-        Step::DisposeArrayElements { start: 1, end: 2, .. },
+        Step::DisposeArrayElements { range: nocter_model::ArrayRange::Constant { start: 1, end: 2 }, .. },
         Step::ReleaseContainer { source: array, .. },
     ] if remaining == &fixture.element(2).project(fixture.fields[1]) && element == &fixture.element(2) && array == &fixture.root() && payload.disposal() == Disposal::OwnedError));
 }
@@ -264,7 +264,7 @@ fn moving_the_last_possible_element_never_overflows_or_emits_an_empty_span() {
         .dispose(&fixture.program, &fixture.root(), &mut steps)
         .unwrap();
     assert!(
-        matches!(steps.as_slice(), [Step::DisposeArrayElements { start: 0, end, .. }, Step::ReleaseContainer { .. }] if *end == u64::MAX - 1)
+        matches!(steps.as_slice(), [Step::DisposeArrayElements { range: nocter_model::ArrayRange::Constant { start: 0, end }, .. }, Step::ReleaseContainer { .. }] if *end == u64::MAX - 1)
     );
 }
 
@@ -325,8 +325,7 @@ fn zero_sized_elements_keep_separate_logical_availability() {
         steps.as_slice(),
         [
             Step::DisposeArrayElements {
-                start: 1,
-                end: 2,
+                range: nocter_model::ArrayRange::Constant { start: 1, end: 2 },
                 ..
             },
             Step::ReleaseContainer { .. }
@@ -367,8 +366,8 @@ fn array_cleanup_below_a_record_field_retains_each_container_boundary() {
     let mut steps = Vec::new();
     state.dispose(program, &fixture.root(), &mut steps).unwrap();
     assert!(matches!(steps.as_slice(), [
-        Step::DisposeArrayElements { source: high, start: 2, end: 3, .. },
-        Step::DisposeArrayElements { source: low, start: 0, end: 1, .. },
+        Step::DisposeArrayElements { source: high, range: nocter_model::ArrayRange::Constant { start: 2, end: 3 }, .. },
+        Step::DisposeArrayElements { source: low, range: nocter_model::ArrayRange::Constant { start: 0, end: 1 }, .. },
         Step::ReleaseContainer { source: inner, .. },
         Step::ReleaseContainer { source: outer, .. },
     ] if high == &array && low == &array && inner == &array && outer == &fixture.root()));

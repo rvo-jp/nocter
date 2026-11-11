@@ -417,13 +417,14 @@ impl Builder<'_> {
                     Step::DisposeArrayElements {
                         source,
                         payload,
-                        start,
-                        end,
+                        range,
                     } => {
                         output.push(Effect::DisposeArrayElements {
                             source: self.place(source, payload.data())?,
-                            start: *start,
-                            end: *end,
+                            range: range.try_map_index(|index| {
+                                let data = self.expression(index.operand())?;
+                                Ok(self.root(Holder::IndexSnapshot(index), data, false)?.slot)
+                            })?,
                         });
                     }
                     Step::ReleaseContainer { source, payload } => {
