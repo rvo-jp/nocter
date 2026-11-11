@@ -227,8 +227,9 @@ value. These are different facts: neither an unknown footprint nor a code-site k
 number. Project element data through the shared declaration schemas and the original normal
 bounds evidence, without substituting index zero. Preserve that original bounds check; later
 cleanup consumes its captured result and must handle empty remainder intervals and a successor
-at the maximum usize count. This backing and general dynamic-hole realization remain unimplemented;
-the linked selection owner states the qualified concrete-path stage.
+at the maximum usize count. The [resource ledger](../compiler/crates/nocter-checking/README.md#concrete-array-resource-frontiers)
+owns the qualified backing/restore stage. Source admission, retained remainder cleanup and executable
+dynamic-hole realization remain open.
 
 A loop may execute the same selection recipe more than once. Equal recipe keys across a backedge
 are not proof of equal values. Qualify retained indices, invalidation, joins and restoration before

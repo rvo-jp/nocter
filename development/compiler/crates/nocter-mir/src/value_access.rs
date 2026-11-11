@@ -36,6 +36,7 @@ pub enum SlotKey {
     },
     Predicate(AccessExpressionId),
     Answer(AccessExpressionId),
+    IndexSnapshot(nocter_checking::value_access::flow::resources::RetainedIndex),
     Return,
 }
 

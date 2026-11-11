@@ -189,6 +189,26 @@ impl Builder<'_> {
                 )?;
                 (SlotKey::Temporary { call, index }, root, Storage::Payload)
             }
+            Holder::IndexSnapshot(index) => {
+                if flow::resources::RetainedIndex::for_selection(
+                    self.checked.typed(),
+                    index.selection(),
+                ) != Some(index)
+                {
+                    return Err(self.invalid());
+                }
+                let data = self
+                    .checked
+                    .typed()
+                    .program()
+                    .data_type(nocter_model::BuiltinType::Usize)
+                    .ok_or_else(|| self.invalid())?;
+                (
+                    SlotKey::IndexSnapshot(index),
+                    self.data(data)?,
+                    Storage::Payload,
+                )
+            }
             Holder::Return => (
                 SlotKey::Return,
                 self.data(self.checked.typed().result_data())?,

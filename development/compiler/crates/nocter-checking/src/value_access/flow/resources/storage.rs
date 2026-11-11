@@ -7,7 +7,10 @@ use nocter_model::{AccessExpressionId, TypeId, ValueAccessMode as Mode};
 
 impl State {
     pub fn entry(typed: &TypedQuery) -> Result<Self> {
-        let mut state = Self::default();
+        let mut state = Self {
+            code: Some(typed.code()),
+            ..Self::default()
+        };
         for (id, local) in typed.body().locals().iter() {
             if local.origin.is_input() && local.access().mode() == Mode::Own {
                 state.owned.insert(
@@ -31,6 +34,7 @@ impl State {
         let Some(value) = self.owned.get(&place.holder()) else {
             return Ok(false);
         };
+        self.validate_snapshots(program, place)?;
         value.selected(program, place.fields())?;
         Ok(value.complete(place.fields()))
     }
@@ -60,7 +64,7 @@ impl State {
         Ok(())
     }
     pub(super) fn insert(&mut self, holder: Holder, value: Payload, outer: bool) -> Result<()> {
-        if self.owned.contains_key(&holder) {
+        if matches!(holder, Holder::IndexSnapshot(_)) || self.owned.contains_key(&holder) {
             return Err(INVALID);
         }
         let frame = if matches!(holder, Holder::Expression(_) | Holder::Temporary { .. }) {
@@ -80,7 +84,7 @@ impl State {
         }
         Ok(())
     }
-    fn remove_root(&mut self, holder: Holder) -> Result<OwnedValue> {
+    pub(super) fn remove_root(&mut self, holder: Holder) -> Result<OwnedValue> {
         let value = self.owned.remove(&holder).ok_or(INVALID)?;
         for frame in &mut self.frames {
             frame.temporaries.retain(|&item| item != holder);
@@ -88,6 +92,10 @@ impl State {
         Ok(value)
     }
     pub fn take(&mut self, program: &Program, source: &Place) -> Result<Payload> {
+        if matches!(source.holder(), Holder::IndexSnapshot(_)) {
+            return Err(INVALID);
+        }
+        self.validate_snapshots(program, source)?;
         let value = self.owned.get(&source.holder()).ok_or(INVALID)?;
         let selected = value.selected(program, source.fields())?;
         if !value.complete(source.fields()) {
@@ -110,6 +118,7 @@ impl State {
         value: Payload,
         outer: bool,
     ) -> Result<()> {
+        self.validate_snapshots(program, destination)?;
         if destination.fields().is_root() {
             return self.insert(destination.holder(), value, outer);
         }
@@ -205,8 +214,9 @@ impl State {
     ) -> Result<()> {
         // Integrity rejection cannot publish half a transfer, cleanup, or frame registration.
         let mut staged = self.clone();
-        let value = staged.take(program, source)?;
         let mut changes = Vec::new();
+        staged.retain_source(program, source, &mut changes)?;
+        let value = staged.take(program, source)?;
         if let Some(owner) = staged.owned.get(&destination.holder())
             && owner.container(program, destination.fields())? != value
         {
@@ -221,6 +231,7 @@ impl State {
             destination: destination.clone(),
             payload: value,
         });
+        staged.retire_unused_snapshots(&mut changes)?;
         *self = staged;
         steps.extend(changes);
         Ok(())
@@ -232,6 +243,10 @@ impl State {
         allow_missing: bool,
         steps: &mut Vec<Step>,
     ) -> Result<()> {
+        if matches!(source.holder(), Holder::IndexSnapshot(_)) {
+            return Err(INVALID);
+        }
+        self.validate_snapshots(program, source)?;
         let Some(value) = self.owned.get(&source.holder()) else {
             return if allow_missing && source.fields().is_root() {
                 Ok(())
@@ -261,7 +276,13 @@ impl State {
         source: &Place,
         steps: &mut Vec<Step>,
     ) -> Result<()> {
-        self.clear(program, source, false, steps)
+        let mut staged = self.clone();
+        let mut changes = Vec::new();
+        staged.clear(program, source, false, &mut changes)?;
+        staged.retire_unused_snapshots(&mut changes)?;
+        *self = staged;
+        steps.extend(changes);
+        Ok(())
     }
     pub fn invoke(
         &mut self,
@@ -271,13 +292,19 @@ impl State {
         index: usize,
         steps: &mut Vec<Step>,
     ) -> Result<()> {
-        let value = self.take(program, source)?;
-        steps.push(Step::Invoke {
+        let mut staged = self.clone();
+        let mut changes = Vec::new();
+        staged.retain_source(program, source, &mut changes)?;
+        let value = staged.take(program, source)?;
+        changes.push(Step::Invoke {
             source: source.clone(),
             call,
             index,
             payload: value,
         });
+        staged.retire_unused_snapshots(&mut changes)?;
+        *self = staged;
+        steps.extend(changes);
         Ok(())
     }
     pub fn returned(&self, data: TypeId) -> bool {

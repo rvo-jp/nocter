@@ -12,6 +12,7 @@ use nocter_model::{
 pub struct RetainedIndex {
     owner: nocter_model::ValueCode,
     selection: AccessExpressionId,
+    operand: AccessExpressionId,
     bound: u64,
 }
 impl RetainedIndex {
@@ -46,6 +47,7 @@ impl RetainedIndex {
         (!array.is_empty()).then_some(Self {
             owner: typed.code(),
             selection,
+            operand: index,
             bound: array.length(),
         })
     }
@@ -58,6 +60,10 @@ impl RetainedIndex {
         self.selection
     }
     #[must_use]
+    pub const fn operand(self) -> AccessExpressionId {
+        self.operand
+    }
+    #[must_use]
     pub const fn bound(self) -> u64 {
         self.bound
     }
@@ -68,7 +74,7 @@ pub enum Index {
     Retained(RetainedIndex),
 }
 #[derive(Clone, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
-pub struct Path(ValuePath<Index>);
+pub struct Path(pub(super) ValuePath<Index>);
 impl Path {
     #[must_use]
     pub fn from_fields(fields: &FieldPath) -> Self {
@@ -98,6 +104,12 @@ impl Path {
     #[must_use]
     pub fn concat_fields(&self, fields: &FieldPath) -> Self {
         Self(self.0.concat(&Self::from_fields(fields).0))
+    }
+    pub fn retained(&self) -> impl Iterator<Item = RetainedIndex> + '_ {
+        self.fields().iter().filter_map(|field| match field {
+            ValueProjection::Array(Index::Retained(index)) => Some(*index),
+            _ => None,
+        })
     }
     #[must_use]
     pub fn concrete(&self) -> Option<FieldPath> {

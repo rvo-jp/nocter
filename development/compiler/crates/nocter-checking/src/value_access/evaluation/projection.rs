@@ -96,6 +96,21 @@ impl Builder<'_, '_> {
                     plan::Storage::Owned,
                 )
             }
+            Holder::IndexSnapshot(index) => {
+                if flow::resources::RetainedIndex::for_selection(
+                    self.query.typed(),
+                    index.selection(),
+                ) != Some(index)
+                {
+                    return Err(INVALID);
+                }
+                (
+                    self.program
+                        .data_type(nocter_model::BuiltinType::Usize)
+                        .ok_or(INVALID)?,
+                    plan::Storage::Owned,
+                )
+            }
             Holder::Return => (self.query.typed().result_data(), plan::Storage::Owned),
         };
         self.slot(Key::Resource(holder), data, storage)

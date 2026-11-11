@@ -24,8 +24,8 @@ container/value availability queries, sparse ledger and interval cleanup consume
 path with an unknown index is not a concrete ownership key. Do not add a second ownership
 registry or a separate bounds evaluator.
 
-- [ ] Retain each selected dynamic usize snapshot in the existing ownership ledger, tied to the
-  containing array obligation. Capture only after normal bounds completion, and commit with an
+- [ ] Connect the [logical retained-index backing](compiler/crates/nocter-checking/README.md#concrete-array-resource-frontiers)
+  to source dynamic transfer after normal bounds completion. Commit with an
   immediate transfer or the complete call bundle. Cancellation creates no retained hole. A live
   snapshot owner cannot be overwritten by another execution of the same recipe.
 - [ ] Extend the shared path, availability and cleanup representation to retained whole-element

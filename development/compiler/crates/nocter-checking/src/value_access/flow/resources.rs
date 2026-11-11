@@ -12,6 +12,7 @@ mod function_view;
 mod path;
 mod payload;
 pub use path::{Index, Path, RetainedIndex};
+mod snapshots;
 mod storage;
 #[cfg(test)]
 mod tests;
@@ -29,6 +30,8 @@ pub enum Holder {
         call: AccessExpressionId,
         index: usize,
     },
+    /// An ordinary usize payload whose lifetime follows a retained element hole.
+    IndexSnapshot(RetainedIndex),
     Return,
 }
 impl Holder {
@@ -68,6 +71,13 @@ impl Place {
         Self {
             holder: self.holder,
             fields: self.fields.concat_fields(suffix),
+        }
+    }
+    #[must_use]
+    pub fn project_retained(&self, index: RetainedIndex) -> Self {
+        Self {
+            holder: self.holder,
+            fields: self.fields.project_retained(index),
         }
     }
     /// Relation for declaration-validated selections; not an availability or permission proof.
@@ -253,6 +263,7 @@ struct Frame {
 }
 #[derive(Clone, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
 pub(super) struct State {
+    code: Option<nocter_model::ValueCode>,
     owned: BTreeMap<Holder, OwnedValue>,
     frames: Vec<Frame>,
 }
