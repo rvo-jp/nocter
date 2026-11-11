@@ -9,6 +9,7 @@ type Result<T> = std::result::Result<T, flow::IntegrityError>;
 struct Shape {
     ty: Type,
     supported: bool,
+    serializable: bool,
 }
 #[derive(Default)]
 pub(in crate::value_access) struct Types {
@@ -26,6 +27,14 @@ impl Types {
     ) -> Result<bool> {
         let id = self.get(program, data)?;
         Ok(self.shapes[id].supported)
+    }
+    pub(in crate::value_access) fn supports_final(
+        &mut self,
+        program: &Program,
+        data: TypeId,
+    ) -> Result<bool> {
+        let id = self.get(program, data)?;
+        Ok(self.shapes[id].serializable)
     }
     pub(super) fn get(&mut self, program: &Program, root: TypeId) -> Result<usize> {
         let mut roots = vec![(root, false)];
@@ -77,8 +86,16 @@ impl Types {
                     self.insert(data, ty.unwrap_or(Type::Unavailable), supported);
                     continue;
                 }
-                PayloadSchema::Function(_) => {
-                    self.insert(data, Type::Unavailable, false);
+                PayloadSchema::Function(witness) => {
+                    let ty = match witness.origin {
+                        nocter_model::ValueFunctionOrigin::Declaration(code) => {
+                            Type::NamedFunction(code)
+                        }
+                        _ => Type::Unavailable,
+                    };
+                    let supported = !matches!(ty, Type::Unavailable);
+                    let id = self.insert(data, ty, supported);
+                    self.shapes[id].serializable = false;
                     continue;
                 }
                 PayloadSchema::Array(array) if array.is_empty() => {
@@ -115,6 +132,7 @@ impl Types {
                 .map(|child| self.ids.get(&child).copied().ok_or(INVALID))
                 .collect::<Result<Vec<_>>>()?;
             let supported = children.iter().all(|&id| self.shapes[id].supported);
+            let serializable = children.iter().all(|&id| self.shapes[id].serializable);
             let ty = match schema {
                 PayloadSchema::Aggregate(_) => Type::Record(children.into()),
                 PayloadSchema::Array(array) => Type::Array {
@@ -123,13 +141,18 @@ impl Types {
                 },
                 PayloadSchema::Builtin(_) | PayloadSchema::Function(_) => return Err(INVALID),
             };
-            self.insert(data, ty, supported);
+            let id = self.insert(data, ty, supported);
+            self.shapes[id].serializable = serializable;
         }
         Ok(())
     }
     fn insert(&mut self, data: TypeId, ty: Type, supported: bool) -> usize {
         let id = self.shapes.len();
-        self.shapes.push(Shape { ty, supported });
+        self.shapes.push(Shape {
+            ty,
+            supported,
+            serializable: supported,
+        });
         self.ids.insert(data, id);
         id
     }

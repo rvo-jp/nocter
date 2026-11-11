@@ -1,0 +1,53 @@
+const func increment(value: i32): i32 { value + 1 }
+const func update(extra: i32, edit value: i32): void { value += extra }
+const func create(): func(i32): i32 { increment }
+func dormant(): i32 { 1 / 0 }
+const func calculate(): i32 {
+    let action = increment
+    read view = action
+    let first = view(40)
+    let second = action(first)
+    var mutable: mut(i32): i32 = increment
+    let once: once(i32): i32 = increment
+    let factory = create
+    let made = factory()
+    var updates: mut(i32, edit i32): void = update
+    var value = 40
+    updates(1, value)
+    updates(1, value)
+    let pair = (action, 42)
+    let tuple_result = pair.0(41)
+    let functions = [increment; 3]
+    var index: usize = 0
+    var total = 0
+    while index < 3 { let selected = functions[index]
+                      total += selected(13)
+                      index += 1 }
+    let unused: once(): i32 = dormant
+    drop unused
+    if tuple_result == 42 && first == 41 && second == 42 && mutable(41) == 42 && once(41) == 42 && once^(41) == 42 && made(41) == 42 && value == 42 && total == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func closure_containers(): i32 {
+    let seed = 40
+    var action = (seed;): i32 { seed += 1
+                               seed }
+    var pair = (action, action)
+    let first = pair.0()
+    let second = pair.0()
+    let separate = pair.1()
+    var actions = [action; 3]
+    var index: usize = 1
+    var array_first = 0
+    var array_second = 0
+    if true {
+        edit selected = actions[index]
+        array_first = selected()
+        array_second = selected()
+    }
+    index = 0
+    edit separate_action = actions[index]
+    let array_separate = separate_action()
+    if first == 41 && second == 42 && separate == 41 && array_first == 41 && array_second == 42 && array_separate == 41 && action() == 41 { 42 } else { 0 }
+}
+func run(): i32 { if ANSWER == 42 && calculate() == 42 && closure_containers() == 42 { 42 } else { 0 } }

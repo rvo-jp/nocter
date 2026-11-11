@@ -5,6 +5,7 @@ use nocter_model::ArenaBuilder;
 use std::num::{NonZeroU32, NonZeroU64};
 mod arrays;
 mod expression_roots;
+mod named_functions;
 mod unavailable;
 pub(super) fn literal() -> Plan {
     let mut points = ArenaBuilder::new();

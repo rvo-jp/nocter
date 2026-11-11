@@ -282,7 +282,21 @@ impl Builder<'_, '_> {
                     range: range.try_map_index(|index| self.holder(index.holder()))?,
                 }
             }
-            Step::Capture { .. } | Step::AdaptFunction { .. } => return Err(INVALID),
+            Step::AdaptFunction {
+                source,
+                destination,
+                from,
+                payload,
+            } => {
+                if !self.program.function_adapter(from.data(), payload.data()) {
+                    return Err(INVALID);
+                }
+                plan::Effect::AdaptFunction {
+                    source: self.resource(source)?,
+                    destination: plan::Place::root(self.holder(*destination)?),
+                }
+            }
+            Step::Capture { .. } => return Err(INVALID),
         })
     }
     fn computation(&mut self, op: &flow::Operation) -> Result<plan::Operation> {
@@ -400,7 +414,7 @@ impl Builder<'_, '_> {
         let ExpressionKind::Call {
             target: nocter_model::ValueFunctionOrigin::Declaration(target),
             arguments,
-            ..
+            kind,
         } = &self
             .query
             .typed()
@@ -415,7 +429,8 @@ impl Builder<'_, '_> {
         let target = *target;
         let arguments = arguments.clone();
         let mut inputs = Vec::new();
-        for (index, argument) in arguments.iter().enumerate() {
+        let offset = arguments.len() - kind.explicit_arguments(&arguments).ok_or(INVALID)?.len();
+        for (index, argument) in arguments.iter().enumerate().skip(offset) {
             let place = match &argument.action {
                 ArgumentAction::ReserveRead(place) | ArgumentAction::ReserveUpdate(place) => {
                     self.referent(*place)?
@@ -477,7 +492,7 @@ impl Builder<'_, '_> {
                 destination,
                 value: plan::Value::boolean(v),
             },
-            ExpressionKind::Unit => plan::Operation::Literal {
+            ExpressionKind::Function(_) | ExpressionKind::Unit => plan::Operation::Literal {
                 destination,
                 value: plan::Value::unit(),
             },
@@ -511,6 +526,7 @@ impl Builder<'_, '_> {
                 ..
             }
             | ExpressionKind::Move(_)
+            | ExpressionKind::AdaptFunction { .. }
             | ExpressionKind::Aggregate { .. }
             | ExpressionKind::Select {
                 action: SelectionAction::MovePayload,

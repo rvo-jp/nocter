@@ -18,7 +18,7 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Extend required constant evaluation to exact callable values and captured code. Reuse checked
+Extend required constant evaluation from exact named callable values to captured code. Reuse checked
 lexical code identities, environment schemas and ordinary invocation/resource transitions; preserve
 evaluator budgets and reject callable environments as final serialized constants. Qualify ordinary
 source execution and local domain failures before extending general callable dependencies.
@@ -32,9 +32,9 @@ proves equal numbers across a backedge. Do not add a parallel ownership registry
 layout fields, generated operations, an arbitrary iteration cutoff or a constant-index-only policy.
 
 - [ ] Extend call write summaries to externally dependent captures, user destruction and general
-  escaping alias provenance. Generalize evaluated index relations beyond ordered prefix bundles while preserving lifetime-
-  specific evidence for retained aliases across re-evaluation. Adapted callable-element transfers
-  must also compose their selected adapters with the prefix handoff.
+  escaping alias provenance. Generalize evaluated index relations beyond ordered prefix bundles
+  while preserving lifetime-specific evidence for retained aliases across re-evaluation. Close direct
+  indexed callable invocation and compose adapted callable-element transfers with the prefix handoff.
 - [ ] Extend saved-index identity and initialization/cleanup to conditional restoration and
   general numeric relations among holes within one array. Keep
   unproved relations local and explicit. Do not read uninitialized alternative backing or choose

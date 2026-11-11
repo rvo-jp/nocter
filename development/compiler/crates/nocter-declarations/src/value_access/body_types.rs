@@ -37,7 +37,7 @@ impl BodyTypes {
             slot,
         })
     }
-    /// Intern a structural tuple over admitted closed ordinary component data.
+    /// Intern a structural tuple over admitted closed component data.
     /// # Errors
     /// Rejects an invalid arity or a component outside this authority's closed data domain.
     pub fn tuple(&mut self, fields: &[TypeId]) -> Result<TypeId, BodyTypeError> {
@@ -65,7 +65,7 @@ impl BodyTypes {
     }
     /// Intern a homogeneous fixed-array descriptor without expanding its cardinality.
     /// # Errors
-    /// Rejects an element outside this authority's closed ordinary data domain.
+    /// Rejects an element outside this authority's closed payload domain.
     pub fn array(&mut self, element: TypeId, length: u64) -> Result<TypeId, BodyTypeError> {
         if !structural_component(&self.program, element) {
             return Err(BodyTypeError::InvalidExtension);
@@ -94,7 +94,7 @@ impl BodyTypes {
         let ordinary = |data| ordinary_data(&self.program, data);
         if id.owner != self.owner
             || self.program.closures.contains_key(&id)
-            || !self.program.capture_environment_supported(environment)
+            || !self.program.owned_payload_supported(environment)
             || !ordinary(contract.result)
             || contract.inputs.iter().any(|input| !ordinary(input.data))
         {
@@ -215,10 +215,10 @@ impl CanonicalBodyTypes {
     }
 }
 impl Program {
-    /// Closed payloads admitted by the current owned-environment construction boundary.
+    /// Closed payloads admitted by owned environment and structural value construction.
     /// A structural formal/result witness alone supplies no environment payload evidence.
     #[must_use]
-    pub fn capture_environment_supported(&self, data: TypeId) -> bool {
+    pub fn owned_payload_supported(&self, data: TypeId) -> bool {
         ordinary_data(self, data)
             || matches!(self.data_schema(data), Some(super::PayloadSchema::Function(witness))
                 if matches!(witness.origin, ValueFunctionOrigin::Declaration(_) | ValueFunctionOrigin::Closure(_)))
@@ -321,7 +321,7 @@ fn project_type(
 // A descriptor can retain an unready nominal identity under an empty containment edge.
 // Constructing that descriptor grants no payload or Copy evidence for its components.
 fn structural_component(program: &Program, data: TypeId) -> bool {
-    ordinary_data(program, data) || program.record_identity(data).is_some()
+    program.owned_payload_supported(data) || program.record_identity(data).is_some()
 }
 
 fn ordinary_data(program: &Program, data: TypeId) -> bool {

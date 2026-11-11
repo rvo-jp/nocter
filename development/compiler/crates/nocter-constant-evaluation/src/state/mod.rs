@@ -18,6 +18,8 @@ pub enum Type {
     /// against it; an empty array can still retain it as its uninstantiated element identity.
     Unavailable,
     Unit,
+    /// A concrete code witness with no runtime environment; Unit is its payload.
+    NamedFunction(AccessCodeId),
     Bool,
     I32,
     Usize,
@@ -113,6 +115,11 @@ pub enum Effect {
         array: Place,
         selected: Place,
         destination: usize,
+    },
+    /// Consume one witness payload into a checked invocation view of the same code.
+    AdaptFunction {
+        source: Place,
+        destination: Place,
     },
     Dispose(Place),
     /// End the initialized remainder of an array in this closed effect-free payload domain.

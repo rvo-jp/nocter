@@ -454,6 +454,10 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                 source,
                 destination,
             }
+            | Effect::AdaptFunction {
+                source,
+                destination,
+            }
             | Effect::Replace {
                 source,
                 destination,
@@ -463,7 +467,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                     .retire(&self.memory.address(frame, source)?, false)?;
                 let destination = self.memory.address(frame, destination)?;
                 self.memory.store(&destination, value)?;
-                if matches!(effect, Effect::Move { .. }) {
+                if matches!(effect, Effect::Move { .. } | Effect::AdaptFunction { .. }) {
                     self.memory.construct(&destination)?;
                 }
                 Ok(())

@@ -14,6 +14,7 @@ pub enum Rule {
     FunctionValue,
     ValueInvocation,
     UnsupportedData(TypeId),
+    UnsupportedInput(TypeId),
     UnsupportedCleanup(TypeId),
 }
 
@@ -51,7 +52,7 @@ fn operation_rule(
 ) -> Result<Option<Rule>, flow::IntegrityError> {
     Ok(match kind {
         ExpressionKind::Call { kind, target, .. } => match (kind, target) {
-            (CallKind::Direct, ValueFunctionOrigin::Declaration(target)) => {
+            (_, ValueFunctionOrigin::Declaration(target)) => {
                 let callable = program.codes().get(*target).ok_or(INVALID)?;
                 (callable.compile_time() != CompileTimeGuarantee::Evaluatable)
                     .then_some(Rule::RuntimeCall(*target))
@@ -59,10 +60,10 @@ fn operation_rule(
             (CallKind::Value, _) => Some(Rule::ValueInvocation),
             (CallKind::Direct, _) => return Err(INVALID),
         },
+        ExpressionKind::Closure { .. } => Some(Rule::FunctionValue),
         ExpressionKind::Function(_)
-        | ExpressionKind::Closure { .. }
-        | ExpressionKind::AdaptFunction { .. } => Some(Rule::FunctionValue),
-        ExpressionKind::Constant(_)
+        | ExpressionKind::AdaptFunction { .. }
+        | ExpressionKind::Constant(_)
         | ExpressionKind::Integer(_)
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Unit
@@ -77,6 +78,46 @@ fn operation_rule(
         | ExpressionKind::Binary { .. }
         | ExpressionKind::If { .. } => None,
     })
+}
+
+fn call_inputs(
+    program: &Program,
+    expression: &ExpressionKind,
+    domain: &mut super::evaluation::Types,
+) -> Result<Option<Violation>, flow::IntegrityError> {
+    let ExpressionKind::Call {
+        target: ValueFunctionOrigin::Declaration(target),
+        kind,
+        arguments,
+    } = expression
+    else {
+        return Ok(None);
+    };
+    // Interrupted preparation performs no call. Concrete caller data cannot stand in for an
+    // unclosed callee input shape, even when the callee never uses that parameter.
+    if arguments.iter().any(|argument| {
+        matches!(
+            argument.action,
+            super::ArgumentAction::Interrupted | super::ArgumentAction::Unproduced
+        )
+    }) {
+        return Ok(None);
+    }
+    let parameters = program.codes().get(*target).ok_or(INVALID)?.parameters();
+    let arguments = kind.explicit_arguments(arguments).ok_or(INVALID)?;
+    if parameters.len() != arguments.len() {
+        return Err(INVALID);
+    }
+    for (&parameter, argument) in parameters.iter().zip(arguments) {
+        let data = program.parameters().get(parameter).ok_or(INVALID)?.data();
+        if !domain.supports(program, data)? {
+            return Ok(Some(Violation {
+                site: Site::Expression(argument.value),
+                rule: Rule::UnsupportedInput(data),
+            }));
+        }
+    }
+    Ok(None)
 }
 
 pub(super) fn check(query: &flow::Query) -> Result<Option<Violation>, flow::IntegrityError> {
@@ -112,6 +153,9 @@ pub(super) fn check(query: &flow::Query) -> Result<Option<Violation>, flow::Inte
         }
     }
     for (id, expression) in query.typed().body().expressions().iter() {
+        if let Some(violation) = call_inputs(program, &expression.kind, &mut domain)? {
+            return Ok(Some(violation));
+        }
         // A known interrupted result is not a produced resource. There is no value to classify
         // here; operation checks above still apply independently of continuation.
         if let Some(value) = expression.ty.normal()
@@ -174,14 +218,28 @@ impl Violation {
         let message = match self.rule {
             Rule::RuntimeCall(target) => {
                 let program = typed.query().program();
-                let name = program.code_label(target)
+                let name = program
+                    .code_label(target)
                     .ok_or(Failure::InconsistentSyntax)?;
                 format!("const body calls runtime-only function `{name}`")
             }
-            Rule::FunctionValue => "function values and captures are outside the private constant-evaluation domain".to_owned(),
-            Rule::ValueInvocation => "invocation through a function value is outside the private constant-evaluation domain".to_owned(),
-            Rule::UnsupportedData(_) => "this data operation is outside the private constant-evaluation domain".to_owned(),
-            Rule::UnsupportedCleanup(_) => "this cleanup requires a resource outside the private constant-evaluation domain".to_owned(),
+            Rule::FunctionValue => {
+                "captured function values are outside the private constant-evaluation domain"
+                    .to_owned()
+            }
+            Rule::ValueInvocation => {
+                "this callable witness has no closed constant-evaluation invocation".to_owned()
+            }
+            Rule::UnsupportedData(_) => {
+                "this data operation is outside the private constant-evaluation domain".to_owned()
+            }
+            Rule::UnsupportedInput(_) => {
+                "this callee input has no closed constant-evaluation representation".to_owned()
+            }
+            Rule::UnsupportedCleanup(_) => {
+                "this cleanup requires a resource outside the private constant-evaluation domain"
+                    .to_owned()
+            }
         };
         Ok(Diagnostic {
             rule: self.rule,
@@ -196,13 +254,13 @@ impl Violation {
     }
 }
 
-/// The admitted finite aggregate schema has no user destructor or retained-resource variants.
-/// Final admission is independent of Copy; broader schemas require their own final-data proof.
+/// Final-data evidence shares the shape authority but is narrower than temporary operations.
+/// Neither Copy nor a temporary callable representation grants serialization permission.
 pub(super) fn supports_final(
     program: &Program,
     data: TypeId,
 ) -> Result<bool, flow::IntegrityError> {
-    super::evaluation::Types::default().supports(program, data)
+    super::evaluation::Types::default().supports_final(program, data)
 }
 
 #[cfg(test)]

@@ -89,6 +89,16 @@ published contract and direct remainder in the [adopted contract](../../../spec/
 only the quotient-domain policy differs, not the arithmetic implementation. Floating
 operations still require an explicit compilation target in their existing domain.
 
+`Type::NamedFunction` retains a concrete declaration identity with a unit payload and no runtime
+environment. Checking supplies the selected code for invocation and excludes this empty callable
+prefix from explicit declaration inputs; the evaluator performs no dispatch lookup. A selected
+`AdaptFunction` effect transports the same owned payload between invocation views, validating equal
+code identities without conflating them with unit or another function. Copies, moves and cleanup
+use the ordinary slots, leases and resource phases. This temporary representation grants no final
+serialization permission; checking's shared shape projection separately validates final data,
+including callable-bearing containers. Captured environments and formal invocation remain outside
+this plan domain.
+
 A selected comparison with a fixed result arrives as a literal operation after the original
 operand actions. This does not authorize skipping calls, access validation or failure before that
 operation, and the executor performs no source-type dispatch to derive the result again.

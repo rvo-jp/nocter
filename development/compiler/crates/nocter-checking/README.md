@@ -556,13 +556,13 @@ Private `const func` declarations retain the same body, typed operations, select
 resource ledger as ordinary functions. The authored header capability alone is not body evidence;
 typed-only queries remain incomplete. Whole-unit acceptance additionally checks every const
 body's operation domain, including unused definitions, dead branches and interrupted call inputs.
-Direct calls require the selected declaration's authored const capability. Recursive const
+Direct and exact named-value calls require the selected declaration's authored const capability. Recursive const
 headers close without executing bodies or proving termination; every definition must independently
 pass ordinary typing, initialization, access and resource validation.
 
 `value_access::constant` owns this bounded domain check. It admits primitive Boolean/i32/usize/unit
 operations, finite record/tuple/array payload compositions of supported data, local values, read/edit aliases,
-updates, structured control, explicit transfer and direct const calls. Aggregate admission is independent of Copy and
+updates, structured control, explicit transfer, exact named function values and their const calls. Aggregate admission is independent of Copy and
 memoized by data identity rather than expanded through shared fields. `evaluation::types` is the
 single shape projection used by const-domain validation, final-data admission and closed-plan
 construction; homogeneous arrays retain an element ID and u64 count, never expanded type lists.
@@ -572,8 +572,18 @@ unsupported element data. An element declaration can still be unready during req
 that identity-only edge does not request its payload header or manufacture a ready schema. Final
 Unit closure still validates every independent declaration. `Type::Unavailable` retains such an
 identity without accepting a value; positive occurrences of unsupported data remain outside the
-evaluator domain. The projection's supported-payload fact is derived from these same shapes. Function-value formation,
-captures, invocation through values and opaque error-data operations have no evaluator domain here.
+evaluator domain. The projection derives temporary-operation support and final serialization separately
+from these same shapes. Exact named witnesses retain their code identity with a unit environment;
+selected read/edit/once views transport one existing payload through ordinary resource transitions.
+Value calls omit only that empty callable prefix from the declaration's explicit inputs, retaining
+original argument positions and preparation effects. Known factories, array-selected named values,
+scoped views and edited ordinary inputs use the same executor and runtime body. Dormant runtime-only
+named values may be formed and destroyed, but every authored invocation still requires const evidence,
+including dead source. Callable-bearing tuples and nonempty arrays are temporary data without final
+constant-publication permission. Captured/formal/unresolved callable values and opaque error-data
+operations still have no evaluator domain here. A named actual argument cannot substitute for an
+unclosed formal input representation, even when that parameter is unused. Domain checking reports
+the actual input before plan projection; interrupted preparation never fabricates a completed call.
 Explicit unsupported drops fail even in dead source. Implicit disposal and edit-input replacement
 consume the actual sparse resource transitions; ending a partial container does not destroy its
 missing payload again. An unused read input has no owned cleanup, and an interrupted known result
@@ -910,7 +920,11 @@ supplies its element data and exact count. Inference checks each listed componen
 equal data identities; the first element supplies no coercion context to the rest. Empty lists
 need contextual element data. Listed expressions retain source-ordered `ValueField::Array` components
 in the existing aggregate expression product and use the same body type authority, including in
-nested arrays and tuples. Callable-witness elements remain outside this bounded structural scope.
+nested arrays and tuples. Exact named/captured callable elements use the same declaration-owned
+`owned_payload_supported` predicate as owned environments; structural formal and unresolved
+result witnesses alone do not supply payload evidence. Native source qualifies independent mutable
+captured state through tuple components and dynamic array selection; the evaluator's narrower
+callable domain is defined above.
 
 Repetition closes its count through the common query, then prepares its seed even at zero count.
 The seed must be supplied as an ordinary value; zero does not turn a non-Copy read into an owner

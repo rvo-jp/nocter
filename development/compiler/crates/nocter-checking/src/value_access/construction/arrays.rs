@@ -10,15 +10,10 @@ use nocter_syntax::NodeId;
 
 impl Checker<'_, '_> {
     fn array_element(&self, node: NodeId, data: TypeId) -> Result<(), Failure> {
-        match self
-            .program()
-            .data_schema(data)
-            .ok_or(Failure::InconsistentSyntax)?
-        {
-            PayloadSchema::Function(_) => self.reject(Rule::UnsupportedData, node),
-            PayloadSchema::Builtin(_) | PayloadSchema::Aggregate(_) | PayloadSchema::Array(_) => {
-                Ok(())
-            }
+        if self.program().owned_payload_supported(data) {
+            Ok(())
+        } else {
+            self.reject(Rule::UnsupportedData, node)
         }
     }
     fn array_context(

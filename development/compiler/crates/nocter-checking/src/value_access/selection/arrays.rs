@@ -110,7 +110,8 @@ impl Checker<'_, '_> {
         if matches!(
             self.program().data_schema(element),
             Some(PayloadSchema::Function(_))
-        ) {
+        ) && !self.program().owned_payload_supported(element)
+        {
             return self.reject(Rule::UnsupportedData, node);
         }
         let action = if access.mode() == Mode::Own {

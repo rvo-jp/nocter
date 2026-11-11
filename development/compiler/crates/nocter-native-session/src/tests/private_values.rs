@@ -495,3 +495,13 @@ fn private_size_integers_preserve_unsigned_arithmetic_literals_and_data() {
 }
 
 mod arrays;
+
+#[test]
+fn private_const_named_values_use_the_same_runtime_body_and_embedded_answer() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/const-named-values.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "const-named-values", 42);
+}

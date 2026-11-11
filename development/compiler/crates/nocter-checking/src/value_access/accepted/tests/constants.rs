@@ -106,11 +106,7 @@ fn explicit_and_implicit_resource_cleanup_need_domain_evidence() {
 }
 
 #[test]
-fn function_value_formation_and_invocation_need_a_later_evaluator_domain() {
-    rejected(
-        "const func identity(value: i32): i32 { value }\nconst func f(): i32 { let action = identity\naction(1) }",
-        |d| assert_eq!(d.rule(), Rule::FunctionValue),
-    );
+fn formal_and_captured_function_values_need_a_later_evaluator_domain() {
     rejected(
         "const func f(action: func(i32): i32): i32 { action(1) }",
         |d| assert_eq!(d.rule(), Rule::ValueInvocation),
@@ -239,4 +235,84 @@ fn source_dependencies_retain_const_callees_in_unexecuted_branches() {
         .bind(bound(&next_sources, &next_tree))
         .unwrap();
     assert!(named(source.unit(), "run").bind(&context).is_err());
+}
+
+#[test]
+fn known_named_values_execute_with_views_factories_edit_inputs_and_sparse_arrays() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/const-named-values.nct"
+    ));
+    let unit = accepted(source);
+    let answer = unit
+        .program()
+        .resolve_code(unit.program().symbols().get("ANSWER").unwrap())
+        .unwrap();
+    assert_eq!(
+        unit.constant_value(answer),
+        Some(&nocter_constant_evaluation::state::Value::integer(42).freeze())
+    );
+}
+
+#[test]
+fn named_value_calls_require_authored_const_capability_in_every_branch() {
+    for body in [
+        "let action = runtime\naction()",
+        "var action: mut(): i32 = runtime\nif false { action() } else { 42 }",
+        "let action: once(): i32 = runtime\nlet _ = false && action^() == 1\n42",
+    ] {
+        rejected(
+            &format!("func runtime(): i32 {{ 1 }}\nconst func unused(): i32 {{ {body} }}"),
+            |d| assert!(matches!(d.rule(), Rule::RuntimeCall(_))),
+        );
+    }
+    rejected(
+        "func runtime(): i32 { 1 }\nconst func factory(): func(): i32 { runtime }\nconst func unused(): i32 { let action = factory()\naction() }",
+        |d| assert!(matches!(d.rule(), Rule::RuntimeCall(_))),
+    );
+}
+
+#[test]
+fn named_witnesses_and_their_containers_have_temporary_but_no_final_data_evidence() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/const-named-values.nct"
+    ));
+    let unit = accepted(source);
+    let mut types = crate::value_access::evaluation::Types::default();
+    let mut kinds = [false; 3];
+    for (_, local) in named(&unit, "calculate").typed().body().locals().iter() {
+        assert!(types.supports(unit.program(), local.data).unwrap());
+        if !crate::value_access::constant::supports_final(unit.program(), local.data).unwrap() {
+            let kind = match unit.program().data_schema(local.data).unwrap() {
+                nocter_declarations::value_access::PayloadSchema::Function(_) => 0,
+                nocter_declarations::value_access::PayloadSchema::Aggregate(_) => 1,
+                nocter_declarations::value_access::PayloadSchema::Array(_) => 2,
+                nocter_declarations::value_access::PayloadSchema::Builtin(_) => {
+                    panic!("ordinary scalar final admission must remain available")
+                }
+            };
+            kinds[kind] = true;
+        }
+    }
+    assert_eq!(kinds, [true; 3]);
+}
+
+#[test]
+fn passing_a_named_value_cannot_fabricate_an_evaluator_formal_callable_representation() {
+    let source = "const func identity(value: i32): i32 { value }\nconst func ignore(callback: func(i32): i32): i32 { 42 }\nconst func calculate(): i32 { ignore(identity) }";
+    for suffix in ["", "\nconst ANSWER: i32 = calculate()"] {
+        rejected(&format!("{source}{suffix}"), |d| {
+            assert!(matches!(d.rule(), Rule::UnsupportedInput(_)));
+        });
+    }
+}
+
+#[test]
+fn interrupted_named_argument_preparation_does_not_invent_a_formal_call() {
+    let source = "const func identity(value: i32): i32 { value }\nconst func ignore(callback: func(i32): i32, other: i32): i32 { 0 }\nconst func calculate(): i32 { ignore(identity, if true { return 42 } else { return 0 }) }\nconst ANSWER: i32 = calculate()";
+    assert_eq!(
+        super::initializers::answer(source, "ANSWER"),
+        nocter_constant_evaluation::state::Value::integer(42)
+    );
 }

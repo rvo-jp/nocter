@@ -432,14 +432,19 @@ fn callable_capture_payloads_require_exact_witnesses_and_failed_publication_is_a
             invocation: ValueInvocation::Read,
         })
         .unwrap();
-    assert!(header.capture_environment_supported(named));
-    assert!(!header.capture_environment_supported(header.codes().get(factory).unwrap().result()));
+    assert!(header.owned_payload_supported(named));
+    assert!(!header.owned_payload_supported(header.codes().get(factory).unwrap().result()));
     let mut body = header.body_types(root).unwrap();
     let call = nocter_model::ArenaBuilder::<nocter_model::AccessExpressionId, ()>::new().insert(());
     let pending = body
         .application(nocter_model::ValueCode::Declaration(root), call, factory)
         .unwrap();
-    assert!(!body.program().capture_environment_supported(pending));
+    assert!(!body.program().owned_payload_supported(pending));
+    assert!(body.tuple(&[pending, named]).is_err());
+    assert!(body.array(pending, 1).is_err());
+    // Failing an unresolved component must not prevent later concrete construction.
+    assert!(body.tuple(&[named, named]).is_ok());
+    assert!(body.array(named, u64::MAX).is_ok());
     let id = body.reserve_closure().unwrap();
     let contract = FunctionConstraint {
         invocation: ValueInvocation::Read,

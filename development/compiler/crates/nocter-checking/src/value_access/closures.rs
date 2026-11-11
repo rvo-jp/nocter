@@ -137,7 +137,7 @@ impl Checker<'_, '_> {
         if matches!(
             self.program().data_schema(data),
             Some(PayloadSchema::Function(_))
-        ) && !self.program().capture_environment_supported(data)
+        ) && !self.program().owned_payload_supported(data)
         {
             return self.reject_message(
                 Rule::TypeMismatch,

@@ -34,7 +34,11 @@ fn array_context_and_exact_inference_reject_invalid_construction() {
             BodyRule::TypeMismatch,
         ),
         ("", "let values = [[1, 2], [3]]", BodyRule::TypeMismatch),
-        ("", "let values = [run]", BodyRule::UnsupportedData),
+        (
+            "callback: func(): void",
+            "let values = [callback]",
+            BodyRule::UnsupportedData,
+        ),
     ] {
         assert_eq!(rejected(parameters, body), rule, "{body}");
     }

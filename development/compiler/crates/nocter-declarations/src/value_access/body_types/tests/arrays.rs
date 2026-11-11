@@ -198,16 +198,9 @@ fn invalid_array_elements_reject_even_at_zero_without_changing_the_type_branch()
     let header = headers.finish().unwrap();
     let mut body = header.body_types(first).unwrap();
     let mut untouched = body.clone();
-    let function = header
-        .function_data(FunctionWitness {
-            origin: ValueFunctionOrigin::Declaration(first),
-            invocation: ValueInvocation::Read,
-        })
-        .unwrap();
     for element in [
         header.types.store().builtin(BuiltinType::Never),
         header.types.store().builtin(BuiltinType::F64),
-        function,
     ] {
         for length in [0, 1, u64::MAX] {
             assert_eq!(

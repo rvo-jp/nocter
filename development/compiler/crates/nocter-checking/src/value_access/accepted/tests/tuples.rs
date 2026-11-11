@@ -55,7 +55,6 @@ fn tuple_rejects_unmarked_noncopy_alias_extraction_holes_and_wrong_selectors() {
         "let pair = (1, 2); pair.first",
         "let pair: (i32, bool) = (1, 2)",
         "let pair: (i32, i32, i32) = (1, 2)",
-        "let pair = (run, run)",
     ] {
         let source = format!(
             "func run(take first: error, take second: error, input: (error, error)): void {{ {} }}",
@@ -249,4 +248,13 @@ fn interrupted_tuple_components_use_expected_data_without_manufacturing_a_value(
             "{source}"
         );
     }
+}
+
+#[test]
+fn tuple_formal_callable_contract_does_not_supply_payload_evidence() {
+    let text = "func run(callback: func(): void): void { let pair = (callback, 1) }";
+    let (sources, tree) = input(text);
+    assert!(matches!(SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Body { failure: crate::value_access::Failure::Rejected(error), .. }))
+        if error.rule() == crate::value_access::Rule::InvalidConstruction));
 }

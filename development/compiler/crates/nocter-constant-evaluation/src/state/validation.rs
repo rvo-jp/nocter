@@ -41,7 +41,8 @@ pub(super) fn value(program: &Program, data: usize, value: &Value) -> bool {
             continue;
         }
         match (program.types.get(data), value.data()) {
-            (Some(Type::Unit), Data::Unit) | (Some(Type::Bool), Data::Bool(_)) => {}
+            (Some(Type::Unit | Type::NamedFunction(_)), Data::Unit)
+            | (Some(Type::Bool), Data::Bool(_)) => {}
             (Some(ty @ (Type::I32 | Type::Usize)), Data::Integer(value))
                 if ty
                     .scalar()
@@ -549,6 +550,16 @@ fn check_effect(program: &Program, plan: &super::Plan, effect: &Effect) -> Resul
             destination,
         } => {
             if owned(source)? != owned(destination)? {
+                return Err(INVALID);
+            }
+        }
+        Effect::AdaptFunction {
+            source,
+            destination,
+        } => {
+            let from = program.types.get(owned(source)?).ok_or(INVALID)?;
+            let to = program.types.get(owned(destination)?).ok_or(INVALID)?;
+            if !matches!((from, to), (Type::NamedFunction(a), Type::NamedFunction(b)) if a == b) {
                 return Err(INVALID);
             }
         }

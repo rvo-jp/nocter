@@ -57,14 +57,7 @@ impl Checker<'_, '_> {
             else {
                 return self.reject(Rule::UnknownResultType, entry);
             };
-            if !matches!(
-                self.program().data_schema(field_data),
-                Some(
-                    PayloadSchema::Builtin(_)
-                        | PayloadSchema::Aggregate(_)
-                        | PayloadSchema::Array(_)
-                )
-            ) {
+            if !self.program().owned_payload_supported(field_data) {
                 return self.reject(Rule::InvalidConstruction, entry);
             }
             if constraints.is_none() {

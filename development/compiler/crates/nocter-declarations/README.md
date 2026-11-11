@@ -268,7 +268,7 @@ pending outer slot. Publication and key exhaustion preserve existing reservation
 discarded on freeze and supplies no runtime environment identity or ownership registry.
 That branch also publishes closed single-value closure environment schemas under lexical
 owner/slot code keys. Environment, flat input/result data and inferred invocation are distinct
-schema components. `capture_environment_supported` owns the current environment domain:
+schema components. `owned_payload_supported` owns the common closed payload domain for environments, tuples and arrays:
 closed builtin/record/tuple/array data and exact named/captured callable payloads. Formal and
 unresolved result/application witnesses supply no such payload evidence. Copy and recursive cleanup
 follow the actual environment schema, independently of invocation. All permitted views belong to the same body-owned key.
@@ -278,8 +278,8 @@ u64 count; it neither evaluates a count nor expands elements. Empty arrays still
 element data. `type_identity_named` resolves the preinterned nominal key independently of
 `type_named` payload readiness. Structural tuple/array descriptors may retain that key without
 granting a payload schema, including nested descriptors beneath a zero-count edge. Actual payload
-construction and selection still require their ready definitions. Ordinary structural data excludes
-callable witness elements in this bounded model.
+construction and selection still require their ready definitions. Exact callable components follow
+the common closed payload predicate; an unknown structural function contract supplies no such evidence.
 Equal header/body array shapes intern as one type. This metadata capability does not admit
 array expressions, resource operations, evaluator array values or native storage.
 Canonical replay remaps nested tuple/array components and every closure-schema data slot with the body
