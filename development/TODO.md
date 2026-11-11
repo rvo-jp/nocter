@@ -106,10 +106,9 @@ not a language restriction derived from the current realization boundary.
 
 ## Open Findings
 
-- [ ] Select an expression's actual operator token across admitted continuation newlines. The
-  parser accepts an operator on the next line, but binary checking currently treats the leading
-  newline as its operator and returns an integrity failure. Qualify source execution and preserve
-  the syntax-owned continuation rules.
+- [x] Select an expression's actual operator token across admitted continuation newlines.
+  Qualify arithmetic, comparison and logical source execution while preserving syntax-owned
+  continuation rules, including delimited blank lines.
 
 - [x] Bind flow-effect reuse to actual callee-body and value/count/result dependencies. Typed calls can survive a
   callee-only body edit, but inferred numeric/availability proofs cannot. Preserve reuse after

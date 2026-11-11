@@ -278,7 +278,9 @@ impl Checker<'_, '_> {
     }
 
     pub fn binary_operation(&self, node: NodeId) -> Result<Binary, Failure> {
-        let token = self.token(node)?;
+        let token = nocter_syntax::direct_token_iter(self.syntax().tree(), node)
+            .find(|token| matches!(token.kind(), TokenKind::Punctuation(_)))
+            .ok_or(Failure::InconsistentSyntax)?;
         let TokenKind::Punctuation(punctuation) = token.kind() else {
             return Err(Failure::InconsistentSyntax);
         };

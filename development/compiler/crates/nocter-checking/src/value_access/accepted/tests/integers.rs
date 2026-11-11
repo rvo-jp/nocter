@@ -48,6 +48,31 @@ fn literal_recipes_receive_context_from_either_operand_and_selected_inputs() {
         );
     }
 }
+
+#[test]
+fn admitted_operator_continuations_preserve_binary_meaning() {
+    for (expression, ty, expected) in [
+        ("40\n+ 2", "i32", Data::integer(42)),
+        ("50 -\n8", "i32", Data::integer(42)),
+        ("6\n* 7", "i32", Data::integer(42)),
+        ("84\n/ 2", "i32", Data::integer(42)),
+        ("85\n% 43", "i32", Data::integer(42)),
+        ("40\n< 42", "bool", Data::boolean(true)),
+        ("40\n<= 42", "bool", Data::boolean(true)),
+        ("42\n> 40", "bool", Data::boolean(true)),
+        ("42\n>= 40", "bool", Data::boolean(true)),
+        ("42\n== 42", "bool", Data::boolean(true)),
+        ("40\n!= 42", "bool", Data::boolean(true)),
+        ("true\n&& true", "bool", Data::boolean(true)),
+        ("false\n|| true", "bool", Data::boolean(true)),
+        ("(40\n\n+ 2)", "i32", Data::integer(42)),
+    ] {
+        let source = format!(
+            "const func calculate(): {ty} {{ {expression} }}\nconst ANSWER: {ty} = calculate()"
+        );
+        assert_eq!(constant(&source), expected.freeze(), "{expression}");
+    }
+}
 #[test]
 fn data_context_never_converts_typed_places_constants_or_call_results() {
     for body in [
