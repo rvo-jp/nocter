@@ -18,8 +18,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Reconcile this unfinished-work index with the component scope owners, remove completed work from
-the active list, and select the next implementation dependency from the migration checklist.
+Extend required constant evaluation to exact callable values and captured code. Reuse checked
+lexical code identities, environment schemas and ordinary invocation/resource transitions; preserve
+evaluator budgets and reject callable environments as final serialized constants. Qualify ordinary
+source execution and local domain failures before extending general callable dependencies.
 
 ## Retained Selection Closure
 
@@ -29,94 +31,14 @@ ownership, sparse cleanup and the original source bounds disposition. A recipe k
 proves equal numbers across a backedge. Do not add a parallel ownership registry, N element owners,
 layout fields, generated operations, an arbitrary iteration cutoff or a constant-index-only policy.
 
-- [x] Close unit-stride repeated immediate extraction without containing replacement using a compact
-  proven prefix/frontier. Consume the checking-owned numerical prefix-extension facts through
-  availability, guarded region transitions and execution. Preserve each normal bounds check,
-  cancellation and exact cleanup when execution leaves before the user counter update. Do not
-  overwrite a live selected-index owner or invent unbounded generations from repeated execution
-  of the same source recipe.
-- [x] Extend proven prefix extraction through direct marked take/read/edit argument handoffs,
-  preserving frozen arguments and atomic commit/cancellation. Reuse the same endpoint transition,
-  prepared argument owners and ordinary invocation/temporary channels.
-- [x] Admit ordered multi-element prefix bundles from their closed extension proofs. Validate the
-  whole bundle before exempting its neutral frozen-place nodes; preserve actual grants and outer
-  reservations. Qualify distinct payloads, late counter mutation, two-reservation cancellation and
-  maximum-count zero-byte execution in required and native paths.
-- [x] Preserve numerical locals and prefix epochs across exact closed named calls without writes
-  into existing caller storage. Close recursive/transitive dependencies and cleanup eligibility,
-  retain exact typed owners, and qualify loop calls plus early header-count execution. Unknown
-  writes, formal/captured cleanup and absent callee evidence remain conservative.
-- [x] Extend named call write summaries to selective input targets, including recursive input
-  permutations, edited old-value cleanup, transferred temporary edits and interrupted argument
-  preparation. Preserve disjoint scalar/prefix facts through required and native source execution.
-- [ ] Extend call write summaries to captured/destruction effects and general alias provenance.
-  Generalize evaluated index relations beyond ordered prefix bundles while preserving lifetime-
+- [ ] Extend call write summaries to externally dependent captures, user destruction and general
+  escaping alias provenance. Generalize evaluated index relations beyond ordered prefix bundles while preserving lifetime-
   specific evidence for retained aliases across re-evaluation. Adapted callable-element transfers
   must also compose their selected adapters with the prefix handoff.
-- [x] Close exact captured-code invocation writes through the common lexical scope. Distinguish
-  edits of a retained environment from explicit edit inputs and consumed/copied environments;
-  propagate transitive known code and reuse guards. Qualify pure/mutable closure calls beside a
-  prefix loop and reject edited-counter reset without assuming unknown formal effects are empty.
-- [x] Close cleanup write effects for exact owned closure environments through their declaration
-  schema, without executing or attributing the closure body's invocation effects to destruction.
-  Preserve unknown formal cleanup and qualify surrounding scalar/prefix inference through
-  source checking and native execution, including aggregate environment payloads.
-- [x] Resolve lexical edit-alias roots for named caller-write summaries from their existing typed
-  binding initializers. Preserve explicit input positions and owned-local separation through
-  alias chains; do not claim exact numeric paths or general escaping alias provenance. Qualify
-  selective prefix/scalar preservation and rejection of aliased counter invalidation.
-- [x] Project caller-side lexical edit aliases to conservative existing source footprints using
-  that same binding resolver. Preserve original invocation addresses and never reload the index
-  of an older alias; use containing storage when an exact selection cannot be retained. Qualify
-  disjoint prefix preservation and aliased counter invalidation in source/native execution.
-- [x] Share lexical read/edit alias provenance between write summaries and numerical analysis.
-  Resolve whole scalar aliases to their existing current cell without creating alias-owned cells;
-  preserve scope-end behavior and frozen operands. Keep evaluated selectors conservative instead
-  of reloading their old index. Qualify aliased prefix counters, direct updates and invalidation.
-- [x] Close partial-field extraction below one retained index, including constant nested selectors,
-  reverse remaining-field cleanup, snapshot retirement/restoration, call commit/cancellation,
-  conditional holes, parent replacement and maximum-count zero-byte execution. Qualify bounded
-  evaluator storage and recovery without equating different cleanup-order peaks.
-- [x] Close one nested missing path through multiple dynamic selectors. Capture outer-to-inner
-  with atomic rollback, preserve each saved value across index-side mutation, and retire all
-  backing through restoration or reverse nested cleanup. Qualify distinct payloads and two-
-  dimensional maximum-count zero-byte geometry through required and native execution.
-- [x] Close multiple dynamically selected, structurally disjoint field holes under one array.
-  Preserve exact missing-point coverage, equal/unordered saved indices, native reverse traversal,
-  exhaustive cleanup-helper registration, MIR geometry and bounded evaluator failure recovery.
-- [x] Preserve mixed prefix/point coverage in sparse remainder cleanup, retaining the existing
-  coverage variants and their distinct bounds/roles. Qualify zero-trip and partial-prefix paths,
-  equal-valued backing, maximum-count zero-byte geometry and nontrivial generated predicates.
 - [ ] Extend saved-index identity and initialization/cleanup to conditional restoration and
   general numeric relations among holes within one array. Keep
   unproved relations local and explicit. Do not read uninitialized alternative backing or choose
   guards from numeric equality alone; preserve actual original-index mutation and empty/MAX spans.
-- [x] Restore conditional single-element holes from complete-or-point histories. Keep numeric
-  equality conditional on the hole's presence, validate source causes and exclude other overlapping
-  holes, and choose actual snapshot lifetimes from existing ownership alternatives. Qualify no-hole
-  and distinct-origin branches, changed indices and maximum-count zero-byte execution without
-  reading inactive backing or using numerical equality as a cleanup guard. Preserve exact
-  constant holes when flow proof elides their saved-index owner.
-- [x] Restore one retained whole-element hole from a proved equal current index using the
-  existing committed-index history and actual sparse hole/snapshot. Validate the retiring source
-  site and present parent; never identify lifetimes from recipe equality alone. Qualify index
-  mutation, direct calls, restoration on both branches/backedges and maximum-count zero-byte
-  source/native execution, while keeping unproved and multi-hole relations conservative.
-  Track scalar read inputs under their existing grant without authorizing updates or retaining
-  facts across unknown writes; ordinary input use must not require a redundant local copy.
-- [x] Recover a complete numerical array epoch after restoring its sole proved point. Distinguish
-  a point taken from a complete epoch from generic unproved coverage; do not reset after restoring
-  only the last element of a longer prefix or after unrelated partial holes. Qualify a later
-  prefix loop through the same required/native paths without containing replacement.
-- [x] Preserve already complete numerical epochs through initialized owning-root replacement and
-  compound update. Do not hide holes created while evaluating the RHS or reset existing partial
-  coverage. Qualify later prefix extraction, including a conditional restoration's complete route,
-  without requiring a containing replacement.
-- [x] Share current numerical constant selection facts across availability, access creation and
-  resource paths. Freeze constants when a place/hole is created and elide unnecessary saved-index
-  owners; retain snapshots for unproved values. Do not refine old aliases from a recipe's later
-  execution or reinterpret a prefix as one point. Preserve original bounds decisions, local
-  unknown-use diagnostics and exact cleanup through ordinary source and native execution.
 - [ ] Qualify actual nontrivial array cleanup effects through the
   [native array consumer](compiler/crates/nocter-machine/README.md#private-array-execution), including
   source error construction. Emitted/image-only cleanup is not execution of an owned error graph.
@@ -167,67 +89,6 @@ not a language restriction derived from the current realization boundary.
   publication is not implied by qualification.
 
 ## Open Findings
-
-- [x] Project named write summaries through explicit call inputs for both direct and value calls.
-  A value call's environment precedes ordinary inputs and must never receive a formal input's
-  write footprint. Qualify read/edit invocation views, an edited captured callback and rejection
-  of counter reset through a named callback.
-  Do not confuse this mapping with callee body slots.
-
-- [x] Remove recursive preparation across interleaved postfix index/transfer chains. Prevent
-  stack exhaustion in the existing 1,024-suffix case;
-  preserve operation order and local rejection without a source-length ceiling or larger test stack.
-
-- [x] Give callable-result applications their actual lexical code identity, including closure
-  bodies. A root and its closures have independent expression arenas; a shared source/type root
-  plus expression ID can collide and either reject valid factories or merge separate result
-  evidence. Preserve one root-scoped type authority and qualify reuse, distinct callees and native
-  invocation before extending nested environments.
-
-- [x] Admit nested owned closed-data capture producers. Allocate lexical closure IDs once per
-  root through the existing body type construction authority, and project/seal/admit every nested
-  body through the common scope. Qualify sibling/deep IDs, Copy snapshots, mutable and consuming
-  capture demand, factory applications, source reuse and native execution. General inferred/multiple
-  captures and evaluator callable values remain separate obligations.
-
-- [x] Admit exact known named/captured callable values as explicit owned environments. Reuse
-  their declaration-owned schemas and concrete invocation views rather than assuming a structural
-  callable contract supplies Copy or cleanup evidence. Qualify nested value captures, mutable/once
-  invocation and ordinary cleanup; keep formal and unresolved result/application captures gated
-  until their dependencies and payload projection close.
-
-- [x] Keep same-operator short-circuit chains in one lazy control region. Avoid impossible
-  ownership combinations after decided prefixes; preserve operand order, final values and
-  temporary frames. Qualify linear prefix alternatives for simple read-input calls and long
-  required/native guards without introducing a source length cutoff.
-
-- [x] Remove the unused initialization `CleanupFact` report and its per-iteration collection after
-  confirming no independent consumer. The resource transition report
-  already owns exact cleanup and guards; keep initialization responsible for availability and
-  diagnostics rather than a second incomplete cleanup projection.
-
-- [x] Close multiple dynamic field holes without an integrity failure. Source initialization
-  and permissions admit different fields even when their indices may coincide, but snapshot
-  capture and cleanup still assume one retained hole per array. The reproducer is
-  `compiler/tests/fixtures/arrays/element-multiple-dynamic-fields.nct`. Project the existing sparse
-  missing set through required/native remainder cleanup; preserve reverse element/component
-  destruction, equal-index field merging, saved-index lifetimes and local unsafe-use rejection.
-
-- [x] Preserve mixed array-prefix and point exclusions in remainder cleanup. Qualify a prefix
-  loop on a concrete nested array followed by a dynamic transfer from another element field,
-  preserving coverage roles and all backing through required and native execution.
-
-- [x] Select an expression's actual operator token across admitted continuation newlines.
-  Qualify arithmetic, comparison and logical source execution while preserving syntax-owned
-  continuation rules, including delimited blank lines.
-
-- [x] Bind flow-effect reuse to actual callee-body and value/count/result dependencies. Typed calls can survive a
-  callee-only body edit, but inferred numeric/availability proofs cannot. Preserve reuse after
-  unrelated body edits and avoid repeating whole-unit verification for every body.
-
-- [x] Keep prefix-lifecycle selection within co-executed array epochs. A later prefix loop on
-  a replaced array must not reclassify an earlier point extraction/restoration on the same local.
-  Qualify the mixed source path through checking, required execution and native execution.
 
 - [ ] Investigate the unclassified status-1 failure of the released native test
   `network_and_tls::public_tls_and_https_reject_plain_peers_and_https_advertises_http1`.
