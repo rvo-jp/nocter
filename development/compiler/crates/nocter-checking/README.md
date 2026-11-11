@@ -814,7 +814,11 @@ including at zero. Indexed replacement and partial-state admission follow the
 initialization and access analysis. One catalog retains exact typed-body owners in the shared final
 program. Its summary solver computes finite may-write sets over explicit edit-input roots; unknown
 effects are the top element. Recursive input permutations and transitive calls use one selected-input
-projection in `bindings`. Owned local updates have no external root. Replacement additionally checks
+projection in `bindings`. Owned local updates have no external root. A body-local derived index follows lexical edit aliases
+through their typed binding initializers, preserving the original explicit input position or
+owned-local root. It supplies no numeric path, address or lifetime evidence; projected input
+writes remain conservative over that input root. Alias chains are followed iteratively with
+cycle rejection. Replacement additionally checks
 the old edited referent's cleanup type. Exact owned-closure cleanup follows its declaration-owned
 environment schema recursively, including aggregate payloads. Destruction releases that environment
 without invoking the captured body; body invocation effects do not become destruction effects.
@@ -835,6 +839,9 @@ body queries have only their available closed definitions. Effect projection and
 validation use the graph's shared structural reachability; detached call-completion points furnish
 no effects or input bindings. Tests qualify recursive/transitive/root-permutation closure, selective
 invalidation, interrupted calls, formal cleanup, missing callees and exact body-owner rejection.
+Shared required/native source qualifies disjoint caller-field edits and private local writes
+through alias chains beside a prefix loop. A negative case rejects reuse of a progression after
+a callee resets the counter through an alias.
 Header-count execution consumes the evidence before final whole-unit closure. A native source
 case preserves a prefix loop through a call that constructs and drops a captured non-Copy array;
 its dormant body would trap if incorrectly invoked. This qualifies checking and native cleanup,

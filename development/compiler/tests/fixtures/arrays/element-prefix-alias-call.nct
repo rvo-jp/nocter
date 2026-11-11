@@ -1,0 +1,27 @@
+struct Item { value: i32 }
+struct State { items: [Item; 2]
+    seen: usize }
+const func bump(edit seen: usize): void {
+    edit first = seen
+    edit second = first
+    second += 1
+}
+const func private_write(): void {
+    var value: usize = 0
+    edit first = value
+    edit second = first
+    second += 1
+}
+const func run(): i32 {
+    var state = State { items: [Item { value: 40 }, Item { value: 2 }], seen: 0 }
+    var index: usize = 0
+    var total = 0
+    while index < 2 {
+        bump(state.seen)
+        private_write()
+        let item = state.items[index]^
+        total += item.value
+        index += 1
+    }
+    if state.seen == 2 { total } else { 0 }
+}

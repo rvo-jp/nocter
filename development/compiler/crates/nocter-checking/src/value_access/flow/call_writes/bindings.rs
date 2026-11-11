@@ -1,27 +1,70 @@
 //! Project explicit callee write roots through the already selected source input plan.
 use super::{INVALID, IntegrityError, TypedQuery};
-use crate::value_access::{ArgumentAction, ExpressionKind, Referent};
-use nocter_model::{AccessExpressionId, ValueAccessMode, ValueInputOperation};
-use std::collections::BTreeSet;
+use crate::value_access::{ArgumentAction, BoundaryAction, ExpressionKind, Referent, Statement};
+use nocter_model::{
+    AccessExpressionId, AccessLocalId, ValueAccessMode, ValueBindingKind, ValueInputOperation,
+};
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) enum Root {
     Owned,
     Input(usize),
 }
-/// Other roots lack closed provenance here; this introduces no ownership or alias registry.
-pub(super) fn classify_root(typed: &TypedQuery, source: Referent) -> Option<Root> {
-    let place = source.static_base(|id| typed.body().expressions().get(id))?;
-    let local = typed.body().places().get(place)?.local;
-    if typed.body().locals().get(local)?.access().mode() == ValueAccessMode::Own {
-        return Some(Root::Owned);
+/// Derived lexical binding index, never an address, ownership or lifetime registry.
+pub(super) struct Roots {
+    aliases: BTreeMap<AccessLocalId, Referent>,
+}
+impl Roots {
+    pub(super) fn prepare(typed: &TypedQuery) -> Result<Self, IntegrityError> {
+        let mut aliases = BTreeMap::new();
+        for (_, statement) in typed.body().statements().iter() {
+            let Statement::Bind { local, value } = *statement else {
+                continue;
+            };
+            if typed.body().locals().get(local).ok_or(INVALID)?.kind != ValueBindingKind::EditAlias
+            {
+                continue;
+            }
+            let ExpressionKind::Boundary {
+                source,
+                action: BoundaryAction::DelegateUpdate,
+            } = typed.body().expressions().get(value).ok_or(INVALID)?.kind
+            else {
+                continue;
+            };
+            if let Some(referent) = typed
+                .body()
+                .expressions()
+                .get(source)
+                .ok_or(INVALID)?
+                .referent(source)
+                && aliases.insert(local, referent).is_some()
+            {
+                return Err(INVALID);
+            }
+        }
+        Ok(Self { aliases })
     }
-    typed
-        .body()
-        .inputs()
-        .explicit()
-        .iter()
-        .position(|input| input.local == local && input.operation == ValueInputOperation::Edit)
-        .map(Root::Input)
+    /// Resolve only the owning/input root. Dynamic selections supply no exact numeric path.
+    pub(super) fn classify(&self, typed: &TypedQuery, mut source: Referent) -> Option<Root> {
+        let mut visited = BTreeSet::new();
+        loop {
+            let place = source.static_base(|id| typed.body().expressions().get(id))?;
+            let local = typed.body().places().get(place)?.local;
+            if !visited.insert(local) {
+                return None;
+            }
+            if typed.body().locals().get(local)?.access().mode() == ValueAccessMode::Own {
+                return Some(Root::Owned);
+            }
+            if let Some(input) = typed.body().inputs().explicit().iter().position(|input| {
+                input.local == local && input.operation == ValueInputOperation::Edit
+            }) {
+                return Some(Root::Input(input));
+            }
+            source = *self.aliases.get(&local)?;
+        }
+    }
 }
 
 pub(super) fn actual_writes(

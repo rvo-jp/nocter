@@ -52,6 +52,10 @@ layout fields, generated operations, an arbitrary iteration cutoff or a constant
   schema, without executing or attributing the closure body's invocation effects to destruction.
   Preserve unknown formal cleanup and qualify surrounding scalar/prefix inference through
   source checking and native execution, including aggregate environment payloads.
+- [x] Resolve lexical edit-alias roots for named caller-write summaries from their existing typed
+  binding initializers. Preserve explicit input positions and owned-local separation through
+  alias chains; do not claim exact numeric paths or general escaping alias provenance. Qualify
+  selective prefix/scalar preservation and rejection of aliased counter invalidation.
 - [x] Close partial-field extraction below one retained index, including constant nested selectors,
   reverse remaining-field cleanup, snapshot retirement/restoration, call commit/cancellation,
   conditional holes, parent replacement and maximum-count zero-byte execution. Qualify bounded

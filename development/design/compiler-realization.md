@@ -273,6 +273,10 @@ dependency/storage mapping. Detached completion points of an interrupted call su
 For an exact owned closure, classify destruction through its environment's actual payload schema,
 independently of invocation. Releasing captured data must not execute the captured body; unknown
 environment cleanup must remain unknown rather than inherit a named function's trivial cleanup.
+Lexical edit aliases can resolve their write root from the existing typed binding initializer.
+Retain the original input position or owned-local root, and keep unresolved/escaping provenance
+conservative. Root resolution does not prove a dynamic index, exact component footprint or alias
+lifetime, and must not create a second authority for binding or access state.
 Keep effect reuse distinct from typed-call reuse: a callee-only body edit may preserve the call's
 type but invalidate its write proof. Verify transitive reached bodies and their value/count/result
 prerequisites through existing source guards. Share the dependency graph, handle recursive components

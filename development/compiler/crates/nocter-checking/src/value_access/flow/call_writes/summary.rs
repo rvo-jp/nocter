@@ -15,6 +15,7 @@ pub(super) enum Writes {
 }
 struct Body<'a> {
     typed: &'a TypedQuery,
+    roots: bindings::Roots,
     local: Writes,
     calls: Vec<(AccessExpressionId, AccessCodeId)>,
 }
@@ -87,7 +88,7 @@ fn combine(
             return Ok(Writes::Unknown);
         };
         for source in sources {
-            match bindings::classify_root(body.typed, source) {
+            match body.roots.classify(body.typed, source) {
                 Some(bindings::Root::Input(input)) => {
                     writes.insert(input);
                 }
@@ -106,6 +107,7 @@ fn local_summary(control: &Control) -> Result<Body<'_>, IntegrityError> {
     }
     let mut body = Body {
         typed,
+        roots: bindings::Roots::prepare(typed)?,
         local: Writes::Known(BTreeSet::new()),
         calls: Vec::new(),
     };
@@ -116,7 +118,7 @@ fn local_summary(control: &Control) -> Result<Body<'_>, IntegrityError> {
             match action.operation {
                 Operation::Assign { target, .. } | Operation::CompoundAssign { target, .. } => {
                     targets.push(target);
-                    match bindings::classify_root(typed, target) {
+                    match body.roots.classify(typed, target) {
                         Some(bindings::Root::Input(input)) => {
                             if let Writes::Known(writes) = &mut body.local {
                                 writes.insert(input);

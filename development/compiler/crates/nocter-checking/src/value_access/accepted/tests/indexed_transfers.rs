@@ -80,6 +80,16 @@ fn selection_refinement_preserves_holes_and_frozen_alias_conflicts() {
 }
 
 #[test]
+fn a_callee_write_through_an_alias_cannot_preserve_the_old_counter_progression() {
+    let source = "struct Item { value: i32 }\nfunc reset(edit value: usize): void { edit target = value\ntarget = 0 }\nfunc work(): void { let items = [Item { value: 40 }, Item { value: 2 }]\nvar index: usize = 0\nwhile index < 2 { let item = items[index]^\nindex += 1\nreset(index) } }";
+    let (sources, tree) = input(source);
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Flow { .. }))
+    ));
+}
+
+#[test]
 fn point_restoration_before_a_later_prefix_epoch_keeps_its_ordinary_transition() {
     let source = nocter_test_support::RETAINED_ARRAY_SOURCES
         .iter()

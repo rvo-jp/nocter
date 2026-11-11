@@ -99,22 +99,40 @@ fn summaries_require_the_exact_typed_body_owner_and_the_available_closed_callees
 }
 
 #[test]
-fn recursive_input_permutations_keep_the_written_root_and_local_aliases_stay_unknown() {
+fn recursive_input_permutations_and_lexical_aliases_keep_the_written_root() {
     let controls = controls(
         "func write(edit value: usize): void { value += 1 }\nfunc first(edit left: usize, edit right: usize, again: bool): void { if again { second(right, left, false) } else { write(right) } }\nfunc second(edit left: usize, edit right: usize, again: bool): void { if again { first(right, left, false) } else { write(left) } }\nfunc alias(edit value: usize): void { edit target = value\nwrite(target) }\nfunc reset(edit value: error, take next: error): void { value = next^ }",
     );
     let catalog = Catalog::prepare(&controls).unwrap();
-    for (name, input) in [("first", 1), ("second", 0), ("reset", 0)] {
+    for (name, input) in [("first", 1), ("second", 0), ("reset", 0), ("alias", 0)] {
         assert_eq!(
             catalog.summaries.get(&code(&controls, name)),
             Some(&Writes::Known(BTreeSet::from([input]))),
             "{name}"
         );
     }
-    assert_eq!(
-        catalog.summaries.get(&code(&controls, "alias")),
-        Some(&Writes::Unknown)
+}
+
+#[test]
+fn lexical_alias_chains_separate_owned_storage_from_explicit_input_positions() {
+    let controls = controls(
+        "func set(edit value: usize): void { value += 1 }\n\
+         func local(): void { var value: usize = 0\nedit first = value\nedit second = first\nset(second) }\n\
+         func external(left: usize, edit right: usize): void { edit first = right\nedit second = first\nset(second) }\n\
+         func indexed(edit values: [usize; 2], index: usize): void { edit selected = values[index]\nselected += 1 }",
     );
+    let catalog = Catalog::prepare(&controls).unwrap();
+    for (name, writes) in [
+        ("local", BTreeSet::new()),
+        ("external", BTreeSet::from([1])),
+        ("indexed", BTreeSet::from([0])),
+    ] {
+        assert_eq!(
+            catalog.summaries.get(&code(&controls, name)),
+            Some(&Writes::Known(writes)),
+            "{name}"
+        );
+    }
 }
 
 #[test]
