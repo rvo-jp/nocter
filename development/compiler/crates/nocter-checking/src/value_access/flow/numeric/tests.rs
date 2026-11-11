@@ -1,10 +1,49 @@
 use super::*;
 use crate::value_access::flow::{Operation, Query};
-use crate::value_access::tests::{named, queries};
+use crate::value_access::{
+    evaluation, results,
+    tests::{bound, input},
+    types,
+};
+use nocter_declaration_lowering::access_declarations as declarations;
 
 fn function(text: &str) -> Query {
-    let typed = queries(text).unwrap();
-    Query::prepare(Arc::new(named(&typed, "f").clone())).unwrap()
+    // Drive ordinary staged typing/count supply and result closure, stopping before whole-unit
+    // safety admission. Several cases intentionally violate availability: numerical proof alone
+    // must neither accept those programs nor pretend to execute their cleanup.
+    let (sources, tree) = input(text);
+    let syntax = bound(&sources, &tree);
+    let headers = declarations::Preparation::prepare(syntax).unwrap();
+    let (header, output) = evaluation::prepare_source(
+        headers,
+        nocter_constant_evaluation::state::Limits::default(),
+    )
+    .unwrap();
+    let context = header.bind(syntax).unwrap();
+    let mut queries = output.queries;
+    types::canonicalize(&context, &mut queries).unwrap();
+    let mut controls = queries
+        .into_iter()
+        .map(|(id, query)| (id, super::super::Control::prepare(Arc::new(query)).unwrap()))
+        .collect();
+    results::close(&context, &mut controls).unwrap();
+    controls
+        .into_values()
+        .find(|control| {
+            let typed = &control.typed;
+            matches!(typed.code(), nocter_model::ValueCode::Declaration(_))
+                && typed
+                    .program()
+                    .codes()
+                    .get(typed.source_owner())
+                    .unwrap()
+                    .name()
+                    .and_then(|name| typed.program().symbols().spelling(name))
+                    == Some("f")
+        })
+        .unwrap()
+        .finish()
+        .unwrap()
 }
 fn returns(query: &Query) -> Vec<(AccessExpressionId, NumericFacts)> {
     query
@@ -113,8 +152,13 @@ fn impossible_checked_results_and_unreached_locations_furnish_no_proof() {
     let query = function(
         "func f(): usize { var index: usize = 18446744073709551615\nindex += 1\nreturn index }",
     );
-    let result = returns(&query);
-    assert_eq!(result[0].1.constant(result[0].0), None);
+    for (point, body) in query.graph().points().iter() {
+        for (action, operation) in body.actions.iter().enumerate() {
+            if matches!(operation.operation, Operation::StageReturn(_)) {
+                assert!(query.numeric_at(Location { point, action }).is_none());
+            }
+        }
+    }
     let point = query.graph().points().get(query.graph().entry()).unwrap();
     assert!(
         query
@@ -124,4 +168,132 @@ fn impossible_checked_results_and_unreached_locations_furnish_no_proof() {
             })
             .is_none()
     );
+}
+
+fn prefix_transfers(query: &Query) -> Vec<bool> {
+    let mut result = Vec::new();
+    for (point, body) in query.graph().points().iter() {
+        for (action, operation) in body.actions.iter().enumerate() {
+            let Some(facts) = query.numeric_at(Location { point, action }) else {
+                continue;
+            };
+            for source in history::transfers(query.typed(), &operation.operation).unwrap() {
+                if let Referent::Evaluated(selection) = source
+                    && super::super::resources::RetainedIndex::for_selection(
+                        query.typed(),
+                        selection,
+                    )
+                    .is_some()
+                {
+                    result.push(facts.extends_prefix(selection));
+                }
+            }
+        }
+    }
+    result
+}
+
+#[test]
+fn prefix_induction_reaches_a_finite_fixed_point_independent_of_array_count() {
+    let mut sizes = Vec::new();
+    for count in [2, 100_000, u64::MAX] {
+        let query = function(&format!(
+            "func f(take items: [void; {count}]): void {{ var index: usize = 0\nwhile index < {count} {{ let selected = items[index]^\nindex += 1 }} }}"
+        ));
+        assert_eq!(prefix_transfers(&query), vec![true]);
+        sizes.push((
+            query.numeric.cells.count,
+            query.numeric.entries.len(),
+            query.numeric.cells.histories.len(),
+        ));
+    }
+    assert!(sizes.windows(2).all(|pair| pair[0] == pair[1]));
+}
+
+#[test]
+fn missing_first_step_repeated_index_and_stride_gaps_have_no_prefix_proof() {
+    for (start, step) in [(1, 1), (0, 0), (0, 2)] {
+        let query = function(&format!(
+            "func f(take items: [void; 8], again: bool): void {{ var index: usize = {start}\nwhile again {{ let selected = items[index]^\nindex += {step} }} }}"
+        ));
+        assert_eq!(
+            prefix_transfers(&query),
+            vec![false],
+            "start={start}, step={step}"
+        );
+    }
+}
+
+#[test]
+fn replacement_starts_a_new_epoch_but_partial_restoration_invalidates_the_prefix() {
+    let query = function(
+        "func f(): void { var items = [(); 3]\nvar index: usize = 0\nlet first = items[index]^\nitems[0] = ()\nindex = 1\nlet next = items[index]^\nitems = [(); 3]\nindex = 0\nlet replaced = items[index]^ }",
+    );
+    assert_eq!(prefix_transfers(&query), vec![true, false, true]);
+}
+
+#[test]
+fn call_bundle_uses_transfer_order_and_does_not_assume_a_callee_write_summary() {
+    let query = function(
+        "func consume(take a: void, take b: void): void {}\nfunc f(): void { let items = [(); 3]\nvar index: usize = 0\nconsume(items[index]^, items[index + 1]^)\nindex = 2\nlet next = items[index]^ }",
+    );
+    assert_eq!(prefix_transfers(&query), vec![true, true, false]);
+}
+
+#[test]
+fn abrupt_argument_cancellation_never_commits_the_reserved_prefix() {
+    let query = function(
+        "func consume(take a: void, b: usize): void {}\nfunc f(): void { let items = [(); 3]\nvar index: usize = 0\nconsume(items[index]^, if true { return () } else { 0 }) }",
+    );
+    assert!(prefix_transfers(&query).is_empty());
+    assert!(query.graph().points().iter().any(|(point, body)| {
+        body.actions.iter().enumerate().any(|(action, item)| {
+            matches!(item.operation, Operation::CancelCall { prepared: 1, .. })
+                && query.numeric_at(Location { point, action }).is_some()
+        })
+    }));
+}
+
+#[test]
+fn disjoint_containing_arrays_preserve_their_own_prefix_histories() {
+    let query = function(
+        "struct Pair { left: [void; 3]\nright: [void; 3] }\nfunc f(): void { var pair = Pair { left: [(); 3], right: [(); 3] }\nvar index: usize = 0\nlet left = pair.left[index]^\nlet right = pair.right[index]^\npair.right[0] = ()\nindex += 1\nlet next = pair.left[index]^ }",
+    );
+    assert_eq!(prefix_transfers(&query), vec![true, true, true]);
+}
+
+#[test]
+fn saved_selection_and_early_exit_do_not_depend_on_the_counter_update_position() {
+    for body in [
+        "let selected = items[index]^\nif stop { break }\nindex += 1",
+        "let position = index\nindex += 1\nlet selected = items[position]^\nif stop { break }",
+    ] {
+        let query = function(&format!(
+            "func f(take items: [void; 8], stop: bool): void {{ var index: usize = 0\nwhile index < 8 {{ {body} }} }}"
+        ));
+        assert_eq!(prefix_transfers(&query), vec![true], "{body}");
+    }
+}
+
+#[test]
+fn a_join_with_partial_restoration_cannot_hide_the_unproved_history() {
+    for replacement in ["items[0] = ()", "items = [(); 3]"] {
+        let query = function(&format!(
+            "func f(restore: bool): void {{ var items = [(); 3]\nvar index: usize = 0\nlet first = items[index]^\nif restore {{ {replacement} }}\nindex = 1\nlet next = items[index]^ }}"
+        ));
+        assert_eq!(prefix_transfers(&query), vec![true, false], "{replacement}");
+    }
+}
+
+#[test]
+fn builtin_zero_equality_can_establish_the_first_prefix_index() {
+    for body in [
+        "if index == 0 { let selected = items[index]^ }",
+        "if index != 0 {} else { let selected = items[index]^ }",
+    ] {
+        let query = function(&format!(
+            "func f(take items: [void; 2], take index: usize): void {{ {body} }}"
+        ));
+        assert_eq!(prefix_transfers(&query), vec![true]);
+    }
 }

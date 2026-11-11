@@ -1,6 +1,8 @@
 //! Normal checked usize relationships over the existing operation graph. These are numeric facts,
 //! never permission to access a value, skip evaluation or remove its original bounds check.
 mod equalities;
+mod history;
+mod state;
 #[cfg(test)]
 mod tests;
 mod transfer;
@@ -11,12 +13,21 @@ use equalities::Equalities;
 use nocter_model::{
     AccessExpressionId, AccessFlowPointId, AccessLocalId, BuiltinType, ValueAccessMode,
 };
+use state::State;
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
 
 const INVALID: IntegrityError = IntegrityError::InconsistentTypedBody;
+
+fn owned_base(typed: &TypedQuery, source: Referent) -> bool {
+    source
+        .static_base(|id| typed.body().expressions().get(id))
+        .and_then(|id| typed.body().places().get(id))
+        .and_then(|place| typed.body().locals().get(place.local))
+        .is_some_and(|local| local.access().mode() == ValueAccessMode::Own)
+}
 
 /// Fixed body-local cells. Reassigning a cell changes its current value; a syntax identity does
 /// not denote the same number on every execution. Prepared operands have their own frozen cells.
@@ -26,6 +37,7 @@ struct Cells {
     locals: BTreeMap<AccessLocalId, usize>,
     values: BTreeMap<AccessExpressionId, usize>,
     operands: BTreeMap<(AccessExpressionId, usize), usize>,
+    histories: history::Histories,
 }
 impl Cells {
     fn fresh(&mut self) -> Result<usize, IntegrityError> {
@@ -70,6 +82,7 @@ impl Cells {
                 }
             }
         }
+        cells.histories = history::Histories::prepare(typed, graph, &mut cells.count)?;
         Ok(cells)
     }
     fn local(&self, typed: &TypedQuery, referent: Referent) -> Option<usize> {
@@ -97,6 +110,7 @@ impl Cells {
 pub struct NumericFacts {
     cells: Arc<Cells>,
     equalities: Equalities,
+    prefix_extensions: BTreeSet<AccessExpressionId>,
 }
 impl NumericFacts {
     #[must_use]
@@ -109,12 +123,19 @@ impl NumericFacts {
         self.equalities
             .difference(self.cells.value(left)?, self.cells.value(right)?)
     }
+    /// The current operation's transfer starts at zero or follows the last committed prefix
+    /// endpoint by one, in every reached numerical history. Availability/ownership still need
+    /// independent validation; this creates no saved endpoint, hole or execution operation.
+    #[must_use]
+    pub fn extends_prefix(&self, selection: AccessExpressionId) -> bool {
+        self.prefix_extensions.contains(&selection)
+    }
 }
 
 #[derive(Clone, Debug)]
 pub(super) struct Analysis {
     cells: Arc<Cells>,
-    entries: BTreeMap<AccessFlowPointId, Equalities>,
+    entries: BTreeMap<AccessFlowPointId, State>,
 }
 impl Analysis {
     pub(super) fn at(
@@ -127,36 +148,38 @@ impl Analysis {
         if at.action >= point.actions.len() {
             return None;
         }
-        let mut equalities = self.entries.get(&at.point)?.clone();
+        let mut state = self.entries.get(&at.point)?.clone();
         for action in point.actions.iter().take(at.action) {
-            transfer::action(typed, &self.cells, &mut equalities, &action.operation).ok()?;
+            state.action(typed, &self.cells, &action.operation).ok()?;
         }
+        let equalities = state.common()?;
+        let prefix_extensions = state
+            .action(typed, &self.cells, &point.actions.get(at.action)?.operation)
+            .ok()?;
         Some(NumericFacts {
             cells: Arc::clone(&self.cells),
             equalities,
+            prefix_extensions,
         })
     }
 }
 
 pub(super) fn analyze(typed: &TypedQuery, graph: &Graph) -> Result<Analysis, IntegrityError> {
     let cells = Arc::new(Cells::prepare(typed, graph)?);
-    let entry = Equalities::top(cells.count).ok_or(INVALID)?;
+    let entry = State::entry(&cells).ok_or(INVALID)?;
     let mut entries = BTreeMap::from([(graph.entry(), entry)]);
     let mut pending = BTreeSet::from([graph.entry()]);
     while let Some(id) = pending.pop_first() {
         let point = graph.points().get(id).ok_or(INVALID)?;
         let mut state = entries.get(&id).ok_or(INVALID)?.clone();
         for action in &point.actions {
-            transfer::action(typed, &cells, &mut state, &action.operation)?;
+            state.action(typed, &cells, &action.operation)?;
         }
         for successor in point.terminator.successors() {
             let mut incoming = state.clone();
-            transfer::edge(typed, &cells, &mut incoming, point.terminator, successor)?;
+            incoming.edge(typed, &cells, point.terminator, successor)?;
             let changed = if let Some(current) = entries.get_mut(&successor) {
-                let joined = current.join(&incoming).ok_or(INVALID)?;
-                let changed = *current != joined;
-                *current = joined;
-                changed
+                current.merge(&incoming).ok_or(INVALID)?
             } else {
                 entries.insert(successor, incoming);
                 true

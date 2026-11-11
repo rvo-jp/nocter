@@ -29,7 +29,6 @@ impl Equalities {
             possible: true,
         })
     }
-    #[cfg(test)]
     pub(super) fn possible(&self) -> bool {
         self.possible
     }
@@ -44,7 +43,7 @@ impl Equalities {
     pub(super) fn constant(&self, cell: usize) -> Option<u64> {
         u64::try_from(self.difference(cell, ZERO)?).ok()
     }
-    fn bottom(&mut self) {
+    pub(super) fn bottom(&mut self) {
         self.possible = false;
         for (root, entry) in self.entries.iter_mut().enumerate() {
             *entry = Entry { root, offset: 0 };

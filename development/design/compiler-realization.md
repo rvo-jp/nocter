@@ -262,6 +262,14 @@ therefore preserves exact cleanup. Whole containing replacement ends that epoch.
 this progression from numerical facts alone: availability, guarded resource state and every
 execution consumer must agree on the region transition first.
 
+Keep the numerical history distinct from its execution backing. An actual prefix uses one
+ordinary saved usize owner in the resource ledger, and its missing coverage is one sparse
+region. Deliver each selected payload using its own still-live evaluated operand before
+replacing the prefix endpoint. In particular, several taking arguments cannot all project
+through a repeatedly overwritten endpoint slot. Save the last committed operand and consolidate
+the region within the same guarded transfer phase; before/after guards must agree with actual
+coverage and backing ownership. No new element owner is introduced for each iteration.
+
 Project the resulting sparse remainder and its exact captured indices into cleanup. Excluding
 one checked index i from [0, N) gives [0, i) and [i + 1, N); the same bounds fact justifies the
 successor arithmetic even at the maximum usize count. Symbolic cleanup must retain that fact and

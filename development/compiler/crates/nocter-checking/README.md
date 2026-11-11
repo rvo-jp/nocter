@@ -900,8 +900,16 @@ the current cell; joins keep common exact differences and reach a fixed point wi
 array-cardinality-dependent iteration cutoff. Selected builtin equality branches refine those
 relationships. Unsupported operations, alias writes and calls without a closed write summary
 remain conservative. Impossible normal arithmetic supplies no proof. This report neither grants
-access to an unavailable value nor reclassifies a source bounds check. The progression/region
-consumer remains unqualified; the source admission rules below still apply.
+access to an unavailable value nor reclassifies a source bounds check. Numerical history
+partitions distinguish no prior extraction, a proven prefix and an unproved epoch; fixed body
+cells retain the last committed index. `NumericFacts::extends_prefix` reports a zero start or
+unit-stride continuation for the current transfer, including ordered transfers in an atomic call
+bundle. Preparation/cancellation create no event; containing replacement starts a new epoch,
+overlapping partial writes invalidate its prefix, and distinct containing arrays remain separate.
+No prefix history crosses a call without a closed write summary. The report is qualified on typed
+source graphs up to maximum usize counts, early exits, reordered counter updates and joins.
+It does not create actual resource backing/holes. The region/cleanup consumer remains
+unqualified; the source admission rules below still apply.
 
 Access regions retain `ValuePath<IndexFact>` under the same owning/input/temporary root. Known
 numeric results select concrete indices; unknown indices remain unknown even when their recipe

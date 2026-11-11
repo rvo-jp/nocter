@@ -132,8 +132,9 @@ pub(super) fn action(
         Operation::Assign { target, value } => {
             if let Some(target) = cells.local(typed, target) {
                 assign(state, target, cells.value(value));
-            } else {
-                // No assumed alias separation for a write outside the tracked owned scalar cells.
+            } else if !super::owned_base(typed, target) {
+                // A distinct owned aggregate cannot alias an owned scalar local. A write
+                // through a read/edit base has no such separation proof here.
                 forget_locals(cells, state);
             }
         }
@@ -149,7 +150,7 @@ pub(super) fn action(
             };
             if let Some(target) = cells.local(typed, target) {
                 arithmetic(state, target, *operation, Some(target), cells.value(value));
-            } else {
+            } else if !super::owned_base(typed, target) {
                 forget_locals(cells, state);
             }
         }
@@ -204,6 +205,14 @@ pub(super) fn edge(
 ) -> Result<(), IntegrityError> {
     if let Terminator::Branch { condition, yes, no } = terminator {
         let expression = typed.body().expressions().get(condition).ok_or(INVALID)?;
+        if yes != no
+            && expression
+                .normal_boolean()
+                .is_some_and(|value| (value && successor == no) || (!value && successor == yes))
+        {
+            state.bottom();
+            return Ok(());
+        }
         if yes != no
             && let ExpressionKind::Binary { operation, .. } = expression.kind
             && ((operation == Binary::Equal && successor == yes)
