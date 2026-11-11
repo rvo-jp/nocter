@@ -8,10 +8,13 @@ use nocter_model::{
     ValueFunctionOrigin,
 };
 
+mod captured;
+pub(super) use captured::Availability;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Rule {
     RuntimeCall(AccessCodeId),
-    FunctionValue,
+    CapturedCall(nocter_model::ValueClosure),
     ValueInvocation,
     UnsupportedData(TypeId),
     UnsupportedInput(TypeId),
@@ -40,6 +43,7 @@ enum Site {
     Statement(AccessStatementId),
     Cleanup(flow::Location),
 }
+#[derive(Clone, Copy)]
 pub(super) struct Violation {
     site: Site,
     rule: Rule,
@@ -49,6 +53,7 @@ const INVALID: flow::IntegrityError = flow::IntegrityError::InconsistentTypedBod
 fn operation_rule(
     program: &Program,
     kind: &ExpressionKind,
+    available: &dyn Fn(nocter_model::ValueClosure) -> bool,
 ) -> Result<Option<Rule>, flow::IntegrityError> {
     Ok(match kind {
         ExpressionKind::Call { kind, target, .. } => match (kind, target) {
@@ -57,11 +62,14 @@ fn operation_rule(
                 (callable.compile_time() != CompileTimeGuarantee::Evaluatable)
                     .then_some(Rule::RuntimeCall(*target))
             }
+            (CallKind::Value, ValueFunctionOrigin::Closure(code)) => {
+                (!available(*code)).then_some(Rule::CapturedCall(*code))
+            }
             (CallKind::Value, _) => Some(Rule::ValueInvocation),
             (CallKind::Direct, _) => return Err(INVALID),
         },
-        ExpressionKind::Closure { .. } => Some(Rule::FunctionValue),
-        ExpressionKind::Function(_)
+        ExpressionKind::Closure { .. }
+        | ExpressionKind::Function(_)
         | ExpressionKind::AdaptFunction { .. }
         | ExpressionKind::Constant(_)
         | ExpressionKind::Integer(_)
@@ -86,7 +94,7 @@ fn call_inputs(
     domain: &mut super::evaluation::Types,
 ) -> Result<Option<Violation>, flow::IntegrityError> {
     let ExpressionKind::Call {
-        target: ValueFunctionOrigin::Declaration(target),
+        target,
         kind,
         arguments,
     } = expression
@@ -103,13 +111,30 @@ fn call_inputs(
     }) {
         return Ok(None);
     }
-    let parameters = program.codes().get(*target).ok_or(INVALID)?.parameters();
+    let parameters = match *target {
+        ValueFunctionOrigin::Declaration(target) => program
+            .codes()
+            .get(target)
+            .ok_or(INVALID)?
+            .parameters()
+            .iter()
+            .map(|&id| Ok(program.parameters().get(id).ok_or(INVALID)?.data()))
+            .collect::<Result<Vec<_>, flow::IntegrityError>>()?,
+        ValueFunctionOrigin::Closure(code) => program
+            .closure(code)
+            .ok_or(INVALID)?
+            .contract()
+            .inputs
+            .iter()
+            .map(|input| input.data)
+            .collect(),
+        _ => return Ok(None),
+    };
     let arguments = kind.explicit_arguments(arguments).ok_or(INVALID)?;
     if parameters.len() != arguments.len() {
         return Err(INVALID);
     }
-    for (&parameter, argument) in parameters.iter().zip(arguments) {
-        let data = program.parameters().get(parameter).ok_or(INVALID)?.data();
+    for (data, argument) in parameters.into_iter().zip(arguments) {
         if !domain.supports(program, data)? {
             return Ok(Some(Violation {
                 site: Site::Expression(argument.value),
@@ -120,13 +145,16 @@ fn call_inputs(
     Ok(None)
 }
 
-pub(super) fn check(query: &flow::Query) -> Result<Option<Violation>, flow::IntegrityError> {
+pub(super) fn check(
+    query: &flow::Query,
+    available: &dyn Fn(nocter_model::ValueClosure) -> bool,
+) -> Result<Option<Violation>, flow::IntegrityError> {
     let program = query.typed().program();
     let mut domain = super::evaluation::Types::default();
     // Walk all typed expressions, not only reachable graph points. An unevaluated branch or
     // interrupted input cannot hide an authored runtime-only call or an unsupported operation.
     for (id, expression) in query.typed().body().expressions().iter() {
-        let rule = operation_rule(program, &expression.kind)?;
+        let rule = operation_rule(program, &expression.kind, available)?;
         if let Some(rule) = rule {
             return Ok(Some(Violation {
                 site: Site::Expression(id),
@@ -223,9 +251,8 @@ impl Violation {
                     .ok_or(Failure::InconsistentSyntax)?;
                 format!("const body calls runtime-only function `{name}`")
             }
-            Rule::FunctionValue => {
-                "captured function values are outside the private constant-evaluation domain"
-                    .to_owned()
+            Rule::CapturedCall(_) => {
+                "this captured callable is unavailable in constant evaluation".to_owned()
             }
             Rule::ValueInvocation => {
                 "this callable witness has no closed constant-evaluation invocation".to_owned()

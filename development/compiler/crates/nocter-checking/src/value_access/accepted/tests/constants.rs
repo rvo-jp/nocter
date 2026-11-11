@@ -106,14 +106,10 @@ fn explicit_and_implicit_resource_cleanup_need_domain_evidence() {
 }
 
 #[test]
-fn formal_and_captured_function_values_need_a_later_evaluator_domain() {
+fn formal_function_invocation_needs_a_closed_witness() {
     rejected(
         "const func f(action: func(i32): i32): i32 { action(1) }",
         |d| assert_eq!(d.rule(), Rule::ValueInvocation),
-    );
-    rejected(
-        "const func f(): i32 { let value = 1\nlet action = (value;): i32 { value }\naction() }",
-        |d| assert_eq!(d.rule(), Rule::FunctionValue),
     );
 }
 

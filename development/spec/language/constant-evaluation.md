@@ -98,6 +98,37 @@ operations. Required CTFE needs const-capable selected implementations and ordin
 cleanup validity; neither a for statement nor a protocol name makes a runtime-only operation
 evaluable. Frozen intrinsic array/pack plans and user witnesses share the same evaluator boundary.
 
+## Anonymous Callable Availability
+
+A synchronous closure has no separate authored const modifier. Its checked code supplies inferred
+invocation availability under the same operation, input, resource-existence and cleanup rules.
+This is a fact about that exact witness, independent of func/mut/once and Copy. Named functions
+still require their authored const capability; inspecting a pure named runtime implementation
+cannot supply it.
+
+```text
+const func calculate(): i32 {
+    let value = 40
+    let action = (value;): i32 { value + 2 }
+    action()
+}
+```
+
+Environment formation and destruction have their own ordinary operations. A closure whose body
+is unavailable for constant invocation may still be formed and discarded during evaluation when
+those environment operations are eligible. Forming it does not execute its body or require the
+bodies of dormant named values. Ordinary definition typing and safety remain mandatory before
+whole-unit acceptance. Type/witness suppliers needed to resolve the definition remain real
+dependencies; they are distinct from executing a body.
+
+An actual captured invocation needs the selected body's availability and evaluator plan, including
+transitive selected operations. A statically forbidden operation in its body is not excused by an
+ordinary unevaluated branch. Preserve its local cause through captured calls. Recursive availability
+components supply no missing capability; eligible recursion still needs independent evaluator
+budgets. Transferred invocation views use ordinary environment ownership and adapter cleanup,
+without reclassifying a borrowed body input as body-owned destruction. None of these temporary
+operations admits callable environments as final serialized constants.
+
 ## Conditional Generic Const Contracts
 
 ### Ordinary Validity and Required Evaluation

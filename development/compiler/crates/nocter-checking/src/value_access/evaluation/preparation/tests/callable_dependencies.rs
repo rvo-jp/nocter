@@ -1,29 +1,15 @@
 //! Required call closure follows resolved invocation, not dormant function-value formation.
 use super::*;
 
-fn answer(source: &str) {
-    let (sources, tree) = input(source);
-    let unit = accepted::SourceUnit::prepare(bound(&sources, &tree))
-        .unwrap_or_else(|failure| panic!("{source}: {failure:?}"))
-        .into_unit();
-    let id = unit
-        .program()
-        .resolve_constant(unit.program().symbols().get("ANSWER").unwrap())
-        .unwrap();
-    assert_eq!(
-        unit.constant_value(id),
-        Some(&state::Value::integer(42).freeze())
-    );
-}
 #[test]
 fn a_factory_only_result_call_loads_its_resolved_named_body() {
-    answer(
+    assert_answer_42(
         "const func increment(value: i32): i32 { value + 1 }\nconst func factory(): func(i32): i32 { increment }\nconst ANSWER: i32 = factory()(41)",
     );
 }
 #[test]
 fn a_dormant_const_value_does_not_create_an_initializer_body_cycle() {
-    answer(
+    assert_answer_42(
         "const func deferred(): i32 { ANSWER }\nconst func calculate(): i32 { let unused = deferred\ndrop unused\n42 }\nconst ANSWER: i32 = calculate()",
     );
 }
@@ -34,19 +20,19 @@ fn resolved_named_targets_close_transitive_and_recursive_call_bodies() {
         "const func increment(value: i32): i32 { value + 1 }\nconst func twice(value: i32): i32 { increment(increment(value)) }\nconst func factory(): func(i32): i32 { twice }\nconst ANSWER: i32 = factory()(40)",
         "const func descend(value: i32): i32 { if value == 0 { 42 } else { descend(value - 1) } }\nconst func factory(): func(i32): i32 { descend }\nconst ANSWER: i32 = factory()(4)",
     ] {
-        answer(source);
+        assert_answer_42(source);
     }
 }
 #[test]
 fn a_factory_only_result_call_can_supply_an_independent_local_count() {
-    answer(
+    assert_answer_42(
         "const func increment(value: usize): usize { value + 1 }\nconst func factory(): func(usize): usize { increment }\nconst ANSWER: i32 = if true { let values: [i32; factory()(41)] = [0; 42]\n42 } else { 0 }",
     );
 }
 
 #[test]
 fn resolved_target_effects_close_before_numeric_prefix_admission() {
-    answer(
+    assert_answer_42(
         "const func increment(value: i32): i32 { value + 1 }\nconst func factory(): func(i32): i32 { increment }\nconst func calculate(): i32 { let items = [1, 2]\nvar index: usize = 0\nvar total = 0\nwhile index < 2 { let selected = items[index]^\ntotal += factory()(selected)\nindex += 1 }\nif total == 5 { 42 } else { 0 } }\nconst ANSWER: i32 = calculate()",
     );
 }

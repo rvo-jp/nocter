@@ -1,0 +1,73 @@
+struct Item { value: i32 }
+const func increment(value: i32): i32 { value + 1 }
+func runtime_only(): i32 { 1 / 0 }
+const func reading(): i32 {
+    let value = 40
+    let action = (value;): i32 { value + 2 }
+    action()
+}
+const func read_views(): i32 {
+    let value = 40
+    var editing: mut(): i32 = (value;): i32 { value + 2 }
+    let taking: once(): i32 = (value;): i32 { value + 2 }
+    if editing() == 42 && taking() == 42 && taking^() == 42 { 42 } else { 0 }
+}
+const func edited(): i32 {
+    let value = 40
+    var action = (value;): i32 { value += 1
+                                value }
+    let first = action()
+    let second = action()
+    if first == 41 && second == 42 && value == 40 { 42 } else { 0 }
+}
+const func copied_once(): i32 {
+    let value = 40
+    let action: once(): i32 = (value;): i32 { value += 1
+                                           value }
+    let first = action()
+    let second = action^()
+    if first == 41 && second == 41 && value == 40 { 42 } else { 0 }
+}
+const func consuming(): i32 {
+    let item = Item { value: 42 }
+    let action = (item^;): i32 { let moved = item^
+                                moved.value }
+    action^()
+}
+const func consuming_copy(): i32 {
+    let value = 40
+    let action = (value;): i32 { let moved = value^
+                                moved + 2 }
+    if action() == 42 && action^() == 42 { 42 } else { 0 }
+}
+const func nested(): i32 {
+    let value = 40
+    let inner = (value;): i32 { increment(value) }
+    let outer = (inner;): i32 { inner() + 1 }
+    if outer() == 42 && inner() == 41 { 42 } else { 0 }
+}
+const func make(value: i32): func(): i32 { (value;): i32 { value + 2 } }
+const func factory_result(): i32 {
+    let first = make(40)
+    let second = make(41)
+    if first() == 42 && second() == 43 && first() == 42 && make(40)() == 42 { 42 } else { 0 }
+}
+const func explicit_inputs(): i32 {
+    let amount = 1
+    let action = (amount; edit value: i32): void { value += amount }
+    var value = 40
+    action(value)
+    action(value)
+    value
+}
+const func dormant(): i32 {
+    let value = 40
+    let action = (value;): i32 { runtime_only() }
+    drop action
+    42
+}
+const func calculate(): i32 {
+    if reading() == 42 && read_views() == 42 && edited() == 42 && copied_once() == 42 && consuming() == 42 && consuming_copy() == 42 && nested() == 42 && factory_result() == 42 && explicit_inputs() == 42 && dormant() == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { if ANSWER == 42 && calculate() == 42 { 42 } else { 0 } }

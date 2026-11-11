@@ -117,7 +117,8 @@ registry is created. The backing slot is private to input binding: ordinary oper
 cannot address it directly. Frozen taking values survive caller retirement, and ending the frame
 releases adapter backing before the caller stores the answer. Closed-plan cases qualify persistent
 updates, independent taking copies, consuming bodies, exact call-depth accounting, invalid backing
-and storage-failure recovery. They do not themselves enable source const invocation of closures.
+and storage-failure recovery. Source admission is owned by the [checking domain](../nocter-checking/README.md#constant-domain-acceptance),
+including its independent invocation-availability facts.
 
 A selected comparison with a fixed result arrives as a literal operation after the original
 operand actions. This does not authorize skipping calls, access validation or failure before that

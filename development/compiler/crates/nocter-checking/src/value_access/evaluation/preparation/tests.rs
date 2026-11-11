@@ -5,7 +5,23 @@ use nocter_declarations::value_access::PayloadSchema;
 use std::{fmt::Write as _, sync::Arc};
 mod array_construction;
 mod callable_dependencies;
+mod captured_execution;
 mod local_expressions;
+
+fn assert_answer_42(source: &str) {
+    let (sources, tree) = input(source);
+    let unit = accepted::SourceUnit::prepare(bound(&sources, &tree))
+        .unwrap_or_else(|failure| panic!("{source}: {failure:?}"))
+        .into_unit();
+    let id = unit
+        .program()
+        .resolve_constant(unit.program().symbols().get("ANSWER").unwrap())
+        .unwrap();
+    assert_eq!(
+        unit.constant_value(id),
+        Some(&state::Value::integer(42).freeze())
+    );
+}
 
 #[test]
 fn required_values_prepare_deep_shared_headers_without_recursive_queries_or_call_depth_charges() {

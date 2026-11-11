@@ -5,7 +5,10 @@ use nocter_declaration_lowering::access_declarations::Context as DeclarationCont
 use nocter_declarations::value_access::Program;
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{AccessCodeId, TypeId};
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 #[derive(Debug)]
 pub enum Failure {
@@ -249,10 +252,13 @@ pub(super) struct Resolved {
     result_evidence: Arc<super::results::Evidence>,
 }
 impl Resolved {
-    pub(super) fn roots(&self) -> impl Iterator<Item = (nocter_model::ValueCodeRoot, &TypedQuery)> {
-        self.controls
-            .iter()
-            .map(|(&root, control)| (root, control.typed.as_ref()))
+    pub(super) fn scope(
+        &self,
+    ) -> Result<BTreeMap<nocter_model::ValueCode, &TypedQuery>, flow::IntegrityError> {
+        Ok(flow::scope(self.controls.values())?
+            .into_iter()
+            .map(|(code, control)| (code, control.typed.as_ref()))
+            .collect())
     }
 }
 pub(super) fn resolve_queries(
@@ -281,11 +287,12 @@ pub(super) fn check_queries(
     context: &DeclarationContext<'_>,
     queries: BTreeMap<nocter_model::ValueCodeRoot, TypedQuery>,
 ) -> Result<Checked, Failure> {
-    admit_resolved(context, resolve_queries(context, queries)?)
+    admit_resolved(context, resolve_queries(context, queries)?, None)
 }
 pub(super) fn admit_resolved(
     context: &DeclarationContext<'_>,
     resolved: Resolved,
+    invoked: Option<&BTreeSet<nocter_model::ValueCode>>,
 ) -> Result<Checked, Failure> {
     let Resolved {
         program,
@@ -301,6 +308,9 @@ pub(super) fn admit_resolved(
     let mut closures = BTreeMap::new();
     for (root, control) in controls {
         for (code, nested) in flow::scope([&control]).map_err(Failure::Integrity)? {
+            if invoked.is_some_and(|set| !set.contains(&code)) {
+                continue;
+            }
             let nocter_model::ValueCode::Closure(id) = code else {
                 continue;
             };
@@ -312,11 +322,29 @@ pub(super) fn admit_resolved(
                 ));
             }
         }
-        let query = control.finish(&writes).map_err(Failure::Integrity)?;
-        let query = admit(query, &verified)?;
-        bodies.insert(root, query);
+        if invoked.is_none_or(|set| set.contains(&root.code())) {
+            let query = control.finish(&writes).map_err(Failure::Integrity)?;
+            let query = admit(query, &verified)?;
+            bodies.insert(root, query);
+        }
     }
-    for (&root, query) in &bodies {
+    check_const_bodies(&program, &bodies, &closures, &verified)?;
+    Ok(Checked {
+        program,
+        bodies,
+        closures,
+        result_evidence,
+    })
+}
+fn check_const_bodies(
+    program: &Program,
+    bodies: &BTreeMap<nocter_model::ValueCodeRoot, flow::Query>,
+    closures: &BTreeMap<nocter_model::ValueClosure, flow::Query>,
+    verified: &super::results::Verified<'_, '_>,
+) -> Result<(), Failure> {
+    let availability =
+        super::constant::Availability::prepare(closures).map_err(Failure::Integrity)?;
+    for (&root, query) in bodies {
         let callable = root.source_owner();
         let evaluatable = match root {
             nocter_model::ValueCodeRoot::Declaration(id) => {
@@ -332,13 +360,18 @@ pub(super) fn admit_resolved(
             nocter_model::ValueCodeRoot::Expression(_) => true,
         };
         if evaluatable
-            && let Some(violation) = super::constant::check(query).map_err(Failure::Integrity)?
+            && let Some(violation) =
+                super::constant::check(query, &|code| availability.available(code))
+                    .map_err(Failure::Integrity)?
         {
             let bound = query
-                .bind_verified(&verified)
+                .bind_verified(verified)
                 .map_err(|failure| Failure::Body { callable, failure })?;
-            let diagnostic = violation
+            let mut diagnostic = violation
                 .project(&bound)
+                .map_err(|failure| Failure::Body { callable, failure })?;
+            availability
+                .annotate(diagnostic.rule(), &mut diagnostic, closures, verified)
                 .map_err(|failure| Failure::Body { callable, failure })?;
             return Err(Failure::Const {
                 callable,
@@ -346,12 +379,7 @@ pub(super) fn admit_resolved(
             });
         }
     }
-    Ok(Checked {
-        program,
-        bodies,
-        closures,
-        result_evidence,
-    })
+    Ok(())
 }
 fn admit(
     query: flow::Query,

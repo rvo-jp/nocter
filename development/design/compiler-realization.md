@@ -90,16 +90,13 @@ without accepting capability cycles or mistaking budget exhaustion for nontermin
 constant-argument and further structural requests must use the same dependency protocol; no stage
 may publish fabricated type/constant placeholders to break a cycle.
 
-Close exact captured-code evaluation by separating environment formation/destruction from body
-invocation eligibility. Derive per-witness availability with the checked code, independently of
-func/mut/once and Copy; do not grant a named runtime helper const capability by inspecting its body.
-A dormant runtime-only body need not prevent eligible environment transport. An actual invocation
-must retain local forbidden-operation causes and the selected code's input/cleanup obligations.
-Taking invocation views of read/edit bodies need stable owned adapter backing, destroyed before
-answer receipt without transferring body-owned destruction to a second registry. Qualify these
-through ordinary source and the existing evaluator budgets before admitting captured calls; the
-closed payload/lexical-plan representation alone is insufficient. Final callable serialization
-and general formal callable substitution remain separate boundaries.
+Extend captured evaluation to the adopted general capture/input dependencies, contextual and
+multiple captures, and formal callable substitution. Preserve definition-time witness availability
+and local causes without inferring const for named runtime implementations. General R/D/S and
+survival must qualify transferred-view backing and answer receipt before dependent references or
+nontrivial cleanup enter evaluation. Symbolic generic/witness/resource-existence conditions and
+exported products use the same checked program; no new source annotations or parallel instance/type
+authority can substitute for those proofs. Final callable serialization remains a separate boundary.
 
 ### Structural Type Request Closure
 

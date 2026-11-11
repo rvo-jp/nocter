@@ -505,3 +505,13 @@ fn private_const_named_values_use_the_same_runtime_body_and_embedded_answer() {
     let package = TempPackage::new();
     execute_native_status(&compile(source), &package.0, "const-named-values", 42);
 }
+
+#[test]
+fn private_const_captured_values_share_runtime_views_and_environment_semantics() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/const-captured-values.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "const-captured-values", 42);
+}

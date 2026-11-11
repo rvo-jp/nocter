@@ -562,7 +562,7 @@ pass ordinary typing, initialization, access and resource validation.
 
 `value_access::constant` owns this bounded domain check. It admits primitive Boolean/i32/usize/unit
 operations, finite record/tuple/array payload compositions of supported data, local values, read/edit aliases,
-updates, structured control, explicit transfer, exact named function values and their const calls. Aggregate admission is independent of Copy and
+updates, structured control, explicit transfer, exact named values and eligible owned captured calls. Aggregate admission is independent of Copy and
 memoized by data identity rather than expanded through shared fields. `evaluation::types` is the
 single shape projection used by const-domain validation, final-data admission and closed-plan
 construction; homogeneous arrays retain an element ID and u64 count, never expanded type lists.
@@ -580,12 +580,25 @@ original argument positions and preparation effects. Known factories, array-sele
 scoped views and edited ordinary inputs use the same executor and runtime body. Dormant runtime-only
 named values may be formed and destroyed, but every authored invocation still requires const evidence,
 including dead source. Callable-bearing tuples and nonempty arrays are temporary data without final
-constant-publication permission. Exact captured schemas also project their environment shape for
-internal payload transport, independently of source const eligibility. Captured formation/invocation,
-formal/unresolved callable values and opaque error-data operations still have no source evaluator
-domain here. A named actual argument cannot substitute for an
-unclosed formal input representation, even when that parameter is unused. Domain checking reports
-the actual input before plan projection; interrupted preparation never fabricates a completed call.
+constant-publication permission. Exact owned captured code derives invocation availability from its
+ordinary checked operations, input shapes and actual cleanup. `constant::captured` closes transitive
+captured-call facts and retains local failure causes; recursion supplies no missing fact. This does
+not infer const for a named runtime helper. Formation/destruction of an eligible environment is
+independent of body availability: a dormant runtime-only body can be formed and discarded. A called
+unavailable body reports E0421 at its actual call, with causal locations in its own lexical code.
+The same definition/body and inferred func/mut/once contract serve runtime and required evaluation.
+
+The private source corpus qualifies one explicit owned capture with nested captured/named values,
+read/edit/consuming bodies, weaker read/edit/once views, independent Copy snapshots, explicit edited
+inputs, factory-only results and per-instance state. The shared native source compares embedded
+answers with ordinary execution. Arithmetic, bounds, work and call-depth failures retain actual
+captured-body locations. Captured calls can also supply local/header array counts; supplier body
+changes invalidate header reuse while unrelated body edits do not. General contextual/multiple
+captures, outside R/D/S dependencies, formal callable substitution and opaque error-data operations
+remain outside this evaluator domain. A named actual argument cannot stand in for an unclosed
+formal input representation, even when unused. Domain checking reports the actual input before
+projection; interrupted preparation never fabricates a completed call.
+
 Explicit unsupported drops fail even in dead source. Implicit disposal and edit-input replacement
 consume the actual sparse resource transitions; ending a partial container does not destroy its
 missing payload again. An unused read input has no owned cleanup, and an interrupted known result
@@ -641,15 +654,22 @@ before conditional completion, reachable breaks, capture invocation inference or
 All authored source remains structurally checked, including unevaluated branches. Selected const
 callees are prepared through authored call edges and concrete targets revealed by result resolution;
 callable-only recursion remains a graph, while a constant reference requests a value and exposes an
-active declaration cycle. Forming a dormant named value does not request its body. The shared
-`accepted::Resolved` stage closes canonical typing, results and control before effect-sensitive
-admission. If that closure reveals another target, preparation loads its ordinary body fact and
-resolves the expanded set through the same authority; raw completed body facts remain unchanged.
-Only the closed call set proceeds to writes, numerical/resource checks, const admission and plans.
-One parent call edge per reached root reconstructs dependency notes on demand, instead of retaining
-complete paths at every root. Source cases qualify factory-only results, recursive/transitive
-bodies, independent local counts, prefix inference and actual failure causes without dormant-body
-initializer cycles.
+active declaration cycle. `accepted::Resolved` owns canonical typing, result and control closure
+before effect-sensitive admission. Preparation tracks full lexical code with two demands: definition
+type/witness suppliers and invocation. A dormant named value needs no body; an uninvoked captured
+body can still need a callable-result supplier to finish its definition. Those type suppliers do
+not make their scalar helpers execution dependencies.
+
+If result closure reveals another target, preparation requests its ordinary body fact and resolves
+the expanded set through that same authority. Raw completed body facts remain unchanged. Only code
+needed for the required invocation closure proceeds to flow/resource/const admission and plans at
+that stage. Whole-unit acceptance subsequently validates every definition, including dormant code;
+an early valid value cannot publish an invalid Unit. One parent edge per needed code reconstructs
+diagnostic paths on demand, distinguishing construction/type dependencies from invoked captured
+code. Demand only grows from types to invocation, without an iteration cutoff. Source cases qualify
+factory-only results, recursive/transitive bodies, independent counts, prefix inference, failure
+causes and dormant-code cycles through this common path.
+
 
 Header, body and value requests advance through explicit dependency groups, without host recursion
 through constant chains. A body draft requests its missing contract/value or static prerequisite;

@@ -12,9 +12,9 @@ use nocter_declaration_lowering::access_declarations::{self as declarations, Con
 use nocter_declarations::value_access::DeclarationId;
 use nocter_dependency_query::{DependencyProgress, DependencyQueryError, DependencyStep};
 use nocter_diagnostics::SourceDiagnostic;
-use nocter_model::{AccessCodeId, ValueCodeRoot, ValueExpression, ValueFunctionOrigin};
+use nocter_model::{AccessCodeId, ValueCode, ValueCodeRoot, ValueExpression, ValueFunctionOrigin};
 use nocter_syntax::SyntaxOrigin;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 #[cfg(test)]
 mod tests;
 type Failure = accepted::Failure;
@@ -35,26 +35,40 @@ enum DependencyCause {
     Value(SyntaxOrigin),
     Calls(Vec<SyntaxOrigin>),
 }
+#[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
+enum Demand {
+    Types,
+    Invoke,
+}
 #[derive(Clone, Copy)]
 struct CallOrigin {
-    parent: ValueCodeRoot,
+    parent: ValueCode,
     site: SyntaxOrigin,
 }
+#[derive(Clone, Copy)]
+struct Needed {
+    demand: Demand,
+    origin: Option<CallOrigin>,
+}
 fn call_path(
-    selected: &BTreeMap<ValueCodeRoot, Option<CallOrigin>>,
+    selected: &BTreeMap<ValueCode, Needed>,
     mut edge: Option<CallOrigin>,
 ) -> Result<Vec<SyntaxOrigin>, Failure> {
     let mut path = Vec::new();
     while let Some(origin) = edge {
         path.push(origin.site);
-        edge = *selected.get(&origin.parent).ok_or(INVALID)?;
+        edge = selected.get(&origin.parent).ok_or(INVALID)?.origin;
     }
     path.reverse();
     Ok(path)
 }
+struct Ready {
+    resolved: accepted::Resolved,
+    invoked: BTreeSet<ValueCode>,
+}
 enum GraphProgress {
     Require(ValueCodeRoot, Vec<SyntaxOrigin>),
-    Ready(accepted::Resolved),
+    Ready(Ready),
 }
 pub(in crate::value_access) fn prepare(
     context: &Context<'_>,
@@ -393,84 +407,111 @@ impl<'a, 'source> Preparation<'a, 'source> {
             }),
         })
     }
-    fn callees(&self, query: &Query) -> Result<Vec<(AccessCodeId, SyntaxOrigin)>, Failure> {
+    fn requirements(
+        &self,
+        query: &Query,
+        demand: Demand,
+    ) -> Result<Vec<(ValueCode, Demand, SyntaxOrigin)>, Failure> {
         let bound = query.bind(&self.context).map_err(|failure| Failure::Body {
             callable: query.code().source_owner(),
             failure,
         })?;
-        query
-            .body()
-            .expressions()
-            .iter()
-            .filter_map(|(id, expression)| {
-                let ExpressionKind::Call {
+        let mut dependencies = Vec::new();
+        for (id, expression) in query.body().expressions().iter() {
+            let target = match expression.kind {
+                ExpressionKind::Closure { closure, .. } => {
+                    Some((ValueCode::Closure(closure), Demand::Types))
+                }
+                ExpressionKind::Call {
                     target: ValueFunctionOrigin::Declaration(target),
                     ..
-                } = expression.kind
-                else {
-                    return None;
-                };
-                Some(
-                    bound
-                        .expression_origin(id)
-                        .ok_or(INVALID)
-                        .map(|origin| (target, origin)),
-                )
-            })
-            .collect()
+                } => {
+                    if demand == Demand::Invoke {
+                        Some((target.into(), Demand::Invoke))
+                    } else if query
+                        .program()
+                        .codes()
+                        .get(target)
+                        .ok_or(INVALID)?
+                        .result_contract()
+                        .is_some()
+                    {
+                        Some((target.into(), Demand::Types))
+                    } else {
+                        None
+                    }
+                }
+                ExpressionKind::Call {
+                    target: ValueFunctionOrigin::Closure(target),
+                    ..
+                } if demand == Demand::Invoke => Some((ValueCode::Closure(target), Demand::Invoke)),
+                _ => None,
+            };
+            if let Some((target, demand)) = target {
+                dependencies.push((target, demand, bound.expression_origin(id).ok_or(INVALID)?));
+            }
+        }
+        Ok(dependencies)
     }
     fn graph(
         &self,
         requests: &Dependencies,
         root: ValueCodeRoot,
     ) -> Result<GraphProgress, SourceFailure> {
-        let mut selected = BTreeMap::new();
-        let mut pending = vec![(root, None)];
+        let mut selected = BTreeMap::<ValueCode, Needed>::new();
+        let mut pending = vec![(root.code(), Demand::Invoke, None)];
         loop {
-            while let Some((id, through)) = pending.pop() {
-                if selected.contains_key(&id) {
+            while let Some((code, demand, origin)) = pending.pop() {
+                if selected
+                    .get(&code)
+                    .is_some_and(|needed| needed.demand >= demand)
+                {
                     continue;
                 }
-                let Some(query) = dependencies::body(requests, id) else {
-                    return Ok(GraphProgress::Require(id, call_path(&selected, through)?));
-                };
-                // Authored calls include dead source. A function reference alone is not a
-                // body dependency: dormant formation must not invent initializer cycles.
-                for (target, origin) in self.callees(query)? {
-                    pending.push((
-                        target.into(),
-                        Some(CallOrigin {
-                            parent: id,
-                            site: origin,
-                        }),
+                let Some(root_query) = dependencies::body(requests, code.root()) else {
+                    return Ok(GraphProgress::Require(
+                        code.root(),
+                        call_path(&selected, origin)?,
                     ));
+                };
+                let nested;
+                let query = if root_query.code() == code {
+                    root_query
+                } else {
+                    nested = super::super::flow::scope(root_query.closures.values())
+                        .map_err(Failure::Integrity)?;
+                    nested.get(&code).ok_or(INVALID)?.typed.as_ref()
+                };
+                selected.insert(code, Needed { demand, origin });
+                for (target, needed, site) in self.requirements(query, demand)? {
+                    pending.push((target, needed, Some(CallOrigin { parent: code, site })));
                 }
-                selected.insert(id, through);
             }
-            let queries = selected
-                .keys()
-                .map(|&id| Ok((id, dependencies::body(requests, id).ok_or(INVALID)?.clone())))
+            let roots: BTreeSet<_> = selected.keys().map(|code| code.root()).collect();
+            let queries = roots
+                .into_iter()
+                .map(|id| Ok((id, dependencies::body(requests, id).ok_or(INVALID)?.clone())))
                 .collect::<Result<_, Failure>>()?;
-            // Result resolution can reveal another concrete call target. Close that dependency
-            // before write-sensitive flow, const admission or plan projection, through the same
-            // canonical/result authority used by final Unit acceptance.
             let resolved = accepted::resolve_queries(&self.context, queries)?;
-            for (id, query) in resolved.roots() {
-                for (target, origin) in self.callees(query)? {
-                    let target = ValueCodeRoot::from(target);
-                    if !selected.contains_key(&target) {
-                        pending.push((
-                            target,
-                            Some(CallOrigin {
-                                parent: id,
-                                site: origin,
-                            }),
-                        ));
+            for (code, query) in resolved.scope().map_err(Failure::Integrity)? {
+                let Some(needed) = selected.get(&code) else {
+                    continue;
+                };
+                for (target, demand, site) in self.requirements(query, needed.demand)? {
+                    if selected
+                        .get(&target)
+                        .is_none_or(|needed| needed.demand < demand)
+                    {
+                        pending.push((target, demand, Some(CallOrigin { parent: code, site })));
                     }
                 }
             }
             if pending.is_empty() {
-                return Ok(GraphProgress::Ready(resolved));
+                let invoked = selected
+                    .into_iter()
+                    .filter_map(|(code, needed)| (needed.demand == Demand::Invoke).then_some(code))
+                    .collect();
+                return Ok(GraphProgress::Ready(Ready { resolved, invoked }));
             }
         }
     }
@@ -508,8 +549,8 @@ impl<'a, 'source> Preparation<'a, 'source> {
                 Request::Body(target),
                 DependencyCause::Calls(through),
             )),
-            GraphProgress::Ready(resolved) => self
-                .execute(requests, id, result_data, resolved)
+            GraphProgress::Ready(ready) => self
+                .execute(requests, id, result_data, ready)
                 .map(|value| DependencyStep::Complete(Fact::Value(value)))
                 .map_err(Into::into),
         }
@@ -519,11 +560,12 @@ impl<'a, 'source> Preparation<'a, 'source> {
         requests: &Dependencies,
         id: ValueCodeRoot,
         result_data: nocter_model::TypeId,
-        resolved: accepted::Resolved,
+        ready: Ready,
     ) -> Result<Completed, Failure> {
         // This is the ordinary acceptance routine over the selected const closure, not another
         // source checker or evaluator. Only established frozen data crosses into final Unit typing.
-        let checked = accepted::admit_resolved(&self.context, resolved)?;
+        let checked =
+            accepted::admit_resolved(&self.context, ready.resolved, Some(&ready.invoked))?;
         if !super::super::constant::supports_final(&checked.program, result_data)
             .map_err(Failure::Integrity)?
         {

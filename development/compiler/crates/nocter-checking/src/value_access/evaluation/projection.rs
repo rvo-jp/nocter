@@ -434,7 +434,7 @@ impl Builder<'_, '_> {
     }
     fn call(&mut self, id: AccessExpressionId) -> Result<plan::Operation> {
         let ExpressionKind::Call {
-            target: nocter_model::ValueFunctionOrigin::Declaration(target),
+            target,
             arguments,
             kind,
         } = &self
@@ -448,12 +448,26 @@ impl Builder<'_, '_> {
         else {
             return Err(INVALID);
         };
-        let target = *target;
+        let (target, captured) = match *target {
+            nocter_model::ValueFunctionOrigin::Declaration(code) => {
+                (nocter_model::ValueCode::Declaration(code), false)
+            }
+            nocter_model::ValueFunctionOrigin::Closure(code)
+                if *kind == super::super::CallKind::Value =>
+            {
+                (nocter_model::ValueCode::Closure(code), true)
+            }
+            _ => return Err(INVALID),
+        };
         let arguments = arguments.clone();
         let mut inputs = Vec::new();
-        let offset = arguments.len() - kind.explicit_arguments(&arguments).ok_or(INVALID)?.len();
+        let offset = if captured {
+            0
+        } else {
+            arguments.len() - kind.explicit_arguments(&arguments).ok_or(INVALID)?.len()
+        };
         for (index, argument) in arguments.iter().enumerate().skip(offset) {
-            let place = match &argument.action {
+            let mut place = match &argument.action {
                 ArgumentAction::ReserveRead(place) | ArgumentAction::ReserveUpdate(place) => {
                     self.referent(*place)?
                 }
@@ -479,6 +493,14 @@ impl Builder<'_, '_> {
                 | ArgumentAction::Unproduced
                 | ArgumentAction::Interrupted => return Err(INVALID),
             };
+            if captured && index == 0 {
+                place.fields = place
+                    .fields
+                    .iter()
+                    .copied()
+                    .chain([plan::Projection::Field(0)])
+                    .collect();
+            }
             inputs.push(plan::Input {
                 operation: argument.operation,
                 place,
@@ -486,7 +508,7 @@ impl Builder<'_, '_> {
         }
         Ok(plan::Operation::Call {
             destination: self.holder(Holder::Expression(id))?,
-            target: target.into(),
+            target,
             inputs: inputs.into(),
         })
     }

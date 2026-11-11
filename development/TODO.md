@@ -18,11 +18,11 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Extend the result-resolved evaluator call closure to captured code. Close per-witness invocation
-eligibility and frozen environment/adapter handoff using declaration-owned schemas and existing
-budgets. Qualify read/edit/take bodies, taking adapters, independent copies and local domain
-failures through ordinary source. General formal substitution and final callable serialization
-remain separate boundaries.
+Generalize explicit owned closure environments beyond one capture. Preserve one declaration-owned
+payload schema and one body environment input, infer invocation from actual component operations,
+and qualify empty/multiple captures through ordinary flow, required evaluation and native execution.
+Keep contextual outside-reference capture, general formal substitution and final callable
+serialization separate; no duplicate capture owner or alternate invocation path is permitted.
 
 ## Retained Selection Closure
 
@@ -61,7 +61,7 @@ not a language restriction derived from the current realization boundary.
   representations. No constant-index-only policy or source-level cardinality ceiling substitutes
   for the required proofs.
 - [ ] Close remaining value/access/type and callable behavior: contextual/multiple/general capture dependencies,
-  evaluator closure construction/invocation/cleanup, general R/D/S and survival,
+  general evaluator capture/input dependencies and formal substitution, general R/D/S and survival,
   interfaces/generics/witnesses, constant arguments and symbolic conditions,
   exports and conditional const admission. Follow the [realization obligations](design/compiler-realization.md)
   and owning specifications, with ordinary source evidence for safe and unsafe cases.
