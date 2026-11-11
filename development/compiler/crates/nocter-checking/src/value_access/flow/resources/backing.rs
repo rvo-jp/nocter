@@ -1,4 +1,4 @@
-//! A retained numeric index is an ordinary scalar owner, linked by the missing resource path.
+//! Saved indices and prefix endpoints are scalar owners linked by sparse missing coverage.
 use super::{Holder, INVALID, Index, OwnedValue, Path, Place, Program, Result, State, Step};
 use nocter_declarations::value_access::PayloadSchema;
 use nocter_model::{BuiltinType, ValuePath, ValueProjection};
@@ -75,18 +75,16 @@ impl State {
     }
     /// Called only after the operation that consumes the old path. Physical consumers still
     /// need its numeric backing during replacement or remainder cleanup.
-    pub(super) fn retire_unused_snapshots(&mut self, steps: &mut Vec<Step>) -> Result<()> {
+    pub(super) fn retire_unused_backing(&mut self, steps: &mut Vec<Step>) -> Result<()> {
         let live: BTreeSet<_> = self
             .owned
             .values()
-            .flat_map(|value| value.missing.iter().flat_map(Path::retained))
+            .flat_map(|value| value.missing.iter().flat_map(super::Missing::backing))
             .collect();
         let retired: Vec<_> = self
             .owned
             .keys()
-            .filter(
-                |holder| matches!(holder, Holder::IndexSnapshot(index) if !live.contains(index)),
-            )
+            .filter(|holder| holder.is_backing() && !live.contains(holder))
             .copied()
             .collect();
         for holder in retired {

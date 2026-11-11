@@ -1,10 +1,11 @@
 //! Source-qualified concrete and retained whole-element holes; general frontiers remain gated.
 use super::initializers::answer;
 use super::*;
+use crate::value_access::ExpressionKind;
 use nocter_constant_evaluation::state::Value as Datum;
 
 #[test]
-fn retained_element_sources_and_whole_replacement_backedges_execute() {
+fn retained_element_sources_and_point_or_prefix_backedges_execute() {
     for &(_, source) in nocter_test_support::RETAINED_ARRAY_SOURCES {
         assert_eq!(
             answer(&format!("{source}\nconst ANSWER: i32 = run()"), "ANSWER"),
@@ -14,7 +15,100 @@ fn retained_element_sources_and_whole_replacement_backedges_execute() {
 }
 
 #[test]
-fn dynamic_holes_block_unproved_reads_restoration_and_repeated_recipe_execution() {
+fn point_restoration_before_a_later_prefix_epoch_keeps_its_ordinary_transition() {
+    let source = nocter_test_support::RETAINED_ARRAY_SOURCES
+        .iter()
+        .find(|(name, _)| *name == "dynamic-element-prefix-epochs")
+        .unwrap()
+        .1;
+    let unit = accepted(source);
+    let query = named(&unit, "run");
+    let first = query
+        .typed()
+        .body()
+        .expressions()
+        .iter()
+        .find_map(|(_, expression)| match expression.kind {
+            ExpressionKind::Move(crate::value_access::Referent::Evaluated(selection)) => {
+                Some(selection)
+            }
+            _ => None,
+        })
+        .unwrap();
+    let trace = super::support::steps(query);
+    assert!(
+        trace
+            .iter()
+            .any(|step| matches!(step, Step::MoveArrayElement { .. }))
+    );
+    assert!(!trace.iter().any(|step| matches!(step,
+        Step::MoveArrayElement { index, .. } if index.selection() == first)));
+}
+
+#[test]
+fn cancelling_a_tail_reservation_preserves_the_last_committed_prefix() {
+    let source = nocter_test_support::RETAINED_ARRAY_SOURCES
+        .iter()
+        .find(|(name, _)| *name == "dynamic-element-prefix-array-cancel")
+        .unwrap()
+        .1;
+    let unit = accepted(source);
+    let query = named(&unit, "work");
+    let cancelled = query
+        .typed()
+        .body()
+        .expressions()
+        .iter()
+        .find_map(|(_, expression)| {
+            let ExpressionKind::Call { ref arguments, .. } = expression.kind else {
+                return None;
+            };
+            match arguments.first()?.action {
+                crate::value_access::ArgumentAction::ReserveTransfer {
+                    place: crate::value_access::Referent::Evaluated(id),
+                    ..
+                } => Some(id),
+                _ => None,
+            }
+        })
+        .unwrap();
+    let trace = super::support::steps(query);
+    assert!(
+        trace
+            .iter()
+            .any(|step| matches!(step, Step::ConsolidateArrayPrefix { .. }))
+    );
+    assert!(!trace.iter().any(|step| matches!(step,
+        Step::MoveArrayElement { index, .. } if index.selection() == cancelled)));
+    assert!(!trace.iter().any(|step| matches!(step,
+        Step::Move { destination, .. } if matches!(destination.holder(), crate::value_access::flow::resources::Holder::IndexSnapshot(_)))));
+    assert!(
+        query
+            .graph()
+            .points()
+            .iter()
+            .any(|(_, point)| point.actions.iter().any(|action| matches!(
+                action.operation,
+                flow::Operation::CancelCall { prepared: 1, .. }
+            )))
+    );
+    // The same source recipe is insufficient: a cancelled reservation still needs an
+    // initialized element. Also keep a normally committed tail call gated until its atomic
+    // resource handoff consumes the prefix proof.
+    for source in [
+        source.replace("items[index + 1]^", "items[index]^"),
+        source.replace("if true { return total } else { 0 }", "0"),
+    ] {
+        let (sources, tree) = input(&source);
+        assert!(matches!(
+            SourceUnit::prepare(bound(&sources, &tree)),
+            Err(SourceFailure::Checking(Failure::Flow { .. }))
+        ));
+    }
+}
+
+#[test]
+fn dynamic_holes_block_unproved_reads_restoration_and_nonprogressing_recipe_execution() {
     for after in [
         "read later = items",
         "read later = items[index]",
@@ -35,9 +129,9 @@ fn dynamic_holes_block_unproved_reads_restoration_and_repeated_recipe_execution(
         );
     }
     let (sources, tree) = input(
-        "struct Item { value: i32 }\nfunc work(take items: [Item; 2]): void { var index: usize = 0\nwhile index < 2 { let selected = items[index]^\nindex += 1 } }",
+        "struct Item { value: i32 }\nfunc work(take items: [Item; 2]): void { var index: usize = 0\nwhile index < 2 { let selected = items[index]^\nindex += 0 } }",
     );
-    // This needs finite progression evidence; a source recipe is not a fresh value generation.
+    // Re-executing a recipe does not supply the same moved element again.
     assert!(matches!(
         SourceUnit::prepare(bound(&sources, &tree)),
         Err(SourceFailure::Checking(Failure::Flow { .. }))

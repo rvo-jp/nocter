@@ -93,13 +93,15 @@ cleanup after that non-unwinding failure. The [native consumer](../nocter-machin
 The [private activation handoff](../../../architecture/pipeline/value-access-declarations.md#private-activation-storage-handoff)
 owns cross-stage ordering and remaining execution obligations.
 Sparse array cleanup freezes `DisposeArrayElements` with its containing array place and an
-`ArrayRange`: a half-open constant u64 interval, or the portion before/after a retained index slot.
-Constant validation requires `start < end <= length`. Retained spans require a payload usize
-`SlotKey::IndexSnapshot` whose original checked bound equals the positive array length. Slot role
+`ArrayRange`: a half-open constant u64 interval, or the portion before/through/after a saved index slot.
+Constant validation requires `start < end <= length`. Saved spans require a payload usize
+`SlotKey::IndexSnapshot` or `SlotKey::ArrayFrontier` whose original checked bound equals the positive array length. Slot role
 and representation mutants test this structural consumer contract; they do not prove snapshot
 initialization or executed native cleanup. [Source selection](../nocter-checking/README.md#array-selection)
-qualifies admission. `Projection::Index` uses the same checked snapshot-slot validation as cleanup
-spans, preserving its original bound while selecting element data. No span invents a subarray type or
+qualifies admission. `Projection::Index` requires the immutable snapshot role; an advancing frontier
+is not an element address. Prefix delivery uses an ordinary transfer from the actual evaluated alias.
+`ConsolidateArrayPrefix` retains its array and frontier roles as validated lifecycle metadata; native
+execution already implements the transfer, saved scalar and derived guard updates. No span invents a subarray type or
 expands element projections. Checking owns the surviving
 intervals and their order. The native consumer selects element geometry/helpers and qualifies
 executable scope; MIR does not infer source holes from byte offsets.

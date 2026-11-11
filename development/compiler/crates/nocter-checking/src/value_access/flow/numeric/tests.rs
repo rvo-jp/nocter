@@ -229,7 +229,7 @@ fn prefix_induction_reaches_a_finite_fixed_point_independent_of_array_count() {
             query.numeric.cells.count,
             query.numeric.entries.len(),
             query.numeric.cells.histories.len(),
-            query.numeric.prefixes.len(),
+            query.numeric.progressions.prefixes.len(),
         ));
     }
     assert!(sizes.windows(2).all(|pair| pair[0] == pair[1]));

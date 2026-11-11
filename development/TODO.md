@@ -24,12 +24,16 @@ ownership, sparse cleanup and the original source bounds disposition. A recipe k
 proves equal numbers across a backedge. Do not add a parallel ownership registry, N element owners,
 layout fields, generated operations, an arbitrary iteration cutoff or a constant-index-only policy.
 
-- [ ] Close finite repeated extraction without containing replacement using a compact proven
-  progression/frontier. Consume the checking-owned numerical prefix-extension facts through
+- [x] Close unit-stride repeated immediate extraction without containing replacement using a compact
+  proven prefix/frontier. Consume the checking-owned numerical prefix-extension facts through
   availability, guarded region transitions and execution. Preserve each normal bounds check,
   cancellation and exact cleanup when execution leaves before the user counter update. Do not
   overwrite a live selected-index owner or invent unbounded generations from repeated execution
   of the same source recipe.
+- [ ] Extend proven prefix extraction through normal taking call bundles, preserving frozen
+  arguments and atomic commit/cancellation. Reuse the same endpoint transition and resource ledger;
+  then close shared index-relation proofs and call write summaries before admitting general
+  multi-element bundles or carrying numerical prefixes across invocation.
 - [ ] Extend saved-index identity and initialization/cleanup to nested selectors, partial fields
   below a retained index, conditional restoration and multiple holes within one array. Keep
   unproved relations local and explicit. Do not read uninitialized alternative backing or choose
@@ -83,6 +87,10 @@ not a language restriction derived from the current realization boundary.
   publication is not implied by qualification.
 
 ## Open Findings
+
+- [x] Keep prefix-lifecycle selection within co-executed array epochs. A later prefix loop on
+  a replaced array must not reclassify an earlier point extraction/restoration on the same local.
+  Qualify the mixed source path through checking, required execution and native execution.
 
 - [ ] Investigate the unclassified status-1 failure of the released native test
   `network_and_tls::public_tls_and_https_reject_plain_peers_and_https_advertises_http1`.

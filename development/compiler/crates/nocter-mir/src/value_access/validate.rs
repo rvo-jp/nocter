@@ -132,6 +132,24 @@ impl Context<'_> {
         let SlotKey::IndexSnapshot(index) = slot.key else {
             return Err(self.invalid());
         };
+        self.bounded_slot(id, index.bound(), length)
+    }
+    fn range_index(&self, id: nocter_model::MirLocalId, length: u64) -> Result<(), Failure> {
+        let slot = self.body.slots.get(id).ok_or_else(|| self.invalid())?;
+        let bound = match slot.key {
+            SlotKey::IndexSnapshot(index) => index.bound(),
+            SlotKey::ArrayFrontier(frontier) => frontier.bound(),
+            _ => return Err(self.invalid()),
+        };
+        self.bounded_slot(id, bound, length)
+    }
+    fn bounded_slot(
+        &self,
+        id: nocter_model::MirLocalId,
+        bound: u64,
+        length: u64,
+    ) -> Result<(), Failure> {
+        let slot = self.body.slots.get(id).ok_or_else(|| self.invalid())?;
         let data = self
             .program
             .runtime
@@ -140,13 +158,30 @@ impl Context<'_> {
             .ok_or_else(|| self.invalid())?;
         self.require(
             length > 0
-                && index.bound() == length
+                && bound == length
                 && slot.storage == Storage::Payload
                 && slot.representations.as_ref() == [data],
         )
     }
     fn effect(&self, effect: &Effect) -> Result<(), Failure> {
         match effect {
+            Effect::ConsolidateArrayPrefix { source, endpoint } => {
+                self.place(source)?;
+                let (_, length) = self
+                    .program
+                    .runtime
+                    .types()
+                    .get(source.data)
+                    .and_then(RuntimeType::array)
+                    .ok_or_else(|| self.invalid())?;
+                if !matches!(
+                    self.body.slots.get(*endpoint).map(|slot| slot.key),
+                    Some(SlotKey::ArrayFrontier(_))
+                ) {
+                    return Err(self.invalid());
+                }
+                self.range_index(*endpoint, length)
+            }
             Effect::DisposeArrayElements { source, range } => {
                 self.place(source)?;
                 let (_, length) = self
@@ -162,7 +197,7 @@ impl Context<'_> {
                     }
                     nocter_model::ArrayRange::Before(id)
                     | nocter_model::ArrayRange::Through(id)
-                    | nocter_model::ArrayRange::After(id) => self.snapshot(*id, length),
+                    | nocter_model::ArrayRange::After(id) => self.range_index(*id, length),
                 }
             }
             Effect::Initialize(place)

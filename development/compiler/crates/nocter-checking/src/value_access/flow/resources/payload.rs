@@ -1,5 +1,8 @@
 //! Sparse availability and cleanup frontiers. Fully initialized subtrees remain shared schemas.
-use super::{Disposal, INVALID, Index, Path, Payload, Place, Program, Result, Step, payload};
+use super::{
+    Disposal, INVALID, Index, IndexBacking, Missing, Path, Payload, Place, Program, Result, Step,
+    payload,
+};
 use nocter_declarations::value_access::{ArraySchema, PayloadSchema};
 use std::collections::BTreeSet;
 
@@ -8,7 +11,7 @@ pub(super) struct OwnedValue {
     pub payload: Payload,
     // Prefix-free unavailable selections. Do not merge missing siblings into their parent:
     // the parent container still exists and permits restoring an individual child.
-    pub missing: BTreeSet<Path>,
+    pub missing: BTreeSet<Missing>,
 }
 enum Pending {
     Value(Place, Payload),
@@ -32,16 +35,14 @@ impl OwnedValue {
     }
     pub fn container(&self, program: &Program, path: &Path) -> Result<Payload> {
         let selected = self.selected(program, path)?;
-        if self.missing.iter().any(|hole| {
-            hole != path && hole.fields().len() <= path.fields().len() && hole.overlaps(path)
-        }) {
+        if self.missing.iter().any(|hole| hole.blocks_container(path)) {
             return Err(INVALID);
         }
         Ok(selected)
     }
     pub fn remove(&mut self, path: &Path) {
-        self.missing.retain(|hole| !path.is_prefix_of(hole));
-        self.missing.insert(path.clone());
+        self.missing.retain(|hole| !hole.under(path));
+        self.missing.insert(Missing::Value(path.clone()));
     }
     /// Maximal initialized regions in destruction order, without enumerating intact descendants.
     pub fn cleanup(&self, program: &Program, place: &Place) -> Result<Vec<Step>> {
@@ -56,7 +57,10 @@ impl OwnedValue {
                     continue;
                 }
             };
-            if self.missing.contains(place.fields()) {
+            if self
+                .missing
+                .contains(&Missing::Value(place.fields().clone()))
+            {
                 continue;
             }
             if self.complete(place.fields()) {
@@ -71,7 +75,7 @@ impl OwnedValue {
             if self
                 .missing
                 .iter()
-                .any(|hole| hole.overlaps(place.fields()) && !place.fields().is_prefix_of(hole))
+                .any(|hole| hole.overlaps(place.fields()) && !hole.under(place.fields()))
             {
                 return Err(INVALID);
             }
@@ -111,25 +115,45 @@ impl OwnedValue {
         let holes: Vec<_> = self
             .missing
             .iter()
-            .filter(|hole| place.fields().is_prefix_of(hole))
+            .filter(|hole| hole.under(place.fields()))
             .collect();
-        if let Some(index) = holes
-            .iter()
-            .find_map(|hole| match hole.fields().get(depth) {
-                Some(nocter_model::ValueProjection::Array(Index::Retained(index))) => Some(*index),
-                _ => None,
-            })
+        if let Some(frontier) = holes.iter().find_map(|hole| match hole {
+            Missing::ArrayPrefix { array, frontier } if array == place.fields() => Some(*frontier),
+            _ => None,
+        }) {
+            if holes.len() != 1 || frontier.bound() != array.length() {
+                return Err(INVALID);
+            }
+            pending.push(Pending::Emit(Step::DisposeArrayElements {
+                source: place.clone(),
+                payload: selected,
+                range: nocter_model::ArrayRange::After(IndexBacking::Frontier(frontier)),
+            }));
+            return Ok(());
+        }
+        if let Some(index) =
+            holes
+                .iter()
+                .filter_map(|hole| hole.value())
+                .find_map(|hole| match hole.fields().get(depth) {
+                    Some(nocter_model::ValueProjection::Array(Index::Retained(index))) => {
+                        Some(*index)
+                    }
+                    _ => None,
+                })
         {
             if holes.len() != 1
-                || holes[0].fields().len() != depth + 1
+                || holes[0]
+                    .value()
+                    .is_none_or(|path| path.fields().len() != depth + 1)
                 || index.bound() != array.length()
             {
                 return Err(INVALID);
             }
             // Stack order is opposite destruction order. The moved element has no payload here.
             for range in [
-                nocter_model::ArrayRange::Before(index),
-                nocter_model::ArrayRange::After(index),
+                nocter_model::ArrayRange::Before(IndexBacking::Selection(index)),
+                nocter_model::ArrayRange::After(IndexBacking::Selection(index)),
             ] {
                 pending.push(Pending::Emit(Step::DisposeArrayElements {
                     source: place.clone(),
@@ -142,7 +166,8 @@ impl OwnedValue {
         let indices = self
             .missing
             .iter()
-            .filter(|hole| place.fields().is_prefix_of(hole))
+            .filter(|hole| hole.under(place.fields()))
+            .map(Missing::anchor)
             .map(|hole| {
                 let Some(nocter_model::ValueProjection::Array(Index::Constant(index))) =
                     hole.fields().get(depth)

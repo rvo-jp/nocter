@@ -27,6 +27,9 @@ const INVALID: IntegrityError = IntegrityError::InconsistentTypedBody;
 struct Transfers {
     proven: BTreeSet<AccessExpressionId>,
     repeated: BTreeSet<AccessExpressionId>,
+    // Transfer sites that can participate in the same proven array epoch. This is finite
+    // source provenance, not equal index values or a resource ownership alternative.
+    peers: BTreeMap<AccessExpressionId, BTreeSet<AccessExpressionId>>,
 }
 
 fn owned_base(typed: &TypedQuery, source: Referent) -> bool {
@@ -151,9 +154,26 @@ impl NumericFacts {
 pub(super) struct Analysis {
     cells: Arc<Cells>,
     entries: BTreeMap<AccessFlowPointId, State>,
-    prefixes: BTreeMap<Location, BTreeMap<AccessExpressionId, ArrayFrontier>>,
+    progressions: progressions::Plan,
 }
 impl Analysis {
+    pub(in crate::value_access::flow) fn prefix(
+        &self,
+        at: Location,
+        selection: AccessExpressionId,
+    ) -> Option<ArrayFrontier> {
+        self.progressions
+            .prefixes
+            .get(&at)?
+            .get(&selection)
+            .copied()
+    }
+    pub(in crate::value_access::flow) fn available(
+        &self,
+        at: Location,
+    ) -> Option<&super::resources::Place> {
+        self.progressions.available.get(&at)
+    }
     pub(super) fn at(
         &self,
         typed: &TypedQuery,
@@ -176,7 +196,12 @@ impl Analysis {
             cells: Arc::clone(&self.cells),
             equalities,
             prefix_extensions: transfers.proven,
-            prefix_frontiers: self.prefixes.get(&at).cloned().unwrap_or_default(),
+            prefix_frontiers: self
+                .progressions
+                .prefixes
+                .get(&at)
+                .cloned()
+                .unwrap_or_default(),
         })
     }
 }
@@ -206,10 +231,10 @@ pub(super) fn analyze(typed: &TypedQuery, graph: &Graph) -> Result<Analysis, Int
             }
         }
     }
-    let prefixes = progressions::prepare(typed, graph, &cells, &entries)?;
+    let progressions = progressions::prepare(typed, graph, &cells, &entries)?;
     Ok(Analysis {
         cells,
         entries,
-        prefixes,
+        progressions,
     })
 }

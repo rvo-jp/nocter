@@ -90,7 +90,11 @@ impl Initialization {
     }
 }
 
-pub(super) fn analyze(typed: &TypedQuery, graph: &Graph) -> Result<Initialization, IntegrityError> {
+pub(super) fn analyze(
+    typed: &TypedQuery,
+    graph: &Graph,
+    numeric: &super::numeric::Analysis,
+) -> Result<Initialization, IntegrityError> {
     let entry: State = typed
         .body()
         .locals()
@@ -113,6 +117,7 @@ pub(super) fn analyze(typed: &TypedQuery, graph: &Graph) -> Result<Initializatio
         transfer(
             typed,
             graph,
+            numeric,
             id,
             &mut state,
             &mut Vec::new(),
@@ -143,6 +148,7 @@ pub(super) fn analyze(typed: &TypedQuery, graph: &Graph) -> Result<Initializatio
         transfer(
             typed,
             graph,
+            numeric,
             point,
             &mut state.clone(),
             &mut violations,
@@ -379,9 +385,29 @@ fn end_local(
     remove(state, local, &FieldPath::default(), location)
 }
 
+fn require_array_container(
+    state: &State,
+    array: &super::resources::Place,
+    location: Location,
+    violations: &mut Vec<InitializationViolation>,
+) -> Result<(), IntegrityError> {
+    let super::resources::Holder::Local(local) = array.holder() else {
+        return Err(INVALID);
+    };
+    require(
+        state,
+        local,
+        &array.fields().concrete().ok_or(INVALID)?,
+        InitializationRequirement::Container,
+        location,
+        violations,
+    )
+}
+
 fn transfer(
     typed: &TypedQuery,
     graph: &Graph,
+    numeric: &super::numeric::Analysis,
     point: AccessFlowPointId,
     state: &mut State,
     violations: &mut Vec<InitializationViolation>,
@@ -397,7 +423,7 @@ fn transfer(
     {
         let location = Location { point, action };
         match &event.operation {
-            Operation::Evaluate(id) => evaluate(typed, *id, state, location, violations)?,
+            Operation::Evaluate(id) => evaluate(typed, numeric, *id, state, location, violations)?,
             Operation::PrepareArgument { call, argument } => {
                 match arguments(typed, *call)?
                     .get(*argument)
@@ -408,7 +434,11 @@ fn transfer(
                     | ArgumentAction::ReserveUpdate(place)
                     | ArgumentAction::ReserveTransfer { place, .. }
                     | ArgumentAction::CopyPlace(place) => {
-                        require_referent(typed, state, place, location, violations)?;
+                        if let Some(array) = numeric.available(location) {
+                            require_array_container(state, array, location, violations)?;
+                        } else {
+                            require_referent(typed, state, place, location, violations)?;
+                        }
                     }
                     ArgumentAction::AccessOwnedValue | ArgumentAction::TakeValue => {}
                     ArgumentAction::PendingValue(_)
@@ -485,6 +515,7 @@ fn transfer(
 
 fn evaluate(
     typed: &TypedQuery,
+    numeric: &super::numeric::Analysis,
     id: nocter_model::AccessExpressionId,
     state: &mut State,
     location: Location,
@@ -492,7 +523,14 @@ fn evaluate(
 ) -> Result<(), IntegrityError> {
     match &typed.body().expressions().get(id).ok_or(INVALID)?.kind {
         ExpressionKind::Move(place) => {
-            require_referent(typed, state, *place, location, violations)?;
+            if let Referent::Evaluated(selection) = *place
+                && let Some(frontier) = numeric.prefix(location, selection)
+            {
+                let array = frontier.array(typed).ok_or(INVALID)?;
+                require_array_container(state, &array, location, violations)?;
+            } else {
+                require_referent(typed, state, *place, location, violations)?;
+            }
             remove_referent(typed, state, *place, location)?;
         }
         // Pending supply has no availability semantics. Calls/control use their own graph events.

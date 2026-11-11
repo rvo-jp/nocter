@@ -587,6 +587,108 @@ fn source_partial_array_cleanup_freezes_half_open_intervals_and_rejects_invalid_
 }
 
 #[test]
+fn prefix_backing_can_drive_ranges_but_cannot_become_an_immutable_element_address() {
+    let source = nocter_test_support::RETAINED_ARRAY_SOURCES
+        .iter()
+        .find(|(name, _)| *name == "dynamic-element-prefix-loop")
+        .unwrap()
+        .1;
+    let program = lower(source);
+    let body = &program.bodies[&program.root];
+    let (endpoint, frontier) = body
+        .slots
+        .iter()
+        .find_map(|(id, slot)| {
+            if let SlotKey::ArrayFrontier(frontier) = slot.key {
+                Some((id, frontier))
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    assert!(
+        !body
+            .slots
+            .iter()
+            .any(|(_, slot)| matches!(slot.key, SlotKey::IndexSnapshot(_)))
+    );
+    let mut array = None;
+    for effect in body
+        .actions
+        .values()
+        .flat_map(|action| &action.alternatives)
+        .flat_map(|alt| alt.before.iter().chain(&alt.after))
+    {
+        match effect {
+            Effect::ConsolidateArrayPrefix {
+                source,
+                endpoint: actual,
+            } => {
+                assert_eq!(*actual, endpoint);
+                array = Some(source.clone());
+            }
+            Effect::DisposeArrayElements { range, .. } => {
+                assert_eq!(*range, nocter_model::ArrayRange::After(endpoint));
+            }
+            _ => {}
+        }
+    }
+    let mut bad = program.clone();
+    let body = bad.bodies.get_mut(&bad.root).unwrap();
+    let Operation::Index { destination, .. } = operations(body)
+        .find(|op| matches!(op, Operation::Index { .. }))
+        .unwrap()
+    else {
+        unreachable!()
+    };
+    let mut selected = array.unwrap();
+    selected.data = destination.data;
+    selected.projections = vec![Projection::Index(endpoint)].into();
+    let action = body
+        .actions
+        .values_mut()
+        .find(|action| !action.operations.is_empty())
+        .unwrap();
+    action.operations = action
+        .operations
+        .iter()
+        .cloned()
+        .chain(std::iter::once(Operation::Storage(Effect::End(selected))))
+        .collect();
+    assert!(matches!(
+        validate::program(&bad),
+        Err(Failure::InvalidBody(_))
+    ));
+    // The same bound/representation does not make a point snapshot an advancing endpoint.
+    let point_program = lower(
+        "struct Item { value: i32 }\nfunc run(): i32 { let items = [Item { value: 40 }, Item { value: 2 }]\nlet index: usize = 0\nlet first = items[index]^\nfirst.value }",
+    );
+    let point = point_program
+        .bodies
+        .values()
+        .flat_map(|body| body.slots.iter())
+        .find_map(|(_, slot)| match slot.key {
+            SlotKey::IndexSnapshot(index) => Some(index),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(point.bound(), frontier.bound());
+    let mut bad = program.clone();
+    let body = bad.bodies.get_mut(&bad.root).unwrap();
+    body.slots = body.slots.map(|id, slot| {
+        let mut slot = slot.clone();
+        if id == endpoint {
+            slot.key = SlotKey::IndexSnapshot(point);
+        }
+        slot
+    });
+    assert!(matches!(
+        validate::program(&bad),
+        Err(Failure::InvalidBody(_))
+    ));
+}
+
+#[test]
 fn retained_cleanup_integrity_requires_a_matching_scalar_backing_slot() {
     use nocter_checking::value_access::flow::resources::RetainedIndex;
     use nocter_model::ArrayRange;

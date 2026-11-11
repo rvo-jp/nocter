@@ -37,6 +37,7 @@ pub enum SlotKey {
     Predicate(AccessExpressionId),
     Answer(AccessExpressionId),
     IndexSnapshot(nocter_checking::value_access::flow::resources::RetainedIndex),
+    ArrayFrontier(nocter_checking::value_access::flow::resources::ArrayFrontier),
     Return,
 }
 
@@ -95,6 +96,11 @@ pub enum Effect {
     DisposeArrayElements {
         source: Place,
         range: nocter_model::ArrayRange<MirLocalId>,
+    },
+    /// Logical coverage consolidation; native storage needs no runtime ownership map.
+    ConsolidateArrayPrefix {
+        source: Place,
+        endpoint: MirLocalId,
     },
     End(Place),
     BindAddress {

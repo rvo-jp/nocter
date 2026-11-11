@@ -140,6 +140,8 @@ pub(super) fn check(query: &flow::Query) -> Result<Option<Violation>, flow::Inte
                         | flow::resources::Step::Construct { .. }
                         | flow::resources::Step::Receive { .. }
                         | flow::resources::Step::Move { .. }
+                        | flow::resources::Step::MoveArrayElement { .. }
+                        | flow::resources::Step::ConsolidateArrayPrefix { .. }
                         | flow::resources::Step::ReleaseContainer { .. }
                         | flow::resources::Step::Invoke { .. } => continue,
                     };

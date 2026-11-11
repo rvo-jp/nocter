@@ -909,15 +909,18 @@ overlapping partial writes invalidate its prefix, and distinct containing arrays
 No prefix history crosses a call without a closed write summary. May-executed transfer sites
 form a finite provenance set alongside the difference facts; binding, containing replacement
 and scope exit forget the affected epoch. `NumericFacts::prefix_frontier` selects a prefix
-lifecycle only when a proved site can execute again before that epoch ends. Straight-line moves,
+lifecycle only when a proved site can execute again before that epoch ends. Finite co-executed-site
+relationships connect initial and later transfers; merely sharing an array local does not connect
+an earlier point-restoration epoch to a later prefix loop after replacement. Straight-line moves,
 point restoration and arrays recreated/replaced each iteration retain their point realization.
 An initial seed and later repeated selectors for the same concrete parent share one body-scoped
 `ArrayFrontier` key. Its representative identifies backing storage, never the current number to
 capture. Parent projection consumes the same typed structural traversal and exact array schema.
-The report is qualified on typed
-source graphs up to maximum usize counts, early exits, reordered counter updates and joins.
-It does not create actual resource backing/holes. The region/cleanup consumer remains
-unqualified; the source admission rules below still apply.
+The numerical report creates no resource backing or holes. Its source consumer below independently
+checks containing storage and uses the existing access/resource transition. A prepared whole-element
+argument can use the same history to establish that its evaluated index is strictly beyond every
+committed endpoint; preparation does not extend the prefix. A normally committed taking bundle
+still needs its own prefix-aware handoff before that admission can be extended.
 
 Access regions retain `ValuePath<IndexFact>` under the same owning/input/temporary root. Known
 numeric results select concrete indices; unknown indices remain unknown even when their recipe
@@ -990,12 +993,21 @@ zero-byte arrays. Source cancellation
 has no retained steps; zero-byte out-of-range transfers fail before capture. Existing cases also
 cover concrete field holes/restoration, disjoint indexed edits and consuming captures.
 
-This stage supports one retained whole-element hole per complete containing array. Unknown indices
-in the containing path, partial fields below a retained selector, conditional restoration of a
-possibly missing element, and repeated extraction without containing replacement still require the
+Unit-stride repeated immediate extraction without containing replacement uses the selected prefix
+lifecycle. The first transfer starts at zero and every later transfer advances by one under the
+closed difference proof. The selected payload is delivered through its actual frozen alias before
+the ordinary saved endpoint owner is replaced. One sparse missing-prefix region replaces individual
+element holes; exact remainder cleanup uses that endpoint even on an early return before the user's
+counter update. Shared required/native cases cover a concrete nested parent beside another missing
+row, maximum-count zero-byte arrays, and cancellation after reserving an initialized tail element.
+That pending transfer creates no snapshot, element move or endpoint update.
+
+Outside a proven prefix this stage supports one retained whole-element hole per complete containing
+array. Unknown indices in the containing path, partial fields below a retained selector, conditional
+restoration of a possibly missing element, non-prefix repeated extraction, and prefix-aware atomic
+taking bundles still require the
 [evaluated-selection closure](../../../design/compiler-realization.md#evaluated-array-selection-closure).
-Finite loop progression needs a compact frontier, not unbounded snapshot generations or a source
-cardinality limit. Repeated recipe keys alone never prove equal numbers across a backedge.
+Repeated recipe keys alone never prove equal numbers across a backedge.
 
 Source tests qualify saved aliases after index mutation, loop re-execution, read reservation versus
 Copy snapshots, non-Copy element/field reads, structural field views, alternating member/index chains,
@@ -1041,7 +1053,8 @@ admission; evaluator and MIR project the retained identity to an actual scalar s
 substituting a number for its descriptor.
 
 Concrete element paths use the [declaration-owned projection](../nocter-declarations/README.md#future-value-declaration-boundary).
-The existing prefix-free missing-path set records transferred elements and partial element fields.
+The existing prefix-free missing-coverage set records transferred elements, partial element fields
+and proven array prefixes.
 An intact array remains one whole-payload disposal. For an incomplete array, `resources::payload`
 derives the affected indices from those paths and emits `DisposeArrayElements` for each nonempty
 intact interval, interleaved with partial-element cleanup in reverse index order. Its half-open
@@ -1054,8 +1067,15 @@ For one retained whole-element hole, the same effect carries `ArrayRange::After(
 `Before(index)` in destruction order. These spans consume the original checked bound and backing;
 either side can be empty. No descriptor ordering is interpreted as numeric ordering. Cleanup and
 restoration reject a concrete path which may intersect a missing ancestor: possible overlap is
-not proof of a contained hole. This frontier supports one retained whole-element hole per
-containing array; general nested selectors or multiple holes within that array need further proof.
+not proof of a contained hole. A proven prefix instead carries one `Missing::ArrayPrefix` with its
+concrete array base and `Holder::ArrayFrontier` scalar owner. These are coverage and backing roles,
+not a mutable element address or an immutable selected-point snapshot. `MoveArrayElement` delivers
+the actual selected payload first; the same staged transition then replaces the endpoint, records
+the region and consolidates coverage. Cleanup emits only `After(frontier)`, then the container end,
+then backing retirement. Generic value operations cannot create or consume either backing role.
+Independent ledger tests qualify finite owner counts, ordering and atomic rejection of malformed
+operands, occupied destinations, point/prefix mixing and foreign body descriptors. General nested
+selectors or unrelated multiple holes within one array still need further proof.
 
 Ledger qualification covers listed component assembly, maximum u64 cardinality, first/last and out-of-bounds positions,
 empty arrays, zero-sized elements, partial record elements, replacement and container retirement.

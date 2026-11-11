@@ -9,10 +9,13 @@ use std::collections::{BTreeMap, BTreeSet};
 mod assembly;
 mod capture;
 mod function_view;
+mod missing;
+pub use missing::Missing;
 mod path;
 mod payload;
-pub use path::{ArrayFrontier, Index, Path, RetainedIndex};
-mod snapshots;
+mod progression;
+pub use path::{ArrayFrontier, Index, IndexBacking, Path, RetainedIndex};
+mod backing;
 mod storage;
 #[cfg(test)]
 mod tests;
@@ -32,9 +35,14 @@ pub enum Holder {
     },
     /// An ordinary usize payload whose lifetime follows a retained element hole.
     IndexSnapshot(RetainedIndex),
+    /// A changing last-committed endpoint, tied to one missing prefix rather than a point.
+    ArrayFrontier(ArrayFrontier),
     Return,
 }
 impl Holder {
+    pub(super) const fn is_backing(self) -> bool {
+        matches!(self, Self::IndexSnapshot(_) | Self::ArrayFrontier(_))
+    }
     #[must_use]
     pub fn place(self) -> Place {
         Place {
@@ -158,6 +166,17 @@ pub enum Step {
         destination: Place,
         payload: Payload,
     },
+    MoveArrayElement {
+        array: Place,
+        index: RetainedIndex,
+        destination: Holder,
+        payload: Payload,
+    },
+    ConsolidateArrayPrefix {
+        array: Place,
+        payload: Payload,
+        frontier: ArrayFrontier,
+    },
     Dispose {
         source: Place,
         payload: Payload,
@@ -167,7 +186,7 @@ pub enum Step {
     DisposeArrayElements {
         source: Place,
         payload: Payload,
-        range: nocter_model::ArrayRange<RetainedIndex>,
+        range: nocter_model::ArrayRange<IndexBacking>,
     },
     /// End a partial structural container's slot after cleaning its surviving regions. This does
     /// not destroy its payload again or prescribe physical allocation/deallocation.
@@ -215,6 +234,8 @@ impl Step {
             | Self::Construct { payload, .. }
             | Self::Receive { payload, .. }
             | Self::Move { payload, .. }
+            | Self::MoveArrayElement { payload, .. }
+            | Self::ConsolidateArrayPrefix { payload, .. }
             | Self::Dispose { payload, .. }
             | Self::DisposeArrayElements { payload, .. }
             | Self::ReleaseContainer { payload, .. }
@@ -229,12 +250,12 @@ impl Step {
 /// This is a checked guard projection, not an access grant or a physical drop-flag layout.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Condition {
-    owned: Box<[(Holder, Box<[Path]>)]>,
+    owned: Box<[(Holder, Box<[Missing]>)]>,
 }
 impl Condition {
     /// Listed holders carry an owning container; unlisted holders carry no ownership.
     /// Scoped input storage is independent. Missing paths stay prefix-free.
-    pub fn owned(&self) -> impl Iterator<Item = (Holder, &[Path])> {
+    pub fn owned(&self) -> impl Iterator<Item = (Holder, &[Missing])> {
         self.owned
             .iter()
             .map(|(holder, missing)| (*holder, missing.as_ref()))

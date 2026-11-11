@@ -1,0 +1,13 @@
+struct Item { value: i32 }
+const func run(): i32 {
+    let grid = [[Item { value: 10 }, Item { value: 32 }], [Item { value: 40 }, Item { value: 2 }]]
+    let other = grid[0]^
+    var index: usize = 0
+    var total = 0
+    while index < 2 {
+        let selected = grid[1][index]^
+        total += selected.value
+        index += 1
+    }
+    total + other[0].value - 10
+}

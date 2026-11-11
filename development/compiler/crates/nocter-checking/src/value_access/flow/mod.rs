@@ -210,8 +210,8 @@ impl Control {
         }
         super::results::validate(&self.typed, &self.graph)?;
         let numeric = numeric::analyze(&self.typed, &self.graph)?;
-        let initialization = initialization::analyze(&self.typed, &self.graph)?;
-        let access = access::analyze(&self.typed, &self.graph, &initialization)?;
+        let initialization = initialization::analyze(&self.typed, &self.graph, &numeric)?;
+        let access = access::analyze(&self.typed, &self.graph, &initialization, &numeric)?;
         Ok(Query {
             typed: self.typed,
             graph: self.graph,

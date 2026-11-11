@@ -47,6 +47,7 @@ fn ownership_mutants_cannot_duplicate_destroy_twice_or_escape_without_a_return_h
 
 mod arrays;
 mod nominal;
+mod progression;
 mod snapshots;
 
 #[test]

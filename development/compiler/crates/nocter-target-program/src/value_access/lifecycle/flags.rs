@@ -2,7 +2,7 @@
 use super::{Action, Alternative, Body, Draft, Failure, INVALID};
 use nocter_checking::value_access::flow::{
     Location,
-    resources::{Condition, Holder, Path},
+    resources::{Condition, Holder, Missing},
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -76,7 +76,7 @@ impl Layout {
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum Fact {
     Container(Holder),
-    Missing(Holder, Path),
+    Missing(Holder, Missing),
 }
 type Snapshot = BTreeSet<Fact>;
 

@@ -3,7 +3,9 @@ use super::super::super::{
     resources::{self, Holder},
 };
 use super::{Context, Failure, Result};
-use crate::value_access::{ArgumentAction, BoundaryAction, ExpressionKind, SelectionAction};
+use crate::value_access::{
+    ArgumentAction, BoundaryAction, ExpressionKind, Referent, SelectionAction,
+};
 use nocter_model::{AccessExpressionId, ValueAccessMode as Mode};
 
 impl Context<'_, '_> {
@@ -205,13 +207,7 @@ impl Context<'_, '_> {
             } => {
                 self.select_ownership(id, source, fields, action)?;
             }
-            ExpressionKind::Move(place) => self.world.resources.move_to(
-                self.typed.program(),
-                &self.resource_referent(place)?,
-                &Holder::Expression(id).place(),
-                false,
-                &mut self.steps,
-            )?,
+            ExpressionKind::Move(place) => self.move_ownership(id, place)?,
             ExpressionKind::Boundary {
                 source,
                 action: BoundaryAction::TakeValue,
@@ -251,6 +247,30 @@ impl Context<'_, '_> {
             }
         }
 
+        Ok(())
+    }
+    fn move_ownership(&mut self, id: AccessExpressionId, place: Referent) -> Result<()> {
+        if let Referent::Evaluated(selection) = place
+            && let Some(frontier) = self.numeric.prefix(self.at, selection)
+        {
+            let index = resources::RetainedIndex::for_selection(self.typed, selection)
+                .ok_or(Failure::Integrity)?;
+            self.world.resources.advance_array(
+                self.typed,
+                index,
+                frontier,
+                Holder::Expression(id),
+                &mut self.steps,
+            )?;
+        } else {
+            self.world.resources.move_to(
+                self.typed.program(),
+                &self.resource_referent(place)?,
+                &Holder::Expression(id).place(),
+                false,
+                &mut self.steps,
+            )?;
+        }
         Ok(())
     }
     fn repeat_ownership(&mut self, id: AccessExpressionId, seed: AccessExpressionId) -> Result<()> {

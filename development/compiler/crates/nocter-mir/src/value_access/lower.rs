@@ -76,6 +76,15 @@ impl Builder<'_> {
             .map(Payload::data)
             .ok_or_else(|| self.invalid())
     }
+    fn index_data(&self) -> Result<TypeId, Failure> {
+        let source = self
+            .checked
+            .typed()
+            .program()
+            .data_type(nocter_model::BuiltinType::Usize)
+            .ok_or_else(|| self.invalid())?;
+        self.data(source)
+    }
     pub(super) fn expression(&self, id: AccessExpressionId) -> Result<TypeId, Failure> {
         let access = self
             .checked
@@ -197,15 +206,19 @@ impl Builder<'_> {
                 {
                     return Err(self.invalid());
                 }
-                let data = self
-                    .checked
-                    .typed()
-                    .program()
-                    .data_type(nocter_model::BuiltinType::Usize)
-                    .ok_or_else(|| self.invalid())?;
                 (
                     SlotKey::IndexSnapshot(index),
-                    self.data(data)?,
+                    self.index_data()?,
+                    Storage::Payload,
+                )
+            }
+            Holder::ArrayFrontier(frontier) => {
+                frontier
+                    .array(self.checked.typed())
+                    .ok_or_else(|| self.invalid())?;
+                (
+                    SlotKey::ArrayFrontier(frontier),
+                    self.index_data()?,
                     Storage::Payload,
                 )
             }
@@ -424,6 +437,36 @@ impl Builder<'_> {
                             destination,
                         });
                     }
+                    Step::MoveArrayElement {
+                        index,
+                        destination,
+                        payload,
+                        ..
+                    } => {
+                        let data = self.data(payload.data())?;
+                        output.push(Effect::Transfer {
+                            source: self.referent(
+                                nocter_checking::value_access::Referent::Evaluated(
+                                    index.selection(),
+                                ),
+                                data,
+                            )?,
+                            destination: self.root(*destination, data, false)?,
+                        });
+                    }
+                    Step::ConsolidateArrayPrefix {
+                        array,
+                        payload,
+                        frontier,
+                    } => {
+                        let data = self.index_data()?;
+                        output.push(Effect::ConsolidateArrayPrefix {
+                            source: self.place(array, payload.data())?,
+                            endpoint: self
+                                .root(Holder::ArrayFrontier(*frontier), data, false)?
+                                .slot,
+                        });
+                    }
                     Step::Dispose { source, payload } => {
                         let source = self.place(source, payload.data())?;
                         output.push(Effect::Dispose {
@@ -439,8 +482,8 @@ impl Builder<'_> {
                         output.push(Effect::DisposeArrayElements {
                             source: self.place(source, payload.data())?,
                             range: range.try_map_index(|index| {
-                                let data = self.expression(index.operand())?;
-                                Ok(self.root(Holder::IndexSnapshot(index), data, false)?.slot)
+                                let data = self.index_data()?;
+                                Ok(self.root(index.holder(), data, false)?.slot)
                             })?,
                         });
                     }

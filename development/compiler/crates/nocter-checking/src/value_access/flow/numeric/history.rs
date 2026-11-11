@@ -112,7 +112,41 @@ impl Histories {
                 }
             }
         }
+        // Observing/preparing another element does not commit a transfer. It can still ask
+        // whether its actual evaluated index lies beyond this array's committed prefix.
+        for (id, _) in typed.body().expressions().iter() {
+            let Some((array, index)) = selected(typed, Referent::Evaluated(id)) else {
+                continue;
+            };
+            if let Some(&history) = arrays.get(&array) {
+                result.selections.insert(
+                    id,
+                    Selection {
+                        history,
+                        index: index.operand(),
+                    },
+                );
+            }
+        }
         Ok(result)
+    }
+    pub(super) fn available(
+        &self,
+        cells: &Cells,
+        phases: &[Phase],
+        state: &Equalities,
+        selection: AccessExpressionId,
+    ) -> Option<Place> {
+        let selection = self.selections.get(&selection)?;
+        let history = self.arrays.get(selection.history)?;
+        let available = match phases.get(selection.history)? {
+            Phase::Empty => true,
+            Phase::Prefix => state
+                .difference(cells.value(selection.index)?, history.cell)
+                .is_some_and(|difference| difference > 0),
+            Phase::Unproved => false,
+        };
+        available.then(|| history.array.clone())
     }
     fn forget_seen(&self, seen: &mut BTreeSet<AccessExpressionId>, history: usize) {
         seen.retain(|selection| {
@@ -203,6 +237,19 @@ pub(super) fn action(
             });
             if extends {
                 proven.proven.insert(id);
+                proven.peers.insert(
+                    id,
+                    seen.iter()
+                        .copied()
+                        .filter(|site| {
+                            histories
+                                .selections
+                                .get(site)
+                                .is_some_and(|other| other.history == selection.history)
+                        })
+                        .chain(std::iter::once(id))
+                        .collect(),
+                );
                 if seen.contains(&id) {
                     proven.repeated.insert(id);
                 }

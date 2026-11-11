@@ -2,6 +2,48 @@
 /// Each complete fixture exposes `run(): i32` and computes 42. Source text lives only in fixtures.
 pub const RETAINED_ARRAY_SOURCES: &[(&str, &str)] = &[
     (
+        "dynamic-element-prefix-epochs",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/arrays/element-dynamic-prefix-epochs.nct"
+        )),
+    ),
+    (
+        "dynamic-element-prefix-array-cancel",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/arrays/element-dynamic-prefix-array-cancel.nct"
+        )),
+    ),
+    (
+        "dynamic-element-prefix-cancel",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/arrays/element-dynamic-prefix-cancel.nct"
+        )),
+    ),
+    (
+        "dynamic-element-prefix-nested",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/arrays/element-dynamic-prefix-nested.nct"
+        )),
+    ),
+    (
+        "dynamic-element-prefix-maximum",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/arrays/element-dynamic-prefix-maximum.nct"
+        )),
+    ),
+    (
+        "dynamic-element-prefix-loop",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/arrays/element-dynamic-prefix-loop.nct"
+        )),
+    ),
+    (
         "dynamic-element-disjoint-parents-zero",
         include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),

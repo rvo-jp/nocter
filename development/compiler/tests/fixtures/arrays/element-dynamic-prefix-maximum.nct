@@ -1,0 +1,11 @@
+const func run(): i32 {
+    let items = [(); 18446744073709551615]
+    var index: usize = 0
+    var turns = 0
+    while turns < 2 {
+        let selected = items[index]^
+        index += 1
+        turns += 1
+    }
+    40 + turns
+}

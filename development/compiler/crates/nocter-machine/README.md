@@ -152,7 +152,7 @@ Its countdown counter is an ordinary SSA block parameter. Fill order has no user
 established Copy seed is loaded before traversal. One homogeneous layout proves the compiler's byte
 offset and successor arithmetic; internal traversal does not manufacture source bounds proofs.
 The shared traversal accepts SSA lower/upper endpoints and skips empty runtime intervals. A
-retained cleanup span loads its dedicated usize snapshot slot; its checked original bound proves
+saved cleanup span loads its dedicated usize snapshot or prefix-endpoint slot; its checked original bound proves
 the successor and it does not reload the source index. The [source owner](../nocter-checking/README.md#array-selection) defines retained-hole admission;
 actual native nontrivial effects remain separately unqualified.
 The runtime environment supplies canonical usize/bool roles for that control. Count one uses the
@@ -200,6 +200,12 @@ index mutation, ownership alternatives, equal-number snapshots on different rout
 replacement across backedges, concrete nested parents and maximum-count zero-byte moves. Dynamic
 out-of-range transfer still traps before capture, including unused zero-byte payloads. The corpus
 catalog is shared with required evaluation; no additional compiler array ownership map is used.
+It also executes proven unit-stride prefix loops without containing replacement. Element delivery
+uses the frozen evaluated alias before replacing the saved endpoint, and remainder cleanup reads
+that endpoint rather than the user's counter. Early exits include a cancelled tail-element
+reservation before the counter update. Concrete nested parents and maximum-count zero-byte prefixes
+use the same lowering. These executions qualify lifecycle/geometry with trivial element cleanup;
+actual owned error-graph cleanup remains the separate obligation above.
 
 Shared source fixtures execute element take, field holes, structurally disjoint unknown-index edits,
 exact restoration on loop backedges and maximum-count zero-byte remainder cleanup. The checking

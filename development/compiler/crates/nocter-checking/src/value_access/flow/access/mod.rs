@@ -122,6 +122,7 @@ pub(super) fn analyze(
     typed: &TypedQuery,
     graph: &Graph,
     initialization: &Initialization,
+    numeric: &super::numeric::Analysis,
 ) -> Result<Analysis, IntegrityError> {
     let liveness = liveness::analyze(typed, graph, initialization)?;
     if !initialization.violations().is_empty() {
@@ -150,7 +151,14 @@ pub(super) fn analyze(
             for mut world in worlds {
                 world.trim(liveness.before(location))?;
                 let before = world.resources.clone();
-                match effects::apply(typed, &mut world, &event.operation, location, &liveness) {
+                match effects::apply(
+                    typed,
+                    &mut world,
+                    &event.operation,
+                    location,
+                    &liveness,
+                    numeric,
+                ) {
                     Ok(mut alternatives) => {
                         for (alternative, plan) in &mut alternatives {
                             alternative.trim(liveness.after(location))?;

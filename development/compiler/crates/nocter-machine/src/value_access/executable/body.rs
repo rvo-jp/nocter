@@ -284,7 +284,9 @@ impl<'a> Builder<'a> {
     }
     fn effect(&mut self, effect: &mir::Effect) -> Result<(), Failure> {
         match effect {
-            mir::Effect::Initialize(_) | mir::Effect::End(_) => {}
+            mir::Effect::Initialize(_)
+            | mir::Effect::End(_)
+            | mir::Effect::ConsolidateArrayPrefix { .. } => {}
             mir::Effect::Transfer {
                 source,
                 destination,

@@ -33,6 +33,7 @@ struct Context<'a, 'b> {
     world: &'b mut World,
     at: Location,
     live: &'a Liveness,
+    numeric: &'a super::super::numeric::Analysis,
     steps: Vec<super::super::resources::Step>,
 }
 
@@ -42,12 +43,14 @@ pub(super) fn apply(
     operation: &Operation,
     at: Location,
     live: &Liveness,
+    numeric: &super::super::numeric::Analysis,
 ) -> Result<Vec<(World, StepPlan)>> {
     let mut context = Context {
         typed,
         world,
         at,
         live,
+        numeric,
         steps: Vec::new(),
     };
     context.ownership_before(operation)?;
@@ -158,6 +161,7 @@ impl Context<'_, '_> {
                 world: &mut world,
                 at: self.at,
                 live: self.live,
+                numeric: self.numeric,
                 steps: self.steps.clone(),
             };
             next.commit_inputs(call)?;

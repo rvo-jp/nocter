@@ -67,6 +67,21 @@ impl State {
         }
         Some(result)
     }
+    pub(super) fn available(
+        &self,
+        cells: &Cells,
+        selection: AccessExpressionId,
+    ) -> Option<super::super::resources::Place> {
+        let mut array = None;
+        for (phases, state) in &self.partitions {
+            array = Some(
+                cells
+                    .histories
+                    .available(cells, phases, &state.equalities, selection)?,
+            );
+        }
+        array
+    }
     pub(super) fn action(
         &mut self,
         typed: &TypedQuery,
@@ -97,6 +112,9 @@ impl State {
             if let Some(common) = &mut common {
                 common.proven.retain(|id| proven.proven.contains(id));
                 common.repeated.extend(proven.repeated);
+                for (site, peers) in proven.peers {
+                    common.peers.entry(site).or_default().extend(peers);
+                }
             } else {
                 common = Some(proven);
             }
@@ -105,6 +123,7 @@ impl State {
         *self = next;
         let mut common = common.unwrap_or_default();
         common.repeated.retain(|id| common.proven.contains(id));
+        common.peers.retain(|id, _| common.proven.contains(id));
         Ok(common)
     }
     pub(super) fn edge(

@@ -104,8 +104,10 @@ impl Builder<'_> {
             .slots()
             .get(id)
             .ok_or_else(Self::invalid)?;
-        let nocter_mir::value_access::SlotKey::IndexSnapshot(index) = slot.key else {
-            return Err(Self::invalid());
+        let bound = match slot.key {
+            nocter_mir::value_access::SlotKey::IndexSnapshot(index) => index.bound(),
+            nocter_mir::value_access::SlotKey::ArrayFrontier(frontier) => frontier.bound(),
+            _ => return Err(Self::invalid()),
         };
         let data = self
             .context
@@ -114,7 +116,7 @@ impl Builder<'_> {
             .types()
             .primitive(nocter_runtime_contract::RuntimePrimitive::Usize)
             .ok_or_else(Self::invalid)?;
-        if index.bound() != length
+        if bound != length
             || slot.storage != nocter_mir::value_access::Storage::Payload
             || slot.representations.as_ref() != [data]
         {

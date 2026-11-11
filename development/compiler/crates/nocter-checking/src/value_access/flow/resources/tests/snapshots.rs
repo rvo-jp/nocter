@@ -104,7 +104,7 @@ fn snapshot_and_hole_commit_together_and_outlive_the_operand_frame() {
             .condition()
             .owned()
             .any(|(holder, holes)| holder == source(typed, index).holder()
-                && holes == [source(typed, index).fields().clone()])
+                && holes == [Missing::Value(source(typed, index).fields().clone())])
     );
     assert!(
         !state
@@ -296,7 +296,7 @@ fn remainder_cleanup_uses_backing_until_both_spans_and_the_container_end() {
         Step::DisposeArrayElements { source: low, range: nocter_model::ArrayRange::Before(b), .. },
         Step::ReleaseContainer { source: container, .. },
         Step::Dispose { source: snapshot, .. },
-    ] if high == &root && low == high && container == high && *a == index && *b == index && snapshot.holder() == Holder::IndexSnapshot(index)));
+    ] if high == &root && low == high && container == high && *a == IndexBacking::Selection(index) && *b == IndexBacking::Selection(index) && snapshot.holder() == Holder::IndexSnapshot(index)));
     assert!(!state.contains(root.holder()));
     assert!(!state.contains(Holder::IndexSnapshot(index)));
     assert!(state.contains(Holder::Return));
@@ -323,7 +323,7 @@ fn whole_replacement_retires_the_old_snapshot_without_affecting_the_moved_elemen
         Step::ReleaseContainer { .. },
         Step::Move { source, destination, .. },
         Step::Dispose { source: snapshot, .. },
-    ] if *a == index && *b == index && source == &replacement && destination == &root && snapshot.holder() == Holder::IndexSnapshot(index)));
+    ] if *a == IndexBacking::Selection(index) && *b == IndexBacking::Selection(index) && source == &replacement && destination == &root && snapshot.holder() == Holder::IndexSnapshot(index)));
     assert!(state.initialized_root(root.holder()));
     assert!(!state.contains(replacement.holder()));
     assert!(!state.contains(Holder::IndexSnapshot(index)));

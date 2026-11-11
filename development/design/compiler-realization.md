@@ -230,8 +230,8 @@ cleanup consumes its captured result and must handle empty remainder intervals a
 at the maximum usize count. The [resource ledger](../compiler/crates/nocter-checking/README.md#concrete-array-resource-frontiers)
 owns the qualified logical backing/restore/cleanup stage. The [evaluator consumer](../compiler/crates/nocter-constant-evaluation/README.md#evaluated-array-addresses)
 projects saved numeric paths and guards. The [source selection owner](../compiler/crates/nocter-checking/README.md#array-selection)
-qualifies the retained whole-element stage through shared availability and native projection;
-general nested/multiple frontiers and finite progression remain open.
+defines the retained whole-element and proven-prefix stages through shared availability and native
+projection; general nested/multiple frontiers remain separate closure obligations.
 
 A loop may execute the same selection recipe more than once. Equal recipe keys across a backedge
 are not proof of equal values. Qualify retained indices, invalidation, joins and restoration before
@@ -257,6 +257,10 @@ may-executed sites as finite source provenance, clearing the affected sites on e
 or end. This provenance never proves equal numbers; exact difference facts independently justify
 each step. Its union join and the difference domain remain finite in the fixed body. Preserve
 ordinary selected-point restoration when no such progression needs a region lifecycle.
+Connect transfer sites through possible participation in the same proven epoch. Select the finite
+connected sites of an actually repeated transfer, rather than enrolling every selector of the
+same containing local across unrelated epochs. Replacing that array must isolate an earlier
+point extraction/restoration from a later prefix loop.
 
 The progression closure must distinguish an array epoch with no extracted prefix from one with
 a proven prefix. Its first transfer proves index zero; a later transfer proves the new evaluated

@@ -111,6 +111,15 @@ impl Builder<'_, '_> {
                     plan::Storage::Owned,
                 )
             }
+            Holder::ArrayFrontier(frontier) => {
+                frontier.array(self.query.typed()).ok_or(INVALID)?;
+                (
+                    self.program
+                        .data_type(nocter_model::BuiltinType::Usize)
+                        .ok_or(INVALID)?,
+                    plan::Storage::Owned,
+                )
+            }
             Holder::Return => (self.query.typed().result_data(), plan::Storage::Owned),
         };
         self.slot(Key::Resource(holder), data, storage)
@@ -168,8 +177,19 @@ impl Builder<'_, '_> {
             })
             .collect()
     }
-    fn missing(&mut self, fields: &flow::resources::Path) -> Result<plan::Missing> {
-        self.resource_fields(fields).map(plan::Missing::Value)
+    fn missing(&mut self, missing: &flow::resources::Missing) -> Result<plan::Missing> {
+        Ok(match missing {
+            flow::resources::Missing::Value(fields) => {
+                plan::Missing::Value(self.resource_fields(fields)?)
+            }
+            flow::resources::Missing::ArrayPrefix { array, frontier } => {
+                plan::Missing::ArrayPrefix {
+                    base: self.resource_fields(array)?,
+                    endpoint: self.holder(Holder::ArrayFrontier(*frontier))?,
+                    bound: frontier.bound(),
+                }
+            }
+        })
     }
     fn selected(&mut self, id: AccessPlaceId) -> Result<plan::Place> {
         let place = self.query.typed().body().places().get(id).ok_or(INVALID)?;
@@ -213,6 +233,22 @@ impl Builder<'_, '_> {
                 source: self.resource(source)?,
                 destination: self.resource(destination)?,
             },
+            Step::MoveArrayElement {
+                array,
+                index,
+                destination,
+                ..
+            } => plan::Effect::MoveArrayElement {
+                array: self.resource(array)?,
+                selected: plan::Place::root(self.holder(Holder::Expression(index.selection()))?),
+                destination: self.holder(*destination)?,
+            },
+            Step::ConsolidateArrayPrefix {
+                array, frontier, ..
+            } => plan::Effect::ConsolidateArrayPrefix {
+                source: self.resource(array)?,
+                endpoint: self.holder(Holder::ArrayFrontier(*frontier))?,
+            },
             Step::Dispose { source, .. } => plan::Effect::Dispose(self.resource(source)?),
             Step::ReleaseContainer { source, .. } => plan::Effect::Release(self.resource(source)?),
             Step::Invoke { source, .. } => plan::Effect::Invoke(self.resource(source)?),
@@ -240,8 +276,7 @@ impl Builder<'_, '_> {
             Step::DisposeArrayElements { source, range, .. } => {
                 plan::Effect::DisposeArrayElements {
                     source: self.resource(source)?,
-                    range: range
-                        .try_map_index(|index| self.holder(Holder::IndexSnapshot(index)))?,
+                    range: range.try_map_index(|index| self.holder(index.holder()))?,
                 }
             }
             Step::Capture { .. } | Step::AdaptFunction { .. } => return Err(INVALID),

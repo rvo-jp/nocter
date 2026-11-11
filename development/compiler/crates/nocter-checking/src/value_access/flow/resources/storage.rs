@@ -1,7 +1,7 @@
 //! One ownership ledger: whole values, selected fields, and lexical/evaluation cleanup frames.
 use super::{
-    Frame, Holder, INVALID, OwnedValue, Payload, Place, Program, Result, State, Step, TypedQuery,
-    payload,
+    Frame, Holder, INVALID, Missing, OwnedValue, Payload, Place, Program, Result, State, Step,
+    TypedQuery, payload,
 };
 use nocter_model::{AccessExpressionId, TypeId, ValueAccessMode as Mode};
 
@@ -64,7 +64,7 @@ impl State {
         Ok(())
     }
     pub(super) fn insert(&mut self, holder: Holder, value: Payload, outer: bool) -> Result<()> {
-        if matches!(holder, Holder::IndexSnapshot(_)) || self.owned.contains_key(&holder) {
+        if holder.is_backing() || self.owned.contains_key(&holder) {
             return Err(INVALID);
         }
         let frame = if matches!(holder, Holder::Expression(_) | Holder::Temporary { .. }) {
@@ -92,7 +92,7 @@ impl State {
         Ok(value)
     }
     pub fn take(&mut self, program: &Program, source: &Place) -> Result<Payload> {
-        if matches!(source.holder(), Holder::IndexSnapshot(_)) {
+        if source.holder().is_backing() {
             return Err(INVALID);
         }
         self.validate_snapshots(program, source)?;
@@ -124,11 +124,15 @@ impl State {
         }
         let owner = self.owned.get_mut(&destination.holder()).ok_or(INVALID)?;
         if owner.container(program, destination.fields())? != value
-            || !owner.missing.contains(destination.fields())
+            || !owner
+                .missing
+                .contains(&Missing::Value(destination.fields().clone()))
         {
             return Err(INVALID);
         }
-        owner.missing.remove(destination.fields());
+        owner
+            .missing
+            .remove(&Missing::Value(destination.fields().clone()));
         Ok(())
     }
     pub fn construct(
@@ -231,7 +235,7 @@ impl State {
             destination: destination.clone(),
             payload: value,
         });
-        staged.retire_unused_snapshots(&mut changes)?;
+        staged.retire_unused_backing(&mut changes)?;
         *self = staged;
         steps.extend(changes);
         Ok(())
@@ -243,7 +247,7 @@ impl State {
         allow_missing: bool,
         steps: &mut Vec<Step>,
     ) -> Result<()> {
-        if matches!(source.holder(), Holder::IndexSnapshot(_)) {
+        if source.holder().is_backing() {
             return Err(INVALID);
         }
         self.validate_snapshots(program, source)?;
@@ -254,7 +258,11 @@ impl State {
                 Err(INVALID)
             };
         };
-        if !allow_missing && value.missing.contains(source.fields()) {
+        if !allow_missing
+            && value
+                .missing
+                .contains(&Missing::Value(source.fields().clone()))
+        {
             return Err(INVALID);
         }
         let cleanup = value.cleanup(program, source)?;
@@ -279,7 +287,7 @@ impl State {
         let mut staged = self.clone();
         let mut changes = Vec::new();
         staged.clear(program, source, false, &mut changes)?;
-        staged.retire_unused_snapshots(&mut changes)?;
+        staged.retire_unused_backing(&mut changes)?;
         *self = staged;
         steps.extend(changes);
         Ok(())
@@ -302,7 +310,7 @@ impl State {
             index,
             payload: value,
         });
-        staged.retire_unused_snapshots(&mut changes)?;
+        staged.retire_unused_backing(&mut changes)?;
         *self = staged;
         steps.extend(changes);
         Ok(())

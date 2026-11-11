@@ -1,0 +1,15 @@
+struct Item { value: i32 }
+const func run(): i32 {
+    var items = [Item { value: 40 }, Item { value: 2 }]
+    let first = items[0]^
+    items[0] = Item { value: first.value }
+    items = [Item { value: 40 }, Item { value: 2 }]
+    var index: usize = 0
+    var total = 0
+    while index < 2 {
+        let next = items[index]^
+        total += next.value
+        index += 1
+    }
+    total
+}

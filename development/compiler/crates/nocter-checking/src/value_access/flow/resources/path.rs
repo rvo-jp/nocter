@@ -134,6 +134,27 @@ pub enum Index {
     Constant(u64),
     Retained(RetainedIndex),
 }
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum IndexBacking {
+    Selection(RetainedIndex),
+    Frontier(ArrayFrontier),
+}
+impl IndexBacking {
+    #[must_use]
+    pub const fn holder(self) -> super::Holder {
+        match self {
+            Self::Selection(index) => super::Holder::IndexSnapshot(index),
+            Self::Frontier(frontier) => super::Holder::ArrayFrontier(frontier),
+        }
+    }
+    #[must_use]
+    pub const fn bound(self) -> u64 {
+        match self {
+            Self::Selection(index) => index.bound(),
+            Self::Frontier(frontier) => frontier.bound(),
+        }
+    }
+}
 #[derive(Clone, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Path(pub(super) ValuePath<Index>);
 impl Path {
