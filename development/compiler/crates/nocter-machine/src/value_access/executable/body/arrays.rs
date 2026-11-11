@@ -7,6 +7,17 @@ use crate::{
 use nocter_mir::value_access as mir;
 
 impl Builder<'_> {
+    /// The original normal selection proves last < length, so last + 1 <= length even when
+    /// length is the maximum usize. This is a cleanup boundary, never an element address.
+    pub(super) fn retained_successor(
+        &mut self,
+        id: nocter_model::MirLocalId,
+        length: u64,
+    ) -> Result<crate::MachineValueId, Failure> {
+        let last = self.retained_index(id, length)?;
+        let one = self.size_constant(1)?;
+        self.size_binary(crate::MachineBinaryOperation::Add, last, one)
+    }
     pub(super) fn index(
         &mut self,
         base: &mir::Place,

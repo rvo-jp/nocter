@@ -98,10 +98,7 @@ impl OwnedValue {
                         )
                     })
                 {
-                    let missing = holes
-                        .into_iter()
-                        .map(|hole| hole.value().cloned().ok_or(INVALID))
-                        .collect::<Result<_>>()?;
+                    let missing = holes.into_iter().cloned().collect();
                     cleanup.push(Step::DisposeArrayRemainder {
                         source: place,
                         payload: selected,

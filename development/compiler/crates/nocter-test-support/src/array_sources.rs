@@ -2,6 +2,13 @@
 /// Each complete fixture exposes `run(): i32` and computes 42. Source text lives only in fixtures.
 pub const RETAINED_ARRAY_SOURCES: &[(&str, &str)] = &[
     (
+        "mixed-prefix-element-fields",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/arrays/element-mixed-prefix-fields.nct"
+        )),
+    ),
+    (
         "multiple-dynamic-element-fields",
         include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),

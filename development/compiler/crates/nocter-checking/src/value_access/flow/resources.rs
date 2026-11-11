@@ -182,12 +182,12 @@ pub enum Step {
         source: Place,
         payload: Payload,
     },
-    /// Dispose remaining array elements/components and end their container. The missing paths
-    /// project this ledger state; numeric order is resolved from live snapshots during cleanup.
+    /// Dispose remaining array elements/components and end their container. Missing coverage
+    /// preserves point/prefix roles; cleanup consumes their existing live scalar backing.
     DisposeArrayRemainder {
         source: Place,
         payload: Payload,
-        missing: Box<[Path]>,
+        missing: Box<[Missing]>,
     },
     /// Dispose initialized elements in [start, end) in reverse index order, retaining the array
     /// container. Payload is the array's obligation, not a fabricated subarray type.

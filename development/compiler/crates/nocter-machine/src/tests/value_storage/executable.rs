@@ -450,3 +450,30 @@ fn multiple_retained_fields_emit_reverse_cleanup_with_finite_saved_index_predica
     }
     assert_eq!(counts[0], counts[1]);
 }
+
+#[test]
+fn mixed_prefix_and_point_fields_keep_distinct_bounds_in_finite_cleanup() {
+    let mut counts = Vec::new();
+    for length in [3, 100_000] {
+        // Structure qualification: make never constructs an error graph at runtime.
+        let program = compile(&format!(
+            "struct Row {{ left: [error; 3]\nright: error }}\nfunc make(): [Row; {length}] {{ loop {{}} }}\nfunc consume(take rows: [Row; {length}], index: usize, count: usize): void {{ var cursor: usize = 0\nwhile cursor < count {{ let part = rows[0].left[cursor]^\ncursor += 1 }}\nlet right = rows[index].right^ }}\nfunc run(): void {{ consume(make(), 1, 3) }}"
+        ));
+        counts.push(
+            program
+                .functions()
+                .flat_map(|(_, body)| body.body().operations())
+                .count(),
+        );
+        assert!(
+            program
+                .functions()
+                .flat_map(|(_, body)| body.body().operations())
+                .any(|(_, operation)| matches!(
+                    operation.kind(),
+                    MachineOperationKind::ReleaseError { .. }
+                ))
+        );
+    }
+    assert_eq!(counts[0], counts[1]);
+}

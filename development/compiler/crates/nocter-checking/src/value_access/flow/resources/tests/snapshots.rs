@@ -596,7 +596,7 @@ fn multiple_field_holes_project_the_existing_missing_set_until_remainder_complet
     assert!(matches!(steps.as_slice(), [
         Step::DisposeArrayRemainder { source, missing, .. },
         Step::Dispose { source: a, .. }, Step::Dispose { source: b, .. },
-    ] if source == &root && missing.as_ref() == [first.fields().clone(), second.fields().clone()]
+    ] if source == &root && missing.as_ref() == [first.fields().clone().into(), second.fields().clone().into()]
         && a.holder() == Holder::IndexSnapshot(indices[0])
         && b.holder() == Holder::IndexSnapshot(indices[1])));
     assert!(state.contains(Holder::Return));

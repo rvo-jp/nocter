@@ -112,6 +112,10 @@ Validation requires unique descendant selections under the same owning slot/root
 each saved-index projection against its original bound. This freezes exclusions rather than
 reconstructing ownership, equating descriptor keys or granting source access. Malformed duplicate
 and ancestor exclusions are integrity failures.
+`RemainderExclusion` preserves either a selected value place or an array-prefix base plus its
+frontier slot. Prefix endpoints require the frontier role and the prefix array's own positive
+bound; they do not become element projections or inherit the containing array's length. Role and
+bound mutations qualify this distinction.
 
 Each body additionally freezes the reachable static address-slot bindings separately from its
 ordered inputs. One program-owned static table retains their exact runtime data and frozen values.

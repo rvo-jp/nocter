@@ -5,27 +5,34 @@ use crate::{
     MachineBinaryOperation, MachineBranchTarget, MachineCall, MachineCallAllocation,
     MachineCallTarget, MachineLayoutKind, MachineOperationKind, MachineTerminator, MachineValueId,
 };
-use nocter_model::{TypeId, ValueField};
+use nocter_model::{MirLocalId, TypeId, ValueField};
 use nocter_runtime_contract::{RuntimePrimitive, RuntimeTypeRepresentation};
 
 #[derive(Clone)]
 struct Exclusion {
     path: Vec<mir::Projection>,
     conditions: Vec<MachineValueId>,
+    prefix: Option<MirLocalId>,
 }
 
 impl Builder<'_> {
     pub(super) fn dispose_array_remainder(
         &mut self,
         source: &mir::Place,
-        missing: &[mir::Place],
+        missing: &[mir::RemainderExclusion],
     ) -> Result<(), Failure> {
         if !self.context.cleanup.contains_key(&source.data) {
             return Ok(());
         }
         let exclusions = missing
             .iter()
-            .map(|hole| {
+            .map(|exclusion| {
+                let (hole, prefix) = match exclusion {
+                    mir::RemainderExclusion::Value(hole) => (hole, None),
+                    mir::RemainderExclusion::ArrayPrefix { array, endpoint } => {
+                        (array, Some(*endpoint))
+                    }
+                };
                 if hole.slot != source.slot
                     || hole.root != source.root
                     || !hole.projections.starts_with(&source.projections)
@@ -35,6 +42,7 @@ impl Builder<'_> {
                 Ok(Exclusion {
                     path: hole.projections[source.projections.len()..].to_vec(),
                     conditions: Vec::new(),
+                    prefix,
                 })
             })
             .collect::<Result<Vec<_>, Failure>>()?;
@@ -59,13 +67,13 @@ impl Builder<'_> {
         // An unconditional whole-node exclusion needs neither a helper nor a traversal.
         if exclusions
             .iter()
-            .any(|hole| hole.path.is_empty() && hole.conditions.is_empty())
+            .any(|hole| hole.path.is_empty() && hole.prefix.is_none() && hole.conditions.is_empty())
         {
             return Ok(());
         }
         let full: Vec<_> = exclusions
             .iter()
-            .filter(|hole| hole.path.is_empty())
+            .filter(|hole| hole.path.is_empty() && hole.prefix.is_none())
             .collect();
         let end = (!full.is_empty()).then(|| self.block());
         for hole in full {
@@ -87,7 +95,7 @@ impl Builder<'_> {
         }
         let partial: Vec<_> = exclusions
             .iter()
-            .filter(|hole| !hole.path.is_empty())
+            .filter(|hole| !hole.path.is_empty() || hole.prefix.is_some())
             .cloned()
             .collect();
         if partial.is_empty() {
@@ -149,6 +157,7 @@ impl Builder<'_> {
                             children.push(Exclusion {
                                 path: hole.path[1..].to_vec(),
                                 conditions: hole.conditions.clone(),
+                                prefix: hole.prefix,
                             });
                         }
                     }
@@ -195,18 +204,34 @@ impl Builder<'_> {
             .ok_or_else(Self::invalid)?;
         let mut children = Vec::new();
         for hole in exclusions {
-            let index = match hole.path.first() {
-                Some(mir::Projection::Index(slot)) => self.retained_index(*slot, length)?,
-                Some(mir::Projection::Field(ValueField::Array(index))) if *index < length => {
-                    self.size_constant(*index)?
-                }
-                _ => return Err(Self::invalid()),
+            let (index, operation, path, prefix) = if hole.path.is_empty() {
+                let endpoint = hole.prefix.ok_or_else(Self::invalid)?;
+                (
+                    self.retained_successor(endpoint, length)?,
+                    MachineBinaryOperation::Less,
+                    Vec::new(),
+                    None,
+                )
+            } else {
+                let index = match hole.path.first() {
+                    Some(mir::Projection::Index(slot)) => self.retained_index(*slot, length)?,
+                    Some(mir::Projection::Field(ValueField::Array(index))) if *index < length => {
+                        self.size_constant(*index)?
+                    }
+                    _ => return Err(Self::invalid()),
+                };
+                (
+                    index,
+                    MachineBinaryOperation::Equal,
+                    hole.path[1..].to_vec(),
+                    hole.prefix,
+                )
             };
             let condition = self.value(
                 boolean,
                 false,
                 MachineOperationKind::Binary {
-                    operation: MachineBinaryOperation::Equal,
+                    operation,
                     left: traversal.index,
                     right: index,
                     check: MachineArithmeticCheck::NotRequired,
@@ -215,8 +240,9 @@ impl Builder<'_> {
             let mut conditions = hole.conditions.clone();
             conditions.push(condition);
             children.push(Exclusion {
-                path: hole.path[1..].to_vec(),
+                path,
                 conditions,
+                prefix,
             });
         }
         let address = self.array_address(element, pointer, traversal.index, stride)?;

@@ -163,22 +163,14 @@ impl Builder<'_> {
             nocter_model::ArrayRange::Before(slot) => {
                 (self.size_constant(0)?, self.retained_index(slot, length)?)
             }
-            nocter_model::ArrayRange::Through(slot) => {
-                let index = self.retained_index(slot, length)?;
-                let one = self.size_constant(1)?;
-                (
-                    self.size_constant(0)?,
-                    self.size_binary(crate::MachineBinaryOperation::Add, index, one)?,
-                )
-            }
-            nocter_model::ArrayRange::After(slot) => {
-                let index = self.retained_index(slot, length)?;
-                let one = self.size_constant(1)?;
-                (
-                    self.size_binary(crate::MachineBinaryOperation::Add, index, one)?,
-                    self.size_constant(length)?,
-                )
-            }
+            nocter_model::ArrayRange::Through(slot) => (
+                self.size_constant(0)?,
+                self.retained_successor(slot, length)?,
+            ),
+            nocter_model::ArrayRange::After(slot) => (
+                self.retained_successor(slot, length)?,
+                self.size_constant(length)?,
+            ),
         };
         self.cleanup_range(element, pointer, start, end, stride)
     }

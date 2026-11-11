@@ -77,6 +77,12 @@ pub enum Disposal {
     Capture,
 }
 
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum RemainderExclusion {
+    Value(Place),
+    ArrayPrefix { array: Place, endpoint: MirLocalId },
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Effect {
     /// The selected value computation initializes these bytes; this is not another constructor.
@@ -100,7 +106,7 @@ pub enum Effect {
     /// Exact sparse exclusions projected from the checked owner; ends the array after cleanup.
     DisposeArrayRemainder {
         source: Place,
-        missing: Box<[Place]>,
+        missing: Box<[RemainderExclusion]>,
     },
     /// Logical coverage consolidation; native storage needs no runtime ownership map.
     ConsolidateArrayPrefix {

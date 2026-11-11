@@ -203,6 +203,11 @@ not array cardinality, and no runtime ownership table or element-sized metadata 
 Cleanup-helper registration exhaustively covers complete, interval and sparse-remainder operations.
 Nontrivial error-field cases qualify generated predicates, helpers and finite image structure;
 actual owned-error construction/destruction through source remains the separate gate above.
+Mixed prefix/point cleanup retains prefix exclusions as regions: an element is excluded while its
+index is below the saved frontier's successor. That shared successor calculation also serves
+ordinary through/after spans and remains valid at maximum usize. Source cases execute zero-trip,
+partial and complete prefixes, equal-valued point/frontier backing and maximum-count zero-byte
+containers. Nontrivial mixed-field images keep the nested and containing array bounds distinct.
 
 The shared retained-source corpus executes immediate and reserved take/read/edit handoffs, later
 index mutation, ownership alternatives, equal-number snapshots on different routes, containing

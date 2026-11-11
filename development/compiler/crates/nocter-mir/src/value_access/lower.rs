@@ -495,11 +495,29 @@ impl Builder<'_> {
                         let array = self.place(source, payload.data())?;
                         let missing = missing
                             .iter()
-                            .map(|path| {
+                            .map(|hole| {
+                                let (path, frontier) = match hole {
+                                    flow::resources::Missing::Value(path) => (path, None),
+                                    flow::resources::Missing::ArrayPrefix { array, frontier } => {
+                                        (array, Some(*frontier))
+                                    }
+                                };
                                 let data = path
                                     .data(self.instances.unit().program(), array.root)
                                     .ok_or_else(|| self.invalid())?;
-                                self.place(&source.clone().with_fields(path.clone()), data)
+                                let place =
+                                    self.place(&source.clone().with_fields(path.clone()), data)?;
+                                Ok(if let Some(frontier) = frontier {
+                                    let data = self.index_data()?;
+                                    super::RemainderExclusion::ArrayPrefix {
+                                        array: place,
+                                        endpoint: self
+                                            .root(Holder::ArrayFrontier(frontier), data, false)?
+                                            .slot,
+                                    }
+                                } else {
+                                    super::RemainderExclusion::Value(place)
+                                })
                             })
                             .collect::<Result<_, Failure>>()?;
                         output.push(Effect::DisposeArrayRemainder {

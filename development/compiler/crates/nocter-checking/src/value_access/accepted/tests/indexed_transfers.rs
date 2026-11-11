@@ -433,6 +433,41 @@ fn disjoint_fields_allow_multiple_dynamic_holes_in_the_same_array() {
         |step| matches!(step, Step::DisposeArrayRemainder { missing, .. } if missing.len() == 2)
     ));
 }
+
+#[test]
+fn mixed_remainders_preserve_point_and_prefix_coverage_roles() {
+    use crate::value_access::flow::resources::{Missing, Path};
+    let source = nocter_test_support::RETAINED_ARRAY_SOURCES
+        .iter()
+        .find(|(name, _)| *name == "mixed-prefix-element-fields")
+        .unwrap()
+        .1;
+    let unit = accepted(source);
+    let trace = super::support::steps(named(&unit, "work"));
+    let missing = trace
+        .iter()
+        .find_map(|step| match step {
+            Step::DisposeArrayRemainder { missing, .. }
+                if missing
+                    .iter()
+                    .any(|hole| matches!(hole, Missing::ArrayPrefix { .. })) =>
+            {
+                Some(missing)
+            }
+            _ => None,
+        })
+        .unwrap();
+    assert!(missing.iter().any(
+        |hole| matches!(hole, Missing::ArrayPrefix { frontier, .. } if frontier.bound() == 3)
+    ));
+    assert!(
+        missing
+            .iter()
+            .filter_map(Missing::value)
+            .flat_map(Path::retained)
+            .any(|point| point.bound() == 2)
+    );
+}
 #[test]
 fn repeated_known_selection_is_safe_only_when_restored_on_each_backedge() {
     let source = format!(

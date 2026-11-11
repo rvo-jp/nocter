@@ -59,8 +59,11 @@ layout fields, generated operations, an arbitrary iteration cutoff or a constant
 - [x] Close multiple dynamically selected, structurally disjoint field holes under one array.
   Preserve exact missing-point coverage, equal/unordered saved indices, native reverse traversal,
   exhaustive cleanup-helper registration, MIR geometry and bounded evaluator failure recovery.
-- [ ] Extend saved-index identity and initialization/cleanup to mixed prefix/point coverage,
-  conditional restoration and general numeric relations among holes within one array. Keep
+- [x] Preserve mixed prefix/point coverage in sparse remainder cleanup, retaining the existing
+  coverage variants and their distinct bounds/roles. Qualify zero-trip and partial-prefix paths,
+  equal-valued backing, maximum-count zero-byte geometry and nontrivial generated predicates.
+- [ ] Extend saved-index identity and initialization/cleanup to conditional restoration and
+  general numeric relations among holes within one array. Keep
   unproved relations local and explicit. Do not read uninitialized alternative backing or choose
   guards from numeric equality alone; preserve actual original-index mutation and empty/MAX spans.
 - [ ] Qualify actual nontrivial array cleanup effects through the
@@ -120,8 +123,7 @@ not a language restriction derived from the current realization boundary.
   missing set through required/native remainder cleanup; preserve reverse element/component
   destruction, equal-index field merging, saved-index lifetimes and local unsafe-use rejection.
 
-- [ ] Preserve mixed array-prefix and point exclusions in remainder cleanup. The point-only
-  remainder projection does not yet carry prefix regions below a disjoint field. Qualify a prefix
+- [x] Preserve mixed array-prefix and point exclusions in remainder cleanup. Qualify a prefix
   loop on a concrete nested array followed by a dynamic transfer from another element field,
   preserving coverage roles and all backing through required and native execution.
 

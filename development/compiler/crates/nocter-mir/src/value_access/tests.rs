@@ -814,11 +814,57 @@ fn sparse_remainder_exclusions_must_be_unique_descendants_of_the_same_owner() {
         missing[1] = if duplicate {
             missing[0].clone()
         } else {
-            source.clone()
+            RemainderExclusion::Value(source.clone())
         };
         assert!(matches!(
             validate::program(&bad),
             Err(Failure::InvalidBody(_))
         ));
     }
+}
+
+#[test]
+fn mixed_remainder_prefixes_require_their_own_frontier_role_and_bound() {
+    let source = nocter_test_support::RETAINED_ARRAY_SOURCES
+        .iter()
+        .find(|(name, _)| *name == "mixed-prefix-element-fields")
+        .unwrap()
+        .1;
+    let mut program = lower(source);
+    let mut found = false;
+    for body in program.bodies.values_mut() {
+        let point = body
+            .slots
+            .iter()
+            .find_map(|(id, slot)| matches!(slot.key, SlotKey::IndexSnapshot(_)).then_some(id));
+        for effect in body
+            .actions
+            .values_mut()
+            .flat_map(|action| &mut action.alternatives)
+            .flat_map(|alternative| alternative.before.iter_mut().chain(&mut alternative.after))
+        {
+            let Effect::DisposeArrayRemainder { missing, .. } = effect else {
+                continue;
+            };
+            for exclusion in missing {
+                if let RemainderExclusion::ArrayPrefix { endpoint, .. } = exclusion {
+                    assert!(matches!(body.slots.get(*endpoint).unwrap().key,
+                        SlotKey::ArrayFrontier(frontier) if frontier.bound() == 3));
+                    let point = point.unwrap();
+                    assert!(matches!(body.slots.get(point).unwrap().key,
+                        SlotKey::IndexSnapshot(index) if index.bound() != 3));
+                    *endpoint = point;
+                    found = true;
+                }
+            }
+        }
+        if found {
+            break;
+        }
+    }
+    assert!(found);
+    assert!(matches!(
+        validate::program(&program),
+        Err(Failure::InvalidBody(_))
+    ));
 }

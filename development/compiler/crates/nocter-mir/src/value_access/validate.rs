@@ -163,7 +163,11 @@ impl Context<'_> {
                 && slot.representations.as_ref() == [data],
         )
     }
-    fn array_remainder(&self, source: &Place, missing: &[Place]) -> Result<(), Failure> {
+    fn array_remainder(
+        &self,
+        source: &Place,
+        missing: &[super::RemainderExclusion],
+    ) -> Result<(), Failure> {
         self.place(source)?;
         self.require(
             self.program
@@ -180,10 +184,28 @@ impl Context<'_> {
                     .is_some_and(|slot| slot.storage == Storage::Payload),
         )?;
         let mut seen = BTreeSet::new();
-        for hole in missing {
+        for exclusion in missing {
+            let hole = match exclusion {
+                super::RemainderExclusion::Value(hole) => hole,
+                super::RemainderExclusion::ArrayPrefix { array, endpoint } => {
+                    let (_, length) = self
+                        .program
+                        .runtime
+                        .types()
+                        .get(array.data)
+                        .and_then(RuntimeType::array)
+                        .ok_or_else(|| self.invalid())?;
+                    self.require(matches!(
+                        self.body.slots.get(*endpoint).map(|slot| slot.key),
+                        Some(SlotKey::ArrayFrontier(_))
+                    ))?;
+                    self.range_index(*endpoint, length)?;
+                    array
+                }
+            };
             self.place(hole)?;
             self.require(
-                seen.insert(hole)
+                seen.insert(exclusion)
                     && hole.slot == source.slot
                     && hole.root == source.root
                     && hole.projections.len() > source.projections.len()
