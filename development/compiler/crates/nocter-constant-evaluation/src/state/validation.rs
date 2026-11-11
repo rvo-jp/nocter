@@ -468,40 +468,51 @@ fn bounded_array(
     }
     Ok(*length)
 }
+fn owned_place(program: &Program, plan: &super::Plan, source: &Place) -> Result<usize> {
+    if plan
+        .slots
+        .get(source.slot)
+        .is_some_and(|slot| slot.storage == Storage::Owned)
+    {
+        place(program, plan, source)
+    } else {
+        Err(INVALID)
+    }
+}
+fn check_array_move(
+    program: &Program,
+    plan: &super::Plan,
+    array: &Place,
+    selected: &Place,
+    destination: usize,
+) -> Result<()> {
+    let data = owned_place(program, plan, array)?;
+    let Some(Type::Array { element, length }) = program.types.get(data) else {
+        return Err(INVALID);
+    };
+    if *length == 0
+        || !selected.fields.is_empty()
+        || plan
+            .slots
+            .get(selected.slot)
+            .is_none_or(|slot| slot.storage != Storage::Alias)
+        || place(program, plan, selected)? != *element
+        || owned_place(program, plan, &Place::root(destination))? != *element
+    {
+        return Err(INVALID);
+    }
+    Ok(())
+}
 fn check_effect(program: &Program, plan: &super::Plan, effect: &Effect) -> Result<()> {
     let data = |p: &Place| place(program, plan, p);
-    let owned = |p: &Place| {
-        if plan
-            .slots
-            .get(p.slot)
-            .is_some_and(|s| s.storage == Storage::Owned)
-        {
-            data(p)
-        } else {
-            Err(INVALID)
-        }
-    };
+    let owned = |p: &Place| owned_place(program, plan, p);
     match effect {
         Effect::MoveArrayElement {
             array,
             selected,
             destination,
         } => {
-            let array_data = owned(array)?;
-            let Some(Type::Array { element, length }) = program.types.get(array_data) else {
-                return Err(INVALID);
-            };
-            if *length == 0
-                || !selected.fields.is_empty()
-                || plan
-                    .slots
-                    .get(selected.slot)
-                    .is_none_or(|slot| slot.storage != Storage::Alias)
-                || data(selected)? != *element
-                || owned(&Place::root(*destination))? != *element
-            {
-                return Err(INVALID);
-            }
+            check_array_move(program, plan, array, selected, *destination)?;
         }
         Effect::ConsolidateArrayPrefix { source, endpoint } => {
             bounded_array(program, plan, source, *endpoint)?;
@@ -522,6 +533,12 @@ fn check_effect(program: &Program, plan: &super::Plan, effect: &Effect) -> Resul
                 | nocter_model::ArrayRange::After(slot) => {
                     bounded_array(program, plan, source, *slot)?;
                 }
+            }
+        }
+        Effect::DisposeArrayRemainder(source) => {
+            if !matches!(program.types.get(owned(source)?), Some(Type::Array { length, .. }) if *length > 0)
+            {
+                return Err(INVALID);
             }
         }
         Effect::Construct(slot) => {

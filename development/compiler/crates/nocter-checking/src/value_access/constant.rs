@@ -132,6 +132,7 @@ pub(super) fn check(query: &flow::Query) -> Result<Option<Violation>, flow::Inte
                 for step in transition.steps() {
                     let payload = match step {
                         flow::resources::Step::Dispose { payload, .. }
+                        | flow::resources::Step::DisposeArrayRemainder { payload, .. }
                         | flow::resources::Step::DisposeArrayElements { payload, .. }
                         | flow::resources::Step::ReplaceReferent { payload, .. } => *payload,
                         flow::resources::Step::Capture { .. }

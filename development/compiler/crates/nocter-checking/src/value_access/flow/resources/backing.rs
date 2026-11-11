@@ -51,14 +51,12 @@ impl State {
         index: RetainedIndex,
         steps: &mut Vec<Step>,
     ) -> Result<()> {
-        if self.code != Some(index.owner())
-            || !self.initialized(program, container)?
-            || self.contains(Holder::IndexSnapshot(index))
-        {
+        if self.code != Some(index.owner()) || self.contains(Holder::IndexSnapshot(index)) {
             return Err(INVALID);
         }
+        self.validate_snapshots(program, container)?;
         let owner = self.owned.get(&container.holder()).ok_or(INVALID)?;
-        let data = owner.selected(program, container.fields())?.data();
+        let data = owner.container(program, container.fields())?.data();
         let Some(PayloadSchema::Array(array)) = program.data_schema(data) else {
             return Err(INVALID);
         };

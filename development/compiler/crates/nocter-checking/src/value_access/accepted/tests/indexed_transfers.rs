@@ -420,6 +420,19 @@ fn partial_dynamic_fields_do_not_restore_unproved_holes_or_capture_cancelled_arg
         );
     }
 }
+
+#[test]
+fn disjoint_fields_allow_multiple_dynamic_holes_in_the_same_array() {
+    let source = nocter_test_support::RETAINED_ARRAY_SOURCES
+        .iter()
+        .find(|(name, _)| *name == "multiple-dynamic-element-fields")
+        .unwrap()
+        .1;
+    let unit = accepted(source);
+    assert!(super::support::steps(named(&unit, "work")).iter().any(
+        |step| matches!(step, Step::DisposeArrayRemainder { missing, .. } if missing.len() == 2)
+    ));
+}
 #[test]
 fn repeated_known_selection_is_safe_only_when_restored_on_each_backedge() {
     let source = format!(

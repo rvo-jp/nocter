@@ -195,6 +195,15 @@ blocks, where the first load would fail to dominate another route. This nontrivi
 remains image/structure
 qualification until actual source error construction is available.
 
+For multiple unordered retained field holes, `body::remainder` traverses elements and components
+in reverse order and guards only the missing subtrees with predicates over the saved indices.
+Equal indices exclude all corresponding missing fields. Intact subtrees use their existing cleanup
+helper; trivial data needs no traversal. Generated structure depends on schemas and missing paths,
+not array cardinality, and no runtime ownership table or element-sized metadata is added.
+Cleanup-helper registration exhaustively covers complete, interval and sparse-remainder operations.
+Nontrivial error-field cases qualify generated predicates, helpers and finite image structure;
+actual owned-error construction/destruction through source remains the separate gate above.
+
 The shared retained-source corpus executes immediate and reserved take/read/edit handoffs, later
 index mutation, ownership alternatives, equal-number snapshots on different routes, containing
 replacement across backedges, concrete nested parents and maximum-count zero-byte moves. Dynamic

@@ -163,8 +163,40 @@ impl Context<'_> {
                 && slot.representations.as_ref() == [data],
         )
     }
+    fn array_remainder(&self, source: &Place, missing: &[Place]) -> Result<(), Failure> {
+        self.place(source)?;
+        self.require(
+            self.program
+                .runtime
+                .types()
+                .get(source.data)
+                .and_then(RuntimeType::array)
+                .is_some_and(|(_, length)| length > 0)
+                && missing.len() > 1
+                && self
+                    .body
+                    .slots
+                    .get(source.slot)
+                    .is_some_and(|slot| slot.storage == Storage::Payload),
+        )?;
+        let mut seen = BTreeSet::new();
+        for hole in missing {
+            self.place(hole)?;
+            self.require(
+                seen.insert(hole)
+                    && hole.slot == source.slot
+                    && hole.root == source.root
+                    && hole.projections.len() > source.projections.len()
+                    && hole.projections.starts_with(&source.projections),
+            )?;
+        }
+        Ok(())
+    }
     fn effect(&self, effect: &Effect) -> Result<(), Failure> {
         match effect {
+            Effect::DisposeArrayRemainder { source, missing } => {
+                self.array_remainder(source, missing)
+            }
             Effect::ConsolidateArrayPrefix { source, endpoint } => {
                 self.place(source)?;
                 let (_, length) = self

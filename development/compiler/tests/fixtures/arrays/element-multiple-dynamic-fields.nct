@@ -1,0 +1,15 @@
+struct Item { value: i32 }
+struct Pair { first: Item
+    second: Item }
+const func work(left: usize, right: usize): i32 {
+    let items = [Pair { first: Item { value: 40 }, second: Item { value: 2 } },
+                 Pair { first: Item { value: 50 }, second: Item { value: 3 } }]
+    var first_index = left
+    var second_index = right
+    let first = items[first_index].first^
+    let second = items[second_index].second^
+    first_index = 1 - first_index
+    second_index = 1 - second_index
+    first.value + second.value - (if left == 0 { 0 } else { 10 }) - (if right == 0 { 0 } else { 1 })
+}
+const func run(): i32 { work(0, 0) + work(0, 1) + work(1, 0) + work(1, 1) - 126 }

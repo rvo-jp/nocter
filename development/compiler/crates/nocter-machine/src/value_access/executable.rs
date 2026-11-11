@@ -143,10 +143,31 @@ fn cleanup_plan(program: &mir::Program) -> Result<BTreeMap<TypeId, MachineFuncti
                 _ => None,
             });
         for effect in phases.chain(&action.call_bindings).chain(operations) {
-            if let mir::Effect::Dispose { source, disposal } = effect
-                && *disposal != mir::Disposal::Trivial
-            {
-                needs_cleanup(program, source.data, &mut work)?;
+            match effect {
+                mir::Effect::Dispose { source, disposal }
+                    if *disposal != mir::Disposal::Trivial =>
+                {
+                    needs_cleanup(program, source.data, &mut work)?;
+                }
+                mir::Effect::DisposeArrayRemainder { source, .. } => {
+                    needs_cleanup(program, source.data, &mut work)?;
+                }
+                mir::Effect::DisposeArrayElements { source, .. } => {
+                    let (element, _) = program
+                        .runtime()
+                        .types()
+                        .get(source.data)
+                        .and_then(RuntimeType::array)
+                        .ok_or(Failure::InvalidRoot)?;
+                    needs_cleanup(program, element, &mut work)?;
+                }
+                mir::Effect::Dispose { .. }
+                | mir::Effect::Initialize(_)
+                | mir::Effect::Transfer { .. }
+                | mir::Effect::Reinterpret { .. }
+                | mir::Effect::ConsolidateArrayPrefix { .. }
+                | mir::Effect::End(_)
+                | mir::Effect::BindAddress { .. } => {}
             }
         }
     }

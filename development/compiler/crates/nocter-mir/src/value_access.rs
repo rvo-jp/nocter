@@ -97,6 +97,11 @@ pub enum Effect {
         source: Place,
         range: nocter_model::ArrayRange<MirLocalId>,
     },
+    /// Exact sparse exclusions projected from the checked owner; ends the array after cleanup.
+    DisposeArrayRemainder {
+        source: Place,
+        missing: Box<[Place]>,
+    },
     /// Logical coverage consolidation; native storage needs no runtime ownership map.
     ConsolidateArrayPrefix {
         source: Place,

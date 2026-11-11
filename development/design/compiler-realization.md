@@ -270,6 +270,18 @@ prerequisites through existing source guards. Share the dependency graph, handle
 without repeated visits, and preserve reuse after unrelated body edits. Whole-unit publication can
 use its collective body verification instead of repeating transitive checks for every body.
 
+Multiple retained field holes need remainder cleanup from the ledger's existing missing set.
+Different fields can be disjoint even when their saved array indices are equal or unordered;
+that access proof does not establish a destruction order. Carry an immutable cleanup projection
+of those holes, not a second ownership table. Native execution must visit remaining elements and
+components in reverse order and combine exclusions when saved indices coincide. A finite traversal
+with predicates over saved indices is valid; generated work and metadata must depend on the body,
+schemas and holes rather than the array count. Intact regions and trivial cleanup can retain their
+existing efficient paths. Required execution uses its closed payload domain and the same qualified
+missing coverage, with metered sparse working state. A cleanup predicate cannot retrospectively
+authorize an otherwise unproved read, transfer or restoration. All snapshots remain owned until
+the remainder operation and container end complete.
+
 Select a prefix realization from possible re-execution of a transfer site within the same array
 epoch, rather than from a loop's syntax or the mere existence of an earlier extraction. Track
 may-executed sites as finite source provenance, clearing the affected sites on epoch replacement

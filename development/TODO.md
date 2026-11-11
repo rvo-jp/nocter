@@ -56,8 +56,11 @@ layout fields, generated operations, an arbitrary iteration cutoff or a constant
   with atomic rollback, preserve each saved value across index-side mutation, and retire all
   backing through restoration or reverse nested cleanup. Qualify distinct payloads and two-
   dimensional maximum-count zero-byte geometry through required and native execution.
-- [ ] Extend saved-index identity and initialization/cleanup to conditional restoration and
-  multiple holes within one array. Keep
+- [x] Close multiple dynamically selected, structurally disjoint field holes under one array.
+  Preserve exact missing-point coverage, equal/unordered saved indices, native reverse traversal,
+  exhaustive cleanup-helper registration, MIR geometry and bounded evaluator failure recovery.
+- [ ] Extend saved-index identity and initialization/cleanup to mixed prefix/point coverage,
+  conditional restoration and general numeric relations among holes within one array. Keep
   unproved relations local and explicit. Do not read uninitialized alternative backing or choose
   guards from numeric equality alone; preserve actual original-index mutation and empty/MAX spans.
 - [ ] Qualify actual nontrivial array cleanup effects through the
@@ -109,6 +112,18 @@ not a language restriction derived from the current realization boundary.
   publication is not implied by qualification.
 
 ## Open Findings
+
+- [x] Close multiple dynamic field holes without an integrity failure. Source initialization
+  and permissions admit different fields even when their indices may coincide, but snapshot
+  capture and cleanup still assume one retained hole per array. The reproducer is
+  `compiler/tests/fixtures/arrays/element-multiple-dynamic-fields.nct`. Project the existing sparse
+  missing set through required/native remainder cleanup; preserve reverse element/component
+  destruction, equal-index field merging, saved-index lifetimes and local unsafe-use rejection.
+
+- [ ] Preserve mixed array-prefix and point exclusions in remainder cleanup. The point-only
+  remainder projection does not yet carry prefix regions below a disjoint field. Qualify a prefix
+  loop on a concrete nested array followed by a dynamic transfer from another element field,
+  preserving coverage roles and all backing through required and native execution.
 
 - [x] Select an expression's actual operator token across admitted continuation newlines.
   Qualify arithmetic, comparison and logical source execution while preserving syntax-owned

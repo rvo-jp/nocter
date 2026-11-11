@@ -255,7 +255,7 @@ fn retained_cleanup_uses_saved_numbers_and_skips_empty_sides_with_bounded_storag
     assert!(minima.iter().all(|&minimum| minimum == minima[0]));
 }
 
-fn retained_partial_remainder(length: u64, position: u64) -> Plan {
+pub(super) fn retained_partial_remainder(length: u64, position: u64) -> Plan {
     let mut plan = retained_remainder(length, position);
     let mut slots = plan.slots.to_vec();
     slots[0].data = 3;

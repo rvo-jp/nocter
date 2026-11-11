@@ -447,7 +447,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             Effect::Dispose(place) | Effect::Invoke(place) => Ok(self
                 .memory
                 .retire(&self.memory.address(frame, place)?, false)?),
-            Effect::Release(place) => Ok(self
+            Effect::DisposeArrayRemainder(place) | Effect::Release(place) => Ok(self
                 .memory
                 .retire(&self.memory.address(frame, place)?, true)?),
             Effect::Move {

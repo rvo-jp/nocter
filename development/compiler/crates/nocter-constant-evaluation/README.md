@@ -196,6 +196,13 @@ between the intact spans. Repeated storage-limit failures recover all leases. Sm
 lengths have equal minimum budgets for the same first/last position; those two cleanup orders may
 have different peaks.
 
+`Effect::DisposeArrayRemainder` ends the initialized remainder of an owned positive-length array.
+Its existing ownership guard supplies the exact missing coverage. This closed payload domain has
+no user destruction effects; ending the remainder collapses that same metered sparse frontier.
+It does not enumerate repeated elements or infer source safety. Tests execute two saved indices
+in equal and both ordered configurations, including maximum length, repeated budget exhaustion
+and double-retirement rejection. Working-storage minima stay independent of array length.
+
 `ProjectionPath` contains ordinary component ordinals or an index through a named owned usize
 snapshot with its original bound. Validation requires an array of that exact positive length;
 execution resolves the snapshot into the existing metered canonical numeric path. Resource

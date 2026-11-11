@@ -106,6 +106,13 @@ expands element projections. Checking owns the surviving
 intervals and their order. The native consumer selects element geometry/helpers and qualifies
 executable scope; MIR does not infer source holes from byte offsets.
 
+`DisposeArrayRemainder` instead carries an owned array place and the existing sparse missing paths
+when retained indices have no proved numeric order. It ends the container after cleanup.
+Validation requires unique descendant selections under the same owning slot/root and validates
+each saved-index projection against its original bound. This freezes exclusions rather than
+reconstructing ownership, equating descriptor keys or granting source access. Malformed duplicate
+and ancestor exclusions are integrity failures.
+
 Each body additionally freezes the reachable static address-slot bindings separately from its
 ordered inputs. One program-owned static table retains their exact runtime data and frozen values.
 Validation proves table coverage, global shapes, unique alias slots and absence from the input

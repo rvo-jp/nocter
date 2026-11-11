@@ -250,6 +250,9 @@ impl Builder<'_, '_> {
                 endpoint: self.holder(Holder::ArrayFrontier(*frontier))?,
             },
             Step::Dispose { source, .. } => plan::Effect::Dispose(self.resource(source)?),
+            Step::DisposeArrayRemainder { source, .. } => {
+                plan::Effect::DisposeArrayRemainder(self.resource(source)?)
+            }
             Step::ReleaseContainer { source, .. } => plan::Effect::Release(self.resource(source)?),
             Step::Invoke { source, .. } => plan::Effect::Invoke(self.resource(source)?),
             Step::ReplaceReferent {

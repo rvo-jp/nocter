@@ -789,3 +789,36 @@ fn retained_cleanup_integrity_requires_a_matching_scalar_backing_slot() {
         Err(Failure::InvalidBody(_))
     ));
 }
+
+#[test]
+fn sparse_remainder_exclusions_must_be_unique_descendants_of_the_same_owner() {
+    let source = nocter_test_support::RETAINED_ARRAY_SOURCES
+        .iter()
+        .find(|(name, _)| *name == "multiple-dynamic-element-fields")
+        .unwrap()
+        .1;
+    let program = lower(source);
+    for duplicate in [false, true] {
+        let mut bad = program.clone();
+        let effect = bad
+            .bodies
+            .values_mut()
+            .flat_map(|body| body.actions.values_mut())
+            .flat_map(|action| &mut action.alternatives)
+            .flat_map(|alternative| alternative.before.iter_mut().chain(&mut alternative.after))
+            .find(|effect| matches!(effect, Effect::DisposeArrayRemainder { .. }))
+            .unwrap();
+        let Effect::DisposeArrayRemainder { source, missing } = effect else {
+            unreachable!()
+        };
+        missing[1] = if duplicate {
+            missing[0].clone()
+        } else {
+            source.clone()
+        };
+        assert!(matches!(
+            validate::program(&bad),
+            Err(Failure::InvalidBody(_))
+        ));
+    }
+}

@@ -17,6 +17,7 @@ use std::collections::{BTreeMap, BTreeSet};
 mod arrays;
 mod destruction;
 pub(super) use destruction::build as cleanup;
+mod remainder;
 mod repetition;
 mod traversal;
 
@@ -313,6 +314,9 @@ impl<'a> Builder<'a> {
             }
             mir::Effect::DisposeArrayElements { source, range } => {
                 self.dispose_array_elements(source, *range)?;
+            }
+            mir::Effect::DisposeArrayRemainder { source, missing } => {
+                self.dispose_array_remainder(source, missing)?;
             }
             mir::Effect::Dispose { source, disposal } => {
                 if *disposal == mir::Disposal::Trivial {

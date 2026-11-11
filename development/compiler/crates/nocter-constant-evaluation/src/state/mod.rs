@@ -115,6 +115,9 @@ pub enum Effect {
         destination: usize,
     },
     Dispose(Place),
+    /// End the initialized remainder of an array in this closed effect-free payload domain.
+    /// Its exact missing coverage is supplied by the action's ordinary ownership guard.
+    DisposeArrayRemainder(Place),
     /// Retire an intact half-open element interval without cardinality-sized state.
     DisposeArrayElements {
         source: Place,

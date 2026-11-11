@@ -545,3 +545,61 @@ fn nested_snapshots_follow_one_hole_through_restoration_and_reverse_cleanup() {
         assert!(!state.contains(Holder::IndexSnapshot(index)));
     }
 }
+
+#[test]
+fn multiple_field_holes_project_the_existing_missing_set_until_remainder_completion() {
+    let unit = prepare(
+        "struct Pair { first: error\nsecond: error }\nfunc work(take values: [Pair; 2], take spare: error, left: usize, right: usize): void { read a = values[left]\nread b = values[right] }",
+    );
+    let typed = query(&unit, "work");
+    let indices = indices(typed);
+    let root = source(typed, indices[0]).holder().place();
+    let root_data = typed
+        .body()
+        .locals()
+        .get(typed.body().inputs().explicit()[0].local)
+        .unwrap()
+        .data;
+    let PayloadSchema::Array(array) = typed.program().data_schema(root_data).unwrap() else {
+        panic!()
+    };
+    let PayloadSchema::Aggregate(pair) = typed.program().data_schema(array.element()).unwrap()
+    else {
+        panic!()
+    };
+    let fields: Vec<_> = pair.components().map(|field| field.field).collect();
+    let first = source(typed, indices[0]).project(fields[0]);
+    let second = source(typed, indices[1]).project(fields[1]);
+    let spare = Holder::Local(typed.body().inputs().explicit()[1].local).place();
+    let mut state = State::entry(typed).unwrap();
+    state
+        .dispose(typed.program(), &spare, &mut Vec::new())
+        .unwrap();
+    for (index, selected, destination) in [
+        (indices[0], &first, Holder::Return.place()),
+        (indices[1], &second, spare.clone()),
+    ] {
+        operand(&mut state, typed, index, BuiltinType::Usize);
+        state
+            .move_to(
+                typed.program(),
+                selected,
+                &destination,
+                false,
+                &mut Vec::new(),
+            )
+            .unwrap();
+        state.end(index.selection()).unwrap();
+    }
+    let mut steps = Vec::new();
+    state.dispose(typed.program(), &root, &mut steps).unwrap();
+    assert!(matches!(steps.as_slice(), [
+        Step::DisposeArrayRemainder { source, missing, .. },
+        Step::Dispose { source: a, .. }, Step::Dispose { source: b, .. },
+    ] if source == &root && missing.as_ref() == [first.fields().clone(), second.fields().clone()]
+        && a.holder() == Holder::IndexSnapshot(indices[0])
+        && b.holder() == Holder::IndexSnapshot(indices[1])));
+    assert!(state.contains(Holder::Return));
+    assert!(state.contains(spare.holder()));
+    assert!(!state.contains(root.holder()));
+}

@@ -487,6 +487,26 @@ impl Builder<'_> {
                             })?,
                         });
                     }
+                    Step::DisposeArrayRemainder {
+                        source,
+                        payload,
+                        missing,
+                    } => {
+                        let array = self.place(source, payload.data())?;
+                        let missing = missing
+                            .iter()
+                            .map(|path| {
+                                let data = path
+                                    .data(self.instances.unit().program(), array.root)
+                                    .ok_or_else(|| self.invalid())?;
+                                self.place(&source.clone().with_fields(path.clone()), data)
+                            })
+                            .collect::<Result<_, Failure>>()?;
+                        output.push(Effect::DisposeArrayRemainder {
+                            source: array,
+                            missing,
+                        });
+                    }
                     Step::ReleaseContainer { source, payload } => {
                         output.push(Effect::End(self.place(source, payload.data())?));
                     }

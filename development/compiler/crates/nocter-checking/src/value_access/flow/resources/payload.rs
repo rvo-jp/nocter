@@ -82,13 +82,41 @@ impl OwnedValue {
             if selected.disposal() != Disposal::Aggregate {
                 return Err(INVALID);
             }
+            let schema = program.data_schema(selected.data()).ok_or(INVALID)?;
+            if matches!(schema, PayloadSchema::Array(_)) {
+                let depth = place.fields().fields().len();
+                let holes: Vec<_> = self
+                    .missing
+                    .iter()
+                    .filter(|hole| hole.under(place.fields()))
+                    .collect();
+                if holes.len() > 1
+                    && holes.iter().any(|hole| {
+                        matches!(
+                            hole.anchor().fields().get(depth),
+                            Some(nocter_model::ValueProjection::Array(Index::Retained(_)))
+                        )
+                    })
+                {
+                    let missing = holes
+                        .into_iter()
+                        .map(|hole| hole.value().cloned().ok_or(INVALID))
+                        .collect::<Result<_>>()?;
+                    cleanup.push(Step::DisposeArrayRemainder {
+                        source: place,
+                        payload: selected,
+                        missing,
+                    });
+                    continue;
+                }
+            }
             // The container ends after surviving regions. Stack insertion follows component
             // order so cleanup visits them in reverse.
             pending.push(Pending::Emit(Step::ReleaseContainer {
                 source: place.clone(),
                 payload: selected,
             }));
-            match program.data_schema(selected.data()).ok_or(INVALID)? {
+            match schema {
                 PayloadSchema::Aggregate(aggregate) => {
                     for field in aggregate.components() {
                         let child = place.project(field.field);

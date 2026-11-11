@@ -59,7 +59,8 @@ pub struct Place {
     fields: Path,
 }
 impl Place {
-    pub(super) fn with_fields(self, fields: Path) -> Self {
+    #[must_use]
+    pub fn with_fields(self, fields: Path) -> Self {
         Self { fields, ..self }
     }
     #[must_use]
@@ -181,6 +182,13 @@ pub enum Step {
         source: Place,
         payload: Payload,
     },
+    /// Dispose remaining array elements/components and end their container. The missing paths
+    /// project this ledger state; numeric order is resolved from live snapshots during cleanup.
+    DisposeArrayRemainder {
+        source: Place,
+        payload: Payload,
+        missing: Box<[Path]>,
+    },
     /// Dispose initialized elements in [start, end) in reverse index order, retaining the array
     /// container. Payload is the array's obligation, not a fabricated subarray type.
     DisposeArrayElements {
@@ -237,6 +245,7 @@ impl Step {
             | Self::MoveArrayElement { payload, .. }
             | Self::ConsolidateArrayPrefix { payload, .. }
             | Self::Dispose { payload, .. }
+            | Self::DisposeArrayRemainder { payload, .. }
             | Self::DisposeArrayElements { payload, .. }
             | Self::ReleaseContainer { payload, .. }
             | Self::Invoke { payload, .. }

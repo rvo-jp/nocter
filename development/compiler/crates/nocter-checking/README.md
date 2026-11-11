@@ -1068,9 +1068,11 @@ that path in required evaluation and native code; no source effect annotation is
 Selective-call cases update a disjoint field beside the partially moved array and edit transferred
 element temporaries while retaining the correct prefix and exact remainder cleanup.
 
-Outside a proven prefix this stage supports one retained element/subplace hole per complete containing
-array. Conditional restoration of a possibly missing element, non-prefix repeated extraction, adapted callable-element
-handoffs, general relations outside ordered prefix bundles and unclosed call writes still require the
+Multiple dynamic holes also compose when structural field disjointness excludes overlap, including
+equal, ascending and descending actual saved indices. Each transfer still requires an initialized
+selected payload; a recipe key or cleanup predicate cannot prove distinctness for the same field.
+Conditional restoration of a possibly missing element, non-prefix repeated extraction, adapted callable-element
+handoffs, mixed prefix/point remainder coverage, general relations outside ordered prefix bundles and unclosed call writes still require the
 [evaluated-selection closure](../../../design/compiler-realization.md#evaluated-array-selection-closure).
 Repeated recipe keys alone never prove equal numbers across a backedge.
 
@@ -1139,9 +1141,14 @@ not a mutable element address or an immutable selected-point snapshot. `MoveArra
 the actual selected payload first; the same staged transition then replaces the endpoint, records
 the region and consolidates coverage. Cleanup emits only `After(frontier)`, then the container end,
 then backing retirement. Generic value operations cannot create or consume either backing role.
+When several retained paths affect the same array, `DisposeArrayRemainder` freezes that owner's
+existing missing point paths and ends the container after remaining cleanup. It does not sort descriptor
+keys as numbers or create another ownership map. Equal runtime indices combine their field
+exclusions. All backing stays owned through the operation, and initialized source/container checks
+remain separate obligations. The constant and native consumers own their execution strategies.
 Independent ledger tests qualify finite owner counts, ordering and atomic rejection of malformed
-operands, occupied destinations, point/prefix mixing and foreign body descriptors. Unrelated
-multiple holes within one array still need further proof.
+operands, occupied destinations, point/prefix mixing and foreign body descriptors. General numeric
+relations between independently selected holes still need further proof.
 
 Ledger qualification covers listed component assembly, maximum u64 cardinality, first/last and out-of-bounds positions,
 empty arrays, zero-sized elements, partial record elements, replacement and container retirement.

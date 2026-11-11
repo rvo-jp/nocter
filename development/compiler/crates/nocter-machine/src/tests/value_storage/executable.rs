@@ -411,3 +411,42 @@ fn retained_nontrivial_array_cleanup_keeps_source_bounds_and_finite_generated_wo
     assert_eq!(counts[0], counts[1]);
     assert!(counts[0] < 300);
 }
+
+#[test]
+fn multiple_retained_fields_emit_reverse_cleanup_with_finite_saved_index_predicates() {
+    let mut counts = Vec::new();
+    for length in [3, 100_000] {
+        // Image/structure only: actual source construction of owned error graphs is separate.
+        let program = compile(&format!(
+            "struct Item {{ first: error\nsecond: error }}\nfunc make(): [Item; {length}] {{ loop {{}} }}\nfunc consume(take values: [Item; {length}], left: usize, right: usize): void {{ let first = values[left].first^\nlet second = values[right].second^ }}\nfunc run(): void {{ consume(make(), 1, 2) }}"
+        ));
+        counts.push(
+            program
+                .functions()
+                .flat_map(|(_, body)| body.body().operations())
+                .count(),
+        );
+        assert!(
+            program
+                .functions()
+                .flat_map(|(_, body)| body.body().operations())
+                .any(|(_, operation)| matches!(
+                    operation.kind(),
+                    MachineOperationKind::Binary {
+                        operation: crate::MachineBinaryOperation::Equal,
+                        ..
+                    }
+                ))
+        );
+        assert!(
+            program
+                .functions()
+                .flat_map(|(_, body)| body.body().operations())
+                .any(|(_, operation)| matches!(
+                    operation.kind(),
+                    MachineOperationKind::ReleaseError { .. }
+                ))
+        );
+    }
+    assert_eq!(counts[0], counts[1]);
+}
