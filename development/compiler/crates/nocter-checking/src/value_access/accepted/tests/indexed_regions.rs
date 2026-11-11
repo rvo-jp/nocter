@@ -110,3 +110,44 @@ fn zero_byte_elements_keep_distinct_logical_regions() {
     let source = "const func assign(edit left: void, edit right: void): i32 { left = ()\nright = ()\n42 }\nconst func work(): i32 { var values = [(), ()]\nassign(values[0], values[1]) }\nconst ANSWER: i32 = work()";
     assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
 }
+
+#[test]
+fn availability_and_access_share_the_typed_mixed_selection_path() {
+    use crate::value_access::{AccessPath, IndexFact, Referent};
+    use nocter_model::ValueProjection;
+    let unit = accepted(
+        "struct Cell { first: i32\nsecond: i32 }\nstruct Holder { values: [[Cell; 2]; 2] }\nfunc work(root: Holder, index: usize): i32 { root.values[index][1].first }",
+    );
+    let query = named(&unit, "work");
+    let body = query.typed().body();
+    let id = body
+        .expressions()
+        .iter()
+        .find_map(|(id, e)| {
+            matches!(
+                e.kind,
+                crate::value_access::ExpressionKind::Select {
+                    action: crate::value_access::SelectionAction::Access,
+                    ..
+                }
+            )
+            .then_some(id)
+        })
+        .unwrap();
+    let (local, path) = body.referent_path(Referent::Evaluated(id)).unwrap();
+    assert_eq!(local, body.locals().iter().next().unwrap().0);
+    let field = |record, name| match super::support::record_field(&unit, record, name) {
+        ValueProjection::Record(id) => ValueProjection::Record(id),
+        _ => unreachable!(),
+    };
+    assert_eq!(
+        path,
+        AccessPath::new([
+            field("Holder", "values"),
+            ValueProjection::Array(IndexFact::Unknown),
+            ValueProjection::Array(IndexFact::Known(1)),
+            field("Cell", "first"),
+        ])
+    );
+    assert!(crate::value_access::paths::concrete(&path).is_none());
+}

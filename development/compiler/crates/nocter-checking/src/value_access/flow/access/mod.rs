@@ -10,10 +10,7 @@ mod tests;
 use super::{Graph, Initialization, IntegrityError, Location, Terminator};
 use crate::value_access::Query as TypedQuery;
 pub use liveness::{Carrier, Liveness};
-use nocter_model::{
-    AccessLocalId, FieldPath, IndexRelation, PathRelation, ValueAccessMode, ValuePath,
-    ValueProjection,
-};
+use nocter_model::{AccessLocalId, FieldPath, PathRelation, ValueAccessMode};
 pub use projection::AccessDiagnostic;
 use state::World;
 use std::collections::{BTreeMap, BTreeSet};
@@ -33,13 +30,7 @@ pub(super) struct Region {
     pub root: Root,
     pub fields: AccessPath,
 }
-/// Evaluated numeric evidence, never an expression-site or loop-generation identity.
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub enum IndexFact {
-    Known(u64),
-    Unknown,
-}
-pub type AccessPath = ValuePath<IndexFact>;
+pub use crate::value_access::{AccessPath, IndexFact};
 impl Root {
     fn region(self) -> Region {
         Region {
@@ -52,44 +43,14 @@ impl Region {
     fn project(&mut self, fields: &FieldPath) {
         self.fields = self
             .fields
-            .concat(&AccessPath::new(fields.fields().iter().map(
-                |field| match *field {
-                    ValueProjection::Record(id) => ValueProjection::Record(id),
-                    ValueProjection::Tuple(index) => ValueProjection::Tuple(index),
-                    ValueProjection::Array(index) => {
-                        ValueProjection::Array(IndexFact::Known(index))
-                    }
-                },
-            )));
+            .concat(&crate::value_access::paths::known(fields));
     }
     fn concrete_fields(&self) -> Option<FieldPath> {
-        self.fields
-            .fields()
-            .iter()
-            .map(|field| {
-                Some(match *field {
-                    ValueProjection::Record(id) => ValueProjection::Record(id),
-                    ValueProjection::Tuple(index) => ValueProjection::Tuple(index),
-                    ValueProjection::Array(IndexFact::Known(index)) => {
-                        ValueProjection::Array(index)
-                    }
-                    ValueProjection::Array(IndexFact::Unknown) => return None,
-                })
-            })
-            .collect::<Option<Vec<_>>>()
-            .map(FieldPath::new)
+        crate::value_access::paths::concrete(&self.fields)
     }
     fn overlaps(&self, other: &Self) -> bool {
         self.root == other.root
-            && self
-                .fields
-                .relation(&other.fields, |left, right| match (left, right) {
-                    (IndexFact::Known(left), IndexFact::Known(right)) if left == right => {
-                        IndexRelation::Equal
-                    }
-                    (IndexFact::Known(_), IndexFact::Known(_)) => IndexRelation::Distinct,
-                    _ => IndexRelation::Unknown,
-                })
+            && crate::value_access::paths::relation(&self.fields, &other.fields)
                 != PathRelation::Disjoint
     }
 }

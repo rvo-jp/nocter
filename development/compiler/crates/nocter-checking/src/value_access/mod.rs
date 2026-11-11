@@ -15,6 +15,7 @@ mod expressions;
 pub mod flow;
 mod inputs;
 mod ir;
+mod paths;
 mod required;
 mod results;
 mod selection;
@@ -40,6 +41,7 @@ use nocter_model::{
 };
 use nocter_source_index::SourceOrigin;
 use nocter_syntax::{BodySyntaxLocator, BodySyntaxProjection, BoundSyntax, SyntaxOrigin};
+pub use paths::{AccessPath, IndexFact};
 pub use required::RequiredExpression;
 use std::{collections::BTreeMap, sync::Arc};
 

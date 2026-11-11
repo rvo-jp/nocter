@@ -903,8 +903,22 @@ It never appends element fields directly to the containing array prefix or uses 
 logical identity. This permits independent field access for both equal and distinct runtime indices,
 including zero-byte data, without an index-name or loop-generation proof.
 
-Initialization still requires a complete containing array, and base identity stays protected during
-index evaluation. Saved addresses remain the exact execution authority. Checking freezes
+`paths` owns `IndexFact`, concrete/symbolic path conversion and the relation consumed by both
+initialization and access analysis. `TypedBody::referent_path` projects a mixed selection relative
+to its local slot, preserving the static member prefix and every array/field suffix. Unknown
+indices stay unknown even when recipe keys match. Outside referent identity remains access
+analysis's responsibility; a local availability path does not retarget an alias.
+
+Place formation requires a present containing place; the selected child slot may be missing.
+Value supply, read/edit reservations and scalar
+snapshots require the selected complete payload at the point of use, after preceding operand
+effects. Sparse availability queries conservatively include every possibly overlapping hole;
+later disjoint fields can exclude a hole without inventing a concrete unknown index. Concrete
+and symbolic availability use the same query, with joins solved before reporting. Exhaustive
+small-domain enumeration compares symbolic queries with all possible concrete selections,
+including missing parents, partial children and maybe-initialized state. Source element transfer
+and resource-hole admission remain gated by the closure below. Base identity stays protected
+during index evaluation, and saved addresses remain the exact execution authority. Checking freezes
 `ProvenInBounds` when an established normal-result singleton is below the normalized array count,
 and `ProvenTrap` for an empty array or an established singleton at or above that count; other
 indices retain `Required`. This uses the [one disposition role](../nocter-model/README.md#structural-projection-relations),

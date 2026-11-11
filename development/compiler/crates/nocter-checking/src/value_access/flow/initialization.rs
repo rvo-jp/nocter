@@ -1,5 +1,7 @@
 use super::{Graph, IntegrityError, Operation};
-use crate::value_access::{ArgumentAction, ExpressionKind, Query as TypedQuery, Referent};
+use crate::value_access::{
+    AccessPath, ArgumentAction, ExpressionKind, Query as TypedQuery, Referent, paths,
+};
 use nocter_model::{AccessFlowPointId, AccessLocalId, AccessPlaceId, FieldPath, ValueAccessMode};
 mod state;
 use state::Storage;
@@ -42,7 +44,7 @@ pub struct InitializationViolation {
     pub requirement: InitializationRequirement,
     pub location: Location,
     pub local: AccessLocalId,
-    pub fields: FieldPath,
+    pub fields: AccessPath,
     pub state: InitializationState,
     pub causes: Box<[Location]>,
 }
@@ -176,23 +178,14 @@ fn require(
     location: Location,
     violations: &mut Vec<InitializationViolation>,
 ) -> Result<(), IntegrityError> {
-    let storage = state.get(&local).ok_or(INVALID)?;
-    let slot = if requirement == InitializationRequirement::Value {
-        storage.complete(fields)
-    } else {
-        storage.present(fields)
-    };
-    if slot.state != InitializationState::Initialized {
-        violations.push(InitializationViolation {
-            requirement,
-            location,
-            local,
-            fields: fields.clone(),
-            state: slot.state,
-            causes: slot.causes.into_iter().collect(),
-        });
-    }
-    Ok(())
+    require_path(
+        state,
+        local,
+        paths::known(fields),
+        requirement,
+        location,
+        violations,
+    )
 }
 fn require_place(
     typed: &TypedQuery,
@@ -218,13 +211,102 @@ fn require_referent(
     at: Location,
     violations: &mut Vec<InitializationViolation>,
 ) -> Result<(), IntegrityError> {
-    match referent {
-        Referent::Place(place) => require_place(typed, state, place, at, violations),
-        // The graph evaluated and bounds-checked this access before publishing it. It owns no
-        // independent slot; access/reservation analysis protects its root after preparation.
-        Referent::Evaluated(_) if typed.body().referent_data(referent).is_some() => Ok(()),
-        Referent::Evaluated(_) => Err(INVALID),
+    require_selection(
+        typed,
+        state,
+        referent,
+        InitializationRequirement::Value,
+        at,
+        violations,
+    )
+}
+fn require_selection(
+    typed: &TypedQuery,
+    state: &State,
+    referent: Referent,
+    requirement: InitializationRequirement,
+    at: Location,
+    violations: &mut Vec<InitializationViolation>,
+) -> Result<(), IntegrityError> {
+    let (local, fields) = typed.body().referent_path(referent).ok_or(INVALID)?;
+    require_path(state, local, fields, requirement, at, violations)
+}
+fn require_path(
+    state: &State,
+    local: AccessLocalId,
+    fields: AccessPath,
+    requirement: InitializationRequirement,
+    at: Location,
+    violations: &mut Vec<InitializationViolation>,
+) -> Result<(), IntegrityError> {
+    let slot = state
+        .get(&local)
+        .ok_or(INVALID)?
+        .selection(&fields, requirement);
+    if slot.state != InitializationState::Initialized {
+        violations.push(InitializationViolation {
+            requirement,
+            location: at,
+            local,
+            fields,
+            state: slot.state,
+            causes: slot.causes.into_iter().collect(),
+        });
     }
+    Ok(())
+}
+fn require_expression(
+    typed: &TypedQuery,
+    state: &State,
+    id: nocter_model::AccessExpressionId,
+    requirement: InitializationRequirement,
+    at: Location,
+    violations: &mut Vec<InitializationViolation>,
+) -> Result<(), IntegrityError> {
+    if let Some(referent) = typed
+        .body()
+        .expressions()
+        .get(id)
+        .ok_or(INVALID)?
+        .referent(id)
+    {
+        require_selection(typed, state, referent, requirement, at, violations)?;
+    }
+    Ok(())
+}
+fn require_formation(
+    typed: &TypedQuery,
+    state: &State,
+    id: nocter_model::AccessExpressionId,
+    at: Location,
+    violations: &mut Vec<InitializationViolation>,
+) -> Result<(), IntegrityError> {
+    if let Some(referent) = typed
+        .body()
+        .expressions()
+        .get(id)
+        .ok_or(INVALID)?
+        .referent(id)
+    {
+        let (local, path) = typed.body().referent_path(referent).ok_or(INVALID)?;
+        // A child slot can be missing while its containing array/record remains present.
+        // Formation does not read that slot or recreate a missing containing place.
+        let parent = AccessPath::new(
+            path.fields()
+                .iter()
+                .take(path.fields().len().saturating_sub(1))
+                .copied(),
+        );
+        require_path(
+            state,
+            local,
+            parent,
+            InitializationRequirement::Container,
+            at,
+            violations,
+        )?;
+    }
+    Ok(())
 }
 fn remove(
     state: &mut State,
@@ -295,6 +377,24 @@ fn arguments(
     };
     Ok(arguments)
 }
+fn end_local(
+    typed: &TypedQuery,
+    state: &mut State,
+    local: AccessLocalId,
+    location: Location,
+    cleanup: &mut Vec<CleanupFact>,
+) -> Result<(), IntegrityError> {
+    cleanup_fact(
+        typed,
+        state,
+        local,
+        &FieldPath::default(),
+        location,
+        cleanup,
+    )?;
+    remove(state, local, &FieldPath::default(), location)
+}
+
 fn transfer(
     typed: &TypedQuery,
     graph: &Graph,
@@ -367,40 +467,33 @@ fn transfer(
                     location,
                     violations,
                 )?;
-                cleanup_fact(
-                    typed,
-                    state,
-                    *local,
-                    &FieldPath::default(),
-                    location,
-                    cleanup,
-                )?;
-                remove(state, *local, &FieldPath::default(), location)?;
+                end_local(typed, state, *local, location, cleanup)?;
             }
             Operation::ExitScope { locals, .. } => {
                 for &local in locals {
-                    cleanup_fact(
-                        typed,
-                        state,
-                        local,
-                        &FieldPath::default(),
-                        location,
-                        cleanup,
-                    )?;
-                    remove(state, local, &FieldPath::default(), location)?;
+                    end_local(typed, state, local, location, cleanup)?;
                 }
+            }
+            Operation::PrepareOperand { value, .. }
+            | Operation::Condition(value)
+            | Operation::Discard(value)
+            | Operation::StageReturn(value)
+            | Operation::BooleanAnswer { source: value, .. } => {
+                require_expression(
+                    typed,
+                    state,
+                    *value,
+                    InitializationRequirement::Value,
+                    location,
+                    violations,
+                )?;
             }
             Operation::IndexFailure(_)
             | Operation::Forward { .. }
             | Operation::BeginEvaluation(_)
             | Operation::EndEvaluation(_)
-            | Operation::BooleanAnswer { .. }
             | Operation::BooleanConstant { .. }
-            | Operation::PrepareOperand { .. }
-            | Operation::Condition(_)
-            | Operation::CancelCall { .. }
-            | Operation::Discard(_)
-            | Operation::StageReturn(_) => {}
+            | Operation::CancelCall { .. } => {}
         }
     }
     Ok(())
@@ -414,9 +507,6 @@ fn evaluate(
     violations: &mut Vec<InitializationViolation>,
 ) -> Result<(), IntegrityError> {
     match &typed.body().expressions().get(id).ok_or(INVALID)?.kind {
-        ExpressionKind::Place(place) => {
-            require_place(typed, state, *place, location, violations)?;
-        }
         ExpressionKind::Move(place) => {
             require_place(typed, state, *place, location, violations)?;
             remove_place(typed, state, *place, location)?;
@@ -430,17 +520,22 @@ fn evaluate(
         }
         | ExpressionKind::Call { .. }
         | ExpressionKind::If { .. } => return Err(INVALID),
-        ExpressionKind::Index { base: source, .. } | ExpressionKind::Boundary { source, .. } => {
-            if let ExpressionKind::Place(place) =
-                typed.body().expressions().get(*source).ok_or(INVALID)?.kind
-            {
-                require_place(typed, state, place, location, violations)?;
-            }
+        ExpressionKind::Place(_) | ExpressionKind::Index { .. } | ExpressionKind::Select { .. } => {
+            require_formation(typed, state, id, location, violations)?;
+        }
+        ExpressionKind::Boundary { source, .. } => {
+            require_expression(
+                typed,
+                state,
+                *source,
+                InitializationRequirement::Value,
+                location,
+                violations,
+            )?;
         }
         ExpressionKind::Function(_)
         | ExpressionKind::Closure { .. }
         | ExpressionKind::AdaptFunction { .. }
-        | ExpressionKind::Select { .. }
         | ExpressionKind::Aggregate { .. }
         | ExpressionKind::Repeat { .. }
         | ExpressionKind::Constant(_)

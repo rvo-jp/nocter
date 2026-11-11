@@ -20,9 +20,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 Extend the [selection path](compiler/crates/nocter-checking/README.md#array-selection) from complete-value
 access disjointness to one checking-owned source of retained-index facts for initialization and
-resource flow. Separate address formation from complete-payload reads before admitting element
-transfer or restoration. Consume the same selected paths in access checks and the existing ledger;
-do not add a second ownership registry or a separate bounds evaluator.
+resource flow. Extend the shared typed selection path and container/value availability queries
+into source element transfer, restoration and the existing sparse ledger. Preserve address
+formation separately from complete-payload reads; a logical path with an unknown index is not a
+concrete ownership key. Do not add a second ownership registry or a separate bounds evaluator.
 The [closed evaluator address mechanism](compiler/crates/nocter-constant-evaluation/README.md#evaluated-array-addresses)
 is an execution consumer, not proof of precise element-state safety. Preserve the evaluated numeric
 index through reservations, aliases and holes; equal recipe keys across a backedge do not establish equal values.

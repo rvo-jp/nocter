@@ -76,13 +76,15 @@ impl Checker<'_, '_> {
         let known = self
             .expressions
             .get(index)
-            .and_then(crate::value_access::Expression::normal_integer)
-            .and_then(|value| u64::try_from(value).ok());
+            .ok_or(Failure::InconsistentSyntax)?
+            .index_fact();
         let bounds = match known {
             _ if array.is_empty() => nocter_model::IndexBoundsCheck::ProvenTrap,
-            Some(index) if index >= array.length() => nocter_model::IndexBoundsCheck::ProvenTrap,
-            Some(_) => nocter_model::IndexBoundsCheck::ProvenInBounds,
-            None => nocter_model::IndexBoundsCheck::Required,
+            super::super::IndexFact::Known(index) if index >= array.length() => {
+                nocter_model::IndexBoundsCheck::ProvenTrap
+            }
+            super::super::IndexFact::Known(_) => nocter_model::IndexBoundsCheck::ProvenInBounds,
+            super::super::IndexFact::Unknown => nocter_model::IndexBoundsCheck::Required,
         };
         let continues = self.ty(base).may_complete()
             && self.ty(index).may_complete()

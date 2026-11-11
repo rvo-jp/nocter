@@ -1,8 +1,5 @@
 //! One structural access path, with evaluated value facts and no recipe-equality assumption.
-use super::super::{
-    IndexFact,
-    state::{Key, Value},
-};
+use super::super::state::{Key, Value};
 use super::{Context, Failure, Result};
 use crate::value_access::IndexAction;
 use nocter_model::{AccessExpressionId, FieldPath, ValueAccessMode as Mode, ValueProjection};
@@ -51,9 +48,7 @@ impl Context<'_, '_> {
             .expressions()
             .get(index)
             .ok_or(Failure::Integrity)?
-            .normal_integer()
-            .and_then(|value| u64::try_from(value).ok())
-            .map_or(IndexFact::Unknown, IndexFact::Known);
+            .index_fact();
         region.fields = region.fields.project(ValueProjection::Array(index));
         self.retain_place(Key::Expression(id), Some((region, actor)))
     }

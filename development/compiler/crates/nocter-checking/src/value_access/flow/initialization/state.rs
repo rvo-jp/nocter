@@ -2,6 +2,8 @@
 use super::{InitializationState as I, Location, Slot};
 use nocter_model::FieldPath;
 use std::collections::{BTreeMap, BTreeSet};
+#[cfg(test)]
+mod tests;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct Storage {
@@ -38,18 +40,32 @@ impl Storage {
         }
     }
     pub(super) fn present(&self, path: &FieldPath) -> Slot {
-        let mut state = self.root.clone();
-        for (prefix, slot) in &self.selections {
-            if prefix.is_prefix_of(path) {
-                state.and(slot);
-            }
-        }
-        state
+        self.selection(
+            &crate::value_access::paths::known(path),
+            super::InitializationRequirement::Container,
+        )
     }
     pub(super) fn complete(&self, path: &FieldPath) -> Slot {
-        let mut state = self.present(path);
+        self.selection(
+            &crate::value_access::paths::known(path),
+            super::InitializationRequirement::Value,
+        )
+    }
+    pub(super) fn selection(
+        &self,
+        path: &crate::value_access::AccessPath,
+        requirement: super::InitializationRequirement,
+    ) -> Slot {
+        use crate::value_access::paths;
+        let mut state = self.root.clone();
         for (selected, slot) in &self.selections {
-            if path.is_prefix_of(selected) {
+            // Deeper missing children do not remove a containing place. A complete value must
+            // instead exclude every possibly overlapping hole, including unknown indices.
+            if (requirement == super::InitializationRequirement::Value
+                || selected.fields().len() <= path.fields().len())
+                && paths::relation(&paths::known(selected), path)
+                    != nocter_model::PathRelation::Disjoint
+            {
                 state.and(slot);
             }
         }
