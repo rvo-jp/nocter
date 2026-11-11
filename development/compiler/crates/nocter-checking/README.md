@@ -392,6 +392,8 @@ from selected-value completeness, retaining invalidation causes without expandin
 Copy does not invalidate its source; moves invalidate only the selected region. Restoration requires
 present ancestor containers, while complete-value use requires every selected component. Fixed
 owners cannot be reinitialized. Diagnostics retain which of those requirements failed.
+Initialization publishes availability and diagnostics; the resource transition report alone owns
+cleanup conditions and ordered steps.
 `Expression.normal_value` owns one typed normal-result scalar fact. `booleans` derives its
 Boolean alternative while typing literals, negation, short-circuit operations and value-preserving
 boundaries. It neither reads storage contents nor

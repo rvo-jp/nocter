@@ -12,8 +12,8 @@ mod tests;
 
 use super::{Query as TypedQuery, Referent};
 pub use initialization::{
-    CleanupFact, Initialization, InitializationRequirement, InitializationState,
-    InitializationViolation, Location,
+    Initialization, InitializationRequirement, InitializationState, InitializationViolation,
+    Location,
 };
 use nocter_model::{
     AccessBlockId, AccessExpressionId, AccessFlowPointId, AccessLocalId, AccessStatementId, Arena,

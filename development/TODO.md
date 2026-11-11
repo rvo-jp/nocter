@@ -145,8 +145,8 @@ not a language restriction derived from the current realization boundary.
 
 ## Open Findings
 
-- [ ] Remove the unused initialization `CleanupFact` report and its per-iteration collection if
-  the final consumer audit confirms no independent requirement. The resource transition report
+- [x] Remove the unused initialization `CleanupFact` report and its per-iteration collection after
+  confirming no independent consumer. The resource transition report
   already owns exact cleanup and guards; keep initialization responsible for availability and
   diagnostics rather than a second incomplete cleanup projection.
 

@@ -49,29 +49,15 @@ pub struct InitializationViolation {
     pub causes: Box<[Location]>,
 }
 
-/// Initialization condition at a potential owned-slot cleanup. Not an executable cleanup schedule.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CleanupFact {
-    pub location: Location,
-    pub local: AccessLocalId,
-    pub fields: FieldPath,
-    pub state: InitializationState,
-}
-
 #[derive(Clone, Debug)]
 pub struct Initialization {
     entries: BTreeMap<AccessFlowPointId, State>,
     violations: Box<[InitializationViolation]>,
-    cleanup: Box<[CleanupFact]>,
 }
 impl Initialization {
     #[must_use]
     pub const fn violations(&self) -> &[InitializationViolation] {
         &self.violations
-    }
-    #[must_use]
-    pub const fn cleanup(&self) -> &[CleanupFact] {
-        &self.cleanup
     }
     #[must_use]
     pub fn reachable(&self, point: AccessFlowPointId) -> bool {
@@ -114,15 +100,7 @@ pub(super) fn analyze(
     let mut pending = BTreeSet::from([graph.entry()]);
     while let Some(id) = pending.pop_first() {
         let mut state = entries.get(&id).ok_or(INVALID)?.clone();
-        transfer(
-            typed,
-            graph,
-            numeric,
-            id,
-            &mut state,
-            &mut Vec::new(),
-            &mut Vec::new(),
-        )?;
+        transfer(typed, graph, numeric, id, &mut state, &mut Vec::new())?;
         for successor in graph
             .points()
             .get(id)
@@ -143,7 +121,6 @@ pub(super) fn analyze(
     }
     // Report only after convergence. First-iteration success cannot certify a loop backedge.
     let mut violations = Vec::new();
-    let mut cleanup = Vec::new();
     for (&point, state) in &entries {
         transfer(
             typed,
@@ -152,13 +129,11 @@ pub(super) fn analyze(
             point,
             &mut state.clone(),
             &mut violations,
-            &mut cleanup,
         )?;
     }
     Ok(Initialization {
         entries,
         violations: violations.into_boxed_slice(),
-        cleanup: cleanup.into_boxed_slice(),
     })
 }
 const INVALID: IntegrityError = IntegrityError::InconsistentTypedBody;
@@ -336,32 +311,6 @@ fn initialize(
         .set(fields, InitializationState::Initialized, None);
     Ok(())
 }
-fn cleanup_fact(
-    typed: &TypedQuery,
-    state: &State,
-    local: AccessLocalId,
-    fields: &FieldPath,
-    location: Location,
-    cleanup: &mut Vec<CleanupFact>,
-) -> Result<(), IntegrityError> {
-    if typed
-        .body()
-        .locals()
-        .get(local)
-        .ok_or(INVALID)?
-        .access()
-        .mode()
-        == ValueAccessMode::Own
-    {
-        cleanup.push(CleanupFact {
-            location,
-            local,
-            fields: fields.clone(),
-            state: state.get(&local).ok_or(INVALID)?.present(fields).state,
-        });
-    }
-    Ok(())
-}
 fn arguments(
     typed: &TypedQuery,
     call: nocter_model::AccessExpressionId,
@@ -373,24 +322,6 @@ fn arguments(
     };
     Ok(arguments)
 }
-fn end_local(
-    typed: &TypedQuery,
-    state: &mut State,
-    local: AccessLocalId,
-    location: Location,
-    cleanup: &mut Vec<CleanupFact>,
-) -> Result<(), IntegrityError> {
-    cleanup_fact(
-        typed,
-        state,
-        local,
-        &FieldPath::default(),
-        location,
-        cleanup,
-    )?;
-    remove(state, local, &FieldPath::default(), location)
-}
-
 fn require_array_container(
     state: &State,
     array: &super::resources::Place,
@@ -472,7 +403,6 @@ fn transfer(
     point: AccessFlowPointId,
     state: &mut State,
     violations: &mut Vec<InitializationViolation>,
-    cleanup: &mut Vec<CleanupFact>,
 ) -> Result<(), IntegrityError> {
     let mut cursor = numeric.cursor(typed, point);
     for (action, event) in graph
@@ -526,7 +456,7 @@ fn transfer(
             }
             Operation::Bind { local, .. } => initialize(state, *local, &FieldPath::default())?,
             Operation::Assign { target, .. } => {
-                assign(typed, facts, state, *target, location, violations, cleanup)?;
+                assign(typed, facts, state, *target, location, violations)?;
             }
             Operation::CompoundAssign { target, .. } => {
                 require_referent(typed, facts, state, *target, location, violations)?;
@@ -540,11 +470,11 @@ fn transfer(
                     location,
                     violations,
                 )?;
-                end_local(typed, state, *local, location, cleanup)?;
+                remove(state, *local, &FieldPath::default(), location)?;
             }
             Operation::ExitScope { locals, .. } => {
                 for &local in locals {
-                    end_local(typed, state, local, location, cleanup)?;
+                    remove(state, local, &FieldPath::default(), location)?;
                 }
             }
             Operation::PrepareOperand { value, .. }
@@ -663,7 +593,6 @@ fn assign(
     target: Referent,
     location: Location,
     violations: &mut Vec<InitializationViolation>,
-    cleanup: &mut Vec<CleanupFact>,
 ) -> Result<(), IntegrityError> {
     if restore_point(typed, facts, state, target)? {
         return Ok(());
@@ -727,7 +656,6 @@ fn assign(
             violations,
         )?;
     }
-    cleanup_fact(typed, state, place.local, &place.fields, location, cleanup)?;
     initialize(state, place.local, &place.fields)?;
     Ok(())
 }
