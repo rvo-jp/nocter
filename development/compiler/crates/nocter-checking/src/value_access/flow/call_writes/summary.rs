@@ -84,7 +84,7 @@ fn combine(
         let Some(Writes::Known(inputs)) = effects.get(&code) else {
             return Ok(Writes::Unknown);
         };
-        let Some(sources) = bindings::actual_writes(body.typed, call, inputs)? else {
+        let Some(sources) = bindings::actual_writes(body.typed, &body.roots, call, inputs)? else {
             return Ok(Writes::Unknown);
         };
         for source in sources {

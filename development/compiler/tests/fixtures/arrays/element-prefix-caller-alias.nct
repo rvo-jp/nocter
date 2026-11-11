@@ -1,0 +1,30 @@
+struct Item { value: i32 }
+struct State { items: [Item; 2]
+    seen: usize }
+const func bump(edit value: usize): void { value += 1 }
+const func add(edit value: i32): void { value += 1 }
+const func counted(): i32 {
+    var state = State { items: [Item { value: 40 }, Item { value: 2 }], seen: 0 }
+    var index: usize = 0
+    var total = 0
+    while index < 2 {
+        edit first = state.seen
+        edit second = first
+        bump(second)
+        let item = state.items[index]^
+        total += item.value
+        index += 1
+    }
+    if state.seen == 2 { total } else { 0 }
+}
+const func frozen(): i32 {
+    var items = [Item { value: 41 }, Item { value: 0 }]
+    var index: usize = 0
+    edit selected = items[index].value
+    index = 1
+    add(selected)
+    items[0].value + items[1].value
+}
+const func run(): i32 {
+    if counted() == 42 && frozen() == 42 { 42 } else { 0 }
+}

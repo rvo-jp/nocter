@@ -272,7 +272,7 @@ fn call_bundle_uses_transfer_order_and_consumes_a_closed_callee_write_summary() 
 }
 
 #[test]
-fn selective_call_writes_forget_only_proven_targets_and_unknown_aliases_remain_conservative() {
+fn selective_call_writes_preserve_disjoint_facts_through_lexical_aliases() {
     let helper = "func write(edit value: usize): void { value = 7 }\n";
     let query = function(&format!(
         "{helper}func f(): usize {{ var kept: usize = 40\nvar changed: usize = 0\nwrite(changed)\nkept + 2 }}"
@@ -283,12 +283,17 @@ fn selective_call_writes_forget_only_proven_targets_and_unknown_aliases_remain_c
         "{helper}func f(): usize {{ var changed: usize = 0\nwrite(changed)\nchanged }}"
     ));
     let result = returns(&query);
-    assert_eq!(result[0].1.constant(result[0].0), None);
+    assert_ne!(result[0].1.constant(result[0].0), Some(0));
     let query = function(&format!(
         "{helper}func f(): usize {{ var kept: usize = 40\nvar changed: usize = 0\nedit alias = changed\nwrite(alias)\nkept + 2 }}"
     ));
     let result = returns(&query);
-    assert_eq!(result[0].1.constant(result[0].0), None);
+    assert_eq!(result[0].1.constant(result[0].0), Some(42));
+    let query = function(&format!(
+        "{helper}func f(): usize {{ var changed: usize = 0\nedit alias = changed\nwrite(alias)\nchanged }}"
+    ));
+    let result = returns(&query);
+    assert_ne!(result[0].1.constant(result[0].0), Some(0));
 }
 
 #[test]

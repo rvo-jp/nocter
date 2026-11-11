@@ -56,6 +56,10 @@ layout fields, generated operations, an arbitrary iteration cutoff or a constant
   binding initializers. Preserve explicit input positions and owned-local separation through
   alias chains; do not claim exact numeric paths or general escaping alias provenance. Qualify
   selective prefix/scalar preservation and rejection of aliased counter invalidation.
+- [x] Project caller-side lexical edit aliases to conservative existing source footprints using
+  that same binding resolver. Preserve original invocation addresses and never reload the index
+  of an older alias; use containing storage when an exact selection cannot be retained. Qualify
+  disjoint prefix preservation and aliased counter invalidation in source/native execution.
 - [x] Close partial-field extraction below one retained index, including constant nested selectors,
   reverse remaining-field cleanup, snapshot retirement/restoration, call commit/cancellation,
   conditional holes, parent replacement and maximum-count zero-byte execution. Qualify bounded

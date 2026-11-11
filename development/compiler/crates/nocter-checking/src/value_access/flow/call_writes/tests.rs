@@ -136,6 +136,35 @@ fn lexical_alias_chains_separate_owned_storage_from_explicit_input_positions() {
 }
 
 #[test]
+fn caller_alias_footprints_resolve_without_reselecting_an_evaluated_index() {
+    let controls = controls(
+        "func set(edit value: usize): void { value += 1 }\n\
+         func caller(): void { var count: usize = 0\nedit first = count\nedit second = first\nset(second) }\n\
+         func indexed(): void { var values: [usize; 2] = [0, 0]\nvar index: usize = 0\nedit selected = values[index]\nindex = 1\nset(selected) }",
+    );
+    let catalog = Catalog::prepare(&controls).unwrap();
+    for name in ["caller", "indexed"] {
+        let control = controls
+            .iter()
+            .find(|control| control.typed.code() == ValueCode::Declaration(code(&controls, name)))
+            .unwrap();
+        let calls = catalog.calls(control).unwrap();
+        let target = calls.writes.values().next().unwrap();
+        let [Referent::Place(place)] = target.as_ref() else {
+            panic!("static conservative footprint")
+        };
+        let place = control.typed.body().places().get(*place).unwrap();
+        let local = control.typed.body().locals().get(place.local).unwrap();
+        assert_eq!(
+            local.access().mode(),
+            nocter_model::ValueAccessMode::Own,
+            "{name}"
+        );
+        assert!(place.fields.fields().is_empty(), "{name}");
+    }
+}
+
+#[test]
 fn flow_binding_guards_transitive_effect_bodies_without_changing_typed_call_reuse() {
     let text = "func write(edit value: usize): void {}\nfunc proxy(edit value: usize): void { write(value) }\nfunc run(): usize { var value: usize = 0\nproxy(value)\nvalue }\nfunc other(): i32 { 7 }";
     let fixture = ValueSourceFixture::new(text);

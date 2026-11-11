@@ -18,6 +18,8 @@ use summary::Writes;
 const INVALID: IntegrityError = IntegrityError::InconsistentTypedBody;
 
 /// Absence is unknown. A known empty list has no writes to existing caller storage.
+/// Nonempty entries are conservative may-write footprints, not invocation addresses or
+/// definite replacements; a frozen alias may widen to its existing containing storage.
 #[derive(Clone, Debug, Default)]
 pub(super) struct Calls {
     writes: BTreeMap<AccessExpressionId, Box<[Referent]>>,
@@ -89,6 +91,7 @@ impl Catalog {
             return Ok(result);
         }
         let mut dependencies = BTreeSet::new();
+        let roots = bindings::Roots::prepare(typed)?;
         for point in control.graph.reachable()? {
             let point = control.graph.points().get(point).ok_or(INVALID)?;
             for action in &point.actions {
@@ -103,7 +106,7 @@ impl Catalog {
                 {
                     dependencies.insert(code);
                     if let Some(Writes::Known(inputs)) = self.summaries.get(&code)
-                        && let Some(writes) = bindings::actual_writes(typed, id, inputs)?
+                        && let Some(writes) = bindings::actual_writes(typed, &roots, id, inputs)?
                     {
                         result.writes.insert(id, writes.into());
                     }

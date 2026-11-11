@@ -87,6 +87,12 @@ fn a_callee_write_through_an_alias_cannot_preserve_the_old_counter_progression()
         SourceUnit::prepare(bound(&sources, &tree)),
         Err(SourceFailure::Checking(Failure::Flow { .. }))
     ));
+    let source = source.replace("reset(index)", "edit selected = index\nreset(selected)");
+    let (sources, tree) = input(&source);
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Flow { .. }))
+    ));
 }
 
 #[test]

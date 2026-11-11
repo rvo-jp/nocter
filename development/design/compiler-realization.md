@@ -277,6 +277,10 @@ Lexical edit aliases can resolve their write root from the existing typed bindin
 Retain the original input position or owned-local root, and keep unresolved/escaping provenance
 conservative. Root resolution does not prove a dynamic index, exact component footprint or alias
 lifetime, and must not create a second authority for binding or access state.
+Use that resolver for caller-side alias footprints too. Widen a frozen dynamic selection to
+containing storage when exact retained-index evidence is unavailable; never re-evaluate the old
+selection with a newer user index. A may-write footprint can overapproximate the invocation's
+actual address and must not be used as a definite replacement or an address-producing recipe.
 Keep effect reuse distinct from typed-call reuse: a callee-only body edit may preserve the call's
 type but invalidate its write proof. Verify transitive reached bodies and their value/count/result
 prerequisites through existing source guards. Share the dependency graph, handle recursive components

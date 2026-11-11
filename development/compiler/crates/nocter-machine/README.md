@@ -234,6 +234,9 @@ remainder remain correct while the ordinary calls perform their actual writes.
 Alias-call cases perform those disjoint updates through chained lexical edit aliases and also
 update private helper-local storage. They consume checking's input-root summaries without a
 native alias or ownership registry.
+Caller-side alias cases also preserve disjoint prefix loops and the original element address
+after index mutation. Their checking-owned may-write footprints can be wider than that address;
+invocation continues to consume the existing frozen alias.
 Dynamic partial-element cases execute record-field and constant inner-array extraction, index
 mutation, conditional holes, containing replacement and cancelled call preparation. Small and
 maximum-count zero-byte arrays use the same saved-index projections and sparse cleanup path.
