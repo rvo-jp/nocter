@@ -957,7 +957,10 @@ The shared retained-source corpus executes in required evaluation and through th
 [native consumer](../nocter-machine/README.md#private-array-execution). It covers normal and nested
 concrete parents, later-argument/original-index mutation, take/read/edit handoffs, ownership
 alternatives at one selection, different snapshots capturing equal numbers across a join,
-containing replacement on loop backedges and maximum-count zero-byte cleanup. Source cancellation
+containing replacement on loop backedges and maximum-count zero-byte cleanup. Independent holes
+below disjoint concrete parents share one owner: replacing one parent retires only its snapshot
+while the other survives backedges and conditional/final cleanup, including physically co-located
+zero-byte arrays. Source cancellation
 has no retained steps; zero-byte out-of-range transfers fail before capture. Existing cases also
 cover concrete field holes/restoration, disjoint indexed edits and consuming captures.
 

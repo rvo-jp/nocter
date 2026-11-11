@@ -1,0 +1,24 @@
+struct Item { value: i32 }
+struct Pair {
+    left: [Item; 2]
+    right: [Item; 2]
+}
+const func work(flag: bool): i32 {
+    var pair = Pair {
+        left: [Item { value: 10 }, Item { value: 20 }],
+        right: [Item { value: 0 }, Item { value: 2 }],
+    }
+    var index: usize = 1
+    let right = pair.right[index]^
+    index = 0
+    var total = 0
+    while index < 2 {
+        let left = pair.left[index]^
+        total += left.value
+        pair.left = [Item { value: 10 }, Item { value: 20 }]
+        index += 1
+    }
+    if flag { pair.right = [Item { value: 0 }, Item { value: 0 }] }
+    total + right.value + 10
+}
+const func run(): i32 { work(true) + work(false) - 42 }

@@ -24,10 +24,6 @@ ownership, sparse cleanup and the original source bounds disposition. A recipe k
 proves equal numbers across a backedge. Do not add a parallel ownership registry, N element owners,
 layout fields, generated operations, an arbitrary iteration cutoff or a constant-index-only policy.
 
-- [ ] Qualify independent retained holes beneath distinct concrete containing-array paths within
-  one owner. Replacing one parent must retire only its snapshot while another remains live,
-  including across joins/backedges and final cleanup. The one-hole-per-containing-array gate
-  already admits this composition; close its combined source/execution evidence.
 - [ ] Close finite repeated extraction without containing replacement using a compact proven
   progression/frontier. Preserve each normal bounds check, cancellation and exact cleanup when
   execution leaves before the user counter update. Do not overwrite a live selected-index owner

@@ -1,0 +1,23 @@
+struct Pair {
+    left: [void; 18446744073709551615]
+    right: [void; 18446744073709551615]
+}
+const func work(flag: bool): i32 {
+    var pair = Pair {
+        left: [(); 18446744073709551615],
+        right: [(); 18446744073709551615],
+    }
+    var index: usize = 18446744073709551614
+    let right = pair.right[index]^
+    index = 0
+    var turns = 0
+    while turns < 2 {
+        let left = pair.left[index]^
+        pair.left = [(); 18446744073709551615]
+        index += 1
+        turns += 1
+    }
+    if flag { pair.right = [(); 18446744073709551615] }
+    40 + turns
+}
+const func run(): i32 { work(true) + work(false) - 42 }
