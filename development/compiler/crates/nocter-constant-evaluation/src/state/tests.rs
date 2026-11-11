@@ -197,7 +197,7 @@ fn arithmetic_failure_releases_its_frame_before_reusing_the_executor() {
                 operand: Place::root(1),
             },
             alternatives: vec![Alternative {
-                owned: BTreeMap::from([(1, Box::new([]) as Box<[Box<[usize]>]>)]),
+                owned: BTreeMap::from([(1, Box::new([]) as Box<[ProjectionPath]>)]),
                 before: Box::new([]),
                 after: after.into(),
             }]
@@ -246,10 +246,9 @@ fn sparse_guards_have_one_sorted_prefix_free_form_before_phase_matching() {
         plan.slots = slots.into();
         plan.points = plan.points.map(|_, point| {
             let mut point = point.clone();
-            point.actions[0].alternatives[0].owned.insert(
-                2,
-                holes.iter().cloned().map(Vec::into_boxed_slice).collect(),
-            );
+            point.actions[0].alternatives[0]
+                .owned
+                .insert(2, holes.iter().cloned().map(ProjectionPath::from).collect());
             point
         });
         assert!(matches!(

@@ -7,12 +7,29 @@ pub(super) fn place(program: &Program, plan: &super::Plan, place: &Place) -> Res
 }
 pub(super) fn place_data(program: &Program, slots: &[super::Slot], place: &Place) -> Result<usize> {
     let mut data = slots.get(place.slot).ok_or(INVALID)?.data;
-    for &field in &place.fields {
-        data = program
-            .types
-            .get(data)
-            .and_then(|ty| ty.component(field))
-            .ok_or(INVALID)?;
+    for projection in place.fields.iter() {
+        data = match projection {
+            super::Projection::Field(field) => program
+                .types
+                .get(data)
+                .and_then(|ty| ty.component(*field))
+                .ok_or(INVALID)?,
+            super::Projection::Index { slot, bound } => {
+                let snapshot = slots.get(*slot).ok_or(INVALID)?;
+                if snapshot.storage != Storage::Owned
+                    || program.types.get(snapshot.data) != Some(&Type::Usize)
+                {
+                    return Err(INVALID);
+                }
+                let Some(Type::Array { element, length }) = program.types.get(data) else {
+                    return Err(INVALID);
+                };
+                if *length == 0 || length != bound {
+                    return Err(INVALID);
+                }
+                *element
+            }
+        };
     }
     Ok(data)
 }
@@ -187,6 +204,14 @@ fn validate_action(program: &Program, plan: &super::Plan, action: &super::Action
                 return Err(INVALID);
             }
             for fields in paths {
+                if fields.indices().any(|(slot, _)| {
+                    alternative
+                        .owned
+                        .get(&slot)
+                        .is_none_or(|holes| !holes.is_empty())
+                }) {
+                    return Err(INVALID);
+                }
                 place(
                     program,
                     plan,

@@ -28,10 +28,9 @@ registry or a separate bounds evaluator.
   to source dynamic transfer after normal bounds completion. Commit with an
   immediate transfer or the complete call bundle. Cancellation creates no retained hole. A live
   snapshot owner cannot be overwritten by another execution of the same recipe.
-- [x] Reject cleanup/restoration through a concrete path that may overlap a retained missing
-  ancestor. An unknown index relation cannot establish a contained cleanup frontier.
-- [ ] Extend the shared path, availability and cleanup representation to retained whole-element
-  indices under a concrete containing-array path. Source recipe IDs alone never prove equal
+- [ ] Connect retained resource paths to native element projection and extend shared availability
+  to whole-element indices under a concrete array path. Preserve the evaluator's saved-number
+  projection and owner-presence-first guards. Source recipe IDs alone never prove equal
   values. Keep snapshot ownership in branch conditions: equal runtime numbers from different
   paths must not erase their distinct backing lifetimes. Preserve the original required bounds
   check, captured numeric data, empty dynamic remainder intervals and checked successor at MAX.

@@ -9,6 +9,8 @@ pub use execution::{Error, Executor, Rule};
 use nocter_model::{AccessCodeId, AccessFlowPointId, Arena, ValueCodeRoot};
 use std::{collections::BTreeMap, sync::Arc};
 pub use value::{Data, Value};
+mod projection;
+pub use projection::{Projection, ProjectionPath};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Type {
@@ -81,14 +83,14 @@ pub struct Slot {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Place {
     pub slot: usize,
-    pub fields: Box<[usize]>,
+    pub fields: ProjectionPath,
 }
 impl Place {
     #[must_use]
     pub fn root(slot: usize) -> Self {
         Self {
             slot,
-            fields: Box::new([]),
+            fields: ProjectionPath::default(),
         }
     }
 }
@@ -122,10 +124,11 @@ pub enum Effect {
     },
     Invoke(Place),
 }
-/// Exact sparse owning state before the action; aliases and scalar snapshots are not owners.
+/// Exact sparse owning state before the action, including retained index snapshots.
+/// Aliases and ordinary auxiliary operand snapshots are not owners.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Alternative {
-    pub owned: BTreeMap<usize, Box<[Box<[usize]>]>>,
+    pub owned: BTreeMap<usize, Box<[ProjectionPath]>>,
     pub before: Box<[Effect]>,
     pub after: Box<[Effect]>,
 }

@@ -121,11 +121,11 @@ impl Builder<'_, '_> {
             _ => self.program.component_position(field).ok_or(INVALID),
         }
     }
-    fn fields(&self, fields: &FieldPath) -> Result<Box<[usize]>> {
+    fn fields(&self, fields: &FieldPath) -> Result<plan::ProjectionPath> {
         fields
             .fields()
             .iter()
-            .map(|id| self.component_position(*id))
+            .map(|id| Ok(plan::Projection::Field(self.component_position(*id)?)))
             .collect()
     }
     fn referent(&mut self, source: Referent) -> Result<plan::Place> {
@@ -142,8 +142,31 @@ impl Builder<'_, '_> {
     fn resource(&mut self, place: &flow::resources::Place) -> Result<plan::Place> {
         Ok(plan::Place {
             slot: self.holder(place.holder())?,
-            fields: self.fields(&place.fields().concrete().ok_or(INVALID)?)?,
+            fields: self.resource_fields(place.fields())?,
         })
+    }
+    fn resource_fields(&mut self, fields: &flow::resources::Path) -> Result<plan::ProjectionPath> {
+        fields
+            .fields()
+            .iter()
+            .map(|field| {
+                Ok(match *field {
+                    nocter_model::ValueProjection::Record(id) => plan::Projection::Field(
+                        self.component_position(nocter_model::ValueField::Record(id))?,
+                    ),
+                    nocter_model::ValueProjection::Tuple(index) => plan::Projection::Field(index),
+                    nocter_model::ValueProjection::Array(flow::resources::Index::Constant(
+                        index,
+                    )) => plan::Projection::Field(usize::try_from(index).map_err(|_| INVALID)?),
+                    nocter_model::ValueProjection::Array(flow::resources::Index::Retained(
+                        index,
+                    )) => plan::Projection::Index {
+                        slot: self.holder(Holder::IndexSnapshot(index))?,
+                        bound: index.bound(),
+                    },
+                })
+            })
+            .collect()
     }
     fn selected(&mut self, id: AccessPlaceId) -> Result<plan::Place> {
         let place = self.query.typed().body().places().get(id).ok_or(INVALID)?;
@@ -487,7 +510,7 @@ impl Builder<'_, '_> {
     ) -> Result<plan::Operation> {
         let mut source = self.value(source)?;
         let mut path = source.fields.to_vec();
-        path.extend(self.fields(fields)?);
+        path.extend(self.fields(fields)?.iter().copied());
         source.fields = path.into();
         Ok(match action {
             SelectionAction::Access => plan::Operation::Alias {
@@ -544,7 +567,7 @@ impl Builder<'_, '_> {
                                     self.holder(holder)?,
                                     holes
                                         .iter()
-                                        .map(|path| self.fields(&path.concrete().ok_or(INVALID)?))
+                                        .map(|path| self.resource_fields(path))
                                         .collect::<Result<_>>()?,
                                 ))
                             })

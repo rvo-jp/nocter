@@ -60,14 +60,14 @@ impl Ownership {
     pub(in crate::state) fn is_empty(&self) -> bool {
         self.holes.is_empty()
     }
-    pub(in crate::state) fn matches(&self, expected: &[Box<[usize]>]) -> bool {
+    pub(in crate::state) fn matches(&self, expected: &[Path]) -> bool {
         self.holes
             .keys()
             .map(|hole| match hole {
                 Hole::Value(path) => Some(&path[..]),
                 Hole::Array { .. } => None,
             })
-            .eq(expected.iter().map(|path| Some(path.as_ref())))
+            .eq(expected.iter().map(|path| Some(&path[..])))
     }
     pub(super) fn restore(&mut self, path: &Path) -> Result<()> {
         if self.holes.keys().any(|hole| match hole {

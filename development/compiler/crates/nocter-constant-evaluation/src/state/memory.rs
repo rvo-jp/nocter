@@ -1,6 +1,6 @@
 mod ownership;
 use super::{
-    Place, Rule, Slot, Storage as SlotStorage, Value,
+    Place, Projection, ProjectionPath, Rule, Slot, Storage as SlotStorage, Value,
     budget::{Lease, Resident, Storage},
 };
 use ownership::Ownership;
@@ -18,7 +18,14 @@ struct PathData {
 pub(super) struct Path(Option<Arc<PathData>>);
 impl Path {
     pub(super) fn extended(&self, storage: &Storage, tail: &[usize]) -> Result<Self> {
-        if tail.is_empty() {
+        self.extended_with(storage, tail.iter().copied().map(Ok))
+    }
+    fn extended_with(
+        &self,
+        storage: &Storage,
+        tail: impl ExactSizeIterator<Item = Result<usize>>,
+    ) -> Result<Self> {
+        if tail.len() == 0 {
             return Ok(self.clone());
         }
         let length = self
@@ -26,7 +33,12 @@ impl Path {
             .checked_add(tail.len())
             .ok_or(Rule::StorageLimit)?;
         let allocation = storage.items(length)?;
-        let fields = self.iter().chain(tail).copied().collect();
+        let fields = self
+            .iter()
+            .copied()
+            .map(Ok)
+            .chain(tail)
+            .collect::<Result<Box<[_]>>>()?;
         Ok(Self(Some(Arc::new(PathData {
             fields,
             _allocation: allocation,
@@ -148,6 +160,44 @@ impl Memory {
             }),
         )
     }
+    /// Read one actual retained owner, without following a user alias or re-evaluating an index.
+    pub fn snapshot_index(&self, frame: usize, slot: usize, bound: u64) -> Result<u64> {
+        let frame = self.frames.get(frame).ok_or(Rule::InvalidPlan)?;
+        if frame
+            .slots
+            .get(slot)
+            .is_none_or(|slot| slot.storage != SlotStorage::Owned)
+            || !frame.owned.get(&slot).is_some_and(|owner| owner.is_empty())
+        {
+            return Err(Rule::InvalidPlan);
+        }
+        let Some(Cell::Data(value)) = frame.cells.get(&slot).map(|entry| &entry.value) else {
+            return Err(Rule::InvalidPlan);
+        };
+        let super::Data::Integer(value) = value.data() else {
+            return Err(Rule::InvalidPlan);
+        };
+        let index = u64::try_from(*value).map_err(|_| Rule::InvalidPlan)?;
+        if index >= bound {
+            return Err(Rule::InvalidPlan);
+        }
+        Ok(index)
+    }
+    fn projected(&self, frame: usize, base: &Path, fields: &ProjectionPath) -> Result<Path> {
+        base.extended_with(
+            &self.storage,
+            fields.iter().map(|projection| match *projection {
+                Projection::Field(field) => Ok(field),
+                Projection::Index { slot, bound } => {
+                    usize::try_from(self.snapshot_index(frame, slot, bound)?)
+                        .map_err(|_| Rule::StorageLimit)
+                }
+            }),
+        )
+    }
+    pub fn resolve_path(&self, frame: usize, fields: &ProjectionPath) -> Result<Path> {
+        self.projected(frame, &Path::default(), fields)
+    }
     /// Alias cells store canonical roots at definition time; no chain or cycle can be created.
     pub fn address(&self, frame: usize, place: &Place) -> Result<Address> {
         let current = self.frames.get(frame).ok_or(Rule::InvalidPlan)?;
@@ -170,7 +220,7 @@ impl Memory {
                 }
                 Ok(Address {
                     root: base.root,
-                    fields: base.fields.extended(&self.storage, &place.fields)?,
+                    fields: self.projected(frame, &base.fields, &place.fields)?,
                 })
             }
             Some(Cell::Alias(_)) => Err(Rule::InvalidPlan),
@@ -180,7 +230,7 @@ impl Memory {
                     frame,
                     slot: place.slot,
                 },
-                fields: Path::default().extended(&self.storage, &place.fields)?,
+                fields: self.resolve_path(frame, &place.fields)?,
             }),
         }
     }

@@ -8,7 +8,7 @@ fn action(operation: Operation, owned: &[usize], after: Vec<Effect>) -> Action {
         alternatives: vec![Alternative {
             owned: owned
                 .iter()
-                .map(|&slot| (slot, Box::new([]) as Box<[Box<[usize]>]>))
+                .map(|&slot| (slot, Box::new([]) as Box<[ProjectionPath]>))
                 .collect(),
             before: Box::new([]),
             after: after.into(),

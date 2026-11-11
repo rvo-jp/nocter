@@ -994,9 +994,9 @@ retires its backing after the final use; whole-container cleanup/replacement doe
 its remaining spans and container end. Live backing cannot be overwritten by recipe reuse, and
 failed transfer/install leaves both state and steps unchanged. Snapshot owners cannot be constructed
 or consumed through the generic value APIs. This is logical-ledger qualification, not source
-admission: source availability and executable retained-path/guard integration remain gated.
-Executable evaluator/MIR place consumers explicitly require concrete paths until those obligations
-close; they never substitute a number for a retained descriptor.
+admission: source availability and native retained-path integration remain gated.
+The evaluator projects retained paths to saved numeric slots; the MIR place consumer still
+requires concrete paths. Neither substitutes a number for a retained descriptor.
 
 Concrete element paths use the [declaration-owned projection](../nocter-declarations/README.md#future-value-declaration-boundary).
 The existing prefix-free missing-path set records transferred elements and partial element fields.

@@ -180,8 +180,7 @@ validation requires an owned array place. Constant spans satisfy `start < end <=
 `ArrayRange::Before/After` uses an owned usize snapshot and a positive array length. Execution
 requires that scalar still owned and initialized, resolves its saved number below the original
 array length, and skips an empty side. This integrity check never substitutes for source bounds
-completion. Source availability, retained path projection and guarded source admission remain
-separate. `memory::ownership` keeps
+completion. Source availability and guarded source admission remain separate. `memory::ownership` keeps
 individual missing paths and cleanup intervals in one metered sparse frontier, rejecting overlap
 and retirement of unavailable parents. Container release collapses its retired descendants without
 visiting elements. Intervals are cleanup state, not restorable per-element initialization or a new
@@ -192,6 +191,21 @@ the original bounds check before capture, move an element, mutate the original i
 clean from the snapshot. First/last positions at small and maximum lengths share the same minimum
 live-storage requirement; all failed-budget runs recover their leases. Early snapshot retirement
 is an integrity error even if its bytes remain readable.
+
+`ProjectionPath` contains ordinary component ordinals or an index through a named owned usize
+snapshot with its original bound. Validation requires an array of that exact positive length;
+execution resolves the snapshot into the existing metered canonical numeric path. Resource
+projection does not re-evaluate the source index or run another user bounds classifier. The same
+snapshot reader supplies cleanup spans.
+
+Action guard selection compares complete owner-key sets before resolving any missing path. An
+alternative with another snapshot lifetime therefore cannot read that route's uninitialized
+backing, even if both routes could capture equal numbers. Resolved numeric holes are sorted for
+comparison with the one sparse retirement frontier; symbolic slot order never becomes numeric
+ordering or a disjointness proof. Guard projections and address paths charge their working storage
+before allocation. Execution tests cover transfers, saved-number cleanup, original-variable changes,
+uninitialized alternative backing, reverse numeric/slot ordering and budget-failure recovery.
+These are consumer contracts; source dynamic transfer and initialization proofs remain unqualified.
 
 ### Live Working Storage
 

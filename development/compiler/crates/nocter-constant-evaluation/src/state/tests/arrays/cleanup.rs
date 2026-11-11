@@ -156,7 +156,11 @@ fn retained_remainder(length: u64, position: u64) -> Plan {
     plan.slots = slots.into();
     let selected = Place {
         slot: 0,
-        fields: vec![usize::try_from(position).unwrap()].into(),
+        fields: vec![Projection::Index {
+            slot: 7,
+            bound: length,
+        }]
+        .into(),
     };
     let mut moved = action(
         Operation::None,
@@ -166,7 +170,7 @@ fn retained_remainder(length: u64, position: u64) -> Plan {
             destination: Place::root(8),
         }],
     );
-    let holes: Box<[Box<[usize]>]> = vec![selected.fields.clone()].into();
+    let holes: Box<[ProjectionPath]> = vec![selected.fields.clone()].into();
     let condition = BTreeMap::from([(0, holes), (7, Box::new([]) as _), (8, Box::new([]) as _)]);
     let mut changed = action(integer(1, u64::MAX), &[], vec![]);
     changed.alternatives[0].owned = condition.clone();
@@ -280,4 +284,136 @@ fn retiring_the_snapshot_before_its_last_range_use_is_an_integrity_failure() {
         );
         assert_eq!(budget.storage_used(), 0);
     }
+}
+
+#[test]
+fn another_routes_uninitialized_snapshot_is_never_read_while_selecting_a_guard() {
+    let mut plan = retained_remainder(2, 0);
+    let mut slots = plan.slots.to_vec();
+    slots.push(Slot {
+        data: 1,
+        storage: Storage::Owned,
+    }); // slot 9 belongs to another route
+    plan.slots = slots.into();
+    plan.points = plan.points.map(|_, point| {
+        let mut point = point.clone();
+        let action = point.actions.last_mut().unwrap();
+        let mut other = action.alternatives[0].clone();
+        other.owned.remove(&7);
+        other.owned.insert(9, Box::new([]));
+        other.owned.insert(
+            0,
+            vec![vec![Projection::Index { slot: 9, bound: 2 }].into()].into(),
+        );
+        for effect in &mut other.after {
+            match effect {
+                Effect::DisposeArrayElements { range, .. } => {
+                    *range = range
+                        .try_map_index::<_, ()>(|slot| Ok(if slot == 7 { 9 } else { slot }))
+                        .unwrap();
+                }
+                Effect::Dispose(place) if place.slot == 7 => place.slot = 9,
+                _ => {}
+            }
+        }
+        action.alternatives = vec![other, action.alternatives[0].clone()].into();
+        point
+    });
+    assert_eq!(execute(plan, types(2)), Value::integer(42));
+}
+
+#[test]
+fn retained_projection_requires_an_owned_usize_and_its_exact_array_bound() {
+    let (code, _) = code_ids();
+    for projection in [
+        Projection::Index { slot: 1, bound: 2 },
+        Projection::Index { slot: 7, bound: 3 },
+    ] {
+        let mut plan = retained_remainder(2, 0);
+        plan.points = plan.points.map(|_, point| {
+            let mut point = point.clone();
+            let Effect::Move { source, .. } = &mut point.actions[4].alternatives[0].after[0] else {
+                unreachable!()
+            };
+            source.fields = vec![projection].into();
+            point
+        });
+        assert!(matches!(
+            Program::new(
+                types(2),
+                BTreeMap::from([(code.into(), plan)]),
+                BTreeMap::new()
+            ),
+            Err(Rule::InvalidPlan)
+        ));
+    }
+}
+
+#[test]
+fn guard_holes_are_compared_by_numbers_rather_than_snapshot_slot_order() {
+    let mut plan = retained_remainder(2, 1);
+    let mut slots = plan.slots.to_vec();
+    slots.extend([
+        Slot {
+            data: 1,
+            storage: Storage::Owned,
+        },
+        Slot {
+            data: 0,
+            storage: Storage::Owned,
+        },
+    ]);
+    plan.slots = slots.into();
+    let path = |slot| ProjectionPath::from(vec![Projection::Index { slot, bound: 2 }]);
+    plan.points = plan.points.map(|_, point| {
+        let mut point = point.clone();
+        let old = &point.actions;
+        let mut first = old[4].clone();
+        first.alternatives[0].owned.insert(9, Box::new([]));
+        let mut second = action(
+            Operation::None,
+            &[0, 7, 8, 9],
+            vec![Effect::Move {
+                source: Place {
+                    slot: 0,
+                    fields: path(9),
+                },
+                destination: Place::root(10),
+            }],
+        );
+        second.alternatives[0].owned.insert(0, vec![path(7)].into());
+        let mut changed = old[5].clone();
+        let mut done = old[6].clone();
+        for action in [&mut changed, &mut done] {
+            action.alternatives[0]
+                .owned
+                .insert(0, vec![path(7), path(9)].into());
+            action.alternatives[0].owned.insert(9, Box::new([]));
+            action.alternatives[0].owned.insert(10, Box::new([]));
+        }
+        done.alternatives[0].after = vec![
+            Effect::Release(Place::root(0)),
+            Effect::Dispose(Place::root(7)),
+            Effect::Dispose(Place::root(8)),
+            Effect::Dispose(Place::root(9)),
+            Effect::Dispose(Place::root(10)),
+            Effect::Construct(4),
+        ]
+        .into();
+        let mut actions = old[..4].to_vec();
+        actions.extend([
+            action(integer(1, 0), &[0, 7], vec![]),
+            action(index(3), &[0, 7], vec![]),
+            action(copy(9, 1), &[0, 7], vec![Effect::Construct(9)]),
+            first,
+            second,
+            changed,
+            done,
+        ]);
+        point.actions = actions.into();
+        point
+    });
+    // Slot 7 holds index 1, slot 9 holds index 0. The plan's canonical symbolic guard order
+    // is intentionally the opposite of the actual ownership frontier's numeric order.
+    assert_eq!(execute(plan, types(2)), Value::integer(42));
 }

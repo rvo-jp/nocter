@@ -168,16 +168,41 @@ impl<'a, 'budget> Executor<'a, 'budget> {
     }
     fn action(&mut self, frame: usize, action: &Action) -> Result<()> {
         let owners = &self.memory.frames[frame].owned;
-        let alternative = action
-            .alternatives
-            .iter()
-            .find(|a| {
-                a.owned.len() == owners.len()
-                    && a.owned.iter().all(|(slot, holes)| {
-                        owners.get(slot).is_some_and(|actual| actual.matches(holes))
-                    })
-            })
-            .ok_or(Rule::InvalidPlan)?;
+        let mut selected = None;
+        for alternative in &action.alternatives {
+            // Test complete owner presence before resolving any hole. Another route can have
+            // the same numbers but no initialized backing for this alternative's snapshot.
+            if !alternative.owned.keys().eq(owners.keys()) {
+                continue;
+            }
+            let mut matches = true;
+            for (slot, holes) in &alternative.owned {
+                let actual = owners.get(slot).ok_or(Rule::InvalidPlan)?;
+                if holes.is_empty() {
+                    if !actual.is_empty() {
+                        matches = false;
+                        break;
+                    }
+                    continue;
+                }
+                let _paths = self.memory.storage.items(holes.len())?;
+                let mut resolved = holes
+                    .iter()
+                    .map(|path| self.memory.resolve_path(frame, path))
+                    .collect::<Result<Vec<_>>>()?;
+                // Symbolic slot/recipe order never establishes numeric element order.
+                resolved.sort_unstable();
+                if !actual.matches(&resolved) {
+                    matches = false;
+                    break;
+                }
+            }
+            if matches {
+                selected = Some(alternative);
+                break;
+            }
+        }
+        let alternative = selected.ok_or(Rule::InvalidPlan)?;
         // Taking arguments are protected before their source obligations are retired. Scoped
         // addresses are bound after the frozen before-steps have installed retained temporaries.
         let _taken_storage = if let Operation::Call { inputs, .. } = &action.operation {
@@ -405,18 +430,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                     nocter_model::ArrayRange::Constant { .. } => None,
                     nocter_model::ArrayRange::Before(slot)
                     | nocter_model::ArrayRange::After(slot) => {
-                        if !self.memory.frames[frame]
-                            .owned
-                            .get(slot)
-                            .is_some_and(|owner| owner.matches(&[]))
-                        {
-                            return Err(Rule::InvalidPlan);
-                        }
-                        let value = self.read(frame, &Place::root(*slot))?;
-                        let Data::Integer(value) = value.data() else {
-                            return Err(Rule::InvalidPlan);
-                        };
-                        Some(u64::try_from(*value).map_err(|_| Rule::InvalidPlan)?)
+                        Some(self.memory.snapshot_index(frame, *slot, *length)?)
                     }
                 };
                 let interval = range
