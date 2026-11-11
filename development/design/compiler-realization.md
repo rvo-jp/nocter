@@ -256,6 +256,18 @@ effects must propagate through dependencies. Absence of writes into existing cal
 preserve numerical histories, while source transfers and input permissions remain obligations.
 Required execution and whole-unit acceptance must consume that same evidence. General selective
 write footprints and captured/user destruction effects remain separate closure obligations.
+Project parameter-relative may-writes through the selected input plan. An edit of a transferred
+temporary does not additionally write the old caller region; its transfer is still a committed
+resource operation. Invalidate only facts overlapping proved actual targets, keeping unknown
+aliases/captures conservative. A may-write never proves a containing replacement or a fresh epoch.
+Include cleanup of an edited old value, not only newly produced/owned values. These root effects
+apply to primitive structural referents; capability/dereference projections require their actual
+dependency/storage mapping. Detached completion points of an interrupted call supply no effects.
+Keep effect reuse distinct from typed-call reuse: a callee-only body edit may preserve the call's
+type but invalidate its write proof. Verify transitive reached bodies and their value/count/result
+prerequisites through existing source guards. Share the dependency graph, handle recursive components
+without repeated visits, and preserve reuse after unrelated body edits. Whole-unit publication can
+use its collective body verification instead of repeating transitive checks for every body.
 
 Select a prefix realization from possible re-execution of a transfer site within the same array
 epoch, rather than from a loop's syntax or the mere existence of an earlier extraction. Track

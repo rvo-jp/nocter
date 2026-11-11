@@ -248,6 +248,12 @@ fn a_no_caller_write_proof_does_not_restore_a_consumed_counter() {
 }
 
 #[test]
+fn interrupted_write_arguments_do_not_request_uncommitted_effect_bindings() {
+    let source = "const func write(edit value: usize): void { value = 9 }\nconst func run(): usize { write(if true { return 42 } else { 0 })\n7 }\nconst ANSWER: usize = run()";
+    assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
+}
+
+#[test]
 fn dynamic_holes_block_unproved_reads_restoration_and_nonprogressing_recipe_execution() {
     for after in [
         "read later = items",

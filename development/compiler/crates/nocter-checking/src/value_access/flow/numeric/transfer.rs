@@ -155,9 +155,17 @@ pub(super) fn action(
             }
         }
         Operation::CommitCall(id) => {
-            // Unknown callees can mutate through edit inputs or captures. A closed no-caller-
-            // write proof preserves current locals; frozen operands keep their earlier values.
-            if !cells.no_caller_writes.contains(&id) {
+            // May-writes forget their actual current targets. Independent owned scalar cells
+            // and earlier frozen operands survive; unknown aliases/callees remain conservative.
+            if let Some(targets) = cells.call_writes.at(id) {
+                for &target in targets {
+                    if let Some(cell) = cells.local(typed, target) {
+                        state.forget(cell);
+                    } else if !super::owned_base(typed, target) {
+                        forget_locals(cells, state);
+                    }
+                }
+            } else {
                 forget_locals(cells, state);
             }
             if let Some(target) = cells.value(id) {

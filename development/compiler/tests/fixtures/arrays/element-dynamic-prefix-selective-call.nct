@@ -1,0 +1,42 @@
+struct Item { value: i32 }
+struct State { items: [Item; 2]
+    seen: usize }
+const func bump(edit seen: usize): void { seen += 1 }
+const func consume(take item: Item, edit seen: usize): i32 { bump(seen)
+    item.value }
+const func update(edit item: Item): i32 { item.value += 1
+    item.value }
+const func fill(edit items: [Item; 2]): void { items = [Item { value: 40 }, Item { value: 2 }] }
+const func counted(): i32 {
+    var state = State { items: [Item { value: 40 }, Item { value: 2 }], seen: 0 }
+    var index: usize = 0
+    var total = 0
+    while index < 2 {
+        total += consume(state.items[index]^, state.seen)
+        index += 1
+    }
+    if state.seen == 2 { total } else { 0 }
+}
+const func temporary(): i32 {
+    let items = [Item { value: 40 }, Item { value: 2 }]
+    var index: usize = 0
+    var total = 0
+    while index < 2 {
+        total += update(items[index]^) - 1
+        index += 1
+    }
+    total
+}
+const func prepared(): i32 {
+    var items = [Item { value: 0 }, Item { value: 0 }]
+    var index: usize = 0
+    var total = 0
+    fill(items)
+    while index < 2 {
+        let selected = items[index]^
+        total += selected.value
+        index += 1
+    }
+    total
+}
+const func run(): i32 { counted() + temporary() + prepared() - 84 }

@@ -20,7 +20,7 @@ use nocter_model::{
 };
 pub use numeric::NumericFacts;
 pub use projection::{Context, InitializationDiagnostic};
-use std::sync::Arc;
+use std::{collections::BTreeSet, sync::Arc};
 
 fn owned_base(typed: &TypedQuery, source: Referent) -> bool {
     source
@@ -141,6 +141,24 @@ pub struct Graph {
     points: Arena<AccessFlowPointId, Point>,
 }
 impl Graph {
+    /// Structural reachability of the prepared graph. Detached completion points may retain
+    /// unproduced input plans and never supply executable effects.
+    pub(in crate::value_access) fn reachable(
+        &self,
+    ) -> Result<BTreeSet<AccessFlowPointId>, IntegrityError> {
+        let mut pending = BTreeSet::from([self.entry()]);
+        let mut reached = BTreeSet::new();
+        while let Some(id) = pending.pop_first() {
+            if reached.insert(id) {
+                let point = self
+                    .points()
+                    .get(id)
+                    .ok_or(IntegrityError::InconsistentTypedBody)?;
+                pending.extend(point.terminator.successors());
+            }
+        }
+        Ok(reached)
+    }
     #[must_use]
     pub const fn entry(&self) -> AccessFlowPointId {
         self.entry
@@ -220,7 +238,7 @@ impl Control {
             return Err(IntegrityError::UnclosedResultWitnesses);
         }
         super::results::validate(&self.typed, &self.graph)?;
-        let numeric = numeric::analyze(&self.typed, &self.graph, writes.calls(&self.typed)?)?;
+        let numeric = numeric::analyze(&self.typed, &self.graph, writes.calls(&self)?)?;
         let initialization = initialization::analyze(&self.typed, &self.graph, &numeric)?;
         let access = access::analyze(&self.typed, &self.graph, &initialization, &numeric)?;
         Ok(Query {

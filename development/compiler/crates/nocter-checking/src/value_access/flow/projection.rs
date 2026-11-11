@@ -37,6 +37,7 @@ impl Query {
         &'query self,
         declarations: &DeclarationContext<'source>,
     ) -> Result<Context<'query, 'source>, Failure> {
+        self.numeric.verify_calls(declarations)?;
         Ok(Context {
             query: self,
             typed: self.typed.bind(declarations)?,
@@ -44,6 +45,8 @@ impl Query {
     }
 }
 impl Query {
+    // Checked-unit construction uses the same current context. Unit rebinding publishes only
+    // after every body binds, so these internal paths need no repeated transitive verification.
     pub(in crate::value_access) fn bind_verified<'query, 'source>(
         &'query self,
         verified: &crate::value_access::results::Verified<'_, 'source>,

@@ -1,6 +1,7 @@
 use super::*;
 use crate::value_access::accepted::SourceUnit;
 use nocter_test_support::ValueSourceFixture;
+use std::collections::BTreeSet;
 
 fn controls(source: &str) -> Vec<Control> {
     let fixture = ValueSourceFixture::new(source);
@@ -28,11 +29,15 @@ fn closed_recursive_components_preserve_caller_storage_and_external_writes_propa
     );
     let catalog = Catalog::prepare(&controls).unwrap();
     for name in ["first", "second", "local"] {
-        assert!(catalog.no_writes.contains(&code(&controls, name)), "{name}");
+        assert!(
+            catalog.summaries.get(&code(&controls, name)) == Some(&Writes::Known(BTreeSet::new())),
+            "{name}"
+        );
     }
     for name in ["writes", "proxy", "recursive"] {
         assert!(
-            !catalog.no_writes.contains(&code(&controls, name)),
+            catalog.summaries.get(&code(&controls, name))
+                == Some(&Writes::Known(BTreeSet::from([0]))),
             "{name}"
         );
     }
@@ -49,11 +54,13 @@ fn formal_invocation_and_environment_cleanup_do_not_gain_closed_effects() {
     let catalog = Catalog::prepare(&controls).unwrap();
     for name in ["invoke", "forward", "cleanup"] {
         assert!(
-            !catalog.no_writes.contains(&code(&controls, name)),
+            catalog.summaries.get(&code(&controls, name)) == Some(&Writes::Unknown),
             "{name}"
         );
     }
-    assert!(catalog.no_writes.contains(&code(&controls, "leaf")));
+    assert!(
+        catalog.summaries.get(&code(&controls, "leaf")) == Some(&Writes::Known(BTreeSet::new()))
+    );
 }
 
 #[test]
@@ -64,11 +71,79 @@ fn summaries_require_the_exact_typed_body_owner_and_the_available_closed_callees
         .find(|control| control.typed.code() == ValueCode::Declaration(code(&controls, "caller")))
         .unwrap();
     let catalog = Catalog::prepare(&controls).unwrap();
-    assert_eq!(catalog.calls(&caller.typed).unwrap().len(), 1);
+    assert_eq!(catalog.calls(caller).unwrap().writes.len(), 1);
     // An equal clone is a different source/typed owner, even with the same program and code key.
-    assert!(catalog.calls(&Arc::new((*caller.typed).clone())).is_err());
+    let cloned = Control::prepare(Arc::new((*caller.typed).clone())).unwrap();
+    assert!(catalog.calls(&cloned).is_err());
     let partial = Catalog::prepare([caller]).unwrap();
-    assert!(partial.calls(&caller.typed).unwrap().is_empty());
+    assert!(partial.calls(caller).unwrap().writes.is_empty());
     let foreign = self::controls("func leaf(): usize { 9 }\nfunc caller(): usize { leaf() }");
     assert!(Catalog::prepare([caller, &foreign[0]]).is_err());
+}
+
+#[test]
+fn recursive_input_permutations_keep_the_written_root_and_local_aliases_stay_unknown() {
+    let controls = controls(
+        "func write(edit value: usize): void { value += 1 }\nfunc first(edit left: usize, edit right: usize, again: bool): void { if again { second(right, left, false) } else { write(right) } }\nfunc second(edit left: usize, edit right: usize, again: bool): void { if again { first(right, left, false) } else { write(left) } }\nfunc alias(edit value: usize): void { edit target = value\nwrite(target) }\nfunc reset(edit value: error, take next: error): void { value = next^ }",
+    );
+    let catalog = Catalog::prepare(&controls).unwrap();
+    for (name, input) in [("first", 1), ("second", 0), ("reset", 0)] {
+        assert_eq!(
+            catalog.summaries.get(&code(&controls, name)),
+            Some(&Writes::Known(BTreeSet::from([input]))),
+            "{name}"
+        );
+    }
+    assert_eq!(
+        catalog.summaries.get(&code(&controls, "alias")),
+        Some(&Writes::Unknown)
+    );
+}
+
+#[test]
+fn flow_binding_guards_transitive_effect_bodies_without_changing_typed_call_reuse() {
+    let text = "func write(edit value: usize): void {}\nfunc proxy(edit value: usize): void { write(value) }\nfunc run(): usize { var value: usize = 0\nproxy(value)\nvalue }\nfunc other(): i32 { 7 }";
+    let fixture = ValueSourceFixture::new(text);
+    let source = SourceUnit::prepare(fixture.syntax()).unwrap();
+    let code = source
+        .unit()
+        .program()
+        .resolve(source.unit().program().symbols().get("run").unwrap())
+        .unwrap();
+    let query = source
+        .unit()
+        .bodies()
+        .find(|(id, _)| *id == code)
+        .unwrap()
+        .1;
+    for (before, after, valid) in [
+        ("usize): void {}", "usize): void { value = 1 }", false),
+        ("other(): i32 { 7 }", "other(): i32 { 8 }", true),
+    ] {
+        let changed = ValueSourceFixture::new(&text.replace(before, after));
+        let context = source.declarations().bind(changed.syntax()).unwrap();
+        assert!(query.typed().bind(&context).is_ok());
+        assert_eq!(query.bind(&context).is_ok(), valid, "{before}");
+    }
+}
+
+#[test]
+fn flow_binding_guards_value_suppliers_that_change_a_callees_reached_writes() {
+    let text = "const WRITE: bool = false\nfunc maybe(edit value: usize): void { if WRITE { value = 1 } }\nfunc run(): usize { var value: usize = 0\nmaybe(value)\nvalue }";
+    let fixture = ValueSourceFixture::new(text);
+    let source = SourceUnit::prepare(fixture.syntax()).unwrap();
+    let program = source.unit().program();
+    let code = program
+        .resolve(program.symbols().get("run").unwrap())
+        .unwrap();
+    let query = source
+        .unit()
+        .bodies()
+        .find(|(id, _)| *id == code)
+        .unwrap()
+        .1;
+    let changed = ValueSourceFixture::new(&text.replace("bool = false", "bool = true"));
+    let context = source.declarations().bind(changed.syntax()).unwrap();
+    assert!(query.typed().bind(&context).is_ok());
+    assert!(query.bind(&context).is_err());
 }

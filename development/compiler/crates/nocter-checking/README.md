@@ -814,22 +814,36 @@ including at zero. Indexed replacement and partial-state admission follow the
 
 `flow::call_writes` closes named-call evidence after callable results and supply, before numerical,
 initialization and access analysis. One catalog retains exact typed-body owners in the shared final
-program. It establishes absence of writes into existing caller storage from the prepared operation
-graphs and the closed builtin/aggregate cleanup domain. Owned local updates are local effects.
-Formal/captured environment cleanup, unknown callees and writes through other bases remain unknown.
+program. Its summary solver computes finite may-write sets over explicit edit-input roots; unknown
+effects are the top element. Recursive input permutations and transitive calls use one selected-input
+projection in `bindings`. Owned local updates have no external root. Replacement additionally checks
+the old edited referent's cleanup type. Formal/captured cleanup, unavailable callees and unsupported
+alias provenance remain unknown.
 
-The finite dependency closure retains recursive components with no new external effect and removes
-unknown effects transitively. A declaration signature or `const` promise does not supply this proof.
-Only calls certified for their exact typed owner preserve current numerical locals and array-prefix
-histories. Argument transfer, access activation, availability and original bounds checks remain
-ordinary obligations; a consumed counter is still unavailable. The evidence does not promise
-allocation freedom, termination or a generally pure function.
+At each reached commit, input roots project to the actual reserved existing places. Editing a
+transferred/fresh temporary has no further write into the caller's remaining storage; the original
+transfer still occurs. Current scalar facts and prefix histories survive disjoint known targets.
+Overlapping may-writes invalidate facts without claiming a new array epoch; only a definite
+containing replacement/end establishes that reset. An initialized edit preserves an already empty
+extraction history, but cannot repair a prefix or an unproved history. Unknown aliases/callees remain conservative.
+Argument transfer, access activation, availability and original bounds checks remain obligations;
+a consumed counter is still unavailable. A signature or `const` promise supplies no write proof,
+and this evidence does not promise allocation freedom or termination.
 
 Required source closure and final whole-unit acceptance consume the same catalog path. Standalone
-body queries have only their available closed definitions. Tests qualify recursive/transitive
-closure, external writes, formal invocation/cleanup, missing callees and foreign/cloned body-owner
-rejection. Header-count execution also consumes the evidence before final whole-unit closure.
-General selective write footprints, captured effects and user destruction need further closure.
+body queries have only their available closed definitions. Effect projection and signature-only-data
+validation use the graph's shared structural reachability; detached call-completion points furnish
+no effects or input bindings. Tests qualify recursive/transitive/root-permutation closure, selective
+invalidation, interrupted calls, formal cleanup, missing callees and exact body-owner rejection.
+Header-count execution consumes the evidence before final whole-unit closure. Captured effects,
+general alias/root precision and user destruction need further closure.
+
+Flow-query rebinding verifies the reached callee bodies and their typed value/count and result
+prerequisites through one shared recursive dependency graph. A typed call may survive a callee-only
+body edit while its old flow proof cannot. Unrelated bodies are not dependencies. Each selected
+code is visited once per verification, including recursive components; the graph retains existing
+source guards rather than body IR or a second source fingerprint. Whole-unit rebinding already
+verifies every body before publication and does not repeat this traversal for each body.
 
 ## Array Construction
 
@@ -1040,11 +1054,13 @@ frozen address and ordinary argument owner before the shared endpoint changes ag
 The [closed caller-write evidence](#closed-caller-write-effects) also qualifies taking calls inside
 the prefix loop, including transitive mutually recursive callees. The shared source corpus executes
 that path in required evaluation and native code; no source effect annotation is added.
+Selective-call cases update a disjoint field beside the partially moved array and edit transferred
+element temporaries while retaining the correct prefix and exact remainder cleanup.
 
 Outside a proven prefix this stage supports one retained whole-element hole per complete containing
 array. Unknown indices in the containing path, partial fields below a retained selector, conditional
 restoration of a possibly missing element, non-prefix repeated extraction, adapted callable-element
-handoffs, general relations outside ordered prefix bundles and selective/unknown call writes still require the
+handoffs, general relations outside ordered prefix bundles and unclosed call writes still require the
 [evaluated-selection closure](../../../design/compiler-realization.md#evaluated-array-selection-closure).
 Repeated recipe keys alone never prove equal numbers across a backedge.
 

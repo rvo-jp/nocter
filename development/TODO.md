@@ -41,7 +41,10 @@ layout fields, generated operations, an arbitrary iteration cutoff or a constant
   into existing caller storage. Close recursive/transitive dependencies and cleanup eligibility,
   retain exact typed owners, and qualify loop calls plus early header-count execution. Unknown
   writes, formal/captured cleanup and absent callee evidence remain conservative.
-- [ ] Extend call write summaries to selective input targets and captured/destruction effects.
+- [x] Extend named call write summaries to selective input targets, including recursive input
+  permutations, edited old-value cleanup, transferred temporary edits and interrupted argument
+  preparation. Preserve disjoint scalar/prefix facts through required and native source execution.
+- [ ] Extend call write summaries to captured/destruction effects and general alias provenance.
   Generalize evaluated index relations beyond ordered prefix bundles while preserving lifetime-
   specific evidence for retained aliases across re-evaluation. Adapted callable-element transfers
   must also compose their selected adapters with the prefix handoff.
@@ -98,6 +101,10 @@ not a language restriction derived from the current realization boundary.
   publication is not implied by qualification.
 
 ## Open Findings
+
+- [x] Bind flow-effect reuse to actual callee-body and value/count/result dependencies. Typed calls can survive a
+  callee-only body edit, but inferred numeric/availability proofs cannot. Preserve reuse after
+  unrelated body edits and avoid repeating whole-unit verification for every body.
 
 - [x] Keep prefix-lifecycle selection within co-executed array epochs. A later prefix loop on
   a replaced array must not reclassify an earlier point extraction/restoration on the same local.

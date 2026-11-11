@@ -1,7 +1,6 @@
 //! Signature-only data must never become a reached payload, prepared input or invocation.
 use crate::value_access::{ExpressionKind, Query, flow};
 use nocter_model::AccessExpressionId;
-use std::collections::BTreeSet;
 
 pub(in crate::value_access) fn validate(
     query: &Query,
@@ -22,12 +21,7 @@ pub(in crate::value_access) fn validate(
         }
         Ok(())
     };
-    let mut pending = BTreeSet::from([graph.entry()]);
-    let mut visited = BTreeSet::new();
-    while let Some(point) = pending.pop_first() {
-        if !visited.insert(point) {
-            continue;
-        }
+    for point in graph.reachable()? {
         let block = graph.points().get(point).ok_or(invalid)?;
         for action in &block.actions {
             match action.operation {
@@ -74,7 +68,6 @@ pub(in crate::value_access) fn validate(
                 | flow::Operation::ExitScope { .. } => {}
             }
         }
-        pending.extend(block.terminator.successors());
     }
     Ok(())
 }

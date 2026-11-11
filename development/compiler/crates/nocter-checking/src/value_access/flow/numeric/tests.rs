@@ -272,6 +272,40 @@ fn call_bundle_uses_transfer_order_and_consumes_a_closed_callee_write_summary() 
 }
 
 #[test]
+fn selective_call_writes_forget_only_proven_targets_and_unknown_aliases_remain_conservative() {
+    let helper = "func write(edit value: usize): void { value = 7 }\n";
+    let query = function(&format!(
+        "{helper}func f(): usize {{ var kept: usize = 40\nvar changed: usize = 0\nwrite(changed)\nkept + 2 }}"
+    ));
+    let result = returns(&query);
+    assert_eq!(result[0].1.constant(result[0].0), Some(42));
+    let query = function(&format!(
+        "{helper}func f(): usize {{ var changed: usize = 0\nwrite(changed)\nchanged }}"
+    ));
+    let result = returns(&query);
+    assert_eq!(result[0].1.constant(result[0].0), None);
+    let query = function(&format!(
+        "{helper}func f(): usize {{ var kept: usize = 40\nvar changed: usize = 0\nedit alias = changed\nwrite(alias)\nkept + 2 }}"
+    ));
+    let result = returns(&query);
+    assert_eq!(result[0].1.constant(result[0].0), None);
+}
+
+#[test]
+fn a_call_may_write_is_not_proof_of_a_new_array_epoch() {
+    // Numerical qualification stops before safety admission: the partially moved parent
+    // cannot actually satisfy this edit input. A may-write must still never fabricate reset.
+    let query = function(
+        "func maybe(edit items: [void; 3], replace: bool): void { if replace { items = [(); 3] } }\nfunc f(replace: bool): void { var items = [(); 3]\nvar index: usize = 0\nlet first = items[index]^\nmaybe(items, replace)\nindex = 0\nlet second = items[index]^\nitems = [(); 3]\nlet third = items[index]^ }",
+    );
+    assert_eq!(prefix_transfers(&query), [true, false, true]);
+    let query = function(
+        "func maybe(edit items: [void; 3], replace: bool): void { if replace { items = [(); 3] } }\nfunc f(replace: bool): void { var items = [(); 3]\nmaybe(items, replace)\nvar index: usize = 0\nlet first = items[index]^ }",
+    );
+    assert_eq!(prefix_transfers(&query), [true]);
+}
+
+#[test]
 fn abrupt_argument_cancellation_never_commits_the_reserved_prefix() {
     let query = function(
         "func consume(take a: void, b: usize): void {}\nfunc f(): void { let items = [(); 3]\nvar index: usize = 0\nconsume(items[index]^, if true { return () } else { 0 }) }",

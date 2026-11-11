@@ -214,6 +214,9 @@ and maximum-count zero-byte bundles; endpoint reuse does not retarget a frozen a
 The corpus also executes a taking call on each prefix-loop iteration through mutually recursive
 callees whose caller-write effects are closed by checking. No new native effect interpretation or
 source annotation is introduced.
+Selective-call cases execute a transitive update to a disjoint record field beside the partial
+array, plus an edit of each transferred element temporary. The original array's endpoint and
+remainder remain correct while the ordinary calls perform their actual writes.
 
 Shared source fixtures execute element take, field holes, structurally disjoint unknown-index edits,
 exact restoration on loop backedges and maximum-count zero-byte remainder cleanup. The checking

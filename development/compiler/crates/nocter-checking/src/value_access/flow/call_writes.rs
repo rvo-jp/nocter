@@ -1,22 +1,48 @@
-//! Closed evidence that named calls cannot write existing caller storage. This is not purity,
-//! allocation freedom or permission to bypass access checks. Unknown cleanup/call effects stay open.
+//! Body-scoped closed caller-write evidence, projected through the selected input plans.
+mod bindings;
+mod sources;
+mod summary;
+#[cfg(test)]
+mod tests;
+
 use super::{Control, IntegrityError, Operation};
-use crate::value_access::{ExpressionKind, Query as TypedQuery};
-use nocter_declarations::value_access::{CodeKind, PayloadSchema, Program};
-use nocter_model::{
-    AccessCodeId, AccessExpressionId, BuiltinType, ValueAccessMode, ValueCode, ValueFunctionOrigin,
-};
+use crate::value_access::{ExpressionKind, Query as TypedQuery, Referent};
+use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
+use nocter_declarations::value_access::Program;
+use nocter_model::{AccessCodeId, AccessExpressionId, ValueCode, ValueFunctionOrigin};
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
-
+use summary::Writes;
 const INVALID: IntegrityError = IntegrityError::InconsistentTypedBody;
+
+/// Absence is unknown. A known empty list has no writes to existing caller storage.
+#[derive(Clone, Debug, Default)]
+pub(super) struct Calls {
+    writes: BTreeMap<AccessExpressionId, Box<[Referent]>>,
+    sources: sources::Selected,
+}
+impl Calls {
+    pub(in crate::value_access::flow) fn at(
+        &self,
+        call: AccessExpressionId,
+    ) -> Option<&[Referent]> {
+        self.writes.get(&call).map(AsRef::as_ref)
+    }
+    pub(in crate::value_access::flow) fn verify(
+        &self,
+        context: &DeclarationContext<'_>,
+    ) -> Result<(), crate::value_access::Failure> {
+        self.sources.verify(context)
+    }
+}
 
 pub(in crate::value_access) struct Catalog {
     program: Option<Arc<Program>>,
     scope: BTreeMap<ValueCode, Arc<TypedQuery>>,
-    no_writes: BTreeSet<AccessCodeId>,
+    summaries: BTreeMap<AccessCodeId, Writes>,
+    sources: Arc<sources::Graph>,
 }
 impl Catalog {
     pub(in crate::value_access) fn prepare<'a>(
@@ -25,7 +51,6 @@ impl Catalog {
         let roots: Vec<_> = controls.into_iter().collect();
         let program = roots.first().map(|control| control.typed.program.clone());
         let mut scope = BTreeMap::new();
-        let mut dependencies = BTreeMap::new();
         for &control in &roots {
             if program
                 .as_ref()
@@ -34,48 +59,18 @@ impl Catalog {
                 return Err(INVALID);
             }
             retain_scope(control, &mut scope)?;
-            if let ValueCode::Declaration(code) = control.typed.code()
-                && control
-                    .typed
-                    .program()
-                    .codes()
-                    .get(code)
-                    .is_some_and(|code| matches!(code.kind(), CodeKind::Function(_)))
-                && let Some(calls) = local_summary(control)?
-            {
-                dependencies.insert(code, calls);
-            }
         }
-        // Greatest closed set: recursion alone introduces no writes. Any unknown/local
-        // external effect removes its callers transitively, including recursive components.
-        let mut no_writes: BTreeSet<_> = dependencies.keys().copied().collect();
-        let mut callers: BTreeMap<_, BTreeSet<_>> = BTreeMap::new();
-        let mut pending = BTreeSet::new();
-        for (&caller, calls) in &dependencies {
-            for &callee in calls {
-                callers.entry(callee).or_default().insert(caller);
-                if !no_writes.contains(&callee) {
-                    pending.insert(caller);
-                }
-            }
-        }
-        while let Some(caller) = pending.pop_first() {
-            if no_writes.remove(&caller)
-                && let Some(affected) = callers.get(&caller)
-            {
-                pending.extend(affected);
-            }
-        }
+        let closed = summary::close(&roots)?;
+        let sources = Arc::new(sources::Graph::new(&scope, closed.callees));
         Ok(Self {
             program,
             scope,
-            no_writes,
+            summaries: closed.writes,
+            sources,
         })
     }
-    pub(super) fn calls(
-        &self,
-        typed: &Arc<TypedQuery>,
-    ) -> Result<BTreeSet<AccessExpressionId>, IntegrityError> {
+    pub(super) fn calls(&self, control: &Control) -> Result<Calls, IntegrityError> {
+        let typed = &control.typed;
         if self
             .scope
             .get(&typed.code())
@@ -83,30 +78,42 @@ impl Catalog {
         {
             return Err(INVALID);
         }
-        // Standalone body queries may retain an earlier captured-body type suffix. Only a
-        // shared final program can consume cross-body evidence; absent evidence is conservative.
+        let mut result = Calls::default();
+        // A standalone captured body can retain an earlier type suffix. Cross-body evidence
+        // requires the shared final program and its exact typed owner.
         if self
             .program
             .as_ref()
             .is_none_or(|program| !Arc::ptr_eq(program, &typed.program))
         {
-            return Ok(BTreeSet::new());
+            return Ok(result);
         }
-        Ok(typed
-            .body()
-            .expressions()
-            .iter()
-            .filter_map(|(id, expression)| match expression.kind {
-                ExpressionKind::Call {
+        let mut dependencies = BTreeSet::new();
+        for point in control.graph.reachable()? {
+            let point = control.graph.points().get(point).ok_or(INVALID)?;
+            for action in &point.actions {
+                let Operation::CommitCall(id) = action.operation else {
+                    continue;
+                };
+                let expression = typed.body().expressions().get(id).ok_or(INVALID)?;
+                if let ExpressionKind::Call {
                     target: ValueFunctionOrigin::Declaration(code),
                     ..
-                } if self.no_writes.contains(&code) => Some(id),
-                _ => None,
-            })
-            .collect())
+                } = expression.kind
+                {
+                    dependencies.insert(code);
+                    if let Some(Writes::Known(inputs)) = self.summaries.get(&code)
+                        && let Some(writes) = bindings::actual_writes(typed, id, inputs)?
+                    {
+                        result.writes.insert(id, writes.into());
+                    }
+                }
+            }
+        }
+        result.sources = self.sources.select(typed.code(), dependencies);
+        Ok(result)
     }
 }
-
 fn retain_scope(
     control: &Control,
     scope: &mut BTreeMap<ValueCode, Arc<TypedQuery>>,
@@ -124,93 +131,3 @@ fn retain_scope(
     }
     Ok(())
 }
-
-fn local_summary(control: &Control) -> Result<Option<BTreeSet<AccessCodeId>>, IntegrityError> {
-    let typed = &control.typed;
-    if !typed.results_closed() {
-        return Err(IntegrityError::UnclosedResultWitnesses);
-    }
-    if !closed_cleanup(typed) {
-        return Ok(None);
-    }
-    let mut calls = BTreeSet::new();
-    for (_, point) in control.graph.points().iter() {
-        for action in &point.actions {
-            match action.operation {
-                Operation::Assign { target, .. } | Operation::CompoundAssign { target, .. } => {
-                    if !super::owned_base(typed, target) {
-                        return Ok(None);
-                    }
-                }
-                Operation::CommitCall(id) => {
-                    let ExpressionKind::Call {
-                        target: ValueFunctionOrigin::Declaration(code),
-                        ..
-                    } = typed.body().expressions().get(id).ok_or(INVALID)?.kind
-                    else {
-                        return Ok(None);
-                    };
-                    calls.insert(code);
-                }
-                _ => {}
-            }
-        }
-    }
-    Ok(Some(calls))
-}
-
-fn closed_cleanup(typed: &TypedQuery) -> bool {
-    // This closed leaf/aggregate domain has no user destruction hooks. Formal/captured
-    // environments stay unknown; admitting other destructors must consume their effects here.
-    let mut pending: Vec<_> = typed
-        .body()
-        .locals()
-        .iter()
-        .filter(|(_, local)| local.access().mode() == ValueAccessMode::Own)
-        .map(|(_, local)| local.data)
-        .chain(
-            typed
-                .body()
-                .expressions()
-                .iter()
-                .filter_map(|(_, expression)| {
-                    expression
-                        .ty
-                        .normal()
-                        .filter(|access| access.mode() == ValueAccessMode::Own)
-                        .map(nocter_model::ValueAccess::data)
-                }),
-        )
-        .collect();
-    let mut seen = BTreeSet::new();
-    while let Some(data) = pending.pop() {
-        if !seen.insert(data) {
-            continue;
-        }
-        match typed.program().data_schema(data) {
-            Some(PayloadSchema::Builtin(
-                BuiltinType::Bool
-                | BuiltinType::I32
-                | BuiltinType::Usize
-                | BuiltinType::Void
-                | BuiltinType::Error,
-            )) => {}
-            Some(PayloadSchema::Aggregate(schema)) => {
-                pending.extend(schema.components().map(|field| field.data));
-            }
-            Some(PayloadSchema::Array(schema)) => {
-                if !schema.is_empty() {
-                    pending.push(schema.element());
-                }
-            }
-            Some(PayloadSchema::Function(witness))
-                if matches!(witness.origin, ValueFunctionOrigin::Declaration(_)) => {}
-            // Formal/captured environments and future destruction protocols need closed effects.
-            _ => return false,
-        }
-    }
-    true
-}
-
-#[cfg(test)]
-mod tests;

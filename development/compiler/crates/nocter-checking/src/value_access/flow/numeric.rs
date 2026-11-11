@@ -42,7 +42,7 @@ struct Cells {
     values: BTreeMap<AccessExpressionId, usize>,
     operands: BTreeMap<(AccessExpressionId, usize), usize>,
     histories: history::Histories,
-    no_caller_writes: BTreeSet<AccessExpressionId>,
+    call_writes: super::call_writes::Calls,
 }
 impl Cells {
     fn fresh(&mut self) -> Result<usize, IntegrityError> {
@@ -151,6 +151,12 @@ pub(super) struct Analysis {
     progressions: progressions::Plan,
 }
 impl Analysis {
+    pub(in crate::value_access::flow) fn verify_calls(
+        &self,
+        context: &nocter_declaration_lowering::access_declarations::Context<'_>,
+    ) -> Result<(), crate::value_access::Failure> {
+        self.cells.call_writes.verify(context)
+    }
     pub(in crate::value_access::flow) fn prefix(
         &self,
         at: Location,
@@ -203,10 +209,10 @@ impl Analysis {
 pub(super) fn analyze(
     typed: &TypedQuery,
     graph: &Graph,
-    no_caller_writes: BTreeSet<AccessExpressionId>,
+    call_writes: super::call_writes::Calls,
 ) -> Result<Analysis, IntegrityError> {
     let mut cells = Cells::prepare(typed, graph)?;
-    cells.no_caller_writes = no_caller_writes;
+    cells.call_writes = call_writes;
     let cells = Arc::new(cells);
     let entry = State::entry(&cells).ok_or(INVALID)?;
     let mut entries = BTreeMap::from([(graph.entry(), entry)]);

@@ -17,6 +17,14 @@ pub(super) enum Phase {
     Prefix,
     Unproved,
 }
+#[derive(Clone, Copy)]
+enum Change {
+    Definite {
+        source: Referent,
+        except: Option<usize>,
+    },
+    MayWrite(Referent),
+}
 #[derive(Clone, Debug)]
 struct History {
     array: Place,
@@ -170,15 +178,39 @@ impl Histories {
             }
         }
     }
+    fn call_writes(
+        &self,
+        typed: &TypedQuery,
+        targets: Option<&[Referent]>,
+        phases: &mut [Phase],
+        state: &mut Equalities,
+        seen: &mut BTreeSet<AccessExpressionId>,
+    ) {
+        if let Some(targets) = targets {
+            for &target in targets {
+                self.changed(typed, phases, state, seen, Change::MayWrite(target));
+            }
+        } else {
+            // Unknown invocation effects can reach an array beyond explicit edit operands.
+            phases.fill(Phase::Unproved);
+            seen.clear();
+            for history in &self.arrays {
+                state.forget(history.cell);
+            }
+        }
+    }
     fn changed(
         &self,
         typed: &TypedQuery,
         phases: &mut [Phase],
         state: &mut Equalities,
         seen: &mut BTreeSet<AccessExpressionId>,
-        source: Referent,
-        except: Option<usize>,
+        change: Change,
     ) {
+        let (source, except, definite) = match change {
+            Change::Definite { source, except } => (source, except, true),
+            Change::MayWrite(source) => (source, None, false),
+        };
         let target = Path::for_referent(typed, source).filter(|(local, _)| {
             typed
                 .body()
@@ -195,7 +227,11 @@ impl Histories {
                 if Holder::Local(*local) != history.array.holder() || !path.overlaps(array) {
                     continue;
                 }
-                phases[id] = if path.is_prefix_of(array) {
+                // An initialized edit preserves an already empty extraction history. It
+                // cannot turn a prefix/unproved history into a fresh epoch by may-write alone.
+                phases[id] = if (definite && path.is_prefix_of(array))
+                    || (!definite && phases[id] == Phase::Empty)
+                {
                     Phase::Empty
                 } else {
                     Phase::Unproved
@@ -265,21 +301,32 @@ pub(super) fn action(
             } else {
                 state.forget(history.cell);
             }
-            histories.changed(typed, phases, state, seen, source, Some(selection.history));
+            histories.changed(
+                typed,
+                phases,
+                state,
+                seen,
+                Change::Definite {
+                    source,
+                    except: Some(selection.history),
+                },
+            );
         } else {
-            histories.changed(typed, phases, state, seen, source, None);
+            histories.changed(
+                typed,
+                phases,
+                state,
+                seen,
+                Change::Definite {
+                    source,
+                    except: None,
+                },
+            );
         }
     }
     match *operation {
-        Operation::CommitCall(call) if !cells.no_caller_writes.contains(&call) => {
-            // An invoked callback/capture can reach an array beyond explicit edit operands.
-            // Only the exact closed no-caller-write evidence preserves a prefix across a call.
-            // The transfer proofs above still describe the pre-invocation atomic bundle.
-            phases.fill(Phase::Unproved);
-            seen.clear();
-            for history in &histories.arrays {
-                state.forget(history.cell);
-            }
+        Operation::CommitCall(call) => {
+            histories.call_writes(typed, cells.call_writes.at(call), phases, state, seen);
         }
         Operation::Bind { local, .. } | Operation::Drop(local) => {
             histories.local_epoch(phases, state, seen, local);
@@ -290,7 +337,16 @@ pub(super) fn action(
             }
         }
         Operation::Assign { target, .. } | Operation::CompoundAssign { target, .. } => {
-            histories.changed(typed, phases, state, seen, target, None);
+            histories.changed(
+                typed,
+                phases,
+                state,
+                seen,
+                Change::Definite {
+                    source: target,
+                    except: None,
+                },
+            );
         }
         _ => {}
     }
