@@ -1,10 +1,10 @@
-//! One sparse retirement frontier for an owning evaluator slot, including cleanup intervals.
+//! One sparse retirement frontier for an owning evaluator slot, including moved prefixes.
 use super::{Path, Result, Rule, Storage};
 use crate::state::budget::Resident;
 use std::collections::BTreeMap;
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
-enum Hole {
+pub(in crate::state) enum Hole {
     Value(Path),
     Array { base: Path, start: u64, end: u64 },
 }
@@ -60,19 +60,48 @@ impl Ownership {
     pub(in crate::state) fn is_empty(&self) -> bool {
         self.holes.is_empty()
     }
-    pub(in crate::state) fn matches(&self, expected: &[Path]) -> bool {
-        self.holes
-            .keys()
-            .map(|hole| match hole {
-                Hole::Value(path) => Some(&path[..]),
-                Hole::Array { .. } => None,
-            })
-            .eq(expected.iter().map(|path| Some(&path[..])))
+    pub(in crate::state) fn matches(&self, expected: &[Hole]) -> bool {
+        self.holes.keys().eq(expected)
+    }
+    pub(super) fn consolidate_prefix(
+        &mut self,
+        storage: &Storage,
+        base: &Path,
+        selected: &Path,
+        end: u64,
+    ) -> Result<()> {
+        let previous = end.checked_sub(1).ok_or(Rule::InvalidPlan)?;
+        let element = Hole::Value(selected.clone());
+        let prefix = Hole::Array {
+            base: base.clone(),
+            start: 0,
+            end: previous,
+        };
+        if !self.holes.contains_key(&element)
+            || (previous != 0 && !self.holes.contains_key(&prefix))
+        {
+            return Err(Rule::InvalidPlan);
+        }
+        // Reserve before mutation. The frontier stays sparse and failure retains both old entries.
+        let allocation = storage.entry(())?;
+        self.holes.remove(&element);
+        if previous != 0 {
+            self.holes.remove(&prefix);
+        }
+        self.holes.insert(
+            Hole::Array {
+                base: base.clone(),
+                start: 0,
+                end,
+            },
+            allocation,
+        );
+        Ok(())
     }
     pub(super) fn restore(&mut self, path: &Path) -> Result<()> {
         if self.holes.keys().any(|hole| match hole {
             Hole::Value(h) => h != path && hole.contains(path),
-            // An interval is a cleanup frontier, not a promise to restore one of its elements.
+            // Region consolidation grants no per-element restoration operation.
             Hole::Array { .. } => hole.contains(path),
         }) {
             return Err(Rule::InvalidPlan);

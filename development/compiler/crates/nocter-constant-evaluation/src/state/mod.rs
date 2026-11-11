@@ -10,7 +10,7 @@ use nocter_model::{AccessCodeId, AccessFlowPointId, Arena, ValueCodeRoot};
 use std::{collections::BTreeMap, sync::Arc};
 pub use value::{Data, Value};
 mod projection;
-pub use projection::{Projection, ProjectionPath};
+pub use projection::{Missing, Projection, ProjectionPath};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Type {
@@ -113,6 +113,12 @@ pub enum Effect {
         source: Place,
         range: nocter_model::ArrayRange<usize>,
     },
+    /// Consolidate the last moved element with its contiguous existing missing prefix.
+    /// The endpoint is an ordinary owned usize snapshot; this neither moves nor destroys data.
+    ConsolidateArrayPrefix {
+        source: Place,
+        endpoint: usize,
+    },
     Release(Place),
     Assemble {
         destination: usize,
@@ -128,7 +134,7 @@ pub enum Effect {
 /// Aliases and ordinary auxiliary operand snapshots are not owners.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Alternative {
-    pub owned: BTreeMap<usize, Box<[ProjectionPath]>>,
+    pub owned: BTreeMap<usize, Box<[Missing]>>,
     pub before: Box<[Effect]>,
     pub after: Box<[Effect]>,
 }

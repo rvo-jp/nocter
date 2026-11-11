@@ -181,10 +181,10 @@ validation requires an owned array place. Constant spans satisfy `start < end <=
 requires that scalar still owned and initialized, resolves its saved number below the original
 array length, and skips an empty side. This integrity check never substitutes for source bounds
 completion. Source availability and guarded source admission remain separate. `memory::ownership` keeps
-individual missing paths and cleanup intervals in one metered sparse frontier, rejecting overlap
+individual missing paths and array regions in one metered sparse frontier, rejecting overlap
 and retirement of unavailable parents. Container release collapses its retired descendants without
-visiting elements. Intervals are cleanup state, not restorable per-element initialization or a new
-input ownership condition. Repeated failed execution releases their leases. Maximum-count and
+visiting elements. A region alone grants neither per-element restoration nor a source
+initialization proof. Repeated failed execution releases its leases. Maximum-count and
 small repeated arrays have the same minimum live-storage budget for interval cleanup; nested
 partial elements and intact intervals share that same owner. Retained-span execution tests perform
 the original bounds check before capture, move an element, mutate the original index variable and
@@ -198,15 +198,27 @@ execution resolves the snapshot into the existing metered canonical numeric path
 projection does not re-evaluate the source index or run another user bounds classifier. The same
 snapshot reader supplies cleanup spans.
 
-Action guard selection compares complete owner-key sets before resolving any missing path. An
+`Missing::Value` describes a missing selected payload; `Missing::ArrayPrefix` describes the
+nonempty region through a captured endpoint, without pretending that region is an element
+address. The prefix requires its exact positive array bound and a complete owned usize backing.
+`Effect::ConsolidateArrayPrefix` joins the just-moved whole element with its immediately preceding
+prefix, reserving working storage before changing the same sparse frontier. A gap, missing start
+or ended endpoint owner is an integrity error. The next selected payload uses its own frozen
+operand before the endpoint owner is replaced. Cleanup then consumes only `After(endpoint)`;
+early exit and later counter mutation preserve the actual transferred endpoint. Closed-plan
+tests cover first/next/maximum endpoints, record-field prefixes, inactive backing, malformed roles/bounds and
+cardinality-independent storage-failure recovery. They do not admit source progression or
+establish its numerical/availability proof.
+
+Action guard selection compares complete owner-key sets before resolving any missing coverage. An
 alternative with another snapshot lifetime therefore cannot read that route's uninitialized
 backing, even if both routes could capture equal numbers. Resolved numeric holes are sorted for
 comparison with the one sparse retirement frontier; symbolic slot order never becomes numeric
 ordering or a disjointness proof. Guard projections and address paths charge their working storage
 before allocation. All matching alternatives must agree on their before/after phases; equal
 numbers cannot select conflicting lifecycle routes by alternative order. Execution tests cover
-transfers, saved-number cleanup, original-variable changes,
-uninitialized alternative backing, reverse numeric/slot ordering and budget-failure recovery.
+transfers, saved-number cleanup, original-variable changes, uninitialized alternative backing,
+reverse numeric/slot ordering and budget-failure recovery.
 The [source selection owner](../nocter-checking/README.md#array-selection) qualifies the retained
 whole-element stage and states its remaining precision/frontier limits.
 

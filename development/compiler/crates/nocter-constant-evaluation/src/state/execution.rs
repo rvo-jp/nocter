@@ -188,7 +188,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                 let _paths = self.memory.storage.items(holes.len())?;
                 let mut resolved = holes
                     .iter()
-                    .map(|path| self.memory.resolve_path(frame, path))
+                    .map(|missing| self.memory.resolve_missing(frame, missing))
                     .collect::<Result<Vec<_>>>()?;
                 // Symbolic slot/recipe order never establishes numeric element order.
                 resolved.sort_unstable();
@@ -423,27 +423,13 @@ impl<'a, 'budget> Executor<'a, 'budget> {
     }
     fn effect(&mut self, frame: usize, effect: &Effect) -> Result<()> {
         match effect {
+            Effect::ConsolidateArrayPrefix { source, endpoint } => {
+                let (address, range) =
+                    self.array_span(frame, source, &nocter_model::ArrayRange::Through(*endpoint))?;
+                self.memory.consolidate_prefix(&address, range.end)
+            }
             Effect::DisposeArrayElements { source, range } => {
-                let address = self.memory.address(frame, source)?;
-                let data = super::validation::place_data(
-                    self.program,
-                    &self.memory.frames[frame].slots,
-                    source,
-                )?;
-                let Some(super::Type::Array { length, .. }) = self.program.types.get(data) else {
-                    return Err(Rule::InvalidPlan);
-                };
-                let captured = match range {
-                    nocter_model::ArrayRange::Constant { .. } => None,
-                    nocter_model::ArrayRange::Before(slot)
-                    | nocter_model::ArrayRange::Through(slot)
-                    | nocter_model::ArrayRange::After(slot) => {
-                        Some(self.memory.snapshot_index(frame, *slot, *length)?)
-                    }
-                };
-                let interval = range
-                    .resolve(*length, |_| captured)
-                    .ok_or(Rule::InvalidPlan)?;
+                let (address, interval) = self.array_span(frame, source, range)?;
                 if interval.is_empty() {
                     return Ok(());
                 }
@@ -504,6 +490,33 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                     .construct(&self.memory.address(frame, &Place::root(*destination))?)?)
             }
         }
+    }
+    fn array_span(
+        &self,
+        frame: usize,
+        source: &Place,
+        range: &nocter_model::ArrayRange<usize>,
+    ) -> Result<(Address, std::ops::Range<u64>)> {
+        let address = self.memory.address(frame, source)?;
+        let data =
+            super::validation::place_data(self.program, &self.memory.frames[frame].slots, source)?;
+        let Some(super::Type::Array { length, .. }) = self.program.types.get(data) else {
+            return Err(Rule::InvalidPlan);
+        };
+        let captured = match range {
+            nocter_model::ArrayRange::Constant { .. } => None,
+            nocter_model::ArrayRange::Before(slot)
+            | nocter_model::ArrayRange::Through(slot)
+            | nocter_model::ArrayRange::After(slot) => {
+                Some(self.memory.snapshot_index(frame, *slot, *length)?)
+            }
+        };
+        Ok((
+            address,
+            range
+                .resolve(*length, |_| captured)
+                .ok_or(Rule::InvalidPlan)?,
+        ))
     }
 }
 fn scalar_value(value: &Data) -> Result<ConstantValue> {

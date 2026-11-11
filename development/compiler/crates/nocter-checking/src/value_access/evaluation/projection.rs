@@ -168,6 +168,9 @@ impl Builder<'_, '_> {
             })
             .collect()
     }
+    fn missing(&mut self, fields: &flow::resources::Path) -> Result<plan::Missing> {
+        self.resource_fields(fields).map(plan::Missing::Value)
+    }
     fn selected(&mut self, id: AccessPlaceId) -> Result<plan::Place> {
         let place = self.query.typed().body().places().get(id).ok_or(INVALID)?;
         Ok(plan::Place {
@@ -567,7 +570,7 @@ impl Builder<'_, '_> {
                                     self.holder(holder)?,
                                     holes
                                         .iter()
-                                        .map(|path| self.resource_fields(path))
+                                        .map(|path| self.missing(path))
                                         .collect::<Result<_>>()?,
                                 ))
                             })

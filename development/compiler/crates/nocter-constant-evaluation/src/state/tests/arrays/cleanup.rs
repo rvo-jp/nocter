@@ -140,7 +140,7 @@ fn nested_partial_elements_and_intact_intervals_share_one_retirement_frontier() 
     );
 }
 
-fn retained_remainder(length: u64, position: u64) -> Plan {
+pub(super) fn retained_remainder(length: u64, position: u64) -> Plan {
     let mut plan = script(&[11], vec![integer(4, 42)]);
     let mut slots = plan.slots.to_vec();
     slots.extend([
@@ -170,7 +170,7 @@ fn retained_remainder(length: u64, position: u64) -> Plan {
             destination: Place::root(8),
         }],
     );
-    let holes: Box<[ProjectionPath]> = vec![selected.fields.clone()].into();
+    let holes: Box<[Missing]> = vec![selected.fields.clone().into()].into();
     let condition = BTreeMap::from([(0, holes), (7, Box::new([]) as _), (8, Box::new([]) as _)]);
     let mut changed = action(integer(1, u64::MAX), &[], vec![]);
     changed.alternatives[0].owned = condition.clone();
@@ -381,13 +381,16 @@ fn guard_holes_are_compared_by_numbers_rather_than_snapshot_slot_order() {
                 destination: Place::root(10),
             }],
         );
-        second.alternatives[0].owned.insert(0, vec![path(7)].into());
+        second.alternatives[0]
+            .owned
+            .insert(0, vec![Missing::Value(path(7))].into());
         let mut changed = old[5].clone();
         let mut done = old[6].clone();
         for action in [&mut changed, &mut done] {
-            action.alternatives[0]
-                .owned
-                .insert(0, vec![path(7), path(9)].into());
+            action.alternatives[0].owned.insert(
+                0,
+                vec![Missing::Value(path(7)), Missing::Value(path(9))].into(),
+            );
             action.alternatives[0].owned.insert(9, Box::new([]));
             action.alternatives[0].owned.insert(10, Box::new([]));
         }
@@ -439,10 +442,9 @@ fn numerically_equal_snapshot_guards_cannot_select_conflicting_phases() {
             let mut equal_number = changed.alternatives[0].clone();
             equal_number.owned.insert(
                 0,
-                vec![ProjectionPath::from(vec![Projection::Index {
-                    slot: 9,
-                    bound: 2,
-                }])]
+                vec![Missing::Value(ProjectionPath::from(vec![
+                    Projection::Index { slot: 9, bound: 2 },
+                ]))]
                 .into(),
             );
             if conflicting {

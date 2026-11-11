@@ -196,15 +196,13 @@ fn validate_action(program: &Program, plan: &super::Plan, action: &super::Action
             {
                 return Err(INVALID);
             }
-            if paths.iter().any(|path| path.is_empty())
-                || paths
-                    .windows(2)
-                    .any(|pair| pair[0] >= pair[1] || pair[1].starts_with(&pair[0]))
-            {
+            if paths.windows(2).any(|pair| pair[0] >= pair[1]) {
                 return Err(INVALID);
             }
-            for fields in paths {
-                if fields.indices().any(|(slot, _)| {
+            let mut previous_value: Option<&super::ProjectionPath> = None;
+            let mut previous_prefix = None;
+            for missing in paths {
+                if missing.indices().any(|(slot, _)| {
                     alternative
                         .owned
                         .get(&slot)
@@ -212,14 +210,44 @@ fn validate_action(program: &Program, plan: &super::Plan, action: &super::Action
                 }) {
                     return Err(INVALID);
                 }
-                place(
-                    program,
-                    plan,
-                    &Place {
-                        slot,
-                        fields: fields.clone(),
-                    },
-                )?;
+                match missing {
+                    super::Missing::Value(fields) => {
+                        if fields.is_empty()
+                            || previous_value.is_some_and(|previous| fields.starts_with(previous))
+                        {
+                            return Err(INVALID);
+                        }
+                        previous_value = Some(fields);
+                        place(
+                            program,
+                            plan,
+                            &Place {
+                                slot,
+                                fields: fields.clone(),
+                            },
+                        )?;
+                    }
+                    super::Missing::ArrayPrefix {
+                        base,
+                        endpoint,
+                        bound,
+                    } => {
+                        if previous_prefix == Some(base)
+                            || bounded_array(
+                                program,
+                                plan,
+                                &Place {
+                                    slot,
+                                    fields: base.clone(),
+                                },
+                                *endpoint,
+                            )? != *bound
+                        {
+                            return Err(INVALID);
+                        }
+                        previous_prefix = Some(base);
+                    }
+                }
             }
         }
         for effect in alternative.before.iter().chain(&alternative.after) {
@@ -414,6 +442,32 @@ fn call(
     }
     Ok(())
 }
+fn bounded_array(
+    program: &Program,
+    plan: &super::Plan,
+    source: &Place,
+    endpoint: usize,
+) -> Result<u64> {
+    if plan
+        .slots
+        .get(source.slot)
+        .is_none_or(|slot| slot.storage != Storage::Owned)
+        || plan.slots.get(endpoint).is_none_or(|slot| {
+            slot.storage != Storage::Owned
+                || !matches!(program.types.get(slot.data), Some(Type::Usize))
+        })
+    {
+        return Err(INVALID);
+    }
+    let data = place(program, plan, source)?;
+    let Some(Type::Array { length, .. }) = program.types.get(data) else {
+        return Err(INVALID);
+    };
+    if *length == 0 {
+        return Err(INVALID);
+    }
+    Ok(*length)
+}
 fn check_effect(program: &Program, plan: &super::Plan, effect: &Effect) -> Result<()> {
     let data = |p: &Place| place(program, plan, p);
     let owned = |p: &Place| {
@@ -428,6 +482,9 @@ fn check_effect(program: &Program, plan: &super::Plan, effect: &Effect) -> Resul
         }
     };
     match effect {
+        Effect::ConsolidateArrayPrefix { source, endpoint } => {
+            bounded_array(program, plan, source, *endpoint)?;
+        }
         Effect::DisposeArrayElements { source, range } => {
             let data = owned(source)?;
             let Some(Type::Array { length, .. }) = program.types.get(data) else {
@@ -442,10 +499,7 @@ fn check_effect(program: &Program, plan: &super::Plan, effect: &Effect) -> Resul
                 nocter_model::ArrayRange::Before(slot)
                 | nocter_model::ArrayRange::Through(slot)
                 | nocter_model::ArrayRange::After(slot) => {
-                    let data = owned(&Place::root(*slot))?;
-                    if *length == 0 || !matches!(program.types.get(data), Some(Type::Usize)) {
-                        return Err(INVALID);
-                    }
+                    bounded_array(program, plan, source, *slot)?;
                 }
             }
         }

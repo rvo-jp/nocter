@@ -1,6 +1,7 @@
 //! Closed execution evidence; checking still owns source access and initialization proofs.
 use super::*;
 mod cleanup;
+mod prefix;
 
 fn action(operation: Operation, owned: &[usize], after: Vec<Effect>) -> Action {
     Action {
@@ -8,7 +9,7 @@ fn action(operation: Operation, owned: &[usize], after: Vec<Effect>) -> Action {
         alternatives: vec![Alternative {
             owned: owned
                 .iter()
-                .map(|&slot| (slot, Box::new([]) as Box<[ProjectionPath]>))
+                .map(|&slot| (slot, Box::new([]) as Box<[Missing]>))
                 .collect(),
             before: Box::new([]),
             after: after.into(),

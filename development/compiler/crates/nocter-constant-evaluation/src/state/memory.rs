@@ -1,8 +1,9 @@
 mod ownership;
 use super::{
-    Place, Projection, ProjectionPath, Rule, Slot, Storage as SlotStorage, Value,
+    Missing, Place, Projection, ProjectionPath, Rule, Slot, Storage as SlotStorage, Value,
     budget::{Lease, Resident, Storage},
 };
+pub(super) use ownership::Hole;
 use ownership::Ownership;
 use std::{
     cmp::Ordering,
@@ -198,6 +199,26 @@ impl Memory {
     pub fn resolve_path(&self, frame: usize, fields: &ProjectionPath) -> Result<Path> {
         self.projected(frame, &Path::default(), fields)
     }
+    pub fn resolve_missing(&self, frame: usize, missing: &Missing) -> Result<Hole> {
+        Ok(match missing {
+            Missing::Value(path) => Hole::Value(self.resolve_path(frame, path)?),
+            Missing::ArrayPrefix {
+                base,
+                endpoint,
+                bound,
+            } => {
+                let index = self.snapshot_index(frame, *endpoint, *bound)?;
+                let range = nocter_model::ArrayRange::Through(())
+                    .resolve(*bound, |()| Some(index))
+                    .ok_or(Rule::InvalidPlan)?;
+                Hole::Array {
+                    base: self.resolve_path(frame, base)?,
+                    start: range.start,
+                    end: range.end,
+                }
+            }
+        })
+    }
     /// Alias cells store canonical roots at definition time; no chain or cycle can be created.
     pub fn address(&self, frame: usize, place: &Place) -> Result<Address> {
         let current = self.frames.get(frame).ok_or(Rule::InvalidPlan)?;
@@ -304,6 +325,17 @@ impl Memory {
             .and_then(|frame| frame.owned.get_mut(&slot))
             .ok_or(Rule::InvalidPlan)?
             .retire_array(&self.storage, &address.fields, start, end)
+    }
+    pub fn consolidate_prefix(&mut self, address: &Address, end: u64) -> Result<()> {
+        let (frame_id, slot) = address.local()?;
+        let index = usize::try_from(end.checked_sub(1).ok_or(Rule::InvalidPlan)?)
+            .map_err(|_| Rule::StorageLimit)?;
+        let selected = address.fields.extended(&self.storage, &[index])?;
+        self.frames
+            .get_mut(frame_id)
+            .and_then(|frame| frame.owned.get_mut(&slot))
+            .ok_or(Rule::InvalidPlan)?
+            .consolidate_prefix(&self.storage, &address.fields, &selected, end)
     }
     pub fn retire(&mut self, address: &Address, partial: bool) -> Result<()> {
         let (frame_id, slot) = address.local()?;
