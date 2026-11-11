@@ -906,7 +906,15 @@ cells retain the last committed index. `NumericFacts::extends_prefix` reports a 
 unit-stride continuation for the current transfer, including ordered transfers in an atomic call
 bundle. Preparation/cancellation create no event; containing replacement starts a new epoch,
 overlapping partial writes invalidate its prefix, and distinct containing arrays remain separate.
-No prefix history crosses a call without a closed write summary. The report is qualified on typed
+No prefix history crosses a call without a closed write summary. May-executed transfer sites
+form a finite provenance set alongside the difference facts; binding, containing replacement
+and scope exit forget the affected epoch. `NumericFacts::prefix_frontier` selects a prefix
+lifecycle only when a proved site can execute again before that epoch ends. Straight-line moves,
+point restoration and arrays recreated/replaced each iteration retain their point realization.
+An initial seed and later repeated selectors for the same concrete parent share one body-scoped
+`ArrayFrontier` key. Its representative identifies backing storage, never the current number to
+capture. Parent projection consumes the same typed structural traversal and exact array schema.
+The report is qualified on typed
 source graphs up to maximum usize counts, early exits, reordered counter updates and joins.
 It does not create actual resource backing/holes. The region/cleanup consumer remains
 unqualified; the source admission rules below still apply.

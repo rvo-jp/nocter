@@ -8,6 +8,9 @@ use crate::value_access::{
 use nocter_declaration_lowering::access_declarations as declarations;
 
 fn function(text: &str) -> Query {
+    function_named(text, "f")
+}
+fn function_named(text: &str, name: &str) -> Query {
     // Drive ordinary staged typing/count supply and result closure, stopping before whole-unit
     // safety admission. Several cases intentionally violate availability: numerical proof alone
     // must neither accept those programs nor pretend to execute their cleanup.
@@ -39,7 +42,7 @@ fn function(text: &str) -> Query {
                     .unwrap()
                     .name()
                     .and_then(|name| typed.program().symbols().spelling(name))
-                    == Some("f")
+                    == Some(name)
         })
         .unwrap()
         .finish()
@@ -170,7 +173,7 @@ fn impossible_checked_results_and_unreached_locations_furnish_no_proof() {
     );
 }
 
-fn prefix_transfers(query: &Query) -> Vec<bool> {
+fn transfer_facts(query: &Query) -> Vec<(AccessExpressionId, NumericFacts)> {
     let mut result = Vec::new();
     for (point, body) in query.graph().points().iter() {
         for (action, operation) in body.actions.iter().enumerate() {
@@ -185,12 +188,24 @@ fn prefix_transfers(query: &Query) -> Vec<bool> {
                     )
                     .is_some()
                 {
-                    result.push(facts.extends_prefix(selection));
+                    result.push((selection, facts.clone()));
                 }
             }
         }
     }
     result
+}
+fn prefix_transfers(query: &Query) -> Vec<bool> {
+    transfer_facts(query)
+        .iter()
+        .map(|(selection, facts)| facts.extends_prefix(*selection))
+        .collect()
+}
+fn frontiers(query: &Query) -> Vec<Option<ArrayFrontier>> {
+    transfer_facts(query)
+        .iter()
+        .map(|(selection, facts)| facts.prefix_frontier(*selection))
+        .collect()
 }
 
 #[test]
@@ -201,10 +216,20 @@ fn prefix_induction_reaches_a_finite_fixed_point_independent_of_array_count() {
             "func f(take items: [void; {count}]): void {{ var index: usize = 0\nwhile index < {count} {{ let selected = items[index]^\nindex += 1 }} }}"
         ));
         assert_eq!(prefix_transfers(&query), vec![true]);
+        let frontier = frontiers(&query)[0].unwrap();
+        assert_eq!(frontier.owner(), query.typed().code());
+        assert_eq!(frontier.bound(), count);
+        assert_eq!(
+            frontier.array(query.typed()).unwrap().holder(),
+            super::super::resources::Holder::Local(
+                query.typed().body().inputs().explicit()[0].local
+            )
+        );
         sizes.push((
             query.numeric.cells.count,
             query.numeric.entries.len(),
             query.numeric.cells.histories.len(),
+            query.numeric.prefixes.len(),
         ));
     }
     assert!(sizes.windows(2).all(|pair| pair[0] == pair[1]));
@@ -221,6 +246,7 @@ fn missing_first_step_repeated_index_and_stride_gaps_have_no_prefix_proof() {
             vec![false],
             "start={start}, step={step}"
         );
+        assert!(frontiers(&query).iter().all(Option::is_none));
     }
 }
 
@@ -296,4 +322,95 @@ fn builtin_zero_equality_can_establish_the_first_prefix_index() {
         ));
         assert_eq!(prefix_transfers(&query), vec![true]);
     }
+}
+
+#[test]
+fn straight_line_restore_and_resetting_loops_do_not_request_a_prefix_lifecycle() {
+    for source in [
+        "func f(): void { var items = [(); 3]\nlet selected = items[0]^\nitems[0] = () }",
+        "func f(again: bool): void { while again { var items = [(); 3]\nlet first = items[0]^\nlet second = items[1]^\nitems[0] = ()\nitems[1] = () } }",
+        "func f(again: bool): void { var items = [(); 3]\nwhile again { let first = items[0]^\nlet second = items[1]^\nitems = [(); 3] } }",
+    ] {
+        let query = function(source);
+        assert!(frontiers(&query).iter().all(Option::is_none), "{source}");
+        let (sources, tree) = input(source);
+        // Preserve whole-unit acceptance of these already supported point/restoration cases.
+        crate::value_access::accepted::SourceUnit::prepare(bound(&sources, &tree)).unwrap();
+    }
+}
+
+#[test]
+fn an_initial_seed_and_its_repeated_recipe_share_one_array_frontier() {
+    let query = function(
+        "func f(take items: [void; 3]): void { let first = items[0]^\nvar index: usize = 1\nwhile index < 3 { let next = items[index]^\nindex += 1 } }",
+    );
+    let bindings = frontiers(&query);
+    assert_eq!(bindings.len(), 2);
+    assert!(bindings[0].is_some());
+    assert_eq!(bindings[0], bindings[1]);
+}
+
+#[test]
+fn repetition_in_one_parent_does_not_enroll_its_disjoint_sibling() {
+    let query = function(
+        "struct Pair { left: [void; 3]\nright: [void; 3] }\nfunc f(take pair: Pair): void { let right = pair.right[0]^\nvar index: usize = 0\nwhile index < 3 { let left = pair.left[index]^\nindex += 1 } }",
+    );
+    let bindings = frontiers(&query);
+    assert_eq!(bindings.len(), 2);
+    assert!(bindings[0].is_none());
+    assert!(bindings[1].is_some());
+}
+
+#[test]
+fn exact_comparison_truth_prunes_only_impossible_numeric_continuations() {
+    for (operation, right, expected) in [
+        ("==", 4, true),
+        ("!=", 4, false),
+        ("<", 5, true),
+        ("<=", 4, true),
+        (">", 3, true),
+        (">=", 5, false),
+    ] {
+        let query = function(&format!(
+            "func f(): usize {{ var value: usize = 4\nif value {operation} {right} {{ return 1 }} else {{ return 0 }} }}"
+        ));
+        let reached: Vec<_> = query
+            .graph()
+            .points()
+            .iter()
+            .flat_map(|(point, body)| {
+                body.actions
+                    .iter()
+                    .enumerate()
+                    .filter_map(move |(action, item)| {
+                        if let Operation::StageReturn(value) = item.operation {
+                            Some((Location { point, action }, value))
+                        } else {
+                            None
+                        }
+                    })
+            })
+            .filter_map(|(at, value)| query.numeric_at(at).and_then(|facts| facts.constant(value)))
+            .collect();
+        assert_eq!(reached, vec![u64::from(expected)], "{operation}");
+    }
+}
+
+#[test]
+fn conditional_replacement_forgets_only_the_replaced_epoch() {
+    let query = function(
+        "func f(again: bool, reset: bool): void { var items = [(); 3]\nvar index: usize = 0\nwhile again { let selected = items[index]^\nif reset { items = [(); 3]\nindex = 0 } else { index += 1 } } }",
+    );
+    assert_eq!(prefix_transfers(&query), vec![true]);
+    assert!(frontiers(&query)[0].is_some());
+}
+
+#[test]
+fn an_array_frontier_cannot_be_projected_in_another_body_namespace() {
+    let source = "func f(take items: [void; 3]): void { var index: usize = 0\nwhile index < 3 { let selected = items[index]^\nindex += 1 } }\nfunc g(take items: [void; 3]): void { read selected = items[0] }";
+    let owner = function(source);
+    let other = function_named(source, "g");
+    let frontier = frontiers(&owner)[0].unwrap();
+    assert!(frontier.array(owner.typed()).is_some());
+    assert!(frontier.array(other.typed()).is_none());
 }

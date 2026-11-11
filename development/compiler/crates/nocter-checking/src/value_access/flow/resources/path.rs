@@ -67,6 +67,67 @@ impl RetainedIndex {
     pub const fn bound(self) -> u64 {
         self.bound
     }
+    /// A normal whole-element selector beneath a concrete existing owning array. This is
+    /// structural identity only; it proves neither availability nor permission to transfer.
+    pub(in crate::value_access::flow) fn array(self, typed: &TypedQuery) -> Option<super::Place> {
+        if self.owner != typed.code() || Self::for_selection(typed, self.selection) != Some(self) {
+            return None;
+        }
+        let ExpressionKind::Index { base, .. } =
+            typed.body().expressions().get(self.selection)?.kind
+        else {
+            return None;
+        };
+        let base = typed.body().expressions().get(base)?.referent(base)?;
+        let (local, fields) = Path::for_referent(typed, base)?;
+        if fields.concrete().is_none()
+            || typed.body().locals().get(local)?.access().mode()
+                != nocter_model::ValueAccessMode::Own
+        {
+            return None;
+        }
+        let root = typed.body().locals().get(local)?.data;
+        let parent = fields.data(typed.program(), root)?;
+        let nocter_declarations::value_access::PayloadSchema::Array(array) =
+            typed.program().data_schema(parent)?
+        else {
+            return None;
+        };
+        if array.length() != self.bound
+            || array.element()
+                != typed
+                    .body()
+                    .expressions()
+                    .get(self.selection)?
+                    .ty
+                    .normal()?
+                    .data()
+        {
+            return None;
+        }
+        Some(super::Holder::Local(local).place().with_fields(fields))
+    }
+}
+/// Body-local backing key for one concrete array's changing committed prefix endpoint.
+/// The canonical origin names storage, never the number to capture on a later transfer.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct ArrayFrontier(RetainedIndex);
+impl ArrayFrontier {
+    pub(in crate::value_access::flow) const fn new(origin: RetainedIndex) -> Self {
+        Self(origin)
+    }
+    #[must_use]
+    pub const fn owner(self) -> nocter_model::ValueCode {
+        self.0.owner()
+    }
+    #[must_use]
+    pub const fn bound(self) -> u64 {
+        self.0.bound()
+    }
+    #[must_use]
+    pub fn array(self, typed: &TypedQuery) -> Option<super::Place> {
+        self.0.array(typed)
+    }
 }
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Index {

@@ -251,6 +251,13 @@ the existing operation graph; it does not become another source bounds classifie
 admitting user-defined destruction, apply its closed write effects at explicit and implicit
 cleanup sites as well; today's closed payload cleanup is not a general purity assumption.
 
+Select a prefix realization from possible re-execution of a transfer site within the same array
+epoch, rather than from a loop's syntax or the mere existence of an earlier extraction. Track
+may-executed sites as finite source provenance, clearing the affected sites on epoch replacement
+or end. This provenance never proves equal numbers; exact difference facts independently justify
+each step. Its union join and the difference domain remain finite in the fixed body. Preserve
+ordinary selected-point restoration when no such progression needs a region lifecycle.
+
 The progression closure must distinguish an array epoch with no extracted prefix from one with
 a proven prefix. Its first transfer proves index zero; a later transfer proves the new evaluated
 index equals the last committed one plus one. Record the last committed index in the existing

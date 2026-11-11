@@ -2,11 +2,13 @@
 //! never permission to access a value, skip evaluation or remove its original bounds check.
 mod equalities;
 mod history;
+mod progressions;
 mod state;
 #[cfg(test)]
 mod tests;
 mod transfer;
 
+use super::resources::ArrayFrontier;
 use super::{Graph, IntegrityError, Location};
 use crate::value_access::{ExpressionKind, Query as TypedQuery, Referent};
 use equalities::Equalities;
@@ -20,6 +22,12 @@ use std::{
 };
 
 const INVALID: IntegrityError = IntegrityError::InconsistentTypedBody;
+
+#[derive(Default)]
+struct Transfers {
+    proven: BTreeSet<AccessExpressionId>,
+    repeated: BTreeSet<AccessExpressionId>,
+}
 
 fn owned_base(typed: &TypedQuery, source: Referent) -> bool {
     source
@@ -111,6 +119,7 @@ pub struct NumericFacts {
     cells: Arc<Cells>,
     equalities: Equalities,
     prefix_extensions: BTreeSet<AccessExpressionId>,
+    prefix_frontiers: BTreeMap<AccessExpressionId, ArrayFrontier>,
 }
 impl NumericFacts {
     #[must_use]
@@ -130,12 +139,19 @@ impl NumericFacts {
     pub fn extends_prefix(&self, selection: AccessExpressionId) -> bool {
         self.prefix_extensions.contains(&selection)
     }
+    /// A finite cyclic progression needs this array's prefix lifecycle. Straight-line moves and
+    /// complete replacement loops retain their selected-point realization. No backing is created.
+    #[must_use]
+    pub fn prefix_frontier(&self, selection: AccessExpressionId) -> Option<ArrayFrontier> {
+        self.prefix_frontiers.get(&selection).copied()
+    }
 }
 
 #[derive(Clone, Debug)]
 pub(super) struct Analysis {
     cells: Arc<Cells>,
     entries: BTreeMap<AccessFlowPointId, State>,
+    prefixes: BTreeMap<Location, BTreeMap<AccessExpressionId, ArrayFrontier>>,
 }
 impl Analysis {
     pub(super) fn at(
@@ -153,13 +169,14 @@ impl Analysis {
             state.action(typed, &self.cells, &action.operation).ok()?;
         }
         let equalities = state.common()?;
-        let prefix_extensions = state
+        let transfers = state
             .action(typed, &self.cells, &point.actions.get(at.action)?.operation)
             .ok()?;
         Some(NumericFacts {
             cells: Arc::clone(&self.cells),
             equalities,
-            prefix_extensions,
+            prefix_extensions: transfers.proven,
+            prefix_frontiers: self.prefixes.get(&at).cloned().unwrap_or_default(),
         })
     }
 }
@@ -189,5 +206,10 @@ pub(super) fn analyze(typed: &TypedQuery, graph: &Graph) -> Result<Analysis, Int
             }
         }
     }
-    Ok(Analysis { cells, entries })
+    let prefixes = progressions::prepare(typed, graph, &cells, &entries)?;
+    Ok(Analysis {
+        cells,
+        entries,
+        prefixes,
+    })
 }

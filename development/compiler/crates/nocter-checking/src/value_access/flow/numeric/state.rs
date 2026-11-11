@@ -1,6 +1,6 @@
 //! Finite numerical-history definedness partitions, not resource ownership alternatives.
 use super::{
-    Cells, Equalities, INVALID,
+    Cells, Equalities, INVALID, Transfers,
     history::{self, Phase},
     transfer,
 };
@@ -12,24 +12,38 @@ use nocter_model::{AccessExpressionId, AccessFlowPointId};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+struct Facts {
+    equalities: Equalities,
+    // May-executed transfer sites in the current array epoch. This finite source provenance
+    // never equates two numbers or owns an element/backing. Join uses union, reset forgets sites.
+    seen: BTreeSet<AccessExpressionId>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct State {
-    partitions: BTreeMap<Box<[Phase]>, Equalities>,
+    partitions: BTreeMap<Box<[Phase]>, Facts>,
 }
 impl State {
     pub(super) fn entry(cells: &Cells) -> Option<Self> {
         Some(Self {
             partitions: BTreeMap::from([(
                 vec![Phase::Empty; cells.histories.len()].into(),
-                Equalities::top(cells.count)?,
+                Facts {
+                    equalities: Equalities::top(cells.count)?,
+                    seen: BTreeSet::new(),
+                },
             )]),
         })
     }
-    fn insert(&mut self, phases: Box<[Phase]>, incoming: Equalities) -> Option<bool> {
-        if !incoming.possible() {
+    fn insert(&mut self, phases: Box<[Phase]>, incoming: Facts) -> Option<bool> {
+        if !incoming.equalities.possible() {
             return Some(false);
         }
         if let Some(current) = self.partitions.get_mut(&phases) {
-            let next = current.join(&incoming)?;
+            let next = Facts {
+                equalities: current.equalities.join(&incoming.equalities)?,
+                seen: current.seen.union(&incoming.seen).copied().collect(),
+            };
             let changed = *current != next;
             *current = next;
             Some(changed)
@@ -47,9 +61,9 @@ impl State {
     }
     pub(super) fn common(&self) -> Option<Equalities> {
         let mut entries = self.partitions.values();
-        let mut result = entries.next()?.clone();
+        let mut result = entries.next()?.equalities.clone();
         for state in entries {
-            result = result.join(state)?;
+            result = result.join(&state.equalities)?;
         }
         Some(result)
     }
@@ -58,30 +72,40 @@ impl State {
         typed: &TypedQuery,
         cells: &Cells,
         operation: &Operation,
-    ) -> Result<BTreeSet<AccessExpressionId>, IntegrityError> {
+    ) -> Result<Transfers, IntegrityError> {
         let mut next = Self {
             partitions: BTreeMap::new(),
         };
-        let mut common: Option<BTreeSet<AccessExpressionId>> = None;
+        let mut common: Option<Transfers> = None;
         for (phases, state) in &self.partitions {
             let mut phases = phases.clone();
             let mut state = state.clone();
-            let proven = history::action(typed, cells, &mut phases, &mut state, operation)?;
-            transfer::action(typed, cells, &mut state, operation)?;
+            let proven = history::action(
+                typed,
+                cells,
+                &mut phases,
+                &mut state.equalities,
+                &mut state.seen,
+                operation,
+            )?;
+            transfer::action(typed, cells, &mut state.equalities, operation)?;
             // Only reached normal completions contribute obligations. Bottom cannot establish
             // a vacuously true prefix proof or poison a reachable history at a join.
-            if !state.possible() {
+            if !state.equalities.possible() {
                 continue;
             }
             if let Some(common) = &mut common {
-                common.retain(|id| proven.contains(id));
+                common.proven.retain(|id| proven.proven.contains(id));
+                common.repeated.extend(proven.repeated);
             } else {
                 common = Some(proven);
             }
             next.insert(phases, state).ok_or(INVALID)?;
         }
         *self = next;
-        Ok(common.unwrap_or_default())
+        let mut common = common.unwrap_or_default();
+        common.repeated.retain(|id| common.proven.contains(id));
+        Ok(common)
     }
     pub(super) fn edge(
         &mut self,
@@ -95,7 +119,7 @@ impl State {
         };
         for (phases, state) in &self.partitions {
             let mut state = state.clone();
-            transfer::edge(typed, cells, &mut state, terminator, successor)?;
+            transfer::edge(typed, cells, &mut state.equalities, terminator, successor)?;
             next.insert(phases.clone(), state).ok_or(INVALID)?;
         }
         *self = next;

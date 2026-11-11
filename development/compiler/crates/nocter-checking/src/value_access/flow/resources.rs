@@ -11,7 +11,7 @@ mod capture;
 mod function_view;
 mod path;
 mod payload;
-pub use path::{Index, Path, RetainedIndex};
+pub use path::{ArrayFrontier, Index, Path, RetainedIndex};
 mod snapshots;
 mod storage;
 #[cfg(test)]

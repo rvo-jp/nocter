@@ -205,9 +205,27 @@ pub(super) fn edge(
 ) -> Result<(), IntegrityError> {
     if let Terminator::Branch { condition, yes, no } = terminator {
         let expression = typed.body().expressions().get(condition).ok_or(INVALID)?;
+        let numeric_truth = if let ExpressionKind::Binary { operation, .. } = expression.kind {
+            cells
+                .operand(condition, 0)
+                .zip(cells.operand(condition, 1))
+                .and_then(|(left, right)| state.difference(left, right))
+                .and_then(|difference| match operation {
+                    Binary::Equal => Some(difference == 0),
+                    Binary::NotEqual => Some(difference != 0),
+                    Binary::Less => Some(difference < 0),
+                    Binary::LessEqual => Some(difference <= 0),
+                    Binary::Greater => Some(difference > 0),
+                    Binary::GreaterEqual => Some(difference >= 0),
+                    _ => None,
+                })
+        } else {
+            None
+        };
         if yes != no
             && expression
                 .normal_boolean()
+                .or(numeric_truth)
                 .is_some_and(|value| (value && successor == no) || (!value && successor == yes))
         {
             state.bottom();
