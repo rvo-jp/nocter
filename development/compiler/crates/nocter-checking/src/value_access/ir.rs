@@ -273,6 +273,13 @@ pub enum CallKind {
     Value,
 }
 impl CallKind {
+    #[must_use]
+    pub fn environment_argument(self, arguments: &[Argument]) -> Option<&Argument> {
+        match self {
+            Self::Direct => None,
+            Self::Value => arguments.first(),
+        }
+    }
     /// Ordinary inputs exclude a value call's prepared callable, even when it has zero-byte data.
     #[must_use]
     pub fn explicit_arguments(self, arguments: &[Argument]) -> Option<&[Argument]> {

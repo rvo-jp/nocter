@@ -18,9 +18,8 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Close exact captured-code call write summaries, distinguishing environment and explicit-input
-effects. Preserve the selected call-input mapping and exact body/source guards; qualify prefix
-loops, counter invalidation, nested callable environments and reuse through ordinary native execution.
+Reconcile this unfinished-work index with the component scope owners, remove completed work from
+the active list, and select the next implementation dependency from the migration checklist.
 
 ## Retained Selection Closure
 
@@ -54,7 +53,7 @@ layout fields, generated operations, an arbitrary iteration cutoff or a constant
   Generalize evaluated index relations beyond ordered prefix bundles while preserving lifetime-
   specific evidence for retained aliases across re-evaluation. Adapted callable-element transfers
   must also compose their selected adapters with the prefix handoff.
-- [ ] Close exact captured-code invocation writes through the common lexical scope. Distinguish
+- [x] Close exact captured-code invocation writes through the common lexical scope. Distinguish
   edits of a retained environment from explicit edit inputs and consumed/copied environments;
   propagate transitive known code and reuse guards. Qualify pure/mutable closure calls beside a
   prefix loop and reject edited-counter reset without assuming unknown formal effects are empty.

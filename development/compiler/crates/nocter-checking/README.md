@@ -839,9 +839,9 @@ including at zero. Indexed replacement and partial-state admission follow the
 
 ## Closed Caller Write Effects
 
-`flow::call_writes` closes named-call evidence after callable results and supply, before numerical,
+`flow::call_writes` closes exact named/captured-code evidence after callable results and supply, before numerical,
 initialization and access analysis. One catalog retains exact typed-body owners in the shared final
-program. Its summary solver computes finite may-write sets over explicit edit-input roots; unknown
+program. Its summary solver computes finite may-write sets over environment and explicit edit-input roots; unknown
 effects are the top element. Recursive input permutations and transitive calls use one selected-input
 projection in `bindings`. Owned local updates have no external root. The shared `flow::aliases`
 index follows lexical read/edit aliases through their typed binding initializers, preserving the original
@@ -851,12 +851,17 @@ followed iteratively with cycle rejection. Replacement additionally checks the o
 referent's cleanup type. Exact owned-closure cleanup follows its declaration-owned
 environment schema recursively, including aggregate payloads. Destruction releases that environment
 without invoking the captured body; body invocation effects do not become destruction effects.
-Formal cleanup, unavailable callees and unsupported alias provenance remain unknown.
+The shared lexical scope supplies captured bodies to that same solver. An edited environment has
+its own input root; a consuming body owns its received environment instead. Closure environments
+also participate in cleanup eligibility, including read/edit bodies driven through taking adapters.
+Formal cleanup, unavailable callees and unsupported alias provenance remain unknown. Earlier
+standalone type suffixes cannot supply cross-body evidence without the shared final program.
 
 At each reached commit, input roots project to conservative caller write footprints. Projection
 uses `CallKind::explicit_arguments`, so a prepared callable-value environment never
 stands in for the first ordinary input. This remains true for zero-byte named values and mut/once
-views. Tests reject a named mutable callback that resets a prefix counter; the captured-callback
+views. `CallKind::environment_argument` separately projects environment effects. A taking view edits
+its received copied/transferred environment, without writing the original source again. Tests reject a named mutable callback that resets a prefix counter; the captured-callback
 native case also writes a later explicit input.
 Caller-side lexical aliases use that same binding resolver. A frozen evaluated alias widens to its existing
 containing static place, so invalidation never reloads the old selector's now-changed index.
@@ -884,8 +889,11 @@ after changing its index variable.
 Header-count execution consumes the evidence before final whole-unit closure. A native source
 case preserves a prefix loop through a call that constructs and drops a captured non-Copy array;
 its dormant body would trap if incorrectly invoked. This qualifies checking and native cleanup,
-not evaluator closure construction. Captured invocation effects, general alias/root precision
-and user destruction need further closure.
+not evaluator closure construction. Separate native source qualifies prefix loops through exact
+read/mutating captured code, nested callable environments, later explicit edit inputs, copied once
+views and consuming bodies, including maximum-count zero-byte geometry. Source tests reject
+explicit counter resets and preserve transitive body/value reuse guards. General alias/root
+precision, unknown formal invocation and user destruction need further closure.
 
 Flow-query rebinding verifies the reached callee bodies and their typed value/count and result
 prerequisites through one shared recursive dependency graph. A typed call may survive a callee-only

@@ -2,6 +2,16 @@
 use super::{TempPackage, compile, execute_native_status};
 
 #[test]
+fn private_prefix_loops_preserve_exact_closure_call_effects() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/closure-write-prefix.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "closure-write-prefix", 42);
+}
+
+#[test]
 fn private_retained_element_transfers_and_replacement_backedges_execute() {
     for &(name, source) in nocter_test_support::RETAINED_ARRAY_SOURCES {
         let package = TempPackage::new();

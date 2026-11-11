@@ -320,6 +320,19 @@ fn restoring_the_sole_point_starts_a_complete_epoch_before_a_later_prefix() {
 }
 
 #[test]
+fn exact_read_and_mutable_closure_calls_preserve_independent_prefix_histories() {
+    for setup in [
+        "let value = ()\nlet action = (value;): void {}",
+        "let value: usize = 0\nvar action = (value;): void { value += 1 }",
+    ] {
+        let query = function(&format!(
+            "func f(): void {{ {setup}\nlet items = [(); 3]\nvar index: usize = 0\nwhile index < 3 {{ let next = items[index]^\naction()\nindex += 1 }} }}"
+        ));
+        assert_eq!(prefix_transfers(&query), [true], "{setup}");
+    }
+}
+
+#[test]
 fn initialized_element_writes_preserve_a_complete_epoch_for_prefix_extraction() {
     for (array, update) in [("[(); 3]", "items[0] = ()"), ("[0; 3]", "items[0] += 1")] {
         let query = function(&format!(

@@ -2,7 +2,7 @@
 use super::TypedQuery;
 use crate::value_access::{Failure, results::Evidence};
 use nocter_declaration_lowering::access_declarations::{BodyDependencies, BodySource, Context};
-use nocter_model::{AccessCodeId, ValueCode};
+use nocter_model::ValueCode;
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
@@ -17,37 +17,34 @@ enum Guard {
 struct Node {
     guard: Guard,
     results: Option<Arc<Evidence>>,
-    dependencies: BTreeSet<AccessCodeId>,
+    dependencies: BTreeSet<ValueCode>,
 }
 #[derive(Debug, Default)]
 pub(super) struct Graph {
-    nodes: BTreeMap<AccessCodeId, Node>,
+    nodes: BTreeMap<ValueCode, Node>,
 }
 impl Graph {
     pub(super) fn new(
         scope: &BTreeMap<ValueCode, Arc<TypedQuery>>,
-        mut dependencies: BTreeMap<AccessCodeId, BTreeSet<AccessCodeId>>,
+        mut dependencies: BTreeMap<ValueCode, BTreeSet<ValueCode>>,
     ) -> Self {
         let nodes = scope
             .iter()
-            .filter_map(|(&code, typed)| {
-                let ValueCode::Declaration(code) = code else {
-                    return None;
-                };
+            .map(|(&code, typed)| {
                 // The selected body-dependency root includes the body's own source as well as
                 // value/count suppliers used to establish its typed operations and data shapes.
                 let guard = typed.evaluation_source.as_ref().map_or_else(
                     || Guard::Body(typed.source.clone()),
                     |proof| Guard::Dependencies(proof.clone()),
                 );
-                Some((
+                (
                     code,
                     Node {
                         guard,
                         results: typed.result_evidence.clone(),
                         dependencies: dependencies.remove(&code).unwrap_or_default(),
                     },
-                ))
+                )
             })
             .collect();
         Self { nodes }
@@ -55,7 +52,7 @@ impl Graph {
     pub(super) fn select(
         self: &Arc<Self>,
         caller: ValueCode,
-        roots: BTreeSet<AccessCodeId>,
+        roots: BTreeSet<ValueCode>,
     ) -> Selected {
         Selected {
             graph: self.clone(),
@@ -69,7 +66,7 @@ impl Graph {
 pub(super) struct Selected {
     graph: Arc<Graph>,
     caller: Option<ValueCode>,
-    roots: BTreeSet<AccessCodeId>,
+    roots: BTreeSet<ValueCode>,
 }
 impl Selected {
     pub(super) fn verify(&self, context: &Context<'_>) -> Result<(), Failure> {
@@ -83,7 +80,7 @@ impl Selected {
             let Some(node) = self.graph.nodes.get(&code) else {
                 continue;
             };
-            if Some(ValueCode::Declaration(code)) != self.caller {
+            if Some(code) != self.caller {
                 match &node.guard {
                     Guard::Body(source) => {
                         source.bind(context)?;

@@ -1,40 +1,48 @@
-//! Finite may-write footprints over explicit input roots; unknown effects are the top element.
+//! Finite may-write footprints over environment/explicit input roots; unknown effects are the top element.
 use super::super::{Operation, aliases::Aliases};
 use super::{Control, INVALID, IntegrityError, TypedQuery, bindings};
 use crate::value_access::{ExpressionKind, Referent};
 use nocter_declarations::value_access::{CodeKind, PayloadSchema};
 use nocter_model::{
-    AccessCodeId, AccessExpressionId, BuiltinType, ValueAccessMode, ValueCode, ValueFunctionOrigin,
+    AccessExpressionId, BuiltinType, ValueAccessMode, ValueCode, ValueFunctionOrigin,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) enum Writes {
-    Known(BTreeSet<usize>),
+    Known(BTreeSet<bindings::Input>),
     Unknown,
 }
 struct Body<'a> {
     typed: &'a TypedQuery,
     roots: Aliases,
     local: Writes,
-    calls: Vec<(AccessExpressionId, AccessCodeId)>,
+    calls: Vec<(AccessExpressionId, ValueCode)>,
 }
 pub(super) struct Closed {
-    pub(super) writes: BTreeMap<AccessCodeId, Writes>,
-    pub(super) callees: BTreeMap<AccessCodeId, BTreeSet<AccessCodeId>>,
+    pub(super) writes: BTreeMap<ValueCode, Writes>,
+    pub(super) callees: BTreeMap<ValueCode, BTreeSet<ValueCode>>,
 }
 
 pub(super) fn close(controls: &[&Control]) -> Result<Closed, IntegrityError> {
     let mut bodies = BTreeMap::new();
-    for control in controls {
-        if let ValueCode::Declaration(code) = control.typed.code()
-            && control
+    let program = controls.first().map(|control| &control.typed.program);
+    for (code, control) in super::super::scope(controls.iter().copied())? {
+        // Earlier standalone type suffixes are not cross-body evidence.
+        if program.is_none_or(|program| !std::sync::Arc::ptr_eq(program, &control.typed.program)) {
+            continue;
+        }
+        let callable = match code {
+            ValueCode::Declaration(id) => control
                 .typed
                 .program()
                 .codes()
-                .get(code)
-                .is_some_and(|code| matches!(code.kind(), CodeKind::Function(_)))
-        {
+                .get(id)
+                .is_some_and(|code| matches!(code.kind(), CodeKind::Function(_))),
+            ValueCode::Closure(_) => true,
+            ValueCode::Expression(_) => false,
+        };
+        if callable {
             bodies.insert(code, local_summary(control)?);
         }
     }
@@ -75,7 +83,7 @@ pub(super) fn close(controls: &[&Control]) -> Result<Closed, IntegrityError> {
 
 fn combine(
     body: &Body<'_>,
-    effects: &BTreeMap<AccessCodeId, Writes>,
+    effects: &BTreeMap<ValueCode, Writes>,
 ) -> Result<Writes, IntegrityError> {
     let Writes::Known(mut writes) = body.local.clone() else {
         return Ok(Writes::Unknown);
@@ -129,10 +137,9 @@ fn local_summary(control: &Control) -> Result<Body<'_>, IntegrityError> {
                     }
                 }
                 Operation::CommitCall(id) => {
-                    if let ExpressionKind::Call {
-                        target: ValueFunctionOrigin::Declaration(code),
-                        ..
-                    } = typed.body().expressions().get(id).ok_or(INVALID)?.kind
+                    if let ExpressionKind::Call { target, .. } =
+                        typed.body().expressions().get(id).ok_or(INVALID)?.kind
+                        && let Some(code) = super::target_code(target)
                     {
                         body.calls.push((id, code));
                     } else {
@@ -172,6 +179,13 @@ fn closed_cleanup(typed: &TypedQuery, targets: &[Referent]) -> bool {
                 }),
         )
         .collect();
+    if let ValueCode::Closure(id) = typed.code() {
+        let Some(schema) = typed.program().closure(id) else {
+            return false;
+        };
+        // A taking view may dispose a read/edit body's received environment after normal return.
+        pending.push(schema.environment());
+    }
     for &target in targets {
         let Some(data) = typed.body().referent_data(target) else {
             return false;

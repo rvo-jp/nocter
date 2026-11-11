@@ -1,0 +1,104 @@
+struct Item { value: i32 }
+func pure(): i32 {
+    let value = ()
+    let action = (value;): void {}
+    let items = [Item { value: 40 }, Item { value: 2 }]
+    var index: usize = 0
+    var total = 0
+    while index < 2 {
+        let item = items[index]^
+        action()
+        total += item.value
+        index += 1
+    }
+    total
+}
+func mutating(): i32 {
+    let value = 0
+    var action = (value;): i32 {
+        edit target = value
+        target += 1
+        target
+    }
+    let items = [Item { value: 40 }, Item { value: 2 }]
+    var index: usize = 0
+    var total = 0
+    while index < 2 {
+        let item = items[index]^
+        total += item.value + action()
+        index += 1
+    }
+    total - 3
+}
+func nested(): i32 {
+    let value = 0
+    var inner = (value;): i32 { value += 1
+                              value }
+    var outer = (inner^;): i32 { inner() }
+    let items = [Item { value: 40 }, Item { value: 2 }]
+    var index: usize = 0
+    var total = 0
+    while index < 2 {
+        let item = items[index]^
+        total += item.value + outer()
+        index += 1
+    }
+    total - 3
+}
+func explicit_inputs(): i32 {
+    let value = ()
+    let action = (value; extra: i32, edit seen: i32): void { seen += extra }
+    let items = [Item { value: 40 }, Item { value: 2 }]
+    var index: usize = 0
+    var total = 0
+    var seen = 0
+    while index < 2 {
+        let item = items[index]^
+        action(1, seen)
+        total += item.value
+        index += 1
+    }
+    total + seen - 2
+}
+func copied_once(): i32 {
+    let value = 0
+    let action: once(): i32 = (value;): i32 { value += 1
+                                             value }
+    let items = [Item { value: 40 }, Item { value: 2 }]
+    var index: usize = 0
+    var total = 0
+    while index < 2 {
+        let item = items[index]^
+        total += item.value + action()
+        index += 1
+    }
+    total - 2
+}
+func consumed(): i32 {
+    let items = [Item { value: 40 }, Item { value: 2 }]
+    var index: usize = 0
+    var total = 0
+    while index < 2 {
+        let item = items[index]^
+        let action = (item^;): i32 { let moved = item^
+                                   moved.value }
+        total += action^()
+        index += 1
+    }
+    total
+}
+func maximum(): i32 {
+    let value = ()
+    let action = (value;): void {}
+    let items = [(); 18446744073709551615]
+    var index: usize = 0
+    while index < 3 {
+        let item = items[index]^
+        action()
+        index += 1
+    }
+    42
+}
+func run(): i32 {
+    if pure() == 42 && mutating() == 42 && nested() == 42 && explicit_inputs() == 42 && copied_once() == 42 && consumed() == 42 && maximum() == 42 { 42 } else { 0 }
+}

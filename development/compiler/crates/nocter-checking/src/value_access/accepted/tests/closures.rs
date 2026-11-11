@@ -4,6 +4,26 @@ use super::*;
 use nocter_model::ValueInvocation;
 
 #[test]
+fn a_captured_callback_cannot_hide_writes_to_an_explicit_prefix_counter() {
+    for setup in [
+        "let value = ()\nlet reset = (value; edit index: usize): void { index = 0 }",
+        "let value = ()\nlet inner = (value; edit index: usize): void { index = 0 }\nlet reset = (inner; edit index: usize): void { inner(index) }",
+    ] {
+        let source = format!(
+            "func work(): void {{ {setup}\nlet items = [1, 2]\nvar index: usize = 0\nwhile index < 2 {{ let moved = items[index]^\nindex += 1\nreset(index) }} }}"
+        );
+        let (sources, tree) = input(&source);
+        assert!(
+            matches!(
+                SourceUnit::prepare(bound(&sources, &tree)),
+                Err(SourceFailure::Checking(Failure::Flow { .. }))
+            ),
+            "{setup}"
+        );
+    }
+}
+
+#[test]
 fn an_exact_named_callable_can_be_captured_as_an_ordinary_value() {
     let unit = accepted(
         "func increment(value: i32): i32 { value + 1 }\nfunc run(): i32 { let callback = increment\nlet outer = (callback;): i32 { callback(41) }\nouter() }",

@@ -296,6 +296,11 @@ dependency/storage mapping. Detached completion points of an interrupted call su
 For an exact owned closure, classify destruction through its environment's actual payload schema,
 independently of invocation. Releasing captured data must not execute the captured body; unknown
 environment cleanup must remain unknown rather than inherit a named function's trivial cleanup.
+Close invocation effects for exact captured code through the same lexical code scope and dependency
+solver as named calls. Keep a retained environment's edit root distinct from explicit input positions.
+A taking view edits its received copy/transferred environment, not the original source again;
+explicit-input writes still project normally. Include possible adapter environment cleanup and
+preserve unknown formal effects rather than inferring emptiness from a structural signature.
 Lexical edit aliases can resolve their write root from the existing typed binding initializer.
 Retain the original input position or owned-local root, and keep unresolved/escaping provenance
 conservative. Root resolution does not prove a dynamic index, exact component footprint or alias

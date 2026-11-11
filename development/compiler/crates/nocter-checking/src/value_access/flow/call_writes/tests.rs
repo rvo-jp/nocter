@@ -1,5 +1,6 @@
 use super::*;
 use crate::value_access::accepted::SourceUnit;
+use nocter_model::AccessCodeId;
 use nocter_test_support::ValueSourceFixture;
 use std::collections::BTreeSet;
 
@@ -18,6 +19,83 @@ fn code(controls: &[Control], name: &str) -> AccessCodeId {
 }
 
 #[test]
+fn captured_code_summaries_separate_retained_environments_and_explicit_inputs() {
+    let controls = controls(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/closure-write-prefix.nct"
+    )));
+    let catalog = Catalog::prepare(&controls).unwrap();
+    for (name, expected) in [
+        ("mutating", BTreeSet::from([bindings::Input::Environment])),
+        ("nested", BTreeSet::from([bindings::Input::Environment])),
+        (
+            "explicit_inputs",
+            BTreeSet::from([bindings::Input::Explicit(1)]),
+        ),
+        (
+            "copied_once",
+            BTreeSet::from([bindings::Input::Environment]),
+        ),
+        ("consumed", BTreeSet::new()),
+    ] {
+        let root = code(&controls, name);
+        let mut found = false;
+        for (code, summary) in &catalog.summaries {
+            if matches!(code, ValueCode::Closure(id) if id.owner.source_owner() == root) {
+                found = true;
+                assert_eq!(summary, &Writes::Known(expected.clone()), "{name}");
+            }
+        }
+        assert!(found, "{name}");
+    }
+    for (name, changes_existing_storage) in [
+        ("mutating", true),
+        ("copied_once", false),
+        ("consumed", false),
+    ] {
+        let control = controls
+            .iter()
+            .find(|control| control.typed.code() == ValueCode::Declaration(code(&controls, name)))
+            .unwrap();
+        let calls = catalog.calls(control).unwrap();
+        assert_eq!(calls.writes.len(), 1, "{name}");
+        assert_eq!(
+            calls.writes.values().any(|writes| !writes.is_empty()),
+            changes_existing_storage,
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn captured_calls_keep_transitive_body_and_value_supplier_reuse_guards() {
+    let text = "const WRITE: bool = false\nfunc helper(edit value: usize): void { if WRITE { value = 0 } }\nfunc run(): usize { let unit = ()\nlet callback = (unit; edit value: usize): void { helper(value) }\nvar value: usize = 7\ncallback(value)\nvalue }\nfunc unrelated(): i32 { 1 }";
+    let fixture = ValueSourceFixture::new(text);
+    let source = SourceUnit::prepare(fixture.syntax()).unwrap();
+    let root = source
+        .unit()
+        .program()
+        .resolve(source.unit().program().symbols().get("run").unwrap())
+        .unwrap();
+    let query = source
+        .unit()
+        .bodies()
+        .find(|(id, _)| *id == root)
+        .unwrap()
+        .1;
+    for (before, after, valid) in [
+        ("if WRITE { value = 0 }", "value = 0", false),
+        ("bool = false", "bool = true", false),
+        ("unrelated(): i32 { 1 }", "unrelated(): i32 { 2 }", true),
+    ] {
+        let changed = ValueSourceFixture::new(&text.replace(before, after));
+        let context = source.declarations().bind(changed.syntax()).unwrap();
+        assert!(query.typed().bind(&context).is_ok());
+        assert_eq!(query.bind(&context).is_ok(), valid, "{before}");
+    }
+}
+
+#[test]
 fn closed_recursive_components_preserve_caller_storage_and_external_writes_propagate() {
     let controls = controls(
         "func first(value: usize): usize { if value == 0 { 0 } else { second(value - 1) } }\n\
@@ -30,14 +108,21 @@ fn closed_recursive_components_preserve_caller_storage_and_external_writes_propa
     let catalog = Catalog::prepare(&controls).unwrap();
     for name in ["first", "second", "local"] {
         assert!(
-            catalog.summaries.get(&code(&controls, name)) == Some(&Writes::Known(BTreeSet::new())),
+            catalog
+                .summaries
+                .get(&ValueCode::Declaration(code(&controls, name)))
+                == Some(&Writes::Known(BTreeSet::new())),
             "{name}"
         );
     }
     for name in ["writes", "proxy", "recursive"] {
         assert!(
-            catalog.summaries.get(&code(&controls, name))
-                == Some(&Writes::Known(BTreeSet::from([0]))),
+            catalog
+                .summaries
+                .get(&ValueCode::Declaration(code(&controls, name)))
+                == Some(&Writes::Known(BTreeSet::from([bindings::Input::Explicit(
+                    0
+                )]))),
             "{name}"
         );
     }
@@ -54,12 +139,18 @@ fn formal_invocation_and_environment_cleanup_do_not_gain_closed_effects() {
     let catalog = Catalog::prepare(&controls).unwrap();
     for name in ["invoke", "forward", "cleanup"] {
         assert!(
-            catalog.summaries.get(&code(&controls, name)) == Some(&Writes::Unknown),
+            catalog
+                .summaries
+                .get(&ValueCode::Declaration(code(&controls, name)))
+                == Some(&Writes::Unknown),
             "{name}"
         );
     }
     assert!(
-        catalog.summaries.get(&code(&controls, "leaf")) == Some(&Writes::Known(BTreeSet::new()))
+        catalog
+            .summaries
+            .get(&ValueCode::Declaration(code(&controls, "leaf")))
+            == Some(&Writes::Known(BTreeSet::new()))
     );
 }
 
@@ -73,7 +164,9 @@ fn exact_owned_environment_cleanup_does_not_invoke_the_captured_body() {
     let catalog = Catalog::prepare(&controls).unwrap();
     for name in ["discard", "aggregate", "dormant"] {
         assert_eq!(
-            catalog.summaries.get(&code(&controls, name)),
+            catalog
+                .summaries
+                .get(&ValueCode::Declaration(code(&controls, name))),
             Some(&Writes::Known(BTreeSet::new())),
             "{name}"
         );
@@ -106,8 +199,12 @@ fn recursive_input_permutations_and_lexical_aliases_keep_the_written_root() {
     let catalog = Catalog::prepare(&controls).unwrap();
     for (name, input) in [("first", 1), ("second", 0), ("reset", 0), ("alias", 0)] {
         assert_eq!(
-            catalog.summaries.get(&code(&controls, name)),
-            Some(&Writes::Known(BTreeSet::from([input]))),
+            catalog
+                .summaries
+                .get(&ValueCode::Declaration(code(&controls, name))),
+            Some(&Writes::Known(BTreeSet::from([bindings::Input::Explicit(
+                input
+            )]))),
             "{name}"
         );
     }
@@ -124,11 +221,13 @@ fn lexical_alias_chains_separate_owned_storage_from_explicit_input_positions() {
     let catalog = Catalog::prepare(&controls).unwrap();
     for (name, writes) in [
         ("local", BTreeSet::new()),
-        ("external", BTreeSet::from([1])),
-        ("indexed", BTreeSet::from([0])),
+        ("external", BTreeSet::from([bindings::Input::Explicit(1)])),
+        ("indexed", BTreeSet::from([bindings::Input::Explicit(0)])),
     ] {
         assert_eq!(
-            catalog.summaries.get(&code(&controls, name)),
+            catalog
+                .summaries
+                .get(&ValueCode::Declaration(code(&controls, name))),
             Some(&Writes::Known(writes)),
             "{name}"
         );

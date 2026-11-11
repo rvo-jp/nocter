@@ -9,7 +9,7 @@ use super::{Control, IntegrityError, Operation, aliases::Aliases};
 use crate::value_access::{ExpressionKind, Query as TypedQuery, Referent};
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::Program;
-use nocter_model::{AccessCodeId, AccessExpressionId, ValueCode, ValueFunctionOrigin};
+use nocter_model::{AccessExpressionId, ValueCode, ValueFunctionOrigin};
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
@@ -43,7 +43,7 @@ impl Calls {
 pub(in crate::value_access) struct Catalog {
     program: Option<Arc<Program>>,
     scope: BTreeMap<ValueCode, Arc<TypedQuery>>,
-    summaries: BTreeMap<AccessCodeId, Writes>,
+    summaries: BTreeMap<ValueCode, Writes>,
     sources: Arc<sources::Graph>,
 }
 impl Catalog {
@@ -101,10 +101,8 @@ impl Catalog {
                     continue;
                 };
                 let expression = typed.body().expressions().get(id).ok_or(INVALID)?;
-                if let ExpressionKind::Call {
-                    target: ValueFunctionOrigin::Declaration(code),
-                    ..
-                } = expression.kind
+                if let ExpressionKind::Call { target, .. } = expression.kind
+                    && let Some(code) = target_code(target)
                 {
                     dependencies.insert(code);
                     if let Some(Writes::Known(inputs)) = self.summaries.get(&code)
@@ -117,5 +115,12 @@ impl Catalog {
         }
         result.sources = self.sources.select(typed.code(), dependencies);
         Ok(result)
+    }
+}
+fn target_code(target: ValueFunctionOrigin) -> Option<ValueCode> {
+    match target {
+        ValueFunctionOrigin::Declaration(code) => Some(ValueCode::Declaration(code)),
+        ValueFunctionOrigin::Closure(code) => Some(ValueCode::Closure(code)),
+        _ => None,
     }
 }
