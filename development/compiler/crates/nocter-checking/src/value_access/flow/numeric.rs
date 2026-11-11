@@ -1,12 +1,15 @@
 //! Normal checked usize relationships over the existing operation graph. These are numeric facts,
 //! never permission to access a value, skip evaluation or remove its original bounds check.
+mod cursor;
 mod equalities;
 mod history;
 mod progressions;
+mod selection;
 mod state;
 #[cfg(test)]
 mod tests;
 mod transfer;
+pub(super) use selection::{index_fact, path, resource_path};
 
 use super::owned_base;
 use super::resources::ArrayFrontier;
@@ -184,25 +187,12 @@ impl Analysis {
         if at.action >= point.actions.len() {
             return None;
         }
-        let mut state = self.entries.get(&at.point)?.clone();
-        for action in point.actions.iter().take(at.action) {
-            state.action(typed, &self.cells, &action.operation).ok()?;
+        let mut cursor = self.cursor(typed, at.point);
+        let mut result = None;
+        for action in point.actions.iter().take(at.action + 1) {
+            result = cursor.next(&action.operation).ok()?;
         }
-        let equalities = state.common()?;
-        let transfers = state
-            .action(typed, &self.cells, &point.actions.get(at.action)?.operation)
-            .ok()?;
-        Some(NumericFacts {
-            cells: Arc::clone(&self.cells),
-            equalities,
-            prefix_extensions: transfers.proven,
-            prefix_frontiers: self
-                .progressions
-                .prefixes
-                .get(&at)
-                .cloned()
-                .unwrap_or_default(),
-        })
+        result
     }
 }
 

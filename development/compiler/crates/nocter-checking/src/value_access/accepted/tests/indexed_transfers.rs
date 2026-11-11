@@ -15,6 +15,71 @@ fn retained_element_sources_and_point_or_prefix_backedges_execute() {
 }
 
 #[test]
+fn flow_proven_constants_freeze_selection_without_saved_index_owners() {
+    let source = nocter_test_support::RETAINED_ARRAY_SOURCES
+        .iter()
+        .find(|(name, _)| *name == "proven-read-after-dynamic-take")
+        .unwrap()
+        .1;
+    let unit = accepted(source);
+    for name in [
+        "plain",
+        "called",
+        "aliased",
+        "restored",
+        "sequential",
+        "bundled",
+    ] {
+        let query = named(&unit, name);
+        let trace = super::support::steps(query);
+        assert!(
+            !trace.iter().any(|step| matches!(step,
+            Step::Move { destination, .. }
+                if matches!(destination.holder(), Holder::IndexSnapshot(_)))),
+            "{name}"
+        );
+        // This flow proof does not rewrite the original checking-owned bounds disposition.
+        assert!(
+            query
+                .typed()
+                .body()
+                .expressions()
+                .iter()
+                .any(|(_, value)| matches!(
+                    value.kind,
+                    ExpressionKind::Index {
+                        bounds: nocter_model::IndexBoundsCheck::Required,
+                        ..
+                    }
+                )),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn selection_refinement_preserves_holes_and_frozen_alias_conflicts() {
+    for body in [
+        "var index: usize = 0\nlet moved = items[index]^\nitems[index].value",
+        "var index = input\nlet moved = items[index]^\nindex = 1\nitems[index].value",
+        "var index: usize = 0\nread first = items[index]\nindex = 1\nlet moved = items[0]^\nfirst.value",
+        "var index: usize = 0\nread first = items[index]\nindex = 1\nitems[0] = Item { value: 42 }\nfirst.value",
+    ] {
+        let source = format!(
+            "struct Item {{ value: i32 }}\nfunc work(input: usize): i32 {{ var items = [Item {{ value: 40 }}, Item {{ value: 2 }}]\n{body} }}"
+        );
+        let (sources, tree) = input(&source);
+        assert!(
+            matches!(
+                SourceUnit::prepare(bound(&sources, &tree)),
+                Err(SourceFailure::Checking(Failure::Flow { .. }))
+            ),
+            "{source}"
+        );
+    }
+}
+
+#[test]
 fn point_restoration_before_a_later_prefix_epoch_keeps_its_ordinary_transition() {
     let source = nocter_test_support::RETAINED_ARRAY_SOURCES
         .iter()

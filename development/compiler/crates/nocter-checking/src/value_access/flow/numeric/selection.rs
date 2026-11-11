@@ -1,0 +1,48 @@
+//! One late constant-index refinement for availability, frozen grants and resource paths.
+use super::{NumericFacts, TypedQuery};
+use crate::value_access::{AccessPath, IndexFact, Referent, flow::resources};
+use nocter_model::{AccessExpressionId, AccessLocalId};
+
+pub(in crate::value_access::flow) fn index_fact(
+    typed: &TypedQuery,
+    facts: Option<&NumericFacts>,
+    selection: AccessExpressionId,
+    operand: AccessExpressionId,
+) -> Option<IndexFact> {
+    let original = typed.body().expressions().get(operand)?.index_fact();
+    if original != IndexFact::Unknown {
+        return Some(original);
+    }
+    // These facts choose a valid concrete projection, not a replacement bounds classifier.
+    let known = facts.and_then(|facts| facts.constant(operand));
+    let bound = resources::RetainedIndex::for_selection(typed, selection)
+        .map(resources::RetainedIndex::bound);
+    Some(
+        known
+            .filter(|&value| bound.is_some_and(|bound| value < bound))
+            .map_or(IndexFact::Unknown, IndexFact::Known),
+    )
+}
+
+pub(in crate::value_access::flow) fn path(
+    typed: &TypedQuery,
+    facts: Option<&NumericFacts>,
+    reference: Referent,
+) -> Option<(AccessLocalId, AccessPath)> {
+    reference.projection_path(
+        |id| typed.body().places().get(id),
+        |id| typed.body().expressions().get(id),
+        IndexFact::Known,
+        |selection, operand| index_fact(typed, facts, selection, operand),
+    )
+}
+
+pub(in crate::value_access::flow) fn resource_path(
+    typed: &TypedQuery,
+    facts: Option<&NumericFacts>,
+    reference: Referent,
+) -> Option<(AccessLocalId, resources::Path)> {
+    resources::Path::for_referent_with(typed, reference, |selection, operand| {
+        index_fact(typed, facts, selection, operand)
+    })
+}

@@ -66,6 +66,11 @@ layout fields, generated operations, an arbitrary iteration cutoff or a constant
   general numeric relations among holes within one array. Keep
   unproved relations local and explicit. Do not read uninitialized alternative backing or choose
   guards from numeric equality alone; preserve actual original-index mutation and empty/MAX spans.
+- [x] Share current numerical constant selection facts across availability, access creation and
+  resource paths. Freeze constants when a place/hole is created and elide unnecessary saved-index
+  owners; retain snapshots for unproved values. Do not refine old aliases from a recipe's later
+  execution or reinterpret a prefix as one point. Preserve original bounds decisions, local
+  unknown-use diagnostics and exact cleanup through ordinary source and native execution.
 - [ ] Qualify actual nontrivial array cleanup effects through the
   [native array consumer](compiler/crates/nocter-machine/README.md#private-array-execution), including
   source error construction. Emitted/image-only cleanup is not execution of an owned error graph.

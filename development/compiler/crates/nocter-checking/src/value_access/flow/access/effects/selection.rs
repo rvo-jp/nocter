@@ -42,13 +42,8 @@ impl Context<'_, '_> {
         let Some((mut region, actor)) = self.base_value(self.world.value(base)?)? else {
             return Err(Failure::Integrity);
         };
-        let index = self
-            .typed
-            .body()
-            .expressions()
-            .get(index)
-            .ok_or(Failure::Integrity)?
-            .index_fact();
+        let index = super::super::super::numeric::index_fact(self.typed, self.facts, id, index)
+            .ok_or(Failure::Integrity)?;
         region.fields = region.fields.project(ValueProjection::Array(index));
         self.retain_place(Key::Expression(id), Some((region, actor)))
     }

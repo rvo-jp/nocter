@@ -144,9 +144,11 @@ pub(super) fn analyze(
             continue;
         }
         let block = graph.points().get(point).ok_or(INVALID)?;
+        let mut cursor = numeric.cursor(typed, point);
         let mut worlds = vec![world];
         for (action, event) in block.actions.iter().enumerate() {
             let location = Location { point, action };
+            let facts = cursor.next(&event.operation)?;
             let mut next = Vec::new();
             for mut world in worlds {
                 world.trim(liveness.before(location))?;
@@ -158,6 +160,7 @@ pub(super) fn analyze(
                     location,
                     &liveness,
                     numeric,
+                    facts.as_ref(),
                 ) {
                     Ok(mut alternatives) => {
                         for (alternative, plan) in &mut alternatives {

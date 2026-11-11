@@ -1,0 +1,52 @@
+struct Item { value: i32 }
+const func plain(): i32 {
+    let items = [Item { value: 40 }, Item { value: 2 }]
+    var index: usize = 0
+    let first = items[index]^
+    index = 1
+    first.value + items[index].value
+}
+const func inspect(item: Item, hint: void): i32 { item.value }
+const func called(): i32 {
+    let items = [Item { value: 40 }, Item { value: 2 }]
+    var index: usize = 0
+    let first = items[index]^
+    index = 1
+    first.value + inspect(items[index], if true { index = 0
+        () } else { () })
+}
+const func aliased(): i32 {
+    let items = [Item { value: 40 }, Item { value: 2 }]
+    var index: usize = 0
+    read first = items[index]
+    index = 1
+    let second = items[index]^
+    first.value + second.value
+}
+const func restored(): i32 {
+    var items = [Item { value: 0 }, Item { value: 2 }]
+    var index: usize = 0
+    let old = items[index]^
+    items[index] = Item { value: old.value + 40 }
+    let complete = items^
+    complete[0].value + complete[1].value
+}
+const func sequential(): i32 {
+    let items = [Item { value: 40 }, Item { value: 2 }]
+    var index: usize = 0
+    let first = items[index]^
+    index = 1
+    let second = items[index]^
+    first.value + second.value
+}
+const func combine(take left: Item, take right: Item): i32 { left.value + right.value }
+const func bundled(): i32 {
+    let items = [Item { value: 40 }, Item { value: 2 }]
+    var index: usize = 0
+    combine(items[index]^, items[if true { index = 1
+        index } else { index }]^)
+}
+const func run(): i32 {
+    if plain() == 42 && called() == 42 && aliased() == 42 && restored() == 42
+        && sequential() == 42 && bundled() == 42 { 42 } else { 0 }
+}

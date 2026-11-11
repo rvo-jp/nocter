@@ -346,10 +346,7 @@ impl Context<'_, '_> {
             .body()
             .referent_data(target)
             .ok_or(Failure::Integrity)?;
-        let (local, fields) = self
-            .typed
-            .body()
-            .referent_path(target)
+        let (local, fields) = super::super::super::numeric::path(self.typed, self.facts, target)
             .ok_or(Failure::Integrity)?;
         let owning = self.local_mode(local)? == Mode::Own
             && crate::value_access::paths::concrete(&fields).is_some();

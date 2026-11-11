@@ -661,7 +661,7 @@ fn prefix_backing_can_drive_ranges_but_cannot_become_an_immutable_element_addres
     ));
     // The same bound/representation does not make a point snapshot an advancing endpoint.
     let point_program = lower(
-        "struct Item { value: i32 }\nfunc run(): i32 { let items = [Item { value: 40 }, Item { value: 2 }]\nlet index: usize = 0\nlet first = items[index]^\nfirst.value }",
+        "struct Item { value: i32 }\nfunc point(index: usize): i32 { let items = [Item { value: 40 }, Item { value: 2 }]\nlet first = items[index]^\nfirst.value }\nfunc run(): i32 { point(0) }",
     );
     let point = point_program
         .bodies

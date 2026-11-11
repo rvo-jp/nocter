@@ -974,10 +974,16 @@ logical identity. This permits independent field access for both equal and disti
 including zero-byte data, without an index-name or loop-generation proof.
 
 `paths` owns `IndexFact`, concrete/symbolic path conversion and the relation consumed by both
-initialization and access analysis. `TypedBody::referent_path` projects a mixed selection relative
-to its local slot, preserving the static member prefix and every array/field suffix. Unknown
-indices stay unknown even when recipe keys match. Outside referent identity remains access
-analysis's responsibility; a local availability path does not retarget an alias.
+initialization and access analysis. `Referent::projection_path` supplies one structural traversal,
+preserving the static member prefix and every array/field suffix. `flow::numeric::selection`
+refines unknown indices with the current operation's proved in-range constants for availability,
+new access regions and resource paths. Each consumer replays numerical state once through a block;
+it does not store a numerical state for every action. A created region or missing path freezes
+that constant, so later changes to the source index cannot retarget it. Constant holes need no
+saved-index owner; unproved indices retain their existing snapshot obligation. The original
+source bounds disposition is unchanged. Unknown indices stay unknown even when recipe keys match.
+Outside referent identity remains access analysis's responsibility; a local availability path
+does not retarget an alias.
 
 Place formation requires a present containing place; the selected child slot may be missing.
 Value supply, read/edit reservations and scalar
@@ -1021,6 +1027,10 @@ Read/edit sources cannot surrender their referents through a marker. A guarantee
 produces no moved value. Source availability retains symbolic holes conservatively, while the
 resource ledger retains the actual snapshot identity. Existing reads, writes and repeated extraction
 must exclude every possible hole; an unproved selector cannot restore one by key equality.
+The source corpus also qualifies flow-proved constant holes, later disjoint reads/transfers,
+frozen read arguments and aliases, exact restoration and multi-element call bundles. Logical
+tests require no saved-index owners for those constant paths and reject overlapping/unknown
+holes and invalidation of an older frozen alias.
 
 Known owning replacements can restore proven missing elements. Replacing a containing array cleans
 its old remainder, ends the old snapshot and permits reuse of that selection recipe on a backedge.

@@ -195,6 +195,7 @@ fn require(
 }
 fn require_referent(
     typed: &TypedQuery,
+    facts: Option<&super::numeric::NumericFacts>,
     state: &State,
     referent: Referent,
     at: Location,
@@ -202,6 +203,7 @@ fn require_referent(
 ) -> Result<(), IntegrityError> {
     require_selection(
         typed,
+        facts,
         state,
         referent,
         InitializationRequirement::Value,
@@ -211,13 +213,14 @@ fn require_referent(
 }
 fn require_selection(
     typed: &TypedQuery,
+    facts: Option<&super::numeric::NumericFacts>,
     state: &State,
     referent: Referent,
     requirement: InitializationRequirement,
     at: Location,
     violations: &mut Vec<InitializationViolation>,
 ) -> Result<(), IntegrityError> {
-    let (local, fields) = typed.body().referent_path(referent).ok_or(INVALID)?;
+    let (local, fields) = super::numeric::path(typed, facts, referent).ok_or(INVALID)?;
     require_path(state, local, fields, requirement, at, violations)
 }
 fn require_path(
@@ -246,6 +249,7 @@ fn require_path(
 }
 fn require_expression(
     typed: &TypedQuery,
+    facts: Option<&super::numeric::NumericFacts>,
     state: &State,
     id: nocter_model::AccessExpressionId,
     requirement: InitializationRequirement,
@@ -259,12 +263,13 @@ fn require_expression(
         .ok_or(INVALID)?
         .referent(id)
     {
-        require_selection(typed, state, referent, requirement, at, violations)?;
+        require_selection(typed, facts, state, referent, requirement, at, violations)?;
     }
     Ok(())
 }
 fn require_formation(
     typed: &TypedQuery,
+    facts: Option<&super::numeric::NumericFacts>,
     state: &State,
     id: nocter_model::AccessExpressionId,
     at: Location,
@@ -277,7 +282,7 @@ fn require_formation(
         .ok_or(INVALID)?
         .referent(id)
     {
-        let (local, path) = typed.body().referent_path(referent).ok_or(INVALID)?;
+        let (local, path) = super::numeric::path(typed, facts, referent).ok_or(INVALID)?;
         // A child slot can be missing while its containing array/record remains present.
         // Formation does not read that slot or recreate a missing containing place.
         let parent = AccessPath::new(
@@ -311,11 +316,12 @@ fn remove(
 }
 fn remove_referent(
     typed: &TypedQuery,
+    facts: Option<&super::numeric::NumericFacts>,
     state: &mut State,
     referent: Referent,
     at: Location,
 ) -> Result<(), IntegrityError> {
-    let (local, path) = typed.body().referent_path(referent).ok_or(INVALID)?;
+    let (local, path) = super::numeric::path(typed, facts, referent).ok_or(INVALID)?;
     state.get_mut(&local).ok_or(INVALID)?.remove_path(&path, at);
     Ok(())
 }
@@ -407,6 +413,7 @@ fn require_array_container(
 fn require_committed_argument(
     typed: &TypedQuery,
     numeric: &super::numeric::Analysis,
+    facts: Option<&super::numeric::NumericFacts>,
     state: &State,
     argument: &ArgumentAction,
     location: Location,
@@ -425,9 +432,36 @@ fn require_committed_argument(
     | ArgumentAction::ReserveUpdate(place)
     | ArgumentAction::ReserveTransfer { place, .. } = *argument
     {
-        require_referent(typed, state, place, location, violations)
+        require_referent(typed, facts, state, place, location, violations)
     } else {
         Ok(())
+    }
+}
+
+fn require_prepared_argument(
+    typed: &TypedQuery,
+    numeric: &super::numeric::Analysis,
+    facts: Option<&super::numeric::NumericFacts>,
+    state: &State,
+    argument: &ArgumentAction,
+    location: Location,
+    violations: &mut Vec<InitializationViolation>,
+) -> Result<(), IntegrityError> {
+    match *argument {
+        ArgumentAction::ReserveRead(place)
+        | ArgumentAction::ReserveUpdate(place)
+        | ArgumentAction::ReserveTransfer { place, .. }
+        | ArgumentAction::CopyPlace(place) => {
+            if let Some(array) = numeric.available(location) {
+                require_array_container(state, array, location, violations)
+            } else {
+                require_referent(typed, facts, state, place, location, violations)
+            }
+        }
+        ArgumentAction::AccessOwnedValue | ArgumentAction::TakeValue => Ok(()),
+        ArgumentAction::PendingValue(_)
+        | ArgumentAction::Unproduced
+        | ArgumentAction::Interrupted => Err(INVALID),
     }
 }
 
@@ -440,6 +474,7 @@ fn transfer(
     violations: &mut Vec<InitializationViolation>,
     cleanup: &mut Vec<CleanupFact>,
 ) -> Result<(), IntegrityError> {
+    let mut cursor = numeric.cursor(typed, point);
     for (action, event) in graph
         .points()
         .get(point)
@@ -449,31 +484,25 @@ fn transfer(
         .enumerate()
     {
         let location = Location { point, action };
+        let facts = cursor.next(&event.operation)?;
+        let facts = facts.as_ref();
         match &event.operation {
-            Operation::Evaluate(id) => evaluate(typed, numeric, *id, state, location, violations)?,
+            Operation::Evaluate(id) => {
+                evaluate(typed, numeric, facts, *id, state, location, violations)?;
+            }
             Operation::PrepareArgument { call, argument } => {
-                match arguments(typed, *call)?
-                    .get(*argument)
-                    .ok_or(INVALID)?
-                    .action
-                {
-                    ArgumentAction::ReserveRead(place)
-                    | ArgumentAction::ReserveUpdate(place)
-                    | ArgumentAction::ReserveTransfer { place, .. }
-                    | ArgumentAction::CopyPlace(place) => {
-                        if let Some(array) = numeric.available(location) {
-                            require_array_container(state, array, location, violations)?;
-                        } else {
-                            require_referent(typed, state, place, location, violations)?;
-                        }
-                    }
-                    ArgumentAction::AccessOwnedValue | ArgumentAction::TakeValue => {}
-                    ArgumentAction::PendingValue(_)
-                    | ArgumentAction::Unproduced
-                    | ArgumentAction::Interrupted => {
-                        return Err(INVALID);
-                    }
-                }
+                require_prepared_argument(
+                    typed,
+                    numeric,
+                    facts,
+                    state,
+                    &arguments(typed, *call)?
+                        .get(*argument)
+                        .ok_or(INVALID)?
+                        .action,
+                    location,
+                    violations,
+                )?;
             }
             Operation::CommitCall(call) => {
                 // Validate the whole reserved bundle first; consuming one argument cannot make
@@ -482,6 +511,7 @@ fn transfer(
                     require_committed_argument(
                         typed,
                         numeric,
+                        facts,
                         state,
                         &argument.action,
                         location,
@@ -490,16 +520,16 @@ fn transfer(
                 }
                 for argument in arguments(typed, *call)? {
                     if let ArgumentAction::ReserveTransfer { place, .. } = argument.action {
-                        remove_referent(typed, state, place, location)?;
+                        remove_referent(typed, facts, state, place, location)?;
                     }
                 }
             }
             Operation::Bind { local, .. } => initialize(state, *local, &FieldPath::default())?,
             Operation::Assign { target, .. } => {
-                assign(typed, state, *target, location, violations, cleanup)?;
+                assign(typed, facts, state, *target, location, violations, cleanup)?;
             }
             Operation::CompoundAssign { target, .. } => {
-                require_referent(typed, state, *target, location, violations)?;
+                require_referent(typed, facts, state, *target, location, violations)?;
             }
             Operation::Drop(local) => {
                 require(
@@ -524,6 +554,7 @@ fn transfer(
             | Operation::BooleanAnswer { source: value, .. } => {
                 require_expression(
                     typed,
+                    facts,
                     state,
                     *value,
                     InitializationRequirement::Value,
@@ -545,6 +576,7 @@ fn transfer(
 fn evaluate(
     typed: &TypedQuery,
     numeric: &super::numeric::Analysis,
+    facts: Option<&super::numeric::NumericFacts>,
     id: nocter_model::AccessExpressionId,
     state: &mut State,
     location: Location,
@@ -558,9 +590,9 @@ fn evaluate(
                 let array = frontier.array(typed).ok_or(INVALID)?;
                 require_array_container(state, &array, location, violations)?;
             } else {
-                require_referent(typed, state, *place, location, violations)?;
+                require_referent(typed, facts, state, *place, location, violations)?;
             }
-            remove_referent(typed, state, *place, location)?;
+            remove_referent(typed, facts, state, *place, location)?;
         }
         // Pending supply has no availability semantics. Calls/control use their own graph events.
         ExpressionKind::Boundary {
@@ -572,11 +604,12 @@ fn evaluate(
         | ExpressionKind::Call { .. }
         | ExpressionKind::If { .. } => return Err(INVALID),
         ExpressionKind::Place(_) | ExpressionKind::Index { .. } | ExpressionKind::Select { .. } => {
-            require_formation(typed, state, id, location, violations)?;
+            require_formation(typed, facts, state, id, location, violations)?;
         }
         ExpressionKind::Boundary { source, .. } => {
             require_expression(
                 typed,
+                facts,
                 state,
                 *source,
                 InitializationRequirement::Value,
@@ -601,6 +634,7 @@ fn evaluate(
 
 fn assign(
     typed: &TypedQuery,
+    facts: Option<&super::numeric::NumericFacts>,
     state: &mut State,
     target: Referent,
     location: Location,
@@ -610,7 +644,7 @@ fn assign(
     let place = if let Some(place) = target.place() {
         selected(typed, place)?.clone()
     } else {
-        let (local, fields) = typed.body().referent_path(target).ok_or(INVALID)?;
+        let (local, fields) = super::numeric::path(typed, facts, target).ok_or(INVALID)?;
         let mode = typed
             .body()
             .locals()
@@ -620,7 +654,7 @@ fn assign(
             .mode();
         let Some(fields) = paths::concrete(&fields).filter(|_| mode == ValueAccessMode::Own) else {
             // An unproved selection cannot erase a hole. Scoped replacement requires a value.
-            return require_referent(typed, state, target, location, violations);
+            return require_referent(typed, facts, state, target, location, violations);
         };
         crate::value_access::Place {
             local,
@@ -636,7 +670,7 @@ fn assign(
         .access()
         .mode();
     if mode == ValueAccessMode::Update {
-        require_referent(typed, state, target, location, violations)?;
+        require_referent(typed, facts, state, target, location, violations)?;
     } else {
         // Replacing a missing field is allowed; missing containing records are not.
         for len in 0..place.fields.fields().len() {

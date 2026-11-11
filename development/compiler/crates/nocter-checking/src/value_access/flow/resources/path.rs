@@ -168,19 +168,26 @@ impl Path {
         typed: &TypedQuery,
         referent: crate::value_access::Referent,
     ) -> Option<(nocter_model::AccessLocalId, Self)> {
+        Self::for_referent_with(typed, referent, |_, operand| {
+            Some(typed.body().expressions().get(operand)?.index_fact())
+        })
+    }
+    pub(in crate::value_access::flow) fn for_referent_with(
+        typed: &TypedQuery,
+        referent: crate::value_access::Referent,
+        fact: impl Fn(AccessExpressionId, AccessExpressionId) -> Option<crate::value_access::IndexFact>,
+    ) -> Option<(nocter_model::AccessLocalId, Self)> {
         let (local, path) = referent.projection_path(
             |id| typed.body().places().get(id),
             |id| typed.body().expressions().get(id),
             Index::Constant,
             |selection, operand| {
-                Some(
-                    match typed.body().expressions().get(operand)?.index_fact() {
-                        crate::value_access::IndexFact::Known(value) => Index::Constant(value),
-                        crate::value_access::IndexFact::Unknown => {
-                            Index::Retained(RetainedIndex::for_selection(typed, selection)?)
-                        }
-                    },
-                )
+                Some(match fact(selection, operand)? {
+                    crate::value_access::IndexFact::Known(value) => Index::Constant(value),
+                    crate::value_access::IndexFact::Unknown => {
+                        Index::Retained(RetainedIndex::for_selection(typed, selection)?)
+                    }
+                })
             },
         )?;
         Some((local, Self(path)))

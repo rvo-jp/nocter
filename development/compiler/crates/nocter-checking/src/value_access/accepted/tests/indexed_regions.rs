@@ -134,7 +134,18 @@ fn availability_and_access_share_the_typed_mixed_selection_path() {
             .then_some(id)
         })
         .unwrap();
-    let (local, path) = body.referent_path(Referent::Evaluated(id)).unwrap();
+    let (local, path) = Referent::Evaluated(id)
+        .projection_path(
+            |id| body.places().get(id),
+            |id| body.expressions().get(id),
+            IndexFact::Known,
+            |_, operand| {
+                body.expressions()
+                    .get(operand)
+                    .map(crate::value_access::Expression::index_fact)
+            },
+        )
+        .unwrap();
     assert_eq!(local, body.locals().iter().next().unwrap().0);
     let field = |record, name| match super::support::record_field(&unit, record, name) {
         ValueProjection::Record(id) => ValueProjection::Record(id),

@@ -1,5 +1,5 @@
 //! Checking-owned numeric selection facts shared by availability and access analysis.
-use super::{Expression, ExpressionKind, IndexAction, Referent, SelectionAction, TypedBody};
+use super::{Expression, ExpressionKind, IndexAction, Referent, SelectionAction};
 use nocter_model::{
     AccessExpressionId, AccessLocalId, AccessPlaceId, FieldPath, IndexRelation, PathRelation,
     ValuePath, ValueProjection,
@@ -52,23 +52,7 @@ impl Expression {
             .map_or(IndexFact::Unknown, IndexFact::Known)
     }
 }
-impl TypedBody {
-    /// Logical availability path relative to its local slot. Outside referent identity remains
-    /// access analysis's responsibility; unknown indices grant no concrete ownership path.
-    pub(super) fn referent_path(&self, referent: Referent) -> Option<(AccessLocalId, AccessPath)> {
-        referent.selection_path(|id| self.places().get(id), |id| self.expressions().get(id))
-    }
-}
 impl Referent {
-    pub(super) fn selection_path<'a>(
-        self,
-        place: impl Fn(AccessPlaceId) -> Option<&'a super::Place>,
-        expression: impl Fn(AccessExpressionId) -> Option<&'a Expression>,
-    ) -> Option<(AccessLocalId, AccessPath)> {
-        self.projection_path(&place, &expression, IndexFact::Known, |_, operand| {
-            Some(expression(operand)?.index_fact())
-        })
-    }
     pub(super) fn projection_path<'a, I: Copy>(
         mut self,
         place: impl Fn(AccessPlaceId) -> Option<&'a super::Place>,

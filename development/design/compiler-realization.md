@@ -213,6 +213,12 @@ Keep code-site/slot identity separate from evaluated-value identity and its reta
 The backing and lifetime of a saved index must close with its existing access/resource obligation,
 not a second ownership registry or repeated evaluation of the source expression.
 
+When current numerical facts prove an in-range constant, use that same fact for availability,
+access creation and resource selection. Freeze it in the resulting region or missing path;
+never reinterpret an older alias from a recipe's later execution. Such a hole needs no saved
+index owner. Preserve the original bounds disposition, and retain actual snapshot backing when
+the number is unproved. A prefix region must remain a region rather than its last selected point.
+
 Retained-index backing is an ordinary pure usize snapshot in the existing ownership ledger,
 attached to the containing array obligation. Create it only after a normal checked selection and
 at the transfer's established commit point. Keep its owner in branch conditions; two paths can

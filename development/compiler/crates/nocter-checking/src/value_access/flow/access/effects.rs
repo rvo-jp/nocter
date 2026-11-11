@@ -34,6 +34,7 @@ struct Context<'a, 'b> {
     at: Location,
     live: &'a Liveness,
     numeric: &'a super::super::numeric::Analysis,
+    facts: Option<&'a super::super::numeric::NumericFacts>,
     steps: Vec<super::super::resources::Step>,
 }
 
@@ -44,6 +45,7 @@ pub(super) fn apply(
     at: Location,
     live: &Liveness,
     numeric: &super::super::numeric::Analysis,
+    facts: Option<&super::super::numeric::NumericFacts>,
 ) -> Result<Vec<(World, StepPlan)>> {
     let mut context = Context {
         typed,
@@ -51,6 +53,7 @@ pub(super) fn apply(
         at,
         live,
         numeric,
+        facts,
         steps: Vec::new(),
     };
     context.ownership_before(operation)?;
@@ -162,6 +165,7 @@ impl Context<'_, '_> {
                 at: self.at,
                 live: self.live,
                 numeric: self.numeric,
+                facts: self.facts,
                 steps: self.steps.clone(),
             };
             next.commit_inputs(call)?;
@@ -213,8 +217,9 @@ impl Context<'_, '_> {
     fn resource_referent(&self, referent: Referent) -> Result<super::super::resources::Place> {
         // The typed recipe outlives a trimmed reservation carrier. Numeric identity is supplied
         // only by proven constants or by the actual scalar owner installed at transfer commit.
-        let (local, fields) = super::super::resources::Path::for_referent(self.typed, referent)
-            .ok_or(Failure::Integrity)?;
+        let (local, fields) =
+            super::super::numeric::resource_path(self.typed, self.facts, referent)
+                .ok_or(Failure::Integrity)?;
         if self.local_mode(local)? != Mode::Own {
             return Err(Failure::Integrity);
         }

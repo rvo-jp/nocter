@@ -237,6 +237,10 @@ maximum-count zero-byte arrays use the same saved-index projections and sparse c
 Nested dynamic cases also execute two independently saved indices, outer-variable mutation during
 inner-index evaluation, and maximum-count zero-byte arrays in both dimensions. Selected payloads
 have distinct nonzero values so incorrectly recapturing an outer index changes the answer.
+Flow-proved constant cases execute disjoint reads and transfers, frozen aliases/arguments,
+restoration and a two-element call bundle after mutation of the user's index. Checking supplies
+constant resource paths without saved-index owners; native lowering retains the original bounds
+operations and the selected evaluated addresses.
 
 Shared source fixtures execute element take, field holes, structurally disjoint unknown-index edits,
 exact restoration on loop backedges and maximum-count zero-byte remainder cleanup. The checking
