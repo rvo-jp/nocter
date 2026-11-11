@@ -423,6 +423,11 @@ impl<'a, 'budget> Executor<'a, 'budget> {
     }
     fn effect(&mut self, frame: usize, effect: &Effect) -> Result<()> {
         match effect {
+            Effect::MoveArrayElement {
+                array,
+                selected,
+                destination,
+            } => self.move_array_element(frame, array, selected, *destination),
             Effect::ConsolidateArrayPrefix { source, endpoint } => {
                 let (address, range) =
                     self.array_span(frame, source, &nocter_model::ArrayRange::Through(*endpoint))?;
@@ -491,6 +496,34 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             }
         }
     }
+    fn move_array_element(
+        &mut self,
+        frame: usize,
+        array: &Place,
+        selected: &Place,
+        destination: usize,
+    ) -> Result<()> {
+        let array_address = self.memory.address(frame, array)?;
+        let selected_address = self.memory.address(frame, selected)?;
+        self.memory.require_array_element(
+            &array_address,
+            &selected_address,
+            self.array_length(frame, array)?,
+        )?;
+        let value = self.memory.read(&selected_address)?;
+        self.memory.retire(&selected_address, false)?;
+        let destination = self.memory.address(frame, &Place::root(destination))?;
+        self.memory.store(&destination, value)?;
+        self.memory.construct(&destination)
+    }
+    fn array_length(&self, frame: usize, source: &Place) -> Result<u64> {
+        let data =
+            super::validation::place_data(self.program, &self.memory.frames[frame].slots, source)?;
+        let Some(super::Type::Array { length, .. }) = self.program.types.get(data) else {
+            return Err(Rule::InvalidPlan);
+        };
+        Ok(*length)
+    }
     fn array_span(
         &self,
         frame: usize,
@@ -498,23 +531,19 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         range: &nocter_model::ArrayRange<usize>,
     ) -> Result<(Address, std::ops::Range<u64>)> {
         let address = self.memory.address(frame, source)?;
-        let data =
-            super::validation::place_data(self.program, &self.memory.frames[frame].slots, source)?;
-        let Some(super::Type::Array { length, .. }) = self.program.types.get(data) else {
-            return Err(Rule::InvalidPlan);
-        };
+        let length = self.array_length(frame, source)?;
         let captured = match range {
             nocter_model::ArrayRange::Constant { .. } => None,
             nocter_model::ArrayRange::Before(slot)
             | nocter_model::ArrayRange::Through(slot)
             | nocter_model::ArrayRange::After(slot) => {
-                Some(self.memory.snapshot_index(frame, *slot, *length)?)
+                Some(self.memory.snapshot_index(frame, *slot, length)?)
             }
         };
         Ok((
             address,
             range
-                .resolve(*length, |_| captured)
+                .resolve(length, |_| captured)
                 .ok_or(Rule::InvalidPlan)?,
         ))
     }

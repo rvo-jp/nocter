@@ -337,6 +337,32 @@ impl Memory {
             .ok_or(Rule::InvalidPlan)?
             .consolidate_prefix(&self.storage, &address.fields, &selected, end)
     }
+    pub fn require_array_element(
+        &self,
+        array: &Address,
+        selected: &Address,
+        length: u64,
+    ) -> Result<()> {
+        let (frame, slot) = array.local()?;
+        if selected.local()? != (frame, slot)
+            || selected.fields.len()
+                != array.fields.len().checked_add(1).ok_or(Rule::InvalidPlan)?
+            || !selected.fields.starts_with(&array.fields)
+            || selected
+                .fields
+                .last()
+                .and_then(|&index| u64::try_from(index).ok())
+                .is_none_or(|index| index >= length)
+            || self
+                .frames
+                .get(frame)
+                .and_then(|frame| frame.owned.get(&slot))
+                .is_none_or(|owner| !owner.can_release(&array.fields, true))
+        {
+            return Err(Rule::InvalidPlan);
+        }
+        Ok(())
+    }
     pub fn retire(&mut self, address: &Address, partial: bool) -> Result<()> {
         let (frame_id, slot) = address.local()?;
         let frame = self.frames.get_mut(frame_id).ok_or(Rule::InvalidPlan)?;

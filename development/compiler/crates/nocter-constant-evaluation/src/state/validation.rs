@@ -482,6 +482,27 @@ fn check_effect(program: &Program, plan: &super::Plan, effect: &Effect) -> Resul
         }
     };
     match effect {
+        Effect::MoveArrayElement {
+            array,
+            selected,
+            destination,
+        } => {
+            let array_data = owned(array)?;
+            let Some(Type::Array { element, length }) = program.types.get(array_data) else {
+                return Err(INVALID);
+            };
+            if *length == 0
+                || !selected.fields.is_empty()
+                || plan
+                    .slots
+                    .get(selected.slot)
+                    .is_none_or(|slot| slot.storage != Storage::Alias)
+                || data(selected)? != *element
+                || owned(&Place::root(*destination))? != *element
+            {
+                return Err(INVALID);
+            }
+        }
         Effect::ConsolidateArrayPrefix { source, endpoint } => {
             bounded_array(program, plan, source, *endpoint)?;
         }

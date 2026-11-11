@@ -107,6 +107,13 @@ pub enum Effect {
         source: Place,
         destination: Place,
     },
+    /// Transfer a frozen whole-element address under an explicitly owned array. The selected
+    /// alias grants no ownership itself; execution verifies its exact containing owner.
+    MoveArrayElement {
+        array: Place,
+        selected: Place,
+        destination: usize,
+    },
     Dispose(Place),
     /// Retire an intact half-open element interval without cardinality-sized state.
     DisposeArrayElements {

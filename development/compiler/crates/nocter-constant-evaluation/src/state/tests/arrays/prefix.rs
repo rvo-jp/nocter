@@ -34,6 +34,11 @@ fn extraction(length: u64, first: u64, second: Option<u64>) -> Plan {
         let mut point = point.clone();
         let mut actions = point.actions[..5].to_vec();
         let mut moved = actions[4].alternatives[0].after.to_vec();
+        moved[0] = Effect::MoveArrayElement {
+            array: Place::root(0),
+            selected: Place::root(2),
+            destination: 8,
+        };
         moved.push(Effect::ConsolidateArrayPrefix {
             source: Place::root(0),
             endpoint: 7,
@@ -50,20 +55,14 @@ fn extraction(length: u64, first: u64, second: Option<u64>) -> Plan {
                 step(index(3), length, &[], vec![]),
                 step(copy(9, 1), length, &[], vec![Effect::Construct(9)]),
                 step(
-                    Operation::None,
+                    integer(1, u64::MAX),
                     length,
                     &[9],
                     vec![
-                        Effect::Move {
-                            source: Place {
-                                slot: 0,
-                                fields: vec![Projection::Index {
-                                    slot: 9,
-                                    bound: length,
-                                }]
-                                .into(),
-                            },
-                            destination: Place::root(8),
+                        Effect::MoveArrayElement {
+                            array: Place::root(0),
+                            selected: Place::root(3),
+                            destination: 8,
                         },
                         Effect::Dispose(Place::root(7)),
                         Effect::Move {
@@ -370,6 +369,15 @@ fn a_prefix_under_a_record_field_uses_the_same_owner_and_projection_geometry() {
                         .after
                         .iter()
                         .flat_map(|effect| match effect {
+                            Effect::MoveArrayElement {
+                                array,
+                                selected,
+                                destination,
+                            } => vec![Effect::MoveArrayElement {
+                                array: nested(array),
+                                selected: selected.clone(),
+                                destination: *destination,
+                            }],
                             Effect::Move {
                                 source,
                                 destination,
@@ -403,5 +411,85 @@ fn a_prefix_under_a_record_field_uses_the_same_owner_and_projection_geometry() {
         let mut data = types(length);
         data.push(Type::Record(vec![2].into()));
         assert_eq!(execute(plan, data), Value::integer(42));
+    }
+}
+
+#[test]
+fn a_saved_element_cannot_surrender_through_a_different_live_array_owner() {
+    let (code, _) = code_ids();
+    let mut plan = extraction(2, 0, None);
+    let mut slots = plan.slots.to_vec();
+    slots[6].storage = Storage::Owned;
+    plan.slots = slots.into();
+    plan.points = plan.points.map(|_, point| {
+        let mut point = point.clone();
+        let old = &point.actions;
+        let mut actions = vec![
+            old[0].clone(),
+            action(
+                Operation::Literal {
+                    destination: 6,
+                    value: array(&[31, 32]),
+                },
+                &[0],
+                vec![Effect::Construct(6)],
+            ),
+        ];
+        for (index, item) in old.iter().enumerate().skip(1) {
+            let mut item = item.clone();
+            for alternative in &mut item.alternatives {
+                alternative.owned.insert(6, Box::new([]));
+            }
+            if index == 4 {
+                item.alternatives[0].after[0] = Effect::MoveArrayElement {
+                    array: Place::root(6),
+                    selected: Place::root(2),
+                    destination: 8,
+                };
+            }
+            actions.push(item);
+        }
+        point.actions = actions.into();
+        point
+    });
+    let program = Program::new(
+        types(2),
+        BTreeMap::from([(code.into(), plan)]),
+        BTreeMap::new(),
+    )
+    .unwrap();
+    let mut budget = Budget::new(CompileTimeEvaluationLimits::default());
+    for _ in 0..2 {
+        let failure = Executor::new(&program, &mut budget, 0)
+            .evaluate_initializer(code)
+            .unwrap_err();
+        assert_eq!(failure.rule, Rule::InvalidPlan);
+        assert_eq!(failure.site.unwrap().action, 5);
+        assert_eq!(budget.storage_used(), 0);
+    }
+}
+
+#[test]
+fn a_frozen_address_and_an_owned_containing_array_are_both_required() {
+    let (code, _) = code_ids();
+    for (array, selected) in [(0, 8), (6, 2)] {
+        let mut plan = extraction(2, 0, None);
+        plan.points = plan.points.map(|_, point| {
+            let mut point = point.clone();
+            point.actions[4].alternatives[0].after[0] = Effect::MoveArrayElement {
+                array: Place::root(array),
+                selected: Place::root(selected),
+                destination: 8,
+            };
+            point
+        });
+        assert!(matches!(
+            Program::new(
+                types(2),
+                BTreeMap::from([(code.into(), plan)]),
+                BTreeMap::new()
+            ),
+            Err(Rule::InvalidPlan)
+        ));
     }
 }

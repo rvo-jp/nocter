@@ -198,6 +198,13 @@ execution resolves the snapshot into the existing metered canonical numeric path
 projection does not re-evaluate the source index or run another user bounds classifier. The same
 snapshot reader supplies cleanup spans.
 
+`Effect::MoveArrayElement` transfers through the already frozen whole-element address, with an
+explicitly owned containing array and a fresh owned result slot. Execution requires the same
+frame/root, the exact containing path and one valid element component before reading/retiring
+the selected payload. A different live array with the same type grants no authority over that
+address. A scoped alias alone grants no ownership. The original index check and saved address
+remain the selection authority even when the user's counter changes before transfer.
+
 `Missing::Value` describes a missing selected payload; `Missing::ArrayPrefix` describes the
 nonempty region through a captured endpoint, without pretending that region is an element
 address. The prefix requires its exact positive array bound and a complete owned usize backing.
