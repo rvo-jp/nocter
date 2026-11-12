@@ -383,3 +383,65 @@ fn recovery_accepts_only_implementation_errors_and_never_header_expression_block
         }
     }
 }
+
+#[test]
+fn declaration_and_current_symbol_domains_partition_exact_implementation_roots() {
+    let original = "func sized(): [i32; if true { header_only } else { 2 }] { body_only }\nconst VALUE: i32 = initializer_only";
+    for goal in [ParseGoal::SourceFile, ParseGoal::V2CoreUnit] {
+        let symbols = |text: &str| {
+            let mut sources = SourceMap::new();
+            let id = add_source(&mut sources, "/app/unit.nct", text);
+            let tree = parse_source(&sources, id, goal);
+            assert!(!tree.has_errors(), "{goal:?}: {:?}", tree.diagnostics());
+            let identity = PackageIdentity::new("single:unit");
+            let input = CompileUnitInput::for_goal(
+                goal,
+                nocter_model::CompilationTarget::Arm64Darwin,
+                &sources,
+                vec![PackageInput::new(
+                    identity.clone(),
+                    "unit",
+                    PackageMode::SingleFile,
+                )],
+                vec![ModuleInput::new(
+                    ModuleIdentity::new(identity, Vec::<&str>::new()),
+                    vec![ModuleSourceInput::new(
+                        "/app/unit.nct",
+                        ModuleSourceKind::SingleFile,
+                        &tree,
+                    )],
+                )],
+                Vec::new(),
+            );
+            let surface = if goal == ParseGoal::SourceFile {
+                collect_declaration_surface(&input)
+            } else {
+                super::collect_access_declaration_surface(&input)
+            }
+            .unwrap();
+            let current = crate::CurrentCheckingSymbols::from_sources(
+                surface.source_map(),
+                surface.sources(),
+            )
+            .unwrap();
+            (
+                surface.symbols().clone(),
+                current.spellings().map(str::to_owned).collect::<Vec<_>>(),
+            )
+        };
+        let (header, current) = symbols(original);
+        assert!(header.get("header_only").is_some());
+        assert!(header.get("body_only").is_none());
+        assert!(header.get("initializer_only").is_none());
+        assert!(current.iter().any(|s| s == "body_only"));
+        assert!(current.iter().any(|s| s == "initializer_only"));
+        assert!(!current.iter().any(|s| s == "header_only"));
+        let (edited_header, edited_current) = symbols(
+            &original
+                .replace("body_only", "edited_body")
+                .replace("initializer_only", "edited_initializer"),
+        );
+        assert_eq!(header, edited_header);
+        assert_ne!(current, edited_current);
+    }
+}

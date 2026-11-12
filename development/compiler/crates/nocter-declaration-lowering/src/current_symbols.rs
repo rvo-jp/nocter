@@ -60,16 +60,18 @@ fn collect_source_body_spellings(
     let file = source_map
         .get(tree.source())
         .ok_or(CurrentSymbolError::MissingSource(tree.source()))?;
+    let bodies = tree
+        .nodes()
+        .filter_map(|(declaration, _)| nocter_syntax::declaration_body(tree, declaration))
+        .collect::<std::collections::BTreeSet<_>>();
     let mut declarations = vec![SyntaxElement::Node(tree.root_id())];
     while let Some(element) = declarations.pop() {
         let SyntaxElement::Node(node) = element else {
             continue;
         };
-        let kind = tree
-            .node(node)
-            .ok_or(CurrentSymbolError::InconsistentSyntax(tree.source()))?
-            .kind();
-        if kind == NodeKind::Block {
+        tree.node(node)
+            .ok_or(CurrentSymbolError::InconsistentSyntax(tree.source()))?;
+        if bodies.contains(&node) {
             collect_subtree_spellings(file, tree, node, spellings)?;
             continue;
         }

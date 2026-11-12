@@ -579,7 +579,7 @@ impl HeaderResolver<'_, '_> {
             Some(NodeKind::ReferenceExpression) => {
                 let token =
                     first_direct_token(tree, node).ok_or_else(|| inconsistent_node(node))?;
-                let symbol = self.symbol(token)?;
+                let symbol = self.symbol(token)?.ok_or_else(|| non_constant(node))?;
                 let source = self.surface_source(node)?;
                 let entity = self
                     .bindings
@@ -607,7 +607,11 @@ impl HeaderResolver<'_, '_> {
                 let entity = self
                     .bindings
                     .namespaces
-                    .lookup_export(self.current_module(node)?, module, self.symbol(token)?)
+                    .lookup_export(
+                        self.current_module(node)?,
+                        module,
+                        self.symbol(token)?.ok_or_else(|| non_constant(node))?,
+                    )
                     .ok_or_else(|| non_constant(node))?;
                 projections.push((token, entity));
                 Ok(entity)
@@ -646,16 +650,19 @@ impl HeaderResolver<'_, '_> {
             .ok_or(HeaderDefinitionError::InconsistentSource(node.source()))
     }
 
-    fn symbol(&self, token: SyntaxToken) -> Result<nocter_model::Symbol, HeaderDefinitionError> {
-        self.bindings
+    fn symbol(
+        &self,
+        token: SyntaxToken,
+    ) -> Result<Option<nocter_model::Symbol>, HeaderDefinitionError> {
+        Ok(self
+            .bindings
             .namespaces
             .imports
             .generics
             .headers
             .reserved
             .symbols()
-            .get(self.token_text(token)?)
-            .ok_or(HeaderDefinitionError::InconsistentSource(token.source()))
+            .get(self.token_text(token)?))
     }
 
     fn token_text(&self, token: SyntaxToken) -> Result<&str, HeaderDefinitionError> {

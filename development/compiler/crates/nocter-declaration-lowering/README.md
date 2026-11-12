@@ -74,6 +74,8 @@ beside their owning modules.
   implementation and publication/member details. Header-contained array-count branches remain
   part of that comparison, including inactive branches. The same direct implementation-root
   query prevents header blocks from being classified as callable bodies or recoverable body errors.
+  The declaration symbol prefix and current checking suffix use that same partition: initializer
+  spellings remain current body input, while header expression blocks retain declaration spellings.
 - Lowering evaluates only constants eligible for structural type construction. It never evaluates
   immutable statics or publishes a final initializer value. Metadata freeze is driven by reserved
   declaration identities, not by whichever values the restricted evaluator can produce.

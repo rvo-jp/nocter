@@ -579,6 +579,10 @@ fn rejects_argument_packs_outside_the_single_final_callable_position() {
 fn rejects_invalid_values_when_a_header_type_requires_them() {
     let cases = [
         (
+            "const INVALID: usize = missing\ntype Values = [i32; INVALID]\n",
+            DefinitionRule::NonConstantExpression,
+        ),
+        (
             "func make(): usize { return 1 }\ntype Values = [i32; make()]\n",
             DefinitionRule::NonConstantExpression,
         ),

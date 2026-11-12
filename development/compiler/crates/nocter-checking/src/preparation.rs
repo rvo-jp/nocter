@@ -1220,8 +1220,10 @@ mod tests {
 
     #[test]
     fn reusable_program_authority_excludes_body_symbols_until_current_open() {
-        let fixture =
-            Fixture::new("func main(): void {\n    let body_only_name = 1\n    return\n}\n");
+        // Unresolved initializer names exercise declaration reuse without granting body acceptance.
+        let fixture = Fixture::new(
+            "const VALUE: i32 = initializer_only_name\nstatic ROOT: i32 = static_only_name\nfunc main(): void {\n    let body_only_name = 1\n    return\n}\n",
+        );
         let input = fixture.input(false);
         let declarations = lower_reusable_declarations(&input).unwrap();
         let projection = declarations.materialize_projection(&input).unwrap();
@@ -1234,13 +1236,31 @@ mod tests {
         )
         .unwrap();
 
-        assert!(reusable.graph().symbols().get("body_only_name").is_none());
+        for spelling in [
+            "body_only_name",
+            "initializer_only_name",
+            "static_only_name",
+        ] {
+            assert!(
+                reusable.graph().symbols().get(spelling).is_none(),
+                "{spelling}"
+            );
+        }
 
         let current = reusable.open_current(
             checking_symbols.spellings(),
             bindings.source_access().clone(),
         );
-        assert!(current.graph().symbols().get("body_only_name").is_some());
+        for spelling in [
+            "body_only_name",
+            "initializer_only_name",
+            "static_only_name",
+        ] {
+            assert!(
+                current.graph().symbols().get(spelling).is_some(),
+                "{spelling}"
+            );
+        }
     }
 
     #[test]

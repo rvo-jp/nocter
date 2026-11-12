@@ -88,8 +88,12 @@ inventory boundary, explicit grammar selection and distinct root eligibility whe
 neither language product may silently accept the other's sources.
 
 One logical declaration owns the contract identity, parameter/field slots and normalized types.
-Its implementation retains its own full-header/body locators and lookup context. Signature
-agreement needs both canonical source structure and resolved contract equality; a token-only
+Its implementation retains its own full-header/body locators and lookup context. The complete
+representation determines field slots and their authored order; a root's selected visible fields
+must map to those identities without another record schema. Expression lookup belongs to its
+physical header/representation source, independently of the nominal contract's publication scope.
+In particular, a required array count in a private representation must not use the root's helper
+scope merely because the root owns the nominal identity. Signature agreement needs both canonical source structure and resolved contract equality; a token-only
 comparison must not erase meaningful jointness or header-contained expression structure. Body
 editing must preserve unrelated contract evidence while pairing, visibility and inventory edits
 invalidate the affected namespace products. Current-source binding must choose each source's

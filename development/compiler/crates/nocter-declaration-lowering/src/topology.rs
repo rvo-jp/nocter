@@ -1050,6 +1050,10 @@ fn collect_tree_symbols(
     spellings: &mut Vec<Box<str>>,
 ) -> Result<(), LoweringError> {
     let source = require_source(input, tree.source())?;
+    let bodies = tree
+        .nodes()
+        .filter_map(|(declaration, _)| nocter_syntax::declaration_body(tree, declaration))
+        .collect::<BTreeSet<_>>();
     let mut pending = vec![SyntaxElement::Node(tree.root_id())];
     while let Some(element) = pending.pop() {
         match element {
@@ -1063,10 +1067,9 @@ fn collect_tree_symbols(
                 {
                     continue;
                 }
-                // Function and method bodies belong to the current checking generation, not to
-                // the reusable declaration symbol domain. `current_symbols` appends their
-                // spellings to a checking branch without renumbering this declaration prefix.
-                if kind == NodeKind::Block {
+                // Only direct implementation roots belong to the current checking generation.
+                // Header expression blocks remain part of the declaration prefix.
+                if bodies.contains(&node) {
                     continue;
                 }
                 if kind == NodeKind::StringLiteral {
