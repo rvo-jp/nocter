@@ -18,13 +18,12 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Extend explicit owned capture environments over result-resolved callable payloads. Reuse the shared
-type/result authority and actual formation facts across lexical code. Close Copy and frozen
-func/mut/once operations without strengthening a formal contract from actual callers. Preserve the
-declaration owner's [result-induced containment proof](compiler/crates/nocter-declarations/README.md#future-value-declaration-boundary).
-Qualify nested capture/views, non-Copy retirement, required/native execution and
-source reuse. Keep unsupported formal/absent payloads locally diagnosed until their own evidence
-closes; general formal storage and outside R/D/S remain separate obligations.
+Close scalar integer coverage against the adopted contracts and the released primitive catalog.
+First reconcile the normative integer owner with remaining builtin data, then use one target-aware
+integer policy for declarations, literal/operation typing, required evaluation, runtime storage and
+native instructions. Preserve i32 default literals, exact operand data, checked mathematical results
+and source-order snapshots. Qualify boundary values, failure paths, narrow fields/arrays and ABI
+channels through shared required/native source; do not silently inherit unspecified scalar behavior.
 
 ## Retained Selection Closure
 

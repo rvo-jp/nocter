@@ -264,9 +264,11 @@ impl<'a, 's> Checker<'a, 's> {
         ty: ValueType,
         kind: ExpressionKind,
     ) -> Result<AccessExpressionId, Failure> {
-        self.pending_results |= ty
-            .access()
-            .is_some_and(|access| super::results::is_result(self.program(), access.data()));
+        self.pending_results |= ty.access().is_some_and(|access| {
+            super::results::is_result(self.program(), access.data())
+                || self.program().payload_readiness(access.data())
+                    == nocter_declarations::value_access::PayloadReadiness::Pending
+        });
         let site = self.site(SyntaxOrigin::Node(node))?;
         let normal_value = ty.normal().and_then(|access| {
             if self.integer_data(access.data()) {

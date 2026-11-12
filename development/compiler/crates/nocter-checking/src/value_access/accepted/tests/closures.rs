@@ -113,7 +113,7 @@ fn a_named_mut_callback_cannot_hide_reset_of_a_prefix_counter() {
 fn unknown_callable_environments_cannot_inherit_one_concrete_payloads_properties() {
     for source in [
         "func work(take callback: func(i32): i32): void { let outer = (callback^;): i32 { callback(41) } }",
-        "func increment(value: i32): i32 { value + 1 }\nfunc make(): func(i32): i32 { increment }\nfunc work(): void { let callback = make()\nlet outer = (callback^;): i32 { callback(41) } }",
+        "func forward(take callback: func(i32): i32): func(i32): i32 { callback^ }\nfunc work(take callback: func(i32): i32): void { let pending = forward(callback^)\nlet outer = (pending^;): i32 { pending(41) } }",
     ] {
         let (sources, tree) = input(source);
         assert!(

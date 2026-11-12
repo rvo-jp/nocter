@@ -26,7 +26,20 @@ impl Facts {
         }
         changed
     }
-    pub(super) fn received(program: &Program, data: TypeId) -> Result<Self, IntegrityError> {
+    pub(super) fn applications(&self) -> impl Iterator<Item = nocter_model::ValueApplication> + '_ {
+        self.0
+            .values()
+            .flatten()
+            .filter_map(|witness| match witness.origin {
+                ValueFunctionOrigin::Application(application) => Some(application),
+                _ => None,
+            })
+    }
+    pub(super) fn received(
+        program: &Program,
+        data: TypeId,
+        captured: bool,
+    ) -> Result<Self, IntegrityError> {
         let mut result = Self::default();
         let mut pending = vec![data];
         let mut seen = BTreeSet::new();
@@ -36,10 +49,9 @@ impl Facts {
             }
             match program.data_schema(data).ok_or(INVALID)? {
                 PayloadSchema::Function(witness)
-                    if !matches!(
-                        witness.origin,
-                        ValueFunctionOrigin::Result(_) | ValueFunctionOrigin::Application(_)
-                    ) =>
+                    if !matches!(witness.origin, ValueFunctionOrigin::Result(_))
+                        && (captured
+                            || !matches!(witness.origin, ValueFunctionOrigin::Application(_))) =>
                 {
                     result.join(&Self::single(data, witness));
                 }

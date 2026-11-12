@@ -93,6 +93,22 @@ positive tuple/array shapes with a proved-unproduced callable component. Capture
 through a formal witness. Aggregate schemas are visited iteratively, without expanding payload trees.
 Source-selected moves, reservations and snapshots remain unchanged after concrete projection.
 
+`projection::requirements` demands concrete data only for the frozen input/result ABI, checked
+reachable operations and their actual resource-step payloads. Beginning an evaluation does not
+produce its result; a proved index failure requires its base/index data without an element carrier.
+The typed body's referent-base projection retains complete storage-root data for reached accesses,
+including static/member views, without resolving an index or granting access. Positive schema
+edges of required payloads still demand their component representations; empty arrays have no
+element-payload edge. Source-checked absent shapes remain metadata, and Unit/Program retain the
+complete source types. Unneeded positive metadata cannot demand a callable binding or layout.
+Required carriers still reject missing bindings; frozen source permissions and ABI slots stay intact.
+
+The shared `empty-captured-callable-array.nct` case qualifies a generic factory instantiated with
+both empty named code and a non-Copy captured environment. Its returned closure contains only an
+empty array and has no callable binding for an element that cannot exist. Reached factory inputs
+and seed disposal retain their real bindings, while the body preserves its original bounds trap
+through native execution. Detached function metadata cannot force a phantom callee or carrier.
+
 `invocation` binds each reached call's committed prepared bundle to the checked body's frozen input
 layout. An edge retains the concrete instance, direct/value kind, explicit argument-to-local map,
 environment channel and concrete input/result obligations. A named value supplies a code token without a

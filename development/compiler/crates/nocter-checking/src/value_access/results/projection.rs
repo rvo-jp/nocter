@@ -80,6 +80,19 @@ fn validate_payload(
     let Some(access) = expression.ty.access() else {
         return Ok(());
     };
+    if let ExpressionKind::Closure { closure, .. } = expression.kind {
+        let environment = query
+            .program()
+            .closure(closure)
+            .ok_or(Failure::InconsistentSyntax)?
+            .environment();
+        if !query.program().owned_payload_supported(environment) {
+            return Err(reject(
+                Rule::TypeMismatch,
+                "this owned capture has no established component payloads after callable-result resolution",
+            ));
+        }
+    }
     if query
         .result_evidence
         .as_ref()

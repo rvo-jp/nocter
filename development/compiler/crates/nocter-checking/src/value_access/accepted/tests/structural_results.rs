@@ -89,14 +89,12 @@ fn structural_projections_do_not_anchor_unproduced_recursion_or_hide_retirement(
 }
 
 #[test]
-fn unclosed_structural_capture_payloads_report_a_local_scope_rejection() {
+fn result_resolved_structural_capture_has_an_actual_owned_environment() {
     let source = format!(
         "{SOURCE}\nfunc pending_capture(): void {{ let callbacks = [make(2)]\nlet action = (callbacks;): i32 {{ callbacks[0](40) }} }}"
     );
     let (sources, tree) = input(&source);
-    assert!(
-        matches!(SourceUnit::prepare(bound(&sources, &tree)), Err(SourceFailure::Checking(Failure::Body { failure: crate::value_access::Failure::Rejected(error), .. })) if error.rule() == crate::value_access::Rule::TypeMismatch)
-    );
+    SourceUnit::prepare(bound(&sources, &tree)).unwrap();
 }
 
 #[test]

@@ -22,8 +22,10 @@ pub(super) fn solve(
     let mut evidence = Evidence::default();
     let mut equations = Relations::new();
     let mut committed = BTreeSet::new();
+    let mut input_applications = BTreeSet::new();
     for (&id, control) in &controls {
         let report = super::producers::analyze(control).map_err(accepted::Failure::Integrity)?;
+        input_applications.extend(report.input_applications);
         if let nocter_model::ValueCode::Declaration(id) = id
             && control
                 .typed
@@ -53,6 +55,13 @@ pub(super) fn solve(
                 },
             );
         }
+    }
+    // A received capture carries this exact result family. Only an actual committed call adds
+    // producer facts here; an absent origin is an empty equation, not a signature-derived anchor.
+    for application in input_applications {
+        equations
+            .entry(Origin::Application(application))
+            .or_insert_with(|| Relation::Union(Producers::new()));
     }
     let solved = relations::solve(&equations).map_err(|()| INVALID)?;
     for (&origin, producers) in &solved {

@@ -13,6 +13,9 @@ pub(super) type Inputs = BTreeMap<AccessParameterId, Producers>;
 pub(super) struct Report {
     pub(super) returned: Vec<(FunctionWitness, AccessExpressionId)>,
     pub(super) applications: BTreeMap<ValueApplication, Inputs>,
+    /// Received capture leaves retain their originating application relation, never its signature
+    /// as a concrete code anchor. An uncommitted origin can therefore remain genuinely empty.
+    pub(super) input_applications: BTreeSet<ValueApplication>,
 }
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum Key {
@@ -30,12 +33,16 @@ type State = BTreeMap<Key, Facts>;
 pub(super) fn analyze(control: &flow::Control) -> Result<Report, flow::IntegrityError> {
     let query = &control.typed;
     let mut initial = State::new();
+    let mut input_applications = BTreeSet::new();
     for (local, value) in query.body.locals.iter() {
         if value.origin.is_input() {
-            initial.insert(
-                Key::Local(local),
-                Facts::received(query.program(), value.data)?,
-            );
+            let facts = Facts::received(
+                query.program(),
+                value.data,
+                value.origin == crate::value_access::ir::LocalOrigin::Capture,
+            )?;
+            input_applications.extend(facts.applications());
+            initial.insert(Key::Local(local), facts);
         }
     }
     let mut entries = BTreeMap::from([(control.graph.entry(), initial)]);
@@ -115,6 +122,7 @@ pub(super) fn analyze(control: &flow::Control) -> Result<Report, flow::Integrity
     Ok(Report {
         returned: returned.into_iter().collect(),
         applications,
+        input_applications,
     })
 }
 fn assign(

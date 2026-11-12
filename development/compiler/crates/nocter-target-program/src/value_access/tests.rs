@@ -9,6 +9,63 @@ use nocter_test_support::ValueSourceFixture;
 use std::fmt::Write as _;
 mod captured;
 
+#[test]
+fn zero_capture_metadata_does_not_require_a_binding_for_a_trapping_element_projection() {
+    let fixture = ValueSourceFixture::new(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/empty-captured-callable-array.nct"
+    )));
+    let unit = accepted(&fixture);
+    let root = callable(&unit, "run");
+    let graph = InstanceProgram::prepare(unit, root).unwrap();
+    let make = callable(graph.unit(), "make");
+    let callback = graph
+        .unit()
+        .program()
+        .codes()
+        .get(make)
+        .unwrap()
+        .parameters()[0];
+    let data = graph
+        .unit()
+        .program()
+        .parameters()
+        .get(callback)
+        .unwrap()
+        .data();
+    let captured = graph
+        .instances()
+        .iter()
+        .find(|(_, instance)| matches!(instance.key().code(), nocter_model::ValueCode::Closure(_)))
+        .unwrap()
+        .1;
+    assert!(captured.key().witnesses().is_empty());
+    assert!(!captured.data().contains_key(&data));
+    assert!(
+        graph
+            .instances()
+            .iter()
+            .any(|(_, instance)| instance.key().code()
+                == nocter_model::ValueCode::Declaration(make)
+                && instance.key().witnesses().contains_key(&callback))
+    );
+    assert_eq!(
+        graph
+            .instances()
+            .iter()
+            .filter(
+                |(_, instance)| instance.key().code() == nocter_model::ValueCode::Declaration(make)
+            )
+            .count(),
+        2
+    );
+    storage::prepare(
+        &graph,
+        nocter_runtime_contract::RuntimeAbiIdentity::Arm64DarwinV1,
+    )
+    .unwrap();
+}
+
 fn accepted(fixture: &ValueSourceFixture) -> Arc<Unit> {
     Arc::new(
         nocter_checking::value_access::accepted::SourceUnit::prepare(fixture.syntax())

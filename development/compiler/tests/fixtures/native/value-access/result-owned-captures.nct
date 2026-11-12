@@ -1,0 +1,85 @@
+struct Item { value: i32 }
+const func make(amount: i32): func(i32): i32 {
+    (amount; value: i32): i32 { amount + value }
+}
+const func changing(seed: i32): mut(i32): i32 {
+    var count = seed
+    (count; amount: i32): i32 { count += amount
+                               count }
+}
+const func owned(value: i32): once(): i32 {
+    let item = Item { value: value }
+    (item^;): i32 { item.value }
+}
+const func owning_read(value: i32): func(): i32 {
+    let item = Item { value: value }
+    (item^;): i32 { item.value }
+}
+const func readonly_noncopy(): i32 {
+    let callback = owning_read(42)
+    let outer = (callback^;): i32 { callback() }
+    if outer() == 42 { outer() } else { 0 }
+}
+const func copied(): i32 {
+    let callback = make(1)
+    let outer = (callback;): i32 { callback(41) }
+    if callback(41) == 42 { outer() } else { 0 }
+}
+const func nested(): i32 {
+    let callback = make(2)
+    let outer = (callback;): i32 {
+        let inner = (callback; value: i32): i32 { callback(value) }
+        inner(40)
+    }
+    outer()
+}
+const func aggregate(): i32 {
+    let callbacks = [make(1), make(2)]
+    let outer = (callbacks;): i32 { callbacks[0](20) + callbacks[1](19) }
+    outer()
+}
+const func updating(): i32 {
+    let callback = changing(20)
+    var outer = (callback^; amount: i32): i32 { callback(amount) }
+    let first = outer(1)
+    let second = outer(21)
+    if first == 21 && second == 42 { 42 } else { 0 }
+}
+const func consumed(): i32 {
+    let callback = owned(42)
+    let outer = (callback^;): i32 { callback^() }
+    outer^()
+}
+const func consumed_array(): i32 {
+    let callbacks = [owned(42)]
+    let outer = (callbacks^;): i32 { callbacks[0]^() }
+    outer^()
+}
+const func returned(value: i32): func(i32): i32 {
+    let callback = make(value)
+    (callback; amount: i32): i32 { callback(amount) }
+}
+const func array_of_returned(): i32 {
+    let callbacks = [returned(1), returned(2)]
+    let outer = (callbacks;): i32 { callbacks[0](20) + callbacks[1](19) }
+    outer()
+}
+const func snapshots(): i32 {
+    var callback = changing(40)
+    let outer: once(): i32 = (callback;): i32 { callback(1) }
+    let first = outer()
+    let second = outer()
+    if first == 41 && second == 41 && outer^() == 41 && callback(0) == 40 { 42 } else { 0 }
+}
+const func calculate(): i32 {
+    if copied() == 42 && nested() == 42 && aggregate() == 42 && updating() == 42 && consumed() == 42 && consumed_array() == 42 && readonly_noncopy() == 42 && returned(2)(40) == 42 && array_of_returned() == 42 && snapshots() == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func relay(take callback: func(i32): i32): func(i32): i32 { callback^ }
+func forwarded(): i32 {
+    let callback = make(2)
+    let outer = (callback;): i32 { let next = relay(callback)
+                                  next(40) }
+    outer()
+}
+func run(): i32 { if ANSWER == 42 && forwarded() == 42 { calculate() } else { 0 } }

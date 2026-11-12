@@ -35,6 +35,8 @@ impl Checker<'_, '_> {
             self.values,
         );
         nested.unavailable.clone_from(&self.unavailable);
+        nested.pending_results |= nested.program().payload_readiness(data)
+            == nocter_declarations::value_access::PayloadReadiness::Pending;
         let environment = nested.locals.insert(Local {
             data,
             kind: ValueBindingKind::MutableValue,
@@ -141,10 +143,12 @@ impl Checker<'_, '_> {
             }
             let place = self.place_name(capture_token, Rule::UnknownName)?;
             let component = self.place_ty(place).data();
-            if !self.program().owned_payload_supported(component) {
+            if self.program().payload_readiness(component)
+                == nocter_declarations::value_access::PayloadReadiness::Unsupported
+            {
                 return self.reject_message(
                     Rule::TypeMismatch, capture_node,
-                    "this owned-capture scope needs established component payloads; formal and unresolved callable results are not yet admitted".into(),
+                    "this owned-capture scope needs established component payloads; an unbound formal supplies no owned environment".into(),
                     Vec::new(),
                 );
             }

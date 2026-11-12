@@ -151,6 +151,13 @@ fn private_array_bounds_trap_even_when_no_payload_is_read_or_written() {
             "func run(): i32 { let values: [i32; 0] = []\nlet _ = values[0]\n42 }",
         ),
         (
+            "array-empty-captured-callable-bounds",
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../tests/fixtures/native/value-access/empty-captured-callable-array.nct"
+            )),
+        ),
+        (
             "array-empty-write-bounds",
             "func run(): i32 { var values: [i32; 0] = []\nvalues[0] = 42\n0 }",
         ),

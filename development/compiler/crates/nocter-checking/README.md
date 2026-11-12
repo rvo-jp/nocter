@@ -396,8 +396,7 @@ non-Copy repetition, unmarked duplication and unanchored structural recursion re
 producer facts cannot hide retirement. Factory body changes invalidate closed callers even when
 their own source is unchanged. General formal callable storage and dependent capture footprints
 remain separate work; a constructor whose component payload cannot close reports a local rejection
-before executable admission. Owned capture of unresolved callable-bearing structure also reports
-its existing scope boundary locally rather than failing type publication internally.
+before executable admission. Owned captures follow the [result-resolved environment boundary](#result-resolved-owned-environments).
 
 All closed queries share one result-evidence object with producer-body byte dependencies.
 Standalone query rebinding checks those dependencies; complete Unit projection verifies them once
@@ -844,8 +843,8 @@ descendant code cannot reuse a pending parent's slot. Canonical program binding,
 flow admission cover every nested body through the common scope. Exact named/captured callable
 values can themselves form an owned environment, using the declaration owner's admission predicate.
 Unmarked formation still needs source-context Copy; explicit transfer retires even a Copy function
-value. Selected mut/once views survive capture. Formal and unresolved result/application captures,
-inferred outside access remain outside this qualified scope.
+value. Selected mut/once views survive capture. Result/application components follow the closure
+boundary below; unbound formal payloads and inferred outside access remain outside this qualified scope.
 Named factory calls inside the body use
 the same callable-result closure as root bodies. Their applications retain actual lexical code,
 not only the shared source/type root. A shared `flow::scope` traversal indexes captured controls
@@ -861,6 +860,35 @@ Callable-value source/native cases qualify independent mutable snapshots, nested
 consuming calls, Copy of once-view named functions and recursive cleanup without invocation of a
 dormant trapping body. No signature-wide Copy/cleanup assumption or extra callable registry is used.
 The enclosing header remains its source-reuse owner, while lexical owner/slot identifies its code.
+
+### Result-Resolved Owned Environments
+
+Owned capture can retain valid pending result/application components, including callable-bearing
+arrays/tuples and nested captured values. Formation freezes source operations first: unmarked
+acquisition records its Copy obligation, and postfix transfer retires the source even if the final
+environment is Copy. Source operations also determine the body's func/mut/once requirement;
+actual payload properties cannot strengthen a formal contract or repair an unmarked consumption.
+An environment awaiting a payload witness blocks raw flow admission even when its body never
+reads that environment.
+
+A received captured result retains its exact originating application as a relational input premise.
+`results::producers` carries that premise through ordinary forwarding and prepared arguments.
+The shared result solver closes it against actual producer relations; an uncommitted missing origin
+starts as an empty equation, never an anchor manufactured from its signature. Root and nested code
+retain their own operation/application identities throughout. The declaration owner's common type
+projection resolves environment slots and checks positive containment before source admission.
+Each capture constructor then requires an established owned environment. Still-unbound formal or
+absent payloads reject locally rather than reaching resource/layout execution.
+
+The shared `result-owned-captures.nct` source compares required answers with ordinary native calls
+for result captures, nested/returned environments, callable-bearing arrays, independent snapshots,
+persistent updates, explicit consuming bodies and repeated reads of non-Copy environments. Copy
+once views keep snapshot behavior while explicit retirement remains visible. Runtime source also
+forwards a captured result through a taking formal and preserves its exact witness. This does not
+qualify general formal payload storage or formal substitution in required evaluation. Source tests
+reject unmarked non-Copy acquisition/consumption, retired-source reuse, unknown capture payloads
+and result-induced positive environment cycles. No new syntax, runtime dispatch or environment
+ownership registry is introduced.
 
 ### Contextual Anonymous Contracts
 

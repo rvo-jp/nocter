@@ -1,0 +1,20 @@
+struct Item { value: i32 }
+func increment(value: i32): i32 { value + 1 }
+func owning(): func(i32): i32 {
+    let item = Item { value: 1 }
+    (item^; value: i32): i32 { item.value + value }
+}
+func forward(take callback: func(i32): i32): func(i32): i32 { callback^ }
+func make(take callback: func(i32): i32): func(): i32 {
+    let values = [forward(callback^); 0]
+    (values;): i32 {
+        read alias = values
+        alias[0](41)
+    }
+}
+func run(): i32 {
+    let named = make(increment)
+    let callback = owning()
+    let captured = make(callback^)
+    captured()
+}

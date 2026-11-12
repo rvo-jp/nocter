@@ -473,6 +473,12 @@ pub struct TypedBody {
 }
 
 impl TypedBody {
+    /// Existing storage authority for a referent; no concrete index or alias-disjointness proof.
+    /// The returned place belongs to this body's arena and may select a component of its local.
+    #[must_use]
+    pub fn referent_base(&self, referent: Referent) -> Option<AccessPlaceId> {
+        referent.static_base(|id| self.expressions.get(id))
+    }
     #[must_use]
     pub fn referent_data(&self, referent: Referent) -> Option<TypeId> {
         referent
