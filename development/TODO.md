@@ -18,12 +18,12 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify abrupt completion during projected-field replacement, then extend relations among multiple
-holes and intervening call effects. Establish ordinary
-source before changing numeric history; actual missing paths and owned snapshots remain the
-authorities for consuming equality evidence. Use the retained-selection obligations below and
-the component READMEs' implemented scope; source admission alone is not required/native execution
-or actual owned-error cleanup.
+Connect the [adopted module/source roles](spec/language/modules.md) to the v2 declaration authority.
+Establish contract-only roots, complete implementation signatures, reciprocal pairing and
+source-local lookup before ordinary package/CLI integration. Check the existing source inventory
+and namespace boundaries rather than flattening all files into one visible name table. Keep the
+retained-selection work below open; its bounded execution does not close general hole relations
+or externally dependent callback effects.
 
 ## Retained Selection Closure
 

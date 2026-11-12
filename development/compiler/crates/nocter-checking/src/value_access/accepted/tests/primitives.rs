@@ -23,6 +23,50 @@ fn authority() -> declarations::PrimitiveAuthority {
 const HEADERS: &str = "primitive func create_failure(code: str, message: str): error\nprimitive func context_error(take value: error, message: str): error\n";
 
 #[test]
+fn interrupted_projected_targets_dispose_the_prepared_rhs_once() {
+    let fixture = nocter_test_support::ValueSourceFixture::new(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/owned-error-retained-arrays.nct"
+    )));
+    let source =
+        SourceUnit::prepare_with_primitive_authority(fixture.syntax(), &authority()).unwrap();
+    let query = named(source.unit(), "interrupted_projected_target");
+    let values: Vec<_> = query
+        .typed()
+        .body()
+        .statements()
+        .iter()
+        .filter_map(|(_, statement)| {
+            if let crate::value_access::Statement::Assign { value, .. } = statement {
+                Some(*value)
+            } else {
+                None
+            }
+        })
+        .collect();
+    let [rhs] = values.as_slice() else {
+        panic!("one source assignment")
+    };
+    let data = query
+        .typed()
+        .body()
+        .expressions()
+        .get(*rhs)
+        .unwrap()
+        .ty
+        .normal()
+        .unwrap()
+        .data();
+    let drops = super::support::steps(query).into_iter().filter(|step| {
+        matches!(step, Step::Dispose { source, payload } if source.holder() == Holder::Expression(*rhs) && source.fields().is_root() && payload.disposal() == Disposal::Aggregate && payload.data() == data)
+    }).count();
+    assert_eq!(
+        drops, 1,
+        "the complete prepared replacement is disposed once when target evaluation exits"
+    );
+}
+
+#[test]
 fn runtime_primitive_calls_close_with_header_evidence_and_no_source_body() {
     let text = format!(
         "{HEADERS}func run(): error {{ let original = create_failure(\"test\", \"message\")\ncontext_error(original^, \"context\") }}"

@@ -189,6 +189,25 @@ func conditional_projected(input: usize, removed: bool): i32 {
     let complete = pairs^
     complete[position].first.value
 }
+func projected_outcome(input: usize, removed: bool, fail: bool): i32! {
+    var pairs = [Pair { first: build(20), second: build(22) },
+                 Pair { first: build(30), second: build(32) }]
+    var index = input
+    var position = input
+    let old: Item? = if removed { pairs[index].first^ } else { position = 1 - input
+                                                            none }
+    index = 1 - index
+    pairs[position].first = fallible_build(42, fail)?
+    let complete = pairs^
+    complete[position].first.value
+}
+func interrupted_projected_target(fail: bool): i32! {
+    var pairs = [Pair { first: build(20), second: build(22) },
+                 Pair { first: build(30), second: build(32) }]
+    let old = pairs[0].first^
+    pairs[if true { return 0 } else { return 0 }].first = fallible_build(42, fail)?
+    42
+}
 func run(): i32 {
     let prefix_checks = prefix_take() == 42 && prefix_read() == 42 && cancellation(false) == 42 && cancellation(true) == 40
     let field_checks = fields(0, 0) == 42 && fields(0, 1) == 42 && fields(1, 0) == 42 && fields(1, 1) == 42
@@ -202,10 +221,14 @@ func run(): i32 {
     let epochs = restored_prefix(0, true) == 42 && restored_prefix(1, true) == 42 && restored_prefix(0, false) == 42 && restored_prefix(1, false) == 42
     let normal_first = restored_outcome(0, false) catch _ { 0 }
     let normal_last = restored_outcome(1, false) catch _ { 0 }
-    let failed_first = restored_outcome(0, true) catch _ { 42 }
-    let failed_last = restored_outcome(1, true) catch _ { 42 }
-    let outcome_checks = normal_first == 42 && normal_last == 42 && failed_first == 42 && failed_last == 42
+    let failed_first = restored_outcome(0, true) catch _ { 41 }
+    let failed_last = restored_outcome(1, true) catch _ { 41 }
+    let outcome_checks = normal_first == 42 && normal_last == 42 && failed_first == 41 && failed_last == 41
     let projected = projected_restore(0, false) == 42 && projected_restore(1, false) == 42 && projected_restore(0, true) == 42 && projected_restore(1, true) == 42
     let conditional_fields = conditional_projected(0, false) == 42 && conditional_projected(1, false) == 42 && conditional_projected(0, true) == 42 && conditional_projected(1, true) == 42
-    if prefix_checks && field_checks && early_checks && late_checks && first_mixed && last_mixed && restored && backedges && branches && epochs && outcome_checks && projected && conditional_fields { 42 } else { 0 }
+    let projected_success = (projected_outcome(0, false, false) catch _ { 0 }) == 42 && (projected_outcome(1, false, false) catch _ { 0 }) == 42 && (projected_outcome(0, true, false) catch _ { 0 }) == 42 && (projected_outcome(1, true, false) catch _ { 0 }) == 42
+    let projected_failure = (projected_outcome(0, false, true) catch _ { 41 }) == 41 && (projected_outcome(1, false, true) catch _ { 41 }) == 41 && (projected_outcome(0, true, true) catch _ { 41 }) == 41 && (projected_outcome(1, true, true) catch _ { 41 }) == 41
+    let target_return = interrupted_projected_target(false) catch _ { 41 }
+    let rhs_failure = interrupted_projected_target(true) catch _ { 41 }
+    if prefix_checks && field_checks && early_checks && late_checks && first_mixed && last_mixed && restored && backedges && branches && epochs && outcome_checks && projected && conditional_fields && projected_success && projected_failure && target_return == 0 && rhs_failure == 41 { 42 } else { 0 }
 }

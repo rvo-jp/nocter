@@ -362,6 +362,14 @@ index on the missing route and a different selected number on the initialized ro
 replaces its live old graph without reading an absent snapshot; both routes then transfer and
 clean up the completed array.
 
+Fallible projected replacements execute success and failure with an optional extracted owner
+kept outside the conditional branch. Failure cleans the active extracted graph and the partial
+array before delivering its error; absence contributes no fictitious payload. Success and catch
+values differ, so a skipped failure cannot satisfy the recovery check. A target index that returns
+early also qualifies RHS-first ordering and disposal of a newly prepared replacement that is
+never installed. An independent checking-ledger assertion requires the complete RHS owning
+replacement to be disposed exactly once; native execution exercises the contained allocated graphs.
+
 `owned-error-adapters.nct` executes read environments forwarded through formal consuming adapters,
 read-to-update-to-once views, repeated environment replacement followed by consuming completion,
 and consuming bodies with partial record/retained-array cleanup. A fallible read body also returns
