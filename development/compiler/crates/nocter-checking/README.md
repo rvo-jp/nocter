@@ -612,7 +612,8 @@ authority. Runtime primitive calls use ordinary input/result and cleanup checks;
 reject them through the ordinary runtime-call diagnostic rather than requesting absent source.
 Native constructor execution is qualified separately by the
 [Machine consumer](../nocter-machine/README.md#private-runtime-error-construction).
-Caller-write summaries remain conservative for these bodyless operations.
+Caller-write summaries consume only separately qualified runtime evidence through the
+[closed effect catalog](#closed-caller-write-effects).
 
 ## Program-Extent Text
 
@@ -1120,6 +1121,15 @@ its own input root; a consuming body owns its received environment instead. Clos
 also participate in cleanup eligibility, including read/edit bodies driven through taking adapters.
 Unbound formal cleanup, unavailable callees and unsupported alias provenance remain unknown. Earlier
 standalone type suffixes cannot supply cross-body evidence without the shared final program.
+
+Checked bodyless primitive bindings may supply a terminal no-caller-write fact only when the
+runtime role independently certifies caller-storage preservation. The current error snapshot
+constructors carry that evidence; input modes and the absence of a source body do not imply it.
+Whole-unit closure pairs those receipts with the exact declaration context. Standalone catalogs
+without that authority remain conservative. Recursive/transitive closure joins the primitive fact
+with ordinary body writes, so a wrapper that edits an input still invalidates that caller root.
+Reuse retains the original header authority and checked role bindings alongside the existing body
+dependency graph; an equal separately prepared program cannot substitute its roles or bodies.
 
 `call_writes::requests` substitutes the already frozen actual callable bindings into effect-only
 requests keyed by lexical code and known witness/view bindings. Runtime environment contents do not

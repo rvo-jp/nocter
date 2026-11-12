@@ -6,6 +6,7 @@ use nocter_declarations::value_access::PayloadSchema;
 use nocter_model::{
     AccessExpressionId, BuiltinType, ValueAccessMode, ValueCode, ValueFunctionOrigin,
 };
+use nocter_runtime_contract::{PrimitiveExecutionFacts, PrimitiveRole};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -28,7 +29,10 @@ struct BoundBody {
     local: Writes,
     calls: Vec<(AccessExpressionId, Option<Request>)>,
 }
-pub(super) fn close(controls: &[&Control]) -> Result<Closed, IntegrityError> {
+pub(super) fn close(
+    controls: &[&Control],
+    primitives: Option<&nocter_declaration_lowering::access_declarations::PrimitiveBindings>,
+) -> Result<Closed, IntegrityError> {
     let mut bodies = BTreeMap::new();
     let program = controls.first().map(|control| &control.typed.program);
     for (code, control) in super::super::scope(controls.iter().copied())? {
@@ -39,7 +43,7 @@ pub(super) fn close(controls: &[&Control]) -> Result<Closed, IntegrityError> {
         // effect facts do not turn a non-callable frame into an invocation target.
         bodies.insert(code, local_summary(control)?);
     }
-    let bound_bodies = bind_bodies(&bodies)?;
+    let bound_bodies = bind_bodies(&bodies, primitives)?;
     let mut effects: BTreeMap<_, _> = bound_bodies
         .iter()
         .map(|(key, instance)| (key.clone(), instance.local.clone()))
@@ -61,7 +65,7 @@ pub(super) fn close(controls: &[&Control]) -> Result<Closed, IntegrityError> {
         let next = if let Some(body) = bodies.get(&key.code) {
             combine(body, instance, &effects)?
         } else {
-            Writes::Unknown
+            instance.local.clone()
         };
         if effects.get(&key) != Some(&next) {
             effects.insert(key.clone(), next);
@@ -90,6 +94,7 @@ pub(super) fn close(controls: &[&Control]) -> Result<Closed, IntegrityError> {
 }
 fn bind_bodies(
     bodies: &BTreeMap<ValueCode, Body<'_>>,
+    primitives: Option<&nocter_declaration_lowering::access_declarations::PrimitiveBindings>,
 ) -> Result<BTreeMap<Request, BoundBody>, IntegrityError> {
     let mut pending: BTreeSet<_> = bodies.keys().copied().map(Request::unbound).collect();
     let mut bound_bodies = BTreeMap::new();
@@ -98,10 +103,21 @@ fn bind_bodies(
             continue;
         }
         let Some(body) = bodies.get(&request.code) else {
+            let preserves = match request.code {
+                ValueCode::Declaration(id) => primitives
+                    .and_then(|bindings| bindings.role(id))
+                    .map(PrimitiveRole::execution_facts)
+                    .is_some_and(PrimitiveExecutionFacts::preserves_caller_storage),
+                _ => false,
+            } && request.bindings.is_empty();
             bound_bodies.insert(
                 request,
                 BoundBody {
-                    local: Writes::Unknown,
+                    local: if preserves {
+                        Writes::Known(BTreeSet::new())
+                    } else {
+                        Writes::Unknown
+                    },
                     calls: Vec::new(),
                 },
             );

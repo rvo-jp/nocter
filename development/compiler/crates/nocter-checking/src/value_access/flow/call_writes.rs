@@ -52,6 +52,18 @@ impl Catalog {
     pub(in crate::value_access) fn prepare<'a>(
         controls: impl IntoIterator<Item = &'a Control>,
     ) -> Result<Self, IntegrityError> {
+        Self::prepare_selected(controls, None)
+    }
+    pub(in crate::value_access) fn prepare_with_context<'a>(
+        controls: impl IntoIterator<Item = &'a Control>,
+        context: &DeclarationContext<'_>,
+    ) -> Result<Self, IntegrityError> {
+        Self::prepare_selected(controls, Some(context))
+    }
+    fn prepare_selected<'a>(
+        controls: impl IntoIterator<Item = &'a Control>,
+        context: Option<&DeclarationContext<'_>>,
+    ) -> Result<Self, IntegrityError> {
         let roots: Vec<_> = controls.into_iter().collect();
         let program = roots.first().map(|control| control.typed.program.clone());
         for &control in &roots {
@@ -62,12 +74,17 @@ impl Catalog {
                 return Err(INVALID);
             }
         }
+        if let (Some(program), Some(context)) = (&program, context)
+            && !program.preserves_headers(context.program())
+        {
+            return Err(INVALID);
+        }
         let scope = super::scope(roots.iter().copied())?
             .into_iter()
             .map(|(code, control)| (code, control.typed.clone()))
             .collect();
-        let closed = summary::close(&roots)?;
-        let sources = Arc::new(sources::Graph::new(&scope, closed.callees));
+        let closed = summary::close(&roots, context.map(DeclarationContext::primitives))?;
+        let sources = Arc::new(sources::Graph::new(&scope, closed.callees, context));
         Ok(Self {
             program,
             scope,

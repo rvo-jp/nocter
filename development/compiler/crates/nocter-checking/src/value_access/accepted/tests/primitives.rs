@@ -111,3 +111,14 @@ fn primitive_only_units_are_closed_without_hiding_unused_ordinary_failures() {
         }))
     ));
 }
+
+#[test]
+fn wrapper_writes_still_invalidate_restoration_even_when_its_primitive_preserves_the_caller() {
+    let text = format!(
+        "{HEADERS}struct Item {{ failure: error }}\nfunc change(edit index: usize): Item {{ index = 1\nItem {{ failure: create_failure(\"code\", \"message\") }} }}\nfunc run(): void {{ var items = [Item {{ failure: create_failure(\"first\", \"message\") }}, Item {{ failure: create_failure(\"second\", \"message\") }}]\nvar position: usize = 0\nlet removed = items[position]^\nitems[position] = change(position)\nlet complete = items^ }}"
+    );
+    let fixture = nocter_test_support::ValueSourceFixture::new(&text);
+    assert!(
+        matches!(SourceUnit::prepare_with_primitive_authority(fixture.syntax(), &authority()), Err(SourceFailure::Checking(Failure::Flow { diagnostics, .. })) if diagnostics.iter().any(|diagnostic| diagnostic.code() == "E0378"))
+    );
+}

@@ -22,11 +22,16 @@ struct Node {
 pub(super) struct Graph {
     nodes: BTreeMap<ValueCode, Node>,
     dependencies: BTreeMap<Request, BTreeSet<Request>>,
+    primitives: Option<(
+        Arc<nocter_declarations::value_access::Program>,
+        nocter_declaration_lowering::access_declarations::PrimitiveBindings,
+    )>,
 }
 impl Graph {
     pub(super) fn new(
         scope: &BTreeMap<ValueCode, Arc<TypedQuery>>,
         dependencies: BTreeMap<Request, BTreeSet<Request>>,
+        context: Option<&Context<'_>>,
     ) -> Self {
         let nodes = scope
             .iter()
@@ -49,6 +54,8 @@ impl Graph {
         Self {
             nodes,
             dependencies,
+            primitives: context
+                .map(|context| (context.program_handle(), context.primitives().clone())),
         }
     }
     pub(super) fn select(
@@ -84,6 +91,14 @@ impl Selected {
                 pending.extend(edges.iter().cloned());
             }
             let code = request.code;
+            if let ValueCode::Declaration(id) = code
+                && let Some((header, bindings)) = &self.graph.primitives
+                && let Some(role) = bindings.role(id)
+                && (!context.program().preserves_headers(header)
+                    || context.primitives().role(id) != Some(role))
+            {
+                return Err(Failure::ChangedAuthority);
+            }
             let Some(node) = self.graph.nodes.get(&code) else {
                 continue;
             };

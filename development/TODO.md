@@ -50,8 +50,8 @@ layout fields, generated operations, an arbitrary iteration cutoff or a constant
   general numeric relations among holes within one array. Keep
   unproved relations local and explicit. Do not read uninitialized alternative backing or choose
   guards from numeric equality alone; preserve actual original-index mutation and empty/MAX spans.
-- [ ] Extend actual owned-error array cleanup to restoration/containing-replacement epochs,
-  conditional ownership alternatives and remaining adapter forms through the
+- [ ] Extend actual owned-error array cleanup to remaining adapter forms and externally dependent
+  captures through the
   [native array consumer](compiler/crates/nocter-machine/README.md#owned-error-effects).
   Emitted/image-only cleanup is not execution of an owned error graph.
 
@@ -103,6 +103,8 @@ not a language restriction derived from the current realization boundary.
 
 ## Open Findings
 
+- [ ] Close caller-write cleanup evidence for fallible schemas. Owned outcomes currently stay
+  unknown even when their success payload and builtin error cleanup are separately qualified.
 - [ ] Investigate the unclassified status-1 failure of the released native test
   `network_and_tls::public_tls_and_https_reject_plain_peers_and_https_advertises_http1`.
   It is not consistently reproducible. Native exit assertions identify the sync/async image,

@@ -23,6 +23,7 @@ impl PrimitiveRuntimeProfile {
 }
 
 const INERT_EXECUTION: PrimitiveExecutionFacts = PrimitiveExecutionFacts {
+    preserves_caller_storage: false,
     may_allocate: false,
     may_block: false,
     may_source_trap: false,
@@ -42,6 +43,7 @@ const ALLOCATING_TRAPPING_EXECUTION: PrimitiveExecutionFacts = PrimitiveExecutio
     ..INERT_EXECUTION
 };
 const ALLOCATING_FUTURE_EXECUTION: PrimitiveExecutionFacts = PrimitiveExecutionFacts {
+    preserves_caller_storage: false,
     may_allocate: true,
     may_block: false,
     may_source_trap: false,
@@ -70,6 +72,13 @@ const BOTH_CONTEXTS: PrimitiveContexts = PrimitiveContexts {
 };
 
 const PLAIN: PrimitiveRuntimeProfile = PrimitiveRuntimeProfile::new(INERT_EXECUTION, NO_CONTEXT);
+const SNAPSHOT_CONSTRUCTION: PrimitiveRuntimeProfile = PrimitiveRuntimeProfile::new(
+    PrimitiveExecutionFacts {
+        preserves_caller_storage: true,
+        ..INERT_EXECUTION
+    },
+    NO_CONTEXT,
+);
 const BLOCKING: PrimitiveRuntimeProfile =
     PrimitiveRuntimeProfile::new(BLOCKING_EXECUTION, NO_CONTEXT);
 const TRAPPING: PrimitiveRuntimeProfile =
@@ -106,6 +115,7 @@ impl PrimitiveRole {
     )]
     const fn runtime_profile(self) -> PrimitiveRuntimeProfile {
         match self {
+            Self::NewError | Self::ErrorContext => SNAPSHOT_CONSTRUCTION,
             Self::DropValueAtPointer => ALLOCATING_TRAPPING,
             Self::TimeoutWait
             | Self::NetworkConnectionReceiveEvent
@@ -162,9 +172,7 @@ impl PrimitiveRole {
             | Self::FilesystemReadLink
             | Self::FilesystemCanonicalize => ALLOCATING_FUTURE_WITH_BOTH_CONTEXTS,
             Self::FileClose => PREALLOCATED_FUTURE,
-            Self::NewError
-            | Self::ErrorContext
-            | Self::ErrorCode
+            Self::ErrorCode
             | Self::ErrorMessage
             | Self::AllocationFailureError
             | Self::AllocationAbort
@@ -311,6 +319,19 @@ impl PrimitiveRole {
 #[cfg(test)]
 mod tests {
     use super::PrimitiveRole;
+
+    #[test]
+    fn only_qualified_snapshot_constructors_preserve_caller_storage() {
+        let qualified: Vec<_> = PrimitiveRole::ALL
+            .iter()
+            .copied()
+            .filter(|role| role.execution_facts().preserves_caller_storage())
+            .collect();
+        assert_eq!(
+            qualified,
+            [PrimitiveRole::NewError, PrimitiveRole::ErrorContext]
+        );
+    }
 
     #[test]
     fn only_source_trap_primitives_carry_trap_evidence() {

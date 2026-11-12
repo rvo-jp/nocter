@@ -31,7 +31,12 @@ macro_rules! closed_role_enum {
 /// This is positive implementation evidence, not source syntax. New primitive roles must state
 /// their behavior here before an authored guarantee can rely on them.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "independent implementation facts are not mutually exclusive execution states"
+)]
 pub struct PrimitiveExecutionFacts {
+    preserves_caller_storage: bool,
     may_allocate: bool,
     may_block: bool,
     may_source_trap: bool,
@@ -76,6 +81,13 @@ impl PrimitiveContexts {
 }
 
 impl PrimitiveExecutionFacts {
+    /// Positive evidence that invocation does not modify live source storage in the caller.
+    /// Transferred payloads and newly constructed storage are not retained caller storage.
+    /// This is independent of allocation, blocking and the source input operations.
+    #[must_use]
+    pub const fn preserves_caller_storage(self) -> bool {
+        self.preserves_caller_storage
+    }
     #[must_use]
     pub const fn may_allocate(self) -> bool {
         self.may_allocate

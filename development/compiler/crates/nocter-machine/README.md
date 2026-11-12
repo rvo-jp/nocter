@@ -338,7 +338,14 @@ partial and complete prefixes with the field hole in either containing row. Erro
 uses the existing schema helpers, original saved indices and cleanup schedule; no second owner
 table or native effect interpretation is introduced.
 
-These are bounded executed effects. Conditional restoration, containing-replacement epochs and
-remaining adapter forms still need their own actual graph qualification. General user destructors
+Conditional replacement executes both initialized and missing-point routes, including mutation of
+the original index before restoration through its saved equivalent. Further cases restore the
+same owned element across alternating loop indices and both restoration branches, replace the
+containing array on each backedge, and start a fresh prefix after conditional restoration. A
+replacement producer may construct an error snapshot without destroying the caller's saved-index
+facts; checking supplies the separately qualified caller-write evidence. A wrapper's actual index
+write still rejects an unsafe restoration.
+
+These are bounded executed effects. Remaining adapter forms still need their own actual graph qualification. General user destructors
 and required-evaluator error graphs remain separate domains. Large-cardinality helper/image tests
 do not imply execution of correspondingly large owned graphs.

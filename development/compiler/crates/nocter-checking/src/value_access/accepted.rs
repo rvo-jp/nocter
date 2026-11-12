@@ -303,8 +303,8 @@ pub(super) fn admit_resolved(
         controls,
         result_evidence,
     } = resolved;
-    let writes =
-        flow::call_writes::Catalog::prepare(controls.values()).map_err(Failure::Integrity)?;
+    let writes = flow::call_writes::Catalog::prepare_with_context(controls.values(), context)
+        .map_err(Failure::Integrity)?;
     let verified = result_evidence
         .verify(context)
         .map_err(|_| Failure::Integrity(flow::IntegrityError::InconsistentTypedBody))?;

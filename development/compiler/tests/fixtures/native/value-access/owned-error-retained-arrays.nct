@@ -92,6 +92,64 @@ func mixed(index: usize, count: usize): i32 {
     let expected = if count == 0 { 0 } else { if count == 1 { 20 } else { if count == 2 { 40 } else { 41 } } }
     total + right.value + 40 - expected - (if index == 0 { 0 } else { 1 })
 }
+func restore_missing(input: usize, flag: bool): i32 {
+    var items = [build(20), build(22)]
+    var index = input
+    let position = input
+    if flag { let removed = items[index]^ }
+    index = if index == 0 { 1 } else { 0 }
+    items[position] = build(if input == 0 { 60 } else { 62 })
+    let complete = items^
+    complete[0].value + complete[1].value - 40
+}
+func restore_repeated(input: usize): i32 {
+    var items = [build(40), build(2)]
+    var count: usize = 0
+    var index = input
+    var total = 0
+    while count < 3 {
+        let old = items[index]^
+        total += old.value
+        items[index] = old^
+        index = if index == 0 { 1 } else { 0 }
+        count += 1
+    }
+    let complete = items^
+    let expected = if input == 0 { 82 } else { 44 }
+    if total == expected { complete[0].value + complete[1].value } else { 0 }
+}
+func restore_branches(input: usize, flag: bool): i32 {
+    var items = [build(40), build(2)]
+    let old = items[input]^
+    if flag { items[input] = old^ } else { items[input] = old^ }
+    let complete = items^
+    complete[0].value + complete[1].value
+}
+func replace_loop(): i32 {
+    var items = [build(40), build(2)]
+    var index: usize = 0
+    var total = 0
+    while index < 2 {
+        let selected = items[index]^
+        total += selected.value
+        items = [build(40), build(2)]
+        index += 1
+    }
+    total
+}
+func restored_prefix(input: usize, flag: bool): i32 {
+    var items = [build(20), build(22)]
+    if flag { let old = items[input]^ }
+    items[input] = build(40)
+    var index: usize = 0
+    var total = 0
+    while index < 2 {
+        let next = items[index]^
+        total += next.value
+        index += 1
+    }
+    if input == 0 { total - 20 } else { total - 18 }
+}
 func run(): i32 {
     let prefix_checks = prefix_take() == 42 && prefix_read() == 42 && cancellation(false) == 42 && cancellation(true) == 40
     let field_checks = fields(0, 0) == 42 && fields(0, 1) == 42 && fields(1, 0) == 42 && fields(1, 1) == 42
@@ -99,5 +157,9 @@ func run(): i32 {
     let late_checks = nested(0, 0, true) == 42 && nested(0, 1, true) == 42 && nested(1, 0, true) == 42 && nested(1, 1, true) == 42
     let first_mixed = mixed(0, 0) == 42 && mixed(1, 0) == 42 && mixed(0, 1) == 42 && mixed(1, 1) == 42
     let last_mixed = mixed(0, 2) == 42 && mixed(1, 2) == 42 && mixed(0, 3) == 42 && mixed(1, 3) == 42
-    if prefix_checks && field_checks && early_checks && late_checks && first_mixed && last_mixed { 42 } else { 0 }
+    let restored = restore_missing(0, true) == 42 && restore_missing(1, true) == 42 && restore_missing(0, false) == 42 && restore_missing(1, false) == 42
+    let backedges = restore_repeated(0) == 42 && restore_repeated(1) == 42 && replace_loop() == 42
+    let branches = restore_branches(0, true) == 42 && restore_branches(1, true) == 42 && restore_branches(0, false) == 42 && restore_branches(1, false) == 42
+    let epochs = restored_prefix(0, true) == 42 && restored_prefix(1, true) == 42 && restored_prefix(0, false) == 42 && restored_prefix(1, false) == 42
+    if prefix_checks && field_checks && early_checks && late_checks && first_mixed && last_mixed && restored && backedges && branches && epochs { 42 } else { 0 }
 }

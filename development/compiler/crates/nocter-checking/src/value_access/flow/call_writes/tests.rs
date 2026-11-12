@@ -4,6 +4,67 @@ use nocter_model::AccessCodeId;
 use nocter_test_support::ValueSourceFixture;
 use std::collections::BTreeSet;
 
+#[test]
+fn primitive_write_evidence_needs_exact_checked_authority_and_survives_transitive_closure() {
+    use nocter_compile_input::{ModuleIdentity, PrimitiveRoleLocator, ToolchainInput};
+    use nocter_declaration_lowering::access_declarations::PrimitiveAuthority;
+    use nocter_model::PackageIdentity;
+    use nocter_runtime_contract::PrimitiveRole;
+    let package = PackageIdentity::new("effects:standard");
+    let module = ModuleIdentity::new(package.clone(), ["error"]);
+    let toolchain = ToolchainInput::new(
+        package.clone(),
+        ModuleIdentity::new(package, ["prelude"]),
+        Vec::new(),
+        Vec::new(),
+    )
+    .with_primitive_roles(vec![PrimitiveRoleLocator::new(
+        PrimitiveRole::NewError,
+        module.clone(),
+        "create_failure",
+    )]);
+    let authority = PrimitiveAuthority::for_module(&toolchain, &module).unwrap();
+    let fixture = ValueSourceFixture::new(
+        "primitive func create_failure(code: str, message: str): error\nfunc create(): error { create_failure(\"code\", \"message\") }\nfunc run(): error { create() }",
+    );
+    let source =
+        SourceUnit::prepare_with_primitive_authority(fixture.syntax(), &authority).unwrap();
+    let context = source.declarations().bind(fixture.syntax()).unwrap();
+    let controls: Vec<_> = source
+        .unit()
+        .bodies()
+        .map(|(_, query)| Control::prepare(Arc::new(query.typed().clone())).unwrap())
+        .collect();
+    let ordinary = Catalog::prepare(&controls).unwrap();
+    let trusted = Catalog::prepare_with_context(&controls, &context).unwrap();
+    for name in ["create_failure", "create", "run"] {
+        let request = Request::unbound(code(&controls, name).into());
+        assert_eq!(ordinary.summaries[&request], Writes::Unknown, "{name}");
+        assert_eq!(
+            trusted.summaries[&request],
+            Writes::Known(BTreeSet::new()),
+            "{name}"
+        );
+    }
+    let caller = controls
+        .iter()
+        .find(|control| control.typed.code() == ValueCode::Declaration(code(&controls, "create")))
+        .unwrap();
+    // A direct primitive dependency has no body guard to hide a missing role-authority check.
+    let calls = trusted.calls(caller).unwrap();
+    assert!(calls.verify(&context).is_ok());
+    let other = SourceUnit::prepare_with_primitive_authority(fixture.syntax(), &authority).unwrap();
+    let other = other.declarations().bind(fixture.syntax()).unwrap();
+    assert!(matches!(
+        Catalog::prepare_with_context(&controls, &other),
+        Err(IntegrityError::InconsistentTypedBody)
+    ));
+    assert!(matches!(
+        calls.verify(&other),
+        Err(crate::value_access::Failure::ChangedAuthority)
+    ));
+}
+
 fn controls(source: &str) -> Vec<Control> {
     let fixture = ValueSourceFixture::new(source);
     let unit = SourceUnit::prepare(fixture.syntax()).unwrap().into_unit();

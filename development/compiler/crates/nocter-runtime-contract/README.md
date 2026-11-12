@@ -95,6 +95,9 @@ public source-level imports.
   IPv4 or IPv6 socket records. Provider path and endpoint ownership never enters source storage.
 - Primitive execution facts are keyed by closed roles, never inferred from source names or target
   instruction sequences.
+- Caller-storage preservation is separate positive evidence. The qualified error snapshot
+  constructors preserve live caller storage while constructing or receiving their own payloads.
+  Other roles retain no such evidence; read inputs or allocation/blocking guarantees cannot supply it.
 - Every primitive role has one exhaustive runtime-profile arm. Adding a role without assigning its
   execution facts, produced-computation classification, and hidden contexts fails compilation;
   omission cannot silently certify allocation-free or nonblocking behavior.
