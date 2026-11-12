@@ -50,9 +50,10 @@ layout fields, generated operations, an arbitrary iteration cutoff or a constant
   general numeric relations among holes within one array. Keep
   unproved relations local and explicit. Do not read uninitialized alternative backing or choose
   guards from numeric equality alone; preserve actual original-index mutation and empty/MAX spans.
-- [ ] Qualify actual nontrivial array cleanup effects through the
-  [native array consumer](compiler/crates/nocter-machine/README.md#private-array-execution), including
-  source error construction. Emitted/image-only cleanup is not execution of an owned error graph.
+- [ ] Extend actual owned-error array cleanup to restoration/containing-replacement epochs,
+  conditional ownership alternatives and remaining adapter forms through the
+  [native array consumer](compiler/crates/nocter-machine/README.md#owned-error-effects).
+  Emitted/image-only cleanup is not execution of an owned error graph.
 
 Keep required execution, native execution and independent logical tests aligned with the shared
 source corpus. Extend budget-failure recovery alongside new working state and preserve homogeneous

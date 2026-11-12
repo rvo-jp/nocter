@@ -1,0 +1,103 @@
+primitive func create_failure(code: str, message: str): error
+primitive func context_error(take value: error, message: str): error
+
+struct Item {
+    value: i32
+    failure: error
+}
+struct Pair {
+    first: Item
+    second: Item
+}
+struct Row {
+    left: [Item; 3]
+    right: Item
+}
+
+func build(value: i32): Item {
+    Item { value: value, failure: context_error(create_failure("retained", "leaf"), "context") }
+}
+func consume(take entry: Item): i32 { entry.value }
+func observe(entry: Item): i32 { entry.value }
+func cancel(take entry: Item, ignored: usize): void {}
+
+func prefix_take(): i32 {
+    let items = [build(40), build(2)]
+    var index: usize = 0
+    var total = 0
+    while index < 2 {
+        total += consume(items[index]^)
+        index += 1
+    }
+    total
+}
+func prefix_read(): i32 {
+    let items = [build(40), build(2)]
+    var index: usize = 0
+    var total = 0
+    while index < 2 {
+        total += observe(items[index]^)
+        index += 1
+    }
+    total
+}
+func cancellation(early: bool): i32 {
+    let items = [build(40), build(2)]
+    var index: usize = 0
+    var total = 0
+    while index < 2 {
+        let selected = items[index]^
+        total += selected.value
+        if early { cancel(items[index + 1]^, if true { return total } else { 0 }) }
+        index += 1
+    }
+    total
+}
+func fields(left: usize, right: usize): i32 {
+    let items = [Pair { first: build(40), second: build(2) },
+                 Pair { first: build(50), second: build(3) }]
+    var first_index = left
+    var second_index = right
+    let first = items[first_index].first^
+    let second = items[second_index].second^
+    first_index = 1 - first_index
+    second_index = 1 - second_index
+    first.value + second.value - (if left == 0 { 0 } else { 10 }) - (if right == 0 { 0 } else { 1 })
+}
+func nested(row: usize, column: usize, late: bool): i32 {
+    let items = [[Pair { first: build(40), second: build(2) },
+                  Pair { first: build(50), second: build(2) }],
+                 [Pair { first: build(60), second: build(2) },
+                  Pair { first: build(70), second: build(2) }]]
+    var outer = row
+    var inner = column
+    let part = items[outer][if late { outer = 1 - outer
+        inner } else { inner }].first^
+    outer = 1 - outer
+    inner = 1 - inner
+    let expected = if row == 0 { if column == 0 { 40 } else { 50 } } else { if column == 0 { 60 } else { 70 } }
+    part.value + items[outer][inner].second.value + 40 - expected
+}
+func mixed(index: usize, count: usize): i32 {
+    let rows = [Row { left: [build(20), build(20), build(1)], right: build(2) },
+                Row { left: [build(0), build(0), build(0)], right: build(3) }]
+    var cursor: usize = 0
+    var total = 0
+    while cursor < count {
+        let part = rows[0].left[cursor]^
+        total += part.value
+        cursor += 1
+    }
+    let right = rows[index].right^
+    let expected = if count == 0 { 0 } else { if count == 1 { 20 } else { if count == 2 { 40 } else { 41 } } }
+    total + right.value + 40 - expected - (if index == 0 { 0 } else { 1 })
+}
+func run(): i32 {
+    let prefix_checks = prefix_take() == 42 && prefix_read() == 42 && cancellation(false) == 42 && cancellation(true) == 40
+    let field_checks = fields(0, 0) == 42 && fields(0, 1) == 42 && fields(1, 0) == 42 && fields(1, 1) == 42
+    let early_checks = nested(0, 0, false) == 42 && nested(0, 1, false) == 42 && nested(1, 0, false) == 42 && nested(1, 1, false) == 42
+    let late_checks = nested(0, 0, true) == 42 && nested(0, 1, true) == 42 && nested(1, 0, true) == 42 && nested(1, 1, true) == 42
+    let first_mixed = mixed(0, 0) == 42 && mixed(1, 0) == 42 && mixed(0, 1) == 42 && mixed(1, 1) == 42
+    let last_mixed = mixed(0, 2) == 42 && mixed(1, 2) == 42 && mixed(0, 3) == 42 && mixed(1, 3) == 42
+    if prefix_checks && field_checks && early_checks && late_checks && first_mixed && last_mixed { 42 } else { 0 }
+}

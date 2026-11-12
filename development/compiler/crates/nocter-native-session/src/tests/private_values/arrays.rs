@@ -1,5 +1,24 @@
 //! Complete source arrays through the common Machine and native process.
-use super::{TempPackage, compile, execute_native_signal, execute_native_status};
+use super::{
+    TempPackage, compile, execute_native_signal, execute_native_status, image,
+    trusted_error_machine,
+};
+
+#[test]
+fn private_retained_array_cleanup_executes_actual_owned_error_graphs() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/owned-error-retained-arrays.nct"
+    ));
+    let machine = trusted_error_machine(source);
+    let package = TempPackage::new();
+    execute_native_status(
+        &image(&machine),
+        &package.0,
+        "owned-error-retained-arrays",
+        42,
+    );
+}
 
 #[test]
 fn private_prefix_loops_preserve_exact_closure_call_effects() {

@@ -28,7 +28,7 @@ fn runtime_primitive_calls_close_with_header_evidence_and_no_source_body() {
         "{HEADERS}func run(): error {{ let original = create_failure(\"test\", \"message\")\ncontext_error(original^, \"context\") }}"
     );
     let fixture = nocter_test_support::ValueSourceFixture::new(&text);
-    let source = SourceUnit::prepare_with_primitive_authority(
+    let source = SourceUnit::prepare_with_primitive_authority_and_limits(
         fixture.syntax(),
         &authority(),
         Limits::default(),
@@ -69,7 +69,7 @@ fn runtime_primitive_calls_in_required_closures_report_the_call_domain() {
     ] {
         let text = format!("{HEADERS}{body}");
         let fixture = nocter_test_support::ValueSourceFixture::new(&text);
-        let result = SourceUnit::prepare_with_primitive_authority(
+        let result = SourceUnit::prepare_with_primitive_authority_and_limits(
             fixture.syntax(),
             &authority(),
             Limits::default(),
@@ -84,7 +84,7 @@ fn runtime_primitive_calls_in_required_closures_report_the_call_domain() {
 #[test]
 fn primitive_only_units_are_closed_without_hiding_unused_ordinary_failures() {
     let fixture = nocter_test_support::ValueSourceFixture::new(HEADERS);
-    let source = SourceUnit::prepare_with_primitive_authority(
+    let source = SourceUnit::prepare_with_primitive_authority_and_limits(
         fixture.syntax(),
         &authority(),
         Limits::default(),
@@ -100,7 +100,7 @@ fn primitive_only_units_are_closed_without_hiding_unused_ordinary_failures() {
     let text = format!("{HEADERS}func unused(value: error): error {{ value }}");
     let fixture = nocter_test_support::ValueSourceFixture::new(&text);
     assert!(matches!(
-        SourceUnit::prepare_with_primitive_authority(
+        SourceUnit::prepare_with_primitive_authority_and_limits(
             fixture.syntax(),
             &authority(),
             Limits::default(),

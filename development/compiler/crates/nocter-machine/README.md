@@ -205,7 +205,7 @@ offset and successor arithmetic; internal traversal does not manufacture source 
 The shared traversal accepts SSA lower/upper endpoints and skips empty runtime intervals. A
 saved cleanup span loads its dedicated usize snapshot or prefix-endpoint slot; its checked original bound proves
 the successor and it does not reload the source index. The [source owner](../nocter-checking/README.md#array-selection) defines retained-hole admission;
-actual native nontrivial effects remain separately unqualified.
+actual nontrivial effects use the bounded [owned-error qualification](#owned-error-effects).
 The runtime environment supplies canonical usize/bool roles for that control. Count one uses the
 ordinary resource assembly, and zero-byte storage requires no physical fill while preserving seed
 evaluation and cleanup. Native cases cover seed effects, non-Copy count-one transfer, nested and
@@ -234,7 +234,8 @@ call catalog or a second resource ledger. Empty arrays and elements without clea
 helper. Source with a divergent error-array producer qualifies helper structure and image lowering;
 it does not establish execution of an owned error graph. The separate
 [runtime construction](#private-runtime-error-construction) corpus executes constant-index partial
-cleanup and complete-array release; general retained-index cases need their own executed graphs.
+cleanup and complete-array release; retained-index cases use the separate
+[owned-error qualification](#owned-error-effects).
 
 Partial-array cleanup consumes private MIR's checked half-open intervals. The same countdown CFG
 starts at the interval end and stops at its lower bound, addressing the original array with each
@@ -244,8 +245,8 @@ elements around either a source-proven constant hole or a retained index. The re
 bounds check survives before capture; helper endpoints read the captured scalar. Retained element
 projections load that same slot at each use; their addresses are not cached across alternative
 blocks, where the first load would fail to dominate another route. This nontrivial helper evidence
-remains image/structure qualification for retained-index cases beyond the separately executed
-constant-index construction corpus.
+remains image/structure qualification for large cardinalities beyond the separately executed
+owned-error cases.
 
 For multiple unordered retained field holes, `body::remainder` traverses elements and components
 in reverse order and guards only the missing subtrees with predicates over the saved indices.
@@ -254,7 +255,7 @@ helper; trivial data needs no traversal. Generated structure depends on schemas 
 not array cardinality, and no runtime ownership table or element-sized metadata is added.
 Cleanup-helper registration exhaustively covers complete, interval and sparse-remainder operations.
 Nontrivial error-field cases qualify generated predicates, helpers and finite image structure;
-actual owned-error cleanup for those mixed retained-field paths remains separately unqualified.
+actual effects for the qualified mixed retained-field paths execute in the corpus below.
 Mixed prefix/point cleanup retains prefix exclusions as regions: an element is excluded while its
 index is below the saved frontier's successor. That shared successor calculation also serves
 ordinary through/after spans and remains valid at maximum usize. Source cases execute zero-trip,
@@ -273,7 +274,7 @@ reservation before the counter update. Normal prefix argument handoffs use the e
 owner before entering the ordinary taking or read/edit temporary channel, including a later
 argument's mutation of the original counter. Concrete nested parents and maximum-count zero-byte prefixes
 use the same lowering. These executions qualify lifecycle/geometry with trivial element cleanup;
-actual owned error-graph cleanup remains the separate obligation above.
+actual owned error-graph effects use the separate qualification below.
 Ordered bundles execute distinct nonzero payloads through separate argument owners before reusing
 one endpoint slot. Cases also cover a later counter mutation, cancellation after two reservations
 and maximum-count zero-byte bundles; endpoint reuse does not retarget a frozen argument address.
@@ -326,3 +327,18 @@ Shared source fixtures execute element take, field holes, structurally disjoint 
 exact restoration on loop backedges and maximum-count zero-byte remainder cleanup. The checking
 owner defines their admission and remaining frontier/progression limits. These limits do not change adopted source semantics or qualify the ordinary
 released CLI as v2.
+
+### Owned Error Effects
+
+`owned-error-retained-arrays.nct` extends the ordinary native path with actual owned error graphs
+inside non-Copy elements. It executes prefix take and read-temporary handoffs, tail-argument
+cancellation, equal/different saved indices for sibling field holes, nested dynamic holes and
+outer-index mutation during inner-index evaluation. Mixed prefix/field remainders execute zero,
+partial and complete prefixes with the field hole in either containing row. Error graph release
+uses the existing schema helpers, original saved indices and cleanup schedule; no second owner
+table or native effect interpretation is introduced.
+
+These are bounded executed effects. Conditional restoration, containing-replacement epochs and
+remaining adapter forms still need their own actual graph qualification. General user destructors
+and required-evaluator error graphs remain separate domains. Large-cardinality helper/image tests
+do not imply execution of correspondingly large owned graphs.

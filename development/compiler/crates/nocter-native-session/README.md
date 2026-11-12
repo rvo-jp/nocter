@@ -21,6 +21,8 @@ analysis, implement backend rules, select command-line policy, or publish filesy
   ARM64 and image-writing consumers. It does not extend the public session API; the
   [private handoff](../../../architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
   owns its admitted source and native qualification limits.
+  Trusted primitive fixtures supply an explicit module authority to the same staged `SourceUnit`
+  coordinator, including required header values. A header-only query cannot replace source acceptance.
 - reusable Nocter source corpora live under `development/compiler/tests/fixtures/native/`; Rust
   test modules select those inputs but do not embed large source packages.
 

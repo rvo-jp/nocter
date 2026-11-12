@@ -55,8 +55,7 @@ fn image(machine: &nocter_machine::MachineProgram) -> crate::NativeImage {
     crate::NativeImage::from_macho(nocter_macho::MachOImage::build(&arm).unwrap())
 }
 
-#[test]
-fn private_trusted_error_constructors_execute_real_owned_graphs() {
+fn trusted_error_machine(source: &str) -> nocter_machine::MachineProgram {
     use nocter_compile_input::{ModuleIdentity, PrimitiveRoleLocator, ToolchainInput};
     use nocter_declaration_lowering::access_declarations as declarations;
     use nocter_model::PackageIdentity;
@@ -74,21 +73,22 @@ fn private_trusted_error_constructors_execute_real_owned_graphs() {
         PrimitiveRoleLocator::new(PrimitiveRole::ErrorContext, module.clone(), "context_error"),
     ]);
     let authority = declarations::PrimitiveAuthority::for_module(&toolchain, &module).unwrap();
-    let source = include_str!(concat!(
+    let fixture = ValueSourceFixture::new(source);
+    let unit = Arc::new(
+        SourceUnit::prepare_with_primitive_authority(fixture.syntax(), &authority)
+            .unwrap()
+            .into_unit(),
+    );
+    machine_unit(unit).unwrap()
+}
+
+#[test]
+fn private_trusted_error_constructors_execute_real_owned_graphs() {
+    use nocter_runtime_contract::PrimitiveRole;
+    let machine = trusted_error_machine(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../tests/fixtures/native/value-access/owned-error-construction.nct"
-    ));
-    let fixture = ValueSourceFixture::new(source);
-    let headers =
-        declarations::Query::prepare_with_primitive_authority(fixture.syntax(), &authority)
-            .unwrap();
-    let unit = Arc::new(
-        nocter_checking::value_access::accepted::Unit::prepare(
-            &headers.bind(fixture.syntax()).unwrap(),
-        )
-        .unwrap(),
-    );
-    let machine = machine_unit(unit).unwrap();
+    )));
     let mut constructors = std::collections::BTreeSet::new();
     let mut releases = 0;
     for (_, function) in machine.functions() {

@@ -49,6 +49,19 @@ impl SourceUnit {
     pub fn prepare_with_primitive_authority(
         syntax: BoundSyntax<'_>,
         authority: &declarations::PrimitiveAuthority,
+    ) -> Result<Self, SourceFailure> {
+        Self::prepare_with_primitive_authority_and_limits(
+            syntax,
+            authority,
+            state::Limits::default(),
+        )
+    }
+    /// Prepare authorized source with explicit deterministic required-evaluation limits.
+    /// # Errors
+    /// Reports the same whole-source failures as ordinary authorized preparation.
+    pub fn prepare_with_primitive_authority_and_limits(
+        syntax: BoundSyntax<'_>,
+        authority: &declarations::PrimitiveAuthority,
         limits: impl Into<state::Limits>,
     ) -> Result<Self, SourceFailure> {
         let headers =
