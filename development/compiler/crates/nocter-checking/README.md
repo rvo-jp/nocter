@@ -605,7 +605,15 @@ absence branch returns the declared outer optional absence. The supplied carrier
 owner and the selected answer is protected before its lexical cleanup. Existing return flow
 cancels enclosing prepared calls and retires scopes; no separate propagation cleanup protocol is
 introduced. A closure uses its own result contract. Initializers and non-optional callable results
-cannot propagate absence. Read/edit result projections and recovery remain open.
+cannot propagate absence. Direct read/edit operands and scoped bindings request an existing payload place for postfix `!`.
+`Scoped` forms its source once before `GuardView` checks the tag and retains its stability; ordinary
+selection, argument reservation and alias binding then use the original payload storage. The access
+world retains tag evidence with dependent places, including read reservations whose neutral
+intermediates can be released. A tag pin grants no update authority and prevents carrier replacement
+or retirement while allowing otherwise authorized disjoint payload accesses. It is compilation
+state, with no runtime owner or lock table. Named aliases cannot keep a produced temporary alive.
+Scoped `?` and recovery remain open; their direct place requests reject explicitly rather than
+silently updating or observing an owned snapshot.
 
 Implicit optional input wrappers retain the original direct-transfer reservation. Complete bundle
 validation precedes wrapper materialization and original-source retirement; later reads and

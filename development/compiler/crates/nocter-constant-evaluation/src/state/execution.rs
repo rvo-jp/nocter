@@ -298,7 +298,14 @@ impl<'a, 'budget> Executor<'a, 'budget> {
     fn operation(&mut self, frame: usize, op: &Operation, taken: &[Option<Value>]) -> Result<()> {
         let (destination, value) = match op {
             Operation::None => return Ok(()),
-            Operation::RequirePrimary { source } => return self.require_primary(frame, source),
+            Operation::RequirePrimary { source, view } => {
+                self.require_primary(frame, source)?;
+                if let Some(destination) = view {
+                    let address = self.memory.address(frame, source)?;
+                    self.bind_alias(frame, *destination, address)?;
+                }
+                return Ok(());
+            }
             Operation::PrimaryCondition {
                 source,
                 destination,

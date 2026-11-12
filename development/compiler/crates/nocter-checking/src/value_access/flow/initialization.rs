@@ -531,10 +531,14 @@ fn evaluate(
             ..
         }
         | ExpressionKind::Call { .. }
+        | ExpressionKind::Scoped { .. }
         | ExpressionKind::Block { .. }
         | ExpressionKind::If { .. } => return Err(INVALID),
         ExpressionKind::Place(_) | ExpressionKind::Index { .. } | ExpressionKind::Select { .. } => {
             require_formation(typed, facts, state, id, location, violations)?;
+        }
+        ExpressionKind::GuardView { source } => {
+            require_referent(typed, facts, state, *source, location, violations)?;
         }
         ExpressionKind::PrimaryCondition { source } => {
             require_referent(typed, facts, state, (*source).into(), location, violations)?;

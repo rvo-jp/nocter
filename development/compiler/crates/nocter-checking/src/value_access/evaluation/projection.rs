@@ -581,6 +581,7 @@ impl Builder<'_, '_> {
             inputs: inputs.into(),
         })
     }
+    #[allow(clippy::too_many_lines)]
     fn evaluate(&mut self, id: AccessExpressionId) -> Result<plan::Operation> {
         let kind = self
             .query
@@ -613,8 +614,13 @@ impl Builder<'_, '_> {
                 source: self.selected(source)?,
                 destination,
             },
+            ExpressionKind::GuardView { source } => plan::Operation::RequirePrimary {
+                source: self.referent(source)?,
+                view: Some(destination),
+            },
             ExpressionKind::RequirePrimary { source } => plan::Operation::RequirePrimary {
                 source: self.value(source)?,
+                view: None,
             },
             ExpressionKind::Repeat { seed } => self.repeat_operation(id, seed, destination)?,
             ExpressionKind::Index {

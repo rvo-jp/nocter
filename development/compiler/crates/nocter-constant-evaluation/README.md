@@ -99,6 +99,10 @@ operations still require an explicit compilation target in their existing domain
 `FrozenNode::Variant` retain the selected tag and only its active payload. Validation rejects a
 missing present payload, an absent payload or a mismatching child type. Assembly owns construction;
 `RequirePrimary` checks the tag before payload selection and reports a distinct absence failure.
+Its optional view destination must have alias storage and the exact carrier data; binding occurs
+only after the successful check and uses the already established source address. Ordinary field
+selection then observes or edits that same storage. Guard/alias allocation failure releases partial
+working state before another request, without forming an alias to an absent payload.
 `PrimaryCondition` reads only a stored optional's tag and produces Boolean data; ordinary graph
 branches and returns own propagation, without accessing an absent payload.
 Value traversal, freezing, restoration and final release use iterative work, including deeply

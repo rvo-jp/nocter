@@ -176,6 +176,7 @@ pub enum Operation {
     },
     RequirePrimary {
         source: Place,
+        view: Option<usize>,
     },
     /// A source-proven terminal bounds failure, after all preceding operand effects.
     BoundsTrap,

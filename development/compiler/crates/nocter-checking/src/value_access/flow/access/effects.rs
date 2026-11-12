@@ -305,7 +305,7 @@ impl Context<'_, '_> {
         kind: RetentionKind,
     ) -> Result<Value> {
         let mode = match kind {
-            RetentionKind::Place => Mode::Read,
+            RetentionKind::Place | RetentionKind::Tag => Mode::Read,
             RetentionKind::Access(mode) => mode,
         };
         let Some((region, parent)) = base else {
@@ -320,7 +320,9 @@ impl Context<'_, '_> {
         if kind == RetentionKind::Access(Mode::Update) && !self.world.writable_actor(parent)? {
             return Err(Failure::Integrity);
         }
-        if kind == RetentionKind::Place {
+        if kind == RetentionKind::Tag {
+            self.world.check_tag(&region, parent, self.at, self.live)?;
+        } else if kind == RetentionKind::Place {
             self.world.check_lifetime(&region, self.at)?;
         } else {
             self.world
@@ -340,6 +342,7 @@ impl Context<'_, '_> {
             access: Some(key),
         })
     }
+    #[allow(clippy::too_many_lines)]
     fn evaluate(&mut self, id: AccessExpressionId) -> Result<Value> {
         let expression = self
             .typed
@@ -370,6 +373,11 @@ impl Context<'_, '_> {
                 self.write(&region, actor, Mode::Own, None)?;
                 Ok(Value::without_referent(Mode::Own))
             }
+            ExpressionKind::GuardView { source } => self.create_node(
+                Key::Expression(id),
+                self.referent(source)?,
+                RetentionKind::Tag,
+            ),
             ExpressionKind::PrimaryCondition { source } => {
                 if let Some((region, actor)) = self.referent(source.into())? {
                     self.world
@@ -436,7 +444,8 @@ impl Context<'_, '_> {
             | ExpressionKind::Unit
             | ExpressionKind::Unary { .. }
             | ExpressionKind::Binary { .. } => Ok(Value::without_referent(Mode::Own)),
-            ExpressionKind::Block { .. }
+            ExpressionKind::Scoped { .. }
+            | ExpressionKind::Block { .. }
             | ExpressionKind::If { .. }
             | ExpressionKind::Call { .. } => Err(Failure::Integrity),
         }

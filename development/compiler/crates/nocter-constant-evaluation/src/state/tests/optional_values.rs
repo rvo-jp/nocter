@@ -288,3 +288,122 @@ fn primary_conditions_observe_only_the_tag_and_reject_incompatible_operand_roles
         }
     }
 }
+
+#[test]
+#[allow(clippy::too_many_lines)]
+fn guarded_optional_aliases_bind_only_after_presence_and_release_partial_work_on_failure() {
+    let (root, _) = code_ids();
+    for primary in [false, true] {
+        let mut plan = literal();
+        plan.slots = vec![
+            Slot {
+                data: 1,
+                storage: Storage::Owned,
+            },
+            Slot {
+                data: 1,
+                storage: Storage::Alias,
+            },
+            Slot {
+                data: 0,
+                storage: Storage::Owned,
+            },
+        ]
+        .into();
+        plan.points = plan.points.map(|_, original| {
+            let mut point = original.clone();
+            point.actions[0].operation = Operation::Literal {
+                destination: 0,
+                value: Value::variant(primary, primary.then(|| Value::integer(42))),
+            };
+            point.actions[0].alternatives[0].after = vec![Effect::Construct(0)].into();
+            let mut actions = point.actions.to_vec();
+            let owned = BTreeMap::from([(0, Box::new([]) as Box<[Missing]>)]);
+            actions.push(Action {
+                operation: Operation::RequirePrimary {
+                    source: Place::root(0),
+                    view: Some(1),
+                },
+                alternatives: vec![Alternative {
+                    owned: owned.clone(),
+                    before: Box::new([]),
+                    after: Box::new([]),
+                }]
+                .into(),
+            });
+            actions.push(Action {
+                operation: Operation::Copy {
+                    destination: Place::root(2),
+                    source: Place {
+                        slot: 1,
+                        fields: vec![0].into(),
+                    },
+                },
+                alternatives: vec![Alternative {
+                    owned,
+                    before: Box::new([]),
+                    after: vec![Effect::Construct(2), Effect::Dispose(Place::root(0))].into(),
+                }]
+                .into(),
+            });
+            point.actions = actions.into();
+            point.terminator = Terminator::Return(Place::root(2));
+            point
+        });
+        let types = [
+            Type::Integer(nocter_model::BuiltinType::I32),
+            Type::Optional(0),
+        ];
+        let program = Program::new(
+            types.clone(),
+            BTreeMap::from([(root.into(), plan.clone())]),
+            BTreeMap::new(),
+        )
+        .unwrap();
+        let mut reached_guard = false;
+        let mut exhausted = false;
+        for capacity in 1..128 {
+            let mut budget = Budget::new(Limits::new(
+                crate::CompileTimeEvaluationLimits::default(),
+                std::num::NonZeroU64::new(capacity).unwrap(),
+            ));
+            for _ in 0..2 {
+                budget.restart_work();
+                match Executor::new(&program, &mut budget, 0).evaluate_initializer(root) {
+                    Ok(value) => {
+                        assert!(primary);
+                        assert_eq!(value, Value::integer(42));
+                        reached_guard = true;
+                    }
+                    Err(error) if error.rule == Rule::StorageLimit => exhausted = true,
+                    Err(error) => {
+                        assert!(!primary);
+                        assert_eq!(error.rule, Rule::AbsentValue);
+                        reached_guard = true;
+                    }
+                }
+                assert_eq!(budget.storage_used(), 0);
+            }
+        }
+        assert!(reached_guard && exhausted);
+        for view in [0, 2, 3] {
+            let mut invalid = plan.clone();
+            invalid.points = invalid.points.map(|_, original| {
+                let mut point = original.clone();
+                point.actions[1].operation = Operation::RequirePrimary {
+                    source: Place::root(0),
+                    view: Some(view),
+                };
+                point
+            });
+            assert!(
+                Program::new(
+                    types.clone(),
+                    BTreeMap::from([(root.into(), invalid)]),
+                    BTreeMap::new()
+                )
+                .is_err()
+            );
+        }
+    }
+}

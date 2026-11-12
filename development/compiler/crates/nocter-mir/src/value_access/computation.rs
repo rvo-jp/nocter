@@ -109,6 +109,18 @@ impl Builder<'_> {
                     destination,
                 }
             }
+            ExpressionKind::GuardView { source } => {
+                let source = self.referent(source, destination.data)?;
+                return Ok(vec![
+                    Operation::RequirePrimary {
+                        source: source.clone(),
+                    },
+                    Operation::Storage(Effect::BindAddress {
+                        destination: destination.slot,
+                        source,
+                    }),
+                ]);
+            }
             ExpressionKind::RequirePrimary { source } => Operation::RequirePrimary {
                 source: self.value(source)?,
             },
@@ -195,7 +207,8 @@ impl Builder<'_> {
                 action: SelectionAction::MovePayload,
                 ..
             } => return Ok(Vec::new()),
-            ExpressionKind::Block { .. }
+            ExpressionKind::Scoped { .. }
+            | ExpressionKind::Block { .. }
             | ExpressionKind::If { .. }
             | ExpressionKind::Call { .. } => return Err(self.invalid()),
         };

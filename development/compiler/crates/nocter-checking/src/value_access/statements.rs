@@ -219,9 +219,9 @@ impl Checker<'_, '_> {
             ValueBindingKind::ReadAlias | ValueBindingKind::EditAlias
         );
         let mut value = if kind == ValueBindingKind::ReadAlias {
-            self.alias_value(expression, Rule::TypeMismatch, reachable)?
+            self.alias_value(expression, Rule::TypeMismatch, mode, reachable)?
         } else if kind == ValueBindingKind::EditAlias {
-            self.alias_value(expression, Rule::InvalidUpdate, reachable)?
+            self.alias_value(expression, Rule::InvalidUpdate, mode, reachable)?
         } else {
             self.expression_with_hint(
                 expression,

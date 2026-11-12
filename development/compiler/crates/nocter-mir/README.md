@@ -79,7 +79,9 @@ Optional assembly freezes payload transfers followed by a `VariantTag` effect an
 in the same lifecycle phase, including wrappers materialized at call commit. `RequirePrimary` is
 a separate tag guard before selecting the payload; it supplies no ownership or unwind edge.
 `PrimaryCondition` produces a Boolean from a stored carrier, leaving propagation's branches,
-returns and cleanup in the same ordinary closed graph.
+returns and cleanup in the same ordinary closed graph. Scoped assertions place a normal address
+binding after the successful guard; their payload selection never copies the carrier or acquires
+another owner. The checking-owned access world retains tag stability, not this physical product.
 Validation checks these operations against the exact runtime optional shape. Frozen variants
 retain their selected branch rather than masquerading as ordinary aggregates.
 

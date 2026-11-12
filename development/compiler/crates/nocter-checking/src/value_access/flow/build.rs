@@ -395,6 +395,23 @@ impl Builder<'_> {
         let expression = self.body.expressions().get(id).ok_or(INVALID)?;
         let origin = Origin::Expression(id);
         let end = match &expression.kind {
+            ExpressionKind::Scoped { source, projected } => {
+                let Some(point) = self.expression(*source, entry)? else {
+                    return Ok(None);
+                };
+                let end = self.expression(*projected, point)?;
+                if let Some(point) = end {
+                    self.action(
+                        point,
+                        origin,
+                        Operation::Forward {
+                            source: *projected,
+                            result: id,
+                        },
+                    )?;
+                }
+                return Ok(end);
+            }
             ExpressionKind::Block { block } => {
                 return self.block(*block, entry, Output::Forward(id));
             }
@@ -465,6 +482,7 @@ impl Builder<'_> {
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Unit
             | ExpressionKind::Place(_)
+            | ExpressionKind::GuardView { .. }
             | ExpressionKind::PrimaryCondition { .. } => Some(entry),
         };
         if let Some(point) = end {

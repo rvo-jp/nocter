@@ -75,6 +75,11 @@ impl Referent {
                 }
                 Referent::Evaluated(id) => {
                     let source = match &expression(id)?.kind {
+                        ExpressionKind::GuardView { source } => {
+                            self = *source;
+                            continue;
+                        }
+                        ExpressionKind::Scoped { projected, .. } => *projected,
                         ExpressionKind::Index {
                             base,
                             index: operand,

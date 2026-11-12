@@ -154,6 +154,11 @@ impl Referent {
                 Self::Place(place) => return Some(place),
                 Self::Evaluated(id) => {
                     let source = match expression(id)?.kind {
+                        ExpressionKind::GuardView { source } => {
+                            self = source;
+                            continue;
+                        }
+                        ExpressionKind::Scoped { projected, .. } => projected,
                         ExpressionKind::Index {
                             base,
                             action: IndexAction::Access,
@@ -301,6 +306,15 @@ pub enum ExpressionKind {
     AdaptFunction {
         source: AccessExpressionId,
     },
+    /// Form an existing place once before evaluating its guarded projection.
+    Scoped {
+        source: AccessExpressionId,
+        projected: AccessExpressionId,
+    },
+    /// Check and retain the active tag of an already formed carrier place.
+    GuardView {
+        source: Referent,
+    },
     /// An ordinary lexical value scope, including compiler-generated outcome expansion.
     Block {
         block: AccessBlockId,
@@ -390,6 +404,9 @@ impl Expression {
     pub const fn referent(&self, id: AccessExpressionId) -> Option<Referent> {
         match self.kind {
             ExpressionKind::Place(place) => Some(Referent::Place(place)),
+            ExpressionKind::Scoped { .. } | ExpressionKind::GuardView { .. } => {
+                Some(Referent::Evaluated(id))
+            }
             ExpressionKind::Index {
                 action: IndexAction::Access,
                 ..

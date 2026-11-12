@@ -296,6 +296,9 @@ fn expression_uses(
         ExpressionKind::PrimaryCondition { source: place } | ExpressionKind::Place(place) => {
             uses.push((Carrier::Local(root(typed, place)?), update));
         }
+        ExpressionKind::GuardView { source } => {
+            uses.push((referent_carrier(typed, source)?, update));
+        }
         ExpressionKind::Move(place) => {
             uses.push((referent_carrier(typed, place)?, true));
         }
@@ -346,7 +349,10 @@ fn expression_uses(
         | ExpressionKind::Unit
         | ExpressionKind::Unary { .. }
         | ExpressionKind::Binary { .. } => {}
-        ExpressionKind::Call { .. } | ExpressionKind::Block { .. } | ExpressionKind::If { .. } => {
+        ExpressionKind::Call { .. }
+        | ExpressionKind::Scoped { .. }
+        | ExpressionKind::Block { .. }
+        | ExpressionKind::If { .. } => {
             return Err(INVALID);
         }
     }

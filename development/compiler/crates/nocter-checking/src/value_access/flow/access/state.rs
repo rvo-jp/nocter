@@ -127,7 +127,7 @@ impl World {
         while let Some(key) = actor {
             let node = self.nodes.get(&key).ok_or(INVALID)?;
             match node.kind {
-                RetentionKind::Place => actor = node.parent,
+                RetentionKind::Place | RetentionKind::Tag => actor = node.parent,
                 RetentionKind::Access(mode) => return Ok(mode == Mode::Update),
             }
         }
@@ -163,6 +163,7 @@ impl World {
                 Prepared::Value(value) => retained.extend(value.access),
             }
         }
+        self.retain_tags(&mut retained)?;
         let mut updating = BTreeSet::new();
         if let Some(live) = live {
             for (&carrier, value) in &self.values {
@@ -191,7 +192,7 @@ impl World {
         let mut pending: Vec<_> = updating.iter().copied().collect();
         while let Some(key) = pending.pop() {
             let node = self.nodes.get(&key).ok_or(INVALID)?;
-            if node.kind == RetentionKind::Place
+            if matches!(node.kind, RetentionKind::Place | RetentionKind::Tag)
                 && let Some(parent) = node.parent
             {
                 if matches!(
@@ -232,6 +233,33 @@ impl World {
             }
         }
         self.nodes = nodes;
+        Ok(())
+    }
+    fn retain_tags(&self, retained: &mut BTreeSet<Key>) -> Result<(), IntegrityError> {
+        let mut roots: Vec<_> = retained.iter().copied().collect();
+        // Even a read reservation which releases neutral place intermediates needs its tag pin.
+        roots.extend(
+            self.prepared
+                .values()
+                .filter_map(|prepared| match prepared {
+                    Prepared::Reserved { actor, .. } => *actor,
+                    Prepared::Value(_) => None,
+                }),
+        );
+        let mut visited = BTreeSet::new();
+        for root in roots {
+            let mut current = Some(root);
+            while let Some(key) = current {
+                if !visited.insert(key) {
+                    break;
+                }
+                let node = self.nodes.get(&key).ok_or(INVALID)?;
+                if node.kind == RetentionKind::Tag {
+                    retained.insert(key);
+                }
+                current = node.parent;
+            }
+        }
         Ok(())
     }
     fn witness(&self, key: Key, location: Location, live: &Liveness) -> Option<Location> {
@@ -299,6 +327,36 @@ impl World {
         live: &Liveness,
         places: &BTreeSet<Key>,
     ) -> Result<(), Violation> {
+        self.check_region(region, actor, permission, location, live, places, false)
+    }
+    pub fn check_tag(
+        &self,
+        region: &Region,
+        actor: Option<Key>,
+        location: Location,
+        live: &Liveness,
+    ) -> Result<(), Violation> {
+        self.check_region(
+            region,
+            actor,
+            Mode::Read,
+            location,
+            live,
+            &BTreeSet::new(),
+            true,
+        )
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn check_region(
+        &self,
+        region: &Region,
+        actor: Option<Key>,
+        permission: Mode,
+        location: Location,
+        live: &Liveness,
+        places: &BTreeSet<Key>,
+        tag_only: bool,
+    ) -> Result<(), Violation> {
         self.check_lifetime(region, location)?;
         let mut ancestors = BTreeSet::new();
         let mut cursor = actor;
@@ -307,11 +365,19 @@ impl World {
             cursor = self.nodes.get(&key).and_then(|node| node.parent);
         }
         for (&key, node) in &self.nodes {
-            if node.region.overlaps(region)
-                && !ancestors.contains(&key)
-                && !(node.kind == RetentionKind::Place && places.contains(&key))
-                && (permission != Mode::Read || node.kind == RetentionKind::Access(Mode::Update))
-            {
+            if !node.region.overlaps(region) || ancestors.contains(&key) {
+                continue;
+            }
+            if tag_only && node.region.inside_payload(region) {
+                continue;
+            }
+            if node.kind == RetentionKind::Tag && region.inside_payload(&node.region) {
+                continue;
+            }
+            if node.kind == RetentionKind::Place && places.contains(&key) {
+                continue;
+            }
+            if permission != Mode::Read || node.kind == RetentionKind::Access(Mode::Update) {
                 return Err(Violation {
                     location,
                     rule: match permission {

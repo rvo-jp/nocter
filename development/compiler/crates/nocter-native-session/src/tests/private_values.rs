@@ -622,6 +622,14 @@ fn private_optional_absence_assertions_trap_before_payload_reads_and_without_unw
             "unit-absent",
             "func run(): i32 { let value: void? = none\nlet _ = value!\n42 }",
         ),
+        (
+            "scoped-empty-optional-array",
+            "func observe(value: error): void {}\nfunc run(): i32 { let values: [error?; 0] = []\nobserve(values[0]!)\n42 }",
+        ),
+        (
+            "scoped-bounds-before-exit",
+            "func observe(value: i32, other: i32): i32 { value }\nfunc run(): i32 { let values: [i32?; 1] = [none]\nobserve(values[1]!, if true { return 42 } else { 0 }) }",
+        ),
     ] {
         execute_native_signal(&compile(source), &package.0, name, 5);
     }
@@ -642,4 +650,14 @@ fn private_optional_propagation_preserves_carriers_layers_and_call_cancellation(
     ));
     let package = TempPackage::new();
     execute_native_status(&compile(source), &package.0, "optional-propagation", 42);
+}
+
+#[test]
+fn private_optional_places_edit_existing_payloads_with_stable_tags_and_saved_indices() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/optional-places.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "optional-places", 42);
 }

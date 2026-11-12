@@ -173,3 +173,65 @@ fn propagation_cannot_invent_a_return_layer_or_reuse_a_transferred_carrier() {
         );
     }
 }
+
+#[test]
+fn scoped_optional_edit_targets_the_existing_payload_instead_of_a_copy() {
+    assert_eq!(
+        answer(
+            "const func set(edit value: i32): void { value = 42 }\nconst func run(): i32 { var value: i32? = 1\nset(value!)\nvalue! }\nconst ANSWER: i32 = run()",
+            "ANSWER"
+        ),
+        Datum::integer(42)
+    );
+}
+
+#[test]
+fn scoped_optional_places_preserve_payload_identity_authority_and_saved_indices() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/optional-places.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
+}
+#[test]
+fn live_optional_payload_places_prevent_stale_tag_access_and_owner_retirement() {
+    for body in [
+        "read payload = value!\nvalue = none\npayload",
+        "observe(value!, clear(value))",
+        "observe(value!, change(value!))",
+        "read payload = value!\nlet moved = value^\npayload",
+    ] {
+        let source = format!(
+            "func clear(edit value: i32?): i32 {{ value = none\n0 }}\nfunc change(edit value: i32): i32 {{ value = 42\n0 }}\nfunc observe(value: i32, ignored: i32): i32 {{ value }}\nfunc run(): i32 {{ var value: i32? = 42\n{body} }}"
+        );
+        let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+        assert!(
+            matches!(
+                SourceUnit::prepare(fixture.syntax()),
+                Err(SourceFailure::Checking(Failure::Flow { .. }))
+            ),
+            "{source}"
+        );
+    }
+}
+#[test]
+fn scoped_optional_places_cannot_manufacture_update_authority_or_surviving_temporary_owners() {
+    for source in [
+        "func set(edit value: i32): void { value = 42 }\nfunc run(value: i32?): void { set(value!) }",
+        "func run(): void { let value: i32? = 42\nedit payload = value! }",
+        "func make(): i32? { 42 }\nfunc run(): void { read payload = make()! }",
+        "func run(value: i32?): i32? { read payload = value?\npayload }",
+    ] {
+        let fixture = nocter_test_support::ValueSourceFixture::new(source);
+        assert!(
+            matches!(
+                SourceUnit::prepare(fixture.syntax()),
+                Err(SourceFailure::Checking(Failure::Body {
+                    failure: BodyFailure::Rejected(_),
+                    ..
+                }))
+            ),
+            "{source}"
+        );
+    }
+}

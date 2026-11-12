@@ -419,12 +419,7 @@ fn operation(program: &Program, plan: &super::Plan, op: &Operation) -> Result<()
             }
             Ok(())
         }
-        Operation::RequirePrimary { source } => {
-            if !matches!(program.types.get(data(source)?), Some(Type::Optional(_))) {
-                return Err(INVALID);
-            }
-            Ok(())
-        }
+        Operation::RequirePrimary { source, view } => require_primary(program, plan, source, *view),
         Operation::Copy {
             destination,
             source,
@@ -465,6 +460,24 @@ fn operation(program: &Program, plan: &super::Plan, op: &Operation) -> Result<()
             inputs,
         } => call(program, plan, *destination, *target, inputs),
     }
+}
+fn require_primary(
+    program: &Program,
+    plan: &super::Plan,
+    source: &Place,
+    view: Option<usize>,
+) -> Result<()> {
+    let data = place(program, plan, source)?;
+    if let Some(view) = view {
+        let slot = ordinary_slot(plan, view)?;
+        if slot.storage != Storage::Alias || slot.data != data {
+            return Err(INVALID);
+        }
+    }
+    if !matches!(program.types.get(data), Some(Type::Optional(_))) {
+        return Err(INVALID);
+    }
+    Ok(())
 }
 fn compare_operation(
     program: &Program,

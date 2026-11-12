@@ -206,7 +206,7 @@ impl Checker<'_, '_> {
             plans.push(self.input_plan(self.first_child(node)?, value, expected, None)?);
         }
         for (syntax, expected) in arguments.into_iter().zip(contract.inputs) {
-            let value = self.input_expression(syntax, expected.data, reachable && continues)?;
+            let value = self.input_expression(syntax, expected, reachable && continues)?;
             continues &= self.ty(value).may_complete();
             plans.push(self.prepare_input(syntax, value, expected)?);
         }

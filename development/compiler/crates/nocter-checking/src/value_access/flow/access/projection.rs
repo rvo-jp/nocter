@@ -111,19 +111,25 @@ impl Context<'_, '_> {
                     Creation::Action(at) => self.origin(at)?,
                 };
                 notes.push(DiagnosticNote::new(
-                    if retained.kind == RetentionKind::Place {
-                        "the evaluated place is retained here"
-                    } else {
-                        "the retained access or reservation starts here"
+                    match retained.kind {
+                        RetentionKind::Place => "the evaluated place is retained here",
+                        RetentionKind::Tag => {
+                            "this payload projection keeps its carrier tag stable"
+                        }
+                        RetentionKind::Access(_) => {
+                            "the retained access or reservation starts here"
+                        }
                     },
                     source_origin(syntax, origin)?,
                 ));
                 if let Some(at) = retained.required {
                     notes.push(DiagnosticNote::new(
-                        if retained.kind == RetentionKind::Place {
-                            "this operation still requires that place"
-                        } else {
-                            "this operation still requires that access"
+                        match retained.kind {
+                            RetentionKind::Place => "this operation still requires that place",
+                            RetentionKind::Tag => {
+                                "this operation still requires the active payload"
+                            }
+                            RetentionKind::Access(_) => "this operation still requires that access",
                         },
                         source_origin(syntax, self.origin(at)?)?,
                     ));

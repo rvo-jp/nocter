@@ -194,10 +194,11 @@ impl Checker<'_, '_> {
     pub fn member_value(
         &mut self,
         node: NodeId,
+        projection: Option<Mode>,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
         if self.first_array_index(node)?.is_some() {
-            return self.postfix_value(node, reachable);
+            return self.postfix_value(node, projection, reachable);
         }
         let (root, members) = self.selection(node)?;
         if let Some(name) = self.name_token(root)?
@@ -206,7 +207,7 @@ impl Checker<'_, '_> {
             let place = self.member_place(base, &members)?;
             return self.emit_place(node, place);
         }
-        let source = self.expression(root, None, reachable)?;
+        let source = self.expression_with_projection(root, None, None, projection, reachable)?;
         self.component_value(node, source, &members)
     }
     pub(super) fn component_value(
@@ -279,11 +280,18 @@ impl Checker<'_, '_> {
         &mut self,
         node: NodeId,
         rule: Rule,
+        mode: Mode,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
         let node = self.unwrap(node)?;
-        if self.first_array_index(node)?.is_some() {
-            let value = self.expression(node, None, reachable)?;
+        let mut root = node;
+        while self.kind(root)? == NodeKind::PostfixExpression {
+            root = self.unwrap(self.first_child(root)?)?;
+        }
+        if self.first_array_index(node)?.is_some()
+            || self.kind(root)? == NodeKind::OutcomeExpression
+        {
+            let value = self.expression_with_projection(node, None, None, Some(mode), reachable)?;
             if self.expression_referent(value).is_none() {
                 return self.reject(rule, node);
             }

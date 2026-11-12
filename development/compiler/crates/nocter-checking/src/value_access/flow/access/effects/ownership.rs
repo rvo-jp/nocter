@@ -242,9 +242,11 @@ impl Context<'_, '_> {
                 action: crate::value_access::IndexAction::Access,
                 ..
             }
+            | ExpressionKind::GuardView { .. }
             | ExpressionKind::Place(_)
             | ExpressionKind::Boundary { .. } => {}
-            ExpressionKind::Block { .. }
+            ExpressionKind::Scoped { .. }
+            | ExpressionKind::Block { .. }
             | ExpressionKind::If { .. }
             | ExpressionKind::Call { .. } => {
                 return Err(Failure::Integrity);

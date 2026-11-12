@@ -1,0 +1,41 @@
+struct Pair { first: i32
+    second: i32 }
+const func set(edit value: i32): void { value = 42 }
+const func change(edit value: i32): i32 { value = 42
+    0 }
+const func observe(value: i32, ignored: i32): i32 { value }
+const func direct(): i32 { var value: i32? = 1
+    set(value!)
+    value! }
+const func later_payload_read(): i32 { var value: i32? = 42
+    observe(value!, observe(value!, 0)) }
+const func edit_alias(): i32 { var value: i32? = 1
+    edit payload = value!
+    payload = 42
+    let answer = payload
+    value = none
+    answer }
+const func readonly(value: Pair?): i32 { read payload = value!
+    payload.first }
+const func records(): i32 { var value: Pair? = Pair { first: 1, second: 21 }
+    edit first = (value!).first
+    read second = (value!).second
+    first = 21
+    let answer = first + second
+    let moved = value^!
+    if moved.first == 21 { answer } else { 0 } }
+const func nested(): i32 { var value: i32?? = 1
+    set((value!)!)
+    (value!)! }
+const func saved_index(): i32 { var values: [i32?; 2] = [21, 7]
+    var index: usize = 0
+    edit selected = values[index]!
+    index = 1
+    selected += 21
+    values[0]! }
+const func calculate(): i32 {
+    let value: Pair? = Pair { first: 42, second: 0 }
+    if direct() == 42 && later_payload_read() == 42 && edit_alias() == 42 && readonly(value) == 42 && records() == 42 && nested() == 42 && saved_index() == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { if ANSWER == 42 { calculate() } else { 0 } }

@@ -45,6 +45,19 @@ impl Region {
             .fields
             .concat(&crate::value_access::paths::known(fields));
     }
+    fn inside_payload(&self, carrier: &Self) -> bool {
+        self.root == carrier.root
+            && [true, false].into_iter().any(|primary| {
+                let mut payload = carrier.clone();
+                payload.project(&FieldPath::new([nocter_model::ValueField::Variant(
+                    primary,
+                )]));
+                matches!(
+                    crate::value_access::paths::relation(&payload.fields, &self.fields),
+                    PathRelation::Equal | PathRelation::Ancestor
+                )
+            })
+    }
     fn overlaps(&self, other: &Self) -> bool {
         self.root == other.root
             && crate::value_access::paths::relation(&self.fields, &other.fields)
@@ -61,6 +74,8 @@ pub enum Creation {
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum RetentionKind {
     Place,
+    /// A retained active tag: payload access remains delegated to the parent authority.
+    Tag,
     Access(ValueAccessMode),
 }
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]

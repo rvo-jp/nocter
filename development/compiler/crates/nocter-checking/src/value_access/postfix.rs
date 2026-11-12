@@ -1,12 +1,13 @@
 //! Prepare a postfix spine iteratively; operands retain the ordinary source-order boundaries.
 use super::{Failure, Rule, checker::Checker};
-use nocter_model::AccessExpressionId;
+use nocter_model::{AccessExpressionId, ValueAccessMode};
 use nocter_syntax::{NodeId, NodeKind};
 
 impl Checker<'_, '_> {
     pub(super) fn postfix_value(
         &mut self,
         node: NodeId,
+        projection: Option<ValueAccessMode>,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
         let mut spine = Vec::new();
@@ -39,7 +40,7 @@ impl Checker<'_, '_> {
             suffix.is_none_or(|suffix| !matches!(self.kind(suffix), Ok(NodeKind::MemberSuffix)))
         });
         let Some(first) = first else {
-            return self.member_value(node, reachable);
+            return self.member_value(node, projection, reachable);
         };
         // Keep a static member prefix as one selected place. Its siblings must not acquire
         // a complete-parent read. A leading authored direct call also stays a direct call.
@@ -49,7 +50,13 @@ impl Checker<'_, '_> {
         let mut value = if initial_call {
             self.call(head, reachable)?
         } else {
-            self.expression(base, None, reachable)?
+            let projection = projection.filter(|_| {
+                !spine.iter().any(|(_, _, suffix)| {
+                    suffix
+                        .is_none_or(|suffix| matches!(self.kind(suffix), Ok(NodeKind::CallSuffix)))
+                })
+            });
+            self.expression_with_projection(base, None, None, projection, reachable)?
         };
         let mut pending = spine
             .into_iter()

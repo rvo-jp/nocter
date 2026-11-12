@@ -79,25 +79,76 @@ impl Checker<'_, '_> {
     pub(super) fn outcome(
         &mut self,
         node: NodeId,
+        projection: Option<Mode>,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
         let propagate = nocter_syntax::direct_token_iter(self.syntax().tree(), node).any(|token| {
             token.kind()
                 == nocter_syntax::TokenKind::Punctuation(nocter_syntax::Punctuation::Question)
         });
+        if matches!(projection, Some(Mode::Read | Mode::Update)) {
+            let child = self.first_child(node)?;
+            let source =
+                self.expression_with_projection(child, None, None, projection, reachable)?;
+            if let Some(place) = self.expression_referent(source) {
+                if propagate {
+                    return self.reject_message(
+                        Rule::TypeMismatch,
+                        node,
+                        "scoped optional propagation is not available yet".into(),
+                        Vec::new(),
+                    );
+                }
+                let Some(access) = self.ty(source).access() else {
+                    return self.reject(Rule::TypeMismatch, node);
+                };
+                let Some(PayloadSchema::Optional(payload)) =
+                    self.program().data_schema(access.data())
+                else {
+                    return self.reject(Rule::TypeMismatch, node);
+                };
+                if projection == Some(Mode::Update) {
+                    self.require_writable_referent(place, node, Rule::InvalidUpdate)?;
+                }
+                let guard = self.emit(
+                    node,
+                    value_type(access.data(), Mode::Read),
+                    ExpressionKind::GuardView { source: place },
+                )?;
+                let projected = self.emit(
+                    node,
+                    value_type(payload, Mode::Read),
+                    ExpressionKind::Select {
+                        source: guard,
+                        fields: FieldPath::new([ValueField::Variant(true)]),
+                        action: SelectionAction::Access,
+                    },
+                )?;
+                return self.emit(
+                    node,
+                    value_type(payload, Mode::Read)
+                        .with_continuation(self.ty(source).may_complete()),
+                    ExpressionKind::Scoped { source, projected },
+                );
+            }
+            // Reuse the already checked produced value rather than preparing it twice.
+            return if propagate {
+                self.propagate_optional_source(node, source)
+            } else {
+                self.require_optional_source(node, source)
+            };
+        }
         if propagate {
             self.propagate_optional(node, reachable)
         } else {
             self.require_optional(node, reachable)
         }
     }
-    fn optional_carrier(
+    fn supply_optional(
         &mut self,
         node: NodeId,
-        reachable: bool,
+        source: AccessExpressionId,
     ) -> Result<(AccessExpressionId, TypeId, TypeId), Failure> {
-        let child = self.first_child(node)?;
-        let source = self.expression(child, None, reachable)?;
         let Some(access) = self.ty(source).access() else {
             return self.reject(Rule::TypeMismatch, node);
         };
@@ -113,7 +164,16 @@ impl Checker<'_, '_> {
         node: NodeId,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
-        let (source, data, payload) = self.optional_carrier(node, reachable)?;
+        let child = self.first_child(node)?;
+        let source = self.expression(child, None, reachable)?;
+        self.require_optional_source(node, source)
+    }
+    fn require_optional_source(
+        &mut self,
+        node: NodeId,
+        source: AccessExpressionId,
+    ) -> Result<AccessExpressionId, Failure> {
+        let (source, data, payload) = self.supply_optional(node, source)?;
         let required = self.emit(
             node,
             value_type(data, Mode::Own).with_continuation(self.ty(source).may_complete()),
@@ -150,6 +210,15 @@ impl Checker<'_, '_> {
         node: NodeId,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
+        let child = self.first_child(node)?;
+        let source = self.expression(child, None, reachable)?;
+        self.propagate_optional_source(node, source)
+    }
+    fn propagate_optional_source(
+        &mut self,
+        node: NodeId,
+        source: AccessExpressionId,
+    ) -> Result<AccessExpressionId, Failure> {
         use super::ir::{Local, LocalOrigin, Statement, ValueType};
         use nocter_model::{BuiltinType, ValueBindingKind};
         if matches!(self.code, nocter_model::ValueCode::Expression(_))
@@ -169,7 +238,7 @@ impl Checker<'_, '_> {
                 Vec::new(),
             );
         }
-        let (source, data, payload) = self.optional_carrier(node, reachable)?;
+        let (source, data, payload) = self.supply_optional(node, source)?;
         let local = self.locals.insert(Local {
             data,
             kind: ValueBindingKind::FixedValue,

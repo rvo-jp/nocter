@@ -28,13 +28,19 @@ impl Checker<'_, '_> {
     pub fn input_expression(
         &mut self,
         node: NodeId,
-        data: nocter_model::TypeId,
+        input: nocter_declarations::value_access::FunctionInput,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
         // A selected contract can complete anonymous inputs/results without turning its
         // formal witness into the concrete value identity expected by ordinary boundaries.
-        let hint = self.contextual_type(data)?;
-        self.expression_with_hint(node, Some(&hint), None, reachable)
+        let hint = self.contextual_type(input.data)?;
+        self.expression_with_projection(
+            node,
+            Some(&hint),
+            None,
+            Some(input.operation.access_mode()),
+            reachable,
+        )
     }
     pub(super) fn expression_with_context(
         &mut self,
@@ -53,6 +59,22 @@ impl Checker<'_, '_> {
         expected: Option<Boundary>,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
+        self.expression_with_projection(
+            node,
+            context,
+            expected,
+            expected.map(|boundary| boundary.ty().mode()),
+            reachable,
+        )
+    }
+    pub(super) fn expression_with_projection(
+        &mut self,
+        node: NodeId,
+        context: Option<&Annotation>,
+        expected: Option<Boundary>,
+        projection: Option<Mode>,
+        reachable: bool,
+    ) -> Result<AccessExpressionId, Failure> {
         let data_hint = context.and_then(Annotation::data);
         let hint = data_hint.map(|data| self.optional_payload(data));
         let node = self.unwrap(node)?;
@@ -64,7 +86,7 @@ impl Checker<'_, '_> {
                 self.absent(node, data_hint)?
             }
             NodeKind::ScalarLiteral => self.literal(node, false, hint)?,
-            NodeKind::OutcomeExpression => self.outcome(node, reachable)?,
+            NodeKind::OutcomeExpression => self.outcome(node, projection, reachable)?,
             NodeKind::UnitExpression => self.unit(node)?,
             NodeKind::TransferExpression => self.transfer(node, reachable)?,
             NodeKind::ClosureExpression => {
@@ -87,7 +109,7 @@ impl Checker<'_, '_> {
             | NodeKind::OrderingExpression
             | NodeKind::AdditiveExpression
             | NodeKind::MultiplicativeExpression => self.binary(node, hint, reachable)?,
-            NodeKind::PostfixExpression => self.postfix_value(node, reachable)?,
+            NodeKind::PostfixExpression => self.postfix_value(node, projection, reachable)?,
             NodeKind::IfExpression => {
                 return self.if_expression(
                     node,
