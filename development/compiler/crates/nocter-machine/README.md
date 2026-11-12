@@ -141,6 +141,9 @@ qualify skipping inactive error cleanup; they do not establish source constructi
 of an owned error graph. Native source qualifies success construction/propagation and scoped
 assertion through the same result transport, with separate absence/bounds traps before an
 inactive fallible payload can be read.
+Recovery success paths also qualify lazy handlers, preserved original-storage update and ordered
+optional/fallible recovery. Alternate access guards use the requested tag through the same
+non-unwinding branch protocol. Executed failure handlers still require actual error production.
 
 Layout and cleanup dependency discovery use iterative work over the same actual schema requests,
 retaining positive-cycle rejection and empty-array/pointer cuts. Flat optional suffix depth does

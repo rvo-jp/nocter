@@ -9,7 +9,7 @@ pub enum Rule {
     InvalidPlan,
     ArithmeticFailure,
     IndexOutOfBounds,
-    AbsentValue,
+    InactiveVariant,
     StepLimit,
     CallDepthLimit,
     StorageLimit,
@@ -298,8 +298,12 @@ impl<'a, 'budget> Executor<'a, 'budget> {
     fn operation(&mut self, frame: usize, op: &Operation, taken: &[Option<Value>]) -> Result<()> {
         let (destination, value) = match op {
             Operation::None => return Ok(()),
-            Operation::RequirePrimary { source, view } => {
-                self.require_primary(frame, source)?;
+            Operation::RequireVariant {
+                source,
+                primary,
+                view,
+            } => {
+                self.require_variant(frame, source, *primary)?;
                 if let Some(destination) = view {
                     let address = self.memory.address(frame, source)?;
                     self.bind_alias(frame, *destination, address)?;
@@ -418,14 +422,14 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         };
         self.write(frame, &Place::root(destination), value)
     }
-    fn require_primary(&self, frame: usize, source: &Place) -> Result<()> {
+    fn require_variant(&self, frame: usize, source: &Place, expected: bool) -> Result<()> {
         if matches!(
             self.read(frame, source)?.data(),
-            Data::Variant { primary: true, .. }
+            Data::Variant { primary, .. } if *primary == expected
         ) {
             Ok(())
         } else {
-            Err(Rule::AbsentValue)
+            Err(Rule::InactiveVariant)
         }
     }
     fn repeated(&self, frame: usize, destination: usize, source: &Place) -> Result<Value> {

@@ -22,15 +22,26 @@ fn parse_expression(
     let mut left = binary(parser, boundary, 0, allow_braces);
     loop {
         newline::before(parser, boundary, |kind| {
-            kind == TokenKind::Keyword(Keyword::Otherwise)
+            matches!(
+                kind,
+                TokenKind::Keyword(Keyword::Otherwise | Keyword::Catch)
+            )
         });
-        if !parser.at_keyword(Keyword::Otherwise) {
+        if !matches!(
+            parser.current_kind(),
+            TokenKind::Keyword(Keyword::Otherwise | Keyword::Catch)
+        ) {
             break;
         }
         let parent = parser.precede(left.completed);
         let clause = parser.start();
+        let catch = parser.at_keyword(Keyword::Catch);
         parser.bump();
         newline::after_incomplete(parser, boundary);
+        if catch {
+            parser.expect_name_or_discard();
+            newline::after_incomplete(parser, boundary);
+        }
         super::required_block(parser);
         parser.complete(clause, NodeKind::RecoveryClause);
         left = Expression {

@@ -107,11 +107,12 @@ impl Builder<'_> {
                     destination,
                 }
             }
-            ExpressionKind::GuardView { source } => {
+            ExpressionKind::GuardView { source, primary } => {
                 let source = self.referent(source, destination.data)?;
                 return Ok(vec![
-                    Operation::RequirePrimary {
+                    Operation::RequireVariant {
                         source: source.clone(),
+                        primary,
                     },
                     Operation::Storage(Effect::BindAddress {
                         destination: destination.slot,
@@ -119,8 +120,9 @@ impl Builder<'_> {
                     }),
                 ]);
             }
-            ExpressionKind::RequirePrimary { source } => Operation::RequirePrimary {
+            ExpressionKind::RequirePrimary { source } => Operation::RequireVariant {
                 source: self.value(source)?,
+                primary: true,
             },
             ExpressionKind::Constant(value) => Operation::Frozen { destination, value },
             ExpressionKind::Integer(value) => Operation::Constant {

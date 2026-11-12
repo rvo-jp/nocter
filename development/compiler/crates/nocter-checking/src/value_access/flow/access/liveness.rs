@@ -296,7 +296,7 @@ fn expression_uses(
         ExpressionKind::Place(place) => {
             uses.push((Carrier::Local(root(typed, place)?), update));
         }
-        ExpressionKind::PrimaryCondition { source } | ExpressionKind::GuardView { source } => {
+        ExpressionKind::PrimaryCondition { source } | ExpressionKind::GuardView { source, .. } => {
             uses.push((referent_carrier(typed, source)?, update));
         }
         ExpressionKind::Move(place) => {

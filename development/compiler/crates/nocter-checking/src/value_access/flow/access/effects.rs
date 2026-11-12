@@ -377,7 +377,7 @@ impl Context<'_, '_> {
                 self.write(&region, actor, Mode::Own, None)?;
                 Ok(Value::without_referent(Mode::Own))
             }
-            ExpressionKind::GuardView { source } => self.create_node(
+            ExpressionKind::GuardView { source, .. } => self.create_node(
                 Key::Expression(id),
                 self.referent(source)?,
                 RetentionKind::Tag,

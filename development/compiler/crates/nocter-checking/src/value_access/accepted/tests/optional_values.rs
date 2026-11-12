@@ -21,7 +21,7 @@ fn optional_absence_is_not_a_present_wrapper_and_assertion_failure_has_its_sourc
     ] {
         let fixture = nocter_test_support::ValueSourceFixture::new(source);
         assert!(
-            matches!(SourceUnit::prepare(fixture.syntax()), Err(SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })) if diagnostic.rule() == crate::value_access::evaluation::Rule::Execution(nocter_constant_evaluation::state::Rule::AbsentValue)),
+            matches!(SourceUnit::prepare(fixture.syntax()), Err(SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })) if diagnostic.rule() == crate::value_access::evaluation::Rule::Execution(nocter_constant_evaluation::state::Rule::InactiveVariant)),
             "{source}"
         );
     }
@@ -144,7 +144,7 @@ fn optional_propagation_preserves_absence_and_chooses_the_outermost_result_layer
         assert!(
             matches!(SourceUnit::prepare(fixture.syntax()),
             Err(SourceFailure::Checking(Failure::Evaluation { diagnostic, .. }))
-                if diagnostic.rule() == crate::value_access::evaluation::Rule::Execution(nocter_constant_evaluation::state::Rule::AbsentValue)),
+                if diagnostic.rule() == crate::value_access::evaluation::Rule::Execution(nocter_constant_evaluation::state::Rule::InactiveVariant)),
             "{source}"
         );
     }

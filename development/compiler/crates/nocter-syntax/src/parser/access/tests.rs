@@ -464,3 +464,26 @@ fn throw_requires_an_operand_and_uses_ordinary_incomplete_statement_continuation
         assert!(tree(&text, ParseGoal::V2CoreUnit).has_errors(), "{text}");
     }
 }
+
+#[test]
+fn catch_requires_a_named_or_discard_handler_and_chains_in_source_order() {
+    for expression in [
+        "operation() catch failure { 42 }",
+        "operation() catch _ { 42 }",
+        "operation()\ncatch failure { 42 } otherwise { 0 }",
+        "operation() otherwise { 42 } catch failure { 0 }",
+    ] {
+        let text = format!("func run(): i32 {{ {expression} }}");
+        let parsed = tree(&text, ParseGoal::V2CoreUnit);
+        assert!(!parsed.has_errors(), "{text}: {:?}", parsed.diagnostics());
+        super::super::snapshots::assert_token_projection(&parsed, &text);
+    }
+    for expression in [
+        "operation() catch { 42 }",
+        "operation() catch failure",
+        "operation() catch failure other { 42 }",
+    ] {
+        let text = format!("func run(): i32 {{ {expression} }}");
+        assert!(tree(&text, ParseGoal::V2CoreUnit).has_errors(), "{text}");
+    }
+}

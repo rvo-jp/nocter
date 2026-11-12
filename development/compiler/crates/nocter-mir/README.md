@@ -76,8 +76,9 @@ ownership analysis. The common Machine consumer lowers these closed bodies witho
 MirProgram conversion.
 
 Outcome assembly freezes payload transfers followed by a `VariantTag` effect and initialization
-in the same lifecycle phase, including wrappers materialized at call commit. `RequirePrimary` is
-a separate tag guard before selecting the payload; it supplies no ownership or unwind edge.
+in the same lifecycle phase, including wrappers materialized at call commit. `RequireVariant` is
+a separate guard for the exact primary/alternate tag before selecting the payload; it supplies
+no ownership or unwind edge.
 `PrimaryCondition` produces a Boolean from a stored carrier, leaving propagation's branches,
 returns and cleanup in the same ordinary closed graph. Scoped assertions place a normal address
 binding after the successful guard; their payload selection never copies the carrier or acquires

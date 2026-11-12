@@ -291,9 +291,9 @@ fn primary_conditions_observe_only_the_tag_and_reject_incompatible_operand_roles
 
 #[test]
 #[allow(clippy::too_many_lines)]
-fn guarded_optional_aliases_bind_only_after_presence_and_release_partial_work_on_failure() {
+fn guarded_optional_aliases_bind_only_matching_variants_and_release_partial_work_on_failure() {
     let (root, _) = code_ids();
-    for primary in [false, true] {
+    for (primary, expected) in [(false, false), (false, true), (true, false), (true, true)] {
         let mut plan = literal();
         plan.slots = vec![
             Slot {
@@ -320,7 +320,8 @@ fn guarded_optional_aliases_bind_only_after_presence_and_release_partial_work_on
             let mut actions = point.actions.to_vec();
             let owned = BTreeMap::from([(0, Box::new([]) as Box<[Missing]>)]);
             actions.push(Action {
-                operation: Operation::RequirePrimary {
+                operation: Operation::RequireVariant {
+                    primary: expected,
                     source: Place::root(0),
                     view: Some(1),
                 },
@@ -332,12 +333,19 @@ fn guarded_optional_aliases_bind_only_after_presence_and_release_partial_work_on
                 .into(),
             });
             actions.push(Action {
-                operation: Operation::Copy {
-                    destination: Place::root(2),
-                    source: Place {
-                        slot: 1,
-                        fields: vec![0].into(),
-                    },
+                operation: if expected {
+                    Operation::Copy {
+                        destination: Place::root(2),
+                        source: Place {
+                            slot: 1,
+                            fields: vec![0].into(),
+                        },
+                    }
+                } else {
+                    Operation::Literal {
+                        destination: 2,
+                        value: Value::integer(42),
+                    }
                 },
                 alternatives: vec![Alternative {
                     owned,
@@ -371,14 +379,14 @@ fn guarded_optional_aliases_bind_only_after_presence_and_release_partial_work_on
                 budget.restart_work();
                 match Executor::new(&program, &mut budget, 0).evaluate_initializer(root) {
                     Ok(value) => {
-                        assert!(primary);
+                        assert_eq!(primary, expected);
                         assert_eq!(value, Value::integer(42));
                         reached_guard = true;
                     }
                     Err(error) if error.rule == Rule::StorageLimit => exhausted = true,
                     Err(error) => {
-                        assert!(!primary);
-                        assert_eq!(error.rule, Rule::AbsentValue);
+                        assert_ne!(primary, expected);
+                        assert_eq!(error.rule, Rule::InactiveVariant);
                         reached_guard = true;
                     }
                 }
@@ -390,7 +398,8 @@ fn guarded_optional_aliases_bind_only_after_presence_and_release_partial_work_on
             let mut invalid = plan.clone();
             invalid.points = invalid.points.map(|_, original| {
                 let mut point = original.clone();
-                point.actions[1].operation = Operation::RequirePrimary {
+                point.actions[1].operation = Operation::RequireVariant {
+                    primary: expected,
                     source: Place::root(0),
                     view: Some(view),
                 };

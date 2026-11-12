@@ -419,7 +419,9 @@ fn operation(program: &Program, plan: &super::Plan, op: &Operation) -> Result<()
             }
             Ok(())
         }
-        Operation::RequirePrimary { source, view } => require_primary(program, plan, source, *view),
+        Operation::RequireVariant { source, view, .. } => {
+            variant_view(program, plan, source, *view)
+        }
         Operation::Copy {
             destination,
             source,
@@ -461,7 +463,7 @@ fn operation(program: &Program, plan: &super::Plan, op: &Operation) -> Result<()
         } => call(program, plan, *destination, *target, inputs),
     }
 }
-fn require_primary(
+fn variant_view(
     program: &Program,
     plan: &super::Plan,
     source: &Place,

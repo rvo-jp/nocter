@@ -123,7 +123,7 @@ impl Referent {
             }
             let mut blocks = Vec::new();
             let source = match &value.kind {
-                ExpressionKind::GuardView { source } => {
+                ExpressionKind::GuardView { source, .. } => {
                     pending.push((*source, suffixes));
                     continue;
                 }

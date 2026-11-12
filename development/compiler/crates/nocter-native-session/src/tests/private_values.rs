@@ -769,3 +769,13 @@ fn private_inactive_fallible_payloads_keep_absence_and_bounds_traps() {
         execute_native_signal(&compile(source), &package.0, name, 5);
     }
 }
+
+#[test]
+fn private_fallible_recovery_success_keeps_handlers_lazy_and_projects_original_storage() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/fallible-recovery.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "fallible-recovery", 42);
+}

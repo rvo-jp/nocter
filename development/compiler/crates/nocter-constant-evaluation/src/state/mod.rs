@@ -174,8 +174,9 @@ pub enum Operation {
         source: Place,
         destination: usize,
     },
-    RequirePrimary {
+    RequireVariant {
         source: Place,
+        primary: bool,
         view: Option<usize>,
     },
     /// A source-proven terminal bounds failure, after all preceding operand effects.

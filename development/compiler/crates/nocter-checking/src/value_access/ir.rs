@@ -326,6 +326,7 @@ pub enum ExpressionKind {
     /// Check and retain the active tag of an already formed carrier place.
     GuardView {
         source: Referent,
+        primary: bool,
     },
     /// An ordinary lexical value scope, including compiler-generated outcome expansion.
     Block {

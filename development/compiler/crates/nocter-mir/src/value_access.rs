@@ -151,13 +151,14 @@ pub struct Call {
 pub enum Operation {
     /// A terminal source bounds failure; no element payload or selected address exists.
     BoundsTrap,
-    /// Safety-trap if a supplied optional carrier has no payload.
+    /// Observe the stored tag without consuming the carrier.
     PrimaryCondition {
         source: Place,
         destination: Place,
     },
-    RequirePrimary {
+    RequireVariant {
         source: Place,
+        primary: bool,
     },
     Frozen {
         destination: Place,

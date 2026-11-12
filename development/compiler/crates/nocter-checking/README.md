@@ -564,7 +564,7 @@ Copy, trivial cleanup or empty D/S. Owning formals retain a symbolic environment
 tied to their witness. The producer domain also admits the bounded owned-environment schema described below;
 general retained footprints and concrete executable witness specialization remain separate obligations. Dependent aggregates,
 user destructors, capabilities, general captured environments, nested callback contracts, generics,
-fallible recovery and actual error-data construction, async and regions require their own later schemas/validation.
+actual error-data construction, async and regions require their own later schemas/validation.
 
 The source/body goal admits closed record/tuple data and local/input-rooted component selections through
 this same typing, initialization, access and resource path. Source integration tests assert exact
@@ -598,7 +598,7 @@ source-version CLI or general D/S solver. The
 qualification; remaining work belongs in the [realization plan](../../../design/compiler-realization.md),
 not a duplicate crate-internal status table.
 
-## Optional Values
+## Outcome Values
 
 `outcomes` owns contextual `none` and presence construction, preserving exact data forwarding
 before adding optional/success layers. Payload readiness and Copy use the declaration authority;
@@ -657,7 +657,17 @@ and complete-bundle validation. Normal completion, cancellation and frame exit c
 access before destroying its backing. Handler-local destruction still precedes delivery; an
 explicitly acquired local result can become the bounded temporary. Strict named-alias demands
 cannot create such backing or upgrade a read-only existing branch. These facts add no runtime
-owner table or physical payload move. Fallible recovery remains outside this qualified path.
+owner table or physical payload move.
+
+`outcomes::recovery` owns both local recovery clauses through that same carrier, branch and
+scope protocol. A value `catch` selects an owned error into a fixed handler local; ordinary
+result forwarding protects its answer before handler cleanup. Owning `catch _` discards the
+received error before the fallback starts. Scoped `catch` binds a read/edit alias into the
+existing alternate payload and retains its selected tag; scoped `catch _` does not destroy that
+payload. Normal scoped fallbacks must designate compatible surviving places or caller-owned
+bounded temporaries. A handler alias can forward the original carrier's error, but cannot grant
+ownership, escape handler-owned backing or authorize whole-carrier replacement. Guards carry
+their selected variant explicitly through the shared checking/MIR/machine path.
 
 Implicit optional/success input wrappers retain the original direct-transfer reservation. Complete bundle
 validation precedes wrapper materialization and original-source retirement; later reads and
@@ -667,8 +677,11 @@ mismatch. Shared required/native source covers nested absence/presence, void and
 local/static/container storage, captured calls, read/edit/take handoffs and indexed transfers.
 The fallible source fixture additionally qualifies native success construction, exact forwarding,
 owned propagation, unit completion, scoped read/update, and deferred/cancelled implicit success
-input transfer. Fallible required evaluation, actual error creation/graph release and local
-`catch` recovery remain unqualified; inactive error alternatives do not close those obligations.
+input transfer. Recovery source additionally qualifies success-branch laziness, original-storage
+update and nested recovery order. Checking covers owned and scoped failure handlers, error-data
+forwarding, rethrow and suppression obligations. Fallible required evaluation and actual error
+creation/graph release, including executed failure handlers, remain unqualified; inactive error
+alternatives do not close those obligations.
 
 ## Constant-Domain Acceptance
 

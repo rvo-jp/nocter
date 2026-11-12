@@ -614,12 +614,14 @@ impl Builder<'_, '_> {
                 source: self.referent(source)?,
                 destination,
             },
-            ExpressionKind::GuardView { source } => plan::Operation::RequirePrimary {
+            ExpressionKind::GuardView { source, primary } => plan::Operation::RequireVariant {
                 source: self.referent(source)?,
+                primary,
                 view: Some(destination),
             },
-            ExpressionKind::RequirePrimary { source } => plan::Operation::RequirePrimary {
+            ExpressionKind::RequirePrimary { source } => plan::Operation::RequireVariant {
                 source: self.value(source)?,
+                primary: true,
                 view: None,
             },
             ExpressionKind::Repeat { seed } => self.repeat_operation(id, seed, destination)?,

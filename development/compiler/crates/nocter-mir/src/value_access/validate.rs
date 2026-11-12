@@ -343,7 +343,7 @@ impl Context<'_> {
                     ) && self.primitive(destination.data, RuntimePrimitive::Bool),
                 )
             }
-            Operation::RequirePrimary { source } => {
+            Operation::RequireVariant { source, .. } => {
                 self.place(source)?;
                 self.require(matches!(
                     self.program.runtime.types().get(source.data),

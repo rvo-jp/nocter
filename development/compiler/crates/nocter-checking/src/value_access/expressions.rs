@@ -93,7 +93,7 @@ impl Checker<'_, '_> {
             }
             NodeKind::ScalarLiteral => self.literal(node, false, hint)?,
             NodeKind::OutcomeExpression => self.outcome(node, projection, reachable)?,
-            NodeKind::RecoveryExpression => self.recover_optional(node, projection, reachable)?,
+            NodeKind::RecoveryExpression => self.recover_outcome(node, projection, reachable)?,
             NodeKind::UnitExpression => self.unit(node)?,
             NodeKind::TransferExpression => self.transfer(node, reachable)?,
             NodeKind::ClosureExpression => {

@@ -451,10 +451,26 @@ impl<'a> Builder<'a> {
         self.emit(MachineOperationKind::Store { destination, value });
         Ok(())
     }
+    fn constant(&mut self, destination: &mir::Place, value: &mir::Constant) -> Result<(), Failure> {
+        let value = match value {
+            mir::Constant::Integer(value) => MachineConstant::Integer(*value),
+            mir::Constant::Boolean(value) => MachineConstant::Bool(*value),
+            mir::Constant::Zero => return Ok(()),
+        };
+        let value = self.value(
+            destination.data,
+            false,
+            MachineOperationKind::Constant(value),
+        )?;
+        self.store(destination, value)?;
+        Ok(())
+    }
     fn operation(&mut self, operation: &mir::Operation) -> Result<(), Failure> {
         match operation {
             mir::Operation::BoundsTrap => return Err(Self::invalid()),
-            mir::Operation::RequirePrimary { source } => self.require_primary(source)?,
+            mir::Operation::RequireVariant { source, primary } => {
+                self.require_variant(source, *primary)?;
+            }
             mir::Operation::PrimaryCondition {
                 source,
                 destination,
@@ -465,19 +481,7 @@ impl<'a> Builder<'a> {
                 self.emit(MachineOperationKind::Store { destination, value });
             }
             mir::Operation::Frozen { destination, value } => self.frozen(destination, value)?,
-            mir::Operation::Constant { destination, value } => {
-                let value = match value {
-                    mir::Constant::Integer(value) => MachineConstant::Integer(*value),
-                    mir::Constant::Boolean(value) => MachineConstant::Bool(*value),
-                    mir::Constant::Zero => return Ok(()),
-                };
-                let value = self.value(
-                    destination.data,
-                    false,
-                    MachineOperationKind::Constant(value),
-                )?;
-                self.store(destination, value)?;
-            }
+            mir::Operation::Constant { destination, value } => self.constant(destination, value)?,
             mir::Operation::Copy {
                 source,
                 destination,

@@ -30,9 +30,9 @@ impl Rule {
                 DiagnosticCode::E0325,
                 "required constant evaluation encountered invalid checked arithmetic",
             ),
-            Self::Execution(state::Rule::AbsentValue) => (
+            Self::Execution(state::Rule::InactiveVariant) => (
                 DiagnosticCode::E0325,
-                "required constant evaluation asserted the payload of an absent value",
+                "required constant evaluation asserted an inactive outcome variant",
             ),
             Self::Execution(state::Rule::IndexOutOfBounds) => (
                 DiagnosticCode::E0325,

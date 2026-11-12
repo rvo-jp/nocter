@@ -7,6 +7,13 @@ use super::{
 use nocter_declarations::value_access::PayloadSchema;
 use nocter_model::{AccessExpressionId, FieldPath, TypeId, ValueAccessMode as Mode, ValueField};
 use nocter_syntax::NodeId;
+mod recovery;
+struct OwnedOutcome {
+    source: AccessExpressionId,
+    payload: TypeId,
+    binding: nocter_model::AccessStatementId,
+    place: nocter_model::AccessPlaceId,
+}
 impl Checker<'_, '_> {
     pub(super) fn outcome_payload(&self, mut data: TypeId) -> TypeId {
         while let Some(PayloadSchema::Optional(payload) | PayloadSchema::Fallible(payload)) =
@@ -232,8 +239,36 @@ impl Checker<'_, '_> {
         payload: TypeId,
         fallback: Option<nocter_model::AccessBlockId>,
     ) -> Result<AccessExpressionId, Failure> {
+        let owned = self.owned_outcome(node, source, data, payload)?;
+        let else_block = if let Some(block) = fallback {
+            block
+        } else {
+            match self.program().data_schema(data) {
+                Some(PayloadSchema::Optional(_)) => self.absence_return(node)?,
+                Some(PayloadSchema::Fallible(_)) => {
+                    let carrier = self.transfer_place(node, owned.place)?;
+                    let error = self.select_outcome_field(
+                        node,
+                        carrier,
+                        self.data(nocter_model::BuiltinType::Error),
+                        false,
+                    )?;
+                    self.failure_return(node, error)?
+                }
+                _ => return Err(Failure::InconsistentSyntax),
+            }
+        };
+        self.finish_outcome(node, &owned, else_block)
+    }
+    fn owned_outcome(
+        &mut self,
+        node: NodeId,
+        source: AccessExpressionId,
+        data: TypeId,
+        payload: TypeId,
+    ) -> Result<OwnedOutcome, Failure> {
         use super::ir::{Local, LocalOrigin, Statement};
-        use nocter_model::{BuiltinType, ValueBindingKind};
+        use nocter_model::ValueBindingKind;
         let local = self.locals.insert(Local {
             data,
             kind: ValueBindingKind::FixedValue,
@@ -250,38 +285,33 @@ impl Checker<'_, '_> {
             },
         )?;
         let place = self.intern_place(local, FieldPath::default(), data);
-        let else_block = if let Some(block) = fallback {
-            block
-        } else {
-            match self.program().data_schema(data) {
-                Some(PayloadSchema::Optional(_)) => self.absence_return(node)?,
-                Some(PayloadSchema::Fallible(_)) => {
-                    let carrier = self.transfer_place(node, place)?;
-                    let error = self.select_outcome_field(
-                        node,
-                        carrier,
-                        self.data(BuiltinType::Error),
-                        false,
-                    )?;
-                    self.failure_return(node, error)?
-                }
-                _ => return Err(Failure::InconsistentSyntax),
-            }
-        };
+        Ok(OwnedOutcome {
+            source,
+            payload,
+            binding,
+            place,
+        })
+    }
+    fn finish_outcome(
+        &mut self,
+        node: NodeId,
+        owned: &OwnedOutcome,
+        else_block: nocter_model::AccessBlockId,
+    ) -> Result<AccessExpressionId, Failure> {
         let condition = self.emit(
             node,
-            value_type(self.data(BuiltinType::Bool), Mode::Own),
+            value_type(self.data(nocter_model::BuiltinType::Bool), Mode::Own),
             ExpressionKind::PrimaryCondition {
-                source: place.into(),
+                source: owned.place.into(),
             },
         )?;
-        let carrier = self.transfer_place(node, place)?;
-        let present = self.select_outcome_payload(node, carrier, payload)?;
+        let carrier = self.transfer_place(node, owned.place)?;
+        let present = self.select_outcome_payload(node, carrier, owned.payload)?;
         let selected = self.outcome_branch(node, condition, present, else_block)?;
         let ty = self
             .ty(selected)
-            .with_continuation(self.ty(source).may_complete());
-        let block = self.emit_block(node, vec![binding], Some(selected), ty)?;
+            .with_continuation(self.ty(owned.source).may_complete());
+        let block = self.emit_block(node, vec![owned.binding], Some(selected), ty)?;
         self.emit(node, ty, ExpressionKind::Block { block })
     }
     fn outcome_branch(
@@ -387,7 +417,10 @@ impl Checker<'_, '_> {
         let guard = self.emit(
             node,
             value_type(data, Mode::Read),
-            ExpressionKind::GuardView { source: place },
+            ExpressionKind::GuardView {
+                source: place,
+                primary: true,
+            },
         )?;
         let projected = if let Some(else_block) = fallback {
             if self.block_ty(else_block).may_complete() {
@@ -416,75 +449,5 @@ impl Checker<'_, '_> {
                 action: SelectionAction::Access,
             },
         )
-    }
-    pub(super) fn recover_optional(
-        &mut self,
-        node: NodeId,
-        projection: Option<super::ir::Projection>,
-        reachable: bool,
-    ) -> Result<AccessExpressionId, Failure> {
-        use nocter_syntax::NodeKind;
-        let child = self.first_child(node)?;
-        let source = self.expression_with_projection(child, None, None, projection, reachable)?;
-        let Some(access) = self.ty(source).access() else {
-            return self.reject(Rule::TypeMismatch, node);
-        };
-        let Some(PayloadSchema::Optional(payload)) = self.program().data_schema(access.data())
-        else {
-            return self.reject(Rule::TypeMismatch, node);
-        };
-        let clause = self.direct(node, NodeKind::RecoveryClause)?;
-        let block = self.direct(clause, NodeKind::Block)?;
-        let fallback_reachable = reachable && self.ty(source).may_complete();
-        if matches!(
-            projection.map(|request| request.mode),
-            Some(Mode::Read | Mode::Update)
-        ) && let Some(place) = self.expression_referent(source)
-        {
-            if projection.is_some_and(|request| request.mode == Mode::Update) {
-                self.require_writable_referent(place, node, Rule::InvalidUpdate)?;
-            }
-            let fallback = self.block(
-                block,
-                Some({
-                    let request = projection.unwrap();
-                    let access = nocter_model::ValueAccess::new(payload, request.mode);
-                    if request.temporary {
-                        Boundary::Input(access)
-                    } else {
-                        Boundary::Place(access)
-                    }
-                }),
-                fallback_reachable,
-            )?;
-            let guard = self.emit(
-                node,
-                value_type(access.data(), Mode::Read),
-                ExpressionKind::GuardView { source: place },
-            )?;
-            let present = self.emit(
-                node,
-                value_type(payload, Mode::Read),
-                ExpressionKind::Select {
-                    source: guard,
-                    fields: FieldPath::new([ValueField::Variant(true)]),
-                    action: SelectionAction::Access,
-                },
-            )?;
-            let condition = self.emit(
-                node,
-                value_type(self.data(nocter_model::BuiltinType::Bool), Mode::Own),
-                ExpressionKind::PrimaryCondition { source: place },
-            )?;
-            let projected = self.outcome_branch(node, condition, present, fallback)?;
-            return self.emit(
-                node,
-                value_type(payload, Mode::Read).with_continuation(self.ty(source).may_complete()),
-                ExpressionKind::Scoped { source, projected },
-            );
-        }
-        let (source, data, payload) = self.supply_outcome(node, source)?;
-        let fallback = self.block(block, Some(Boundary::Value(payload)), fallback_reachable)?;
-        self.outcome_value_scope(node, source, data, payload, Some(fallback))
     }
 }

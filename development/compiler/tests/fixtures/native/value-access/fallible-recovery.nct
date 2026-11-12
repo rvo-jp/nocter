@@ -1,0 +1,34 @@
+struct Pair { first: i32
+    second: i32 }
+func observe(value: Pair): i32 { value.first }
+func consume(take value: Pair): i32 { value.first }
+func replace(edit value: i32): void { value = 42 }
+func direct(): i32 { let value: i32! = 42
+    value^ catch _ { 0 } }
+func named(): i32 { let value: i32! = 42
+    value^ catch failure { drop failure
+        0 } }
+func lazy(edit count: i32): i32 { let value: i32! = 42
+    value^ catch _ { count = 0
+        0 } }
+func scoped(): i32 { var value: i32! = 1
+    edit payload = value catch failure { return 0 }
+    replace(payload)
+    payload }
+func bounded(): i32 { let value: Pair! = Pair { first: 42, second: 0 }
+    observe(value catch _ { Pair { first: 0, second: 0 } }) }
+func transferred(): i32 { let value: Pair! = Pair { first: 42, second: 0 }
+    consume(value^ catch _ { Pair { first: 0, second: 0 } }) }
+func outer(): i32 { let value: i32?! = 42
+    value^ catch _ { none } otherwise { 0 } }
+func inner(): i32 { let value: (i32!)? = 42
+    value^ otherwise { return 0 } catch _ { 0 } }
+func error_data(take value: error!): error { value^ catch failure { failure^ } }
+func rethrow(take value: i32!): i32! { value^ catch failure { throw failure^ } }
+func suppress(take value: i32!): i32 { value^ catch _ { 42 } }
+func preserved(value: i32!, backup: i32): i32 { read selected = value catch failure { backup }
+    selected }
+func discarded(value: i32!, backup: i32): i32 { read selected = value catch _ { backup }
+    selected }
+func run(): i32 { var count = 42
+    if direct() == 42 && named() == 42 && lazy(count) == 42 && count == 42 && scoped() == 42 && bounded() == 42 && transferred() == 42 && outer() == 42 && inner() == 42 { 42 } else { 0 } }

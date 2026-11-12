@@ -79,15 +79,15 @@ impl Builder<'_> {
             },
         )
     }
-    pub(super) fn require_primary(&mut self, place: &Place) -> Result<(), Failure> {
+    pub(super) fn require_variant(&mut self, place: &Place, primary: bool) -> Result<(), Failure> {
         let base = self.place(place)?;
         let condition = self.primary_condition(base, place.data)?;
         let next = self.block();
         let trap = self.block();
         self.terminate(MachineTerminator::Branch {
             condition,
-            then_target: MachineBranchTarget::new(next, []),
-            else_target: MachineBranchTarget::new(trap, []),
+            then_target: MachineBranchTarget::new(if primary { next } else { trap }, []),
+            else_target: MachineBranchTarget::new(if primary { trap } else { next }, []),
         })?;
         self.current = trap;
         self.terminate(MachineTerminator::Unreachable)?;

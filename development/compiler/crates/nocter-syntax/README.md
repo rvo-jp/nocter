@@ -40,9 +40,8 @@ package or discovery code. It does not resolve names or apply semantic rules.
   granting an array schema. Dynamic slice types remain outside this goal.
   Repeated optional type suffixes and one final fallible type suffix preserve grouped layer order.
   Contextual `none` and one postfix `?` or `!` use this same
-  private goal. Lowest-precedence `otherwise` clauses retain ordinary blocks and chain in source
+  private goal. Lowest-precedence `otherwise` and named/discard `catch` clauses retain ordinary blocks and chain in source
   order. `throw` requires an operand under ordinary incomplete-statement newline rules.
-  Recognition adds no `catch` production.
   Array lists, repetitions and joint bracket indexing retain distinct nodes in the same goal.
   `array_repetition_parts` supplies the seed/count source roles to lowering and checking without
   interpreting either expression. Delimiter-owned newlines and nesting limits apply equally to
