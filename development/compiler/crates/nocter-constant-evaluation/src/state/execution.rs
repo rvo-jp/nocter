@@ -299,6 +299,19 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         let (destination, value) = match op {
             Operation::None => return Ok(()),
             Operation::RequirePrimary { source } => return self.require_primary(frame, source),
+            Operation::PrimaryCondition {
+                source,
+                destination,
+            } => {
+                let value = self.read(frame, source)?;
+                let Data::Variant { primary, .. } = value.data() else {
+                    return Err(Rule::InvalidPlan);
+                };
+                (
+                    *destination,
+                    self.memory.storage.primitive(Data::Bool(*primary))?,
+                )
+            }
             Operation::BoundsTrap => return Err(Rule::IndexOutOfBounds),
             Operation::Literal { destination, value } => {
                 (*destination, self.memory.storage.import(value)?)

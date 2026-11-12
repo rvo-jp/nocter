@@ -600,7 +600,12 @@ the carrier first, checks presence, then selects its payload through ordinary Co
 remaining-container cleanup. Empty completion and bare return supply the ordinary unit value
 through that same result boundary, including present optional layers. A conditional without else
 first supplies unit, then applies its enclosing value context; it cannot return branch absence.
-Read/edit result projections and propagation/recovery remain open.
+Value postfix `?` expands into ordinary binding, a stored-tag condition and a conditional whose
+absence branch returns the declared outer optional absence. The supplied carrier has one local
+owner and the selected answer is protected before its lexical cleanup. Existing return flow
+cancels enclosing prepared calls and retires scopes; no separate propagation cleanup protocol is
+introduced. A closure uses its own result contract. Initializers and non-optional callable results
+cannot propagate absence. Read/edit result projections and recovery remain open.
 
 Implicit optional input wrappers retain the original direct-transfer reservation. Complete bundle
 validation precedes wrapper materialization and original-source retirement; later reads and

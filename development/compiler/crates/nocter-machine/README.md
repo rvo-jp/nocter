@@ -132,7 +132,9 @@ encoding. No static initializer becomes a runtime function.
 The private consumer uses the common optional layout, tag encoding and payload offsets. Stored tag
 access requests the runtime primitive's own layout, including helper-only primitive types. Frozen
 variants write only the selected payload; absence never reads uninitialized payload backing.
-Assertions branch to the ordinary non-unwinding safety trap before extraction. Complete cleanup
+Assertions branch to the ordinary non-unwinding safety trap before extraction. Propagation uses
+the same stored-tag condition with ordinary branch/return blocks, caller cancellation and result
+transport. Complete cleanup
 checks the tag before calling an existing payload helper, while extracted payloads retain the
 checked partial-container schedule. Absent error optionals qualify skipping error cleanup; they
 do not establish source construction or release of an owned error graph.

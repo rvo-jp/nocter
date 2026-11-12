@@ -633,3 +633,13 @@ fn private_deep_optional_absence_has_finite_layout_and_no_inactive_payload_clean
     let package = TempPackage::new();
     execute_native_status(&compile(&source), &package.0, "deep-optional", 42);
 }
+
+#[test]
+fn private_optional_propagation_preserves_carriers_layers_and_call_cancellation() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/optional-propagation.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "optional-propagation", 42);
+}

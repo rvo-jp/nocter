@@ -125,3 +125,51 @@ fn a_conditional_without_else_still_requires_a_unit_branch_before_contextual_wra
         Err(SourceFailure::Checking(Failure::Body { failure: BodyFailure::Rejected(diagnostic), .. }))
             if diagnostic.rule() == crate::value_access::Rule::TypeMismatch));
 }
+
+#[test]
+fn optional_value_propagation_uses_ordinary_scopes_and_cancels_prepared_calls() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/optional-propagation.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
+}
+#[test]
+fn optional_propagation_preserves_absence_and_chooses_the_outermost_result_layer() {
+    for source in [
+        "const func forward(value: i32?): i32? { value? }\nconst ANSWER: i32 = forward(none)!",
+        "const func forward(value: i32??): i32?? { (value?)? }\nconst func some(value: i32?): i32?? { value }\nconst ANSWER: i32? = forward(some(none))!",
+    ] {
+        let fixture = nocter_test_support::ValueSourceFixture::new(source);
+        assert!(
+            matches!(SourceUnit::prepare(fixture.syntax()),
+            Err(SourceFailure::Checking(Failure::Evaluation { diagnostic, .. }))
+                if diagnostic.rule() == crate::value_access::evaluation::Rule::Execution(nocter_constant_evaluation::state::Rule::AbsentValue)),
+            "{source}"
+        );
+    }
+}
+#[test]
+fn propagation_cannot_invent_a_return_layer_or_reuse_a_transferred_carrier() {
+    for source in [
+        "func run(value: i32?): i32 { value? }",
+        "func run(value: i32): i32? { value? }",
+        "const VALUE: i32? = none\nconst ANSWER: i32? = VALUE?",
+        "struct Item { value: i32 }\nfunc run(value: Item?): i32? { let item = value?\nitem.value }",
+        "func run(): i32? { let value: i32? = 42\nlet first = value^?\nfirst + value? }",
+    ] {
+        let fixture = nocter_test_support::ValueSourceFixture::new(source);
+        assert!(
+            matches!(
+                SourceUnit::prepare(fixture.syntax()),
+                Err(SourceFailure::Checking(
+                    Failure::Body {
+                        failure: BodyFailure::Rejected(_),
+                        ..
+                    } | Failure::Flow { .. }
+                ))
+            ),
+            "{source}"
+        );
+    }
+}

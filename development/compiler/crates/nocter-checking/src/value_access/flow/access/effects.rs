@@ -370,6 +370,13 @@ impl Context<'_, '_> {
                 self.write(&region, actor, Mode::Own, None)?;
                 Ok(Value::without_referent(Mode::Own))
             }
+            ExpressionKind::PrimaryCondition { source } => {
+                if let Some((region, actor)) = self.referent(source.into())? {
+                    self.world
+                        .check(&region, actor, Mode::Read, self.at, self.live)?;
+                }
+                Ok(Value::without_referent(Mode::Own))
+            }
             ExpressionKind::RequirePrimary { source } => {
                 let value = self.world.value(source)?;
                 if value.mode != Mode::Own {
@@ -429,7 +436,9 @@ impl Context<'_, '_> {
             | ExpressionKind::Unit
             | ExpressionKind::Unary { .. }
             | ExpressionKind::Binary { .. } => Ok(Value::without_referent(Mode::Own)),
-            ExpressionKind::If { .. } | ExpressionKind::Call { .. } => Err(Failure::Integrity),
+            ExpressionKind::Block { .. }
+            | ExpressionKind::If { .. }
+            | ExpressionKind::Call { .. } => Err(Failure::Integrity),
         }
     }
     fn prepare(&mut self, call: AccessExpressionId, index: usize) -> Result<()> {

@@ -152,6 +152,10 @@ pub enum Operation {
     /// A terminal source bounds failure; no element payload or selected address exists.
     BoundsTrap,
     /// Safety-trap if a supplied optional carrier has no payload.
+    PrimaryCondition {
+        source: Place,
+        destination: Place,
+    },
     RequirePrimary {
         source: Place,
     },

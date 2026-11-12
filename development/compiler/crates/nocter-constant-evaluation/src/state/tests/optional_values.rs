@@ -207,3 +207,84 @@ fn taking_inputs_are_protected_at_their_frozen_owner_handoff_after_wrapper_mater
         );
     }
 }
+
+#[test]
+fn primary_conditions_observe_only_the_tag_and_reject_incompatible_operand_roles() {
+    let (root, _) = code_ids();
+    for primary in [false, true] {
+        let mut plan = literal();
+        plan.slots = vec![
+            Slot {
+                data: 1,
+                storage: Storage::Owned,
+            },
+            Slot {
+                data: 2,
+                storage: Storage::Owned,
+            },
+        ]
+        .into();
+        plan.result = 2;
+        plan.points = plan.points.map(|_, original| {
+            let mut point = original.clone();
+            point.actions[0].operation = Operation::Literal {
+                destination: 0,
+                value: Value::variant(primary, primary.then(|| Value::integer(42))),
+            };
+            point.actions[0].alternatives[0].after = vec![Effect::Construct(0)].into();
+            let mut actions = point.actions.to_vec();
+            actions.push(Action {
+                operation: Operation::PrimaryCondition {
+                    source: Place::root(0),
+                    destination: 1,
+                },
+                alternatives: vec![Alternative {
+                    owned: BTreeMap::from([(0, Box::new([]) as Box<[Missing]>)]),
+                    before: Box::new([]),
+                    after: vec![Effect::Construct(1), Effect::Dispose(Place::root(0))].into(),
+                }]
+                .into(),
+            });
+            point.actions = actions.into();
+            point
+        });
+        let types = [
+            Type::Integer(nocter_model::BuiltinType::I32),
+            Type::Optional(0),
+            Type::Bool,
+        ];
+        let program = Program::new(
+            types.clone(),
+            BTreeMap::from([(root.into(), plan.clone())]),
+            BTreeMap::new(),
+        )
+        .unwrap();
+        let mut budget = Budget::new(Limits::default());
+        assert_eq!(
+            Executor::new(&program, &mut budget, 0)
+                .evaluate_initializer(root)
+                .unwrap(),
+            Value::boolean(primary)
+        );
+        assert_eq!(budget.storage_used(), 0);
+        for (source, destination) in [(Place::root(1), 1), (Place::root(0), 0)] {
+            let mut invalid = plan.clone();
+            invalid.points = invalid.points.map(|_, original| {
+                let mut point = original.clone();
+                point.actions[1].operation = Operation::PrimaryCondition {
+                    source: source.clone(),
+                    destination,
+                };
+                point
+            });
+            assert!(
+                Program::new(
+                    types.clone(),
+                    BTreeMap::from([(root.into(), invalid)]),
+                    BTreeMap::new()
+                )
+                .is_err()
+            );
+        }
+    }
+}

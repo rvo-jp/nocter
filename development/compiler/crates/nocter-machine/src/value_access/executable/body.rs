@@ -455,6 +455,15 @@ impl<'a> Builder<'a> {
         match operation {
             mir::Operation::BoundsTrap => return Err(Self::invalid()),
             mir::Operation::RequirePrimary { source } => self.require_primary(source)?,
+            mir::Operation::PrimaryCondition {
+                source,
+                destination,
+            } => {
+                let address = self.place(source)?;
+                let value = self.primary_condition(address, source.data)?;
+                let destination = self.place(destination)?;
+                self.emit(MachineOperationKind::Store { destination, value });
+            }
             mir::Operation::Frozen { destination, value } => self.frozen(destination, value)?,
             mir::Operation::Constant { destination, value } => {
                 let value = match value {

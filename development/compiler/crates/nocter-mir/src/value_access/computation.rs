@@ -95,6 +95,20 @@ impl Builder<'_> {
             .clone();
         let destination = self.result(id)?;
         let operation = match kind {
+            ExpressionKind::PrimaryCondition { source } => {
+                let data = self
+                    .checked
+                    .typed()
+                    .body()
+                    .places()
+                    .get(source)
+                    .ok_or_else(|| self.invalid())?
+                    .data;
+                Operation::PrimaryCondition {
+                    source: self.selected(source, self.data(data)?)?,
+                    destination,
+                }
+            }
             ExpressionKind::RequirePrimary { source } => Operation::RequirePrimary {
                 source: self.value(source)?,
             },
@@ -181,7 +195,9 @@ impl Builder<'_> {
                 action: SelectionAction::MovePayload,
                 ..
             } => return Ok(Vec::new()),
-            ExpressionKind::If { .. } | ExpressionKind::Call { .. } => return Err(self.invalid()),
+            ExpressionKind::Block { .. }
+            | ExpressionKind::If { .. }
+            | ExpressionKind::Call { .. } => return Err(self.invalid()),
         };
         Ok(vec![operation])
     }

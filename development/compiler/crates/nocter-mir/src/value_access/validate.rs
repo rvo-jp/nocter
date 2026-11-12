@@ -331,6 +331,19 @@ impl Context<'_> {
         let boolean = RuntimePrimitive::Bool;
         match operation {
             Operation::BoundsTrap => Ok(()),
+            Operation::PrimaryCondition {
+                source,
+                destination,
+            } => {
+                self.place(source)?;
+                self.place(destination)?;
+                self.require(
+                    matches!(
+                        self.program.runtime.types().get(source.data),
+                        Some(RuntimeType::Optional(_))
+                    ) && self.primitive(destination.data, RuntimePrimitive::Bool),
+                )
+            }
             Operation::RequirePrimary { source } => {
                 self.place(source)?;
                 self.require(matches!(

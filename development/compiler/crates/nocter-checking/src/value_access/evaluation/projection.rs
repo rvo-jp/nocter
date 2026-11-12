@@ -609,6 +609,10 @@ impl Builder<'_, '_> {
                 destination,
                 value: plan::Value::unit(),
             },
+            ExpressionKind::PrimaryCondition { source } => plan::Operation::PrimaryCondition {
+                source: self.selected(source)?,
+                destination,
+            },
             ExpressionKind::RequirePrimary { source } => plan::Operation::RequirePrimary {
                 source: self.value(source)?,
             },

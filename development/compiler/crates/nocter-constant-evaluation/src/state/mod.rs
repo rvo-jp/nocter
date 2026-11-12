@@ -170,6 +170,10 @@ pub struct Alternative {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Operation {
     None,
+    PrimaryCondition {
+        source: Place,
+        destination: usize,
+    },
     RequirePrimary {
         source: Place,
     },

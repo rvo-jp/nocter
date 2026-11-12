@@ -1,0 +1,39 @@
+struct Item { value: i32 }
+const func maybe(flag: bool): i32? { if flag { 21 } else { none } }
+const func twice(value: i32?): i32? { let first = value?
+    let next = value?
+    first + next }
+const func item(flag: bool): Item? { if flag { Item { value: 42 } } else { none } }
+const func forward(take value: Item?): Item? { value^? }
+const func nested(value: i32??): i32?? { let inner = value?
+    inner }
+const func some(value: i32?): i32?? { value }
+const func joined(value: i32??): i32?? { (value?)? }
+const func consume(take value: Item?, observed: i32, edit visits: i32): i32 { visits += 100
+    observed }
+const func cancel(edit visits: i32): i32? { let value = Item { value: 42 }
+    consume(value^, maybe(false)?, visits) }
+const func closure(): i32? { let value: i32? = 42
+    let action = (value;): i32? { value? }
+    action()? }
+const func unit(value: void?): void? { let _ = value? }
+const func calculate(): i32 {
+    let doubled = twice(maybe(true))!
+    let empty = twice(maybe(false))
+    let owned = forward(item(true))
+    let selected = owned^!
+    let vacant = forward(item(false))
+    let middle = nested(some(none))!
+    let deep: i32?? = 42
+    let flattened = (joined(deep)!)!
+    let cancelled = joined(some(none))
+    var visits = 42
+    let absent = cancel(visits)
+    let _ = unit(())!
+    let no_unit = unit(none)
+    if doubled == 42 && selected.value == 42 && flattened == 42 && visits == 42 && closure()! == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func empty_error(take value: error?): error? { value^? }
+func run(): i32 { let empty = empty_error(none)
+    if ANSWER == 42 { calculate() } else { 0 } }

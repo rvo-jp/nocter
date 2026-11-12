@@ -233,6 +233,7 @@ impl Context<'_, '_> {
             | ExpressionKind::Function(_)
             | ExpressionKind::Constant(_)
             | ExpressionKind::Integer(_)
+            | ExpressionKind::PrimaryCondition { .. }
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Unit
             | ExpressionKind::Unary { .. }
@@ -243,7 +244,9 @@ impl Context<'_, '_> {
             }
             | ExpressionKind::Place(_)
             | ExpressionKind::Boundary { .. } => {}
-            ExpressionKind::If { .. } | ExpressionKind::Call { .. } => {
+            ExpressionKind::Block { .. }
+            | ExpressionKind::If { .. }
+            | ExpressionKind::Call { .. } => {
                 return Err(Failure::Integrity);
             }
         }

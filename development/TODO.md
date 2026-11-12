@@ -18,12 +18,12 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Extend optional elimination to the adopted propagation/recovery contract against the qualified
-optional construction/assertion and ordinary unit-completion path. Reuse ordinary result
-construction, branch flow, call cancellation and scope cleanup; do not add an outcome-specific
-owner registry or a second return protocol. Stage propagated absence before cleanup and preserve
-Copy snapshots versus explicit carrier retirement. Qualify required and native source before
-claiming support, keeping scoped read/edit projections and fallible/error work explicit.
+Close value optional recovery (`otherwise`) against the qualified construction, assertion,
+propagation and ordinary unit-completion path. Reuse the existing carrier acquisition, stored-tag
+condition, lexical scope, branch result and return/cancellation protocols. Evaluate fallback only
+on absence, protect its result before scope cleanup, and preserve exact nested layers. Qualify
+required and native source before claiming support; scoped read/edit projections and fallible/error
+work remain explicit obligations.
 
 ## Retained Selection Closure
 

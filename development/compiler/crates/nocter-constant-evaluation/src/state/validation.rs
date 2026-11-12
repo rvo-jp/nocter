@@ -408,6 +408,17 @@ fn operation(program: &Program, plan: &super::Plan, op: &Operation) -> Result<()
             index,
             matches!(op, Operation::Index { .. }),
         ),
+        Operation::PrimaryCondition {
+            source,
+            destination,
+        } => {
+            if !matches!(program.types.get(data(source)?), Some(Type::Optional(_)))
+                || program.types.get(slot(*destination)?.data) != Some(&Type::Bool)
+            {
+                return Err(INVALID);
+            }
+            Ok(())
+        }
         Operation::RequirePrimary { source } => {
             if !matches!(program.types.get(data(source)?), Some(Type::Optional(_))) {
                 return Err(INVALID);

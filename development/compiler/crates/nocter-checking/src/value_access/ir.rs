@@ -301,6 +301,14 @@ pub enum ExpressionKind {
     AdaptFunction {
         source: AccessExpressionId,
     },
+    /// An ordinary lexical value scope, including compiler-generated outcome expansion.
+    Block {
+        block: AccessBlockId,
+    },
+    /// Observe a stored carrier tag without transferring or retaining its payload.
+    PrimaryCondition {
+        source: AccessPlaceId,
+    },
     /// Require the primary branch before forwarding this owned carrier to payload selection.
     RequirePrimary {
         source: AccessExpressionId,

@@ -64,7 +64,7 @@ impl Checker<'_, '_> {
                 self.absent(node, data_hint)?
             }
             NodeKind::ScalarLiteral => self.literal(node, false, hint)?,
-            NodeKind::OutcomeExpression => self.require_optional(node, reachable)?,
+            NodeKind::OutcomeExpression => self.outcome(node, reachable)?,
             NodeKind::UnitExpression => self.unit(node)?,
             NodeKind::TransferExpression => self.transfer(node, reachable)?,
             NodeKind::ClosureExpression => {

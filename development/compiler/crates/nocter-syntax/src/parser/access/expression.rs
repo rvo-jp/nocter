@@ -101,7 +101,10 @@ fn prefix(parser: &mut Parser<'_>, boundary: newline::Boundary, allow_braces: bo
         wrappers.push(marker);
     }
     let mut inner = postfix_in(parser, allow_braces);
-    if parser.at_punctuation(Punctuation::Bang) {
+    if matches!(
+        parser.current_kind(),
+        TokenKind::Punctuation(Punctuation::Bang | Punctuation::Question)
+    ) {
         let marker = parser.precede(inner.completed);
         parser.bump();
         inner = Expression {
