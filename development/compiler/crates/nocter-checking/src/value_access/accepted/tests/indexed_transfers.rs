@@ -1,8 +1,30 @@
-//! Source-qualified concrete and retained whole-element holes; general frontiers remain gated.
+//! Source-qualified concrete and retained element/field holes; general frontiers remain gated.
 use super::initializers::answer;
 use super::*;
 use crate::value_access::ExpressionKind;
 use nocter_constant_evaluation::state::Value as Datum;
+
+#[test]
+fn projected_writes_do_not_restore_whole_elements_or_other_missing_fields() {
+    for body in [
+        "let old = pairs[index]^\npairs[index].first = Item { value: 42 }",
+        "let old = pairs[index].first^\npairs[index].second = Item { value: 42 }",
+        "let old = pairs[index].first^\nindex = 1 - index\npairs[index].first = Item { value: 42 }",
+        "var count = 0\nwhile count < 2 { let old = pairs[index].first^\nindex = 1 - index\ncount += 1 }\npairs[index].first = Item { value: 42 }",
+    ] {
+        let source = format!(
+            "struct Item {{ value: i32 }}\nstruct Pair {{ first: Item\nsecond: Item }}\nfunc work(input: usize): void {{ var pairs = [Pair {{ first: Item {{ value: 20 }}, second: Item {{ value: 22 }} }}, Pair {{ first: Item {{ value: 30 }}, second: Item {{ value: 32 }} }}]\nvar index = input\n{body}\nlet whole = pairs^ }}"
+        );
+        let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+        assert!(
+            matches!(
+                SourceUnit::prepare(fixture.syntax()),
+                Err(SourceFailure::Checking(Failure::Flow { .. }))
+            ),
+            "{source}"
+        );
+    }
+}
 
 #[test]
 fn retained_element_sources_and_point_or_prefix_backedges_execute() {

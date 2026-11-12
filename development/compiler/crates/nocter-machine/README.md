@@ -351,6 +351,12 @@ the previously extracted owner; outer recovery releases the propagated error gra
 ABI carries both the indirect record outcome and direct integer outcome without reading inactive
 payload backing.
 
+Projected-field restoration also executes with owned error graphs. The source mutates the user's
+index after extracting one record field, restores through its saved equal index, then transfers
+the completed array. Single and repeated alternating-index routes release the extracted old
+graphs and the final fields through the existing cleanup schedule, without treating a child
+write as whole-element initialization.
+
 `owned-error-adapters.nct` executes read environments forwarded through formal consuming adapters,
 read-to-update-to-once views, repeated environment replacement followed by consuming completion,
 and consuming bodies with partial record/retained-array cleanup. A fallible read body also returns

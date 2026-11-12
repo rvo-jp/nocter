@@ -1440,8 +1440,17 @@ Shared source qualifies changed user indices, repeated alternating indices, dire
 restoration on both branches and maximum-count zero-byte arrays. A logical owned-error case checks
 that missing old data is not destroyed and snapshot retirement follows installation; the
 [native effect corpus](../nocter-machine/README.md#owned-error-effects) additionally executes
-owned-error construction and release through these restorations. Partial-field restoration and general relations
-among multiple retained holes remain separate obligations.
+owned-error construction and release through these restorations.
+
+A single concrete descendant of a retained element can also be restored. The numeric history
+keeps its selected field path distinct from a whole-element point and from a whole-element
+prefix. Restoration requires the same suffix, proved numeric equality, the actual missing path
+and matching retirement causes. Availability and resources then use the original snapshot; a
+write to one child cannot close a missing whole element or another field. The shared projected-field
+source qualifies unchanged indices, saved equal indices after mutation and repeated restoration
+across alternating loop indices through required/native execution. Partial transfers never extend
+a whole-element prefix. Conditional projected-point restoration, intervening disjoint writes and
+general relations among multiple retained holes remain separate obligations.
 Source also qualifies a later prefix loop after restoring the sole point, without replacing the
 containing array. Independent negative checks retain earlier field holes and longer-prefix holes.
 

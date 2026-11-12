@@ -16,6 +16,8 @@ pub(super) enum Phase {
     Empty,
     /// Exactly one whole element retired from a complete epoch, at the history cell's index.
     Point,
+    /// One concrete descendant of an element retired from a complete epoch.
+    ProjectedPoint(AccessExpressionId),
     Prefix,
     Unproved,
 }
@@ -41,6 +43,7 @@ struct History {
 struct Selection {
     history: usize,
     index: AccessExpressionId,
+    whole: bool,
 }
 #[derive(Clone, Debug, Default)]
 pub(super) struct Histories {
@@ -48,12 +51,9 @@ pub(super) struct Histories {
     selections: BTreeMap<AccessExpressionId, Selection>,
     retirements: BTreeMap<AccessExpressionId, BTreeSet<Location>>,
 }
-fn selected(typed: &TypedQuery, source: Referent) -> Option<(Place, RetainedIndex)> {
-    let Referent::Evaluated(id) = source else {
-        return None;
-    };
-    let index = RetainedIndex::for_selection(typed, id)?;
-    Some((index.array(typed)?, index))
+fn selected(typed: &TypedQuery, source: Referent) -> Option<(Place, RetainedIndex, bool)> {
+    let (index, suffix) = RetainedIndex::for_referent(typed, source)?;
+    Some((index.array(typed)?, index, suffix.fields().is_empty()))
 }
 /// Execution-order transfers only. Merely prepared/cancelled arguments produce no event.
 pub(super) fn transfers(
@@ -101,8 +101,11 @@ impl Histories {
         for (point_id, point) in graph.points().iter() {
             for (action_id, action) in point.actions.iter().enumerate() {
                 for source in transfers(typed, &action.operation)? {
-                    let Some((array, index)) = selected(typed, source) else {
+                    let Some((array, index, whole)) = selected(typed, source) else {
                         continue;
+                    };
+                    let Referent::Evaluated(source) = source else {
+                        return Err(INVALID);
                     };
                     let history = if let Some(&id) = arrays.get(&array) {
                         id
@@ -118,15 +121,16 @@ impl Histories {
                         id
                     };
                     result.selections.insert(
-                        index.selection(),
+                        source,
                         Selection {
                             history,
                             index: index.operand(),
+                            whole,
                         },
                     );
                     result
                         .retirements
-                        .entry(index.selection())
+                        .entry(source)
                         .or_default()
                         .insert(Location {
                             point: point_id,
@@ -138,7 +142,7 @@ impl Histories {
         // Observing/preparing another element does not commit a transfer. It can still ask
         // whether its actual evaluated index lies beyond this array's committed prefix.
         for (id, _) in typed.body().expressions().iter() {
-            let Some((array, index)) = selected(typed, Referent::Evaluated(id)) else {
+            let Some((array, index, whole)) = selected(typed, Referent::Evaluated(id)) else {
                 continue;
             };
             if let Some(&history) = arrays.get(&array) {
@@ -147,6 +151,7 @@ impl Histories {
                     Selection {
                         history,
                         index: index.operand(),
+                        whole,
                     },
                 );
             }
@@ -179,7 +184,7 @@ impl Histories {
             };
             if !matches!(
                 phases.get(selection.history),
-                Some(Phase::Point | Phase::Unproved)
+                Some(Phase::Point | Phase::ProjectedPoint(_) | Phase::Unproved)
             ) {
                 continue;
             }
@@ -224,6 +229,9 @@ impl Histories {
         selection: AccessExpressionId,
     ) -> Option<BTreeSet<AccessExpressionId>> {
         let selection = self.selections.get(&selection)?;
+        if !selection.whole {
+            return None;
+        }
         match phases.get(selection.history)? {
             Phase::Empty => Some(BTreeSet::new()),
             Phase::Point => {
@@ -242,7 +250,7 @@ impl Histories {
                     .collect();
                 (!sources.is_empty()).then_some(sources)
             }
-            Phase::Prefix | Phase::Unproved => None,
+            Phase::Prefix | Phase::ProjectedPoint(_) | Phase::Unproved => None,
         }
     }
     pub(super) fn available(
@@ -259,7 +267,7 @@ impl Histories {
             Phase::Prefix => state
                 .difference(cells.value(selection.index)?, history.cell)
                 .is_some_and(|difference| difference > 0),
-            Phase::Point | Phase::Unproved => false,
+            Phase::Point | Phase::ProjectedPoint(_) | Phase::Unproved => false,
         };
         available.then(|| history.array.clone())
     }
@@ -363,6 +371,7 @@ impl Histories {
     }
     fn restored_point(
         &self,
+        typed: &TypedQuery,
         cells: &Cells,
         phases: &[Phase],
         state: &Equalities,
@@ -373,9 +382,16 @@ impl Histories {
         };
         let selected = self.selections.get(&target)?;
         let history = self.arrays.get(selected.history)?;
-        let one = phases.get(selected.history) == Some(&Phase::Point)
-            || (phases.get(selected.history) == Some(&Phase::Prefix)
-                && state.constant(history.cell) == Some(0));
+        let one = match *phases.get(selected.history)? {
+            Phase::Point => selected.whole,
+            Phase::Prefix => selected.whole && state.constant(history.cell) == Some(0),
+            Phase::ProjectedPoint(source) => {
+                let (_, source) = RetainedIndex::for_referent(typed, Referent::Evaluated(source))?;
+                let (_, target) = RetainedIndex::for_referent(typed, Referent::Evaluated(target))?;
+                source == target
+            }
+            Phase::Empty | Phase::Unproved => false,
+        };
         (one && state.difference(cells.value(selected.index)?, history.cell) == Some(0))
             .then_some(selected.history)
     }
@@ -412,7 +428,7 @@ impl Histories {
                             .whole_local(typed, target)
                             .map_or(target, Referent::Place),
                         restored: matches!(operation, Operation::Assign { .. })
-                            .then(|| self.restored_point(cells, phases, state, target))
+                            .then(|| self.restored_point(typed, cells, phases, state, target))
                             .flatten(),
                     },
                 );
@@ -443,11 +459,12 @@ pub(super) fn action(
         if let Some((id, selection)) = selected {
             let history = histories.arrays.get(selection.history).ok_or(INVALID)?;
             let index = cells.value(selection.index);
-            let extends = index.is_some_and(|index| match phases[selection.history] {
-                Phase::Empty => state.constant(index) == Some(0),
-                Phase::Prefix => state.difference(index, history.cell) == Some(1),
-                Phase::Point | Phase::Unproved => false,
-            });
+            let extends = selection.whole
+                && index.is_some_and(|index| match phases[selection.history] {
+                    Phase::Empty => state.constant(index) == Some(0),
+                    Phase::Prefix => state.difference(index, history.cell) == Some(1),
+                    Phase::Point | Phase::ProjectedPoint(_) | Phase::Unproved => false,
+                });
             if extends {
                 proven.proven.insert(id);
                 proven.peers.insert(
@@ -471,7 +488,11 @@ pub(super) fn action(
             phases[selection.history] = if extends {
                 Phase::Prefix
             } else if phases[selection.history] == Phase::Empty {
-                Phase::Point
+                if selection.whole {
+                    Phase::Point
+                } else {
+                    Phase::ProjectedPoint(id)
+                }
             } else {
                 Phase::Unproved
             };

@@ -18,12 +18,12 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Extend restoration from whole retained array elements to their projected fields. Establish the
-ordinary-source cases first, then connect numeric equality, actual missing paths and snapshot
-retirement through the shared typed projection authority. Qualify safe restoration and local
-rejection of changed indices, other fields, overlapping holes and unsafe backedges. Use the
-retained-selection obligations below and the component READMEs' implemented scope; source
-admission alone is not required/native execution or actual owned-error cleanup.
+Preserve a retained projected-point proof across intervening disjoint writes, then extend
+conditional projected-point restoration and relations among multiple holes. Establish ordinary
+source before changing numeric history; actual missing paths and owned snapshots remain the
+authorities for consuming equality evidence. Use the retained-selection obligations below and
+the component READMEs' implemented scope; source admission alone is not required/native execution
+or actual owned-error cleanup.
 
 ## Retained Selection Closure
 

@@ -11,7 +11,7 @@ use nocter_model::{AccessExpressionId, AccessLocalId};
 use std::collections::BTreeSet;
 
 pub(in crate::value_access::flow) struct Restoration<'a> {
-    pub source: RetainedIndex,
+    pub source: AccessExpressionId,
     pub retirements: &'a BTreeSet<Location>,
 }
 pub(in crate::value_access::flow) struct ConditionalRestoration {
@@ -62,8 +62,14 @@ impl NumericFacts {
             &self.point_sources,
             selection,
         )?;
+        let (_, source_suffix) = RetainedIndex::for_referent(typed, Referent::Evaluated(source))?;
+        let (_, target_suffix) =
+            RetainedIndex::for_referent(typed, Referent::Evaluated(selection))?;
+        if source_suffix != target_suffix {
+            return None;
+        }
         Some(Restoration {
-            source: RetainedIndex::for_selection(typed, source)?,
+            source,
             retirements,
         })
     }
@@ -76,6 +82,10 @@ impl NumericFacts {
             return None;
         };
         let point = self.restoration(typed, selection)?;
-        Some(point.source.array(typed)?.project_retained(point.source))
+        let (index, suffix) =
+            RetainedIndex::for_referent(typed, Referent::Evaluated(point.source))?;
+        let destination = index.array(typed)?.project_retained(index);
+        let fields = destination.fields().concat_fields(&suffix);
+        Some(destination.with_fields(fields))
     }
 }

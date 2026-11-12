@@ -638,11 +638,13 @@ fn restore_point(
     let Some(point) = facts.and_then(|facts| facts.restoration(typed, selection)) else {
         return Ok(false);
     };
-    let array = point.source.array(typed).ok_or(INVALID)?;
+    let (index, _) =
+        super::resources::RetainedIndex::for_referent(typed, Referent::Evaluated(point.source))
+            .ok_or(INVALID)?;
+    let array = index.array(typed).ok_or(INVALID)?;
     let parent = array.fields().concrete().ok_or(INVALID)?;
     let (local, hole) =
-        super::numeric::path(typed, None, Referent::Evaluated(point.source.selection()))
-            .ok_or(INVALID)?;
+        super::numeric::path(typed, None, Referent::Evaluated(point.source)).ok_or(INVALID)?;
     let storage = state.get_mut(&local).ok_or(INVALID)?;
     if storage.present(&parent).state != InitializationState::Initialized {
         return Ok(false);

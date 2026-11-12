@@ -16,6 +16,46 @@ pub struct RetainedIndex {
     bound: u64,
 }
 impl RetainedIndex {
+    /// One retained selection with a concrete suffix beneath a concrete owning array.
+    /// This describes a projection, not numeric equality or ownership of its snapshot.
+    pub(in crate::value_access::flow) fn for_referent(
+        typed: &TypedQuery,
+        referent: crate::value_access::Referent,
+    ) -> Option<(Self, FieldPath)> {
+        if let crate::value_access::Referent::Evaluated(id) = referent
+            && let Some(index) = Self::for_selection(typed, id)
+            && index.array(typed).is_some()
+        {
+            return Some((index, FieldPath::default()));
+        }
+        let (local, path) = Path::for_referent(typed, referent)?;
+        let mut retained = path
+            .fields()
+            .iter()
+            .enumerate()
+            .filter_map(|(position, field)| {
+                if let ValueProjection::Array(Index::Retained(index)) = field {
+                    Some((position, *index))
+                } else {
+                    None
+                }
+            });
+        let (position, index) = retained.next()?;
+        if retained.next().is_some() {
+            return None;
+        }
+        let array = index.array(typed)?;
+        if array.holder() != super::Holder::Local(local)
+            || array.fields().fields() != &path.fields()[..position]
+        {
+            return None;
+        }
+        let suffix = Path(ValuePath::new(
+            path.fields()[position + 1..].iter().copied(),
+        ))
+        .concrete()?;
+        Some((index, suffix))
+    }
     /// Describe backing for a checked selection's normal continuation. This alone constructs
     /// no snapshot or ownership.
     #[must_use]

@@ -1,0 +1,43 @@
+struct Item { value: i32 }
+struct Pair {
+    first: Item
+    second: Item
+}
+const func initial(): [Pair; 2] {
+    [Pair { first: Item { value: 20 }, second: Item { value: 22 } },
+                 Pair { first: Item { value: 30 }, second: Item { value: 32 } }]
+}
+const func restored(input: usize): i32 {
+    var pairs = initial()
+    var index = input
+    let old = pairs[index].first^
+    pairs[index].first = Item { value: 42 }
+    let whole = pairs^
+    whole[input].first.value
+}
+const func saved(input: usize): i32 {
+    var pairs = initial()
+    var index = input
+    let position = input
+    let old = pairs[index].first^
+    index = 1 - index
+    pairs[position].first = Item { value: 42 }
+    let whole = pairs^
+    whole[position].first.value
+}
+const func repeated(input: usize): i32 {
+    var pairs = initial()
+    var index = input
+    var count = 0
+    while count < 4 {
+        let old = pairs[index].first^
+        pairs[index].first = Item { value: old.value + 1 }
+        index = 1 - index
+        count += 1
+    }
+    let whole = pairs^
+    whole[0].first.value + whole[1].first.value - 12
+}
+const func run(): i32 {
+    if restored(0) == 42 && restored(1) == 42 && saved(0) == 42 && saved(1) == 42 && repeated(0) == 42 && repeated(1) == 42 { 42 } else { 0 }
+}
