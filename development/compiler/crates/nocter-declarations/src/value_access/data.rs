@@ -164,13 +164,21 @@ impl Program {
     /// Source-name lookup for ready payload data; semantic equality uses resolved `TypeId` only.
     #[must_use]
     pub fn type_named(&self, spelling: &str) -> Option<TypeId> {
-        let data = self.type_identity_named(spelling)?;
+        self.type_named_in(super::ScopeId::ROOT, spelling)
+    }
+    #[must_use]
+    pub fn type_named_in(&self, scope: super::ScopeId, spelling: &str) -> Option<TypeId> {
+        let data = self.type_identity_named_in(scope, spelling)?;
         self.data_schema(data).map(|_| data)
     }
     /// Resolve a reserved data identity without granting payload, field or Copy readiness.
     #[must_use]
     pub fn type_identity_named(&self, spelling: &str) -> Option<TypeId> {
-        match data_reference(&self.symbols, &self.namespace, spelling)? {
+        self.type_identity_named_in(super::ScopeId::ROOT, spelling)
+    }
+    #[must_use]
+    pub fn type_identity_named_in(&self, scope: super::ScopeId, spelling: &str) -> Option<TypeId> {
+        match data_reference(&self.symbols, &self.namespace, scope, spelling)? {
             DataReference::Builtin(data) => self.data_type(data),
             DataReference::Record(id) => self
                 .types
@@ -387,13 +395,17 @@ pub(super) fn builtin_copyable(data: BuiltinType) -> Option<bool> {
 pub(super) fn data_reference(
     symbols: &SymbolTable,
     namespace: &super::namespace::Names,
+    scope: super::ScopeId,
     spelling: &str,
 ) -> Option<DataReference> {
+    if !namespace.contains_scope(scope) {
+        return None;
+    }
     if let Some(data) = BuiltinType::from_spelling(spelling) {
         return Some(DataReference::Builtin(data));
     }
-    match namespace.get(&(super::Namespace::Type, symbols.get(spelling)?))? {
-        DeclarationId::Record(id) => Some(DataReference::Record(*id)),
+    match namespace.get(scope, super::Namespace::Type, symbols.get(spelling)?)? {
+        DeclarationId::Record(id) => Some(DataReference::Record(id)),
         DeclarationId::Code(_) => None,
     }
 }

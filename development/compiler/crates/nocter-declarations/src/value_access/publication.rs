@@ -49,9 +49,8 @@ impl HeaderPublication {
     }
     /// The closed named declaration domain, independently of publication readiness.
     /// Anonymous roots are enumerated separately by `code_ids`.
-    #[must_use]
-    pub fn declaration_ids(&self) -> impl ExactSizeIterator<Item = DeclarationId> + '_ {
-        self.definitions.namespace.values().copied()
+    pub fn declaration_ids(&self) -> impl Iterator<Item = DeclarationId> + '_ {
+        self.definitions.namespace.declarations()
     }
     pub(super) fn new(definitions: Builder) -> Self {
         let mut types = TypeAuthority::new();
@@ -82,6 +81,16 @@ impl HeaderPublication {
     /// Reports unknown data names without publishing an incomplete schema.
     pub fn resolve_data(&self, name: Symbol) -> Result<super::DataReference, DeclarationRule> {
         self.definitions.resolve_data(name)
+    }
+    /// Resolve a leaf in an explicit declaration scope through the same closed name authority.
+    /// # Errors
+    /// Reports unknown scopes or data names without publishing an incomplete schema.
+    pub fn resolve_data_in(
+        &self,
+        scope: super::ScopeId,
+        name: Symbol,
+    ) -> Result<super::DataReference, DeclarationRule> {
+        self.definitions.resolve_data_in(scope, name)
     }
     /// Load one define-once raw callable, preserving all reserved slots and ready views.
     /// # Errors
@@ -290,7 +299,12 @@ impl HeaderPublication {
     /// # Errors
     /// Reports the first invalid prerequisite, without publishing its dependents.
     pub fn finish(mut self) -> Result<Program, HeaderFailure> {
-        let records: Vec<_> = self.definitions.records.names().map(|(id, _)| id).collect();
+        let records: Vec<_> = self
+            .definitions
+            .records
+            .names()
+            .map(|(id, _, _)| id)
+            .collect();
         for id in records {
             self.publish(id)?;
         }

@@ -18,12 +18,13 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Connect the [adopted module/source roles](spec/language/modules.md) to the v2 declaration authority.
-Establish contract-only roots, complete implementation signatures, reciprocal pairing and
-source-local lookup before ordinary package/CLI integration. Check the existing source inventory
-and namespace boundaries rather than flattening all files into one visible name table. Keep the
-retained-selection work below open; its bounded execution does not close general hole relations
-or externally dependent callback effects.
+Connect the [adopted module/source rules](spec/language/modules.md) to one v2 declaration authority.
+Thread per-source declaration scopes through header normalization, body lookup and exact source
+rebinding. Consume paired contracts/definitions without reserving competing semantic identities,
+and validate the complete repeated headers in their own lookup contexts. Close direct source
+visibility, source-local imports and resolved contract agreement before ordinary package/CLI
+integration; do not flatten all inventoried names. Keep the retained-selection work below open;
+its bounded execution does not close general hole relations or externally dependent callback effects.
 
 ## Retained Selection Closure
 

@@ -27,7 +27,7 @@ pub use functions::{
     ValueDefinition,
 };
 mod namespace;
-pub use namespace::Namespace;
+pub use namespace::{Namespace, ScopeId};
 mod publication;
 pub use publication::{HeaderFailure, HeaderPublication, HeaderStep};
 mod records;
@@ -274,12 +274,26 @@ impl Program {
     /// Closed name identity, independently of whether its typed contract is ready.
     #[must_use]
     pub fn declaration(&self, namespace: Namespace, name: Symbol) -> Option<DeclarationId> {
-        self.namespace.get(&(namespace, name)).copied()
+        self.declaration_in(ScopeId::ROOT, namespace, name)
+    }
+    /// Closed source-local lookup. No scope fallback or transitive exposure is implied.
+    #[must_use]
+    pub fn declaration_in(
+        &self,
+        scope: ScopeId,
+        namespace: Namespace,
+        name: Symbol,
+    ) -> Option<DeclarationId> {
+        self.namespace.get(scope, namespace, name)
+    }
+    #[must_use]
+    pub fn has_scope(&self, scope: ScopeId) -> bool {
+        self.namespace.contains_scope(scope)
     }
     #[must_use]
     pub fn resolve_record(&self, name: Symbol) -> Option<NominalTypeId> {
-        match self.namespace.get(&(Namespace::Type, name))? {
-            DeclarationId::Record(id) => Some(*id),
+        match self.namespace.get(ScopeId::ROOT, Namespace::Type, name)? {
+            DeclarationId::Record(id) => Some(id),
             DeclarationId::Code(_) => None,
         }
     }
@@ -299,8 +313,8 @@ impl Program {
     /// Lookup any source code declaration for collision checks; not a function-value grant.
     #[must_use]
     pub fn resolve_code(&self, name: Symbol) -> Option<AccessCodeId> {
-        match self.namespace.get(&(Namespace::Value, name))? {
-            DeclarationId::Code(id) => Some(*id),
+        match self.namespace.get(ScopeId::ROOT, Namespace::Value, name)? {
+            DeclarationId::Code(id) => Some(id),
             DeclarationId::Record(_) => None,
         }
     }
@@ -332,10 +346,7 @@ impl Program {
             }
             _ => {}
         }
-        let (&(_, name), _) = self
-            .namespace
-            .iter()
-            .find(|(_, owner)| **owner == declaration)?;
+        let name = self.namespace.name(declaration)?;
         self.symbols.spelling(name).map(str::to_owned)
     }
     /// Presentation only: anonymous code is labeled by its real owning declaration.
@@ -382,6 +393,7 @@ struct Definition {
 
 #[derive(Debug)]
 struct Reservation {
+    scope: ScopeId,
     name: Option<Symbol>,
     parameters: Box<[AccessParameterId]>,
     definition: Option<Definition>,
@@ -398,6 +410,8 @@ struct ParameterSlot {
 #[derive(Debug)]
 pub struct Reservations {
     symbols: SymbolTable,
+    scope_count: usize,
+    bindings: Vec<(ScopeId, Symbol, DeclarationId)>,
     codes: ArenaBuilder<AccessCodeId, Reservation>,
     parameters: ArenaBuilder<AccessParameterId, ParameterSlot>,
     records: records::Builder,
@@ -408,18 +422,76 @@ impl Reservations {
     pub fn new(symbols: SymbolTable) -> Self {
         Self {
             symbols,
+            scope_count: 1,
+            bindings: Vec::new(),
             codes: ArenaBuilder::new(),
             parameters: ArenaBuilder::new(),
             records: records::Builder::default(),
         }
     }
 
+    /// Create another independent lookup scope before closing the namespace.
+    /// # Panics
+    /// Panics if the scope identity space is exhausted.
+    pub fn new_scope(&mut self) -> ScopeId {
+        let scope = ScopeId::new(self.scope_count);
+        self.scope_count = self
+            .scope_count
+            .checked_add(1)
+            .expect("declaration scope domain exhausted");
+        scope
+    }
+    /// Bind an existing declaration under a name in one scope, without cloning its identity.
+    /// Repeated equal bindings have set semantics. Ordinary name conflicts close at `finish`.
+    /// # Errors
+    /// Rejects an unknown scope or target without changing the reservation.
+    pub fn bind(
+        &mut self,
+        scope: ScopeId,
+        name: Symbol,
+        declaration: impl Into<DeclarationId>,
+    ) -> Result<(), DefinitionError> {
+        let declaration = declaration.into();
+        let known = match declaration {
+            DeclarationId::Code(id) => self.codes.get(id).is_some_and(|code| code.name.is_some()),
+            DeclarationId::Record(id) => self.records.field_ids(id).is_some(),
+        };
+        if !scope.within(self.scope_count) || !known {
+            return Err(DefinitionError::UnknownId);
+        }
+        self.bindings.push((scope, name, declaration));
+        Ok(())
+    }
+
     pub fn reserve(&mut self, name: Symbol, parameter_count: usize) -> AccessCodeId {
+        self.reserve_known_scope(ScopeId::ROOT, name, parameter_count)
+    }
+    /// Reserve a named callable/value in one known scope.
+    /// # Errors
+    /// Rejects an unknown scope before reserving code or parameters.
+    pub fn reserve_in(
+        &mut self,
+        scope: ScopeId,
+        name: Symbol,
+        parameter_count: usize,
+    ) -> Result<AccessCodeId, DefinitionError> {
+        if !scope.within(self.scope_count) {
+            return Err(DefinitionError::UnknownId);
+        }
+        Ok(self.reserve_known_scope(scope, name, parameter_count))
+    }
+    fn reserve_known_scope(
+        &mut self,
+        scope: ScopeId,
+        name: Symbol,
+        parameter_count: usize,
+    ) -> AccessCodeId {
         let owner = self.codes.next_id();
         let parameters = (0..parameter_count)
             .map(|position| self.parameters.insert(ParameterSlot { owner, position }))
             .collect();
         self.codes.insert(Reservation {
+            scope,
             name: Some(name),
             parameters,
             definition: None,
@@ -449,7 +521,14 @@ impl Reservations {
         if !valid {
             return Err(DefinitionError::UnknownId);
         }
+        let scope = match source.declaration {
+            DeclarationId::Code(id) => self.codes.get(id).ok_or(DefinitionError::UnknownId)?.scope,
+            DeclarationId::Record(id) => {
+                self.records.scope(id).ok_or(DefinitionError::UnknownId)?
+            }
+        };
         Ok(self.codes.insert(Reservation {
+            scope,
             name: None,
             parameters: Box::new([]),
             definition: Some(Definition {
@@ -462,7 +541,21 @@ impl Reservations {
 
     /// Reserve records in canonical namespace order, independently of definition order.
     pub fn reserve_record(&mut self, name: Symbol, field_count: usize) -> NominalTypeId {
-        self.records.reserve(name, field_count)
+        self.records.reserve(ScopeId::ROOT, name, field_count)
+    }
+    /// Reserve a nominal identity and its fields in one known scope.
+    /// # Errors
+    /// Rejects an unknown scope before reserving any nominal or field slot.
+    pub fn reserve_record_in(
+        &mut self,
+        scope: ScopeId,
+        name: Symbol,
+        field_count: usize,
+    ) -> Result<NominalTypeId, DefinitionError> {
+        if !scope.within(self.scope_count) {
+            return Err(DefinitionError::UnknownId);
+        }
+        Ok(self.records.reserve(scope, name, field_count))
     }
 
     /// Close the complete name domain before resolving types or checking definitions.
@@ -470,8 +563,14 @@ impl Reservations {
     /// Rejects unknown, reserved or colliding names without inventing missing type/header data.
     pub fn finish(self) -> Result<Builder, Vec<DeclarationViolation>> {
         let mut violations = Vec::new();
-        let namespace =
-            namespace::close(&self.symbols, &self.codes, &self.records, &mut violations);
+        let namespace = namespace::close(
+            &self.symbols,
+            &self.codes,
+            &self.records,
+            self.scope_count,
+            &self.bindings,
+            &mut violations,
+        );
         if !violations.is_empty() {
             return Err(violations);
         }
@@ -530,11 +629,21 @@ impl Builder {
     /// # Errors
     /// Rejects a symbol with no known builtin or record declaration.
     pub fn resolve_data(&self, name: Symbol) -> Result<DataReference, DeclarationRule> {
+        self.resolve_data_in(ScopeId::ROOT, name)
+    }
+    /// Resolve one header leaf through its actual source lookup scope.
+    /// # Errors
+    /// Rejects unknown scopes, symbols and data names without publishing a schema.
+    pub fn resolve_data_in(
+        &self,
+        scope: ScopeId,
+        name: Symbol,
+    ) -> Result<DataReference, DeclarationRule> {
         let spelling = self
             .symbols
             .spelling(name)
             .ok_or(DeclarationRule::UnknownSymbol)?;
-        data_reference(&self.symbols, &self.namespace, spelling)
+        data_reference(&self.symbols, &self.namespace, scope, spelling)
             .ok_or(DeclarationRule::UnknownDataName { name })
     }
 
@@ -636,8 +745,8 @@ fn validate_definition(
                 } else {
                     seen.insert(parameter.name, position);
                     namespace
-                        .get(&(Namespace::Value, parameter.name))
-                        .map(|&declaration| match declaration {
+                        .get(reservation.scope, Namespace::Value, parameter.name)
+                        .map(|declaration| match declaration {
                             DeclarationId::Code(declaration) => {
                                 DeclarationRule::ParameterShadowsValue { declaration }
                             }

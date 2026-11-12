@@ -6,7 +6,8 @@ use nocter_model::{
 };
 
 use super::{
-    DataReference, DeclarationId, DeclarationRule, DeclarationViolation, HeaderPosition, data_rule,
+    DataReference, DeclarationId, DeclarationRule, DeclarationViolation, HeaderPosition, ScopeId,
+    data_rule,
 };
 use crate::DefinitionError;
 
@@ -97,6 +98,7 @@ struct Definition {
 
 #[derive(Debug)]
 struct Reservation {
+    scope: ScopeId,
     name: Symbol,
     fields: Box<[AccessFieldId]>,
     definition: Option<Definition>,
@@ -115,16 +117,21 @@ pub(super) struct Builder {
 }
 
 impl Builder {
-    pub fn reserve(&mut self, name: Symbol, field_count: usize) -> NominalTypeId {
+    pub fn reserve(&mut self, scope: ScopeId, name: Symbol, field_count: usize) -> NominalTypeId {
         let owner = self.reservations.next_id();
         let fields = (0..field_count)
             .map(|position| self.fields.insert(FieldSlot { owner, position }))
             .collect();
         self.reservations.insert(Reservation {
+            scope,
             name,
             fields,
             definition: None,
         })
+    }
+
+    pub fn scope(&self, id: NominalTypeId) -> Option<ScopeId> {
+        Some(self.reservations.get(id)?.scope)
     }
 
     pub fn field_ids(&self, id: NominalTypeId) -> Option<&[AccessFieldId]> {
@@ -133,10 +140,10 @@ impl Builder {
             .map(|reserved| reserved.fields.as_ref())
     }
 
-    pub fn names(&self) -> impl Iterator<Item = (NominalTypeId, Symbol)> {
+    pub fn names(&self) -> impl Iterator<Item = (NominalTypeId, ScopeId, Symbol)> {
         self.reservations
             .iter()
-            .map(|(id, reservation)| (id, reservation.name))
+            .map(|(id, reservation)| (id, reservation.scope, reservation.name))
     }
 
     pub fn define(

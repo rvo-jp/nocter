@@ -185,8 +185,7 @@ impl<'source> Preparation<'source> {
         self.headers.code_ids()
     }
     /// All reserved contracts, including unused records, in canonical namespace order.
-    #[must_use]
-    pub fn declaration_ids(&self) -> impl ExactSizeIterator<Item = DeclarationId> + '_ {
+    pub fn declaration_ids(&self) -> impl Iterator<Item = DeclarationId> + '_ {
         self.headers.declaration_ids()
     }
     /// Publish one required declaration and its records, retaining every established contract.

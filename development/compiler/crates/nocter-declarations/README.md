@@ -104,13 +104,22 @@ new identities during type normalization. Formal callable witness keys therefore
 input identities that were available before any definition. Missing definitions cannot publish
 merely because their slots exist.
 
-`namespace` constructs one table keyed by `Namespace::{Type, Value}` and spelling at reservation
-closure. Records and values may share a spelling; duplicates within one namespace still fail
-before type normalization. Functions, constants and statics occupy the value namespace. The same
-table serves forward header references, value-parameter collision checks and published lookup;
-record schemas maintain no second global index. `declaration` requires the caller's namespace,
-so a missing type cannot fall back to a value or vice versa. Reserved identities grant no schema
-or function-value readiness merely because the other namespace already has a ready declaration.
+`namespace` constructs one immutable table keyed by `ScopeId`, `Namespace::{Type, Value}` and
+spelling at reservation closure. Records and values may share a spelling; independent scopes may
+also use the same spelling for distinct declarations. Duplicates in one scope and namespace fail
+before type normalization. Functions, constants and statics occupy the value namespace.
+`Reservations::new_scope`, scoped reservation and `bind` prepare that single table; equal bindings
+have set semantics and aliases/exposure retain the original declaration identity. Bindings neither
+reserve another declaration nor append a type. Named-declaration enumeration counts each canonical
+reservation once, independently of how many scopes or aliases reach it, and unready presentation
+retains its authored name. Unknown scopes reject before reserving slots and cannot obtain builtin
+lookup as a fallback.
+The same authority serves forward header references, parameter collision checks in the declaring
+scope, and published lookup. Record schemas maintain no second global index. Explicit scoped
+lookup has no implicit root or transitive fallback. The single-source convenience methods use only
+`ScopeId::ROOT`. Reserved identities grant no schema or function-value readiness. Source inventory,
+physical visibility, contract/body contexts and import policy remain the lowering owner's work;
+this model does not derive source edges or complete v2 module integration.
 
 Callable/input and record/field tables use model-owned sparse arenas. A missing entry has no data, invocation
 contract or Copy evidence; known names can still identify its required header or forbid shadowing.
@@ -210,7 +219,8 @@ The same program publishes closed nominal record metadata used by parsed callabl
 checking. Record names use the common closed namespace above. Fields have a distinct value-field
 identity domain. Record
 schemas retain declared field order, resolved TypeIds and a frozen local member namespace.
-Definition order cannot affect those identities. Record and callable names cannot collide.
+Definition order cannot affect those identities. Name collisions follow the scoped type/value
+namespace contract above.
 Requested payload validation visits nominal containment edges, including those inside tuple
 fields, without host recursion or payload expansion. An active cycle rejects at its closing field.
 Once dependencies are ready, explicit Copy validation consumes their established evidence before
