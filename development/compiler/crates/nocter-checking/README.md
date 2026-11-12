@@ -1449,7 +1449,10 @@ and matching retirement causes. Availability and resources then use the original
 write to one child cannot close a missing whole element or another field. The shared projected-field
 source qualifies unchanged indices, saved equal indices after mutation and repeated restoration
 across alternating loop indices through required/native execution. Partial transfers never extend
-a whole-element prefix. Conditional projected-point restoration, intervening disjoint writes and
+a whole-element prefix. A completed replacement disjoint from the missing descendant preserves
+its single-point evidence, using the shared structural path relation even when the indices are
+unknown. It does not treat another transfer or an unknown call as a harmless replacement.
+Conditional projected-point restoration, intervening call effects and
 general relations among multiple retained holes remain separate obligations.
 Source also qualifies a later prefix loop after restoring the sole point, without replacing the
 containing array. Independent negative checks retain earlier field holes and longer-prefix holes.

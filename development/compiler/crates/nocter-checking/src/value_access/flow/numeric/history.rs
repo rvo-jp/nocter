@@ -348,6 +348,18 @@ impl Histories {
                 if Holder::Local(*local) != history.array.holder() || !path.overlaps(array) {
                     continue;
                 }
+                // A completed replacement of another descendant creates no second hole and
+                // cannot retire this point's backing. Transfers and unknown writes remain
+                // conservative; only the shared structural path relation proves disjointness.
+                if initialized
+                    && let Phase::ProjectedPoint(source) = phases[id]
+                    && let Some((source_local, hole)) =
+                        Path::for_referent(typed, Referent::Evaluated(source))
+                    && source_local == *local
+                    && !path.overlaps(&hole)
+                {
+                    continue;
+                }
                 // Replacement observes the history after RHS effects. An initialized write
                 // preserves completeness, but cannot erase holes created by those effects.
                 phases[id] = if (definite && path.is_prefix_of(array))

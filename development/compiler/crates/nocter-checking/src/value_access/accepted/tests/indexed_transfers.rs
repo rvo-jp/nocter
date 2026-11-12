@@ -10,6 +10,7 @@ fn projected_writes_do_not_restore_whole_elements_or_other_missing_fields() {
         "let old = pairs[index]^\npairs[index].first = Item { value: 42 }",
         "let old = pairs[index].first^\npairs[index].second = Item { value: 42 }",
         "let old = pairs[index].first^\nindex = 1 - index\npairs[index].first = Item { value: 42 }",
+        "let old = pairs[index].first^\nlet other = pairs[1 - index].second^\npairs[index].first = Item { value: 42 }",
         "var count = 0\nwhile count < 2 { let old = pairs[index].first^\nindex = 1 - index\ncount += 1 }\npairs[index].first = Item { value: 42 }",
     ] {
         let source = format!(

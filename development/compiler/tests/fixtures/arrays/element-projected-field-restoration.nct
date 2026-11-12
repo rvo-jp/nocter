@@ -38,6 +38,14 @@ const func repeated(input: usize): i32 {
     let whole = pairs^
     whole[0].first.value + whole[1].first.value - 12
 }
+const func disjoint(input: usize): i32 {
+    var pairs = initial()
+    let old = pairs[input].first^
+    pairs[1 - input].second = Item { value: old.value }
+    pairs[input].first = Item { value: 42 }
+    let whole = pairs^
+    whole[input].first.value
+}
 const func run(): i32 {
-    if restored(0) == 42 && restored(1) == 42 && saved(0) == 42 && saved(1) == 42 && repeated(0) == 42 && repeated(1) == 42 { 42 } else { 0 }
+    if restored(0) == 42 && restored(1) == 42 && saved(0) == 42 && saved(1) == 42 && repeated(0) == 42 && repeated(1) == 42 && disjoint(0) == 42 && disjoint(1) == 42 { 42 } else { 0 }
 }

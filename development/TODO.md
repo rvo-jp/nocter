@@ -18,8 +18,7 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Preserve a retained projected-point proof across intervening disjoint writes, then extend
-conditional projected-point restoration and relations among multiple holes. Establish ordinary
+Extend conditional projected-point restoration and relations among multiple holes. Establish ordinary
 source before changing numeric history; actual missing paths and owned snapshots remain the
 authorities for consuming equality evidence. Use the retained-selection obligations below and
 the component READMEs' implemented scope; source admission alone is not required/native execution

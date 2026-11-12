@@ -355,7 +355,8 @@ Projected-field restoration also executes with owned error graphs. The source mu
 index after extracting one record field, restores through its saved equal index, then transfers
 the completed array. Single and repeated alternating-index routes release the extracted old
 graphs and the final fields through the existing cleanup schedule, without treating a child
-write as whole-element initialization.
+write as whole-element initialization. Replacement of the other field between extraction and
+restoration also executes its owned-graph cleanup without losing the original point's backing.
 
 `owned-error-adapters.nct` executes read environments forwarded through formal consuming adapters,
 read-to-update-to-once views, repeated environment replacement followed by consuming completion,

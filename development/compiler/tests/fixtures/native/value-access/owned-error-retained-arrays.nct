@@ -171,6 +171,7 @@ func projected_restore(input: usize, repeated: bool): i32 {
         let position = index
         let old = pairs[index].first^
         index = 1 - index
+        pairs[index].second = build(old.value)
         pairs[position].first = build(old.value + 1)
         count += 1
     }
