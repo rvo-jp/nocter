@@ -558,7 +558,41 @@ impl<'a, 's> Checker<'a, 's> {
         }
         Ok(())
     }
+    fn place_boundary(
+        &self,
+        node: NodeId,
+        source: AccessExpressionId,
+        expected: Ty,
+    ) -> Result<AccessExpressionId, Failure> {
+        if !self.ty(source).may_complete() {
+            return Ok(source);
+        }
+        let Some(place) = self.expression_referent(source) else {
+            return self.reject_message(
+                Rule::TypeMismatch,
+                node,
+                "this result must designate an existing surviving place".into(),
+                Vec::new(),
+            );
+        };
+        if expected.mode() == Mode::Update {
+            self.require_writable_referent(place, node, Rule::InvalidUpdate)?;
+        }
+        Ok(source)
+    }
     pub fn boundary(
+        &mut self,
+        node: NodeId,
+        source: AccessExpressionId,
+        boundary: Boundary,
+    ) -> Result<AccessExpressionId, Failure> {
+        if let Boundary::Place(expected) = boundary {
+            self.require_data(source, expected.data(), node)?;
+            return self.place_boundary(node, source, expected);
+        }
+        self.value_boundary(node, source, boundary)
+    }
+    fn value_boundary(
         &mut self,
         node: NodeId,
         mut source: AccessExpressionId,

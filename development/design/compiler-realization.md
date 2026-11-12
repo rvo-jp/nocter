@@ -52,6 +52,26 @@ body reads less. Inferred read/update captures must preserve outside roots and e
 non-Copy value capture still needs explicit formation permission. Nested captures and
 factory-result closure bodies must preserve code-scoped application identities, not their parent's domain.
 
+### Conditional Caller Temporaries
+
+Scoped recovery in a direct call can select an existing payload on one branch and a fresh owned
+fallback on another. Carry the distinction between a strict place demand and a bounded call-input
+demand through checking. An owning fallback must not make the existing branch acquire ownership,
+and the same expression in a named alias must not gain an invisible temporary lifetime.
+
+A temporary view must designate its actual owned payload in the existing resource ledger. Keep
+its backing separate from the alias slot, without a second ownership table or a copy of the
+existing branch. Protect a selected temporary before its producing block exits, retaining it in
+the enclosing evaluation frame rather than postponing handler-local destruction. Distinguish a
+scope-exiting answer receipt from ordinary alias forwarding so repeated forwarding cannot extend
+the owner into an unrelated outer frame. Retained access must refer to that actual owner and
+reject use after its evaluation frame ends.
+
+Use ordinary neutral argument reservations, complete-bundle validation, cancellation and cleanup
+for either selected branch. Qualify nested fallback blocks, explicit acquisition from handler
+locals, later operand exits, read/edit inputs, alias escape and shared required/native behavior.
+A normal fallback result is not evidence that all branch backings exist simultaneously.
+
 ## Integrated Source Families
 
 | Owning subject | Remaining integrated evidence |

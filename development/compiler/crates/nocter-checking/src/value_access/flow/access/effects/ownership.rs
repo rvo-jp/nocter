@@ -382,10 +382,14 @@ impl Context<'_, '_> {
             .body()
             .referent_data(target)
             .ok_or(Failure::Integrity)?;
-        let (local, fields) = super::super::super::numeric::path(self.typed, self.facts, target)
-            .ok_or(Failure::Integrity)?;
-        let owning = self.local_mode(local)? == Mode::Own
-            && crate::value_access::paths::concrete(&fields).is_some();
+        let owning = if let Some((local, fields)) =
+            super::super::super::numeric::path(self.typed, self.facts, target)
+        {
+            self.local_mode(local)? == Mode::Own
+                && crate::value_access::paths::concrete(&fields).is_some()
+        } else {
+            false
+        };
         let restored = self.restored_destination(target)?;
         let destination = if let Some(destination) = restored {
             Some(destination)

@@ -10,7 +10,7 @@ mod state;
 #[cfg(test)]
 mod tests;
 mod transfer;
-pub(super) use selection::{index_fact, path, resource_path};
+pub(super) use selection::{index_fact, initialization_paths, path, resource_path};
 
 use super::owned_base;
 use super::resources::ArrayFrontier;

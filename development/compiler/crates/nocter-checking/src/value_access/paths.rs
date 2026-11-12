@@ -54,56 +54,146 @@ impl Expression {
             .map_or(IndexFact::Unknown, IndexFact::Known)
     }
 }
+/// Forwarded control already validated its selected place before leaving the producing scope.
+/// Provenance queries expand its alternatives; availability queries retain that receipt.
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub(super) enum ProjectionRoots {
+    All,
+    Unforwarded,
+}
+
 impl Referent {
-    pub(super) fn projection_path<'a, I: Copy>(
-        mut self,
-        place: impl Fn(AccessPlaceId) -> Option<&'a super::Place>,
+    /// Enumerate normal place alternatives through one typed projection traversal. These are
+    /// conservative provenance possibilities, not evidence that all branches execute or alias.
+    pub(super) fn projections<'a, I: Copy>(
+        self,
         expression: impl Fn(AccessExpressionId) -> Option<&'a Expression>,
+        block: impl Fn(nocter_model::AccessBlockId) -> Option<&'a super::ir::Block>,
+        roots: ProjectionRoots,
         constant: impl Fn(u64) -> I,
         index: impl Fn(AccessExpressionId, AccessExpressionId) -> Option<I>,
-    ) -> Option<(AccessLocalId, ValuePath<I>)> {
-        let mut suffixes: Vec<ValuePath<I>> = Vec::new();
-        loop {
-            match self {
-                Referent::Place(id) => {
-                    let place = place(id)?;
-                    let mut fields = known_by(&place.fields, &constant).fields().to_vec();
-                    for suffix in suffixes.into_iter().rev() {
-                        fields.extend_from_slice(suffix.fields());
-                    }
-                    return Some((place.local, ValuePath::new(fields)));
+    ) -> Option<Vec<(AccessPlaceId, ValuePath<I>)>> {
+        let mut pending = vec![(self, Vec::<ValuePath<I>>::new())];
+        let mut result = Vec::new();
+        while let Some((source, mut suffixes)) = pending.pop() {
+            let Referent::Evaluated(id) = source else {
+                let Referent::Place(base) = source else {
+                    unreachable!()
+                };
+                let fields = suffixes
+                    .into_iter()
+                    .rev()
+                    .flat_map(|path| path.fields().to_vec());
+                result.push((base, ValuePath::new(fields)));
+                continue;
+            };
+            let value = expression(id)?;
+            if value.referent(id) != Some(Referent::Evaluated(id)) {
+                return None;
+            }
+            if roots == ProjectionRoots::Unforwarded
+                && matches!(
+                    value.kind,
+                    ExpressionKind::Scoped { .. }
+                        | ExpressionKind::If { .. }
+                        | ExpressionKind::Block { .. }
+                )
+            {
+                continue;
+            }
+            let mut blocks = Vec::new();
+            let source = match &value.kind {
+                ExpressionKind::GuardView { source } => {
+                    pending.push((*source, suffixes));
+                    continue;
                 }
-                Referent::Evaluated(id) => {
-                    let source = match &expression(id)?.kind {
-                        ExpressionKind::GuardView { source } => {
-                            self = *source;
-                            continue;
-                        }
-                        ExpressionKind::Scoped { source, .. } => *source,
-                        ExpressionKind::Index {
-                            base,
-                            index: operand,
-                            action: IndexAction::Access,
-                            ..
-                        } => {
-                            suffixes.push(ValuePath::new([ValueProjection::Array(index(
-                                id, *operand,
-                            )?)]));
-                            *base
-                        }
-                        ExpressionKind::Select {
-                            source,
-                            fields,
-                            action: SelectionAction::Access,
-                        } => {
-                            suffixes.push(known_by(fields, &constant));
-                            *source
-                        }
-                        _ => return None,
-                    };
-                    self = expression(source)?.referent(source)?;
+                ExpressionKind::Scoped { projected, .. } => Some(*projected),
+                ExpressionKind::Block { block } => {
+                    blocks.push(*block);
+                    None
+                }
+                ExpressionKind::If {
+                    then_block,
+                    else_block,
+                    ..
+                } => {
+                    blocks.extend([*then_block, *else_block]);
+                    None
+                }
+                ExpressionKind::Index {
+                    base,
+                    index: operand,
+                    action: IndexAction::Access,
+                    ..
+                } => {
+                    suffixes.push(ValuePath::new([ValueProjection::Array(index(
+                        id, *operand,
+                    )?)]));
+                    Some(*base)
+                }
+                ExpressionKind::Select {
+                    source,
+                    fields,
+                    action: SelectionAction::Access,
+                } => {
+                    suffixes.push(known_by(fields, &constant));
+                    Some(*source)
+                }
+                _ => return None,
+            };
+            if let Some(source) = source {
+                pending.push((expression(source)?.referent(source)?, suffixes));
+            } else {
+                for selected in blocks {
+                    let branch = block(selected)?;
+                    if branch.ty.may_complete() {
+                        let value = branch.result?;
+                        pending.push((expression(value)?.referent(value)?, suffixes.clone()));
+                    }
                 }
             }
         }
+        Some(result)
+    }
+    pub(super) fn projection_paths<'a, I: Copy>(
+        self,
+        place: impl Fn(AccessPlaceId) -> Option<&'a super::Place>,
+        expression: impl Fn(AccessExpressionId) -> Option<&'a Expression>,
+        block: impl Fn(nocter_model::AccessBlockId) -> Option<&'a super::ir::Block>,
+        roots: ProjectionRoots,
+        constant: impl Fn(u64) -> I,
+        index: impl Fn(AccessExpressionId, AccessExpressionId) -> Option<I>,
+    ) -> Option<Vec<(AccessLocalId, ValuePath<I>)>> {
+        self.projections(expression, block, roots, &constant, index)?
+            .into_iter()
+            .map(|(base, suffix)| {
+                let base = place(base)?;
+                Some((
+                    base.local,
+                    known_by(&base.fields, &constant).concat(&suffix),
+                ))
+            })
+            .collect()
+    }
+    pub(super) fn projection_path<'a, I: Copy + Eq>(
+        self,
+        place: impl Fn(AccessPlaceId) -> Option<&'a super::Place>,
+        expression: impl Fn(AccessExpressionId) -> Option<&'a Expression>,
+        block: impl Fn(nocter_model::AccessBlockId) -> Option<&'a super::ir::Block>,
+        constant: impl Fn(u64) -> I,
+        index: impl Fn(AccessExpressionId, AccessExpressionId) -> Option<I>,
+    ) -> Option<(AccessLocalId, ValuePath<I>)> {
+        let mut paths = self
+            .projection_paths(
+                place,
+                expression,
+                block,
+                ProjectionRoots::All,
+                constant,
+                index,
+            )?
+            .into_iter();
+        let first = paths.next()?;
+        paths.all(|path| path == first).then_some(first)
     }
 }

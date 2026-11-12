@@ -301,6 +301,11 @@ fn invocation(
             .get(place)
             .is_some_and(|p| p.local == environment)
     };
+    let selects_source = |source: super::Referent| {
+        source
+            .static_bases(|id| body.expressions().get(id), |id| body.blocks().get(id))
+            .is_some_and(|bases| bases.into_iter().any(selects))
+    };
     let mut invocation = ValueInvocation::Read;
     let mut pending = std::collections::BTreeSet::from([control.graph.entry()]);
     let mut visited = std::collections::BTreeSet::new();
@@ -321,11 +326,7 @@ fn invocation(
                     .ok_or(Failure::InconsistentSyntax)?
                     .kind
                 {
-                    ExpressionKind::Move(place)
-                        if place
-                            .static_base(|id| body.expressions().get(id))
-                            .is_some_and(selects) =>
-                    {
+                    ExpressionKind::Move(place) if selects_source(*place) => {
                         return Ok(ValueInvocation::Take);
                     }
                     ExpressionKind::Boundary {
@@ -335,8 +336,7 @@ fn invocation(
                         .expressions()
                         .get(*source)
                         .and_then(|e| e.referent(*source))
-                        .and_then(|source| source.static_base(|id| body.expressions().get(id)))
-                        .is_some_and(selects) =>
+                        .is_some_and(selects_source) =>
                     {
                         invocation = ValueInvocation::Edit;
                     }
@@ -356,27 +356,17 @@ fn invocation(
                         .ok_or(Failure::InconsistentSyntax)?
                         .action
                     {
-                        ArgumentAction::ReserveTransfer { place, .. }
-                            if place
-                                .static_base(|id| body.expressions().get(id))
-                                .is_some_and(selects) =>
-                        {
+                        ArgumentAction::ReserveTransfer { place, .. } if selects_source(place) => {
                             return Ok(ValueInvocation::Take);
                         }
-                        ArgumentAction::ReserveUpdate(place)
-                            if place
-                                .static_base(|id| body.expressions().get(id))
-                                .is_some_and(selects) =>
-                        {
+                        ArgumentAction::ReserveUpdate(place) if selects_source(place) => {
                             invocation = ValueInvocation::Edit;
                         }
                         _ => {}
                     }
                 }
                 Operation::Assign { target, .. } | Operation::CompoundAssign { target, .. }
-                    if target
-                        .static_base(|id| body.expressions().get(id))
-                        .is_some_and(selects) =>
+                    if selects_source(target) =>
                 {
                     invocation = ValueInvocation::Edit;
                 }

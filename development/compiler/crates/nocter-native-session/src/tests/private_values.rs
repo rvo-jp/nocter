@@ -718,3 +718,13 @@ fn private_optional_recovery_does_not_swallow_bounds_or_erase_an_inner_absence()
         execute_native_signal(&compile(source), &package.0, name, 5);
     }
 }
+
+#[test]
+fn private_optional_recovery_preserves_alternative_places_and_authority() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/optional-recovery-places.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "optional-recovery-places", 42);
+}

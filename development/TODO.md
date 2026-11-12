@@ -18,13 +18,12 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Extend scoped optional recovery (`otherwise`) from terminating fallback paths to normal results
-that designate an alternative surviving place. Preserve branch-specific source authority, tag
-stability, actual alias provenance, initialization and resource cleanup; an arbitrary conditional
-value does not become a place. Keep direct-call reservations neutral during preparation and named
-aliases unable to retain an invisible fallback-local owner. Reuse the existing control/access
-protocols rather than inventing a second ownership registry. Qualify required and native source,
-including negative lifetime/authority cases, before claiming support.
+Extend direct scoped call recovery (`otherwise`) to a fresh owned fallback. The present branch
+must still access the existing carrier payload, while the absent branch may need a caller-owned
+temporary bounded by the argument-evaluation frame. Preserve conditional ownership, cancellation,
+answer protection and cleanup through the existing frame/resource protocols; do not snapshot the
+present branch merely to align branch storage, or let a named alias retain an invisible owner.
+Keep fallible/error behavior explicit and qualify required/native source and negative cases.
 
 ## Retained Selection Closure
 

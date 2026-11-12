@@ -351,23 +351,38 @@ impl Checker<'_, '_> {
             if projection == Some(Mode::Update) {
                 self.require_writable_referent(place, node, Rule::InvalidUpdate)?;
             }
-            let fallback = self.block(block, None, fallback_reachable)?;
-            if self.block_ty(fallback).may_complete() {
-                return self.reject_message(
-                    Rule::TypeMismatch,
-                    block,
-                    "scoped optional recovery with a producing fallback is not available yet"
-                        .into(),
-                    Vec::new(),
-                );
-            }
-            return self.scoped_optional(
+            let fallback = self.block(
+                block,
+                Some(Boundary::Place(nocter_model::ValueAccess::new(
+                    payload,
+                    projection.unwrap(),
+                ))),
+                fallback_reachable,
+            )?;
+            let guard = self.emit(
                 node,
-                source,
-                place,
-                access.data(),
-                payload,
-                Some(fallback),
+                value_type(access.data(), Mode::Read),
+                ExpressionKind::GuardView { source: place },
+            )?;
+            let present = self.emit(
+                node,
+                value_type(payload, Mode::Read),
+                ExpressionKind::Select {
+                    source: guard,
+                    fields: FieldPath::new([ValueField::Variant(true)]),
+                    action: SelectionAction::Access,
+                },
+            )?;
+            let condition = self.emit(
+                node,
+                value_type(self.data(nocter_model::BuiltinType::Bool), Mode::Own),
+                ExpressionKind::PrimaryCondition { source: place },
+            )?;
+            let projected = self.optional_branch(node, condition, present, fallback)?;
+            return self.emit(
+                node,
+                value_type(payload, Mode::Read).with_continuation(self.ty(source).may_complete()),
+                ExpressionKind::Scoped { source, projected },
             );
         }
         let (source, data, payload) = self.supply_optional(node, source)?;

@@ -143,38 +143,34 @@ impl Referent {
             }
         }
     }
-    /// Resolve only the existing base authority, never a concrete element path or an index
-    /// equality proof. Callers retain the evaluated address separately.
+    /// Resolve only a unique existing base authority; never guess among alternate places.
     pub(super) fn static_base<'a>(
-        mut self,
+        self,
         expression: impl Fn(AccessExpressionId) -> Option<&'a Expression>,
+        block: impl Fn(AccessBlockId) -> Option<&'a Block>,
     ) -> Option<AccessPlaceId> {
-        loop {
-            match self {
-                Self::Place(place) => return Some(place),
-                Self::Evaluated(id) => {
-                    let source = match expression(id)?.kind {
-                        ExpressionKind::GuardView { source } => {
-                            self = source;
-                            continue;
-                        }
-                        ExpressionKind::Index {
-                            base,
-                            action: IndexAction::Access,
-                            ..
-                        } => base,
-                        ExpressionKind::Scoped { source, .. }
-                        | ExpressionKind::Select {
-                            source,
-                            action: SelectionAction::Access,
-                            ..
-                        } => source,
-                        _ => return None,
-                    };
-                    self = expression(source)?.referent(source)?;
-                }
-            }
-        }
+        let bases = self.static_bases(expression, block)?;
+        (bases.len() == 1).then(|| bases[0])
+    }
+    pub(super) fn static_bases<'a>(
+        self,
+        expression: impl Fn(AccessExpressionId) -> Option<&'a Expression>,
+        block: impl Fn(AccessBlockId) -> Option<&'a Block>,
+    ) -> Option<Vec<AccessPlaceId>> {
+        let mut bases: Vec<_> = self
+            .projections(
+                expression,
+                block,
+                super::paths::ProjectionRoots::All,
+                |_| (),
+                |_, _| Some(()),
+            )?
+            .into_iter()
+            .map(|(base, _)| base)
+            .collect();
+        bases.sort_unstable();
+        bases.dedup();
+        Some(bases)
     }
 }
 impl From<AccessPlaceId> for Referent {
@@ -306,8 +302,8 @@ pub enum ExpressionKind {
     AdaptFunction {
         source: AccessExpressionId,
     },
-    /// Form one carrier place once, then forward that same place after its guard/control.
-    /// Source and projected have the same data; payload selection remains outside this receipt.
+    /// Form a source once, then forward the existing place selected by its projection/control.
+    /// Normal alternatives retain their own source authority, address and lifetime.
     Scoped {
         source: AccessExpressionId,
         projected: AccessExpressionId,
@@ -402,9 +398,17 @@ impl Expression {
         }
     }
     #[must_use]
-    pub const fn referent(&self, id: AccessExpressionId) -> Option<Referent> {
+    pub fn referent(&self, id: AccessExpressionId) -> Option<Referent> {
         match self.kind {
             ExpressionKind::Place(place) => Some(Referent::Place(place)),
+            ExpressionKind::Block { .. } | ExpressionKind::If { .. }
+                if self
+                    .ty
+                    .normal()
+                    .is_some_and(|ty| ty.mode() != ValueAccessMode::Own) =>
+            {
+                Some(Referent::Evaluated(id))
+            }
             ExpressionKind::Scoped { .. } | ExpressionKind::GuardView { .. } => {
                 Some(Referent::Evaluated(id))
             }
@@ -507,7 +511,7 @@ impl TypedBody {
     /// The returned place belongs to this body's arena and may select a component of its local.
     #[must_use]
     pub fn referent_base(&self, referent: Referent) -> Option<AccessPlaceId> {
-        referent.static_base(|id| self.expressions.get(id))
+        referent.static_base(|id| self.expressions.get(id), |id| self.blocks.get(id))
     }
     #[must_use]
     pub fn referent_data(&self, referent: Referent) -> Option<TypeId> {
@@ -565,13 +569,15 @@ impl TypedBody {
 #[derive(Clone, Copy, Debug)]
 pub(super) enum Boundary {
     Binding(ValueAccess),
+    /// Demand an existing place without activating a read/update grant during preparation.
+    Place(ValueAccess),
     Value(TypeId),
     Result(TypeId),
 }
 impl Boundary {
     pub(super) const fn ty(self) -> ValueAccess {
         match self {
-            Self::Binding(ty) => ty,
+            Self::Binding(ty) | Self::Place(ty) => ty,
             Self::Value(data) | Self::Result(data) => ValueAccess::new(data, ValueAccessMode::Own),
         }
     }

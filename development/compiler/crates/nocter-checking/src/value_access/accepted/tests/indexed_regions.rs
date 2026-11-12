@@ -138,6 +138,7 @@ fn availability_and_access_share_the_typed_mixed_selection_path() {
         .projection_path(
             |id| body.places().get(id),
             |id| body.expressions().get(id),
+            |id| body.blocks().get(id),
             IndexFact::Known,
             |_, operand| {
                 body.expressions()

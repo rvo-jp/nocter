@@ -32,6 +32,7 @@ pub(in crate::value_access::flow) fn path(
     reference.projection_path(
         |id| typed.body().places().get(id),
         |id| typed.body().expressions().get(id),
+        |id| typed.body().blocks().get(id),
         IndexFact::Known,
         |selection, operand| index_fact(typed, facts, selection, operand),
     )
@@ -45,4 +46,19 @@ pub(in crate::value_access::flow) fn resource_path(
     resources::Path::for_referent_with(typed, reference, |selection, operand| {
         index_fact(typed, facts, selection, operand)
     })
+}
+
+pub(in crate::value_access::flow) fn initialization_paths(
+    typed: &TypedQuery,
+    facts: Option<&NumericFacts>,
+    reference: Referent,
+) -> Option<Vec<(AccessLocalId, AccessPath)>> {
+    reference.projection_paths(
+        |id| typed.body().places().get(id),
+        |id| typed.body().expressions().get(id),
+        |id| typed.body().blocks().get(id),
+        crate::value_access::paths::ProjectionRoots::Unforwarded,
+        IndexFact::Known,
+        |selection, operand| index_fact(typed, facts, selection, operand),
+    )
 }

@@ -606,8 +606,9 @@ owner and the selected answer is protected before its lexical cleanup. Existing 
 cancels enclosing prepared calls and retires scopes; no separate propagation cleanup protocol is
 introduced. A closure uses its own result contract. Initializers and non-optional callable results
 cannot propagate absence. Direct read/edit operands and scoped bindings request an existing payload
-place for postfix `!` or `?`. `Scoped` forms its source once and forwards that same carrier place
-after its guard/control; the payload selector stays outside the receipt. `GuardView` checks the tag
+place for postfix `!` or `?`. `Scoped` forms its source once and forwards the place selected by
+its projection/control. Assertion and propagation retain the carrier, with the payload selector
+outside that receipt. `GuardView` checks the tag
 and retains its stability. Ordinary selection, argument reservation and alias binding then use the
 original payload storage. Scoped propagation returns absence through the same callable return
 protocol without transferring the carrier. Its tag condition consumes a resolved place, including
@@ -619,10 +620,16 @@ state, with no runtime owner or lock table. Named aliases cannot keep a produced
 `otherwise` uses the same carrier acquisition and ordinary conditional. Value recovery supplies
 the carrier once, selects its present payload or evaluates the fallback only on absence, and
 protects the answer before lexical cleanup. Nested payload data is preserved exactly. Scoped
-recovery currently admits a terminating fallback, including return, break and continue, and
-forwards the original carrier on its normal path. A producing scoped fallback still needs
-alternative surviving-place evidence and is explicitly rejected rather than copied into an
-owned snapshot. Fallible recovery remains outside this qualified path.
+recovery admits terminating paths and normal fallbacks designating compatible surviving places.
+Its place-demand boundary validates data and update authority without activating a grant during
+call preparation. Ordinary control forwards the selected alias before handler-local cleanup;
+an outside referent can survive a handler-local alias, while a handler-owned value cannot escape.
+One typed projection traversal enumerates normal provenance alternatives for authority and
+conservative producer analysis. Initialization validates each selected source before forwarding;
+access analysis retains the actual selected root through cleanup and use, without re-reading
+unchosen source slots. A unique root/path query never guesses among alternatives. Fresh owned
+fallbacks needing conditional caller-temporary storage, and fallible recovery, remain outside
+this qualified path.
 
 Implicit optional input wrappers retain the original direct-transfer reservation. Complete bundle
 validation precedes wrapper materialization and original-source retirement; later reads and

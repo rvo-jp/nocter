@@ -195,8 +195,14 @@ fn require_selection(
     at: Location,
     violations: &mut Vec<InitializationViolation>,
 ) -> Result<(), IntegrityError> {
-    let (local, fields) = super::numeric::path(typed, facts, referent).ok_or(INVALID)?;
-    require_path(state, local, fields, requirement, at, violations)
+    for (local, fields) in
+        super::numeric::initialization_paths(typed, facts, referent).ok_or(INVALID)?
+    {
+        require_path(state, local, fields, requirement, at, violations)?;
+    }
+    // Control receipts validated their selected source at Forward, before scope cleanup.
+    // Access analysis preserves the actual referent; never re-read an expired alias slot.
+    Ok(())
 }
 fn require_path(
     state: &State,
@@ -257,23 +263,25 @@ fn require_formation(
         .ok_or(INVALID)?
         .referent(id)
     {
-        let (local, path) = super::numeric::path(typed, facts, referent).ok_or(INVALID)?;
-        // A child slot can be missing while its containing array/record remains present.
-        // Formation does not read that slot or recreate a missing containing place.
-        let parent = AccessPath::new(
-            path.fields()
-                .iter()
-                .take(path.fields().len().saturating_sub(1))
-                .copied(),
-        );
-        require_path(
-            state,
-            local,
-            parent,
-            InitializationRequirement::Container,
-            at,
-            violations,
-        )?;
+        for (local, path) in
+            super::numeric::initialization_paths(typed, facts, referent).ok_or(INVALID)?
+        {
+            // A child slot can be missing while its containing array/record remains present.
+            let parent = AccessPath::new(
+                path.fields()
+                    .iter()
+                    .take(path.fields().len().saturating_sub(1))
+                    .copied(),
+            );
+            require_path(
+                state,
+                local,
+                parent,
+                InitializationRequirement::Container,
+                at,
+                violations,
+            )?;
+        }
     }
     Ok(())
 }
@@ -395,6 +403,36 @@ fn require_prepared_argument(
     }
 }
 
+fn require_forwarded(
+    typed: &TypedQuery,
+    facts: Option<&super::numeric::NumericFacts>,
+    state: &State,
+    source: nocter_model::AccessExpressionId,
+    result: nocter_model::AccessExpressionId,
+    at: Location,
+    violations: &mut Vec<InitializationViolation>,
+) -> Result<(), IntegrityError> {
+    if typed
+        .body()
+        .expressions()
+        .get(result)
+        .ok_or(INVALID)?
+        .referent(result)
+        .is_some()
+    {
+        require_expression(
+            typed,
+            facts,
+            state,
+            source,
+            InitializationRequirement::Value,
+            at,
+            violations,
+        )?;
+    }
+    Ok(())
+}
+
 fn transfer(
     typed: &TypedQuery,
     graph: &Graph,
@@ -491,8 +529,10 @@ fn transfer(
                     violations,
                 )?;
             }
+            Operation::Forward { source, result } => {
+                require_forwarded(typed, facts, state, *source, *result, location, violations)?;
+            }
             Operation::IndexFailure(_)
-            | Operation::Forward { .. }
             | Operation::BeginEvaluation(_)
             | Operation::EndEvaluation(_)
             | Operation::BooleanConstant { .. }
@@ -624,7 +664,11 @@ fn assign(
     let place = if let Some(place) = target.place() {
         selected(typed, place)?.clone()
     } else {
-        let (local, fields) = super::numeric::path(typed, facts, target).ok_or(INVALID)?;
+        let Some((local, fields)) = super::numeric::path(typed, facts, target) else {
+            // A retained alternative place can replace only an already initialized referent.
+            // It cannot initialize all candidate roots or erase a hole on an unchosen branch.
+            return require_referent(typed, facts, state, target, location, violations);
+        };
         let mode = typed
             .body()
             .locals()

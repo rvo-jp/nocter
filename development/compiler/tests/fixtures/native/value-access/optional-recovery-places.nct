@@ -1,0 +1,76 @@
+struct Pair { first: i32
+    second: i32 }
+const func observe(value: Pair): i32 { value.first }
+const func read_selected(value: Pair?, fallback: Pair): i32 {
+    read selected = value otherwise {
+        if false { return 0 } else { read local = fallback
+            local }
+    }
+    selected.first
+}
+const func set(edit value: Pair): void { value = Pair { first: 42, second: 7 } }
+const func edit_selected(edit value: Pair?, edit fallback: Pair): void {
+    edit selected = value otherwise { fallback }
+    selected.first = 42
+}
+const func direct(edit value: Pair?, edit fallback: Pair): void {
+    set(value otherwise { fallback })
+}
+const func next(edit index: usize): usize { let saved = index
+    index += 1
+    saved }
+const func indexed(): i32 {
+    var values: [Pair?; 2] = [none, Pair { first: 0, second: 0 }]
+    var backups: [Pair; 2] = [Pair { first: 1, second: 7 }, Pair { first: 2, second: 8 }]
+    var index: usize = 0
+    var backup: usize = 0
+    edit selected = values[next(index)] otherwise { backups[next(backup)] }
+    backup = 1
+    selected.first = 42
+    if index == 1 && backup == 1 && backups[0].first == 42 && backups[1].first == 2 { 42 } else { 0 }
+}
+const func nested(): i32 {
+    var source: Pair?? = none
+    var backup: Pair? = none
+    var last = Pair { first: 1, second: 7 }
+    edit selected = (source otherwise { backup }) otherwise { last }
+    selected.first = 42
+    last.first
+}
+const func conditional(value: Pair?, first: Pair, second: Pair, flag: bool): i32 {
+    read selected = value otherwise { if flag { first } else { second } }
+    selected.first
+}
+const func refill(edit value: Pair?, edit fallback: Pair): void {
+    edit selected = value otherwise { value = Pair { first: 7, second: 8 }
+        fallback }
+    selected.first = 42
+}
+const func calculate(): i32 {
+    let none_pair: Pair? = none
+    let some_pair: Pair? = Pair { first: 42, second: 7 }
+    let backup = Pair { first: 42, second: 0 }
+    let read_absent = read_selected(none_pair, backup)
+    let read_present = read_selected(some_pair, backup)
+    let supplied = some_pair^!
+    var present: Pair? = Pair { first: 1, second: 7 }
+    var unused = Pair { first: 2, second: 8 }
+    edit_selected(present, unused)
+    let present_result = observe(present!)
+    var absent: Pair? = none
+    var used = Pair { first: 1, second: 7 }
+    edit_selected(absent, used)
+    var direct_present: Pair? = Pair { first: 1, second: 7 }
+    var direct_unused = Pair { first: 2, second: 8 }
+    direct(direct_present, direct_unused)
+    var direct_absent: Pair? = none
+    var direct_used = Pair { first: 1, second: 0 }
+    direct(direct_absent, direct_used)
+    var refill_source: Pair? = none
+    var refill_backup = Pair { first: 1, second: 0 }
+    refill(refill_source, refill_backup)
+    let other = Pair { first: 0, second: 0 }
+    if read_absent == 42 && read_present == 42 && supplied.first == 42 && present_result == 42 && unused.first == 2 && used.first == 42 && observe(direct_present!) == 42 && direct_unused.first == 2 && direct_used.first == 42 && direct_used.second == 7 && indexed() == 42 && nested() == 42 && conditional(none_pair, backup, other, true) == 42 && conditional(none_pair, other, backup, false) == 42 && refill_backup.first == 42 && observe(refill_source!) == 7 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { if ANSWER == 42 { calculate() } else { 0 } }

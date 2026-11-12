@@ -180,6 +180,7 @@ impl Path {
         let (local, path) = referent.projection_path(
             |id| typed.body().places().get(id),
             |id| typed.body().expressions().get(id),
+            |id| typed.body().blocks().get(id),
             Index::Constant,
             |selection, operand| {
                 Some(match fact(selection, operand)? {

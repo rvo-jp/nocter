@@ -82,9 +82,17 @@ impl Checker<'_, '_> {
         node: NodeId,
         source: super::Referent,
     ) -> Result<AccessExpressionId, Failure> {
-        let base = source
-            .static_base(|id| self.expressions.get(id))
-            .ok_or(Failure::InconsistentSyntax)?;
+        let Some(base) =
+            source.static_base(|id| self.expressions.get(id), |id| self.blocks.get(id))
+        else {
+            return self.reject_message(
+                Rule::MissingTransfer,
+                node,
+                "postfix transfer needs one proven owning source; this place has alternatives"
+                    .into(),
+                Vec::new(),
+            );
+        };
         let access = self.place_ty(base);
         if access.mode() != Mode::Own {
             return self.reject_message(
@@ -413,11 +421,13 @@ impl Checker<'_, '_> {
         node: NodeId,
         rule: Rule,
     ) -> Result<(), Failure> {
-        let place = source
-            .static_base(|id| self.expressions.get(id))
+        let places = source
+            .static_bases(|id| self.expressions.get(id), |id| self.blocks.get(id))
             .ok_or(Failure::InconsistentSyntax)?;
-        if !self.writable_place(place) {
-            return self.reject_local(rule, node, self.selected_place(place).local);
+        for place in places {
+            if !self.writable_place(place) {
+                return self.reject_local(rule, node, self.selected_place(place).local);
+            }
         }
         Ok(())
     }

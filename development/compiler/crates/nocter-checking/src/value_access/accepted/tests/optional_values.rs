@@ -306,13 +306,70 @@ fn optional_recovery_cannot_invent_ownership_change_payload_data_or_restore_a_re
     }
 }
 #[test]
-fn producing_scoped_recovery_is_an_explicit_unqualified_place_obligation() {
-    let source = "func run(value: i32?, fallback: i32): i32 { read payload = value otherwise { fallback }\npayload }";
+fn scoped_recovery_selects_a_surviving_place_without_copying_it() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/optional-recovery-places.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
+}
+#[test]
+fn scoped_recovery_cannot_keep_handler_locals_or_upgrade_readonly_alternatives() {
+    for source in [
+        "func run(value: i32?): i32 { read payload = value otherwise { let local = 42\nlocal }\npayload }",
+        "func run(edit value: i32?, fallback: i32): i32 { edit payload = value otherwise { fallback }\npayload }",
+        "func run(value: i32?, edit fallback: i32): i32 { edit payload = value otherwise { fallback }\npayload }",
+        "func run(value: i32?): i32 { read payload = value otherwise { 42 }\npayload }",
+    ] {
+        let fixture = nocter_test_support::ValueSourceFixture::new(source);
+        assert!(
+            matches!(
+                SourceUnit::prepare(fixture.syntax()),
+                Err(SourceFailure::Checking(
+                    Failure::Body {
+                        failure: BodyFailure::Rejected(_),
+                        ..
+                    } | Failure::Flow { .. }
+                ))
+            ),
+            "{source}"
+        );
+    }
+}
+
+#[test]
+fn alternative_recovery_places_keep_tag_owner_and_call_reservation_protection() {
+    for body in [
+        "read selected = source otherwise { backup }\nsource = none\nselected",
+        "read selected = source otherwise { backup }\nbackup = 0\nselected",
+        "read selected = source otherwise { backup }\ndrop backup\nselected",
+        "observe(source otherwise { backup }, clear(source))",
+        "observe(source otherwise { backup }, change(backup))",
+        "set_two(source otherwise { backup }, backup)\n0",
+        "set_two(source otherwise { backup }, source!)\n0",
+    ] {
+        let source = format!(
+            "func observe(value: i32, later: i32): i32 {{ value }}\nfunc clear(edit value: i32?): i32 {{ value = none\n0 }}\nfunc change(edit value: i32): i32 {{ value = 0\n0 }}\nfunc set_two(edit first: i32, edit second: i32): void {{}}\nfunc run(flag: bool): i32 {{ var source: i32? = if flag {{ 42 }} else {{ none }}\nvar backup = 42\n{body} }}"
+        );
+        let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+        assert!(
+            matches!(
+                SourceUnit::prepare(fixture.syntax()),
+                Err(SourceFailure::Checking(Failure::Flow { .. }))
+            ),
+            "{source}"
+        );
+    }
+}
+#[test]
+fn every_selected_fallback_place_is_initialized_before_forwarding() {
+    let source = "struct Pair { first: i32\nsecond: i32 }\nfunc run(source: i32?): i32 { var backup = Pair { first: 42, second: 0 }\nlet removed = backup.first^\nread selected = source otherwise { backup.first }\nselected }";
     let fixture = nocter_test_support::ValueSourceFixture::new(source);
     assert!(
-        matches!(SourceUnit::prepare(fixture.syntax()),
-        Err(SourceFailure::Checking(Failure::Body { failure: BodyFailure::Rejected(diagnostic), .. }))
-            if diagnostic.source().message().contains("producing fallback")),
+        matches!(
+            SourceUnit::prepare(fixture.syntax()),
+            Err(SourceFailure::Checking(Failure::Flow { .. }))
+        ),
         "{source}"
     );
 }

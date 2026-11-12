@@ -66,7 +66,10 @@ impl Aliases {
                     .is_root()
                     .then_some(place)?
             } else {
-                source.static_base(|id| typed.body().expressions().get(id))?
+                source.static_base(
+                    |id| typed.body().expressions().get(id),
+                    |id| typed.body().blocks().get(id),
+                )?
             };
             let local = typed.body().places().get(place)?.local;
             if let Some(&next) = self.sources.get(&local) {

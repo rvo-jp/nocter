@@ -28,7 +28,10 @@ use std::{
 
 fn owned_base(typed: &TypedQuery, source: Referent) -> bool {
     source
-        .static_base(|id| typed.body().expressions().get(id))
+        .static_base(
+            |id| typed.body().expressions().get(id),
+            |id| typed.body().blocks().get(id),
+        )
         .and_then(|id| typed.body().places().get(id))
         .and_then(|place| typed.body().locals().get(place.local))
         .is_some_and(|local| local.access().mode() == nocter_model::ValueAccessMode::Own)

@@ -131,22 +131,29 @@ fn assign(
     source: AccessExpressionId,
     state: &mut State,
 ) -> Result<(), flow::IntegrityError> {
-    let Some(base) = target.static_base(|id| query.body.expressions.get(id)) else {
-        return Ok(());
-    };
-    let place = query.body.places.get(base).ok_or(INVALID)?;
+    let bases = target
+        .static_bases(
+            |id| query.body.expressions.get(id),
+            |id| query.body.blocks.get(id),
+        )
+        .ok_or(INVALID)?;
     let facts = forward(
         query,
         source,
         query.body.referent_data(target).ok_or(INVALID)?,
         state,
     )?;
-    if matches!(target, crate::value_access::Referent::Place(selected) if query.body.places.get(selected).is_some_and(|place| place.fields.is_root()))
-    {
-        state.insert(Key::Local(place.local), facts);
-    } else {
-        // Homogeneous/field updates preserve the selected leaf type. Keep possible actual
-        // producers without guessing an evaluated index or maintaining a second alias ledger.
+    if let crate::value_access::Referent::Place(selected) = target {
+        let place = query.body.places.get(selected).ok_or(INVALID)?;
+        if place.fields.is_root() {
+            state.insert(Key::Local(place.local), facts);
+            return Ok(());
+        }
+    }
+    for base in bases {
+        let place = query.body.places.get(base).ok_or(INVALID)?;
+        // Updates preserve the selected leaf type. Retain possible producers in every
+        // candidate root without guessing the selected branch or evaluated index.
         state
             .entry(Key::Local(place.local))
             .or_default()
