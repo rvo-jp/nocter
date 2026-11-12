@@ -29,8 +29,10 @@ It can load the shared physical corpus through the repository-root authority. It
 accepted declaration/body/unit product; integration tests must use the normal production APIs.
 `ValueModuleFixture` similarly owns exact physical sources and explicit module/see/use selections,
 without discovery or semantic acceptance. The shared `qualified_namespace_fixture` loads the one
-module corpus under `development/compiler/tests/fixtures/value-modules/qualified-namespaces`; checking, required
-execution and native consumers use those same authored files. Semantic preparation remains in
+module corpus under `development/compiler/tests/fixtures/value-modules/qualified-namespaces`.
+`trusted_error_module_fixture` similarly selects the authored `trusted-errors` corpus and its exact
+host-provided role profile; source names alone confer no authority. Both loaders use one physical
+corpus ingestion helper. Checking, required execution and native consumers use those same files. Semantic preparation remains in
 the consuming test, rather than becoming a second compiler in test support.
 
 `integer_failure_sources` supplies identical runtime-admissible arithmetic bodies to required and

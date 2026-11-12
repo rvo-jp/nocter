@@ -17,6 +17,7 @@ use std::{
 
 mod catalog;
 mod normalization;
+mod primitives;
 mod record_views;
 mod reuse;
 pub use reuse::ModuleQuery;
@@ -26,12 +27,14 @@ pub use reuse::ModuleQuery;
 #[derive(Debug)]
 pub struct ScopedModuleSources<'syntax> {
     headers: HeaderPublication,
+    primitives: super::PrimitiveBindings,
     binding: Arc<ModuleSourceBinding<'syntax>>,
 }
 /// Closed headers and exact current sources; `query` captures separate reusable source evidence.
 #[derive(Debug)]
 pub struct ModuleContext<'syntax> {
     program: Arc<Program>,
+    primitives: super::PrimitiveBindings,
     binding: Arc<ModuleSourceBinding<'syntax>>,
     dependencies: Option<super::BodySources>,
 }
@@ -62,7 +65,8 @@ impl ModuleContext<'_> {
     /// # Errors
     /// Rejects inconsistent physical source metadata; grants no body acceptance.
     pub fn current(&self) -> Result<super::Context<'_>, ModuleSourcesFailure> {
-        self.binding.base_view(Arc::clone(&self.program))
+        self.binding
+            .base_view(Arc::clone(&self.program), self.primitives.clone())
     }
 }
 /// One immutable physical-source/semantic-slot pairing, retained independently of header writes.
@@ -91,7 +95,8 @@ impl<'syntax> PairedModuleSources<'syntax> {
     /// Reserve one semantic identity per paired declaration and close direct authored lookup.
     /// # Errors
     /// Rejects invalid imports and authored source-local name conflicts.
-    pub fn reserve_names(self) -> Result<ScopedModuleSources<'syntax>, ModuleSourcesFailure> {
+    pub fn reserve_names(mut self) -> Result<ScopedModuleSources<'syntax>, ModuleSourcesFailure> {
+        let primitive_roles = std::mem::take(&mut self.inventory.primitive_roles);
         let inventory = &self.inventory;
         let parsed = collect_headers(&self)?;
         let mut reservations = Reservations::with_symbols(inventory.surface.symbol_handle());
@@ -155,17 +160,20 @@ impl<'syntax> PairedModuleSources<'syntax> {
             })
             .collect::<Result<Vec<_>, _>>()?
             .into_boxed_slice();
+        let binding = Arc::new(ModuleSourceBinding {
+            paired: self,
+            scopes,
+            declarations: declarations.into(),
+            fields,
+            catalog,
+            exports,
+            lexical,
+        });
+        let primitives = primitives::select(&binding, primitive_roles)?;
         Ok(ScopedModuleSources {
             headers: definitions.into_publication(),
-            binding: Arc::new(ModuleSourceBinding {
-                paired: self,
-                scopes,
-                declarations: declarations.into(),
-                fields,
-                catalog,
-                exports,
-                lexical,
-            }),
+            binding,
+            primitives,
         })
     }
 }
@@ -231,30 +239,6 @@ impl<'syntax> ScopedModuleSources<'syntax> {
     pub fn header_expression_ids(&self) -> impl Iterator<Item = AccessCodeId> + '_ {
         self.binding.catalog.sources.expression_ids()
     }
-    /// Check bodyless markers before ordinary module source orchestration.
-    /// No primitive authority is inferred from an inventoried module or declaration name.
-    /// # Errors
-    /// Reports an unselected primitive at its actual authored declaration.
-    pub fn validate_primitive_bindings(&self) -> Result<(), ModuleSourcesFailure> {
-        let mut bindings = super::PrimitiveBindings::new(None);
-        for (raw, header) in &self.binding.catalog.parsed {
-            if let ParsedHeader::Code(header) = header {
-                let Some(DeclarationId::Code(code)) = self.binding.declarations[raw.index()] else {
-                    return Err(integrity());
-                };
-                let physical = self.binding.paired.inventory.declarations()[raw.index()];
-                bindings
-                    .select(
-                        syntax(&self.binding.paired, physical.source())?,
-                        None,
-                        code,
-                        header,
-                    )
-                    .map_err(ModuleSourcesFailure::Access)?;
-            }
-        }
-        Ok(())
-    }
     #[must_use]
     pub fn code_ids(&self) -> impl ExactSizeIterator<Item = AccessCodeId> + '_ {
         self.headers.code_ids()
@@ -271,7 +255,7 @@ impl<'syntax> ScopedModuleSources<'syntax> {
     /// # Errors
     /// Requires every reserved named and anonymous header to be ready.
     pub fn seal(self) -> Result<ModuleContext<'syntax>, ModuleSourcesFailure> {
-        if !self.program().headers_complete() {
+        if !self.program().headers_complete() || !self.primitives.all_checked() {
             return Err(integrity());
         }
         let program = self.headers.finish().map_err(|_| integrity())?;
@@ -288,6 +272,7 @@ impl<'syntax> ScopedModuleSources<'syntax> {
             .map_err(ModuleSourcesFailure::Access)?;
         Ok(ModuleContext {
             program: Arc::new(program),
+            primitives: self.primitives,
             binding: self.binding,
             dependencies: None,
         })
@@ -393,9 +378,13 @@ impl ModuleSourceBinding<'_> {
         if !std::ptr::eq(self, headers.binding.as_ref()) {
             return Err(ModuleSourcesFailure::Access(Failure::ChangedHeader));
         }
-        self.base_view(Arc::new(headers.program()))
+        self.base_view(Arc::new(headers.program()), headers.primitives.clone())
     }
-    fn base_view(&self, program: Arc<Program>) -> Result<super::Context<'_>, ModuleSourcesFailure> {
+    fn base_view(
+        &self,
+        program: Arc<Program>,
+        primitives: super::PrimitiveBindings,
+    ) -> Result<super::Context<'_>, ModuleSourcesFailure> {
         let (source, _) = self
             .paired
             .inventory
@@ -406,12 +395,13 @@ impl ModuleSourceBinding<'_> {
             syntax: syntax(&self.paired, source)?,
             lookup: self.scopes[source.index()],
         };
-        Ok(self.view(program, scope))
+        Ok(self.view(program, scope, primitives))
     }
     fn view<'binding>(
         &'binding self,
         program: Arc<Program>,
         scope: super::definitions::HeaderScope<'binding>,
+        primitives: super::PrimitiveBindings,
     ) -> super::Context<'binding> {
         super::Context {
             program,
@@ -419,7 +409,7 @@ impl ModuleSourceBinding<'_> {
             lookup: scope.lookup,
             module: Some(self),
             sources: self.catalog.sources.clone(),
-            primitives: super::PrimitiveBindings::new(None),
+            primitives,
         }
     }
     /// Bind this immutable header snapshot to the actual physical source of one executable root.
@@ -436,7 +426,11 @@ impl ModuleSourceBinding<'_> {
             return Err(ModuleSourcesFailure::Access(Failure::ChangedHeader));
         }
         let scope = self.code_scope(code).map_err(|_| integrity())?;
-        Ok(self.view(Arc::new(headers.program()), scope))
+        Ok(self.view(
+            Arc::new(headers.program()),
+            scope,
+            headers.primitives.clone(),
+        ))
     }
 }
 fn project_namespace(

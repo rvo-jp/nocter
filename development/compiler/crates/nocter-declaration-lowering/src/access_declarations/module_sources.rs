@@ -14,10 +14,13 @@ use nocter_syntax::BoundSyntax;
 pub struct ModuleSources<'syntax> {
     pub(super) surface: DeclarationSurface<'syntax>,
     pub(super) audiences: super::module_audiences::ModuleAudiences,
+    pub(super) primitive_roles: Vec<crate::toolchain::ResolvedPrimitiveRole>,
 }
 #[derive(Debug)]
 pub enum ModuleSourcesFailure {
     Surface(SurfaceError),
+    PrimitiveAuthority(super::PrimitiveAuthorityError),
+    Toolchain(crate::ToolchainError),
     Access(Failure),
     Contract(DeclarationContractDiagnostic),
     InconsistentContract(DeclarationContractError),
@@ -60,7 +63,21 @@ impl<'syntax> ModuleSources<'syntax> {
         }
         let audiences = super::module_audiences::ModuleAudiences::prepare(&surface)
             .map_err(ModuleSourcesFailure::Access)?;
-        Ok(Self { surface, audiences })
+        let primitive_roles = if let Some(toolchain) = input.toolchain() {
+            super::primitives::validate_catalog(toolchain)
+                .map_err(ModuleSourcesFailure::PrimitiveAuthority)?;
+            crate::toolchain::validate_locator_modules(toolchain)
+                .map_err(ModuleSourcesFailure::Toolchain)?;
+            crate::toolchain::resolve_primitive_roles(&surface, toolchain)
+                .map_err(ModuleSourcesFailure::Toolchain)?
+        } else {
+            Vec::new()
+        };
+        Ok(Self {
+            surface,
+            audiences,
+            primitive_roles,
+        })
     }
     /// Pair root contracts with directly reciprocal complete definitions, without resolving types.
     /// # Errors

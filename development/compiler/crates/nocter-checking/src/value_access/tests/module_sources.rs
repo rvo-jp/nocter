@@ -5,6 +5,7 @@ use accepted::{ModuleSourceUnit, SourceFailure};
 use nocter_compile_input::ModuleSourceKind::{Implementation, Root};
 use nocter_declarations::value_access::PayloadSchema;
 
+mod primitives;
 mod reuse;
 
 fn counts(body_increment: u64) -> Fixture {

@@ -159,15 +159,36 @@ impl ValueModuleFixture {
 #[must_use]
 pub fn qualified_namespace_fixture() -> ValueModuleFixture {
     use ModuleSourceKind::{Implementation, Root};
+    module_corpus(
+        "qualified-namespaces",
+        &[
+            ("index.nct", Root),
+            ("body.nct", Implementation),
+            ("facade/index.nct", Root),
+            ("data/index.nct", Root),
+            ("data/body.nct", Implementation),
+        ],
+        &[(0, 0, 1), (1, 0, 0), (3, 0, 4), (4, 0, 3)],
+    )
+    .with_modules(&[(&[], &[0, 1]), (&["facade"], &[2]), (&["data"], &[3, 4])])
+    .with_uses(&[
+        (0, 0, &["facade"]),
+        (1, 0, &["facade"]),
+        (1, 1, &["facade"]),
+        (1, 2, &["data"]),
+        (1, 3, &["data"]),
+        (2, 0, &["data"]),
+    ])
+}
+
+fn module_corpus(
+    directory: &str,
+    entries: &[(&str, ModuleSourceKind)],
+    edges: &[(usize, usize, usize)],
+) -> ValueModuleFixture {
     let root = crate::repository_root()
-        .join("development/compiler/tests/fixtures/value-modules/qualified-namespaces");
-    let entries = [
-        ("index.nct", Root),
-        ("body.nct", Implementation),
-        ("facade/index.nct", Root),
-        ("data/index.nct", Root),
-        ("data/body.nct", Implementation),
-    ];
+        .join("development/compiler/tests/fixtures/value-modules")
+        .join(directory);
     let texts = entries
         .iter()
         .map(|(path, _)| std::fs::read_to_string(root.join(path)).expect("module source fixture"))
@@ -181,14 +202,40 @@ pub fn qualified_namespace_fixture() -> ValueModuleFixture {
         .zip(&texts)
         .map(|((path, kind), text)| (path.as_str(), *kind, text.as_str()))
         .collect::<Vec<_>>();
-    ValueModuleFixture::new(&files, &[(0, 0, 1), (1, 0, 0), (3, 0, 4), (4, 0, 3)])
-        .with_modules(&[(&[], &[0, 1]), (&["facade"], &[2]), (&["data"], &[3, 4])])
-        .with_uses(&[
-            (0, 0, &["facade"]),
-            (1, 0, &["facade"]),
-            (1, 1, &["facade"]),
-            (1, 2, &["data"]),
-            (1, 3, &["data"]),
-            (2, 0, &["data"]),
-        ])
+    ValueModuleFixture::new(&files, edges)
+}
+
+/// Shared logical-module primitive source and its exact host-selected role profile.
+/// # Panics
+/// Panics if the authored corpus is missing or cannot form its explicit selected input.
+#[must_use]
+pub fn trusted_error_module_fixture() -> (ValueModuleFixture, nocter_compile_input::ToolchainInput)
+{
+    use ModuleSourceKind::{Implementation, Root};
+    use nocter_compile_input::{PrimitiveRoleLocator, ToolchainInput};
+    use nocter_runtime_contract::PrimitiveRole;
+    let package = PackageIdentity::new("workspace:app");
+    let module = |path: &[&str]| ModuleIdentity::new(package.clone(), path.iter().copied());
+    let toolchain = ToolchainInput::new(package.clone(), module(&[]), Vec::new(), Vec::new())
+        .with_primitive_roles(vec![
+            PrimitiveRoleLocator::new(PrimitiveRole::NewError, module(&["error"]), "operation"),
+            PrimitiveRoleLocator::new(
+                PrimitiveRole::ErrorContext,
+                module(&["context"]),
+                "operation",
+            ),
+        ]);
+    let fixture = module_corpus(
+        "trusted-errors",
+        &[
+            ("index.nct", Root),
+            ("body.nct", Implementation),
+            ("error/index.nct", Root),
+            ("context/index.nct", Root),
+        ],
+        &[(0, 0, 1), (1, 0, 0)],
+    )
+    .with_modules(&[(&[], &[0, 1]), (&["error"], &[2]), (&["context"], &[3])])
+    .with_uses(&[(1, 0, &["error"]), (1, 1, &["context"])]);
+    (fixture, toolchain)
 }

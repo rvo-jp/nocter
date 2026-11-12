@@ -95,14 +95,21 @@ impl ScopedModuleSources<'_> {
             }
             self.define_agreed(required, projected)?;
         }
-        self.headers
+        let step = self
+            .headers
             .advance(required)
-            .map(|step| match step {
-                HeaderStep::Ready => HeaderProgress::Ready,
-                HeaderStep::Require(headers) => HeaderProgress::RequireHeaders(headers),
-            })
-            .map_err(|failure| self.project_header_failure(failure, None))
+            .map_err(|failure| self.project_header_failure(failure, None))?;
+        if step == HeaderStep::Ready
+            && let DeclarationId::Code(code) = required
+        {
+            self.validate_primitive(code)?;
+        }
+        Ok(match step {
+            HeaderStep::Ready => HeaderProgress::Ready,
+            HeaderStep::Require(headers) => HeaderProgress::RequireHeaders(headers),
+        })
     }
+
     fn define_agreed(
         &mut self,
         required: DeclarationId,

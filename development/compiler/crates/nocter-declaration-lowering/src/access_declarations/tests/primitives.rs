@@ -40,7 +40,7 @@ fn selected_headers_have_no_fabricated_body_and_bind_only_after_exact_contract_v
     assert_eq!(before.primitives().role(id), None);
     let context = preparation.current();
     assert_eq!(context.primitives().role(id), Some(PrimitiveRole::NewError));
-    assert_eq!(context.primitives().module(), Some(&module));
+    assert_eq!(authority.module(), &module);
     assert_eq!(context.code_source(id).unwrap().body(), None);
     assert_eq!(
         context.program().codes().get(id).unwrap().kind(),

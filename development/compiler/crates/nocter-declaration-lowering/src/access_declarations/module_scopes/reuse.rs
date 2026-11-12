@@ -15,6 +15,7 @@ pub struct ModuleQuery {
     target: CompilationTarget,
     sources: Box<[SourceRecipe]>,
     dependencies: BodySources,
+    primitives: crate::access_declarations::PrimitiveBindings,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct SourceRecipe {
@@ -34,6 +35,7 @@ impl ModuleContext<'_> {
             target: self.binding.paired.inventory.surface.target(),
             sources: source_recipes(&self.binding)?,
             dependencies: self.dependencies.clone().unwrap_or_default(),
+            primitives: self.primitives.clone(),
         })
     }
 }
@@ -54,11 +56,13 @@ impl ModuleQuery {
         if current.binding.paired.inventory.surface.target() != self.target
             || source_recipes(&current.binding)? != self.sources
             || !current.headers.has_same_reserved_layout(&self.program)
+            || !current.primitives.has_same_selection(&self.primitives)
         {
             return Err(ModuleSourcesFailure::Access(Failure::ChangedHeader));
         }
         let bound = ModuleContext {
             program: Arc::clone(&self.program),
+            primitives: self.primitives.clone(),
             binding: current.binding,
             dependencies: Some(self.dependencies.clone()),
         };

@@ -901,3 +901,45 @@ fn qualified_module_paths_execute_original_calls_constants_statics_and_record_fi
     let package = TempPackage::new();
     execute_native_status(&image(&machine), &package.0, "qualified-module-paths", 42);
 }
+
+#[test]
+fn logical_module_primitives_execute_owned_error_graphs_through_qualified_function_values() {
+    let (fixture, profile) = nocter_test_support::trusted_error_module_fixture();
+    let source = nocter_checking::value_access::accepted::ModuleSourceUnit::prepare(
+        &fixture.input().with_toolchain(profile),
+    )
+    .unwrap();
+    let machine = machine_unit(Arc::new(source.into_unit())).unwrap();
+    let mut roles = std::collections::BTreeSet::new();
+    let mut releases = 0;
+    for (_, function) in machine.functions() {
+        for (_, operation) in function.body().operations() {
+            match operation.kind() {
+                nocter_machine::MachineOperationKind::Call(call) => {
+                    if let nocter_machine::MachineCallTarget::Primitive(target) = call.target() {
+                        roles.insert(target.role());
+                    }
+                }
+                nocter_machine::MachineOperationKind::ReleaseError { .. } => releases += 1,
+                _ => {}
+            }
+        }
+    }
+    assert_eq!(
+        roles,
+        [
+            nocter_runtime_contract::PrimitiveRole::NewError,
+            nocter_runtime_contract::PrimitiveRole::ErrorContext
+        ]
+        .into_iter()
+        .collect()
+    );
+    assert!(releases > 0);
+    let package = TempPackage::new();
+    execute_native_status(
+        &image(&machine),
+        &package.0,
+        "module-owned-error-graphs",
+        42,
+    );
+}

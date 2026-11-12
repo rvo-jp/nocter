@@ -26,13 +26,16 @@ impl Catalog {
         let mut codes = BTreeMap::new();
         let mut records = BTreeMap::new();
         let mut owners = BTreeMap::new();
-        // Only complete definitions provide executable named roots and representation fields.
+        // Complete definitions provide executable roots. Primitive declarations retain a header
+        // source and physical scope, but never acquire a fabricated body.
         for (raw, header) in &parsed {
             let physical = paired.inventory.declarations()[raw.index()];
             let semantic = declarations[raw.index()].ok_or_else(integrity)?;
             match (semantic, header) {
                 (DeclarationId::Code(code), ParsedHeader::Code(header))
-                    if header.body.is_some() =>
+                    if header.body.is_some()
+                        || header.kind
+                            == nocter_declarations::value_access::CodeKind::Primitive =>
                 {
                     if codes
                         .insert(code, CodeSource::from_header(header))

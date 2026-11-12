@@ -1,0 +1,18 @@
+use ./error as errors
+use ./context as contexts
+see ./index.nct
+
+func operation(): i32 { 0 }
+
+func invoke(factory: func(str, str): error): error {
+    factory("callback", "module message")
+}
+
+func run(): i32 {
+    let original = errors.operation("direct", "module message")
+    let second = invoke(errors.operation)
+    let wrapped = contexts.operation(original^, "module context")
+    drop wrapped
+    drop second
+    42
+}

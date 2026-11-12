@@ -1,0 +1,1 @@
+primitive func operation(code: str, message: str): error

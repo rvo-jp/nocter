@@ -246,8 +246,11 @@ const-domain checking, actual execution, source dependency guards and final Unit
 one implementation. Every physical count supplier executes in its own source scope before repeated
 headers agree. The final declarations are an immutable current `ModuleContext`, and every selected
 source is checked, including unused helpers and records. Empty libraries need no fabricated body.
-Unselected primitives reject at their authored declaration; this entry supplies no module primitive
-authority. Sealing checks effective root audiences and outward nominal signature exposure through
+Unselected primitives reject at their authored declaration. Explicit compile-input locators resolve
+exact logical-module declarations through the shared toolchain source owner; the existing value
+signature validator alone promotes selected roles to checked facts. Role snapshots follow the same
+progressive header views and sealed context. Bodyless primitive headers have source positions but
+no fabricated checked body; direct and function-value calls consume the same checked role evidence. Sealing checks effective root audiences and outward nominal signature exposure through
 that same declaration binding; hidden representation payloads remain private. Top-level selected
 record-type imports and root re-export chains preserve their original nominal identity through
 ordinary header/body checking. Field selection and record construction also require the physical
@@ -269,7 +272,8 @@ Selected source preparation retains the actual header-value source guards in the
 `ModuleQuery`. Rebinding equal headers into fresh source identities uses that same semantic
 program; existing body queries require their independent current-body and dependency guards.
 Changed runtime bodies can preserve headers, while changed count suppliers, import bindings or
-audiences invalidate affected reuse. The proof currently requires equal physical inventory and
+audiences invalidate affected reuse. Current primitive selections must match retained checked roles;
+new source input cannot acquire an earlier profile's authority. The proof currently requires equal physical inventory and
 closed name/slot layout. Ordinary package/CLI/editor integration and finer incremental reuse remain
 work; this bounded entry does not qualify them.
 

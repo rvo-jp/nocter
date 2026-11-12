@@ -25,7 +25,9 @@ analysis, implement backend rules, select command-line policy, or publish filesy
   coordinator, including required header values. Selected module sources also use the common
   `ModuleSourceUnit` and the same Machine/ARM64/image consumers; the shared qualified-namespace
   corpus checks original call/constant/static targets, record fields and lexical imports through
-  closure bodies and required array lengths in a real native process.
+  closure bodies and required array lengths in a real native process. A shared trusted-error module
+  corpus selects same-named primitives from different logical modules and executes owned graph
+  construction, context attachment and release, including qualified function-value calls.
   A header-only query cannot replace source acceptance.
 - Native-specific source corpora live under `development/compiler/tests/fixtures/native/`.
   Cross-consumer module corpora live under `development/compiler/tests/fixtures/value-modules/` and are selected by

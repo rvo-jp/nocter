@@ -24,6 +24,11 @@ pub struct PrimitiveAuthority {
     roles: BTreeMap<Box<str>, PrimitiveRole>,
 }
 impl PrimitiveAuthority {
+    /// The logical module explicitly selected by the host for this construction authority.
+    #[must_use]
+    pub const fn module(&self) -> &ModuleIdentity {
+        &self.module
+    }
     /// # Errors
     /// Rejects a conflicting toolchain catalog, including conflicts outside the selected module.
     pub fn for_module(
@@ -31,16 +36,8 @@ impl PrimitiveAuthority {
         module: &ModuleIdentity,
     ) -> Result<Self, PrimitiveAuthorityError> {
         let mut roles = BTreeMap::new();
-        let mut seen_roles = BTreeSet::new();
-        let mut seen_names = BTreeSet::new();
+        validate_catalog(toolchain)?;
         for locator in toolchain.primitive_roles() {
-            if !seen_roles.insert(locator.role()) {
-                return Err(PrimitiveAuthorityError::RepeatedRole(locator.role()));
-            }
-            let key = (locator.module().clone(), Box::<str>::from(locator.name()));
-            if !seen_names.insert(key.clone()) {
-                return Err(PrimitiveAuthorityError::RepeatedName(key.0, key.1));
-            }
             if module.package() == toolchain.standard_package() && locator.module() == module {
                 roles.insert(locator.name().into(), locator.role());
             }
@@ -50,6 +47,20 @@ impl PrimitiveAuthority {
             roles,
         })
     }
+}
+pub(super) fn validate_catalog(toolchain: &ToolchainInput) -> Result<(), PrimitiveAuthorityError> {
+    let mut seen_roles = BTreeSet::new();
+    let mut seen_names = BTreeSet::new();
+    for locator in toolchain.primitive_roles() {
+        if !seen_roles.insert(locator.role()) {
+            return Err(PrimitiveAuthorityError::RepeatedRole(locator.role()));
+        }
+        let key = (locator.module().clone(), Box::<str>::from(locator.name()));
+        if !seen_names.insert(key.clone()) {
+            return Err(PrimitiveAuthorityError::RepeatedName(key.0, key.1));
+        }
+    }
+    Ok(())
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PrimitiveRule {
@@ -75,7 +86,7 @@ impl PrimitiveDiagnostic {
         &self.source
     }
 }
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Binding {
     Selected(PrimitiveRole),
     Checked(PrimitiveRole),
@@ -83,26 +94,15 @@ enum Binding {
 /// Immutable snapshots reveal only bindings whose exact declaration contract has been checked.
 #[derive(Clone, Debug, Default)]
 pub struct PrimitiveBindings {
-    module: Option<ModuleIdentity>,
     bindings: Arc<BTreeMap<AccessCodeId, Binding>>,
 }
 impl PrimitiveBindings {
-    pub(super) fn new(authority: Option<&PrimitiveAuthority>) -> Self {
-        Self {
-            module: authority.map(|authority| authority.module.clone()),
-            bindings: Arc::default(),
-        }
-    }
     #[must_use]
     pub fn role(&self, code: AccessCodeId) -> Option<PrimitiveRole> {
         match self.bindings.get(&code)? {
             Binding::Checked(role) => Some(*role),
             Binding::Selected(_) => None,
         }
-    }
-    #[must_use]
-    pub fn module(&self) -> Option<&ModuleIdentity> {
-        self.module.as_ref()
     }
     pub(super) fn select(
         &mut self,
@@ -111,7 +111,20 @@ impl PrimitiveBindings {
         id: AccessCodeId,
         header: &Header,
     ) -> Result<(), Failure> {
-        let role = selected_role(syntax, authority, header.name);
+        self.select_role(
+            syntax,
+            selected_role(syntax, authority, header.name),
+            id,
+            header,
+        )
+    }
+    pub(super) fn select_role(
+        &mut self,
+        syntax: BoundSyntax<'_>,
+        role: Option<PrimitiveRole>,
+        id: AccessCodeId,
+        header: &Header,
+    ) -> Result<(), Failure> {
         let origin = SyntaxOrigin::Token(header.name);
         if header.kind != CodeKind::Primitive {
             return if role.is_some() {
@@ -138,6 +151,21 @@ impl PrimitiveBindings {
         }
         Arc::make_mut(&mut self.bindings).insert(id, Binding::Selected(role));
         Ok(())
+    }
+    pub(super) fn needs_validation(&self, code: AccessCodeId) -> bool {
+        matches!(self.bindings.get(&code), Some(Binding::Selected(_)))
+    }
+    pub(super) fn all_checked(&self) -> bool {
+        self.bindings
+            .values()
+            .all(|binding| matches!(binding, Binding::Checked(_)))
+    }
+    pub(super) fn has_same_selection(&self, retained: &Self) -> bool {
+        self.bindings.len() == retained.bindings.len()
+            && self.bindings.iter().all(|(code, binding)| {
+                let (Binding::Selected(role) | Binding::Checked(role)) = binding;
+                retained.role(*code) == Some(*role)
+            })
     }
     pub(super) fn validate(
         &mut self,

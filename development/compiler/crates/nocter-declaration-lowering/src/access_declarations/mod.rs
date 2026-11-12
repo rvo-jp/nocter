@@ -155,7 +155,7 @@ impl<'source> Preparation<'source> {
                 ))
             })
             .collect::<Result<BTreeMap<_, _>, Failure>>()?;
-        let mut primitives = PrimitiveBindings::new(authority);
+        let mut primitives = PrimitiveBindings::default();
         let function_headers = functions
             .into_iter()
             .map(|h| {
@@ -268,6 +268,7 @@ impl<'source> Preparation<'source> {
         };
         if step == HeaderProgress::Ready
             && let DeclarationId::Code(id) = required
+            && self.primitives.needs_validation(id)
         {
             let program = self.headers.snapshot();
             self.primitives.validate(

@@ -18,18 +18,17 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Connect toolchain-selected primitive roles to the selected module/source pipeline before ordinary
-package/CLI integration. Consume explicit compile-input authority and actual logical module
-identities, reusing the existing primitive selection and exact signature validator. Do not grant
-roles from source paths, familiar names, imports or matching payload layouts. Preserve one checked
-role fact per semantic code identity through progressive header views, sealed contexts, required
-execution and native consumers. Guard retained module queries against changed authority/profile
-bindings as well as current header/source dependencies. Extend actual module source and native
-cases together, including wrong-module/package, unselected markers, missing markers and mismatched
-signatures. Keep package metadata/discovery and ordinary compiler/editor integration open until
-those owning contracts and paths are qualified; do not add a public syntax or compatibility switch
-as an implementation shortcut. Keep the retained-selection work below open; bounded module
-execution does not close general hole relations or externally dependent callback effects.
+Close the callable-type finding below through one recursive type-syntax projection and ordinary
+witness/type evidence. Recognize adopted callable contracts consistently in initializer annotations,
+grouped and nested data/callable positions; keep invocation and input/result scope unambiguous.
+Preserve one declaration/type authority, qualified name lookup, current source diagnostics and
+required-count dependencies. Extend source recognition together with checked witness obligations;
+a recognized production alone is not an accepted feature. Constants/statics still need their own
+final-value eligibility, and temporary callable environments must not acquire implicit serialization.
+Keep module discovery, the remaining toolchain role families and ordinary compiler/editor integration
+open until their contracts and production paths are qualified. Keep the retained-selection work
+below open; bounded module/native execution does not close general hole relations or externally
+dependent callback effects.
 
 ## Retained Selection Closure
 

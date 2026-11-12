@@ -61,7 +61,6 @@ impl<'syntax> ModuleSourceUnit<'syntax> {
         let headers = declarations::ModuleSources::prepare(input)?
             .pair()?
             .reserve_names()?;
-        headers.validate_primitive_bindings()?;
         let (declarations, evaluation) = evaluation::prepare_module_source(headers, limits.into())?;
         let context = declarations.current()?;
         let unit = accepted::Unit::close_evaluation(&context, evaluation)?;

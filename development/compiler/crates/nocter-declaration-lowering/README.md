@@ -65,7 +65,7 @@ beside their owning modules.
 - Current checking materialization computes the exact body-symbol suffix once and returns it with
   frontend bindings and source projection. Session cannot rescan syntax to construct a parallel
   symbol domain.
-- Body-local imports remain current body input and cannot enter the reusable declaration recipe.
+- For `ReusableDeclarations`, body-local imports remain current body input and cannot enter its recipe.
   Their current syntax identities are joined only through the exact source-neutral module mapping
   frozen with `ReusableDeclarations`; materialization neither repeats module lookup nor declaration
   lowering.
@@ -241,7 +241,7 @@ of guards can therefore verify multiple physical bodies without substituting one
 foreign syntax cannot be accepted by matching source IDs or display ranges alone.
 `Context::lookup_scope_at` selects the exact occurrence's lexical scope for authored body lookup. Declaration properties and type identities
 still come from the shared semantic program; the binding is not another declaration/type authority.
-Per-body views supply no primitive bindings or accepted-body proof. `ScopedModuleSources::seal`
+Per-body views retain the writer's checked primitive snapshot; they supply no accepted-body proof. `ScopedModuleSources::seal`
 requires all reserved named and anonymous headers to be ready, consumes the writer and returns one
 immutable `ModuleContext` with the exact retained physical sources. Before sealing, root signatures
 must expose only nominal types accessible throughout their effective audiences, including nested
@@ -249,8 +249,9 @@ array/tuple/outcome/callback components. Hidden representation fields and privat
 names do not become outward type names. Code/declaration enumeration and cycle projection feed checking's
 [common source coordinator](../nocter-checking/README.md#bounded-future-value-binding-typing).
 Ordinary module orchestration rejects unselected primitive markers through the existing primitive
-authority diagnostic; it does not infer roles from inventory names. Module primitive authority and
-ordinary discovery/CLI integration remain work. Header publication alone does not produce an
+authority diagnostic; it does not infer roles from inventory names. Explicit compile-input
+primitive locators use the shared toolchain source resolver and the trusted-header validator below.
+Ordinary discovery/CLI integration and the remaining toolchain role families remain work. Header publication alone does not produce an
 accepted Unit.
 
 `ModuleContext::query` captures source-neutral `ModuleQuery` evidence beside the retained header
@@ -262,7 +263,9 @@ without those guards cannot become a reusable query.
 `ModuleQuery::bind` validates the new input's topology, file roles, contracts and import bindings
 through their normal owners. It requires the same target, physical inventory, canonical headers
 and complete reserved name/slot layout, then verifies the retained header suppliers against current
-physical bodies. It retains the original header/type authority and uses the new source binding;
+physical bodies. Current resolved primitive selections must also match the retained checked role
+facts. Removing or redirecting authority cannot inherit old privileges. It retains the original
+header/type authority and uses the new source binding;
 independent structurally equal typed arenas cannot grant lineage. No body checking, constant
 execution or second type normalization runs in this binding step. Unrelated implementation edits
 can retain headers, while changed headers, imported targets/audiences or count suppliers invalidate
@@ -344,9 +347,21 @@ The explicit header entry consumes the runtime contract's shared value signature
 exposes a role only after exact input count, data, operations and result validation. Signature
 errors retain their actual name/input/result source subject. Binding an equal header surface
 retains that same authority lineage; body edits cannot change a role and header edits reject reuse.
-This closes primitive header metadata, not an accepted executable Unit or constant-domain
-primitive operation. Calls, dependency closure, physical ABI adaptation and actual error-graph
-construction/release still need qualification through the common consumers.
+The module entry consumes explicit compile-input toolchain locators through the existing
+source-surface resolver, including exact logical module and declaration-kind matching. Duplicate
+physical declarations are ambiguous, and a familiar name in another source/module receives no role.
+Resolved raw selections are consumed once into the same `PrimitiveBindings` state machine;
+reservation retains bodyless source/header positions but never fabricates an implementation.
+Progressive views expose only validated roles, failed signatures never upgrade earlier snapshots,
+and sealing requires every selected role to be checked. Guarded module reuse compares current
+resolved selections with retained checked facts before retaining that same authority.
+
+Header metadata alone grants no executable Unit or constant-domain primitive operation. The
+[checking consumer](../nocter-checking/README.md) owns runtime call and dependency admission;
+[the native consumer](../nocter-native-session/README.md) qualifies physical ABI and actual owned
+error-graph construction/release, including the shared logical-module corpus. Only the runtime
+contract's qualified value signatures are admitted; this does not complete standard/builtin,
+runtime-storage, target-service or package integration.
 
 ## Exact Source Evidence
 

@@ -281,7 +281,7 @@ pub(crate) fn resolve_toolchain_surface(
     })
 }
 
-fn validate_locator_modules(input: &ToolchainInput) -> Result<(), ToolchainError> {
+pub(crate) fn validate_locator_modules(input: &ToolchainInput) -> Result<(), ToolchainError> {
     for module in input
         .standard_roles()
         .iter()
@@ -398,7 +398,7 @@ fn resolve_builtin_types(
         .collect()
 }
 
-fn resolve_primitive_roles(
+pub(crate) fn resolve_primitive_roles(
     surface: &DeclarationSurface<'_>,
     input: &ToolchainInput,
 ) -> Result<Vec<ResolvedPrimitiveRole>, ToolchainError> {
