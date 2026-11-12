@@ -80,6 +80,16 @@ impl Context<'_> {
         for projection in &place.projections {
             data = match projection {
                 Projection::Field(id) => {
+                    if let nocter_model::ValueField::Variant(primary) = id {
+                        let Some(RuntimeType::Optional(payload)) =
+                            self.program.runtime.types().get(data)
+                        else {
+                            return Err(self.invalid());
+                        };
+                        self.require(*primary)?;
+                        data = *payload;
+                        continue;
+                    }
                     if let (nocter_model::ValueField::Array(index), Some((element, length))) = (
                         id,
                         self.program
@@ -216,6 +226,14 @@ impl Context<'_> {
     }
     fn effect(&self, effect: &Effect) -> Result<(), Failure> {
         match effect {
+            Effect::VariantTag { destination, .. } => {
+                self.place(destination)?;
+                self.require(matches!(
+                    self.program.runtime.types().get(destination.data),
+                    Some(RuntimeType::Optional(_))
+                ))
+            }
+
             Effect::DisposeArrayRemainder { source, missing } => {
                 self.array_remainder(source, missing)
             }
@@ -313,6 +331,13 @@ impl Context<'_> {
         let boolean = RuntimePrimitive::Bool;
         match operation {
             Operation::BoundsTrap => Ok(()),
+            Operation::RequirePrimary { source } => {
+                self.place(source)?;
+                self.require(matches!(
+                    self.program.runtime.types().get(source.data),
+                    Some(RuntimeType::Optional(_))
+                ))
+            }
             Operation::Frozen { destination, value } => {
                 self.place(destination)?;
                 self.frozen(destination.data, value)
@@ -663,6 +688,13 @@ impl Context<'_> {
                 | (
                     FrozenNode::Scalar(ConstantValue::Bool(_)),
                     Some(RuntimeType::Primitive(RuntimePrimitive::Bool)),
+                )
+                | (
+                    FrozenNode::Variant {
+                        primary: false,
+                        payload: None,
+                    },
+                    Some(RuntimeType::Optional(_)),
                 ) => {}
                 (
                     FrozenNode::Scalar(ConstantValue::Integer(value)),
@@ -687,6 +719,14 @@ impl Context<'_> {
                     pending.push((*element, *default));
                     pending.extend(replacements.iter().map(|&(_, node)| (*element, node)));
                 }
+
+                (
+                    FrozenNode::Variant {
+                        primary: true,
+                        payload: Some(node),
+                    },
+                    Some(RuntimeType::Optional(payload)),
+                ) => pending.push((*payload, *node)),
                 (FrozenNode::Aggregate(values), Some(RuntimeType::EmptyArray { .. })) => {
                     self.require(values.is_empty())?;
                 }

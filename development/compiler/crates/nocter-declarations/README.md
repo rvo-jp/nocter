@@ -127,11 +127,13 @@ enumeration belongs to this same authority, independently of source projection a
 
 `value_access::data` owns closed data-name resolution, TypeId projection and Copy queries over
 one privately owned type authority. Callable metadata headers admit `bool`, the intrinsic integer catalog, `void`, opaque move-only
-`error`, closed nominal records, structural tuples and closed array descriptors, plus flat callable
+`error`, closed nominal records, structural tuples, optional layers and closed array descriptors, plus flat callable
 input/result contracts.
 Construction-time
 `ValueDefinition` slots share data or callable normalization. `DataReference` composes named
-leaves into minimum-two-component tuple trees and closed fixed arrays. Array lengths are already
+leaves into minimum-two-component tuple trees, compact runs of optional layers and closed fixed arrays.
+Optional layers reuse the model type authority and retain positive payload containment/Copy
+requirements even when an actual value is absent. Array lengths are already
 normalized u64 target-usize values, not source expressions or symbolic guesses. One iterative
 resolver interns their TypeIds in the same declaration transaction before publication. They do not expose released type-store eligibility
 helpers or borrow constructors. Unit is a value in this product. Input operation is

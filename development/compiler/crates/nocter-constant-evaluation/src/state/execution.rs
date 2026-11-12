@@ -9,6 +9,7 @@ pub enum Rule {
     InvalidPlan,
     ArithmeticFailure,
     IndexOutOfBounds,
+    AbsentValue,
     StepLimit,
     CallDepthLimit,
     StorageLimit,
@@ -243,29 +244,33 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             }
         }
         let alternative = selected.ok_or(Rule::InvalidPlan)?;
-        // Taking arguments are protected before their source obligations are retired. Scoped
-        // addresses are bound after the frozen before-steps have installed retained temporaries.
-        let _taken_storage = if let Operation::Call { inputs, .. } = &action.operation {
+        // Invoke records the exact protection point after committed materializations and before
+        // source retirement/reclamation. Scoped addresses are bound after the before phase.
+        let inputs = if let Operation::Call { inputs, .. } = &action.operation {
+            inputs.as_ref()
+        } else {
+            &[]
+        };
+        let _taken_storage = if matches!(action.operation, Operation::Call { .. }) {
             Some(self.memory.storage.items(inputs.len())?)
         } else {
             None
         };
-        let taken = if let Operation::Call { inputs, .. } = &action.operation {
-            inputs
-                .iter()
-                .map(|input| {
-                    if input.operation == ValueInputOperation::Take {
-                        self.read(frame, &input.place).map(Some)
-                    } else {
-                        Ok(None)
-                    }
-                })
-                .collect::<Result<Vec<_>>>()?
-        } else {
-            Vec::new()
-        };
+        let mut taken = vec![None; inputs.len()];
         for effect in &alternative.before {
             self.tick()?;
+            if let Effect::Invoke {
+                inputs: protected, ..
+            } = effect
+            {
+                for (index, place) in protected {
+                    let index = *index;
+                    if taken.get(index).is_none_or(Option::is_some) {
+                        return Err(Rule::InvalidPlan);
+                    }
+                    taken[index] = Some(self.read(frame, place)?);
+                }
+            }
             self.effect(frame, effect)?;
         }
         self.operation(frame, &action.operation, &taken)?;
@@ -289,9 +294,11 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             .and_then(super::Type::scalar)
             .ok_or(Rule::InvalidPlan)
     }
+    #[allow(clippy::too_many_lines)]
     fn operation(&mut self, frame: usize, op: &Operation, taken: &[Option<Value>]) -> Result<()> {
         let (destination, value) = match op {
             Operation::None => return Ok(()),
+            Operation::RequirePrimary { source } => return self.require_primary(frame, source),
             Operation::BoundsTrap => return Err(Rule::IndexOutOfBounds),
             Operation::Literal { destination, value } => {
                 (*destination, self.memory.storage.import(value)?)
@@ -391,6 +398,16 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         };
         self.write(frame, &Place::root(destination), value)
     }
+    fn require_primary(&self, frame: usize, source: &Place) -> Result<()> {
+        if matches!(
+            self.read(frame, source)?.data(),
+            Data::Variant { primary: true, .. }
+        ) {
+            Ok(())
+        } else {
+            Err(Rule::AbsentValue)
+        }
+    }
     fn repeated(&self, frame: usize, destination: usize, source: &Place) -> Result<Value> {
         let slots = &self
             .memory
@@ -436,16 +453,16 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         inputs
             .iter()
             .enumerate()
-            .map(|(index, input)| match input.operation {
-                ValueInputOperation::Take => Ok(Cell::Data(
+            .map(|(index, input)| match input {
+                Input::Take(_) => Ok(Cell::Data(
                     taken
                         .get(index)
                         .and_then(Option::as_ref)
                         .ok_or(Rule::InvalidPlan)?
                         .clone(),
                 )),
-                ValueInputOperation::Read | ValueInputOperation::Edit => {
-                    let address = self.memory.address(frame, &input.place)?;
+                Input::Read(place) | Input::Edit(place) => {
+                    let address = self.memory.address(frame, place)?;
                     // Closed types need no recursive shape walk; initialization still matters
                     // even when the callee never reads this scoped input.
                     self.memory.read(&address)?;
@@ -477,7 +494,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             Effect::Construct(slot) => Ok(self
                 .memory
                 .construct(&self.memory.address(frame, &Place::root(*slot))?)?),
-            Effect::Dispose(place) | Effect::Invoke(place) => Ok(self
+            Effect::Dispose(place) | Effect::Invoke { source: place, .. } => Ok(self
                 .memory
                 .retire(&self.memory.address(frame, place)?, false)?),
             Effect::DisposeArrayRemainder(place) | Effect::Release(place) => Ok(self
@@ -520,13 +537,22 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                     .into_iter()
                     .collect::<Option<Box<[_]>>>()
                     .ok_or(Rule::InvalidPlan)?;
-                self.write(
-                    frame,
-                    &Place::root(*destination),
-                    self.memory
-                        .storage
-                        .aggregate(values.into_vec().into_iter())?,
-                )?;
+                let data = self.memory.frames[frame]
+                    .slots
+                    .get(*destination)
+                    .ok_or(Rule::InvalidPlan)?
+                    .data;
+                let value =
+                    if matches!(self.program.types.get(data), Some(super::Type::Optional(_))) {
+                        self.memory
+                            .storage
+                            .variant(!values.is_empty(), values.into_vec().into_iter().next())?
+                    } else {
+                        self.memory
+                            .storage
+                            .aggregate(values.into_vec().into_iter())?
+                    };
+                self.write(frame, &Place::root(*destination), value)?;
                 Ok(self
                     .memory
                     .construct(&self.memory.address(frame, &Place::root(*destination))?)?)

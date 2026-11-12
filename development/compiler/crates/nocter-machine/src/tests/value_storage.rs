@@ -437,3 +437,37 @@ fn empty_value_array_geometry_preserves_the_released_fixed_array_policy() {
         (0, 4)
     );
 }
+
+#[test]
+fn iterative_layout_dependencies_reject_positive_cycles_and_preserve_empty_cuts() {
+    use nocter_runtime_contract::{RuntimeTypeRepresentationTable, RuntimeTypeTableBuilder};
+    let semantic = nocter_model::TypeStore::new();
+    let first = semantic.builtin(BuiltinType::I32);
+    let next = semantic.builtin(BuiltinType::Bool);
+    for cut in [false, true] {
+        let mut types = RuntimeTypeTableBuilder::new();
+        types.insert(first, RuntimeType::Optional(next)).unwrap();
+        types
+            .insert(
+                next,
+                if cut {
+                    RuntimeType::EmptyArray { element: first }
+                } else {
+                    RuntimeType::Optional(first)
+                },
+            )
+            .unwrap();
+        let runtime = RuntimeEnvironment::new(
+            types.finish().unwrap(),
+            RuntimeTypeRepresentationTable::default(),
+            RuntimeAbiIdentity::Arm64DarwinV1,
+        )
+        .unwrap();
+        let result = MachineLayoutPlan::from_runtime(&runtime, [first]);
+        if cut {
+            assert_eq!(result.unwrap().get(first).unwrap().size(), 1);
+        } else {
+            assert!(matches!(result, Err(MachineLayoutError::RecursiveValue(id)) if id == first));
+        }
+    }
+}

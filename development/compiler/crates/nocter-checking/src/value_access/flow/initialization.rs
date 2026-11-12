@@ -535,7 +535,7 @@ fn evaluate(
         ExpressionKind::Place(_) | ExpressionKind::Index { .. } | ExpressionKind::Select { .. } => {
             require_formation(typed, facts, state, id, location, violations)?;
         }
-        ExpressionKind::Boundary { source, .. } => {
+        ExpressionKind::RequirePrimary { source } | ExpressionKind::Boundary { source, .. } => {
             require_expression(
                 typed,
                 facts,

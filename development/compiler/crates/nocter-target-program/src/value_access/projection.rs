@@ -170,6 +170,10 @@ pub(super) fn data(
                 source
             }
             PayloadSchema::Builtin(_) => source,
+            PayloadSchema::Optional(payload) => {
+                pending.insert(payload);
+                source
+            }
             PayloadSchema::Array(array) => {
                 if !array.is_empty() {
                     pending.insert(array.element());

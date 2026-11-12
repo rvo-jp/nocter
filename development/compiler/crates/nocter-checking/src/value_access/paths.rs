@@ -20,6 +20,7 @@ fn known_by<I>(fields: &FieldPath, index: impl Fn(u64) -> I) -> ValuePath<I> {
     ValuePath::new(fields.fields().iter().map(|field| match *field {
         ValueProjection::Record(id) => ValueProjection::Record(id),
         ValueProjection::Tuple(position) => ValueProjection::Tuple(position),
+        ValueProjection::Variant(primary) => ValueProjection::Variant(primary),
         ValueProjection::Array(value) => ValueProjection::Array(index(value)),
     }))
 }
@@ -31,6 +32,7 @@ pub(super) fn concrete(fields: &AccessPath) -> Option<FieldPath> {
             Some(match *field {
                 ValueProjection::Record(id) => ValueProjection::Record(id),
                 ValueProjection::Tuple(index) => ValueProjection::Tuple(index),
+                ValueProjection::Variant(primary) => ValueProjection::Variant(primary),
                 ValueProjection::Array(IndexFact::Known(index)) => ValueProjection::Array(index),
                 ValueProjection::Array(IndexFact::Unknown) => return None,
             })

@@ -76,6 +76,9 @@ impl Program {
                     })
                     .transpose()?
                     .unwrap_or(data),
+                TypeKind::Optional(payload) => types
+                    .intern(TypeKind::Optional(project(*payload)?))
+                    .map_err(|_| BodyTypeError::InvalidExtension)?,
                 TypeKind::Tuple(fields) => {
                     let fields = fields.iter().map(project).collect::<Result<Vec<_>, _>>()?;
                     types

@@ -101,6 +101,13 @@ fn prefix(parser: &mut Parser<'_>, boundary: newline::Boundary, allow_braces: bo
         wrappers.push(marker);
     }
     let mut inner = postfix_in(parser, allow_braces);
+    if parser.at_punctuation(Punctuation::Bang) {
+        let marker = parser.precede(inner.completed);
+        parser.bump();
+        inner = Expression {
+            completed: parser.complete(marker, NodeKind::OutcomeExpression),
+        };
+    }
     for marker in wrappers.into_iter().rev() {
         inner = Expression {
             completed: parser.complete(marker, NodeKind::UnaryExpression),
@@ -196,7 +203,8 @@ fn primary(parser: &mut Parser<'_>, allow_braces: bool) -> Expression {
             parser.expect_name();
             NodeKind::ReferenceExpression
         }
-        TokenKind::IntegerLiteral | TokenKind::Keyword(Keyword::True | Keyword::False) => {
+        TokenKind::IntegerLiteral
+        | TokenKind::Keyword(Keyword::True | Keyword::False | Keyword::None) => {
             parser.bump();
             NodeKind::ScalarLiteral
         }

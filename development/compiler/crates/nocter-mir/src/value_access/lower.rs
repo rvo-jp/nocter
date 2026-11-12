@@ -247,6 +247,9 @@ impl Builder<'_> {
                     nocter_model::ValueProjection::Record(id) => {
                         Projection::Field(nocter_model::ValueField::Record(id))
                     }
+                    nocter_model::ValueProjection::Variant(primary) => {
+                        Projection::Field(nocter_model::ValueField::Variant(primary))
+                    }
                     nocter_model::ValueProjection::Tuple(index) => {
                         Projection::Field(nocter_model::ValueField::Tuple(index))
                     }
@@ -395,6 +398,15 @@ impl Builder<'_> {
                             output.push(Effect::Transfer {
                                 source,
                                 destination: selection,
+                            });
+                        }
+                        if matches!(
+                            self.runtime.types().get(destination.data),
+                            Some(nocter_runtime_contract::RuntimeType::Optional(_))
+                        ) {
+                            output.push(Effect::VariantTag {
+                                destination: destination.clone(),
+                                primary: !fields.is_empty(),
                             });
                         }
                         output.push(Effect::Initialize(destination));

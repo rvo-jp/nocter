@@ -243,6 +243,7 @@ fn closed_cleanup(
                 if nocter_model::BuiltinNumericType::for_builtin(builtin)
                     .and_then(nocter_model::BuiltinNumericType::integer_bounds)
                     .is_some() => {}
+            Some(PayloadSchema::Optional(payload)) => pending.push(payload),
             Some(PayloadSchema::Aggregate(schema)) => {
                 pending.extend(schema.components().map(|field| field.data));
             }

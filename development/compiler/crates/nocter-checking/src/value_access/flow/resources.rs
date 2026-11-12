@@ -407,6 +407,10 @@ pub fn payload(program: &Program, data: TypeId) -> Result<Payload> {
                 Disposal::Trivial
             }
             PayloadSchema::Builtin(BuiltinType::Error) => Disposal::OwnedError,
+            PayloadSchema::Optional(payload) => {
+                pending.push(payload);
+                Disposal::Aggregate
+            }
             PayloadSchema::Aggregate(schema) => {
                 pending.extend(schema.components().map(|component| component.data));
                 Disposal::Aggregate

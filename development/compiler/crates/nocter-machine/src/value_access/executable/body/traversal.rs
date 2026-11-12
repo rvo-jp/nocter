@@ -14,7 +14,7 @@ pub(super) struct Traversal {
     exit: MachineBlockId,
 }
 impl Builder<'_> {
-    fn primitive(&self, role: RuntimePrimitive) -> Result<TypeId, Failure> {
+    pub(super) fn primitive(&self, role: RuntimePrimitive) -> Result<TypeId, Failure> {
         self.context
             .program
             .runtime()

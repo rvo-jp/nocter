@@ -322,7 +322,8 @@ fn expression_uses(
                 update && action == crate::value_access::SelectionAction::Access,
             ));
         }
-        ExpressionKind::Repeat { seed: source }
+        ExpressionKind::RequirePrimary { source }
+        | ExpressionKind::Repeat { seed: source }
         | ExpressionKind::AdaptFunction { source }
         | ExpressionKind::Closure {
             capture: source, ..

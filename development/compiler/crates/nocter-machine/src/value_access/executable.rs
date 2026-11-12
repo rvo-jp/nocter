@@ -10,7 +10,7 @@ use crate::{
 use nocter_mir::value_access as mir;
 use nocter_model::{AccessInstanceId, TypeId};
 use nocter_runtime_contract::{RuntimePrimitive, RuntimeType, RuntimeTypeRepresentation};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 struct Context<'a> {
     program: &'a mir::Program,
@@ -53,11 +53,7 @@ pub(super) fn program(program: &mir::Program) -> Result<MachineProgram, Failure>
                 .types()
                 .iter()
                 .filter_map(|(data, shape)| {
-                    matches!(
-                        shape,
-                        RuntimeType::Primitive(RuntimePrimitive::Usize | RuntimePrimitive::Bool)
-                    )
-                    .then_some(data)
+                    matches!(shape, RuntimeType::Primitive(_)).then_some(data)
                 }),
         );
     let layouts =
@@ -162,6 +158,7 @@ fn cleanup_plan(program: &mir::Program) -> Result<BTreeMap<TypeId, MachineFuncti
                     needs_cleanup(program, element, &mut work)?;
                 }
                 mir::Effect::Dispose { .. }
+                | mir::Effect::VariantTag { .. }
                 | mir::Effect::Initialize(_)
                 | mir::Effect::Transfer { .. }
                 | mir::Effect::Reinterpret { .. }
@@ -184,37 +181,58 @@ fn needs_cleanup(
     data: TypeId,
     cache: &mut BTreeMap<TypeId, bool>,
 ) -> Result<bool, Failure> {
-    if let Some(&value) = cache.get(&data) {
-        return Ok(value);
-    }
-    let needed = match program.runtime().types().get(data) {
-        Some(RuntimeType::Primitive(RuntimePrimitive::Error)) => true,
-        Some(
-            RuntimeType::Primitive(_)
-            | RuntimeType::Unit
-            | RuntimeType::EmptyArray { .. }
-            | RuntimeType::StaticCallable { environment: None },
-        ) => false,
-        Some(RuntimeType::StaticCallable {
-            environment: Some(environment),
-        }) => needs_cleanup(program, *environment, cache)?,
-        Some(RuntimeType::Aggregate) => {
-            let Some(RuntimeTypeRepresentation::ValueAggregate { fields }) =
-                program.runtime().type_representations().get(data)
-            else {
-                return Err(Failure::InvalidRoot);
-            };
-            let mut needed = false;
-            for field in fields {
-                needed |= needs_cleanup(program, field.ty(), cache)?;
+    let mut pending = vec![(data, false)];
+    let mut active = BTreeSet::new();
+    while let Some((data, expanded)) = pending.pop() {
+        if cache.contains_key(&data) {
+            continue;
+        }
+        let children = match program.runtime().types().get(data) {
+            Some(RuntimeType::Primitive(RuntimePrimitive::Error)) => {
+                cache.insert(data, true);
+                continue;
             }
-            needed
+            Some(
+                RuntimeType::Primitive(_)
+                | RuntimeType::Unit
+                | RuntimeType::EmptyArray { .. }
+                | RuntimeType::StaticCallable { environment: None },
+            ) => {
+                cache.insert(data, false);
+                continue;
+            }
+            Some(RuntimeType::StaticCallable {
+                environment: Some(environment),
+            }) => vec![*environment],
+            Some(RuntimeType::Optional(payload)) => vec![*payload],
+            Some(RuntimeType::Aggregate) => {
+                let Some(RuntimeTypeRepresentation::ValueAggregate { fields }) =
+                    program.runtime().type_representations().get(data)
+                else {
+                    return Err(Failure::InvalidRoot);
+                };
+                fields.iter().map(|field| field.ty()).collect()
+            }
+            Some(RuntimeType::FixedArray { element, length }) => {
+                if *length == 0 {
+                    Vec::new()
+                } else {
+                    vec![*element]
+                }
+            }
+            _ => return Err(Failure::InvalidRoot),
+        };
+        if expanded {
+            let needed = children.iter().any(|child| cache.get(child) == Some(&true));
+            cache.insert(data, needed);
+            active.remove(&data);
+        } else {
+            if !active.insert(data) {
+                return Err(Failure::InvalidRoot);
+            }
+            pending.push((data, true));
+            pending.extend(children.into_iter().rev().map(|child| (child, false)));
         }
-        Some(RuntimeType::FixedArray { element, length }) => {
-            *length != 0 && needs_cleanup(program, *element, cache)?
-        }
-        _ => return Err(Failure::InvalidRoot),
-    };
-    cache.insert(data, needed);
-    Ok(needed)
+    }
+    cache.get(&data).copied().ok_or(Failure::InvalidRoot)
 }

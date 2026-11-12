@@ -408,3 +408,4 @@ fn source_origin(syntax: BoundSyntax<'_>, origin: SyntaxOrigin) -> Result<Source
 }
 
 mod integers;
+mod outcomes;

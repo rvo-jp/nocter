@@ -12,7 +12,7 @@ The syntax owner defines the bounded private goal. Checking admits explicit post
 unmarked Copy snapshots, marked capture formation and read/edit loans from produced or
 transferred values within its closed data/callable schemas. A direct marked source stays reserved
 through complete invocation preparation, including selected callable adapters. These products do
-not establish general capabilities, public modules, outcomes or async.
+not establish general capabilities, public modules, general outcomes or async.
 The [realization plan](../../design/compiler-realization.md) owns remaining integrated obligations.
 
 ## Implemented Handoff
@@ -150,7 +150,7 @@ intermediate facts cannot be treated as its accepted product.
 The released compile-input/target-selection boundary rejects this future root, and no conversion
 from this declaration product to the released program exists. Public roots, module joining,
 general compound header types, generic/interface evidence, dependent results without an
-established required input witness, nested callback contracts, general captured environments, outcomes,
+established required input witness, nested callback contracts, general captured environments, general outcomes,
 async/effects and standard-library migration remain outside this implemented boundary.
 
 
@@ -309,7 +309,7 @@ the whole original body set before exposing any exact-current projection. No loo
 dispatch, or flow computation is repeated by that projection.
 
 This is closed front-end evidence for the exact private fragment, not a code-generation
-certificate. Module/package integration, general dependencies, user destructors, outcomes and
+certificate. Module/package integration, general dependencies, user destructors, general outcomes and
 async remain outside its admitted source scope. There is no released
 checked-program conversion or public compatibility mode.
 

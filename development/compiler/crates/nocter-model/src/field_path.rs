@@ -5,6 +5,8 @@ use crate::AccessFieldId;
 pub enum ValueProjection<I> {
     Record(AccessFieldId),
     Tuple(usize),
+    /// A typed active-variant payload; datatype projection alone grants no active-tag access.
+    Variant(bool),
     /// An index value or recipe key; its identity alone does not prove evaluated equality.
     Array(I),
 }
@@ -101,6 +103,9 @@ impl<I> ValuePath<I> {
                     } else {
                         IndexRelation::Distinct
                     }
+                }
+                (ValueProjection::Variant(a), ValueProjection::Variant(b)) if a == b => {
+                    IndexRelation::Equal
                 }
                 (ValueProjection::Array(a), ValueProjection::Array(b)) => indices(a, b),
                 _ => return PathRelation::MayOverlap,
@@ -200,5 +205,23 @@ mod tests {
         let element = left.project(ValueField::Array(u64::MAX - 1));
         assert!(left.overlaps(&element));
         assert!(!element.overlaps(&left.project(ValueField::Array(0))));
+    }
+}
+
+#[cfg(test)]
+mod variant_tests {
+    use super::*;
+    #[test]
+    fn variant_keys_never_supply_cross_variant_disjointness_or_active_tag_proof() {
+        let first = FieldPath::new([ValueField::Variant(true)]);
+        let second = FieldPath::new([ValueField::Variant(false)]);
+        assert_eq!(
+            first.relation(&first, |_, _| IndexRelation::Unknown),
+            PathRelation::Equal
+        );
+        assert_eq!(
+            first.relation(&second, |_, _| IndexRelation::Unknown),
+            PathRelation::MayOverlap
+        );
     }
 }

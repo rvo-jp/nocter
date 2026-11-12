@@ -1435,3 +1435,12 @@ fn module<'syntax>(
         )],
     )
 }
+
+/// A flat suffix chain whose positive layout path is reached first through a nominal field.
+#[must_use]
+pub fn deep_optional_source(layers: usize) -> String {
+    format!(
+        "struct Deep {{ value: i32{} }}\nconst VALUE: Deep = Deep {{ value: none }}\nfunc dispose(take value: Deep): void {{}}\nfunc run(): i32 {{ dispose(VALUE)\n42 }}",
+        "?".repeat(layers)
+    )
+}

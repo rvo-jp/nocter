@@ -127,6 +127,21 @@ code binds body-local address slots to immutable backing; callable signatures an
 remain unchanged. Static and literal data share the total serialization budget and common scalar
 encoding. No static initializer becomes a runtime function.
 
+## Private Optional Execution
+
+The private consumer uses the common optional layout, tag encoding and payload offsets. Stored tag
+access requests the runtime primitive's own layout, including helper-only primitive types. Frozen
+variants write only the selected payload; absence never reads uninitialized payload backing.
+Assertions branch to the ordinary non-unwinding safety trap before extraction. Complete cleanup
+checks the tag before calling an existing payload helper, while extracted payloads retain the
+checked partial-container schedule. Absent error optionals qualify skipping error cleanup; they
+do not establish source construction or release of an owned error graph.
+
+Layout and cleanup dependency discovery use iterative work over the same actual schema requests,
+retaining positive-cycle rejection and empty-array/pointer cuts. Flat optional suffix depth does
+not require recursive host calls. Shared source qualifies required/frozen/native handoffs; the
+checking component owns source admission and the remaining outcome operations.
+
 ## Private Array Execution
 
 The private source path qualifies listed/repeated arrays, complete read/edit selections and

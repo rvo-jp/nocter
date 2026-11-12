@@ -95,6 +95,20 @@ published contract and direct remainder in the [adopted contract](../../../spec/
 only the quotient-domain policy differs, not the arithmetic implementation. Floating
 operations still require an explicit compilation target in their existing domain.
 
+`Type::Optional` retains one positive payload identity. `Data::Variant` and model-owned
+`FrozenNode::Variant` retain the selected tag and only its active payload. Validation rejects a
+missing present payload, an absent payload or a mismatching child type. Assembly owns construction;
+`RequirePrimary` checks the tag before payload selection and reports a distinct absence failure.
+Value traversal, freezing, restoration and final release use iterative work, including deeply
+nested flat optional suffixes. This adds no source comparison capability or fallible execution.
+
+Taking call inputs retain exact received data; each selected `Invoke` records the input position
+and physical payload place to protect immediately before retiring its owner. Thus wrappers may be
+materialized during commit without snapshots of uninitialized backing. Captured environment
+projections can be protected while the whole carrier retires. Plan validation requires exactly
+one protection for every taking input and rejects duplicates, mismatched types or unrelated
+owners. Read/edit inputs still bind addresses after the committed before phase.
+
 `Type::NamedFunction` retains a concrete declaration identity with a unit payload and no runtime
 environment. Checking supplies the selected code for invocation and excludes this empty callable
 prefix from explicit declaration inputs; the evaluator performs no dispatch lookup. A selected

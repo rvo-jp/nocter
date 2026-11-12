@@ -181,6 +181,7 @@ fn type_(parser: &mut Parser<'_>) {
         }
         parser.complete(shape, NodeKind::NamedType);
     }
+    while parser.eat_punctuation(Punctuation::Question) {}
     parser.complete(marker, NodeKind::Type);
 }
 

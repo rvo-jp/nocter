@@ -82,6 +82,7 @@ impl Builder<'_> {
             source,
         })
     }
+    #[allow(clippy::too_many_lines)]
     fn evaluate(&mut self, id: AccessExpressionId) -> Result<Vec<Operation>, Failure> {
         let kind = self
             .checked
@@ -94,6 +95,9 @@ impl Builder<'_> {
             .clone();
         let destination = self.result(id)?;
         let operation = match kind {
+            ExpressionKind::RequirePrimary { source } => Operation::RequirePrimary {
+                source: self.value(source)?,
+            },
             ExpressionKind::Constant(value) => Operation::Frozen { destination, value },
             ExpressionKind::Integer(value) => Operation::Constant {
                 destination,

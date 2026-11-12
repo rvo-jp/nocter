@@ -7,6 +7,11 @@ use std::sync::Arc;
 pub enum FrozenNode {
     Unit,
     Scalar(ConstantValue),
+    /// One selected branch and its optional stored payload; the consuming type owns tag meaning.
+    Variant {
+        primary: bool,
+        payload: Option<usize>,
+    },
     /// Declaration/index-order component indexes into the same graph, all preceding this node.
     Aggregate(Box<[usize]>),
     /// Homogeneous logical storage, without one graph edge per repeated element. Sparse
@@ -32,6 +37,7 @@ impl FrozenData {
         let root = nodes.len().checked_sub(1).ok_or(InvalidFrozenData)?;
         if nodes.iter().enumerate().any(|(id, node)| match node {
             FrozenNode::Aggregate(fields) => fields.iter().any(|&field| field >= id),
+            FrozenNode::Variant { payload, .. } => payload.is_some_and(|payload| payload >= id),
             FrozenNode::Repeated {
                 element,
                 length,
@@ -123,5 +129,47 @@ mod tests {
         let value = FrozenData::new(make(0, vec![(0, 0), (u64::MAX - 1, 0)].into())).unwrap();
         assert_eq!(value.nodes().len(), 2);
         assert_eq!(value.at(0).unwrap().node(), &FrozenNode::Unit);
+    }
+}
+
+#[cfg(test)]
+mod variant_tests {
+    use super::*;
+    #[test]
+    fn variant_edges_are_validated_even_when_not_selected_as_the_final_root() {
+        assert!(
+            FrozenData::new(vec![FrozenNode::Variant {
+                primary: true,
+                payload: Some(0)
+            }])
+            .is_err()
+        );
+        assert!(
+            FrozenData::new(vec![
+                FrozenNode::Variant {
+                    primary: false,
+                    payload: Some(1)
+                },
+                FrozenNode::Unit
+            ])
+            .is_err()
+        );
+        assert!(
+            FrozenData::new(vec![FrozenNode::Variant {
+                primary: false,
+                payload: None
+            }])
+            .is_ok()
+        );
+        assert!(
+            FrozenData::new(vec![
+                FrozenNode::Unit,
+                FrozenNode::Variant {
+                    primary: true,
+                    payload: Some(0)
+                }
+            ])
+            .is_ok()
+        );
     }
 }

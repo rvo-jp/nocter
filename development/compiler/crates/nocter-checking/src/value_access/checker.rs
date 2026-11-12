@@ -358,6 +358,9 @@ impl<'a, 's> Checker<'a, 's> {
                 .expect("declared data authority");
         };
         match schema {
+            PayloadSchema::Optional(payload) => {
+                format!("{}?", self.data_label_with_budget(payload, remaining))
+            }
             PayloadSchema::Array(array) => format!(
                 "[{}; {}]",
                 self.data_label_with_budget(array.element(), remaining),
@@ -569,6 +572,16 @@ impl<'a, 's> Checker<'a, 's> {
             && let Some(value) = self.result_boundary(node, source, expected.data())?
         {
             return Ok(value);
+        }
+        if actual.data() != expected.data()
+            && expected.mode() == Mode::Own
+            && let Some(PayloadSchema::Optional(_)) = self.program().data_schema(expected.data())
+        {
+            source = self.inject_optional(node, source, expected.data())?;
+            actual = self
+                .ty(source)
+                .access()
+                .ok_or(Failure::InconsistentSyntax)?;
         }
         if actual.data() != expected.data()
             && !self

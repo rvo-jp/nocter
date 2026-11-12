@@ -13,6 +13,7 @@ fn expand(path: &AccessPath) -> Vec<FieldPath> {
                 vec![ValueField::Array(0), ValueField::Array(1)]
             }
             ValueProjection::Tuple(index) => vec![ValueField::Tuple(index)],
+            ValueProjection::Variant(primary) => vec![ValueField::Variant(primary)],
             ValueProjection::Record(_) => unreachable!(),
         };
         paths = paths

@@ -340,7 +340,7 @@ impl MachineLayoutPlan {
             target,
             layouts: BTreeMap::new(),
             classes: BTreeMap::new(),
-            active: BTreeSet::new(),
+            required: BTreeSet::new(),
             fields: BTreeMap::new(),
             value_fields: BTreeMap::new(),
             variants: BTreeMap::new(),
@@ -348,7 +348,7 @@ impl MachineLayoutPlan {
             captures: BTreeMap::new(),
         };
         for ty in roots {
-            builder.layout(ty)?;
+            builder.prepare(ty)?;
         }
         Ok(Self {
             store: MachineLayoutStore {
@@ -367,6 +367,21 @@ impl MachineLayoutPlan {
     /// Resolves an exact value-model field before discarding construction correspondence.
     #[must_use]
     pub fn value_field(&self, ty: TypeId, field: ValueField) -> Option<MachineFieldLayout> {
+        if let ValueField::Variant(primary) = field {
+            let MachineLayoutKind::Outcome {
+                primary: first,
+                alternate,
+                payload_offset,
+                ..
+            } = self.get(ty)?.kind()
+            else {
+                return None;
+            };
+            return Some(MachineFieldLayout {
+                ty: if primary { *first } else { *alternate }?,
+                offset: *payload_offset,
+            });
+        }
         if let ValueField::Array(index) = field {
             let MachineLayoutKind::FixedArray {
                 element,
@@ -448,7 +463,7 @@ struct LayoutBuilder<'program> {
     target: MachineTarget,
     layouts: BTreeMap<TypeId, MachineLayout>,
     classes: BTreeMap<TypeId, crate::MachineValueClass>,
-    active: BTreeSet<TypeId>,
+    required: BTreeSet<TypeId>,
     fields: BTreeMap<(TypeId, FieldId), MachineFieldLayout>,
     value_fields: BTreeMap<(TypeId, ValueField), MachineFieldLayout>,
     variants: BTreeMap<(TypeId, VariantId), MachineEnumVariantLayout>,
@@ -457,24 +472,71 @@ struct LayoutBuilder<'program> {
 }
 
 impl LayoutBuilder<'_> {
+    /// Compute from actual layout requests without recursive host calls or a second edge policy.
+    /// Compute helpers request all positive children before publishing member correspondence.
+    fn prepare(&mut self, root: TypeId) -> Result<(), MachineLayoutError> {
+        let mut pending = vec![(root, false)];
+        let mut active = BTreeSet::new();
+        while let Some((ty, retry)) = pending.pop() {
+            if self.layouts.contains_key(&ty) {
+                continue;
+            }
+            if !retry && !active.insert(ty) {
+                return Err(MachineLayoutError::RecursiveValue(ty));
+            }
+            let kind = self
+                .types
+                .get(ty)
+                .cloned()
+                .ok_or(MachineLayoutError::UnknownType(ty))?;
+            self.required.clear();
+            match self.compute(ty, &kind) {
+                Ok(layout) => {
+                    let class = crate::MachineValueClass::for_layout(&layout, self.target);
+                    self.layouts.insert(ty, layout);
+                    self.classes.insert(ty, class);
+                    active.remove(&ty);
+                }
+                Err(MachineLayoutError::UnknownType(_)) if !self.required.is_empty() => {
+                    pending.push((ty, true));
+                    pending.extend(
+                        std::mem::take(&mut self.required)
+                            .into_iter()
+                            .rev()
+                            .map(|child| (child, false)),
+                    );
+                }
+                Err(error) => return Err(error),
+            }
+        }
+        Ok(())
+    }
+    fn require_layouts(
+        &mut self,
+        types: impl IntoIterator<Item = TypeId>,
+    ) -> Result<(), MachineLayoutError> {
+        let mut missing = None;
+        for ty in types {
+            if self.layouts.contains_key(&ty) {
+                continue;
+            }
+            if self.types.get(ty).is_none() {
+                return Err(MachineLayoutError::UnknownType(ty));
+            }
+            self.required.insert(ty);
+            missing.get_or_insert(ty);
+        }
+        if let Some(ty) = missing {
+            Err(MachineLayoutError::UnknownType(ty))
+        } else {
+            Ok(())
+        }
+    }
     fn layout(&mut self, ty: TypeId) -> Result<&MachineLayout, MachineLayoutError> {
-        if self.layouts.contains_key(&ty) {
-            return Ok(&self.layouts[&ty]);
-        }
-        if !self.active.insert(ty) {
-            return Err(MachineLayoutError::RecursiveValue(ty));
-        }
-        let kind = self
-            .types
-            .get(ty)
-            .cloned()
-            .ok_or(MachineLayoutError::UnknownType(ty))?;
-        let layout = self.compute(ty, &kind)?;
-        let class = crate::MachineValueClass::for_layout(&layout, self.target);
-        self.active.remove(&ty);
-        self.layouts.insert(ty, layout);
-        self.classes.insert(ty, class);
-        Ok(&self.layouts[&ty])
+        self.require_layouts([ty])?;
+        self.layouts
+            .get(&ty)
+            .ok_or(MachineLayoutError::UnknownType(ty))
     }
 
     #[allow(clippy::too_many_lines)]
@@ -767,6 +829,11 @@ impl LayoutBuilder<'_> {
         if variants.is_empty() || variants.len() > 256 {
             return Err(MachineLayoutError::InvalidRepresentation(ty));
         }
+        self.require_layouts(
+            variants
+                .iter()
+                .flat_map(|variant| variant.payload().iter().map(|payload| payload.ty())),
+        )?;
         let mut payload_alignment = 1;
         let mut payload_size = 0;
         let mut relative = Vec::with_capacity(variants.len());
@@ -912,6 +979,8 @@ impl LayoutBuilder<'_> {
         owner: TypeId,
         members: impl IntoIterator<Item = TypeId>,
     ) -> Result<(u64, u64, Vec<u64>), MachineLayoutError> {
+        let members = members.into_iter().collect::<Vec<_>>();
+        self.require_layouts(members.iter().copied())?;
         let mut size = 0_u64;
         let mut alignment = 1_u64;
         let mut offsets = Vec::new();

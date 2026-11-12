@@ -105,6 +105,12 @@ pub fn prepare(
                     }
                 }
             }
+            PayloadSchema::Optional(payload) => {
+                pending.insert(payload);
+                pending.insert(program.data_type(BuiltinType::Bool).ok_or_else(invalid)?);
+                pending.insert(program.data_type(BuiltinType::U8).ok_or_else(invalid)?);
+                RuntimeType::Optional(payload)
+            }
             PayloadSchema::Builtin(builtin) => match builtin {
                 BuiltinType::Bool => RuntimeType::Primitive(RuntimePrimitive::Bool),
                 _ if nocter_model::BuiltinNumericType::for_builtin(builtin)

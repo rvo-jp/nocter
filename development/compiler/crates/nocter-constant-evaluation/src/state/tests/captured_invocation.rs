@@ -133,6 +133,7 @@ fn construct_function() -> Action {
         ],
     )
 }
+#[allow(clippy::too_many_lines)]
 fn caller(target: nocter_model::ValueCode, offered: Op) -> Plan {
     let mut actions = vec![construct_function()];
     let mut owners = vec![1];
@@ -154,7 +155,17 @@ fn caller(target: nocter_model::ValueCode, offered: Op) -> Plan {
             1
         };
         let before = if offered == Op::Take {
-            vec![Effect::Invoke(Place::root(source))]
+            vec![Effect::Invoke {
+                source: Place::root(source),
+                inputs: vec![(
+                    0,
+                    Place {
+                        slot: source,
+                        fields: vec![0].into(),
+                    },
+                )]
+                .into(),
+            }]
         } else {
             vec![]
         };
@@ -164,12 +175,16 @@ fn caller(target: nocter_model::ValueCode, offered: Op) -> Plan {
             Operation::Call {
                 destination,
                 target,
-                inputs: vec![Input {
-                    operation: offered,
-                    place: Place {
+                inputs: vec![match offered {
+                    Op::Read => Input::Read(Place {
                         slot: source,
                         fields: vec![0].into(),
-                    },
+                    }),
+                    Op::Edit => Input::Edit(Place {
+                        slot: source,
+                        fields: vec![0].into(),
+                    }),
+                    Op::Take => Input::Take(0),
                 }]
                 .into(),
             },

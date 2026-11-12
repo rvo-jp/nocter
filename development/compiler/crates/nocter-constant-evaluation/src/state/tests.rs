@@ -289,11 +289,7 @@ fn unread_scoped_inputs_still_require_initialized_caller_data() {
         point.actions[0].operation = Operation::Call {
             destination: 0,
             target: function.into(),
-            inputs: vec![Input {
-                place: Place::root(0),
-                operation: nocter_model::ValueInputOperation::Read,
-            }]
-            .into(),
+            inputs: vec![Input::Read(Place::root(0))].into(),
         };
         point
     });
@@ -369,3 +365,5 @@ fn integer_descriptor_rejects_noninteger_builtins_even_without_values_or_plans()
         );
     }
 }
+
+mod optional_values;

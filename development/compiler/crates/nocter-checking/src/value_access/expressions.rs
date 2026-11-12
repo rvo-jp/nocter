@@ -53,11 +53,18 @@ impl Checker<'_, '_> {
         expected: Option<Boundary>,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
-        let hint = context.and_then(Annotation::data);
+        let data_hint = context.and_then(Annotation::data);
+        let hint = data_hint.map(|data| self.literal_data_hint(data));
         let node = self.unwrap(node)?;
         let expr = match self.kind(node)? {
             NodeKind::ReferenceExpression => self.reference_value(node)?,
+            NodeKind::ScalarLiteral
+                if self.token(node)?.kind() == TokenKind::Keyword(Keyword::None) =>
+            {
+                self.absent(node, data_hint)?
+            }
             NodeKind::ScalarLiteral => self.literal(node, false, hint)?,
+            NodeKind::OutcomeExpression => self.require_optional(node, reachable)?,
             NodeKind::UnitExpression => self.unit(node)?,
             NodeKind::TransferExpression => self.transfer(node, reachable)?,
             NodeKind::ClosureExpression => {
@@ -84,7 +91,7 @@ impl Checker<'_, '_> {
             NodeKind::IfExpression => {
                 return self.if_expression(
                     node,
-                    expected.or_else(|| hint.map(Boundary::Value)),
+                    expected.or_else(|| data_hint.map(Boundary::Value)),
                     context,
                     reachable,
                 );

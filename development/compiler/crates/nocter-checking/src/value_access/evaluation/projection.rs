@@ -165,6 +165,9 @@ impl Builder<'_, '_> {
                         self.component_position(nocter_model::ValueField::Record(id))?,
                     ),
                     nocter_model::ValueProjection::Tuple(index) => plan::Projection::Field(index),
+                    nocter_model::ValueProjection::Variant(primary) => {
+                        plan::Projection::Field(usize::from(!primary))
+                    }
                     nocter_model::ValueProjection::Array(flow::resources::Index::Constant(
                         index,
                     )) => plan::Projection::Field(usize::try_from(index).map_err(|_| INVALID)?),
@@ -221,6 +224,7 @@ impl Builder<'_, '_> {
             plan::Storage::Auxiliary,
         )?))
     }
+    #[allow(clippy::too_many_lines)]
     fn effect(&mut self, step: &Step) -> Result<plan::Effect> {
         Ok(match step {
             Step::Construct { destination, .. } | Step::Receive { destination, .. } => {
@@ -255,7 +259,30 @@ impl Builder<'_, '_> {
                 plan::Effect::DisposeArrayRemainder(self.resource(source)?)
             }
             Step::ReleaseContainer { source, .. } => plan::Effect::Release(self.resource(source)?),
-            Step::Invoke { source, .. } => plan::Effect::Invoke(self.resource(source)?),
+            Step::Invoke {
+                source,
+                call,
+                index,
+                ..
+            } => {
+                let source = self.resource(source)?;
+                let offset = self.call_input_offset(*call)?;
+                let inputs = if let Some(position) = index.checked_sub(offset) {
+                    let mut payload = source.clone();
+                    if offset == 0 && *index == 0 && self.captured_call(*call)? {
+                        payload.fields = payload
+                            .fields
+                            .iter()
+                            .copied()
+                            .chain([plan::Projection::Field(0)])
+                            .collect();
+                    }
+                    vec![(position, payload)].into()
+                } else {
+                    Box::new([]) as Box<[_]>
+                };
+                plan::Effect::Invoke { source, inputs }
+            }
             Step::ReplaceReferent {
                 destination,
                 source,
@@ -432,6 +459,51 @@ impl Builder<'_, '_> {
             },
         )
     }
+    fn captured_call(&self, id: AccessExpressionId) -> Result<bool> {
+        let ExpressionKind::Call { target, kind, .. } = &self
+            .query
+            .typed()
+            .body()
+            .expressions()
+            .get(id)
+            .ok_or(INVALID)?
+            .kind
+        else {
+            return Err(INVALID);
+        };
+        Ok(
+            matches!(target, nocter_model::ValueFunctionOrigin::Closure(_))
+                && *kind == super::super::CallKind::Value,
+        )
+    }
+    fn call_input_offset(&self, call: AccessExpressionId) -> Result<usize> {
+        let ExpressionKind::Call {
+            kind,
+            target,
+            ref arguments,
+        } = self
+            .query
+            .typed()
+            .body()
+            .expressions()
+            .get(call)
+            .ok_or(INVALID)?
+            .kind
+        else {
+            return Err(INVALID);
+        };
+        match target {
+            nocter_model::ValueFunctionOrigin::Closure(_)
+                if kind == super::super::CallKind::Value =>
+            {
+                Ok(0)
+            }
+            nocter_model::ValueFunctionOrigin::Declaration(_) => {
+                Ok(arguments.len() - kind.explicit_arguments(arguments).ok_or(INVALID)?.len())
+            }
+            _ => Err(INVALID),
+        }
+    }
     fn call(&mut self, id: AccessExpressionId) -> Result<plan::Operation> {
         let ExpressionKind::Call {
             target,
@@ -461,34 +533,30 @@ impl Builder<'_, '_> {
         };
         let arguments = arguments.clone();
         let mut inputs = Vec::new();
-        let offset = if captured {
-            0
-        } else {
-            arguments.len() - kind.explicit_arguments(&arguments).ok_or(INVALID)?.len()
-        };
+        let offset = self.call_input_offset(id)?;
         for (index, argument) in arguments.iter().enumerate().skip(offset) {
+            if argument.operation == ValueInputOperation::Take {
+                let data = if captured && index == 0 {
+                    let nocter_model::ValueCode::Closure(code) = target else {
+                        return Err(INVALID);
+                    };
+                    self.program.closure(code).ok_or(INVALID)?.environment()
+                } else {
+                    self.data(argument.value)?
+                };
+                inputs.push(plan::Input::Take(self.types.get(self.program, data)?));
+                continue;
+            }
             let mut place = match &argument.action {
                 ArgumentAction::ReserveRead(place) | ArgumentAction::ReserveUpdate(place) => {
                     self.referent(*place)?
                 }
-                ArgumentAction::ReserveTransfer { place, adapters }
-                    if adapters.is_empty() && argument.operation == ValueInputOperation::Take =>
-                {
-                    self.referent(*place)?
-                }
-                ArgumentAction::ReserveTransfer { adapters, .. } if !adapters.is_empty() => {
-                    return Err(INVALID);
-                }
                 ArgumentAction::ReserveTransfer { .. }
                 | ArgumentAction::AccessOwnedValue
                 | ArgumentAction::CopyPlace(_)
-                | ArgumentAction::TakeValue => plan::Place::root(self.holder(
-                    if argument.operation == ValueInputOperation::Take {
-                        Holder::Prepared { call: id, index }
-                    } else {
-                        Holder::Temporary { call: id, index }
-                    },
-                )?),
+                | ArgumentAction::TakeValue => {
+                    plan::Place::root(self.holder(Holder::Temporary { call: id, index })?)
+                }
                 ArgumentAction::PendingValue(_)
                 | ArgumentAction::Unproduced
                 | ArgumentAction::Interrupted => return Err(INVALID),
@@ -501,9 +569,10 @@ impl Builder<'_, '_> {
                     .chain([plan::Projection::Field(0)])
                     .collect();
             }
-            inputs.push(plan::Input {
-                operation: argument.operation,
-                place,
+            inputs.push(match argument.operation {
+                ValueInputOperation::Read => plan::Input::Read(place),
+                ValueInputOperation::Edit => plan::Input::Edit(place),
+                ValueInputOperation::Take => unreachable!(),
             });
         }
         Ok(plan::Operation::Call {
@@ -539,6 +608,9 @@ impl Builder<'_, '_> {
             ExpressionKind::Function(_) | ExpressionKind::Unit => plan::Operation::Literal {
                 destination,
                 value: plan::Value::unit(),
+            },
+            ExpressionKind::RequirePrimary { source } => plan::Operation::RequirePrimary {
+                source: self.value(source)?,
             },
             ExpressionKind::Repeat { seed } => self.repeat_operation(id, seed, destination)?,
             ExpressionKind::Index {

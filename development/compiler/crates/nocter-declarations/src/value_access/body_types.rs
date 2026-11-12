@@ -94,6 +94,22 @@ impl BodyTypes {
             .map_err(|_| BodyTypeError::InvalidExtension)?;
         Ok(data)
     }
+    /// Intern an optional descriptor with its exact positive payload dependency.
+    /// # Errors
+    /// Rejects a payload outside this authority's structural descriptor domain.
+    pub fn optional(&mut self, payload: TypeId) -> Result<TypeId, BodyTypeError> {
+        if !structural_component(&self.program, payload) {
+            return Err(BodyTypeError::InvalidExtension);
+        }
+        let mut types = self.program.types.transaction();
+        let data = types
+            .intern(TypeKind::Optional(payload))
+            .map_err(|_| BodyTypeError::InvalidExtension)?;
+        self.program.types = types
+            .commit(&self.program.types)
+            .map_err(|_| BodyTypeError::InvalidExtension)?;
+        Ok(data)
+    }
     /// Publish an owned environment descriptor; result identities may still need closure.
     /// It has no inferred external R/D/S and grants no pending payload or Copy evidence.
     /// # Errors
@@ -250,6 +266,7 @@ impl Program {
                 Some(PayloadSchema::Aggregate(schema)) => {
                     pending.extend(schema.components().map(|component| component.data));
                 }
+                Some(PayloadSchema::Optional(payload)) => pending.push(payload),
                 Some(PayloadSchema::Array(array)) => {
                     if !array.is_empty() {
                         pending.push(array.element());
@@ -383,6 +400,7 @@ fn structural_component(program: &Program, data: TypeId) -> bool {
                 pending.extend(schema.components().map(|component| component.data));
             }
             Some(super::PayloadSchema::Array(array)) => pending.push(array.element()),
+            Some(super::PayloadSchema::Optional(payload)) => pending.push(payload),
             Some(super::PayloadSchema::Function(witness))
                 if !matches!(witness.origin, ValueFunctionOrigin::Parameter(_)) => {}
             _ => return false,
@@ -398,6 +416,7 @@ fn ordinary_data(program: &Program, data: TypeId) -> bool {
             super::PayloadSchema::Builtin(_)
                 | super::PayloadSchema::Aggregate(_)
                 | super::PayloadSchema::Array(_)
+                | super::PayloadSchema::Optional(_)
         )
     )
 }
@@ -436,6 +455,7 @@ fn replay_types(
                         .and_then(super::Code::result_contract)
                         .is_some_and(|contract| contract.invocation.can_supply(*invocation))
             }
+            TypeKind::Optional(payload) => structural_component(body, *payload),
             TypeKind::Tuple(fields) => fields.iter().all(|data| structural_component(body, data)),
             TypeKind::FixedArray { element, length } => {
                 length.closed_value().is_some() && structural_component(body, *element)
@@ -449,6 +469,7 @@ fn replay_types(
             project_type(prefix.cursor(), &projection, data).ok_or(BodyTypeError::InvalidExtension)
         };
         let kind = match kind {
+            TypeKind::Optional(payload) => TypeKind::Optional(project(*payload)?),
             TypeKind::Tuple(fields) => {
                 let fields = fields.iter().map(project).collect::<Result<Vec<_>, _>>()?;
                 TypeKind::Tuple(nocter_model::TupleElements::new(

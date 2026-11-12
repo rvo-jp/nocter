@@ -370,6 +370,13 @@ impl Context<'_, '_> {
                 self.write(&region, actor, Mode::Own, None)?;
                 Ok(Value::without_referent(Mode::Own))
             }
+            ExpressionKind::RequirePrimary { source } => {
+                let value = self.world.value(source)?;
+                if value.mode != Mode::Own {
+                    return Err(Failure::Integrity);
+                }
+                Ok(value)
+            }
             ExpressionKind::Boundary { source, action } => {
                 let place = self
                     .typed

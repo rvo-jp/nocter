@@ -85,6 +85,11 @@ pub enum RemainderExclusion {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Effect {
+    /// Complete one wrapper construction at its checked commit phase.
+    VariantTag {
+        destination: Place,
+        primary: bool,
+    },
     /// The selected value computation initializes these bytes; this is not another constructor.
     Initialize(Place),
     Transfer {
@@ -146,6 +151,10 @@ pub struct Call {
 pub enum Operation {
     /// A terminal source bounds failure; no element payload or selected address exists.
     BoundsTrap,
+    /// Safety-trap if a supplied optional carrier has no payload.
+    RequirePrimary {
+        source: Place,
+    },
     Frozen {
         destination: Place,
         value: nocter_model::FrozenData,

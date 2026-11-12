@@ -18,6 +18,25 @@ impl Storage {
             })),
         })
     }
+    pub(in crate::state) fn variant(
+        &self,
+        primary: bool,
+        payload: Option<Value>,
+    ) -> Result<Value, Rule> {
+        let allocation = self.items(usize::from(payload.is_some()))?;
+        if payload
+            .as_ref()
+            .is_some_and(|value| !value.belongs_to(self))
+        {
+            return Err(Rule::InvalidPlan);
+        }
+        Ok(Value {
+            node: Some(Arc::new(Node {
+                data: Data::Variant { primary, payload },
+                allocation: Some(allocation),
+            })),
+        })
+    }
     pub(in crate::state) fn aggregate(
         &self,
         fields: impl ExactSizeIterator<Item = Value>,
@@ -97,6 +116,9 @@ impl Storage {
             } else {
                 match source.data() {
                     Data::Aggregate(fields) => self.aggregate(fields.iter().map(imported))?,
+                    Data::Variant { primary, payload } => {
+                        self.variant(*primary, payload.as_ref().map(imported))?
+                    }
                     Data::Repeated {
                         element,
                         length,

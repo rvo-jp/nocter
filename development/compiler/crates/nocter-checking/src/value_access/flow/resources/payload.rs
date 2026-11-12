@@ -4,6 +4,7 @@ use super::{
     payload,
 };
 use nocter_declarations::value_access::{ArraySchema, PayloadSchema};
+use nocter_model::ValueField;
 use std::collections::BTreeSet;
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -122,6 +123,13 @@ impl OwnedValue {
                 }
                 PayloadSchema::Array(array) => {
                     self.array_frontier(program, &place, selected, array, &mut pending)?;
+                }
+                PayloadSchema::Optional(data) => {
+                    let field = ValueField::Variant(true);
+                    pending.push(Pending::Value(
+                        place.project(field),
+                        payload(program, data)?,
+                    ));
                 }
                 PayloadSchema::Builtin(_) | PayloadSchema::Function(_) => return Err(INVALID),
             }

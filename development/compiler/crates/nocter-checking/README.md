@@ -548,7 +548,7 @@ including callable constraints and capture environments. Array-bearing operation
 qualify an executable operation; zero count does not substitute tuple or scalar behavior.
 
 Source-admitted payload evidence consumes the declaration authority's exact Boolean/integer/unit and opaque owned-error
-snapshot contracts, plus qualified array/record/tuple compositions and exact
+snapshot contracts, plus qualified optional/array/record/tuple compositions and exact
 capture-free named-function witnesses. Scalars/unit/named functions have trivial disposal; error owns graph cleanup; aggregates
 retain their own schema cleanup rather than becoming scalars.
 Empty external D/S for those aggregates follows the exact component contracts, not Copy, ownership,
@@ -557,7 +557,7 @@ Copy, trivial cleanup or empty D/S. Owning formals retain a symbolic environment
 tied to their witness. The producer domain also admits the bounded owned-environment schema described below;
 general retained footprints and concrete executable witness specialization remain separate obligations. Dependent aggregates,
 user destructors, capabilities, general captured environments, nested callback contracts, generics,
-outcomes, async and regions require their own later schemas/validation.
+fallible values, propagation/recovery, async and regions require their own later schemas/validation.
 
 The source/body goal admits closed record/tuple data and local/input-rooted component selections through
 this same typing, initialization, access and resource path. Source integration tests assert exact
@@ -591,6 +591,21 @@ source-version CLI or general D/S solver. The
 qualification; remaining work belongs in the [realization plan](../../../design/compiler-realization.md),
 not a duplicate crate-internal status table.
 
+## Optional Values
+
+`outcomes` owns contextual `none` and presence construction, preserving exact data forwarding
+before adding optional layers. Payload readiness and Copy use the declaration authority's
+positive optional edge; the current tag does not grant Copy. Whole-value postfix `!` supplies
+the carrier first, checks presence, then selects its payload through ordinary Copy/transfer and
+remaining-container cleanup. Read/edit result projections and propagation/recovery remain open.
+
+Implicit optional input wrappers retain the original direct-transfer reservation. Complete bundle
+validation precedes wrapper materialization and original-source retirement; later reads and
+cancellation therefore observe the original owner. Explicit nested value constructions keep their
+ordinary preparation timing. No wrapper changes the input operation or repairs a direct edit-place
+mismatch. Shared required/native source covers nested absence/presence, void and narrow payloads,
+local/static/container storage, captured calls, read/edit/take handoffs and indexed transfers.
+
 ## Constant-Domain Acceptance
 
 Private `const func` declarations retain the same body, typed operations, selected callees and
@@ -602,7 +617,7 @@ headers close without executing bodies or proving termination; every definition 
 pass ordinary typing, initialization, access and resource validation.
 
 `value_access::constant` owns this bounded domain check. It admits primitive Boolean/integer/unit
-operations, finite record/tuple/array payload compositions of supported data, local values, read/edit aliases,
+operations, optional construction/assertion and finite record/tuple/array payload compositions of supported data, local values, read/edit aliases,
 updates, structured control, explicit transfer, exact named values and eligible owned captured calls. Aggregate admission is independent of Copy and
 memoized by data identity rather than expanded through shared fields. `evaluation::types` is the
 single shape projection used by const-domain validation, final-data admission and closed-plan
@@ -767,7 +782,7 @@ outer requests restart work without resetting storage. Its accounting contract b
 work/depth/storage exhaustion and unsupported final publication retain
 distinct local diagnostics. `prepare_with_limits` supplies explicit deterministic limits.
 
-Final publication admits bool, the intrinsic integer catalog, unit and finite closed record/tuple/fixed-array
+Final publication admits bool, the intrinsic integer catalog, unit and finite closed optional/record/tuple/fixed-array
 compositions under the shared final-data policy. Publication uses an explicit final-data policy over the shared schema traversal, independently of temporary
 execution support and Copy. The admitted aggregate schema has no user destructors or retained
 resources. Each constant reference creates a fresh ordinary value without granting its type Copy.

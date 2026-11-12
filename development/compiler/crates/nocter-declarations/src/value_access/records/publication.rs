@@ -86,7 +86,9 @@ impl Publication {
                             .get(*child)
                             .expect("ready child schema")
                             .copyable(),
-                        DataReference::Tuple(_) | DataReference::Array { .. } => {
+                        DataReference::Tuple(_)
+                        | DataReference::Array { .. }
+                        | DataReference::Optional { .. } => {
                             unreachable!("only leaves are visited")
                         }
                     };

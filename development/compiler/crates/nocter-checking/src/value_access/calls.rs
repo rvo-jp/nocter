@@ -100,6 +100,14 @@ impl Checker<'_, '_> {
             (Some(nocter_model::BuiltinType::Void), nocter_model::FrozenNode::Unit) => {
                 ExpressionKind::Unit
             }
+            (_, nocter_model::FrozenNode::Variant { .. })
+                if matches!(
+                    self.program().data_schema(data),
+                    Some(PayloadSchema::Optional(_))
+                ) =>
+            {
+                ExpressionKind::Constant(value.clone())
+            }
             (_, nocter_model::FrozenNode::Aggregate(_))
                 if matches!(
                     self.program().data_schema(data),

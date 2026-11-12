@@ -48,6 +48,16 @@ impl Checker<'_, '_> {
         use nocter_declaration_lowering::access_declarations::DataTypeSyntax;
         match ty {
             DataTypeSyntax::Named(token) => self.annotation_data_token(*token, metadata_only),
+            DataTypeSyntax::Optional { payload, layers } => {
+                let mut payload = self.annotation_data(payload, metadata_only)?;
+                for _ in 0..layers.get() {
+                    payload = self
+                        .types
+                        .optional(payload)
+                        .map_err(|_| Failure::InconsistentSyntax)?;
+                }
+                Ok(payload)
+            }
             DataTypeSyntax::Array { element, length } => {
                 let length = self.required_length(*length)?;
                 let element = self.annotation_data(element, metadata_only || length == 0)?;

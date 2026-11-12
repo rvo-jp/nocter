@@ -30,6 +30,10 @@ impl Rule {
                 DiagnosticCode::E0325,
                 "required constant evaluation encountered invalid checked arithmetic",
             ),
+            Self::Execution(state::Rule::AbsentValue) => (
+                DiagnosticCode::E0325,
+                "required constant evaluation asserted the payload of an absent value",
+            ),
             Self::Execution(state::Rule::IndexOutOfBounds) => (
                 DiagnosticCode::E0325,
                 "required constant evaluation selected an out-of-range array element",

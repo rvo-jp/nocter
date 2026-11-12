@@ -19,6 +19,10 @@ pub enum Data {
     Unit,
     Bool(bool),
     Integer(i128),
+    Variant {
+        primary: bool,
+        payload: Option<Value>,
+    },
     /// Ordered physical storage; the validated slot type owns its record/tuple/array identity.
     Aggregate(Box<[Value]>),
     /// One default element and sparse replacements, independent of logical cardinality.
@@ -59,6 +63,10 @@ impl Value {
     #[must_use]
     pub fn integer(value: impl Into<i128>) -> Self {
         Self::plain(Data::Integer(value.into()))
+    }
+    #[must_use]
+    pub fn variant(primary: bool, payload: Option<Self>) -> Self {
+        Self::plain(Data::Variant { primary, payload })
     }
     #[must_use]
     pub fn aggregate(fields: impl Into<Box<[Self]>>) -> Self {
@@ -111,6 +119,9 @@ impl Value {
         let node = self.unique_node(storage)?;
         match &mut node.data {
             Data::Aggregate(fields) => fields.get_mut(index).ok_or(Rule::InvalidPlan),
+            Data::Variant { primary, payload } if index == usize::from(!*primary) => {
+                payload.as_mut().ok_or(Rule::InvalidPlan)
+            }
             Data::Repeated {
                 element,
                 length,

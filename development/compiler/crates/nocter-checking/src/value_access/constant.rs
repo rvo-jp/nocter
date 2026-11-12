@@ -71,6 +71,7 @@ fn operation_rule(
         ExpressionKind::Closure { .. }
         | ExpressionKind::Function(_)
         | ExpressionKind::AdaptFunction { .. }
+        | ExpressionKind::RequirePrimary { .. }
         | ExpressionKind::Constant(_)
         | ExpressionKind::Integer(_)
         | ExpressionKind::Boolean(_)

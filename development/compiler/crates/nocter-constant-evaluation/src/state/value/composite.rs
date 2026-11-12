@@ -3,11 +3,15 @@ use super::{Data, Rule, SPARSE_ENTRY_ITEMS, Value};
 use std::collections::BTreeSet;
 impl Data {
     pub(super) fn composite(&self) -> bool {
-        matches!(self, Self::Aggregate(_) | Self::Repeated { .. })
+        matches!(
+            self,
+            Self::Aggregate(_) | Self::Repeated { .. } | Self::Variant { .. }
+        )
     }
     pub(in crate::state) fn children(&self) -> impl DoubleEndedIterator<Item = &Value> {
         let (fields, element, replacements): (&[Value], _, _) = match self {
             Self::Aggregate(fields) => (fields, None, None),
+            Self::Variant { payload, .. } => (&[], payload.as_ref(), None),
             Self::Repeated {
                 element,
                 replacements,
@@ -23,6 +27,7 @@ impl Data {
     pub(super) fn into_children(self) -> Vec<Value> {
         match self {
             Self::Aggregate(fields) => fields.into_vec(),
+            Self::Variant { payload, .. } => payload.into_iter().collect(),
             Self::Repeated {
                 element,
                 replacements,
@@ -36,6 +41,7 @@ impl Data {
     pub(super) fn storage_items(&self) -> Result<usize, Rule> {
         match self {
             Self::Aggregate(fields) => Ok(fields.len()),
+            Self::Variant { payload, .. } => Ok(usize::from(payload.is_some())),
             Self::Repeated { replacements, .. } => Self::repeated_items(replacements.len()),
             _ => Ok(0),
         }
@@ -49,6 +55,9 @@ impl Data {
     pub(in crate::state) fn component(&self, index: usize) -> Option<&Value> {
         match self {
             Self::Aggregate(fields) => fields.get(index),
+            Self::Variant { primary, payload } if index == usize::from(!primary) => {
+                payload.as_ref()
+            }
             Self::Repeated {
                 element,
                 length,
@@ -66,6 +75,25 @@ impl Data {
         pending: &mut Vec<(&'a Value, &'a Value)>,
     ) -> bool {
         match (self, other) {
+            (
+                Self::Variant {
+                    primary: left,
+                    payload: a,
+                },
+                Self::Variant {
+                    primary: right,
+                    payload: b,
+                },
+            ) if left == right => {
+                return match (a, b) {
+                    (None, None) => true,
+                    (Some(a), Some(b)) => {
+                        pending.push((a, b));
+                        true
+                    }
+                    _ => false,
+                };
+            }
             (Self::Aggregate(left), Self::Aggregate(right)) if left.len() == right.len() => {
                 pending.extend(left.iter().zip(right));
             }

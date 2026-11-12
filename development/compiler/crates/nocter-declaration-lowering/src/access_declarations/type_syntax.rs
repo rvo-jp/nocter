@@ -20,6 +20,10 @@ pub enum ValueTypeSyntax {
 #[derive(Clone, Debug)]
 pub enum DataTypeSyntax {
     Named(SyntaxToken),
+    Optional {
+        payload: Box<DataTypeSyntax>,
+        layers: std::num::NonZeroUsize,
+    },
     Tuple(Box<[DataTypeSyntax]>),
     Array {
         element: Box<DataTypeSyntax>,
@@ -30,6 +34,7 @@ impl DataTypeSyntax {
     pub(super) fn length_expressions(&self, lengths: &mut Vec<NodeId>) {
         match self {
             Self::Named(_) => {}
+            Self::Optional { payload, .. } => payload.length_expressions(lengths),
             Self::Tuple(fields) => {
                 for field in fields {
                     field.length_expressions(lengths);
@@ -44,6 +49,7 @@ impl DataTypeSyntax {
     pub(super) fn tokens(&self) -> Vec<SyntaxToken> {
         match self {
             Self::Named(token) => vec![*token],
+            Self::Optional { payload, .. } => payload.tokens(),
             Self::Tuple(fields) => fields.iter().flat_map(Self::tokens).collect(),
             Self::Array { element, .. } => element.tokens(),
         }
@@ -114,7 +120,7 @@ pub(super) fn data_syntax(syntax: BoundSyntax<'_>, ty: NodeId) -> Result<DataTyp
     let shape = child_node_iter(syntax.tree(), ty)
         .next()
         .ok_or(Failure::InconsistentSyntax)?;
-    match syntax
+    let mut data = match syntax
         .tree()
         .node(shape)
         .ok_or(Failure::InconsistentSyntax)?
@@ -146,5 +152,17 @@ pub(super) fn data_syntax(syntax: BoundSyntax<'_>, ty: NodeId) -> Result<DataTyp
             Ok(DataTypeSyntax::Tuple(fields))
         }
         _ => Err(Failure::InconsistentSyntax),
+    }?;
+    let layers = nocter_syntax::direct_token_iter(syntax.tree(), ty)
+        .filter(|token| {
+            token.kind() == TokenKind::Punctuation(nocter_syntax::Punctuation::Question)
+        })
+        .count();
+    if let Some(layers) = std::num::NonZeroUsize::new(layers) {
+        data = DataTypeSyntax::Optional {
+            payload: Box::new(data),
+            layers,
+        };
     }
+    Ok(data)
 }

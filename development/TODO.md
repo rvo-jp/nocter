@@ -18,14 +18,12 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Close optional values against the adopted outcome contract, starting with finite payload families
-already admitted by the common value path. Use one declaration/type authority and one tagged-value
-model for contextual construction, exact forwarding, nested none/present layers, Copy and explicit
-retirement. Extend required evaluation, frozen publication, native storage/ABI and conditional
-cleanup through shared source before claiming executable support. Preserve read/edit input
-operations and original source preparation order; an optional tag cannot manufacture ownership or
-repair an unsupported callable/dependency contract. Keep the remaining outcome propagation and
-failure obligations explicit as this source family is integrated.
+Close implicit unit completion and bare return against the qualified optional value path, then
+extend optional elimination to the adopted propagation/recovery contract. Reuse ordinary result
+construction, branch flow, call cancellation and scope cleanup; do not add an outcome-specific
+owner registry or a second return protocol. Stage propagated absence before cleanup and preserve
+Copy snapshots versus explicit carrier retirement. Qualify required and native source before
+claiming support, keeping scoped read/edit projections and fallible/error work explicit.
 
 ## Retained Selection Closure
 
@@ -93,6 +91,11 @@ not a language restriction derived from the current realization boundary.
   publication is not implied by qualification.
 
 ## Open Findings
+
+- [ ] Implicit unit completion and bare return still require the result to be exactly void.
+  The adopted construction contract also admits present void optionals. Apply the common result
+  boundary without inventing absence, preserve missing-result diagnostics for non-unit payloads,
+  and qualify nested optional completion and enclosing-call interruption.
 
 - [ ] Investigate the unclassified status-1 failure of the released native test
   `network_and_tls::public_tls_and_https_reject_plain_peers_and_https_advertises_http1`.

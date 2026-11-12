@@ -27,6 +27,7 @@ pub enum Type {
     },
     Bool,
     Integer(nocter_model::BuiltinType),
+    Optional(usize),
     Record(Box<[usize]>),
     Array {
         element: usize,
@@ -37,6 +38,7 @@ impl Type {
     fn component(&self, index: usize) -> Option<usize> {
         match self {
             Self::Record(fields) => fields.get(index).copied(),
+            Self::Optional(payload) if index == 0 => Some(*payload),
             Self::CapturedFunction { environment, .. } if index == 0 => Some(*environment),
             Self::Array { element, length } if u64::try_from(index).ok()? < *length => {
                 Some(*element)
@@ -151,7 +153,11 @@ pub enum Effect {
         source: Place,
         destination: Place,
     },
-    Invoke(Place),
+    Invoke {
+        source: Place,
+        /// Taking input positions and their exact payload places at this owner handoff.
+        inputs: Box<[(usize, Place)]>,
+    },
 }
 /// Exact sparse owning state before the action, including retained index snapshots.
 /// Aliases and ordinary auxiliary operand snapshots are not owners.
@@ -164,6 +170,9 @@ pub struct Alternative {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Operation {
     None,
+    RequirePrimary {
+        source: Place,
+    },
     /// A source-proven terminal bounds failure, after all preceding operand effects.
     BoundsTrap,
     Literal {
@@ -220,11 +229,22 @@ pub enum Operation {
     },
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Input {
-    /// Frozen caller handoff. A captured environment may be edited for a read body, or taken
-    /// into that body's auxiliary backing while the actual body retains a read/edit input.
-    pub operation: nocter_model::ValueInputOperation,
-    pub place: Place,
+pub enum Input {
+    Read(Place),
+    Edit(Place),
+    /// Exact data identity. Its physical source is frozen by the selected Invoke effect,
+    /// after any input wrappers have been materialized and before owner reclamation.
+    Take(usize),
+}
+impl Input {
+    #[must_use]
+    pub const fn operation(&self) -> nocter_model::ValueInputOperation {
+        match self {
+            Self::Read(_) => nocter_model::ValueInputOperation::Read,
+            Self::Edit(_) => nocter_model::ValueInputOperation::Edit,
+            Self::Take(_) => nocter_model::ValueInputOperation::Take,
+        }
+    }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Action {

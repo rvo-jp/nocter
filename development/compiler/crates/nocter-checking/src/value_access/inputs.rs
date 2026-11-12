@@ -45,6 +45,22 @@ impl Checker<'_, '_> {
         } else {
             None
         };
+        if self
+            .ty(value)
+            .access()
+            .is_some_and(|actual| actual.data() != expected.data)
+            && matches!(
+                self.program().data_schema(expected.data),
+                Some(PayloadSchema::Optional(_))
+            )
+        {
+            if expected.operation == nocter_model::ValueInputOperation::Edit
+                && self.expression_referent(value).is_some()
+            {
+                return self.reject(Rule::InvalidUpdate, syntax);
+            }
+            value = self.boundary(syntax, value, Boundary::Value(expected.data))?;
+        }
         self.input_plan(syntax, value, expected, binding)
     }
     fn deferred_transfer(
@@ -61,6 +77,21 @@ impl Checker<'_, '_> {
                 super::ir::ExpressionKind::AdaptFunction { source } => {
                     adapters.push(value);
                     value = source;
+                }
+                super::ir::ExpressionKind::Aggregate { ref fields }
+                    if matches!(
+                        fields.as_ref(),
+                        [super::ir::FieldValue {
+                            field: nocter_model::ValueField::Variant(true),
+                            ..
+                        }]
+                    ) && matches!(
+                        self.program().data_schema(self.ty(value).access()?.data()),
+                        Some(PayloadSchema::Optional(_))
+                    ) =>
+                {
+                    adapters.push(value);
+                    value = fields[0].value;
                 }
                 super::ir::ExpressionKind::Boundary {
                     source,

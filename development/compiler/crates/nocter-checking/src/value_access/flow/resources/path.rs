@@ -229,6 +229,7 @@ impl Path {
                 Some(match *field {
                     ValueProjection::Record(id) => ValueField::Record(id),
                     ValueProjection::Tuple(position) => ValueField::Tuple(position),
+                    ValueProjection::Variant(primary) => ValueField::Variant(primary),
                     ValueProjection::Array(Index::Constant(index)) => ValueField::Array(index),
                     ValueProjection::Array(Index::Retained(_)) => return None,
                 })
@@ -267,6 +268,7 @@ fn project(field: ValueField) -> ValueProjection<Index> {
     match field {
         ValueField::Record(id) => ValueProjection::Record(id),
         ValueField::Tuple(position) => ValueProjection::Tuple(position),
+        ValueField::Variant(primary) => ValueProjection::Variant(primary),
         ValueField::Array(index) => ValueProjection::Array(Index::Constant(index)),
     }
 }

@@ -98,6 +98,45 @@ pub(super) fn write(
             continue;
         }
         match &value.nodes()[node] {
+            FrozenNode::Variant { primary, payload } => {
+                let MachineLayoutKind::Outcome {
+                    kind,
+                    tag_offset,
+                    payload_offset,
+                    primary: first,
+                    alternate,
+                } = layout.kind()
+                else {
+                    return Err(Failure::InvalidRoot);
+                };
+                let tag = if *primary {
+                    kind.primary_tag()
+                } else {
+                    kind.alternate_tag()
+                };
+                crate::data::write_integer_bytes(
+                    bytes,
+                    offset
+                        .checked_add(*tag_offset)
+                        .ok_or(Failure::InvalidRoot)?,
+                    tag.into(),
+                    1,
+                    target,
+                )
+                .ok_or(Failure::InvalidRoot)?;
+                let data = if *primary { first } else { alternate };
+                match (data, payload) {
+                    (Some(data), Some(node)) => pending.push(Work::Value(
+                        *data,
+                        *node,
+                        offset
+                            .checked_add(*payload_offset)
+                            .ok_or(Failure::InvalidRoot)?,
+                    )),
+                    (None, None) => {}
+                    _ => return Err(Failure::InvalidRoot),
+                }
+            }
             FrozenNode::Scalar(value) => {
                 let bits = crate::data::scalar_bits(value).ok_or(Failure::InvalidRoot)?;
                 crate::data::write_integer_bytes(bytes, offset, bits, layout.size(), target)

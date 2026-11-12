@@ -111,6 +111,12 @@ impl Definitions<'_, '_, '_> {
     ) -> Result<Option<DataReference>, Failure> {
         match ty {
             DataTypeSyntax::Named(token) => self.data(*token, owner, position),
+            DataTypeSyntax::Optional { payload, layers } => Ok(self
+                .data_type(payload, owner, position)?
+                .map(|payload| DataReference::Optional {
+                    payload: Box::new(payload),
+                    layers: *layers,
+                })),
             DataTypeSyntax::Array { element, length } => {
                 let element = self.data_type(element, owner, position)?;
                 let code = self

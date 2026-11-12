@@ -1,0 +1,77 @@
+copy struct Packet { value: i32?
+    layers: i16?? }
+struct Item { value: i32 }
+const func present(value: i32): i32? { value }
+const func absent(): i32? { none }
+const func same(value: i32?): i32? { value }
+const func lift(value: i32?): i32?? { value }
+const func owned(): Item? { Item { value: 42 } }
+const func update(edit value: i32?): i32 { value = 42
+    value! }
+const func choose(flag: bool): i32? { if flag { 42 } else { none } }
+const func count(): usize? { 2 }
+const func large(): u64? { 18446744073709551615 }
+const func small(): u8? { 255 }
+const func completed(): void? { () }
+copy struct Batch { values: [i32?; count()!] }
+const LIFTED: i32?? = lift(none)
+const VALUES: (u8?, i16??, void?) = (255, -32768, ())
+static ITEMS: [i16?; 2] = [none, -32768]
+const func captured_read(): i32 {
+    let value: i32? = 42
+    let action = (value;): i32 { value! }
+    action()
+}
+const func captured_take(): i32 {
+    let value: Item? = Item { value: 42 }
+    let action = (value^;): i32 { let item = value^!
+        item.value }
+    action^()
+}
+func empty_errors(): [error?; 2] { [none, none] }
+const func inspect_item(value: Item): i32 { value.value }
+const func wrapped_take(take value: Item??, observed: i32): i32 {
+    let inner = value^!
+    let item = inner^!
+    item.value + observed
+}
+const func wrapped_read(value: Item?, observed: i32): i32 { observed }
+const func wrapped_edit(edit value: Item?, observed: i32): i32 { value = none
+    observed }
+const func wrapped_discard(take value: Item?, observed: i32): void {}
+const func deferred_wrappers(): i32 {
+    let first = Item { value: 21 }
+    let taken = wrapped_take(first^, inspect_item(first))
+    let second = Item { value: 42 }
+    let read_result = wrapped_read(second^, inspect_item(second))
+    let third = Item { value: 42 }
+    let edit_result = wrapped_edit(third^, inspect_item(third))
+    let cancelled = Item { value: 42 }
+    while true { wrapped_discard(cancelled^, if true { break } else { 0 }) }
+    let items = [Item { value: 21 }; 1]
+    let index: usize = 0
+    let indexed = wrapped_take(items[index]^, inspect_item(items[index]))
+    if taken == 42 && read_result == 42 && edit_result == 42 && cancelled.value == 42 && indexed == 42 { 42 } else { 0 }
+}
+const func calculate(): i32 {
+    let optional: i32? = 42
+    let copied = same(optional)
+    let nested: i32?? = copied
+    let middle = nested!
+    let packet = Packet { value: present(42), layers: -32768 }
+    let batch = Batch { values: [42, none] }
+    var editable: i32? = none
+    let observed = update(editable)
+    let temporary = update(0)
+    let unused = LIFTED!
+    let _ = VALUES.2!
+    let _ = completed()!
+    let owned_value = owned()
+    let item = owned_value^!
+    let array = [owned(); 1]
+    let selected = array[0]^!
+    if optional! == 42 && copied! == 42 && middle! == 42 && packet.value! == 42 && (packet.layers!)! == -32768 && batch.values[0]! == 42 && observed == 42 && temporary == 42 && editable! == 42 && choose(true)! == 42 && same(if true { 42 } else { none })! == 42 && VALUES.0! == 255 && (VALUES.1!)! == -32768 && ITEMS[1]! == -32768 && item.value == 42 && selected.value == 42 && captured_read() == 42 && captured_take() == 42 && large()! == 18446744073709551615 && small()! == 255 && same(42)! == 42 && deferred_wrappers() == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { let errors = empty_errors()
+    if ANSWER == 42 { calculate() } else { 0 } }

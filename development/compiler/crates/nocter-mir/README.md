@@ -75,6 +75,12 @@ projection, primitive-operation and flag integrity before publication. It does n
 ownership analysis. The common Machine consumer lowers these closed bodies without a released
 MirProgram conversion.
 
+Optional assembly freezes payload transfers followed by a `VariantTag` effect and initialization
+in the same lifecycle phase, including wrappers materialized at call commit. `RequirePrimary` is
+a separate tag guard before selecting the payload; it supplies no ownership or unwind edge.
+Validation checks these operations against the exact runtime optional shape. Frozen variants
+retain their selected branch rather than masquerading as ordinary aggregates.
+
 Evaluated primitive array selection freezes one `Index` operation with its base, numeric index,
 selected data, established access-versus-Copy result role and checking's exact bounds disposition.
 The shared role is reexported from Model; no conversion or range classifier reconstructs it here.

@@ -24,6 +24,10 @@ impl Value {
                 Data::Unit => FrozenNode::Unit,
                 Data::Bool(value) => FrozenNode::Scalar(ConstantValue::Bool(*value)),
                 Data::Integer(value) => FrozenNode::Scalar(ConstantValue::Integer(*value)),
+                Data::Variant { primary, payload } => FrozenNode::Variant {
+                    primary: *primary,
+                    payload: payload.as_ref().map(|value| ids[&value.identity()]),
+                },
                 Data::Aggregate(fields) => FrozenNode::Aggregate(
                     fields.iter().map(|field| ids[&field.identity()]).collect(),
                 ),
@@ -56,13 +60,27 @@ impl Value {
                 continue;
             }
             let node = data.nodes().get(id)?;
-            if !expanded && matches!(node, FrozenNode::Aggregate(_) | FrozenNode::Repeated { .. }) {
+            if !expanded
+                && matches!(
+                    node,
+                    FrozenNode::Aggregate(_)
+                        | FrozenNode::Repeated { .. }
+                        | FrozenNode::Variant { .. }
+                )
+            {
                 pending.push((id, true));
                 pending.extend(children(node).rev().map(|field| (field, false)));
                 continue;
             }
             let value = match node {
                 FrozenNode::Unit => Self::unit(),
+                FrozenNode::Variant { primary, payload } => Self::variant(
+                    *primary,
+                    match payload {
+                        Some(id) => Some(values.get(id)?.clone()),
+                        None => None,
+                    },
+                ),
                 FrozenNode::Scalar(ConstantValue::Bool(value)) => Self::boolean(*value),
                 FrozenNode::Scalar(ConstantValue::Integer(value)) => Self::integer(*value),
                 FrozenNode::Aggregate(fields) => Self::aggregate(
@@ -93,6 +111,7 @@ impl Value {
 fn children(node: &FrozenNode) -> impl DoubleEndedIterator<Item = usize> + '_ {
     let (fields, element, replacements): (&[usize], _, _) = match node {
         FrozenNode::Aggregate(fields) => (fields, None, None),
+        FrozenNode::Variant { payload, .. } => (&[], *payload, None),
         FrozenNode::Repeated {
             element,
             replacements,

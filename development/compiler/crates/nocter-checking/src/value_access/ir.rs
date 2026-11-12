@@ -190,7 +190,7 @@ pub enum ArgumentAction {
     ReserveUpdate(Referent),
     ReserveTransfer {
         place: Referent,
-        /// Selected adapter operations delayed until commit, in materialization order.
+        /// Selected callable views and implicit data wrappers delayed until commit, in materialization order.
         adapters: Vec<AccessExpressionId>,
     },
     /// Lend read/update access to a produced value; its caller retains cleanup responsibility.
@@ -299,6 +299,10 @@ pub enum ExpressionKind {
         capture: AccessExpressionId,
     },
     AdaptFunction {
+        source: AccessExpressionId,
+    },
+    /// Require the primary branch before forwarding this owned carrier to payload selection.
+    RequirePrimary {
         source: AccessExpressionId,
     },
     Constant(nocter_model::FrozenData),

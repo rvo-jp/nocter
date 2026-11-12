@@ -208,7 +208,8 @@ impl Context<'_, '_> {
                 self.select_ownership(id, source, fields, action)?;
             }
             ExpressionKind::Move(place) => self.move_ownership(id, place)?,
-            ExpressionKind::Boundary {
+            ExpressionKind::RequirePrimary { source }
+            | ExpressionKind::Boundary {
                 source,
                 action: BoundaryAction::TakeValue,
             } => self.world.resources.move_to(
@@ -481,40 +482,7 @@ impl Context<'_, '_> {
                 ref adapters,
             } = argument.action
             {
-                let staging = if let Some(&adapter) = adapters.first() {
-                    let ExpressionKind::AdaptFunction { source } = self
-                        .typed
-                        .body()
-                        .expressions()
-                        .get(adapter)
-                        .ok_or(Failure::Integrity)?
-                        .kind
-                    else {
-                        return Err(Failure::Integrity);
-                    };
-                    Holder::Expression(source)
-                } else {
-                    prepared
-                };
-                let mut source = self.transfer_input_source(place, staging)?;
-                for (position, &adapter) in adapters.iter().enumerate() {
-                    let payload = resources::expression_payload(self.typed, adapter)?;
-                    // Replay the selected operation, never infer an adapter from type inequality.
-                    // Complete bundle validation still precedes any source retirement.
-                    let destination = if position + 1 == adapters.len() {
-                        prepared
-                    } else {
-                        Holder::Expression(adapter)
-                    };
-                    self.world.resources.adapt_function(
-                        self.typed.program(),
-                        &source,
-                        destination,
-                        payload,
-                        &mut self.steps,
-                    )?;
-                    source = destination.place();
-                }
+                let source = self.materialize_input(place, adapters, prepared)?;
                 if argument.operation.access_mode() == Mode::Own {
                     self.world.resources.invoke(
                         self.typed.program(),
@@ -554,6 +522,85 @@ impl Context<'_, '_> {
             }
         }
         Ok(())
+    }
+    /// Replay frozen boundary materializations only after complete bundle validation.
+    fn materialize_input(
+        &mut self,
+        place: Referent,
+        adapters: &[AccessExpressionId],
+        prepared: Holder,
+    ) -> Result<resources::Place> {
+        let staging = if let Some(&adapter) = adapters.first() {
+            let source = match &self
+                .typed
+                .body()
+                .expressions()
+                .get(adapter)
+                .ok_or(Failure::Integrity)?
+                .kind
+            {
+                ExpressionKind::AdaptFunction { source } => *source,
+                ExpressionKind::Aggregate { fields } => match fields.as_ref() {
+                    [
+                        crate::value_access::ir::FieldValue {
+                            field: nocter_model::ValueField::Variant(true),
+                            value,
+                        },
+                    ] => *value,
+                    _ => return Err(Failure::Integrity),
+                },
+                _ => return Err(Failure::Integrity),
+            };
+            Holder::Expression(source)
+        } else {
+            prepared
+        };
+        let mut source = self.transfer_input_source(place, staging)?;
+        for (position, &adapter) in adapters.iter().enumerate() {
+            let payload = resources::expression_payload(self.typed, adapter)?;
+            // Replay the selected operation, never infer an adapter from type inequality.
+            // Complete bundle validation still precedes any source retirement.
+            let destination = if position + 1 == adapters.len() {
+                prepared
+            } else {
+                Holder::Expression(adapter)
+            };
+            match self
+                .typed
+                .body()
+                .expressions()
+                .get(adapter)
+                .ok_or(Failure::Integrity)?
+                .kind
+            {
+                ExpressionKind::AdaptFunction { .. } => self.world.resources.adapt_function(
+                    self.typed.program(),
+                    &source,
+                    destination,
+                    payload,
+                    &mut self.steps,
+                )?,
+                ExpressionKind::Aggregate { .. }
+                    if matches!(
+                        self.typed.program().data_schema(payload.data()),
+                        Some(nocter_declarations::value_access::PayloadSchema::Optional(
+                            _
+                        ))
+                    ) =>
+                {
+                    self.world.resources.assemble(
+                        self.typed.program(),
+                        destination,
+                        payload,
+                        &[(nocter_model::ValueField::Variant(true), source.clone())],
+                        &mut self.steps,
+                    )?;
+                }
+                _ => return Err(Failure::Integrity),
+            }
+            source = destination.place();
+        }
+        Ok(source)
     }
     fn transfer_input_source(
         &mut self,

@@ -50,7 +50,14 @@ pub(super) fn value(program: &Program, data: usize, value: &Value) -> bool {
         }
         match (program.types.get(data), value.data()) {
             (Some(Type::Unit | Type::NamedFunction(_)), Data::Unit)
-            | (Some(Type::Bool), Data::Bool(_)) => {}
+            | (Some(Type::Bool), Data::Bool(_))
+            | (
+                Some(Type::Optional(_)),
+                Data::Variant {
+                    primary: false,
+                    payload: None,
+                },
+            ) => {}
             (Some(ty @ Type::Integer(_)), Data::Integer(value))
                 if ty
                     .scalar()
@@ -61,6 +68,16 @@ pub(super) fn value(program: &Program, data: usize, value: &Value) -> bool {
                         _ => None,
                     })
                     .is_some_and(|spec| spec.contains(*value)) => {}
+
+            (
+                Some(Type::Optional(data)),
+                Data::Variant {
+                    primary: true,
+                    payload: Some(payload),
+                },
+            ) => {
+                pending.push((*data, payload.clone()));
+            }
             (Some(Type::CapturedFunction { environment, .. }), Data::Aggregate(values))
                 if values.len() == 1 =>
             {
@@ -106,6 +123,11 @@ pub(super) fn validate(program: &Program) -> Result<()> {
         }
         if let Type::Record(fields) = data
             && fields.iter().any(|&field| field >= id)
+        {
+            return Err(INVALID);
+        }
+        if let Type::Optional(payload) = data
+            && *payload >= id
         {
             return Err(INVALID);
         }
@@ -219,6 +241,7 @@ fn validate_action(program: &Program, plan: &super::Plan, action: &super::Action
     operation(program, plan, &action.operation)?;
     let mut guards = BTreeMap::new();
     for alternative in &action.alternatives {
+        validate_handoffs(program, plan, action, alternative)?;
         let phases = (&alternative.before, &alternative.after);
         if guards
             .insert(&alternative.owned, phases)
@@ -295,6 +318,54 @@ fn validate_action(program: &Program, plan: &super::Plan, action: &super::Action
 
     Ok(())
 }
+fn validate_handoffs(
+    program: &Program,
+    plan: &super::Plan,
+    action: &super::Action,
+    alternative: &super::Alternative,
+) -> Result<()> {
+    let inputs = if let Operation::Call { inputs, .. } = &action.operation {
+        inputs.as_ref()
+    } else {
+        &[]
+    };
+    let mut protected = BTreeSet::new();
+    for effect in &alternative.before {
+        if let Effect::Invoke {
+            source,
+            inputs: positions,
+        } = effect
+        {
+            if !matches!(action.operation, Operation::Call { .. }) {
+                return Err(INVALID);
+            }
+            for (index, payload) in positions {
+                let index = *index;
+                let super::Input::Take(data) = inputs.get(index).ok_or(INVALID)? else {
+                    return Err(INVALID);
+                };
+                if place(program, plan, payload)? != *data
+                    || !protected.insert(index)
+                    || payload.slot != source.slot
+                    || !payload.fields.starts_with(&source.fields)
+                {
+                    return Err(INVALID);
+                }
+            }
+        }
+    }
+    if alternative
+        .after
+        .iter()
+        .any(|effect| matches!(effect, Effect::Invoke { .. }))
+        || inputs.iter().enumerate().any(|(index, input)| {
+            (matches!(input, super::Input::Take(_))) != protected.contains(&index)
+        })
+    {
+        return Err(INVALID);
+    }
+    Ok(())
+}
 fn operation(program: &Program, plan: &super::Plan, op: &Operation) -> Result<()> {
     let slot = |id: usize| ordinary_slot(plan, id);
     let data = |p: &Place| place(program, plan, p);
@@ -337,6 +408,12 @@ fn operation(program: &Program, plan: &super::Plan, op: &Operation) -> Result<()
             index,
             matches!(op, Operation::Index { .. }),
         ),
+        Operation::RequirePrimary { source } => {
+            if !matches!(program.types.get(data(source)?), Some(Type::Optional(_))) {
+                return Err(INVALID);
+            }
+            Ok(())
+        }
         Operation::Copy {
             destination,
             source,
@@ -370,31 +447,36 @@ fn operation(program: &Program, plan: &super::Plan, op: &Operation) -> Result<()
             operation,
             left,
             right,
-        } => {
-            if !matches!(
-                operation,
-                crate::CompileTimeComparisonOperation::Equal
-                    | crate::CompileTimeComparisonOperation::NotEqual
-            ) && !matches!(program.types.get(data(left)?), Some(Type::Integer(_)))
-            {
-                return Err(INVALID);
-            }
-            if program.types.get(slot(*destination)?.data) != Some(&Type::Bool)
-                || !matches!(
-                    program.types.get(data(left)?),
-                    Some(Type::Bool | Type::Integer(_))
-                )
-            {
-                return Err(INVALID);
-            }
-            equal(data(left)?, data(right)?)
-        }
+        } => compare_operation(program, plan, *destination, *operation, left, right),
         Operation::Call {
             destination,
             target,
             inputs,
         } => call(program, plan, *destination, *target, inputs),
     }
+}
+fn compare_operation(
+    program: &Program,
+    plan: &super::Plan,
+    destination: usize,
+    operation: crate::CompileTimeComparisonOperation,
+    left: &Place,
+    right: &Place,
+) -> Result<()> {
+    let data = place(program, plan, left)?;
+    let ordered = !matches!(
+        operation,
+        crate::CompileTimeComparisonOperation::Equal
+            | crate::CompileTimeComparisonOperation::NotEqual
+    );
+    if program.types.get(ordinary_slot(plan, destination)?.data) != Some(&Type::Bool)
+        || (ordered && !matches!(program.types.get(data), Some(Type::Integer(_))))
+        || !matches!(program.types.get(data), Some(Type::Bool | Type::Integer(_)))
+        || place(program, plan, right)? != data
+    {
+        return Err(INVALID);
+    }
+    Ok(())
 }
 fn binary_operation(
     program: &Program,
@@ -475,7 +557,7 @@ fn call(
     for (index, (input, &(parameter, operation))) in inputs.iter().zip(&callee.inputs).enumerate() {
         let environment_adapter = index == 0
             && matches!(target, nocter_model::ValueCode::Closure(_))
-            && match (input.operation, operation) {
+            && match (input.operation(), operation) {
                 (
                     nocter_model::ValueInputOperation::Edit,
                     nocter_model::ValueInputOperation::Read,
@@ -487,9 +569,13 @@ fn call(
                 ) => callee.environment_backing.is_some(),
                 _ => false,
             };
-        if (!environment_adapter && input.operation != operation)
-            || place(program, plan, &input.place)?
-                != callee.slots.get(parameter).ok_or(INVALID)?.data
+        if (!environment_adapter && input.operation() != operation)
+            || match input {
+                super::Input::Take(data) => *data,
+                super::Input::Read(source) | super::Input::Edit(source) => {
+                    place(program, plan, source)?
+                }
+            } != callee.slots.get(parameter).ok_or(INVALID)?.data
         {
             return Err(INVALID);
         }
@@ -632,7 +718,7 @@ fn check_effect(program: &Program, plan: &super::Plan, effect: &Effect) -> Resul
                 return Err(INVALID);
             }
         }
-        Effect::Dispose(source) | Effect::Release(source) | Effect::Invoke(source) => {
+        Effect::Dispose(source) | Effect::Release(source) | Effect::Invoke { source, .. } => {
             owned(source)?;
         }
         Effect::Assemble {
@@ -641,7 +727,12 @@ fn check_effect(program: &Program, plan: &super::Plan, effect: &Effect) -> Resul
         } => {
             let ty = owned(&Place::root(*destination))?;
             let schema = program.types.get(ty).ok_or(INVALID)?;
-            if schema.component_count() != u64::try_from(fields.len()).ok() {
+            let complete = if matches!(schema, Type::Optional(_)) {
+                fields.len() <= 1
+            } else {
+                schema.component_count() == u64::try_from(fields.len()).ok()
+            };
+            if !complete {
                 return Err(INVALID);
             }
             let mut seen = BTreeSet::new();

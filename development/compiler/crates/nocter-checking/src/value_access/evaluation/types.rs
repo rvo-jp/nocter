@@ -122,6 +122,7 @@ impl Types {
                     aggregate.components().map(|c| c.data).collect()
                 }
                 PayloadSchema::Array(array) => vec![array.element()],
+                PayloadSchema::Optional(payload) => vec![payload],
             };
             if !expanded {
                 if !active.insert(data) {
@@ -141,6 +142,7 @@ impl Types {
                 && children.iter().all(|&id| self.shapes[id].serializable);
             let ty = match schema {
                 PayloadSchema::Aggregate(_) => Type::Record(children.into()),
+                PayloadSchema::Optional(_) => Type::Optional(*children.first().ok_or(INVALID)?),
                 PayloadSchema::Array(array) => Type::Array {
                     element: *children.first().ok_or(INVALID)?,
                     length: array.length(),

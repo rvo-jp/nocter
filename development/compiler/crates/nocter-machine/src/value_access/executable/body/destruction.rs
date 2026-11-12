@@ -34,6 +34,33 @@ pub(crate) fn build(
             ));
             builder.emit(MachineOperationKind::ReleaseError { place });
         }
+        MachineLayoutKind::Outcome {
+            kind: crate::MachineOutcomeKind::Optional,
+            primary: Some(payload),
+            alternate: None,
+            payload_offset,
+            ..
+        } => {
+            let base = builder.address(MachineAddress::new(
+                data,
+                layout.size(),
+                layout.alignment(),
+                MachineAddressRoot::Stack(MachineStackId::new(0)),
+                [MachineAddressStep::Dereference],
+            ));
+            let condition = builder.primary_condition(base, data)?;
+            let active = builder.block();
+            let done = builder.block();
+            builder.terminate(MachineTerminator::Branch {
+                condition,
+                then_target: crate::MachineBranchTarget::new(active, []),
+                else_target: crate::MachineBranchTarget::new(done, []),
+            })?;
+            builder.current = active;
+            cleanup_field(&mut builder, *payload, *payload_offset)?;
+            builder.go(done)?;
+            builder.current = done;
+        }
         MachineLayoutKind::Struct { fields } => {
             for field in fields.iter().rev() {
                 cleanup_field(&mut builder, field.ty(), field.offset())?;

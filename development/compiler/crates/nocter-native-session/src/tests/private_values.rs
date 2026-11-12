@@ -18,7 +18,8 @@ fn machine(source: &str) -> nocter_machine::MachineProgram {
     let mir =
         nocter_mir::value_access::Program::lower(&lifecycle, RuntimeAbiIdentity::Arm64DarwinV1)
             .unwrap();
-    nocter_machine::value_access::lower(&mir).unwrap()
+    nocter_machine::value_access::lower(&mir)
+        .unwrap_or_else(|failure| panic!("machine lowering failed for {source:?}: {failure:?}"))
 }
 
 #[test]
@@ -582,4 +583,53 @@ fn private_integer_catalog_failures_preserve_native_traps_and_evaluation_order()
     for (name, source) in nocter_test_support::integer_failure_sources() {
         execute_native_signal(&compile(&source), &package.0, &name, 5);
     }
+}
+
+#[test]
+fn private_optional_values_preserve_layers_source_supply_storage_and_abi() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/optional-values.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "optional-values", 42);
+}
+#[test]
+fn private_optional_absence_assertions_trap_before_payload_reads_and_without_unwind() {
+    let package = TempPackage::new();
+    for (name, source) in [
+        (
+            "absent",
+            "func run(): i32 { let value: i32? = none\nvalue! }",
+        ),
+        (
+            "forwarded-absent",
+            "func same(value: i32?): i32? { value }\nfunc run(): i32 { same(none)! }",
+        ),
+        (
+            "nested-absent",
+            "func lift(value: i32?): i32?? { value }\nfunc run(): i32 { (lift(none)!)! }",
+        ),
+        (
+            "error-absent",
+            "func run(): i32 { let value: error? = none\nlet unused = value^!\n42 }",
+        ),
+        (
+            "absent-before-exit",
+            "func receive(value: i32, ignored: i32): i32 { value }\nfunc run(): i32 { let value: i32? = none\nreceive(value!, if true { return 42 } else { 0 }) }",
+        ),
+        (
+            "unit-absent",
+            "func run(): i32 { let value: void? = none\nlet _ = value!\n42 }",
+        ),
+    ] {
+        execute_native_signal(&compile(source), &package.0, name, 5);
+    }
+}
+
+#[test]
+fn private_deep_optional_absence_has_finite_layout_and_no_inactive_payload_cleanup() {
+    let source = nocter_test_support::deep_optional_source(4_096);
+    let package = TempPackage::new();
+    execute_native_status(&compile(&source), &package.0, "deep-optional", 42);
 }

@@ -16,6 +16,7 @@ impl State {
         let complete = match program.data_schema(payload.data()).ok_or(INVALID)? {
             PayloadSchema::Aggregate(aggregate) => fields.len() == aggregate.len(),
             PayloadSchema::Array(array) => u64::try_from(fields.len()).ok() == Some(array.length()),
+            PayloadSchema::Optional(_) => fields.len() <= 1,
             PayloadSchema::Builtin(_) | PayloadSchema::Function(_) => false,
         };
         if !complete || self.contains(destination) {
