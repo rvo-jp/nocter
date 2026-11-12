@@ -14,6 +14,7 @@ pub enum BodyTypeError {
     ForeignDeclarations,
     InvalidApplication,
     InvalidExtension,
+    RepeatedFailure,
     RecursiveEnvironment(nocter_model::ValueClosure),
 }
 
@@ -105,7 +106,7 @@ impl BodyTypes {
     /// Rejects an unsupported payload or another failure on the uninterrupted outcome chain.
     pub fn fallible(&mut self, payload: TypeId) -> Result<TypeId, BodyTypeError> {
         if self.program.has_failure_layer(payload) != Some(false) {
-            return Err(BodyTypeError::InvalidExtension);
+            return Err(BodyTypeError::RepeatedFailure);
         }
         self.outcome(payload, TypeKind::Fallible)
     }

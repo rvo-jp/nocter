@@ -188,7 +188,7 @@ fn needs_cleanup(
             continue;
         }
         let children = match program.runtime().types().get(data) {
-            Some(RuntimeType::Primitive(RuntimePrimitive::Error)) => {
+            Some(RuntimeType::Primitive(RuntimePrimitive::Error) | RuntimeType::Fallible(_)) => {
                 cache.insert(data, true);
                 continue;
             }

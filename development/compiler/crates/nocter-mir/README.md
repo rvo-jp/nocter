@@ -75,15 +75,17 @@ projection, primitive-operation and flag integrity before publication. It does n
 ownership analysis. The common Machine consumer lowers these closed bodies without a released
 MirProgram conversion.
 
-Optional assembly freezes payload transfers followed by a `VariantTag` effect and initialization
+Outcome assembly freezes payload transfers followed by a `VariantTag` effect and initialization
 in the same lifecycle phase, including wrappers materialized at call commit. `RequirePrimary` is
 a separate tag guard before selecting the payload; it supplies no ownership or unwind edge.
 `PrimaryCondition` produces a Boolean from a stored carrier, leaving propagation's branches,
 returns and cleanup in the same ordinary closed graph. Scoped assertions place a normal address
 binding after the successful guard; their payload selection never copies the carrier or acquires
 another owner. The checking-owned access world retains tag stability, not this physical product.
-Validation checks these operations against the exact runtime optional shape. Frozen variants
-retain their selected branch rather than masquerading as ordinary aggregates.
+Validation checks these operations against the exact runtime optional/fallible shape. Assembly
+derives the tag from the selected variant key, including when both fallible payload types are error.
+Frozen variants retain their selected branch rather than masquerading as ordinary aggregates;
+this path does not admit frozen owned-error graphs.
 
 Evaluated primitive array selection freezes one `Index` operation with its base, numeric index,
 selected data, established access-versus-Copy result role and checking's exact bounds disposition.

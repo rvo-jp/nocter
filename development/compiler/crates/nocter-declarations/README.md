@@ -137,8 +137,9 @@ its secondary component to built-in `error`; it never derives a branch from the 
 Fallible data is non-Copy even when its success data is Copy. Header validation rejects repeated
 failure on an uninterrupted outcome chain, including beneath optional layers or zero-array
 metadata. A tuple/array component begins its own chain. Body construction, witness substitution
-and canonical replay retain these constructors in the same type authority. This metadata admission
-does not admit fallible source bodies, evaluator error graphs or executed failure cleanup.
+and canonical replay retain these constructors in the same type authority. The
+[checking outcome path](../nocter-checking/README.md#optional-values) owns qualified source operations;
+schema admission alone does not establish evaluator error graphs or executed failure cleanup.
 Optional layers reuse the model type authority and retain positive payload containment/Copy
 requirements even when an actual value is absent. Array lengths are already
 normalized u64 target-usize values, not source expressions or symbolic guesses. One iterative

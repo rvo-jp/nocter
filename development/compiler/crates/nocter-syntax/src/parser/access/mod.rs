@@ -182,6 +182,7 @@ fn type_(parser: &mut Parser<'_>) {
         parser.complete(shape, NodeKind::NamedType);
     }
     while parser.eat_punctuation(Punctuation::Question) {}
+    parser.eat_punctuation(Punctuation::Bang);
     parser.complete(marker, NodeKind::Type);
 }
 
@@ -272,6 +273,13 @@ fn entry(parser: &mut Parser<'_>) {
             binding(parser);
         }
         TokenKind::Keyword(Keyword::Return) => return_(parser),
+        TokenKind::Keyword(Keyword::Throw) => {
+            let marker = parser.start();
+            parser.bump();
+            newline::after_incomplete(parser, newline::Boundary::Statement);
+            expression::expression(parser, newline::Boundary::Statement);
+            parser.complete(marker, NodeKind::ThrowStatement);
+        }
         TokenKind::Keyword(Keyword::Break | Keyword::Continue) => {
             let marker = parser.start();
             let kind = if parser.at_keyword(Keyword::Break) {

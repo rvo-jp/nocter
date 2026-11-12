@@ -117,6 +117,9 @@ impl Definitions<'_, '_, '_> {
                     payload: Box::new(payload),
                     layers: *layers,
                 })),
+            DataTypeSyntax::Fallible { payload, .. } => Ok(self
+                .data_type(payload, owner, position)?
+                .map(|payload| DataReference::Fallible(Box::new(payload)))),
             DataTypeSyntax::Array { element, length } => {
                 let element = self.data_type(element, owner, position)?;
                 let code = self

@@ -82,7 +82,7 @@ impl Checker<'_, '_> {
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
         let data_hint = context.and_then(Annotation::data);
-        let hint = data_hint.map(|data| self.optional_payload(data));
+        let hint = data_hint.map(|data| self.outcome_payload(data));
         let node = self.unwrap(node)?;
         let expr = match self.kind(node)? {
             NodeKind::ReferenceExpression => self.reference_value(node)?,

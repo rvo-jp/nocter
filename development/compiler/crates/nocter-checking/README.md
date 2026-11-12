@@ -564,7 +564,7 @@ Copy, trivial cleanup or empty D/S. Owning formals retain a symbolic environment
 tied to their witness. The producer domain also admits the bounded owned-environment schema described below;
 general retained footprints and concrete executable witness specialization remain separate obligations. Dependent aggregates,
 user destructors, capabilities, general captured environments, nested callback contracts, generics,
-fallible construction/propagation/recovery, async and regions require their own later schemas/validation.
+fallible recovery and actual error-data construction, async and regions require their own later schemas/validation.
 
 The source/body goal admits closed record/tuple data and local/input-rooted component selections through
 this same typing, initialization, access and resource path. Source integration tests assert exact
@@ -601,23 +601,32 @@ not a duplicate crate-internal status table.
 ## Optional Values
 
 `outcomes` owns contextual `none` and presence construction, preserving exact data forwarding
-before adding optional layers. Payload readiness and Copy use the declaration authority's
-positive optional edge; the current tag does not grant Copy. Whole-value postfix `!` supplies
+before adding optional/success layers. Payload readiness and Copy use the declaration authority;
+fallible carriers remain non-Copy even with Copy success data. The current tag does not grant Copy.
+Whole-value postfix `!` supplies
 the carrier first, checks presence, then selects its payload through ordinary Copy/transfer and
 remaining-container cleanup. Empty completion and bare return supply the ordinary unit value
-through that same result boundary, including present optional layers. A conditional without else
+through that same result boundary, including present optional and success layers. A conditional without else
 first supplies unit, then applies its enclosing value context; it cannot return branch absence.
 Value postfix `?` expands into ordinary binding, a stored-tag condition and a conditional whose
 absence branch returns the declared outer optional absence. The supplied carrier has one local
 owner and the selected answer is protected before its lexical cleanup. Existing return flow
 cancels enclosing prepared calls and retires scopes; no separate propagation cleanup protocol is
 introduced. A closure uses its own result contract. Initializers and non-optional callable results
-cannot propagate absence. Direct read/edit operands and scoped bindings request an existing payload
+cannot propagate absence. An enclosing success layer is preserved around propagated absence.
+Fallible value propagation transfers the alternate error into the callable's unique failure layer;
+outer optional layers are constructed present. `throw` uses that same ordinary result/return
+path with an owned error, while ordinary return of error data selects success. No exception edge,
+implicit error copy or failure-to-absence conversion is introduced. Source checking qualifies
+these ownership/branch decisions, not execution of an owned error graph.
+Direct read/edit operands and scoped bindings request an existing payload
 place for postfix `!` or `?`. `Scoped` forms its source once and forwards the place selected by
 its projection/control. Assertion and propagation retain the carrier, with the payload selector
 outside that receipt. `GuardView` checks the tag
 and retains its stability. Ordinary selection, argument reservation and alias binding then use the
-original payload storage. Scoped propagation returns absence through the same callable return
+original payload storage. Scoped fallible assertion preserves the carrier; scoped fallible
+propagation is rejected because it cannot implicitly extract an owned error. Scoped optional
+propagation returns absence through the same callable return
 protocol without transferring the carrier. Its tag condition consumes a resolved place, including
 an already saved indexed address, and reads no payload data. The access
 world retains tag evidence with dependent places, including read reservations whose neutral
@@ -650,12 +659,16 @@ explicitly acquired local result can become the bounded temporary. Strict named-
 cannot create such backing or upgrade a read-only existing branch. These facts add no runtime
 owner table or physical payload move. Fallible recovery remains outside this qualified path.
 
-Implicit optional input wrappers retain the original direct-transfer reservation. Complete bundle
+Implicit optional/success input wrappers retain the original direct-transfer reservation. Complete bundle
 validation precedes wrapper materialization and original-source retirement; later reads and
 cancellation therefore observe the original owner. Explicit nested value constructions keep their
 ordinary preparation timing. No wrapper changes the input operation or repairs a direct edit-place
 mismatch. Shared required/native source covers nested absence/presence, void and narrow payloads,
 local/static/container storage, captured calls, read/edit/take handoffs and indexed transfers.
+The fallible source fixture additionally qualifies native success construction, exact forwarding,
+owned propagation, unit completion, scoped read/update, and deferred/cancelled implicit success
+input transfer. Fallible required evaluation, actual error creation/graph release and local
+`catch` recovery remain unqualified; inactive error alternatives do not close those obligations.
 
 ## Constant-Domain Acceptance
 

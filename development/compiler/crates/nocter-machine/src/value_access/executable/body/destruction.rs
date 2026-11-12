@@ -35,9 +35,8 @@ pub(crate) fn build(
             builder.emit(MachineOperationKind::ReleaseError { place });
         }
         MachineLayoutKind::Outcome {
-            kind: crate::MachineOutcomeKind::Optional,
-            primary: Some(payload),
-            alternate: None,
+            primary,
+            alternate,
             payload_offset,
             ..
         } => {
@@ -49,16 +48,21 @@ pub(crate) fn build(
                 [MachineAddressStep::Dereference],
             ));
             let condition = builder.primary_condition(base, data)?;
-            let active = builder.block();
+            let present = builder.block();
+            let absent = builder.block();
             let done = builder.block();
             builder.terminate(MachineTerminator::Branch {
                 condition,
-                then_target: crate::MachineBranchTarget::new(active, []),
-                else_target: crate::MachineBranchTarget::new(done, []),
+                then_target: crate::MachineBranchTarget::new(present, []),
+                else_target: crate::MachineBranchTarget::new(absent, []),
             })?;
-            builder.current = active;
-            cleanup_field(&mut builder, *payload, *payload_offset)?;
-            builder.go(done)?;
+            for (block, payload) in [(present, primary), (absent, alternate)] {
+                builder.current = block;
+                if let Some(payload) = payload {
+                    cleanup_field(&mut builder, *payload, *payload_offset)?;
+                }
+                builder.go(done)?;
+            }
             builder.current = done;
         }
         MachineLayoutKind::Struct { fields } => {

@@ -81,13 +81,12 @@ impl Context<'_> {
             data = match projection {
                 Projection::Field(id) => {
                     if let nocter_model::ValueField::Variant(primary) = id {
-                        let Some(RuntimeType::Optional(payload)) =
-                            self.program.runtime.types().get(data)
-                        else {
-                            return Err(self.invalid());
-                        };
-                        self.require(*primary)?;
-                        data = *payload;
+                        data = self
+                            .program
+                            .runtime
+                            .types()
+                            .outcome_payload(data, *primary)
+                            .ok_or_else(|| self.invalid())?;
                         continue;
                     }
                     if let (nocter_model::ValueField::Array(index), Some((element, length))) = (
@@ -230,7 +229,7 @@ impl Context<'_> {
                 self.place(destination)?;
                 self.require(matches!(
                     self.program.runtime.types().get(destination.data),
-                    Some(RuntimeType::Optional(_))
+                    Some(RuntimeType::Optional(_) | RuntimeType::Fallible(_))
                 ))
             }
 
@@ -340,7 +339,7 @@ impl Context<'_> {
                 self.require(
                     matches!(
                         self.program.runtime.types().get(source.data),
-                        Some(RuntimeType::Optional(_))
+                        Some(RuntimeType::Optional(_) | RuntimeType::Fallible(_))
                     ) && self.primitive(destination.data, RuntimePrimitive::Bool),
                 )
             }
@@ -348,7 +347,7 @@ impl Context<'_> {
                 self.place(source)?;
                 self.require(matches!(
                     self.program.runtime.types().get(source.data),
-                    Some(RuntimeType::Optional(_))
+                    Some(RuntimeType::Optional(_) | RuntimeType::Fallible(_))
                 ))
             }
             Operation::Frozen { destination, value } => {
@@ -738,7 +737,7 @@ impl Context<'_> {
                         primary: true,
                         payload: Some(node),
                     },
-                    Some(RuntimeType::Optional(payload)),
+                    Some(RuntimeType::Optional(payload) | RuntimeType::Fallible(payload)),
                 ) => pending.push((*payload, *node)),
                 (FrozenNode::Aggregate(values), Some(RuntimeType::EmptyArray { .. })) => {
                     self.require(values.is_empty())?;

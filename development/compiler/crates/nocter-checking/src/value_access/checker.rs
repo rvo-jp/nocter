@@ -653,9 +653,10 @@ impl<'a, 's> Checker<'a, 's> {
         }
         if actual.data() != expected.data()
             && expected.mode() == Mode::Own
-            && let Some(PayloadSchema::Optional(_)) = self.program().data_schema(expected.data())
+            && let Some(PayloadSchema::Optional(_) | PayloadSchema::Fallible(_)) =
+                self.program().data_schema(expected.data())
         {
-            source = self.inject_optional(node, source, expected.data())?;
+            source = self.inject_outcomes(node, source, expected.data())?;
             actual = self
                 .ty(source)
                 .access()

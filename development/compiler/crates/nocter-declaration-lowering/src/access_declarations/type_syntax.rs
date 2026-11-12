@@ -20,6 +20,10 @@ pub enum ValueTypeSyntax {
 #[derive(Clone, Debug)]
 pub enum DataTypeSyntax {
     Named(SyntaxToken),
+    Fallible {
+        payload: Box<DataTypeSyntax>,
+        marker: SyntaxToken,
+    },
     Optional {
         payload: Box<DataTypeSyntax>,
         layers: std::num::NonZeroUsize,
@@ -34,7 +38,9 @@ impl DataTypeSyntax {
     pub(super) fn length_expressions(&self, lengths: &mut Vec<NodeId>) {
         match self {
             Self::Named(_) => {}
-            Self::Optional { payload, .. } => payload.length_expressions(lengths),
+            Self::Optional { payload, .. } | Self::Fallible { payload, .. } => {
+                payload.length_expressions(lengths);
+            }
             Self::Tuple(fields) => {
                 for field in fields {
                     field.length_expressions(lengths);
@@ -49,7 +55,7 @@ impl DataTypeSyntax {
     pub(super) fn tokens(&self) -> Vec<SyntaxToken> {
         match self {
             Self::Named(token) => vec![*token],
-            Self::Optional { payload, .. } => payload.tokens(),
+            Self::Optional { payload, .. } | Self::Fallible { payload, .. } => payload.tokens(),
             Self::Tuple(fields) => fields.iter().flat_map(Self::tokens).collect(),
             Self::Array { element, .. } => element.tokens(),
         }
@@ -162,6 +168,14 @@ pub(super) fn data_syntax(syntax: BoundSyntax<'_>, ty: NodeId) -> Result<DataTyp
         data = DataTypeSyntax::Optional {
             payload: Box::new(data),
             layers,
+        };
+    }
+    if let Some(marker) = nocter_syntax::direct_token_iter(syntax.tree(), ty)
+        .find(|token| token.kind() == TokenKind::Punctuation(nocter_syntax::Punctuation::Bang))
+    {
+        data = DataTypeSyntax::Fallible {
+            payload: Box::new(data),
+            marker,
         };
     }
     Ok(data)

@@ -1,0 +1,55 @@
+struct Pair { value: i32
+    spare: i32 }
+func scalar(): i32! { 42 }
+func forward(): i32! { let value = scalar()
+    value^ }
+func propagate(): i32! { let value = forward()
+    value^? }
+func absence(): i32?! { let value: i32? = none
+    value? }
+func nested(): i32??! { let value: i32? = none
+    value }
+func observed(value: i32?): i32 { value otherwise { 42 } }
+func completed(): void! {}
+func completed_optional(): void?! {}
+func set(edit value: i32): void { value = 42 }
+func scoped(): i32 { var value: i32! = 1
+    set(value!)
+    value^! }
+func pair(): Pair! { Pair { value: 42, spare: 0 } }
+func inspect(value: Pair): i32 { value.value }
+func kept(): i32 { let value = pair()
+    let read_value = inspect(value!)
+    let moved = value^!
+    read_value + moved.spare }
+func success_error(take value: error): error! { return value^ }
+func failure_error(take value: error): error! { throw value^ }
+func outer_failure(take value: error): (i32!)? { throw value^ }
+func propagate_error(take value: error!): error! { value^? }
+func receive(take value: Pair, ignored: i32, edit count: i32): void { count = 0 }
+func cancelled(edit count: i32): i32?! { let value = Pair { value: 42, spare: 0 }
+    let missing: i32? = none
+    receive(value^, missing?, count)
+    0 }
+func read_scalar(value: i32!): i32 { read payload = value!
+    payload }
+func take_wrapped(take value: Pair!, ignored: i32): i32 { let payload = value^!
+    payload.value + ignored }
+func deferred(): i32 { let value = Pair { value: 42, spare: 0 }
+    take_wrapped(value^, inspect(value) - 42) }
+func cancelled_wrapper(): i32 { let value = Pair { value: 42, spare: 0 }
+    loop { let result = take_wrapped(value^, if true { break } else { 0 })
+        return result }
+    value.value }
+func run(): i32 {
+    let first = scalar()
+    let forwarded = forward()
+    let propagated = propagate()
+    let missing = absence()
+    let deep = nested()
+    let _ = completed()!
+    let _ = (completed_optional()!)!
+    var count = 42
+    let cancelled_result = cancelled(count)
+    if first^! == 42 && forwarded^! == 42 && propagated^! == 42 && observed(missing^!) == 42 && observed((deep^!)!) == 42 && scoped() == 42 && kept() == 42 && observed(cancelled_result^!) == 42 && count == 42 && read_scalar(scalar()) == 42 && read_scalar(42) == 42 && deferred() == 42 && cancelled_wrapper() == 42 { 42 } else { 0 }
+}

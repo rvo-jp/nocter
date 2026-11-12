@@ -58,6 +58,21 @@ impl Checker<'_, '_> {
                 }
                 Ok(payload)
             }
+            DataTypeSyntax::Fallible { payload, marker } => {
+                let payload = self.annotation_data(payload, metadata_only)?;
+                match self.types.fallible(payload) {
+                    Ok(data) => Ok(data),
+                    Err(nocter_declarations::value_access::BodyTypeError::RepeatedFailure) => self
+                        .reject_message(
+                        Rule::TypeMismatch,
+                        *marker,
+                        "one uninterrupted outcome chain cannot contain multiple failure layers"
+                            .into(),
+                        Vec::new(),
+                    ),
+                    Err(_) => Err(Failure::InconsistentSyntax),
+                }
+            }
             DataTypeSyntax::Array { element, length } => {
                 let length = self.required_length(*length)?;
                 let element = self.annotation_data(element, metadata_only || length == 0)?;

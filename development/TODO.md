@@ -24,6 +24,9 @@ claiming execution of owned failure payloads. Preserve exact layer order, explic
 selection, ordinary acquisition/return/handler cleanup, and scoped projections without hidden
 error extraction. Qualify required/native source and negative cases through the shared pipeline;
 metadata-only failure layouts or inactive branches do not establish actual error-graph cleanup.
+Continue with actual error-data production, required evaluation and local failure recovery;
+the [implemented scope](compiler/crates/nocter-checking/README.md#optional-values) owns the evidence
+boundary rather than treating source admission as executed error cleanup.
 
 ## Retained Selection Closure
 

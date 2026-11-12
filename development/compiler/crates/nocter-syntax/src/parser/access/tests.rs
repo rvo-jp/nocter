@@ -109,7 +109,6 @@ fn retired_prefix_assertions_and_type_qualifiers_have_no_fallback() {
         "func f(x: i32): void { f((^x)) }",
         "func f(x: i32): void { let y = &&x }",
         "func f<T>(x: T): T { return x }",
-        "func f(): i32! { return 0 }",
         "func f(): void { let c = (^x;) { x } }",
     ] {
         assert!(tree(text, ParseGoal::V2CoreUnit).has_errors(), "{text}");
@@ -428,4 +427,40 @@ fn array_value_recovery_rejects_mixed_delimiters_spread_and_spaced_indexing() {
     let parsed = tree(&text, ParseGoal::V2CoreUnit);
     assert!(parsed.has_errors());
     super::super::snapshots::assert_token_projection(&parsed, "array value depth");
+}
+
+#[test]
+fn fallible_suffixes_preserve_grouping_and_cannot_consume_another_suffix() {
+    for ty in ["i32!", "i32??!", "(i32!)?", "[i32!; 0]!", "(i32!, error!)"] {
+        let text = format!("func forward(take value: {ty}): {ty} {{ value^ }}");
+        let parsed = tree(&text, ParseGoal::V2CoreUnit);
+        assert!(!parsed.has_errors(), "{text}: {:?}", parsed.diagnostics());
+        super::super::snapshots::assert_token_projection(&parsed, &text);
+    }
+    for ty in ["i32!?", "i32!!", "i32??!?", "(i32!)!?"] {
+        let text = format!("func forward(take value: {ty}): void {{}}");
+        assert!(tree(&text, ParseGoal::V2CoreUnit).has_errors(), "{text}");
+    }
+    // Grouped repetition is syntactically complete; the declaration owner rejects its meaning.
+    assert!(
+        !tree(
+            "func invalid(value: (i32!)!): void {}",
+            ParseGoal::V2CoreUnit
+        )
+        .has_errors()
+    );
+}
+
+#[test]
+fn throw_requires_an_operand_and_uses_ordinary_incomplete_statement_continuation() {
+    for operand in ["reason^", "\nreason^"] {
+        let text = format!("func fail(take reason: error): i32! {{ throw {operand} }}");
+        let parsed = tree(&text, ParseGoal::V2CoreUnit);
+        assert!(!parsed.has_errors(), "{text}: {:?}", parsed.diagnostics());
+        super::super::snapshots::assert_token_projection(&parsed, &text);
+    }
+    for operand in ["", "\n\nreason^"] {
+        let text = format!("func fail(take reason: error): i32! {{ throw {operand} }}");
+        assert!(tree(&text, ParseGoal::V2CoreUnit).has_errors(), "{text}");
+    }
 }

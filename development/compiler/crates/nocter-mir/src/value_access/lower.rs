@@ -400,13 +400,19 @@ impl Builder<'_> {
                                 destination: selection,
                             });
                         }
-                        if matches!(
-                            self.runtime.types().get(destination.data),
-                            Some(nocter_runtime_contract::RuntimeType::Optional(_))
-                        ) {
+                        if let Some(
+                            kind @ (nocter_runtime_contract::RuntimeType::Optional(_)
+                            | nocter_runtime_contract::RuntimeType::Fallible(_)),
+                        ) = self.runtime.types().get(destination.data)
+                        {
+                            let primary = match (kind, fields.as_ref()) {
+                                (nocter_runtime_contract::RuntimeType::Optional(_), []) => false,
+                                (_, [(nocter_model::ValueField::Variant(primary), _)]) => *primary,
+                                _ => return Err(self.invalid()),
+                            };
                             output.push(Effect::VariantTag {
                                 destination: destination.clone(),
-                                primary: !fields.is_empty(),
+                                primary,
                             });
                         }
                         output.push(Effect::Initialize(destination));

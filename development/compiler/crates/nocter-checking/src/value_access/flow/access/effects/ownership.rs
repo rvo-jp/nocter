@@ -601,9 +601,10 @@ impl Context<'_, '_> {
                 ExpressionKind::Aggregate { .. }
                     if matches!(
                         self.typed.program().data_schema(payload.data()),
-                        Some(nocter_declarations::value_access::PayloadSchema::Optional(
-                            _
-                        ))
+                        Some(
+                            nocter_declarations::value_access::PayloadSchema::Optional(_)
+                                | nocter_declarations::value_access::PayloadSchema::Fallible(_)
+                        )
                     ) =>
                 {
                     self.world.resources.assemble(

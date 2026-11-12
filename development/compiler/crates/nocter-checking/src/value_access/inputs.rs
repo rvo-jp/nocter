@@ -51,7 +51,7 @@ impl Checker<'_, '_> {
             .is_some_and(|actual| actual.data() != expected.data)
             && matches!(
                 self.program().data_schema(expected.data),
-                Some(PayloadSchema::Optional(_))
+                Some(PayloadSchema::Optional(_) | PayloadSchema::Fallible(_))
             )
         {
             if expected.operation == nocter_model::ValueInputOperation::Edit
@@ -87,7 +87,7 @@ impl Checker<'_, '_> {
                         }]
                     ) && matches!(
                         self.program().data_schema(self.ty(value).access()?.data()),
-                        Some(PayloadSchema::Optional(_))
+                        Some(PayloadSchema::Optional(_) | PayloadSchema::Fallible(_))
                     ) =>
                 {
                     adapters.push(value);

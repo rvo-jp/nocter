@@ -143,6 +143,17 @@ impl RuntimeTypeTable {
         self.primitives.get(&primitive).copied()
     }
 
+    /// The semantic primary/alternate payload of a builtin outcome, independently of tag bytes.
+    #[must_use]
+    pub fn outcome_payload(&self, data: TypeId, primary: bool) -> Option<TypeId> {
+        match self.get(data)? {
+            RuntimeType::Optional(payload) if primary => Some(*payload),
+            RuntimeType::Fallible(payload) if primary => Some(*payload),
+            RuntimeType::Fallible(_) => self.primitive(RuntimePrimitive::Error),
+            _ => None,
+        }
+    }
+
     #[must_use]
     pub fn iter(&self) -> impl ExactSizeIterator<Item = (TypeId, &RuntimeType)> {
         self.entries.iter().map(|(ty, kind)| (*ty, kind))

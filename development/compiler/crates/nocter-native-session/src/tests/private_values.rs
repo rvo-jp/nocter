@@ -743,3 +743,29 @@ fn private_scoped_recovery_lends_owned_fallbacks_through_evaluation_frames() {
         42,
     );
 }
+
+#[test]
+fn private_fallible_success_preserves_layers_places_and_ordinary_exits() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/fallible-values.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "fallible-success", 42);
+}
+#[test]
+fn private_inactive_fallible_payloads_keep_absence_and_bounds_traps() {
+    let package = TempPackage::new();
+    for (name, source) in [
+        (
+            "absent-fallible",
+            "func run(): i32 { let value: (i32!)? = none\nlet result = value^!\nresult^! }",
+        ),
+        (
+            "bounds-fallible",
+            "func run(): i32 { let values: [i32!; 0] = []\nvalues[0]! }",
+        ),
+    ] {
+        execute_native_signal(&compile(source), &package.0, name, 5);
+    }
+}

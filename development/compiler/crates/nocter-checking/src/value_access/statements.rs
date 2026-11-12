@@ -87,12 +87,22 @@ impl Checker<'_, '_> {
         expected: Option<Boundary>,
     ) -> Result<nocter_model::AccessExpressionId, Failure> {
         if let Some(Boundary::Value(data) | Boundary::Result(data)) = expected
-            && self.optional_payload(data) != self.data(BuiltinType::Void)
+            && self.outcome_payload(data) != self.data(BuiltinType::Void)
         {
             return self.reject(Rule::MissingResult, node);
         }
         let value = self.unit(node)?;
         expected.map_or(Ok(value), |boundary| self.boundary(node, value, boundary))
+    }
+
+    pub(super) fn allow_return(&self, node: NodeId) -> Result<(), Failure> {
+        if matches!(self.code, nocter_model::ValueCode::Expression(_))
+            || matches!(self.code, nocter_model::ValueCode::Declaration(code)
+                if self.program().codes().get(code).is_some_and(|code| code.kind().is_initializer()))
+        {
+            return self.reject(Rule::InvalidReturn, node);
+        }
+        Ok(())
     }
 
     fn check_statement(
@@ -113,24 +123,23 @@ impl Checker<'_, '_> {
                 (Statement::Evaluate(value), self.ty(value).may_complete())
             }
             NodeKind::ReturnStatement => {
-                if matches!(self.code, nocter_model::ValueCode::Expression(_)) {
-                    return self.reject(Rule::InvalidReturn, node);
-                }
-                if let nocter_model::ValueCode::Declaration(code) = self.code
-                    && self
-                        .program()
-                        .codes()
-                        .get(code)
-                        .is_some_and(|c| c.kind().is_initializer())
-                {
-                    return self.reject(Rule::InvalidReturn, node);
-                }
+                self.allow_return(node)?;
                 let value = if let Some(expression) = self.children(node).first() {
                     self.expression(*expression, Some(Boundary::Result(self.result)), reachable)?
                 } else {
                     self.unit_completion(node, Some(Boundary::Result(self.result)))?
                 };
                 (Statement::Return(value), false)
+            }
+            NodeKind::ThrowStatement => {
+                self.allow_return(node)?;
+                let child = self.first_child(node)?;
+                let error = self.expression(
+                    child,
+                    Some(Boundary::Value(self.data(BuiltinType::Error))),
+                    reachable,
+                )?;
+                (Statement::Return(self.failure_value(node, error)?), false)
             }
             NodeKind::DropStatement => {
                 let token = direct_identifier_iter(self.syntax().tree(), node)
