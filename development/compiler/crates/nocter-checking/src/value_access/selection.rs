@@ -363,12 +363,10 @@ impl Checker<'_, '_> {
         if let Some(place) = self.lookup(spelling) {
             return Ok(Some(place));
         }
-        if let Some(id) = self
-            .program()
-            .symbols()
-            .get(spelling)
-            .and_then(|name| self.program().resolve_static(name))
-        {
+        if let Some(id) = self.program().symbols().get(spelling).and_then(|name| {
+            self.program()
+                .resolve_static_in(self.context.lookup_scope(), name)
+        }) {
             if let Some(&local) = self.statics.get(&id) {
                 return Ok(Some(self.intern_place(
                     local,
@@ -403,7 +401,10 @@ impl Checker<'_, '_> {
             .program()
             .symbols()
             .get(spelling)
-            .and_then(|symbol| self.program().resolve_code(symbol))
+            .and_then(|symbol| {
+                self.program()
+                    .resolve_code_in(self.context.lookup_scope(), symbol)
+            })
             .is_some()
         {
             if rule == Rule::MissingTransfer {

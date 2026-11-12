@@ -148,6 +148,23 @@ impl<'syntax> ScopedModuleSources<'syntax> {
     pub fn source_for_code(&self, code: AccessCodeId) -> Option<SurfaceSourceId> {
         self.catalog.owners.get(&code).copied()
     }
+    /// Bind this immutable header snapshot to the actual physical source of one executable root.
+    /// This establishes neither body acceptance nor source-qualified reusable query evidence.
+    /// # Errors
+    /// Rejects roots outside this source catalog or broken physical source identities.
+    pub fn context_for_code(
+        &self,
+        code: AccessCodeId,
+    ) -> Result<super::Context<'_>, ModuleSourcesFailure> {
+        let source = self.source_for_code(code).ok_or_else(integrity)?;
+        Ok(super::Context {
+            program: Arc::new(self.program()),
+            syntax: syntax(&self.paired, source)?,
+            lookup: self.scopes[source.index()],
+            sources: self.catalog.sources.clone(),
+            primitives: super::PrimitiveBindings::new(None),
+        })
+    }
     /// All physical count suppliers, including both occurrences of a repeated header.
     pub fn header_expression_ids(&self) -> impl Iterator<Item = AccessCodeId> + '_ {
         self.catalog.sources.expression_ids()

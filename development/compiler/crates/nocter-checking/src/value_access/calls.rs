@@ -29,7 +29,7 @@ impl Checker<'_, '_> {
                 self.program()
                     .symbols()
                     .get(spelling)
-                    .and_then(|name| self.program().resolve(name))
+                    .and_then(|name| self.program().resolve_in(self.context.lookup_scope(), name))
             })
             .flatten())
     }
@@ -54,7 +54,10 @@ impl Checker<'_, '_> {
                 .program()
                 .symbols()
                 .get(self.text(token)?)
-                .and_then(|name| self.program().resolve_constant(name))
+                .and_then(|name| {
+                    self.program()
+                        .resolve_constant_in(self.context.lookup_scope(), name)
+                })
         {
             let data = self
                 .program()

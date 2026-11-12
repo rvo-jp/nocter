@@ -230,6 +230,14 @@ and annotation leaves, including closure input data, use that same request. Head
 normalization can request required usize values through that same query; raw type recipes load
 only as their declarations are requested.
 
+Individual body queries also consume declaration-lowering's physical module-source views.
+Function/constant/static selection, local collision checks, annotation leaves and record construction
+use the context's exact lookup scope through the shared declaration namespace. Same-spelling names
+in independent sources retain distinct identities and types; only directly seen authored names are
+visible. Body binding still requires the actual owning syntax. These per-body queries do not close
+whole-module required evaluation, cross-source dependency rebinding, primitive authority or a Unit;
+`SourceUnit` remains the single-source coordinator.
+
 The private-function goal has one typed-body query over shared immutable declaration facts and
 an owner-scoped body-type extension. Each query retains its origin header prefix; binding accepts
 only exact later extensions of that construction. `types` canonically replays those extensions and projects all

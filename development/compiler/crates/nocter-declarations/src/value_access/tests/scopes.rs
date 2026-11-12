@@ -253,3 +253,52 @@ fn repeated_type_slots_can_reserve_distinct_physical_expression_scopes() {
     );
     assert!(!headers.snapshot().headers_complete());
 }
+
+#[test]
+fn scoped_code_classification_never_falls_back_to_root_or_grants_unready_callability() {
+    for kind in [
+        CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
+        CodeKind::ConstantInitializer,
+        CodeKind::StaticInitializer,
+    ] {
+        let symbols = SymbolTable::from_spellings(["item"]);
+        let name = symbols.get("item").unwrap();
+        let mut reservations = Reservations::new(symbols);
+        let other = reservations.new_scope();
+        let first = reservations.reserve(name, 0);
+        let second = reservations.reserve_in(other, name, 0).unwrap();
+        let mut headers = reservations.finish().unwrap().into_publication();
+        let early = headers.snapshot();
+        assert_eq!(early.resolve_code_in(other, name), Some(second));
+        assert_eq!(early.resolve_in(other, name), None);
+        assert_eq!(early.resolve_constant_in(other, name), None);
+        assert_eq!(early.resolve_static_in(other, name), None);
+        for code in [first, second] {
+            headers.define(code, kind, [], BuiltinType::I32).unwrap();
+            headers.publish(code).unwrap();
+        }
+        let program = headers.snapshot();
+        for (scope, code) in [(ScopeId::ROOT, first), (other, second)] {
+            assert_eq!(program.resolve_code_in(scope, name), Some(code));
+            assert_eq!(
+                program.resolve_in(scope, name),
+                kind.is_callable().then_some(code)
+            );
+            assert_eq!(
+                program.resolve_constant_in(scope, name),
+                (kind == CodeKind::ConstantInitializer).then_some(code)
+            );
+            assert_eq!(
+                program
+                    .resolve_static_in(scope, name)
+                    .map(|s| s.initializer),
+                (kind == CodeKind::StaticInitializer).then_some(code)
+            );
+        }
+        let unknown = ScopeId::new(2);
+        assert_eq!(program.resolve_code_in(unknown, name), None);
+        assert_eq!(program.resolve_in(unknown, name), None);
+        assert_eq!(program.resolve_constant_in(unknown, name), None);
+        assert_eq!(program.resolve_static_in(unknown, name), None);
+    }
+}

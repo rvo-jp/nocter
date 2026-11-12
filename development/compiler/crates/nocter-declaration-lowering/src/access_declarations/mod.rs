@@ -80,6 +80,7 @@ pub struct Query {
 pub struct Context<'source> {
     program: Arc<Program>,
     syntax: BoundSyntax<'source>,
+    lookup: nocter_declarations::value_access::ScopeId,
     sources: source::Sources,
     primitives: PrimitiveBindings,
 }
@@ -287,6 +288,7 @@ impl<'source> Preparation<'source> {
         Context {
             program: Arc::new(self.headers.snapshot()),
             syntax: self.syntax,
+            lookup: nocter_declarations::value_access::ScopeId::ROOT,
             sources: self.sources.clone(),
             primitives: self.primitives.clone(),
         }
@@ -341,6 +343,7 @@ impl<'source> Preparation<'source> {
             let context = Context {
                 program: program.clone(),
                 syntax: self.syntax,
+                lookup: nocter_declarations::value_access::ScopeId::ROOT,
                 sources: self.sources.clone(),
                 primitives: self.primitives.clone(),
             };
@@ -422,6 +425,7 @@ impl Query {
         let context = Context {
             program: Arc::clone(&self.program),
             syntax,
+            lookup: nocter_declarations::value_access::ScopeId::ROOT,
             sources,
             primitives: self.primitives.clone(),
         };
@@ -451,6 +455,11 @@ impl<'source> Context<'source> {
     #[must_use]
     pub const fn syntax(&self) -> BoundSyntax<'source> {
         self.syntax
+    }
+    /// The exact authored source namespace for body names and annotations.
+    #[must_use]
+    pub const fn lookup_scope(&self) -> nocter_declarations::value_access::ScopeId {
+        self.lookup
     }
     #[must_use]
     pub fn code_source(&self, callable: AccessCodeId) -> Option<&CodeSource> {

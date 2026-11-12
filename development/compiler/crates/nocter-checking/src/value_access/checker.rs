@@ -506,11 +506,10 @@ impl<'a, 's> Checker<'a, 's> {
             );
         }
         if (namespace == Namespace::Type || self.lookup(spelling).is_none())
-            && let Some(declaration) = self
-                .program()
-                .symbols()
-                .get(spelling)
-                .and_then(|symbol| self.program().declaration(namespace, symbol))
+            && let Some(declaration) = self.program().symbols().get(spelling).and_then(|symbol| {
+                self.program()
+                    .declaration_in(self.context.lookup_scope(), namespace, symbol)
+            })
             && !self.program().header_ready(declaration)
         {
             return Err(Failure::RequiredHeader {
@@ -539,7 +538,7 @@ impl<'a, 's> Checker<'a, 's> {
             || BuiltinType::from_spelling(name).is_some()
             || self.program().symbols().get(name).is_some_and(|symbol| {
                 self.program()
-                    .declaration(Namespace::Value, symbol)
+                    .declaration_in(self.context.lookup_scope(), Namespace::Value, symbol)
                     .is_some()
             })
     }

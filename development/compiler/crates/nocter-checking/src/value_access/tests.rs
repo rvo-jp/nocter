@@ -1,3 +1,4 @@
+mod source_scopes;
 use super::*;
 use nocter_declaration_lowering::access_declarations as declarations;
 use nocter_model::{BuiltinType, ValueAccessMode as Mode, ValueBindingKind};

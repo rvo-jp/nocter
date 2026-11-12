@@ -132,8 +132,8 @@ The shared name-space source qualifies a callable and record with the same spell
 value used beside its same-spelled type annotation/construction, and a record whose array count
 uses a same-spelled constant. Required evaluation and native execution consume those same
 selections. Primitive roles select value declarations; a type with that spelling cannot claim
-the role or prevent validation of its selected value contract. This remains the private
-single-source semantic boundary; module inventory does not flatten its names.
+the role or prevent validation of its selected value contract. Whole-source Unit preparation and
+reusable header queries remain bounded to single-source input; module inventory does not flatten names.
 
 `validate_source_role` checks host-selected `ModuleSourceKind` placement over that same grammar.
 Contract headers may omit bodies/initializers and may expose an opaque record; implementation
@@ -189,9 +189,15 @@ Missing completed values are distinct requests; unequal resolved lengths reject 
 loading a definition. The projection consumes supplied literal DAGs and does not evaluate them or
 certify their source. `header_expression_ids`, `code_source` and `source_for_code` expose exact
 supplier/definition metadata; they grant no body or primitive-authority acceptance.
-Body lookup contexts, required-value scheduling and exact source dependency guards, visibility/
-re-exports and ordinary discovery/CLI integration remain work. The header step can publish selected
-payload/Copy metadata but does not produce an accepted Unit or a reusable source-qualified query.
+`context_for_code` selects the exact physical syntax and lookup scope for a definition or count
+supplier over the current immutable header snapshot. `Context::lookup_scope` drives authored body
+lookup; declaration properties and type identities still come from the shared semantic program.
+This per-body view borrows the source owner and supplies no primitive bindings or accepted-body
+proof. It cannot itself coordinate mutable header publication with long-lived source contexts.
+Whole-module required-value scheduling, independently retained source binding and exact dependency
+guards, visibility/re-exports and ordinary discovery/CLI integration remain work. The header step
+can publish selected payload/Copy metadata but does not produce an accepted Unit or a reusable
+source-qualified query.
 
 The reusable result owns a single immutable value-access declaration program, its exact neutral
 header surface, and projection locators. It contains no current syntax IDs, source identity,

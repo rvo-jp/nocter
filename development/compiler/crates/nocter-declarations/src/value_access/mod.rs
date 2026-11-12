@@ -321,7 +321,11 @@ impl Program {
     }
     #[must_use]
     pub fn resolve_record(&self, name: Symbol) -> Option<NominalTypeId> {
-        match self.namespace.get(ScopeId::ROOT, Namespace::Type, name)? {
+        self.resolve_record_in(ScopeId::ROOT, name)
+    }
+    #[must_use]
+    pub fn resolve_record_in(&self, scope: ScopeId, name: Symbol) -> Option<NominalTypeId> {
+        match self.declaration_in(scope, Namespace::Type, name)? {
             DeclarationId::Record(id) => Some(id),
             DeclarationId::Code(_) => None,
         }
@@ -336,20 +340,32 @@ impl Program {
     }
     #[must_use]
     pub fn resolve(&self, name: Symbol) -> Option<AccessCodeId> {
-        self.resolve_code(name)
+        self.resolve_in(ScopeId::ROOT, name)
+    }
+    #[must_use]
+    pub fn resolve_in(&self, scope: ScopeId, name: Symbol) -> Option<AccessCodeId> {
+        self.resolve_code_in(scope, name)
             .filter(|id| self.codes.get(*id).is_some_and(|c| c.kind().is_callable()))
     }
     /// Lookup any source code declaration for collision checks; not a function-value grant.
     #[must_use]
     pub fn resolve_code(&self, name: Symbol) -> Option<AccessCodeId> {
-        match self.namespace.get(ScopeId::ROOT, Namespace::Value, name)? {
+        self.resolve_code_in(ScopeId::ROOT, name)
+    }
+    #[must_use]
+    pub fn resolve_code_in(&self, scope: ScopeId, name: Symbol) -> Option<AccessCodeId> {
+        match self.declaration_in(scope, Namespace::Value, name)? {
             DeclarationId::Code(id) => Some(id),
             DeclarationId::Record(_) => None,
         }
     }
     #[must_use]
     pub fn resolve_constant(&self, name: Symbol) -> Option<AccessCodeId> {
-        self.resolve_code(name).filter(|id| {
+        self.resolve_constant_in(ScopeId::ROOT, name)
+    }
+    #[must_use]
+    pub fn resolve_constant_in(&self, scope: ScopeId, name: Symbol) -> Option<AccessCodeId> {
+        self.resolve_code_in(scope, name).filter(|id| {
             self.codes
                 .get(*id)
                 .is_some_and(|c| c.kind() == CodeKind::ConstantInitializer)
@@ -357,7 +373,15 @@ impl Program {
     }
     #[must_use]
     pub fn resolve_static(&self, name: Symbol) -> Option<nocter_model::ValueStatic> {
-        let initializer = self.resolve_code(name)?;
+        self.resolve_static_in(ScopeId::ROOT, name)
+    }
+    #[must_use]
+    pub fn resolve_static_in(
+        &self,
+        scope: ScopeId,
+        name: Symbol,
+    ) -> Option<nocter_model::ValueStatic> {
+        let initializer = self.resolve_code_in(scope, name)?;
         let id = nocter_model::ValueStatic { initializer };
         self.static_declaration(id)?;
         Some(id)

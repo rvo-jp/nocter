@@ -92,7 +92,10 @@ impl Checker<'_, '_> {
         let owner = self.direct(node, NodeKind::ReferenceExpression)?;
         let name = self.token(owner)?;
         self.require_header(Namespace::Type, name)?;
-        let Some(data) = self.program().type_named(self.text(name)?) else {
+        let Some(data) = self
+            .program()
+            .type_named_in(self.context.lookup_scope(), self.text(name)?)
+        else {
             return self.reject(Rule::UnknownType, name);
         };
         let Some(PayloadSchema::Aggregate(record)) = self.program().data_schema(data) else {

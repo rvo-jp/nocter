@@ -36,9 +36,11 @@ impl Checker<'_, '_> {
             self.require_header(Namespace::Type, token)?;
         }
         let data = if metadata_only {
-            self.program().type_identity_named(self.text(token)?)
+            self.program()
+                .type_identity_named_in(self.context.lookup_scope(), self.text(token)?)
         } else {
-            self.program().type_named(self.text(token)?)
+            self.program()
+                .type_named_in(self.context.lookup_scope(), self.text(token)?)
         };
         data.map_or_else(|| self.reject(Rule::UnknownType, token), Ok)
     }
