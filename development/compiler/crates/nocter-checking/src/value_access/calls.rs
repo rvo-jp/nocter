@@ -22,6 +22,7 @@ impl Checker<'_, '_> {
         };
         self.require_header(Namespace::Value, name)?;
         let spelling = self.text(name)?;
+        let scope = self.scope_at(name)?;
         Ok(self
             .lookup(spelling)
             .is_none()
@@ -29,26 +30,21 @@ impl Checker<'_, '_> {
                 self.program()
                     .symbols()
                     .get(spelling)
-                    .and_then(|name| self.program().resolve_in(self.context.lookup_scope(), name))
+                    .and_then(|name| self.program().resolve_in(scope, name))
             })
             .flatten())
     }
     pub fn reference_value(&mut self, node: NodeId) -> Result<AccessExpressionId, Failure> {
         let token = self.name_token(node)?.ok_or(Failure::InconsistentSyntax)?;
         self.require_header(Namespace::Value, token)?;
+        let scope = self.scope_at(token)?;
         if self.lookup(self.text(token)?).is_none()
             && let Some(name) = self.program().symbols().get(self.text(token)?)
         {
-            if self
-                .program()
-                .has_namespace_in(self.context.lookup_scope(), name)
-            {
+            if self.program().has_namespace_in(scope, name) {
                 return self.reject(Rule::NamespaceValue, token);
             }
-            if let Some(code) = self
-                .program()
-                .resolve_code_in(self.context.lookup_scope(), name)
-            {
+            if let Some(code) = self.program().resolve_code_in(scope, name) {
                 return self.code_value(node, code, token);
             }
         }

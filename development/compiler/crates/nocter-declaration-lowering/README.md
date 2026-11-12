@@ -164,8 +164,10 @@ bounded grammar.
 `PairedModuleSources` still proves neither resolved header equality nor normalized representation/
 Copy validity. `PairedModuleSources::reserve_names` allocates one semantic identity for each
 canonical declaration through the value-access reservation owner. One shared immutable spelling
-prefix feeds all source scopes; the compiler does not clone a symbol domain per file. Current and
-directly seen authored names bind those same identities, with set semantics for repeated edges
+prefix feeds all source scopes, including exact active body-import spellings from topology
+resolution; executable local names stay outside that prefix. The lexical name domain is part of
+this current module authority, not a cross-revision header-reuse guarantee. The compiler does not
+clone a symbol domain per file. Current and directly seen authored names bind those same identities, with set semantics for repeated edges
 and contract/definition occurrences. Top-level selected record-type imports bind those same
 nominal identities into their exact source scope. Root imports also re-export their selected
 names, including aliases, in the topology owner's dependency order. Missing/private selections,
@@ -174,8 +176,15 @@ with related authored origins where applicable. Ordinary imports do not propagat
 Whole-module imports bind namespace links, including explicit/default aliases and root re-exports,
 without reserving a fake value/type. Their names conflict with both authored type/value names;
 selected type names remain in the type namespace. Namespace re-exports preserve the target export
-scope, not the re-exporter's authority over its members. Body-local imports still return
-`ModuleImportBindingsRequired` with exact nodes rather than being silently dropped.
+scope, not the re-exporter's authority over its members. Import-bearing body blocks reserve explicit
+lexical children in that same namespace, using the same selected-name/namespace binding policy and
+the topology owner's already resolved dependencies. Siblings remain separate and inner aliases
+select their nearest lexical binding. All selected imports validate even in unreachable bodies;
+inactive target-gated bodies create no lexical bindings. A sparse current-source interval index
+maps exact nodes/tokens onto these scopes in logarithmic search plus lexical depth. It retains
+only import-bearing block positions and their binding origins, not another semantic name table.
+`Context::lookup_scope_at` validates the actual physical occurrence before selecting its lexical
+scope; closure bodies and required expressions use that same projection.
 `ScopedModuleSources` retains the source-to-scope/declaration/field projection and the one header
 writer. Complete representations determine field count and order, while selected public fields map
 to their corresponding reserved slots. Parameter/field slot queries grant no typed metadata;

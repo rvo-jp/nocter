@@ -488,7 +488,13 @@ pub(crate) fn prepare_compile_unit<'input, 'syntax>(
         validate_package_target_resolutions(input, &packages, &modules)?;
     let source_visibility_resolutions = validate_source_visibility_resolutions(input, &modules)?;
     let use_resolutions = validate_use_resolutions(input, &modules, target_selection)?;
-    let symbols = collect_symbols(input, &packages, &modules, target_selection)?;
+    let symbols = collect_symbols(
+        input,
+        &packages,
+        &modules,
+        target_selection,
+        &use_resolutions,
+    )?;
     Ok(PreparedCompileUnit {
         symbols,
         packages,
@@ -1034,6 +1040,7 @@ fn collect_symbols(
     packages: &[&PackageInput],
     modules: &[&ModuleInput<'_>],
     target_selection: &TargetSelection,
+    use_resolutions: &PreparedUseResolutions<'_>,
 ) -> Result<SymbolTable, LoweringError> {
     let mut spellings: Vec<Box<str>> = Vec::new();
     for package in packages {
@@ -1046,6 +1053,15 @@ fn collect_symbols(
                 input,
                 source.syntax(),
                 Some(target_selection),
+                use_resolutions
+                    .by_node
+                    .values()
+                    .filter(|resolution| {
+                        target_selection.source_goal() == nocter_syntax::ParseGoal::V2CoreUnit
+                            && resolution.scope() == UseScope::Block
+                            && resolution.declaration().source() == source.syntax().source()
+                    })
+                    .map(|resolution| resolution.declaration()),
                 &mut spellings,
             )?;
         }
@@ -1057,6 +1073,7 @@ fn collect_tree_symbols(
     input: &CompileUnitInput<'_>,
     tree: &nocter_syntax::SyntaxTree,
     target_selection: Option<&TargetSelection>,
+    lexical_imports: impl Iterator<Item = NodeId>,
     spellings: &mut Vec<Box<str>>,
 ) -> Result<(), LoweringError> {
     let source = require_source(input, tree.source())?;
@@ -1064,7 +1081,10 @@ fn collect_tree_symbols(
         .nodes()
         .filter_map(|(declaration, _)| nocter_syntax::declaration_body(tree, declaration))
         .collect::<BTreeSet<_>>();
-    let mut pending = vec![SyntaxElement::Node(tree.root_id())];
+    // V2 lexical imports belong to the closed name authority even though executable body words
+    // do not. These exact active occurrences come from topology's resolution, not another scan.
+    let mut pending = lexical_imports.map(SyntaxElement::Node).collect::<Vec<_>>();
+    pending.push(SyntaxElement::Node(tree.root_id()));
     while let Some(element) = pending.pop() {
         match element {
             SyntaxElement::Node(node) => {

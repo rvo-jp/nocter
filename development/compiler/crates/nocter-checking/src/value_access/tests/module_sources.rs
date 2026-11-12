@@ -794,3 +794,114 @@ fn namespace_aliases_collide_with_selected_types_and_authored_values_in_either_o
         assert_eq!(diagnostic.source().notes().len(), 1);
     }
 }
+
+fn block_import_fixture(body: &str, uses: &[(usize, &[&str])]) -> Fixture {
+    let body = format!("see ./index.nct\nfunc run(): i32 {{ {body} }}");
+    let uses = uses
+        .iter()
+        .map(|&(occurrence, target)| (1, occurrence, target))
+        .collect::<Vec<_>>();
+    Fixture::new(&[
+        ("/app/index.nct", Root, "see ./body.nct\nfunc run(): i32"),
+        ("/app/body.nct", Implementation, &body),
+        ("/app/data/index.nct", Root, "see ./body.nct\nconst func answer(): i32\nstruct Data { shown: i32 }\n#visibility: \"./\"\nstruct Hidden"),
+        ("/app/data/body.nct", Implementation, "see ./index.nct\nconst func answer(): i32 { 42 }\nstruct Data { shown: i32 }\nstruct Hidden {}"),
+        ("/app/other/index.nct", Root, "see ./body.nct\nconst func answer(): i32"),
+        ("/app/other/body.nct", Implementation, "see ./index.nct\nconst func answer(): i32 { 7 }"),
+    ], &[(0, 0, 1), (1, 0, 0), (2, 0, 3), (3, 0, 2), (4, 0, 5), (5, 0, 4)])
+    .with_modules(&[(&[], &[0, 1]), (&["data"], &[2, 3]), (&["other"], &[4, 5])])
+    .with_uses(&uses)
+}
+
+#[test]
+fn lexical_imports_retain_parents_without_leaking_to_siblings_or_after_the_block() {
+    for (body, uses, expected) in [
+        (
+            "use ./data as api\nlet first = api.answer()\nlet inner = if true { use ./other as api\napi.answer() } else { 0 }\nif first == 42 && inner == 7 { api.answer() } else { 1 }",
+            vec![(0, &["data"][..]), (1, &["other"][..])],
+            None,
+        ),
+        (
+            "let inner = if true { use ./data as api\napi.answer() } else { 0 }\napi.answer()",
+            vec![(0, &["data"][..])],
+            Some(Rule::UnknownName),
+        ),
+        (
+            "if true { use ./data as api\napi.answer() } else { api.answer() }",
+            vec![(0, &["data"][..])],
+            Some(Rule::UnknownName),
+        ),
+        (
+            "let inner = if true { use ./data.Data as Local\n42 } else { 0 }\nlet value: [Local; 0] = []\n42",
+            vec![(0, &["data"][..])],
+            Some(Rule::UnknownType),
+        ),
+        (
+            "let api = 1\nif true { use ./data as api\n42 } else { 0 }",
+            vec![(0, &["data"][..])],
+            Some(Rule::ShadowedName),
+        ),
+        (
+            "use ./data as api\nlet api = 1\n42",
+            vec![(0, &["data"][..])],
+            Some(Rule::ShadowedName),
+        ),
+        (
+            "let call: func(i32): i32 = (api: i32): i32 { use ./data as api\n42 }\n42",
+            vec![(0, &["data"][..])],
+            Some(Rule::ShadowedName),
+        ),
+    ] {
+        let fixture = block_import_fixture(body, &uses);
+        let result = ModuleSourceUnit::prepare(&fixture.input());
+        if let Some(expected) = expected {
+            let Err(SourceFailure::Checking(accepted::Failure::Body {
+                failure: Failure::Rejected(diagnostic),
+                ..
+            })) = result
+            else {
+                panic!("{body}: {result:?}");
+            };
+            assert_eq!(diagnostic.rule(), expected, "{body}");
+            assert_eq!(
+                diagnostic.source().primary().source(),
+                fixture.tree(1).source()
+            );
+        } else {
+            assert!(result.is_ok(), "{body}: {result:?}");
+        }
+    }
+}
+
+#[test]
+fn unreachable_block_imports_still_validate_selection_audiences_kinds_and_duplicate_names() {
+    use nocter_declaration_lowering::ImportRule;
+    for (imports, expected) in [
+        ("use ./data.Absent", ImportRule::MissingImportedName),
+        ("use ./data.Hidden", ImportRule::InaccessibleImportedName),
+        ("use ./data.answer", ImportRule::NonTypeSelection),
+    ] {
+        let body = format!("if false {{ {imports}\n42 }} else {{ 42 }}");
+        let fixture = block_import_fixture(&body, &[(0, &["data"])]);
+        let Err(SourceFailure::Declarations(declarations::Failure::Import(diagnostic))) =
+            ModuleSourceUnit::prepare(&fixture.input())
+        else {
+            panic!("{imports}");
+        };
+        assert_eq!(diagnostic.rule(), expected);
+        assert_eq!(
+            diagnostic.source().primary().source(),
+            fixture.tree(1).source()
+        );
+    }
+    let fixture = block_import_fixture(
+        "if false { use ./data as api\nuse ./other as api\n42 } else { 42 }",
+        &[(0, &["data"]), (1, &["other"])],
+    );
+    assert!(matches!(
+        ModuleSourceUnit::prepare(&fixture.input()),
+        Err(SourceFailure::Declarations(
+            declarations::Failure::Namespace(_)
+        ))
+    ));
+}

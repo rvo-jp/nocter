@@ -237,7 +237,7 @@ impl Checker<'_, '_> {
             let selected = expected.map(|contract| contract.inputs[index]);
             let token = self.token(parameter)?;
             let name = self.text(token)?.to_owned();
-            if self.shadows_name(&name) {
+            if self.shadows_name(&name, token)? {
                 return self.reject(Rule::ShadowedName, token);
             }
             let data = if let Ok(ty) = self.direct(parameter, NodeKind::Type) {

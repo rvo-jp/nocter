@@ -60,7 +60,6 @@ pub enum Failure {
     RequiredValues(Box<[AccessCodeId]>),
     MissingValueEvidence,
     ModuleInputRequired,
-    ModuleImportBindingsRequired(Box<[nocter_syntax::NodeId]>),
 }
 
 /// The next source-header construction action, sharing the declaration owner's readiness rules.
@@ -468,10 +467,38 @@ impl<'source> Context<'source> {
     pub const fn syntax(&self) -> BoundSyntax<'source> {
         self.syntax
     }
-    /// The exact authored source namespace for body names and annotations.
+    /// The physical source's base declaration scope; body occurrences use `lookup_scope_at`.
     #[must_use]
     pub const fn lookup_scope(&self) -> nocter_declarations::value_access::ScopeId {
         self.lookup
+    }
+    /// Exact lexical scope at a current source occurrence, including enclosing block imports.
+    /// # Errors
+    /// Rejects foreign or inconsistent syntax rather than choosing another source's scope.
+    pub fn lookup_scope_at(
+        &self,
+        origin: nocter_syntax::SyntaxOrigin,
+    ) -> Result<nocter_declarations::value_access::ScopeId, SourceMismatch> {
+        let projected = self.source_origin(origin)?;
+        if projected.source() != self.syntax.tree().source() {
+            return Err(SourceMismatch::UnknownSource);
+        }
+        Ok(self
+            .module
+            .and_then(|binding| binding.lexical_scope(projected.source(), projected.span().range()))
+            .unwrap_or(self.lookup))
+    }
+    /// Current validated import binding sites for one exact block; no names are resolved here.
+    /// # Errors
+    /// Rejects a node outside the current physical source.
+    pub fn block_import_names(
+        &self,
+        node: nocter_syntax::NodeId,
+    ) -> Result<&[nocter_syntax::SyntaxToken], SourceMismatch> {
+        self.lookup_scope_at(nocter_syntax::SyntaxOrigin::Node(node))?;
+        Ok(self
+            .module
+            .map_or(&[], |binding| binding.block_import_names(self.syntax, node)))
     }
     /// Whether this physical source may use the complete record representation.
     /// This grants source permission only, never payload or header readiness.

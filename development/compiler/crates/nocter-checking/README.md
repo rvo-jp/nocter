@@ -260,8 +260,13 @@ declaration once before ordinary record/tuple member selection; uninterned membe
 not become namespace errors. Named and qualified references share value/static materialization.
 Intermediate namespace audiences retain the original lookup caller, and a namespace is neither a
 value nor an owning transfer source. Required evaluation uses the selected concrete targets and
-actual physical bodies. Body-local import binding, source rebinding across module revisions and
-ordinary package/CLI integration remain work; this bounded entry does not qualify them.
+actual physical bodies. Body-local imports use the same immutable name authority and the lowering
+owner's exact occurrence-to-lexical-scope projection. Function/closure bodies, annotations and
+body-local required lengths therefore resolve names in their own enclosing block without a second
+checker-side namespace or a mutable name-scope snapshot. Imported aliases cannot shadow enclosing
+runtime bindings. Leaving a block does not expose its imports to siblings or later statements.
+Source rebinding across module revisions and ordinary package/CLI integration remain work; this
+bounded entry does not qualify them.
 
 The private-function goal has one typed-body query over shared immutable declaration facts and
 an owner-scoped body-type extension. Each query retains its origin header prefix; binding accepts

@@ -507,11 +507,13 @@ impl<'a, 's> Checker<'a, 's> {
                 Vec::new(),
             );
         }
+        let scope = self.scope_at(token)?;
         if (namespace == Namespace::Type || self.lookup(spelling).is_none())
-            && let Some(declaration) = self.program().symbols().get(spelling).and_then(|symbol| {
-                self.program()
-                    .declaration_in(self.context.lookup_scope(), namespace, symbol)
-            })
+            && let Some(declaration) = self
+                .program()
+                .symbols()
+                .get(spelling)
+                .and_then(|symbol| self.program().declaration_in(scope, namespace, symbol))
         {
             return self.require_declaration(declaration, token);
         }
@@ -530,18 +532,24 @@ impl<'a, 's> Checker<'a, 's> {
             .expect("active scope")
             .insert(name, place);
     }
-    pub fn shadows_name(&self, name: &str) -> bool {
-        self.lookup(name).is_some()
+    pub(super) fn scope_at(
+        &self,
+        token: SyntaxToken,
+    ) -> Result<nocter_declarations::value_access::ScopeId, Failure> {
+        Ok(self.context.lookup_scope_at(SyntaxOrigin::Token(token))?)
+    }
+    pub fn shadows_name(&self, name: &str, token: SyntaxToken) -> Result<bool, Failure> {
+        let scope = self.scope_at(token)?;
+        Ok(self.lookup(name).is_some()
             || self.unavailable.contains(name)
             || BuiltinType::from_spelling(name).is_some()
             || self.program().symbols().get(name).is_some_and(|symbol| {
-                self.program()
-                    .has_namespace_in(self.context.lookup_scope(), symbol)
+                self.program().has_namespace_in(scope, symbol)
                     || self
                         .program()
-                        .declaration_in(self.context.lookup_scope(), Namespace::Value, symbol)
+                        .declaration_in(scope, Namespace::Value, symbol)
                         .is_some()
-            })
+            }))
     }
     pub fn unwrap(&self, mut node: NodeId) -> Result<NodeId, Failure> {
         while matches!(

@@ -59,9 +59,10 @@ impl Checker<'_, '_> {
         path: &[SyntaxToken],
     ) -> Result<DeclarationId, Failure> {
         let symbols = self.path_symbols(path)?;
+        let scope = self.scope_at(*path.first().ok_or(Failure::InconsistentSyntax)?)?;
         match self
             .program()
-            .declaration_path_in(self.context.lookup_scope(), namespace, &symbols)
+            .declaration_path_in(scope, namespace, &symbols)
         {
             Ok(declaration) => Ok(declaration),
             Err(error) => self.reject_path(namespace, path, error),
@@ -115,29 +116,27 @@ impl Checker<'_, '_> {
             return Ok(None);
         };
         let &(_, root) = segments.first().ok_or(Failure::InconsistentSyntax)?;
+        let scope = self.scope_at(root)?;
         if self.lookup(self.text(root)?).is_some()
             || !self
                 .program()
                 .symbols()
                 .get(self.text(root)?)
-                .is_some_and(|name| {
-                    self.program()
-                        .has_namespace_in(self.context.lookup_scope(), name)
-                })
+                .is_some_and(|name| self.program().has_namespace_in(scope, name))
         {
             return Ok(None);
         }
         let tokens = segments.iter().map(|&(_, token)| token).collect::<Vec<_>>();
         // Non-identifier suffixes belong to ordinary tuple fields after a selected declaration.
         let symbols = self.path_symbols(&tokens)?;
-        let (declaration, consumed) = match self.program().declaration_prefix_in(
-            self.context.lookup_scope(),
-            Namespace::Value,
-            &symbols,
-        ) {
-            Ok(result) => result,
-            Err(error) => return self.reject_path(Namespace::Value, &tokens, error),
-        };
+        let (declaration, consumed) =
+            match self
+                .program()
+                .declaration_prefix_in(scope, Namespace::Value, &symbols)
+            {
+                Ok(result) => result,
+                Err(error) => return self.reject_path(Namespace::Value, &tokens, error),
+            };
         let DeclarationId::Code(code) = declaration else {
             return Err(Failure::InconsistentSyntax);
         };

@@ -284,12 +284,12 @@ fn physical_dependencies_need_closed_resolutions_and_released_sources_cannot_ent
 }
 
 #[test]
-fn body_local_imports_require_exact_binding_evidence_before_scope_closure() {
+fn body_local_imports_bind_only_in_their_exact_lexical_scope() {
     let mut sources = SourceMap::new();
     let source = tree(
         &mut sources,
         "/app/main.nct",
-        "func run(): i32 { use ./codec\n42 }",
+        "func run(): i32 { use ./codec as scoped\nlet body_only = 42\n42 }",
     );
     let root = tree(&mut sources, "/app/index.nct", "");
     let codec = tree(&mut sources, "/app/codec/index.nct", "");
@@ -329,10 +329,63 @@ fn body_local_imports_require_exact_binding_evidence_before_scope_closure() {
     assert!(inventory.imports().is_empty());
     assert_eq!(inventory.block_imports().len(), 1);
     let node = inventory.block_imports()[0].node();
-    assert!(matches!(
-        inventory.pair().unwrap().reserve_names(),
-        Err(ModuleSourcesFailure::Access(Failure::ModuleImportBindingsRequired(nodes))) if nodes.as_ref() == [node]
-    ));
+    let scoped = inventory.pair().unwrap().reserve_names().unwrap();
+    let (physical, _) = scoped
+        .paired()
+        .inventory()
+        .source_entries()
+        .find(|(_, source)| source.canonical_path() == "/app/main.nct")
+        .unwrap();
+    let program = scoped.program();
+    let source_scope = scoped.scope(physical).unwrap();
+    let run = program
+        .resolve_code_in(source_scope, program.symbols().get("run").unwrap())
+        .unwrap();
+    let binding = scoped.source_binding();
+    let context = binding.context_for_code(&scoped, run).unwrap();
+    let scope = context
+        .lookup_scope_at(nocter_syntax::SyntaxOrigin::Node(node))
+        .unwrap();
+    assert_ne!(scope, source_scope);
+    let codec = program.symbols().get("scoped").unwrap();
+    assert!(program.has_namespace_in(scope, codec));
+    assert!(!program.has_namespace_in(source_scope, codec));
+    assert!(program.symbols().get("body_only").is_none());
+    assert!(
+        context
+            .lookup_scope_at(nocter_syntax::SyntaxOrigin::Node(root.root_id()))
+            .is_err()
+    );
+    let reparsed =
+        nocter_syntax::parse(sources.get(source.source()).unwrap(), ParseGoal::V2CoreUnit);
+    assert!(
+        context
+            .lookup_scope_at(nocter_syntax::SyntaxOrigin::Node(reparsed.root_id()))
+            .is_err()
+    );
+}
+
+fn assert_selected_module_order(order: &[ModuleIdentity]) {
+    let identity = |path: &[&str]| {
+        ModuleIdentity::new(PackageIdentity::new("workspace:app"), path.iter().copied())
+    };
+    assert_eq!(order.len(), 4);
+    assert_eq!(
+        order
+            .iter()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len(),
+        4
+    );
+    let position = |path: &[&str]| {
+        order
+            .iter()
+            .position(|module| *module == identity(path))
+            .unwrap()
+    };
+    assert!(position(&["b"]) < position(&["a"]));
+    assert!(position(&["c"]) < position(&["a"]));
+    assert!(position(&["a"]) < position(&[]));
 }
 
 #[test]
@@ -343,7 +396,7 @@ fn one_topology_order_includes_block_imports_and_excludes_inactive_items() {
     let a_body = tree(
         &mut sources,
         "/app/a/body.nct",
-        "func unused(): void { if false { use ../c } }\n#target: \"x64-linux\"\nfunc ignored(): void { use ../missing }",
+        "func unused(): void { if false { use ../c } }\n#target: \"x64-linux\"\nfunc ignored(): void { use ../missing as inactive_alias }",
     );
     let b = tree(&mut sources, "/app/b/index.nct", "");
     let c = tree(&mut sources, "/app/c/index.nct", "");
@@ -413,24 +466,9 @@ fn one_topology_order_includes_block_imports_and_excludes_inactive_items() {
             .modules_in_dependency_order()
             .cloned()
             .collect::<Vec<_>>();
-        assert_eq!(order.len(), 4);
-        assert_eq!(
-            order
-                .iter()
-                .collect::<std::collections::BTreeSet<_>>()
-                .len(),
-            4
-        );
-        let position = |path: &[&str]| {
-            order
-                .iter()
-                .position(|module| *module == identity(path))
-                .unwrap()
-        };
-        assert!(position(&["b"]) < position(&["a"]));
-        assert!(position(&["c"]) < position(&["a"]));
-        assert!(position(&["a"]) < position(&[]));
+        assert_selected_module_order(&order);
         assert_eq!(inventory.block_imports().len(), 1);
+        assert!(inventory.surface.symbols().get("inactive_alias").is_none());
         if let Some(expected) = &expected {
             assert_eq!(&order, expected);
         } else {

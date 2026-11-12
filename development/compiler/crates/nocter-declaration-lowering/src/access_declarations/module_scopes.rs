@@ -72,6 +72,7 @@ pub struct ModuleSourceBinding<'syntax> {
     fields: Box<[Option<AccessFieldId>]>,
     catalog: catalog::Catalog,
     exports: super::module_imports::ModuleExports,
+    lexical: super::module_imports::LexicalScopes,
 }
 #[derive(Debug)]
 enum ParsedHeader {
@@ -86,10 +87,9 @@ struct FieldPosition {
 impl<'syntax> PairedModuleSources<'syntax> {
     /// Reserve one semantic identity per paired declaration and close direct authored lookup.
     /// # Errors
-    /// Rejects unclosed namespace/block imports and authored source-local name conflicts.
+    /// Rejects invalid imports and authored source-local name conflicts.
     pub fn reserve_names(self) -> Result<ScopedModuleSources<'syntax>, ModuleSourcesFailure> {
         let inventory = &self.inventory;
-        super::module_imports::ModuleExports::require_supported(&self)?;
         let parsed = collect_headers(&self)?;
         let mut reservations = Reservations::with_symbols(inventory.surface.symbol_handle());
         let scopes: Box<[_]> = inventory
@@ -119,7 +119,7 @@ impl<'syntax> PairedModuleSources<'syntax> {
             declarations[id.index()] = declarations[self.contracts.representative(id).index()];
         }
         bind_sources(&self, &scopes, &declarations, &mut reservations)?;
-        let exports = super::module_imports::ModuleExports::bind(
+        let (exports, lexical) = super::module_imports::ModuleExports::bind(
             &self,
             &scopes,
             &declarations,
@@ -161,6 +161,7 @@ impl<'syntax> PairedModuleSources<'syntax> {
                 fields,
                 catalog,
                 exports,
+                lexical,
             }),
         })
     }
@@ -315,6 +316,20 @@ impl ModuleSourceBinding<'_> {
                     self.paired.inventory.audience(raw)?,
                 ))
             })
+    }
+    pub(super) fn lexical_scope(
+        &self,
+        source: nocter_source::SourceId,
+        range: nocter_source::TextRange,
+    ) -> Option<ScopeId> {
+        self.lexical.at(source, range)
+    }
+    pub(super) fn block_import_names(
+        &self,
+        syntax: BoundSyntax<'_>,
+        node: nocter_syntax::NodeId,
+    ) -> &[SyntaxToken] {
+        self.lexical.names(syntax, node)
     }
     pub(super) fn header_scopes(
         &self,

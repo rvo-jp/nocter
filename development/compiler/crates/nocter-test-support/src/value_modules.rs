@@ -60,6 +60,7 @@ impl ValueModuleFixture {
         self
     }
     /// Supply exact source/occurrence/target-module import resolutions for production validation.
+    /// Occurrences include top-level and block imports in physical source order.
     #[must_use]
     pub fn with_uses(mut self, uses: &[(usize, usize, &[&str])]) -> Self {
         self.uses = uses
@@ -110,10 +111,17 @@ impl ValueModuleFixture {
                 .iter()
                 .map(|(source, occurrence, target)| {
                     let tree = &self.trees[*source];
-                    let node = child_node_iter(tree, tree.root_id())
-                        .filter(|node| tree.node(*node).unwrap().kind() == NodeKind::UseDeclaration)
-                        .nth(*occurrence)
-                        .unwrap();
+                    let mut imports = tree
+                        .nodes()
+                        .filter(|(_, node)| {
+                            matches!(
+                                node.kind(),
+                                NodeKind::UseDeclaration | NodeKind::BlockUseDeclaration
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    imports.sort_by_key(|(_, node)| node.range().start());
+                    let node = imports[*occurrence].0;
                     nocter_compile_input::UseResolutionInput::new(
                         node,
                         ModuleIdentity::new(package.clone(), target.iter().map(String::as_str)),
@@ -175,5 +183,12 @@ pub fn qualified_namespace_fixture() -> ValueModuleFixture {
         .collect::<Vec<_>>();
     ValueModuleFixture::new(&files, &[(0, 0, 1), (1, 0, 0), (3, 0, 4), (4, 0, 3)])
         .with_modules(&[(&[], &[0, 1]), (&["facade"], &[2]), (&["data"], &[3, 4])])
-        .with_uses(&[(0, 0, &["facade"]), (1, 0, &["facade"]), (2, 0, &["data"])])
+        .with_uses(&[
+            (0, 0, &["facade"]),
+            (1, 0, &["facade"]),
+            (1, 1, &["facade"]),
+            (1, 2, &["data"]),
+            (1, 3, &["data"]),
+            (2, 0, &["data"]),
+        ])
 }

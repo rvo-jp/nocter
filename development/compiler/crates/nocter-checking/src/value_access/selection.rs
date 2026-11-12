@@ -391,13 +391,16 @@ impl Checker<'_, '_> {
     fn named_place(&mut self, token: SyntaxToken) -> Result<Option<AccessPlaceId>, Failure> {
         self.require_header(Namespace::Value, token)?;
         let spelling = self.text(token)?;
+        let scope = self.scope_at(token)?;
         if let Some(place) = self.lookup(spelling) {
             return Ok(Some(place));
         }
-        if let Some(id) = self.program().symbols().get(spelling).and_then(|name| {
-            self.program()
-                .resolve_static_in(self.context.lookup_scope(), name)
-        }) {
+        if let Some(id) = self
+            .program()
+            .symbols()
+            .get(spelling)
+            .and_then(|name| self.program().resolve_static_in(scope, name))
+        {
             return self.static_place(id, token).map(Some);
         }
         Ok(None)
@@ -431,14 +434,12 @@ impl Checker<'_, '_> {
             return Ok(place);
         }
         let spelling = self.text(token)?;
+        let scope = self.scope_at(token)?;
         if self
             .program()
             .symbols()
             .get(spelling)
-            .and_then(|symbol| {
-                self.program()
-                    .resolve_code_in(self.context.lookup_scope(), symbol)
-            })
+            .and_then(|symbol| self.program().resolve_code_in(scope, symbol))
             .is_some()
         {
             if rule == Rule::MissingTransfer {

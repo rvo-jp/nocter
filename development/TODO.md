@@ -18,15 +18,18 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Connect the [adopted module/source rules](spec/language/modules.md) to one v2 declaration authority.
-Close source-local imports and re-exports over the shared module declaration authority. Preserve
-authored root contracts and their effective audiences as the export source; direct `see` lookup is
-not an export inventory and imports do not propagate through seen sources. Close lexical body-local
-import scope over the shared namespace links, preserving inaccessible/widening export checks,
-original lookup callers and the topology owner's import-cycle/order proof. Extend current module
-source acceptance with those bindings and source/query rebinding across revisions before ordinary
-package/CLI integration; do not flatten all inventoried names. Keep the retained-selection work below open;
-its bounded execution does not close general hole relations or externally dependent callback effects.
+Close current module source/query rebinding across revisions before ordinary package/CLI
+integration. Build current physical projections from the [adopted module/source rules](spec/language/modules.md)
+and verify their relationship to the retained semantic authority before reusing any header or body.
+Preserve source-local and lexical imports, root-authored export audiences, direct-only `see`, exact
+nominal/call targets and the topology owner's import-cycle/order proof. Equal source spellings or
+freshly numbered declarations alone do not prove safe reuse. Required header values retain their
+actual source-dependency guards; changed suppliers or name bindings must invalidate affected reuse.
+Diagnostics must point into the current physical source, including when source identities or
+irrelevant body text change. Extend positive and rejection cases together; do not route this work
+through released declaration/borrow products or claim ordinary package/CLI integration yet.
+Keep the retained-selection work below open; bounded module execution does not close general hole
+relations or externally dependent callback effects.
 
 ## Retained Selection Closure
 

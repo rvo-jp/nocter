@@ -32,6 +32,12 @@ impl Checker<'_, '_> {
         hint: Option<&Annotation>,
         reachable: bool,
     ) -> Result<AccessBlockId, Failure> {
+        for &name in self.context.block_import_names(node)? {
+            let spelling = self.text(name)?;
+            if self.lookup(spelling).is_some() || self.unavailable.contains(spelling) {
+                return self.reject(Rule::ShadowedName, name);
+            }
+        }
         self.scopes.push(std::collections::BTreeMap::new());
         let entries = if let Ok(sequence) = self.direct(node, NodeKind::ExecutableSequence) {
             self.children(sequence)
@@ -219,7 +225,7 @@ impl Checker<'_, '_> {
             return Ok((Statement::Discard(value), self.ty(value).may_complete()));
         }
         let spelling = self.text(name)?.to_owned();
-        if self.shadows_name(&spelling) {
+        if self.shadows_name(&spelling, name)? {
             return self.reject(Rule::ShadowedName, name);
         }
         let mode = kind.access_mode();

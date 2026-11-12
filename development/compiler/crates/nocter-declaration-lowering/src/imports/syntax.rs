@@ -17,8 +17,10 @@ pub(crate) struct ImportSyntax {
 }
 
 pub(crate) fn read(tree: &SyntaxTree, declaration: NodeId) -> Result<ImportSyntax, ImportError> {
-    if tree.node(declaration).map(nocter_syntax::SyntaxNode::kind) != Some(NodeKind::UseDeclaration)
-    {
+    if !matches!(
+        tree.node(declaration).map(nocter_syntax::SyntaxNode::kind),
+        Some(NodeKind::UseDeclaration | NodeKind::BlockUseDeclaration)
+    ) {
         return Err(ImportError::InvalidSyntax(declaration));
     }
     let visibility = direct_node(tree, declaration, NodeKind::Visibility);

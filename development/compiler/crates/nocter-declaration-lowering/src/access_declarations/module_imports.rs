@@ -8,10 +8,22 @@ use crate::{
 use nocter_declarations::value_access::{DeclarationId, Namespace, Program, Reservations, ScopeId};
 use nocter_model::{BuiltinType, Symbol};
 use nocter_syntax::{ContextualSpelling, NodeId, SyntaxOrigin, SyntaxToken};
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
+
+mod lexical;
+pub(super) use lexical::LexicalScopes;
+
+#[derive(Clone, Copy)]
+struct ImportSite<'a> {
+    source: SurfaceSourceId,
+    node: NodeId,
+    target: &'a ModuleIdentity,
+    scope: ScopeId,
+}
 
 #[derive(Clone, Copy, Debug)]
 enum Policy {
@@ -43,37 +55,30 @@ pub(super) struct ModuleExports {
     scopes: Box<[ScopeId]>,
 }
 impl ModuleExports {
-    /// Lexical block imports require their own closed binding product.
-    pub fn require_supported(paired: &PairedModuleSources<'_>) -> Result<(), ModuleSourcesFailure> {
-        let inventory = &paired.inventory;
-        let pending = inventory
-            .block_imports()
-            .iter()
-            .map(crate::SurfaceBlockImport::node)
-            .collect::<Vec<_>>();
-        if pending.is_empty() {
-            Ok(())
-        } else {
-            Err(ModuleSourcesFailure::Access(
-                Failure::ModuleImportBindingsRequired(pending.into()),
-            ))
-        }
-    }
     pub fn bind(
         paired: &PairedModuleSources<'_>,
         source_scopes: &[ScopeId],
         declarations: &[Option<DeclarationId>],
         reservations: &mut Reservations,
-    ) -> Result<Self, ModuleSourcesFailure> {
+    ) -> Result<(Self, LexicalScopes), ModuleSourcesFailure> {
         let mut bindings = ImportBindings::new(paired, source_scopes, declarations, reservations)?;
         for module in paired.inventory.modules_in_dependency_order() {
             for import in paired.inventory.imports().iter().filter(|import| {
                 paired.inventory.sources()[import.source().index()].module() == module
             }) {
-                bindings.bind(import, reservations)?;
+                bindings.bind(
+                    ImportSite {
+                        source: import.source(),
+                        node: import.node(),
+                        target: import.target(),
+                        scope: source_scopes[import.source().index()],
+                    },
+                    reservations,
+                )?;
             }
         }
-        bindings.finish(reservations)
+        let lexical = bindings.bind_blocks(reservations)?;
+        Ok((bindings.finish(reservations)?, lexical))
     }
     pub fn lookup(
         &self,
@@ -122,7 +127,7 @@ struct ImportBindings<'a, 'syntax> {
     source_scopes: &'a [ScopeId],
     declarations: &'a [Option<DeclarationId>],
     exports: Vec<ExportNames>,
-    locals: BTreeMap<(SurfaceSourceId, ExportNamespace, Symbol), SyntaxOrigin>,
+    locals: BTreeMap<ScopeId, BTreeMap<(ExportNamespace, Symbol), SyntaxOrigin>>,
     module_scopes: Box<[ScopeId]>,
 }
 impl<'a, 'syntax> ImportBindings<'a, 'syntax> {
@@ -167,23 +172,23 @@ impl<'a, 'syntax> ImportBindings<'a, 'syntax> {
     }
     fn bind(
         &mut self,
-        import: &crate::SurfaceImport,
+        import: ImportSite<'_>,
         reservations: &mut Reservations,
     ) -> Result<(), ModuleSourcesFailure> {
         let paired = self.paired;
         let inventory = &paired.inventory;
         let modules = inventory.surface.modules();
-        let module = inventory.sources()[import.source().index()].module();
+        let module = inventory.sources()[import.source.index()].module();
         let module_index = modules.binary_search(module).map_err(|_| integrity())?;
         let target_module = modules
-            .binary_search(import.target())
+            .binary_search(import.target)
             .map_err(|_| integrity())?;
         let authored =
-            crate::imports::syntax::read(syntax(paired, import.source())?.tree(), import.node())
+            crate::imports::syntax::read(syntax(paired, import.source)?.tree(), import.node)
                 .map_err(|_| integrity())?;
         if authored.selected.is_none() {
             return self.bind_namespace_import(
-                import,
+                &import,
                 &authored,
                 module_index,
                 target_module,
@@ -192,8 +197,8 @@ impl<'a, 'syntax> ImportBindings<'a, 'syntax> {
         }
         let selected_names = authored.selected.ok_or_else(integrity)?;
         for selected in selected_names {
-            let exported = symbol(paired, import.source(), selected.exported)?;
-            let local = symbol(paired, import.source(), selected.local)?;
+            let exported = symbol(paired, import.source, selected.exported)?;
+            let local = symbol(paired, import.source, selected.local)?;
             let exported_origin = SyntaxOrigin::Token(selected.exported);
             let Some(&(target, policy)) =
                 self.exports[target_module].get(&(ExportNamespace::Type, exported))
@@ -218,19 +223,20 @@ impl<'a, 'syntax> ImportBindings<'a, 'syntax> {
                     ImportViolation::inaccessible_imported_name(exported_origin, target_origin),
                 ));
             }
-            if let Some(audience) = inventory.import_audience(import.node())
+            if let Some(audience) = inventory.import_audience(import.node)
                 && !audience.is_within(target_audience)
             {
                 return Err(import_failure(
                     paired,
                     ImportViolation::widening_reexport(
-                        SyntaxOrigin::Node(authored.visibility.unwrap_or(import.node())),
+                        SyntaxOrigin::Node(authored.visibility.unwrap_or(import.node)),
                         target_origin,
                     ),
                 ));
             }
             self.validate_local(
-                import.source(),
+                import.source,
+                import.scope,
                 local,
                 selected.local,
                 ExportNamespace::Type,
@@ -239,20 +245,16 @@ impl<'a, 'syntax> ImportBindings<'a, 'syntax> {
                 return Err(integrity());
             };
             reservations
-                .bind(
-                    self.source_scopes[import.source().index()],
-                    local,
-                    declaration,
-                )
+                .bind(import.scope, local, declaration)
                 .map_err(|_| integrity())?;
-            if inventory.import_audience(import.node()).is_some() {
+            if inventory.import_audience(import.node).is_some() {
                 insert_export(
                     paired,
                     &mut self.exports[module_index],
                     local,
                     target,
                     Policy::Import {
-                        node: import.node(),
+                        node: import.node,
                         name: selected.local,
                     },
                 )?;
@@ -262,7 +264,7 @@ impl<'a, 'syntax> ImportBindings<'a, 'syntax> {
     }
     fn bind_namespace_import(
         &mut self,
-        import: &crate::SurfaceImport,
+        import: &ImportSite<'_>,
         authored: &crate::imports::syntax::ImportSyntax,
         module_index: usize,
         target_module: usize,
@@ -273,30 +275,31 @@ impl<'a, 'syntax> ImportBindings<'a, 'syntax> {
         let name = match authored.namespace_alias {
             Some(alias) => alias,
             None => crate::imports::syntax::final_path_name(
-                syntax(paired, import.source())?.tree(),
-                import.node(),
+                syntax(paired, import.source)?.tree(),
+                import.node,
                 authored.path,
             )
             .map_err(|_| integrity())?,
         };
-        let local = symbol(paired, import.source(), name)?;
-        self.validate_local(import.source(), local, name, ExportNamespace::Qualifier)?;
+        let local = symbol(paired, import.source, name)?;
+        self.validate_local(
+            import.source,
+            import.scope,
+            local,
+            name,
+            ExportNamespace::Qualifier,
+        )?;
         reservations
-            .bind_namespace(
-                self.source_scopes[import.source().index()],
-                local,
-                self.module_scopes[target_module],
-                None,
-            )
+            .bind_namespace(import.scope, local, self.module_scopes[target_module], None)
             .map_err(|_| integrity())?;
-        if inventory.import_audience(import.node()).is_some() {
+        if inventory.import_audience(import.node).is_some() {
             insert_export(
                 paired,
                 &mut self.exports[module_index],
                 local,
                 ExportTarget::Namespace(target_module),
                 Policy::Import {
-                    node: import.node(),
+                    node: import.node,
                     name,
                 },
             )?;
@@ -306,6 +309,7 @@ impl<'a, 'syntax> ImportBindings<'a, 'syntax> {
     fn validate_local(
         &mut self,
         source: SurfaceSourceId,
+        scope: ScopeId,
         local: Symbol,
         token: SyntaxToken,
         namespace: ExportNamespace,
@@ -326,22 +330,31 @@ impl<'a, 'syntax> ImportBindings<'a, 'syntax> {
                 NamespaceViolation::reserved_name(origin),
             ));
         }
-        let first =
-            local_origin(paired, self.declarations, source, local, namespace)?.or_else(|| {
-                self.locals
+        let first = (if scope == self.source_scopes[source.index()] {
+            local_origin(paired, self.declarations, source, local, namespace)?
+        } else {
+            None
+        })
+        .or_else(|| {
+            self.locals.get(&scope).and_then(|names| {
+                names
                     .iter()
-                    .find(|((owner, kind, name), _)| {
-                        *owner == source && *name == local && namespaces_conflict(namespace, *kind)
+                    .find(|((kind, name), _)| {
+                        *name == local && namespaces_conflict(namespace, *kind)
                     })
                     .map(|(_, origin)| *origin)
-            });
+            })
+        });
         if let Some(first) = first {
             return Err(namespace_failure(
                 paired,
                 NamespaceViolation::name_collision(first, origin),
             ));
         }
-        self.locals.insert((source, namespace, local), origin);
+        self.locals
+            .entry(scope)
+            .or_default()
+            .insert((namespace, local), origin);
         Ok(())
     }
     fn finish(

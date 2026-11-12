@@ -16,10 +16,23 @@ func inspect(value: api.storage.Data): i32 {
 
 func helper(): i32 { 1 }
 
+func local(): i32 {
+    use ./facade as scoped
+    use /data.Data as Local
+    let inner = if true {
+        use /data as scoped
+        scoped.answer()
+    } else { 0 }
+    let data: Local = scoped.storage.make()
+    let items: [i32; scoped.storage.width()] = [21, 21]
+    let callback: func(): i32 = (): i32 { scoped.storage.answer() }
+    if inner == 42 && callback() == 42 && items[0] + items[1] == 42 { data.shown } else { 1 }
+}
+
 func run(): i32 {
     let items = values()
     let data = api.storage.make()
-    if helper() == 1 && items[0] == 42 && items[1] == 42 && RESULT == 42 && api.storage.ROOT.0 == 21 && inspect(data) == 42 {
+    if local() == 42 && helper() == 1 && items[0] == 42 && items[1] == 42 && RESULT == 42 && api.storage.ROOT.0 == 21 && inspect(data) == 42 {
         42
     } else {
         1

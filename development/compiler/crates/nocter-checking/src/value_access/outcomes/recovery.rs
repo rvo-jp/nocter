@@ -147,7 +147,7 @@ impl Checker<'_, '_> {
             self.statement(block, Statement::Discard(error))?
         } else {
             let spelling = self.text(name)?.to_owned();
-            if self.shadows_name(&spelling) {
+            if self.shadows_name(&spelling, name)? {
                 return self.reject(Rule::ShadowedName, name);
             }
             let mode = match expected {
