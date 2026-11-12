@@ -207,6 +207,12 @@ scheduling, source-qualified query rebinding across revisions, visibility/re-exp
 discovery/CLI integration remain work. The header step
 can publish selected payload/Copy metadata but does not produce an accepted Unit or a reusable
 source-qualified query.
+`Context::verify_header_values` reprojects every physical source header with actual completed count
+values and requires existing published type/constraint identities to agree. It reuses the same
+header/data projection for callable inputs/results, callback contracts and record fields, including
+selected root fields. The semantic owner performs read-only structural identity lookup through its
+publication fold; reconciliation neither interns a type nor executes another value. Complete header
+metadata and equal source bytes alone do not prove that supplied count data came from execution.
 
 The reusable result owns a single immutable value-access declaration program, its exact neutral
 header surface, and projection locators. It contains no current syntax IDs, source identity,

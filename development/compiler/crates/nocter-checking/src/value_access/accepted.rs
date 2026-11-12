@@ -122,6 +122,9 @@ impl Unit {
                 flow::IntegrityError::InconsistentTypedBody,
             ));
         }
+        context
+            .verify_header_values(|id| evaluation.values.get(&id.into()).map(AsRef::as_ref))
+            .map_err(|_| Failure::Integrity(flow::IntegrityError::InconsistentTypedBody))?;
         let queries = evaluation.queries;
         let Checked {
             program,

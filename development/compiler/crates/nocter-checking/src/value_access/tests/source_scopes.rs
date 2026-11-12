@@ -40,6 +40,12 @@ impl Fixture {
         }
     }
     fn prepare(&self) -> declarations::ScopedModuleSources<'_> {
+        self.prepare_with_count(None)
+    }
+    fn prepare_with_count(
+        &self,
+        value: Option<&nocter_model::FrozenData>,
+    ) -> declarations::ScopedModuleSources<'_> {
         let package = PackageIdentity::new("workspace:app");
         let input = CompileUnitInput::for_goal(
             ParseGoal::V2CoreUnit,
@@ -87,13 +93,14 @@ impl Fixture {
             .inventory()
             .declaration_entries()
             .filter_map(|(raw, _)| scoped.declaration(raw))
+            .chain(scoped.header_expression_ids().map(Into::into))
             .filter(|id| seen.insert(*id))
             .collect::<Vec<_>>();
         while !pending.is_empty() {
             let before = pending.len();
             pending.retain(|id| {
                 !matches!(
-                    scoped.advance_header_with_values(*id, |_| None).unwrap(),
+                    scoped.advance_header_with_values(*id, |_| value).unwrap(),
                     declarations::HeaderProgress::Ready
                 )
             });
@@ -376,4 +383,54 @@ fn body_and_header_guards_follow_their_owners_across_one_retained_source_binding
             .text_at(other_context.syntax().tree().node(root).unwrap().range()),
         Some("{ true }")
     );
+}
+
+#[test]
+fn module_header_count_evidence_uses_every_physical_supplier_before_unit_closure() {
+    for matches in [false, true] {
+        let body_count = if matches {
+            "const func size(): usize { 2 }"
+        } else {
+            "const func size(): usize { 1 }"
+        };
+        let fixture = Fixture::new(
+            &[
+                (
+                    "/app/index.nct",
+                    Root,
+                    "see ./a.nct\nsee ./root_count.nct\nfunc run(): [i32; size()]",
+                ),
+                (
+                    "/app/a.nct",
+                    Implementation,
+                    "see ./index.nct\nsee ./body_count.nct\nfunc run(): [i32; size()] { [41, 42] }",
+                ),
+                (
+                    "/app/root_count.nct",
+                    Implementation,
+                    "const func size(): usize { 2 }",
+                ),
+                ("/app/body_count.nct", Implementation, body_count),
+            ],
+            &[(0, 0, 1), (0, 1, 2), (1, 0, 0), (1, 1, 3)],
+        );
+        let supplied = nocter_model::FrozenData::new(vec![nocter_model::FrozenNode::Scalar(
+            nocter_model::ConstantValue::Integer(2),
+        )])
+        .unwrap();
+        let scoped = fixture.prepare_with_count(Some(&supplied));
+        let binding = scoped.source_binding();
+        let run = code(&scoped, "/app/a.nct", "run");
+        let context = binding.context_for_code(&scoped, run).unwrap();
+        Query::prepare(&context, run).unwrap();
+        let result = accepted::Unit::prepare(&context);
+        if matches {
+            assert!(result.is_ok(), "{result:?}");
+        } else {
+            assert!(
+                matches!(result, Err(accepted::Failure::Integrity(_))),
+                "{result:?}"
+            );
+        }
+    }
 }

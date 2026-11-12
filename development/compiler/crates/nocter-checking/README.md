@@ -595,6 +595,13 @@ transitions alone cannot replace the combined source proofs or establish executa
 
 ## Closed Accepted Private Units
 
+Unit closure reconciles normalized source headers with actual required values before producing
+the accepted product. Supplying a different count through the internal metadata API cannot certify
+a Unit, even when the body happens to match that substituted array type. This covers data and
+callback input/result contracts, fields and every physical occurrence in a retained module binding.
+The source/type reconciliation uses the [declaration source owner](../nocter-declaration-lowering/README.md#exact-source-evidence);
+it adds no evaluator, type writer or alternate accepted-body path.
+
 The whole-unit constructor validates every definition, including unused/recursive callees, and
 publishes no partial accepted value after any typing/init/access/resource failure. It owns the
 same shared declaration facts, canonical type authority, closed result evidence and all body/flow

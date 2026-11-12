@@ -200,6 +200,15 @@ impl Program {
     ) -> Result<DataReference, super::DeclarationRule> {
         resolve_data_name(&self.symbols, &self.namespace, scope, name)
     }
+    /// Find an existing structural identity without interning, publishing or granting payload proof.
+    /// Uses the publication owner's data-reference fold; a missing constructor returns no identity.
+    #[must_use]
+    pub fn existing_data_reference(&self, data: &DataReference) -> Option<TypeId> {
+        resolve_reference(data, |kind| match kind {
+            TypeKind::Builtin(data) if !supported(data) => None,
+            kind => self.types.store().identity(&kind),
+        })
+    }
     /// Structural Copy evidence for the payload, never permission to duplicate an access.
     #[must_use]
     pub fn data_copyable(&self, data: TypeId) -> Option<bool> {
@@ -436,25 +445,33 @@ pub(super) fn resolved_data(
     types: &mut nocter_model::TypeTransaction,
     data: &DataReference,
 ) -> TypeId {
+    resolve_reference(data, |kind| match kind {
+        TypeKind::Builtin(data) => Some(types.builtin(data)),
+        kind => types.intern(kind).ok(),
+    })
+    .expect("validated data reference")
+}
+
+/// The same structural fold supplies publication and read-only identity reconciliation.
+fn resolve_reference(
+    data: &DataReference,
+    mut construct: impl FnMut(TypeKind) -> Option<TypeId>,
+) -> Option<TypeId> {
     let mut pending = vec![(data, false)];
     let mut resolved = Vec::new();
     while let Some((data, expanded)) = pending.pop() {
         let data = match data {
-            DataReference::Builtin(data) => types.builtin(*data),
-            DataReference::Record(id) => types
-                .intern(super::records::nominal_key(*id))
-                .expect("validated nominal identity"),
+            DataReference::Builtin(data) => construct(TypeKind::Builtin(*data))?,
+            DataReference::Record(id) => construct(super::records::nominal_key(*id))?,
             DataReference::Fallible(payload) => {
                 if !expanded {
                     pending.push((data, true));
                     pending.push((payload, false));
                     continue;
                 }
-                types
-                    .intern(TypeKind::Fallible(
-                        resolved.pop().expect("resolved fallible payload"),
-                    ))
-                    .expect("validated fallible reference")
+                construct(TypeKind::Fallible(
+                    resolved.pop().expect("resolved fallible payload"),
+                ))?
             }
             DataReference::Optional { payload, layers } => {
                 if !expanded {
@@ -464,9 +481,7 @@ pub(super) fn resolved_data(
                 }
                 let mut payload = resolved.pop().expect("resolved optional payload");
                 for _ in 0..layers.get() {
-                    payload = types
-                        .intern(TypeKind::Optional(payload))
-                        .expect("validated optional reference");
+                    payload = construct(TypeKind::Optional(payload))?;
                 }
                 payload
             }
@@ -477,12 +492,10 @@ pub(super) fn resolved_data(
                     continue;
                 }
                 let element = resolved.pop().expect("resolved array element");
-                types
-                    .intern(TypeKind::FixedArray {
-                        element,
-                        length: (*length).into(),
-                    })
-                    .expect("validated closed array reference")
+                construct(TypeKind::FixedArray {
+                    element,
+                    length: (*length).into(),
+                })?
             }
             DataReference::Tuple(fields) => {
                 if !expanded {
@@ -491,18 +504,16 @@ pub(super) fn resolved_data(
                     continue;
                 }
                 let fields = resolved.split_off(resolved.len() - fields.as_slice().len());
-                types
-                    .intern(TypeKind::Tuple(nocter_model::TupleElements::new(
-                        fields[0],
-                        fields[1],
-                        fields[2..].iter().copied(),
-                    )))
-                    .expect("validated closed tuple reference")
+                construct(TypeKind::Tuple(nocter_model::TupleElements::new(
+                    fields[0],
+                    fields[1],
+                    fields[2..].iter().copied(),
+                )))?
             }
         };
         resolved.push(data);
     }
-    resolved.pop().expect("one complete data reference")
+    resolved.pop()
 }
 
 #[cfg(test)]

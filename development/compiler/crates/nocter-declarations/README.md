@@ -234,6 +234,12 @@ available but grants no ready schema, field or newly interned structural type fo
 contract. The fallible final closure still rejects unused invalid declarations. Standalone
 construction and source-driven steps consume these same rules.
 
+`Program::existing_data_reference` resolves an already interned structural identity through the same
+iterative data-reference fold used by publication. Missing shapes return no identity and do not
+extend the snapshot. Finding a reserved nominal identity still grants no payload or Copy readiness.
+The source owner uses this read-only query to reconcile actual required header values with the
+already published data, without constructing another type authority.
+
 `aggregate` exposes one ordered component schema for records and tuples. Record components retain
 their declared field identities; tuple components retain their positions. `AggregateForm` projects
 the explicit record or tuple family from that validated schema. Family-specific consumers match

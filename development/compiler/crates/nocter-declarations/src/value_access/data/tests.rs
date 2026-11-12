@@ -611,3 +611,44 @@ fn repeated_failure_is_invalid_even_inside_zero_length_metadata() {
     );
     assert_eq!(failures[0].rule, DeclarationRule::RepeatedFailure);
 }
+
+#[test]
+fn existing_reference_lookup_never_interns_missing_shapes_or_grants_nominal_payload_readiness() {
+    let symbols = SymbolTable::from_spellings(["Node", "next"]);
+    let mut reservations = Reservations::new(symbols.clone());
+    let node = reservations.reserve_record(symbols.get("Node").unwrap(), 1);
+    let mut headers = reservations.finish().unwrap().into_publication();
+    let early = headers.snapshot();
+    let nominal = early
+        .existing_data_reference(&DataReference::Record(node))
+        .unwrap();
+    assert_eq!(early.data_schema(nominal), None);
+    assert_eq!(early.data_copyable(nominal), None);
+    let reference = array(DataReference::Record(node), 0);
+    let before = early.types.store().type_count();
+    assert_eq!(early.existing_data_reference(&reference), None);
+    assert_eq!(early.types.store().type_count(), before);
+    headers
+        .define_record(
+            node,
+            false,
+            [FieldDefinition {
+                name: symbols.get("next").unwrap(),
+                data: reference.clone(),
+            }],
+        )
+        .unwrap();
+    headers.publish(node).unwrap();
+    let ready = headers.snapshot();
+    let field = ready.records().get(node).unwrap().fields()[0];
+    assert_eq!(
+        ready.existing_data_reference(&reference),
+        Some(ready.fields().get(field).unwrap().data())
+    );
+    assert_eq!(
+        ready.existing_data_reference(&array(DataReference::Record(node), 1)),
+        None
+    );
+    assert_eq!(early.existing_data_reference(&reference), None);
+    assert_eq!(early.data_schema(nominal), None);
+}

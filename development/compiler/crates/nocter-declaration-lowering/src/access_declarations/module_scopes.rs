@@ -179,6 +179,21 @@ impl<'syntax> ScopedModuleSources<'syntax> {
     }
 }
 impl ModuleSourceBinding<'_> {
+    pub(super) fn header_scopes(
+        &self,
+    ) -> Result<Vec<super::definitions::HeaderScope<'_>>, super::SourceMismatch> {
+        self.paired
+            .inventory
+            .source_entries()
+            .map(|(source, _)| {
+                Ok(super::definitions::HeaderScope {
+                    syntax: syntax(&self.paired, source)
+                        .map_err(|_| super::SourceMismatch::InconsistentSyntax)?,
+                    lookup: self.scopes[source.index()],
+                })
+            })
+            .collect()
+    }
     pub(super) fn code_scope(
         &self,
         code: AccessCodeId,
