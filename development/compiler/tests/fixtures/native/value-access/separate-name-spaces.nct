@@ -1,0 +1,18 @@
+struct shared { value: i32 }
+const func shared(take value: shared): i32 { value.value }
+const ANSWER: i32 = shared(shared { value: 42 })
+struct Snapshot { value: i32 }
+const func local(): i32 {
+    let Snapshot = 40
+    let value: Snapshot = Snapshot { value: Snapshot + 2 }
+    value.value
+}
+const LOCAL: i32 = local()
+struct width { values: [i32; width] }
+const width: usize = 2
+func run(): i32 {
+    let action = shared
+    let value = shared { value: ANSWER }
+    let counted = width { values: [20, 22] }
+    if action(value^) == 42 && LOCAL == 42 && local() == 42 { counted.values[0] + counted.values[1] } else { 0 }
+}

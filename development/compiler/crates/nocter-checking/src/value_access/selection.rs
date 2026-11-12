@@ -4,7 +4,7 @@ use super::{
     checker::Checker,
     ir::{ExpressionKind, Place, SelectionAction, value_type},
 };
-use nocter_declarations::value_access::PayloadSchema;
+use nocter_declarations::value_access::{Namespace, PayloadSchema};
 use nocter_model::{
     AccessExpressionId, AccessLocalId, AccessPlaceId, FieldPath, TypeId, ValueAccess as Ty,
     ValueAccessMode as Mode, ValueField,
@@ -358,7 +358,7 @@ impl Checker<'_, '_> {
         Ty::new(selected.data, self.local_ty(selected.local).mode())
     }
     fn named_place(&mut self, token: SyntaxToken) -> Result<Option<AccessPlaceId>, Failure> {
-        self.require_header(token)?;
+        self.require_header(Namespace::Value, token)?;
         let spelling = self.text(token)?;
         if let Some(place) = self.lookup(spelling) {
             return Ok(Some(place));

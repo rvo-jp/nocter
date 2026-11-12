@@ -6,7 +6,7 @@ use super::{
     },
 };
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
-use nocter_declarations::value_access::{AggregateForm, PayloadSchema, Program};
+use nocter_declarations::value_access::{AggregateForm, Namespace, PayloadSchema, Program};
 use nocter_diagnostics::{DiagnosticNote, SourceDiagnostic};
 use nocter_model::{
     AccessBlockId, AccessCodeId, AccessExpressionId, AccessLocalId, AccessLoopId, AccessPlaceId,
@@ -492,9 +492,12 @@ impl<'a, 's> Checker<'a, 's> {
             Vec::new(),
         )
     }
-    pub fn require_header(&self, token: SyntaxToken) -> Result<(), Failure> {
+    pub fn require_header(&self, namespace: Namespace, token: SyntaxToken) -> Result<(), Failure> {
         let spelling = self.text(token)?;
-        if self.unavailable.contains(spelling) && self.lookup(spelling).is_none() {
+        if namespace == Namespace::Value
+            && self.unavailable.contains(spelling)
+            && self.lookup(spelling).is_none()
+        {
             return self.reject_message(
                 Rule::RequiredValueScope,
                 token,
@@ -502,12 +505,12 @@ impl<'a, 's> Checker<'a, 's> {
                 Vec::new(),
             );
         }
-        if self.lookup(spelling).is_none()
+        if (namespace == Namespace::Type || self.lookup(spelling).is_none())
             && let Some(declaration) = self
                 .program()
                 .symbols()
                 .get(spelling)
-                .and_then(|symbol| self.program().declaration(symbol))
+                .and_then(|symbol| self.program().declaration(namespace, symbol))
             && !self.program().header_ready(declaration)
         {
             return Err(Failure::RequiredHeader {
@@ -534,11 +537,11 @@ impl<'a, 's> Checker<'a, 's> {
         self.lookup(name).is_some()
             || self.unavailable.contains(name)
             || BuiltinType::from_spelling(name).is_some()
-            || self
-                .program()
-                .symbols()
-                .get(name)
-                .is_some_and(|symbol| self.program().declaration(symbol).is_some())
+            || self.program().symbols().get(name).is_some_and(|symbol| {
+                self.program()
+                    .declaration(Namespace::Value, symbol)
+                    .is_some()
+            })
     }
     pub fn unwrap(&self, mut node: NodeId) -> Result<NodeId, Failure> {
         while matches!(

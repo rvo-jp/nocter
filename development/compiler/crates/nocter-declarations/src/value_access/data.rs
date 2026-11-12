@@ -1,6 +1,6 @@
 //! Closed data identity, source-name resolution and payload projection. No source syntax lives here.
 use super::{AggregateForm, DeclarationId, Program};
-use nocter_model::{BuiltinType, FieldPath, NominalTypeId, Symbol, SymbolTable, TypeId, TypeKind};
+use nocter_model::{BuiltinType, FieldPath, NominalTypeId, SymbolTable, TypeId, TypeKind};
 use std::collections::BTreeMap;
 
 /// The exact closed shapes admitted by this declaration product, not a general type classifier.
@@ -386,13 +386,13 @@ pub(super) fn builtin_copyable(data: BuiltinType) -> Option<bool> {
 
 pub(super) fn data_reference(
     symbols: &SymbolTable,
-    namespace: &BTreeMap<Symbol, DeclarationId>,
+    namespace: &super::namespace::Names,
     spelling: &str,
 ) -> Option<DataReference> {
     if let Some(data) = BuiltinType::from_spelling(spelling) {
         return Some(DataReference::Builtin(data));
     }
-    match namespace.get(&symbols.get(spelling)?)? {
+    match namespace.get(&(super::Namespace::Type, symbols.get(spelling)?))? {
         DeclarationId::Record(id) => Some(DataReference::Record(*id)),
         DeclarationId::Code(_) => None,
     }

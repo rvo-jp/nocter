@@ -1,4 +1,5 @@
 use super::*;
+use nocter_declarations::value_access::Namespace;
 use nocter_model::{BuiltinType, ValueInputOperation};
 use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
@@ -137,8 +138,8 @@ fn header_errors_are_local_and_cannot_be_repaired_by_a_body() {
 fn namespace_closure_precedes_type_resolution_and_keeps_current_conflict_locations() {
     use nocter_declarations::value_access::{DeclarationRule, HeaderPosition};
     for source in [
-        "struct Shared { value: Missing }\nfunc Shared(): Missing { unknown }",
-        "// current coordinates\nfunc Shared(): Missing { other }\nstruct Shared { value: Missing }",
+        "struct Shared { value: Missing }\nfunc Shared(): Missing { unknown }\nfunc Shared(): Missing { other }",
+        "// current coordinates\nfunc Shared(): Missing { other }\nstruct Shared { value: Missing }\nfunc Shared(): Missing { unknown }",
     ] {
         let (sources, tree) = input(source, ParseGoal::V2CoreUnit);
         let Err(Failure::Headers(diagnostics)) = Query::prepare(bound(&sources, &tree)) else {
@@ -148,11 +149,11 @@ fn namespace_closure_precedes_type_resolution_and_keeps_current_conflict_locatio
         let diagnostic = &diagnostics[0];
         assert!(matches!(
             diagnostic.violation().rule,
-            DeclarationRule::RecordShadowsCallable { .. }
+            DeclarationRule::DuplicateValue { .. }
         ));
         assert_eq!(diagnostic.violation().position, HeaderPosition::Name);
         let primary = diagnostic.source().primary().span().range();
-        let name = source.find("struct Shared").unwrap() + "struct ".len();
+        let name = source.rfind("func Shared").unwrap() + "func ".len();
         assert_eq!(primary.start().get() as usize, name);
         assert_eq!(primary.end().get() as usize, name + "Shared".len());
         assert_eq!(diagnostic.source().notes().len(), 1);
@@ -384,7 +385,14 @@ fn unready_array_header_roots_preserve_the_exact_ordinary_length_expression() {
         };
         let owner: DeclarationId = context
             .program()
-            .declaration(context.program().symbols().get(name).unwrap())
+            .declaration(
+                if source.starts_with("struct") {
+                    Namespace::Type
+                } else {
+                    Namespace::Value
+                },
+                context.program().symbols().get(name).unwrap(),
+            )
             .unwrap();
         assert!(!context.program().header_ready(owner));
         let guard = context.header_source(owner, position).unwrap();
@@ -448,7 +456,14 @@ fn nested_header_lengths_have_distinct_code_roots_and_neutral_source_recipes() {
             site.declaration,
             context
                 .program()
-                .declaration(context.program().symbols().get(owner).unwrap())
+                .declaration(
+                    if owner == "Data" {
+                        Namespace::Type
+                    } else {
+                        Namespace::Value
+                    },
+                    context.program().symbols().get(owner).unwrap()
+                )
                 .unwrap()
         );
         assert_eq!(site.position, position);

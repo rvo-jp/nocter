@@ -1,7 +1,7 @@
 //! Required execution consumes selected complete contracts while unrelated headers remain absent.
 use super::*;
 use crate::value_access::tests::{bound, input};
-use nocter_declarations::value_access::PayloadSchema;
+use nocter_declarations::value_access::{Namespace, PayloadSchema};
 use std::{fmt::Write as _, sync::Arc};
 mod array_construction;
 mod callable_dependencies;
@@ -419,7 +419,14 @@ fn raw_type_names_are_resolved_only_when_their_declaration_is_requested() {
         );
         let program = preparation.context.program();
         let invalid = program
-            .declaration(program.symbols().get(name).unwrap())
+            .declaration(
+                if source.starts_with("struct") {
+                    Namespace::Type
+                } else {
+                    Namespace::Value
+                },
+                program.symbols().get(name).unwrap(),
+            )
             .unwrap();
         let answer = program
             .resolve_code(program.symbols().get("ANSWER").unwrap())
@@ -536,7 +543,14 @@ fn anonymous_header_lengths_use_ordinary_usize_checking_and_execution_before_par
         };
         let parent: DeclarationId = early
             .program()
-            .declaration(early.program().symbols().get(parent_name).unwrap())
+            .declaration(
+                if source.starts_with("struct") {
+                    Namespace::Type
+                } else {
+                    Namespace::Value
+                },
+                early.program().symbols().get(parent_name).unwrap(),
+            )
             .unwrap();
         let mut preparation = Preparation::new(
             early,

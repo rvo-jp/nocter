@@ -1,6 +1,8 @@
 //! An annotation constrains data or a static callable witness; it never erases the witness.
 use super::{Failure, Rule, checker::Checker};
-use nocter_declarations::value_access::{FunctionConstraint, FunctionInput, FunctionMismatch};
+use nocter_declarations::value_access::{
+    FunctionConstraint, FunctionInput, FunctionMismatch, Namespace,
+};
 use nocter_model::{AccessExpressionId, TypeId, ValueInvocation};
 use nocter_syntax::{ContextualSpelling, Keyword, NodeId, SyntaxToken};
 
@@ -31,7 +33,7 @@ impl Checker<'_, '_> {
         metadata_only: bool,
     ) -> Result<TypeId, Failure> {
         if !metadata_only {
-            self.require_header(token)?;
+            self.require_header(Namespace::Type, token)?;
         }
         let data = if metadata_only {
             self.program().type_identity_named(self.text(token)?)

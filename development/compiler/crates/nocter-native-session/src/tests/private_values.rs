@@ -38,6 +38,16 @@ fn private_structural_result_values_close_payloads_before_native_execution() {
 }
 
 #[test]
+fn private_type_and_value_names_select_independently_through_native_execution() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/separate-name-spaces.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "separate-name-spaces", 42);
+}
+
+#[test]
 fn private_result_owned_captures_close_nested_environments_and_source_operations() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

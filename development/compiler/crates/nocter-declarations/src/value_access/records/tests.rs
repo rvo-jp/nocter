@@ -277,14 +277,14 @@ fn unknown_reservations_are_rejected_at_definition_and_field_use() {
 }
 
 #[test]
-fn duplicate_record_names_and_callable_collisions_fail_before_any_definition() {
+fn duplicate_records_fail_independently_of_the_value_namespace() {
     let symbols = SymbolTable::from_spellings(["A", "f"]);
     let mut reservations = Reservations::new(symbols.clone());
     let a = reservations.reserve_record(symbols.get("A").unwrap(), 0);
     let duplicate = reservations.reserve_record(symbols.get("A").unwrap(), 0);
     let collision = reservations.reserve_record(symbols.get("f").unwrap(), 0);
     let repeated_collision = reservations.reserve_record(symbols.get("f").unwrap(), 0);
-    let f = reservations.reserve(symbols.get("f").unwrap(), 0);
+    let _function = reservations.reserve(symbols.get("f").unwrap(), 0);
     assert_eq!(
         reservations.finish().unwrap_err(),
         [
@@ -292,11 +292,6 @@ fn duplicate_record_names_and_callable_collisions_fail_before_any_definition() {
                 declaration: DeclarationId::Record(duplicate),
                 position: HeaderPosition::Name,
                 rule: DeclarationRule::DuplicateRecord { first: a }
-            },
-            DeclarationViolation {
-                declaration: DeclarationId::Record(collision),
-                position: HeaderPosition::Name,
-                rule: DeclarationRule::RecordShadowsCallable { declaration: f }
             },
             DeclarationViolation {
                 declaration: DeclarationId::Record(repeated_collision),
@@ -503,7 +498,7 @@ fn ordinary_records_preserve_move_only_error_fields_without_flattening() {
 }
 
 #[test]
-fn callable_parameters_cannot_shadow_authored_record_names() {
+fn callable_parameters_do_not_collide_with_the_type_namespace() {
     let symbols = SymbolTable::from_spellings(["A", "f"]);
     let mut reservations = Reservations::new(symbols.clone());
     let a = reservations.reserve_record(symbols.get("A").unwrap(), 0);
@@ -522,14 +517,9 @@ fn callable_parameters_cannot_shadow_authored_record_names() {
             BuiltinType::Void,
         )
         .unwrap();
-    assert_eq!(
-        builder.finish().unwrap_err(),
-        [DeclarationViolation {
-            declaration: DeclarationId::Code(f),
-            position: HeaderPosition::Parameter(0),
-            rule: DeclarationRule::ParameterShadowsRecord { declaration: a },
-        }]
-    );
+    let program = builder.finish().unwrap();
+    assert_eq!(program.resolve_record(symbols.get("A").unwrap()), Some(a));
+    assert_eq!(program.resolve(symbols.get("f").unwrap()), Some(f));
 }
 
 #[test]

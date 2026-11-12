@@ -121,7 +121,6 @@ impl<'source> Preparation<'source> {
         let record_headers = records
             .into_iter()
             .map(|h| {
-                primitives::validate_record(syntax, authority, h.source.name)?;
                 Ok((
                     reservations.reserve_record(symbol(h.source.name)?, h.fields.len()),
                     h,
@@ -143,6 +142,12 @@ impl<'source> Preparation<'source> {
             projection::project_violations(tree, &sources.codes, &sources.records, violations)
         })?;
         let headers = builder.into_publication();
+        let reserved = headers.snapshot();
+        for header in record_headers.values() {
+            if reserved.resolve_code(symbol(header.source.name)?).is_none() {
+                primitives::validate_record(syntax, authority, header.source.name)?;
+            }
+        }
         let source_recipes = source::Recipes::capture(&projection, &sources)?;
         Ok(Self {
             headers,

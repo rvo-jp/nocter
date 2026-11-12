@@ -4,7 +4,7 @@ use super::{
     checker::Checker,
     ir::{CallKind, ExpressionKind, value_type},
 };
-use nocter_declarations::value_access::{FunctionInput, FunctionWitness, PayloadSchema};
+use nocter_declarations::value_access::{FunctionInput, FunctionWitness, Namespace, PayloadSchema};
 use nocter_model::{
     AccessCodeId, AccessExpressionId, ValueAccessMode as Mode, ValueFunctionOrigin, ValueInvocation,
 };
@@ -20,7 +20,7 @@ impl Checker<'_, '_> {
         let Some(name) = self.name_token(node)? else {
             return Ok(None);
         };
-        self.require_header(name)?;
+        self.require_header(Namespace::Value, name)?;
         let spelling = self.text(name)?;
         Ok(self
             .lookup(spelling)

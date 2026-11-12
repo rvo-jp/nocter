@@ -251,7 +251,7 @@ fn invalid_callable_names_fail_before_requesting_any_definition_or_type() {
             DeclarationViolation {
                 declaration: DeclarationId::Code(duplicate),
                 position: HeaderPosition::Name,
-                rule: DeclarationRule::DuplicateCallable { first },
+                rule: DeclarationRule::DuplicateValue { first },
             },
             DeclarationViolation {
                 declaration: DeclarationId::Code(builtin),
@@ -265,6 +265,27 @@ fn invalid_callable_names_fail_before_requesting_any_definition_or_type() {
             },
         ]
     );
+}
+
+#[test]
+fn equal_type_and_value_spellings_retain_distinct_unready_identities() {
+    let symbols = SymbolTable::from_spellings(["Shared"]);
+    let name = symbols.get("Shared").unwrap();
+    let mut reservations = Reservations::new(symbols);
+    let record = reservations.reserve_record(name, 0);
+    let code = reservations.reserve(name, 0);
+    let builder = reservations.finish().unwrap();
+    assert_eq!(builder.resolve_data(name), Ok(DataReference::Record(record)));
+    let headers = builder.into_publication();
+    let program = headers.snapshot();
+    assert_eq!(program.declaration(Namespace::Type, name), Some(record.into()));
+    assert_eq!(program.declaration(Namespace::Value, name), Some(code.into()));
+    assert!(!program.header_ready(record));
+    assert!(!program.header_ready(code));
+    assert_eq!(program.resolve_record(name), Some(record));
+    assert_eq!(program.resolve_code(name), Some(code));
+    assert_eq!(program.resolve(name), None);
+    assert_eq!(program.type_named("Shared"), None);
 }
 
 #[test]
@@ -299,16 +320,12 @@ fn repeated_parameters_retain_the_first_input_even_when_it_shadows_a_declaration
         rules,
         [
             (
-                HeaderPosition::Parameter(0),
-                DeclarationRule::ParameterShadowsRecord { declaration: item }
-            ),
-            (
                 HeaderPosition::Parameter(1),
                 DeclarationRule::DuplicateParameter { first: 0 }
             ),
             (
                 HeaderPosition::Parameter(2),
-                DeclarationRule::ParameterShadowsCallable { declaration: run }
+                DeclarationRule::ParameterShadowsValue { declaration: run }
             ),
             (
                 HeaderPosition::Parameter(3),

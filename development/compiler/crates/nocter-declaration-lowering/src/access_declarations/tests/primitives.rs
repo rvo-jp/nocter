@@ -117,6 +117,26 @@ fn source_names_wrong_modules_and_mismatching_data_or_operations_cannot_acquire_
         assert!(range.start() < range.end());
     }
 }
+
+#[test]
+fn primitive_roles_select_the_value_namespace_without_reserving_a_type_spelling() {
+    let (toolchain, module) = profile("new_error");
+    let authority = PrimitiveAuthority::for_module(&toolchain, &module).unwrap();
+    let text =
+        "struct new_error { value: i32 }\nprimitive func new_error(code: str, message: str): error";
+    let (sources, tree) = input(text, ParseGoal::V2CoreUnit);
+    let query =
+        Query::prepare_with_primitive_authority(bound(&sources, &tree), &authority).unwrap();
+    let context = query.bind(bound(&sources, &tree)).unwrap();
+    let symbol = context.program().symbols().get("new_error").unwrap();
+    assert!(context.program().resolve_record(symbol).is_some());
+    let code = context.program().resolve_code(symbol).unwrap();
+    assert_eq!(
+        context.primitives().role(code),
+        Some(PrimitiveRole::NewError)
+    );
+    assert!(context.code_source(code).unwrap().body().is_none());
+}
 #[test]
 fn conflicting_catalogs_and_unqualified_roles_fail_before_binding() {
     let (toolchain, module) = profile("new_error");

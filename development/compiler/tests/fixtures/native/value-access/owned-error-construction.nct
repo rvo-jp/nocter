@@ -1,5 +1,6 @@
 primitive func create_failure(code: str, message: str): error
 primitive func context_error(take value: error, message: str): error
+struct create_failure { value: i32 }
 
 struct Pair {
     first: error
@@ -23,6 +24,7 @@ func apply(factory: func(str, str): error): error {
 }
 
 func run(): i32 {
+    let marker = create_failure { value: 42 }
     let direct = make("direct")
     drop direct
 
@@ -64,5 +66,5 @@ func run(): i32 {
         21
     }
     let forwarded = propagate() catch _ { 21 }
-    if answer == 42 { recovered + forwarded } else { 0 }
+    if answer == 42 && marker.value == 42 { recovered + forwarded } else { 0 }
 }

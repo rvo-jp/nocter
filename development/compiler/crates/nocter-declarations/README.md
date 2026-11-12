@@ -104,11 +104,13 @@ new identities during type normalization. Formal callable witness keys therefore
 input identities that were available before any definition. Missing definitions cannot publish
 merely because their slots exist.
 
-`namespace` constructs one tagged callable/record name table at reservation closure. The same table
-serves forward header references, parameter-shadowing checks and published role-specific lookup;
-record schemas do not maintain a second global index. Invalid cross-domain names retain only a
-temporary first-record diagnostic witness, never another lookup authority. Name failures precede
-type normalization, so an invalid namespace cannot request or invent types to diagnose itself.
+`namespace` constructs one table keyed by `Namespace::{Type, Value}` and spelling at reservation
+closure. Records and values may share a spelling; duplicates within one namespace still fail
+before type normalization. Functions, constants and statics occupy the value namespace. The same
+table serves forward header references, value-parameter collision checks and published lookup;
+record schemas maintain no second global index. `declaration` requires the caller's namespace,
+so a missing type cannot fall back to a value or vice versa. Reserved identities grant no schema
+or function-value readiness merely because the other namespace already has a ready declaration.
 
 Callable/input and record/field tables use model-owned sparse arenas. A missing entry has no data, invocation
 contract or Copy evidence; known names can still identify its required header or forbid shadowing.

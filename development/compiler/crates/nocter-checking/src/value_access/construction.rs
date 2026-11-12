@@ -4,7 +4,9 @@ use super::{
     checker::Checker,
     ir::{Boundary, ExpressionKind, FieldValue, value_type},
 };
-use nocter_declarations::value_access::{AggregateForm, PayloadReadiness, PayloadSchema};
+use nocter_declarations::value_access::{
+    AggregateForm, Namespace, PayloadReadiness, PayloadSchema,
+};
 use nocter_model::{AccessExpressionId, ValueAccessMode as Mode};
 use nocter_syntax::{NodeId, NodeKind, direct_identifier};
 use std::collections::BTreeSet;
@@ -89,7 +91,7 @@ impl Checker<'_, '_> {
     ) -> Result<AccessExpressionId, Failure> {
         let owner = self.direct(node, NodeKind::ReferenceExpression)?;
         let name = self.token(owner)?;
-        self.require_header(name)?;
+        self.require_header(Namespace::Type, name)?;
         let Some(data) = self.program().type_named(self.text(name)?) else {
             return self.reject(Rule::UnknownType, name);
         };

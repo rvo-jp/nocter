@@ -91,13 +91,13 @@ fn unready_records_are_requested_by_construction_annotations_and_closure_inputs(
 }
 
 #[test]
-fn reserved_names_still_forbid_local_and_closure_parameter_shadowing() {
+fn reserved_value_and_builtin_names_still_forbid_shadowing() {
     for body in [
         "let Data = 0",
         "let seed = 0\nlet action = (seed; Data: i32): i32 { Data }",
         "let seed = 0\nlet action = (seed; u8: i32): i32 { u8 }",
     ] {
-        let source = format!("struct Data {{}}\nfunc run(): void {{ {body} }}");
+        let source = format!("func Data(): i32 {{ 0 }}\nfunc run(): void {{ {body} }}");
         let (sources, tree) = input(&source);
         assert!(
             matches!(SourceUnit::prepare(bound(&sources, &tree)), Err(SourceFailure::Checking(Failure::Body { failure: BodyFailure::Rejected(diagnostic), .. })) if diagnostic.rule() == Rule::ShadowedName)

@@ -118,8 +118,16 @@ kind, type syntax and input operations; parameter names and source positions rem
 shared source catalog. Every callback leaf retains its owning annotation
 as the diagnostic location for unknown/unsupported data. Forward record references, including tuple components, invalid fields,
 containment cycles and Copy eligibility therefore share the declaration authority instead of a
-lowering-owned type table. Existing built-in-name and no-authored-shadowing rules apply. Duplicate declarations/parameters retain
+lowering-owned type table. Type/value lookup uses the declaration owner's explicit namespaces;
+same-namespace value shadowing and reserved builtin names still reject. Duplicate declarations/parameters retain
 the first conflicting declaration; forward references cannot alter collision selection.
+
+The shared name-space source qualifies a callable and record with the same spelling, a local
+value used beside its same-spelled type annotation/construction, and a record whose array count
+uses a same-spelled constant. Required evaluation and native execution consume those same
+selections. Primitive roles select value declarations; a type with that spelling cannot claim
+the role or prevent validation of its selected value contract. This remains the private
+single-source boundary, not directory/source-role or `see`/`use` integration.
 
 The reusable result owns a single immutable value-access declaration program, its exact neutral
 header surface, and projection locators. It contains no current syntax IDs, source identity,

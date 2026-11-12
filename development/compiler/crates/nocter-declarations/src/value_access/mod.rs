@@ -27,6 +27,7 @@ pub use functions::{
     ValueDefinition,
 };
 mod namespace;
+pub use namespace::Namespace;
 mod publication;
 pub use publication::{HeaderFailure, HeaderPublication, HeaderStep};
 mod records;
@@ -74,13 +75,11 @@ pub enum DeclarationRule {
     InvalidInitializerHeader,
     UnknownSymbol,
     ReservedBuiltinName,
-    DuplicateCallable { first: AccessCodeId },
+    DuplicateValue { first: AccessCodeId },
     DuplicateParameter { first: usize },
-    ParameterShadowsCallable { declaration: AccessCodeId },
-    ParameterShadowsRecord { declaration: NominalTypeId },
+    ParameterShadowsValue { declaration: AccessCodeId },
     UnsupportedDataType { data: BuiltinType },
     DuplicateRecord { first: NominalTypeId },
-    RecordShadowsCallable { declaration: AccessCodeId },
     DuplicateField { first: usize },
     UnknownRecordType { record: NominalTypeId },
     UnknownDataName { name: Symbol },
@@ -229,7 +228,7 @@ pub struct Program {
     type_scope: TypeScope,
     codes: SparseArena<AccessCodeId, Code>,
     parameters: SparseArena<AccessParameterId, Parameter>,
-    namespace: std::sync::Arc<BTreeMap<Symbol, DeclarationId>>,
+    namespace: std::sync::Arc<namespace::Names>,
     records: records::Schemas,
     closures: BTreeMap<nocter_model::ValueClosure, Closure>,
 }
@@ -274,12 +273,12 @@ impl Program {
     }
     /// Closed name identity, independently of whether its typed contract is ready.
     #[must_use]
-    pub fn declaration(&self, name: Symbol) -> Option<DeclarationId> {
-        self.namespace.get(&name).copied()
+    pub fn declaration(&self, namespace: Namespace, name: Symbol) -> Option<DeclarationId> {
+        self.namespace.get(&(namespace, name)).copied()
     }
     #[must_use]
     pub fn resolve_record(&self, name: Symbol) -> Option<NominalTypeId> {
-        match self.namespace.get(&name)? {
+        match self.namespace.get(&(Namespace::Type, name))? {
             DeclarationId::Record(id) => Some(*id),
             DeclarationId::Code(_) => None,
         }
@@ -300,7 +299,7 @@ impl Program {
     /// Lookup any source code declaration for collision checks; not a function-value grant.
     #[must_use]
     pub fn resolve_code(&self, name: Symbol) -> Option<AccessCodeId> {
-        match self.namespace.get(&name)? {
+        match self.namespace.get(&(Namespace::Value, name))? {
             DeclarationId::Code(id) => Some(*id),
             DeclarationId::Record(_) => None,
         }
@@ -333,7 +332,7 @@ impl Program {
             }
             _ => {}
         }
-        let (&name, _) = self
+        let (&(_, name), _) = self
             .namespace
             .iter()
             .find(|(_, owner)| **owner == declaration)?;
@@ -495,7 +494,7 @@ pub struct Builder {
     codes: ArenaBuilder<AccessCodeId, Reservation>,
     parameters: Arena<AccessParameterId, ParameterSlot>,
     records: records::Builder,
-    namespace: Arc<BTreeMap<Symbol, DeclarationId>>,
+    namespace: Arc<namespace::Names>,
 }
 
 impl Builder {
@@ -590,7 +589,7 @@ impl Builder {
 
 fn validate_definition(
     symbols: &SymbolTable,
-    namespace: &BTreeMap<Symbol, DeclarationId>,
+    namespace: &namespace::Names,
     id: AccessCodeId,
     reservation: &Reservation,
     records: &records::Builder,
@@ -637,14 +636,12 @@ fn validate_definition(
                 } else {
                     seen.insert(parameter.name, position);
                     namespace
-                        .get(&parameter.name)
+                        .get(&(Namespace::Value, parameter.name))
                         .map(|&declaration| match declaration {
                             DeclarationId::Code(declaration) => {
-                                DeclarationRule::ParameterShadowsCallable { declaration }
+                                DeclarationRule::ParameterShadowsValue { declaration }
                             }
-                            DeclarationId::Record(declaration) => {
-                                DeclarationRule::ParameterShadowsRecord { declaration }
-                            }
+                            DeclarationId::Record(_) => unreachable!("value namespace"),
                         })
                 }
             }

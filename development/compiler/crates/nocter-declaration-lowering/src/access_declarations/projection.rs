@@ -94,7 +94,7 @@ fn details(
             "initializer headers require a data value and no inputs",
             None,
         ),
-        R::DuplicateCallable { first } => (
+        R::DuplicateValue { first } => (
             DiagnosticCode::E0241,
             "duplicate value declaration name",
             Some(sources.get(&first)?.name()?),
@@ -103,11 +103,6 @@ fn details(
             DiagnosticCode::E0241,
             "duplicate record name",
             Some(records.get(&first)?.name),
-        ),
-        R::RecordShadowsCallable { declaration } => (
-            DiagnosticCode::E0241,
-            "record name conflicts with a value declaration",
-            Some(sources.get(&declaration)?.name()?),
         ),
         R::DuplicateParameter { first } => {
             let DeclarationId::Code(id) = violation.declaration else {
@@ -129,15 +124,10 @@ fn details(
                 Some(records.get(&id)?.fields.get(first)?.name),
             )
         }
-        R::ParameterShadowsCallable { declaration } => (
+        R::ParameterShadowsValue { declaration } => (
             DiagnosticCode::E0341,
             "parameter shadows an authored value declaration",
             Some(sources.get(&declaration)?.name()?),
-        ),
-        R::ParameterShadowsRecord { declaration } => (
-            DiagnosticCode::E0341,
-            "parameter shadows an authored type",
-            Some(records.get(&declaration)?.name),
         ),
         R::ReservedBuiltinName => (
             if violation.position == HeaderPosition::Name {
