@@ -102,14 +102,12 @@ impl Checker<'_, '_> {
                 if projection == Some(Mode::Update) {
                     self.require_writable_referent(place, node, Rule::InvalidUpdate)?;
                 }
-                return self.scoped_optional(
-                    node,
-                    source,
-                    place,
-                    access.data(),
-                    payload,
-                    propagate,
-                );
+                let fallback = if propagate {
+                    Some(self.absence_return(node)?)
+                } else {
+                    None
+                };
+                return self.scoped_optional(node, source, place, access.data(), payload, fallback);
             }
             // Reuse the already checked produced value rather than preparing it twice.
             return if propagate {
@@ -199,10 +197,20 @@ impl Checker<'_, '_> {
         node: NodeId,
         source: AccessExpressionId,
     ) -> Result<AccessExpressionId, Failure> {
-        use super::ir::{Local, LocalOrigin, Statement};
-        use nocter_model::{BuiltinType, ValueBindingKind};
         let else_block = self.absence_return(node)?;
         let (source, data, payload) = self.supply_optional(node, source)?;
+        self.optional_value_scope(node, source, data, payload, else_block)
+    }
+    fn optional_value_scope(
+        &mut self,
+        node: NodeId,
+        source: AccessExpressionId,
+        data: TypeId,
+        payload: TypeId,
+        else_block: nocter_model::AccessBlockId,
+    ) -> Result<AccessExpressionId, Failure> {
+        use super::ir::{Local, LocalOrigin, Statement};
+        use nocter_model::{BuiltinType, ValueBindingKind};
         let local = self.locals.insert(Local {
             data,
             kind: ValueBindingKind::FixedValue,
@@ -228,8 +236,22 @@ impl Checker<'_, '_> {
         )?;
         let carrier = self.transfer_place(node, place)?;
         let present = self.select_optional_payload(node, carrier, payload)?;
+        let selected = self.optional_branch(node, condition, present, else_block)?;
+        let ty = self
+            .ty(selected)
+            .with_continuation(self.ty(source).may_complete());
+        let block = self.emit_block(node, vec![binding], Some(selected), ty)?;
+        self.emit(node, ty, ExpressionKind::Block { block })
+    }
+    fn optional_branch(
+        &mut self,
+        node: NodeId,
+        condition: AccessExpressionId,
+        present: AccessExpressionId,
+        else_block: nocter_model::AccessBlockId,
+    ) -> Result<AccessExpressionId, Failure> {
         let then_block = self.emit_block(node, Vec::new(), Some(present), self.ty(present))?;
-        let selected = self.emit(
+        self.emit(
             node,
             self.ty(present),
             ExpressionKind::If {
@@ -237,12 +259,7 @@ impl Checker<'_, '_> {
                 then_block,
                 else_block,
             },
-        )?;
-        let ty = self
-            .ty(selected)
-            .with_continuation(self.ty(source).may_complete());
-        let block = self.emit_block(node, vec![binding], Some(selected), ty)?;
-        self.emit(node, ty, ExpressionKind::Block { block })
+        )
     }
     fn absence_return(&mut self, node: NodeId) -> Result<nocter_model::AccessBlockId, Failure> {
         use super::ir::{Statement, ValueType};
@@ -274,30 +291,23 @@ impl Checker<'_, '_> {
         place: super::Referent,
         data: TypeId,
         payload: TypeId,
-        propagate: bool,
+        fallback: Option<nocter_model::AccessBlockId>,
     ) -> Result<AccessExpressionId, Failure> {
         let guard = self.emit(
             node,
             value_type(data, Mode::Read),
             ExpressionKind::GuardView { source: place },
         )?;
-        let projected = if propagate {
+        let projected = if let Some(else_block) = fallback {
+            if self.block_ty(else_block).may_complete() {
+                return Err(Failure::InconsistentSyntax);
+            }
             let condition = self.emit(
                 node,
                 value_type(self.data(nocter_model::BuiltinType::Bool), Mode::Own),
                 ExpressionKind::PrimaryCondition { source: place },
             )?;
-            let then_block = self.emit_block(node, Vec::new(), Some(guard), self.ty(guard))?;
-            let else_block = self.absence_return(node)?;
-            self.emit(
-                node,
-                self.ty(guard),
-                ExpressionKind::If {
-                    condition,
-                    then_block,
-                    else_block,
-                },
-            )?
+            self.optional_branch(node, condition, guard, else_block)?
         } else {
             guard
         };
@@ -315,5 +325,53 @@ impl Checker<'_, '_> {
                 action: SelectionAction::Access,
             },
         )
+    }
+    pub(super) fn recover_optional(
+        &mut self,
+        node: NodeId,
+        projection: Option<Mode>,
+        reachable: bool,
+    ) -> Result<AccessExpressionId, Failure> {
+        use nocter_syntax::NodeKind;
+        let child = self.first_child(node)?;
+        let source = self.expression_with_projection(child, None, None, projection, reachable)?;
+        let Some(access) = self.ty(source).access() else {
+            return self.reject(Rule::TypeMismatch, node);
+        };
+        let Some(PayloadSchema::Optional(payload)) = self.program().data_schema(access.data())
+        else {
+            return self.reject(Rule::TypeMismatch, node);
+        };
+        let clause = self.direct(node, NodeKind::RecoveryClause)?;
+        let block = self.direct(clause, NodeKind::Block)?;
+        let fallback_reachable = reachable && self.ty(source).may_complete();
+        if matches!(projection, Some(Mode::Read | Mode::Update))
+            && let Some(place) = self.expression_referent(source)
+        {
+            if projection == Some(Mode::Update) {
+                self.require_writable_referent(place, node, Rule::InvalidUpdate)?;
+            }
+            let fallback = self.block(block, None, fallback_reachable)?;
+            if self.block_ty(fallback).may_complete() {
+                return self.reject_message(
+                    Rule::TypeMismatch,
+                    block,
+                    "scoped optional recovery with a producing fallback is not available yet"
+                        .into(),
+                    Vec::new(),
+                );
+            }
+            return self.scoped_optional(
+                node,
+                source,
+                place,
+                access.data(),
+                payload,
+                Some(fallback),
+            );
+        }
+        let (source, data, payload) = self.supply_optional(node, source)?;
+        let fallback = self.block(block, Some(Boundary::Value(payload)), fallback_reachable)?;
+        self.optional_value_scope(node, source, data, payload, fallback)
     }
 }

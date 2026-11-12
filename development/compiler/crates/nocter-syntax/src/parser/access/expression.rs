@@ -19,7 +19,24 @@ fn parse_expression(
     allow_braces: bool,
 ) -> Expression {
     let marker = parser.start();
-    binary(parser, boundary, 0, allow_braces);
+    let mut left = binary(parser, boundary, 0, allow_braces);
+    loop {
+        newline::before(parser, boundary, |kind| {
+            kind == TokenKind::Keyword(Keyword::Otherwise)
+        });
+        if !parser.at_keyword(Keyword::Otherwise) {
+            break;
+        }
+        let parent = parser.precede(left.completed);
+        let clause = parser.start();
+        parser.bump();
+        newline::after_incomplete(parser, boundary);
+        super::required_block(parser);
+        parser.complete(clause, NodeKind::RecoveryClause);
+        left = Expression {
+            completed: parser.complete(parent, NodeKind::RecoveryExpression),
+        };
+    }
     Expression {
         completed: parser.complete(marker, NodeKind::Expression),
     }

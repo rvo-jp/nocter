@@ -289,7 +289,10 @@ impl Checker<'_, '_> {
             root = self.unwrap(self.first_child(root)?)?;
         }
         if self.first_array_index(node)?.is_some()
-            || self.kind(root)? == NodeKind::OutcomeExpression
+            || matches!(
+                self.kind(root)?,
+                NodeKind::OutcomeExpression | NodeKind::RecoveryExpression
+            )
         {
             let value = self.expression_with_projection(node, None, None, Some(mode), reachable)?;
             if self.expression_referent(value).is_none() {

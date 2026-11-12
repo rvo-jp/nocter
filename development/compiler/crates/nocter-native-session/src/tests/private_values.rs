@@ -688,3 +688,33 @@ fn private_optional_place_propagation_keeps_sources_tags_and_cancellation() {
         42,
     );
 }
+
+#[test]
+fn private_optional_recovery_is_lazy_and_keeps_value_and_place_lifecycles() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/optional-recovery.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "optional-recovery", 42);
+}
+#[test]
+fn private_optional_recovery_does_not_swallow_bounds_or_erase_an_inner_absence() {
+    let package = TempPackage::new();
+    for (name, source) in [
+        (
+            "recovery-inner-none",
+            "func some(value: i32?): i32?? { value }\nfunc run(): i32 { let value: i32? = some(none) otherwise { 42 }\nvalue! }",
+        ),
+        (
+            "recovery-bounds",
+            "func run(): i32 { let values: [i32?; 0] = []\nvalues[0] otherwise { 42 } }",
+        ),
+        (
+            "recovery-scoped-bounds",
+            "func run(): i32 { let values: [error?; 0] = []\nread value = values[0] otherwise { return 42 }\n0 }",
+        ),
+    ] {
+        execute_native_signal(&compile(source), &package.0, name, 5);
+    }
+}

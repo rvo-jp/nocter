@@ -271,3 +271,48 @@ fn scoped_optional_propagation_keeps_tag_stability_and_readonly_authority() {
         );
     }
 }
+
+#[test]
+fn optional_recovery_is_lazy_preserves_layers_and_reuses_scope_exit_protocols() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/optional-recovery.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
+    let source = format!("{source}\nconst INNER: i32? = some(none) otherwise {{ 42 }}");
+    assert_eq!(answer(&source, "INNER"), Datum::variant(false, None));
+}
+#[test]
+fn optional_recovery_cannot_invent_ownership_change_payload_data_or_restore_a_retired_source() {
+    for source in [
+        "func run(): i32 { 42 otherwise { 0 } }",
+        "func run(value: i32?): i32 { value otherwise { true } }",
+        "struct Item { value: i32 }\nfunc run(value: Item?): Item { value otherwise { Item { value: 42 } } }",
+        "func run(): i32 { let value: i32? = none\nloop { let made = value^ otherwise { break }\nreturn made }\nvalue! }",
+    ] {
+        let fixture = nocter_test_support::ValueSourceFixture::new(source);
+        assert!(
+            matches!(
+                SourceUnit::prepare(fixture.syntax()),
+                Err(SourceFailure::Checking(
+                    Failure::Body {
+                        failure: BodyFailure::Rejected(_),
+                        ..
+                    } | Failure::Flow { .. }
+                ))
+            ),
+            "{source}"
+        );
+    }
+}
+#[test]
+fn producing_scoped_recovery_is_an_explicit_unqualified_place_obligation() {
+    let source = "func run(value: i32?, fallback: i32): i32 { read payload = value otherwise { fallback }\npayload }";
+    let fixture = nocter_test_support::ValueSourceFixture::new(source);
+    assert!(
+        matches!(SourceUnit::prepare(fixture.syntax()),
+        Err(SourceFailure::Checking(Failure::Body { failure: BodyFailure::Rejected(diagnostic), .. }))
+            if diagnostic.source().message().contains("producing fallback")),
+        "{source}"
+    );
+}

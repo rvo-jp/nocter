@@ -616,7 +616,13 @@ world retains tag evidence with dependent places, including read reservations wh
 intermediates can be released. A tag pin grants no update authority and prevents carrier replacement
 or retirement while allowing otherwise authorized disjoint payload accesses. It is compilation
 state, with no runtime owner or lock table. Named aliases cannot keep a produced temporary alive.
-Recovery remains open. The scoped path does not silently update or observe an owned snapshot.
+`otherwise` uses the same carrier acquisition and ordinary conditional. Value recovery supplies
+the carrier once, selects its present payload or evaluates the fallback only on absence, and
+protects the answer before lexical cleanup. Nested payload data is preserved exactly. Scoped
+recovery currently admits a terminating fallback, including return, break and continue, and
+forwards the original carrier on its normal path. A producing scoped fallback still needs
+alternative surviving-place evidence and is explicitly rejected rather than copied into an
+owned snapshot. Fallible recovery remains outside this qualified path.
 
 Implicit optional input wrappers retain the original direct-transfer reservation. Complete bundle
 validation precedes wrapper materialization and original-source retirement; later reads and

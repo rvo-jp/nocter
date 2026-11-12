@@ -39,7 +39,8 @@ package or discovery code. It does not resolve names or apply semantic rules.
   expression root under `FixedArrayType`; this recognizes source without normalizing a length or
   granting an array schema. Dynamic slice types remain outside this goal.
   Repeated optional type suffixes, contextual `none` and one postfix `?` or `!` use this same
-  private goal. Recognition adds no fallible or recovery production.
+  private goal. Lowest-precedence `otherwise` clauses retain ordinary blocks and chain in source
+  order. Recognition adds no fallible or `catch` production.
   Array lists, repetitions and joint bracket indexing retain distinct nodes in the same goal.
   `array_repetition_parts` supplies the seed/count source roles to lowering and checking without
   interpreting either expression. Delimiter-owned newlines and nesting limits apply equally to

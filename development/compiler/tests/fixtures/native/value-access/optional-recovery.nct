@@ -1,0 +1,77 @@
+struct Item { value: i32 }
+const func maybe(flag: bool): i32? { if flag { 42 } else { none } }
+const func item(flag: bool): Item? { if flag { Item { value: 1 } } else { none } }
+const func fallback(edit count: i32): i32 { count += 1
+    42 }
+const func recovered(flag: bool, edit count: i32): i32 {
+    maybe(flag) otherwise { fallback(count) }
+}
+const func owned(flag: bool): i32 { let value = item(flag)
+    let result = value^ otherwise { Item { value: 42 } }
+    result.value }
+const func some(value: i32?): i32?? { value }
+const func layer(value: i32??, edit count: i32): i32? {
+    value otherwise { count += 1
+        42 }
+}
+const func chained(value: i32??): i32 {
+    value otherwise { none } otherwise { 42 }
+}
+const func unit_recovery(value: void?): void { value otherwise {} }
+const func read_or_return(value: Item?): i32 {
+    read payload = value otherwise { return 42 }
+    payload.value
+}
+const func edit_or_return(edit value: Item?): i32 {
+    edit payload = value otherwise { return 42 }
+    payload.value = 42
+    payload.value
+}
+const func break_recovery(): i32 {
+    let value: Item? = none
+    loop { read payload = value otherwise { break }
+        return payload.value }
+    let result = value^ otherwise { Item { value: 42 } }
+    result.value
+}
+const func continue_recovery(): i32 {
+    var value: Item? = none
+    loop { read payload = value otherwise {
+            value = Item { value: 42 }
+            continue }
+        return payload.value }
+}
+const func owned_continue_recovery(): i32 {
+    var value: Item? = none
+    loop { let payload = value^ otherwise {
+            value = Item { value: 42 }
+            continue }
+        return payload.value }
+}
+const func receive(take value: Item?, observed: i32): void {}
+const func cancellation(): i32 {
+    let candidate = Item { value: 42 }
+    let missing: i32? = none
+    loop { receive(candidate^, missing otherwise { break })
+        return 0 }
+    candidate.value
+}
+const GLOBAL_RECOVERED: i32 = maybe(false) otherwise { 42 }
+const func calculate(): i32 {
+    var count = 0
+    let present = recovered(true, count)
+    let first_count = count
+    let absent = recovered(false, count)
+    let inner_none = layer(some(none), count)
+    let unchanged = count
+    let outer_none = layer(none, count)
+    let deep: i32?? = 42
+    unit_recovery(())
+    unit_recovery(none)
+    var edited = item(true)
+    let updated = edit_or_return(edited)
+    let moved = edited^!
+    if present == 42 && first_count == 0 && absent == 42 && unchanged == 1 && count == 2 && outer_none! == 42 && chained(deep) == 42 && chained(some(none)) == 42 && owned(false) == 42 && owned(true) == 1 && read_or_return(item(false)) == 42 && read_or_return(item(true)) == 1 && updated == 42 && moved.value == 42 && break_recovery() == 42 && continue_recovery() == 42 && owned_continue_recovery() == 42 && cancellation() == 42 && GLOBAL_RECOVERED == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { if ANSWER == 42 { calculate() } else { 0 } }

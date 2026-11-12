@@ -18,13 +18,13 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Integrate optional recovery (`otherwise`) with the qualified value and scoped elimination paths.
-Use one carrier acquisition/receipt and the existing tag condition, branch, answer protection and
-scope/return/cancellation protocols. Run fallback only on absence and preserve nested payload data
-without flattening. Value recovery must supply owned results normally; scoped recovery must retain
-an existing surviving place without an owning Copy or an escaping fallback-local owner. Keep
-unqualified alternative-root, dependency and fallible/error behavior explicit, and qualify required
-and native source before claiming support.
+Extend scoped optional recovery (`otherwise`) from terminating fallback paths to normal results
+that designate an alternative surviving place. Preserve branch-specific source authority, tag
+stability, actual alias provenance, initialization and resource cleanup; an arbitrary conditional
+value does not become a place. Keep direct-call reservations neutral during preparation and named
+aliases unable to retain an invisible fallback-local owner. Reuse the existing control/access
+protocols rather than inventing a second ownership registry. Qualify required and native source,
+including negative lifetime/authority cases, before claiming support.
 
 ## Retained Selection Closure
 
