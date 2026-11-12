@@ -51,6 +51,7 @@ fn project(
         R::UnknownDataName { .. }
             | R::UnsupportedDataType { .. }
             | R::NonCopyField
+            | R::RepeatedFailure
             | R::RecursivePayload { .. }
     );
     let primary = super::source::header_origin(
@@ -157,6 +158,11 @@ fn details(
             DiagnosticCode::E0291,
             "field leads to a non-finite by-value record payload",
             Some(records.get(&through)?.name),
+        ),
+        R::RepeatedFailure => (
+            DiagnosticCode::E0291,
+            "one uninterrupted outcome chain cannot contain multiple failure layers",
+            None,
         ),
         R::NonCopyField => (
             DiagnosticCode::E0291,

@@ -411,6 +411,11 @@ pub fn payload(program: &Program, data: TypeId) -> Result<Payload> {
                 pending.push(payload);
                 Disposal::Aggregate
             }
+            PayloadSchema::Fallible(payload) => {
+                pending.push(payload);
+                pending.push(program.data_type(BuiltinType::Error).ok_or(INVALID)?);
+                Disposal::Aggregate
+            }
             PayloadSchema::Aggregate(schema) => {
                 pending.extend(schema.components().map(|component| component.data));
                 Disposal::Aggregate

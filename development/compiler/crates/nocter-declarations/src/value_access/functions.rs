@@ -67,6 +67,11 @@ impl From<nocter_model::BuiltinType> for ValueDefinition {
     }
 }
 impl ValueDefinition {
+    pub(super) fn has_repeated_failure(&self) -> bool {
+        let mut repeated = false;
+        self.visit_references(|data| repeated |= data.has_repeated_failure());
+        repeated
+    }
     pub(super) fn visit_data(&self, mut visit: impl FnMut(&DataReference)) {
         self.visit_references(|data| data.visit_leaves(&mut visit));
     }

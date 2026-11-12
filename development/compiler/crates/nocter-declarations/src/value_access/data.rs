@@ -10,6 +10,7 @@ pub enum PayloadSchema<'a> {
     Aggregate(super::AggregateSchema<'a>),
     Array(ArraySchema),
     Optional(TypeId),
+    Fallible(TypeId),
     Function(super::FunctionWitness),
 }
 
@@ -25,6 +26,7 @@ pub struct Component {
 pub enum DataReference {
     Builtin(BuiltinType),
     Record(NominalTypeId),
+    Fallible(Box<DataReference>),
     Optional {
         payload: Box<DataReference>,
         layers: std::num::NonZeroUsize,
@@ -76,6 +78,26 @@ impl TupleData {
     }
 }
 impl DataReference {
+    pub(super) fn has_repeated_failure(&self) -> bool {
+        let mut pending = vec![(self, false)];
+        while let Some((data, failure)) = pending.pop() {
+            match data {
+                Self::Fallible(payload) => {
+                    if failure {
+                        return true;
+                    }
+                    pending.push((payload, true));
+                }
+                Self::Optional { payload, .. } => pending.push((payload, failure)),
+                Self::Tuple(fields) => {
+                    pending.extend(fields.as_slice().iter().map(|data| (data, false)));
+                }
+                Self::Array { element, .. } => pending.push((element, false)),
+                _ => {}
+            }
+        }
+        false
+    }
     pub(super) fn visit_leaves(&self, visit: impl FnMut(&Self)) {
         self.visit(false, visit);
     }
@@ -88,6 +110,10 @@ impl DataReference {
             match data {
                 Self::Tuple(fields) => pending.extend(fields.as_slice().iter().rev()),
                 Self::Optional { payload, .. } => pending.push(payload),
+                Self::Fallible(payload) => {
+                    visit(&Self::Builtin(BuiltinType::Error));
+                    pending.push(payload);
+                }
                 Self::Array { element, length } => {
                     if !payload_only || *length != 0 {
                         pending.push(element);
@@ -152,7 +178,8 @@ impl Program {
                 .identity(&super::records::nominal_key(id)),
             DataReference::Tuple(_)
             | DataReference::Array { .. }
-            | DataReference::Optional { .. } => None,
+            | DataReference::Optional { .. }
+            | DataReference::Fallible(_) => None,
         }
     }
     /// Structural Copy evidence for the payload, never permission to duplicate an access.
@@ -172,6 +199,10 @@ impl Program {
                     continue;
                 }
                 PayloadSchema::Optional(payload) => vec![payload],
+                PayloadSchema::Fallible(_) => {
+                    copyable.insert(current, false);
+                    continue;
+                }
                 PayloadSchema::Array(array) => {
                     if array.is_empty() {
                         copyable.insert(current, true);
@@ -244,10 +275,22 @@ impl Program {
                 length: length.closed_value()?,
             })),
             TypeKind::Optional(payload) => Some(PayloadSchema::Optional(*payload)),
+            TypeKind::Fallible(payload) if self.has_failure_layer(*payload) == Some(false) => {
+                Some(PayloadSchema::Fallible(*payload))
+            }
             TypeKind::Tuple(fields) => Some(PayloadSchema::Aggregate(
                 super::AggregateSchema::tuple(fields.as_slice()),
             )),
             _ => None,
+        }
+    }
+    pub(super) fn has_failure_layer(&self, mut data: TypeId) -> Option<bool> {
+        loop {
+            match self.types.store().get(data)? {
+                TypeKind::Optional(payload) => data = *payload,
+                TypeKind::Fallible(_) => return Some(true),
+                _ => return Some(false),
+            }
         }
     }
     /// Validate one concrete logical component against its containing data shape.
@@ -276,7 +319,13 @@ impl Program {
             (PayloadSchema::Aggregate(schema), ValueProjection::Tuple(position)) => schema
                 .component(nocter_model::ValueField::Tuple(*position))
                 .map(|c| c.data),
-            (PayloadSchema::Optional(payload), ValueProjection::Variant(true)) => Some(payload),
+            (
+                PayloadSchema::Optional(payload) | PayloadSchema::Fallible(payload),
+                ValueProjection::Variant(true),
+            ) => Some(payload),
+            (PayloadSchema::Fallible(_), ValueProjection::Variant(false)) => {
+                self.data_type(BuiltinType::Error)
+            }
             (PayloadSchema::Array(array), ValueProjection::Array(index)) => {
                 (!array.is_empty() && in_bounds(index, array.length())).then_some(array.element())
             }
@@ -360,6 +409,18 @@ pub(super) fn resolved_data(
             DataReference::Record(id) => types
                 .intern(super::records::nominal_key(*id))
                 .expect("validated nominal identity"),
+            DataReference::Fallible(payload) => {
+                if !expanded {
+                    pending.push((data, true));
+                    pending.push((payload, false));
+                    continue;
+                }
+                types
+                    .intern(TypeKind::Fallible(
+                        resolved.pop().expect("resolved fallible payload"),
+                    ))
+                    .expect("validated fallible reference")
+            }
             DataReference::Optional { payload, layers } => {
                 if !expanded {
                     pending.push((data, true));

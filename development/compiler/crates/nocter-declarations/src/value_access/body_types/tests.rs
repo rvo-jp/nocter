@@ -26,6 +26,8 @@ fn result_substitution_replays_nested_shapes_without_publishing_provisional_payl
     let array = body.array(tuple, u64::MAX).unwrap();
     let closed_tuple = body.tuple(&[named, named]).unwrap();
     let closed_array = body.array(closed_tuple, u64::MAX).unwrap();
+    let fallible = body.fallible(array).unwrap();
+    let closed_fallible = body.fallible(closed_array).unwrap();
     assert_eq!(
         body.program().payload_readiness(array),
         PayloadReadiness::Pending
@@ -37,6 +39,8 @@ fn result_substitution_replays_nested_shapes_without_publishing_provisional_payl
         .unwrap();
     let array = canonical.project(root, array).unwrap();
     let closed_array = canonical.project(root, closed_array).unwrap();
+    let fallible = canonical.project(root, fallible).unwrap();
+    let closed_fallible = canonical.project(root, closed_fallible).unwrap();
     let canonical = canonical.finish();
     let substitution = BTreeMap::from([(source, target)]);
     assert!(header.resolve_body_types(&substitution).is_err());
@@ -47,6 +51,11 @@ fn result_substitution_replays_nested_shapes_without_publishing_provisional_payl
     );
     let resolved = canonical.resolve_body_types(&substitution).unwrap();
     assert_eq!(resolved.project(array), Some(closed_array));
+    assert_eq!(resolved.project(fallible), Some(closed_fallible));
+    assert_eq!(
+        resolved.program().data_copyable(closed_fallible),
+        Some(false)
+    );
     assert!(resolved.program().preserves_headers(&header));
     assert_eq!(
         resolved.program().payload_readiness(array),
@@ -528,4 +537,35 @@ fn callable_capture_descriptors_keep_pending_payloads_unproved_and_publication_a
     assert_eq!(body.program().closure(id).unwrap().environment(), pending);
     let other = body.reserve_closure().unwrap();
     body.closure(other, named, contract).unwrap();
+}
+
+#[test]
+fn fallible_body_types_preserve_branch_data_copy_and_canonical_replay() {
+    let (header, [run, ..]) = application_headers();
+    let scalar = header.data_type(BuiltinType::I32).unwrap();
+    let mut body = header.body_types(run).unwrap();
+    let result = body.fallible(scalar).unwrap();
+    let optional = body.optional(result).unwrap();
+    assert_eq!(body.program().data_copyable(optional), Some(false));
+    assert!(body.fallible(optional).is_err());
+    let empty = body.array(result, 0).unwrap();
+    assert_eq!(body.program().data_copyable(empty), Some(true));
+    let outer = body.fallible(empty).unwrap();
+    let body = body.finish();
+    let canonical = header
+        .canonical_body_types(BTreeMap::from([(run.into(), &body)]))
+        .unwrap();
+    let outer = canonical.project(run, outer).unwrap();
+    let canonical = canonical.finish();
+    assert!(matches!(
+        canonical.data_schema(outer),
+        Some(PayloadSchema::Fallible(_))
+    ));
+    assert_eq!(
+        canonical
+            .component(outer, nocter_model::ValueField::Variant(false))
+            .unwrap()
+            .data,
+        canonical.data_type(BuiltinType::Error).unwrap()
+    );
 }

@@ -522,6 +522,13 @@ The source remainder stays in its original evaluation frame; lending the selecte
 that result's owner through a read/edit call. Neither operation changes the source's frame or adds
 an independent temporary-survival registry.
 
+Fallible schemas participate in the logical ledger with one selected payload, including when
+success data is itself `error`. A guarded partial acquisition records the active variant in its
+missing descendant path. Remainder cleanup follows that variant and never invents an opposite
+payload. Opposite variant paths continue to overlap physically; no global disjointness rule is
+used to repair cleanup. These logical obligations are separate from constructing or executing
+an owned error graph, which the evaluator does not yet admit.
+
 `resources::function_view` consumes a materialized named witness and installs the selected view
 atomically after validating the declaration-owned adapter policy. It keeps the code identity and
 uses the existing resource/frame ledger, with no function-specific owner registry.

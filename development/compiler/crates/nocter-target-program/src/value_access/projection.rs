@@ -174,6 +174,15 @@ pub(super) fn data(
                 pending.insert(payload);
                 source
             }
+            PayloadSchema::Fallible(payload) => {
+                pending.insert(payload);
+                pending.insert(
+                    program
+                        .data_type(nocter_model::BuiltinType::Error)
+                        .ok_or(Failure::InvalidAcceptedUnit)?,
+                );
+                source
+            }
             PayloadSchema::Array(array) => {
                 if !array.is_empty() {
                     pending.insert(array.element());

@@ -196,6 +196,9 @@ impl Builder {
                 } else {
                     seen.insert(field.name, index);
                 }
+                if field.data.has_repeated_failure() {
+                    report(position, DeclarationRule::RepeatedFailure);
+                }
                 field.data.visit_leaves(|data| {
                     if let Some(rule) = data_rule(data, self) {
                         report(position, rule);

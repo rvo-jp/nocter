@@ -86,6 +86,11 @@ impl Types {
                     self.insert(data, ty.unwrap_or(Type::Unavailable), supported);
                     continue;
                 }
+                PayloadSchema::Fallible(_) => {
+                    // Error graph data and evaluator operations require their own admission.
+                    self.insert(data, Type::Unavailable, false);
+                    continue;
+                }
                 PayloadSchema::Function(witness) => match witness.origin {
                     nocter_model::ValueFunctionOrigin::Closure(code) => {
                         vec![program.closure(code).ok_or(INVALID)?.environment()]
@@ -156,7 +161,7 @@ impl Types {
                         environment: *children.first().ok_or(INVALID)?,
                     }
                 }
-                PayloadSchema::Builtin(_) => return Err(INVALID),
+                PayloadSchema::Builtin(_) | PayloadSchema::Fallible(_) => return Err(INVALID),
             };
             let id = self.insert(data, ty, supported);
             self.shapes[id].serializable = serializable;

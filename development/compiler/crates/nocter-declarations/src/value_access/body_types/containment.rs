@@ -66,7 +66,7 @@ impl DependencyProgress<TypeId, (), BodyTypeError> for Environments<'_> {
                     .collect()
             }
             PayloadSchema::Array(array) if !array.is_empty() => vec![array.element()],
-            PayloadSchema::Optional(payload) => vec![payload],
+            PayloadSchema::Optional(payload) | PayloadSchema::Fallible(payload) => vec![payload],
             // Ready nominal schemas cannot contain body-owned code families in this domain.
             // Their finite-containment proof stays with header publication. Named functions own
             // only unit, not their inputs/results. Unknown result/formal payloads gain no proof:

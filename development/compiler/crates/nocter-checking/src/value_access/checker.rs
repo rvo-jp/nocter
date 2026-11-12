@@ -359,7 +359,18 @@ impl<'a, 's> Checker<'a, 's> {
         };
         match schema {
             PayloadSchema::Optional(payload) => {
-                format!("{}?", self.data_label_with_budget(payload, remaining))
+                let label = self.data_label_with_budget(payload, remaining);
+                if matches!(
+                    self.program().data_schema(payload),
+                    Some(PayloadSchema::Fallible(_))
+                ) {
+                    format!("({label})?")
+                } else {
+                    format!("{label}?")
+                }
+            }
+            PayloadSchema::Fallible(payload) => {
+                format!("{}!", self.data_label_with_budget(payload, remaining))
             }
             PayloadSchema::Array(array) => format!(
                 "[{}; {}]",

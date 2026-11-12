@@ -127,11 +127,18 @@ enumeration belongs to this same authority, independently of source projection a
 
 `value_access::data` owns closed data-name resolution, TypeId projection and Copy queries over
 one privately owned type authority. Callable metadata headers admit `bool`, the intrinsic integer catalog, `void`, opaque move-only
-`error`, closed nominal records, structural tuples, optional layers and closed array descriptors, plus flat callable
+`error`, closed nominal records, structural tuples, optional/fallible layers and closed array descriptors, plus flat callable
 input/result contracts.
 Construction-time
 `ValueDefinition` slots share data or callable normalization. `DataReference` composes named
-leaves into minimum-two-component tuple trees, compact runs of optional layers and closed fixed arrays.
+leaves into minimum-two-component tuple trees, compact runs of optional layers, fallible carriers
+and closed fixed arrays. A fallible schema maps its primary component to the declared payload and
+its secondary component to built-in `error`; it never derives a branch from the payload's type.
+Fallible data is non-Copy even when its success data is Copy. Header validation rejects repeated
+failure on an uninterrupted outcome chain, including beneath optional layers or zero-array
+metadata. A tuple/array component begins its own chain. Body construction, witness substitution
+and canonical replay retain these constructors in the same type authority. This metadata admission
+does not admit fallible source bodies, evaluator error graphs or executed failure cleanup.
 Optional layers reuse the model type authority and retain positive payload containment/Copy
 requirements even when an actual value is absent. Array lengths are already
 normalized u64 target-usize values, not source expressions or symbolic guesses. One iterative

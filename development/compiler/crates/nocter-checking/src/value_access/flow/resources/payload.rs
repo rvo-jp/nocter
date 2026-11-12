@@ -131,10 +131,42 @@ impl OwnedValue {
                         payload(program, data)?,
                     ));
                 }
+                PayloadSchema::Fallible(data) => {
+                    let primary = self.active_variant(place.fields())?;
+                    let data = if primary {
+                        data
+                    } else {
+                        program
+                            .data_type(nocter_model::BuiltinType::Error)
+                            .ok_or(INVALID)?
+                    };
+                    pending.push(Pending::Value(
+                        place.project(ValueField::Variant(primary)),
+                        payload(program, data)?,
+                    ));
+                }
                 PayloadSchema::Builtin(_) | PayloadSchema::Function(_) => return Err(INVALID),
             }
         }
         Ok(cleanup)
+    }
+    /// A missing descendant records an actual guarded acquisition from this stored carrier.
+    /// Opposite variants overlap physically, but cannot both own a payload on that path.
+    fn active_variant(&self, parent: &Path) -> Result<bool> {
+        let depth = parent.fields().len();
+        let mut active = None;
+        for hole in self.missing.iter().filter(|hole| hole.under(parent)) {
+            let Some(nocter_model::ValueProjection::Variant(primary)) =
+                hole.anchor().fields().get(depth)
+            else {
+                return Err(INVALID);
+            };
+            if active.is_some_and(|active| active != *primary) {
+                return Err(INVALID);
+            }
+            active = Some(*primary);
+        }
+        active.ok_or(INVALID)
     }
     fn array_frontier(
         &self,

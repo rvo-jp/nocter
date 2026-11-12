@@ -88,7 +88,8 @@ impl Publication {
                             .copyable(),
                         DataReference::Tuple(_)
                         | DataReference::Array { .. }
-                        | DataReference::Optional { .. } => {
+                        | DataReference::Optional { .. }
+                        | DataReference::Fallible(_) => {
                             unreachable!("only leaves are visited")
                         }
                     };

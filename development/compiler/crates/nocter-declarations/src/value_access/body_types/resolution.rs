@@ -79,6 +79,9 @@ impl Program {
                 TypeKind::Optional(payload) => types
                     .intern(TypeKind::Optional(project(*payload)?))
                     .map_err(|_| BodyTypeError::InvalidExtension)?,
+                TypeKind::Fallible(payload) => types
+                    .intern(TypeKind::Fallible(project(*payload)?))
+                    .map_err(|_| BodyTypeError::InvalidExtension)?,
                 TypeKind::Tuple(fields) => {
                     let fields = fields.iter().map(project).collect::<Result<Vec<_>, _>>()?;
                     types

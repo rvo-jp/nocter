@@ -159,8 +159,9 @@ product grants no released ExecutableProgram conversion, payload layout, ABI or 
 ## Private Storage Projection
 
 `value_access::storage` projects produced concrete payload IDs into a closed RuntimeEnvironment
-for an explicitly selected runtime ABI. Optional payloads project to the common optional runtime
-shape with canonical tag/comparison primitive roles. It emits shared record/tuple aggregate shapes and exact logical component keys, leaving
+for an explicitly selected runtime ABI. Optional and fallible payloads project to their common
+runtime shapes with canonical tag/comparison primitive roles; the fallible shape also requests
+the built-in error identity. It emits shared record/tuple aggregate shapes and exact logical component keys, leaving
 all size/alignment/member-offset computation to Machine. Unproduced contracts add no stored type.
 The same module projects each body's frozen environment/explicit input slots and concrete result
 into a RuntimeValueSignature. Data substitution uses the existing instance table; it never

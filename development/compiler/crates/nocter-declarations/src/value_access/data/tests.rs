@@ -493,3 +493,121 @@ fn symbolic_projection_uses_the_same_shapes_and_cannot_authorize_an_empty_array(
         );
     }
 }
+
+fn fallible(payload: DataReference) -> DataReference {
+    DataReference::Fallible(Box::new(payload))
+}
+#[test]
+fn fallible_components_use_one_error_payload_and_cannot_acquire_copy() {
+    for (data, copy, accepted) in [
+        (fallible(BuiltinType::I32.into()), false, true),
+        (fallible(BuiltinType::I32.into()), true, false),
+        (array(fallible(BuiltinType::I32.into()), 0), true, true),
+        (
+            fallible(array(fallible(BuiltinType::I32.into()), 1)),
+            false,
+            true,
+        ),
+    ] {
+        let symbols = SymbolTable::from_spellings(["Holder", "value"]);
+        let mut reservations = Reservations::new(symbols.clone());
+        let holder = reservations.reserve_record(symbols.get("Holder").unwrap(), 1);
+        let mut builder = reservations.finish().unwrap();
+        builder
+            .define_record(
+                holder,
+                copy,
+                [FieldDefinition {
+                    name: symbols.get("value").unwrap(),
+                    data,
+                }],
+            )
+            .unwrap();
+        let result = builder.finish();
+        if !accepted {
+            assert!(
+                result
+                    .unwrap_err()
+                    .iter()
+                    .any(|failure| failure.rule == DeclarationRule::NonCopyField)
+            );
+            continue;
+        }
+        let program = result.unwrap();
+        let holder = program.records().get(holder).unwrap();
+        let data = program.fields().get(holder.fields()[0]).unwrap().data();
+        if let Some(PayloadSchema::Fallible(payload)) = program.data_schema(data) {
+            assert_eq!(program.data_copyable(data), Some(false));
+            assert_eq!(
+                program
+                    .component(data, nocter_model::ValueField::Variant(true))
+                    .unwrap()
+                    .data,
+                payload
+            );
+            assert_eq!(
+                program
+                    .component(data, nocter_model::ValueField::Variant(false))
+                    .unwrap()
+                    .data,
+                program.data_type(BuiltinType::Error).unwrap()
+            );
+        } else {
+            assert_eq!(program.data_copyable(data), Some(true));
+        }
+    }
+}
+#[test]
+fn repeated_failure_is_invalid_even_inside_zero_length_metadata() {
+    let repeated = || {
+        fallible(DataReference::Optional {
+            payload: Box::new(fallible(BuiltinType::I32.into())),
+            layers: 2.try_into().unwrap(),
+        })
+    };
+    for data in [
+        repeated(),
+        array(repeated(), 0),
+        DataReference::Tuple(TupleData::new(BuiltinType::I32.into(), repeated(), [])),
+    ] {
+        let symbols = SymbolTable::from_spellings(["Holder", "value"]);
+        let mut reservations = Reservations::new(symbols.clone());
+        let holder = reservations.reserve_record(symbols.get("Holder").unwrap(), 1);
+        let mut builder = reservations.finish().unwrap();
+        builder
+            .define_record(
+                holder,
+                false,
+                [FieldDefinition {
+                    name: symbols.get("value").unwrap(),
+                    data,
+                }],
+            )
+            .unwrap();
+        assert!(
+            builder
+                .finish()
+                .unwrap_err()
+                .iter()
+                .any(|failure| failure.rule == DeclarationRule::RepeatedFailure)
+        );
+    }
+    let symbols = SymbolTable::from_spellings(["run"]);
+    let mut reservations = Reservations::new(symbols.clone());
+    let run = reservations.reserve(symbols.get("run").unwrap(), 0);
+    let mut builder = reservations.finish().unwrap();
+    builder
+        .define(
+            run,
+            CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            [],
+            repeated(),
+        )
+        .unwrap();
+    let failures = builder.finish().unwrap_err();
+    assert_eq!(
+        failures[0].position,
+        crate::value_access::HeaderPosition::Result
+    );
+    assert_eq!(failures[0].rule, DeclarationRule::RepeatedFailure);
+}

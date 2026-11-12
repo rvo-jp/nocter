@@ -86,6 +86,7 @@ pub enum DeclarationRule {
     UnknownDataName { name: Symbol },
     RecursivePayload { through: NominalTypeId },
     NonCopyField,
+    RepeatedFailure,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -651,19 +652,38 @@ fn validate_definition(
                 rule,
             });
         }
-        parameter.data.visit_data(|data| {
-            validate_data(
-                id,
-                HeaderPosition::Parameter(position),
-                data,
-                records,
-                violations,
-            );
+        validate_value(
+            id,
+            HeaderPosition::Parameter(position),
+            &parameter.data,
+            records,
+            violations,
+        );
+    }
+    validate_value(
+        id,
+        HeaderPosition::Result,
+        &definition.result_data,
+        records,
+        violations,
+    );
+}
+
+fn validate_value(
+    callable: AccessCodeId,
+    position: HeaderPosition,
+    value: &ValueDefinition,
+    records: &records::Builder,
+    violations: &mut Vec<DeclarationViolation>,
+) {
+    if value.has_repeated_failure() {
+        violations.push(DeclarationViolation {
+            declaration: DeclarationId::Code(callable),
+            position,
+            rule: DeclarationRule::RepeatedFailure,
         });
     }
-    definition
-        .result_data
-        .visit_data(|data| validate_data(id, HeaderPosition::Result, data, records, violations));
+    value.visit_data(|data| validate_data(callable, position, data, records, violations));
 }
 
 fn validate_data(

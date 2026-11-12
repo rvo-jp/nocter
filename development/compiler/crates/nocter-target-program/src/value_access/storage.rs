@@ -111,6 +111,13 @@ pub fn prepare(
                 pending.insert(program.data_type(BuiltinType::U8).ok_or_else(invalid)?);
                 RuntimeType::Optional(payload)
             }
+            PayloadSchema::Fallible(payload) => {
+                pending.insert(payload);
+                for builtin in [BuiltinType::Error, BuiltinType::Bool, BuiltinType::U8] {
+                    pending.insert(program.data_type(builtin).ok_or_else(invalid)?);
+                }
+                RuntimeType::Fallible(payload)
+            }
             PayloadSchema::Builtin(builtin) => match builtin {
                 BuiltinType::Bool => RuntimeType::Primitive(RuntimePrimitive::Bool),
                 _ if nocter_model::BuiltinNumericType::for_builtin(builtin)
