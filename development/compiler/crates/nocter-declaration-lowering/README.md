@@ -146,8 +146,18 @@ It preserves source/module identities and exact resolved `see`/`use` occurrences
 cannot be passed to released declaration reservation. Neither pipeline infers its grammar from a
 filename or admits the other's root. Single-source semantic preparation returns
 `ModuleInputRequired` for authored dependencies rather than silently dropping them.
-Reciprocal pairing, source-local name lookup, visibility/re-exports, resolved contract agreement
-and ordinary discovery/CLI integration remain work; inventory alone publishes no type or Unit.
+`ModuleSources::pair` closes source-structural contract/definition pairs through the same matcher
+as released surfaces, using the qualified grammar's root eligibility. Only direct reciprocal
+`see` edges supply candidates; missing, duplicate and complete-header mismatches retain both real
+source locations where applicable. Bounded v2 root structs require a complete representation,
+including when selected fields are visible; visible fields match their types and relative order
+and share their source representative with the corresponding definition field. Hidden fields
+remain independent occurrences in representation order. No structural grant is admitted by this
+bounded grammar.
+`PairedModuleSources` still proves neither resolved header equality nor normalized representation/
+Copy validity. Source-local name lookup, visibility/re-exports, resolved contract agreement and
+ordinary discovery/CLI integration remain work; neither inventory nor structural pairing publishes
+a type or accepted Unit.
 
 The reusable result owns a single immutable value-access declaration program, its exact neutral
 header surface, and projection locators. It contains no current syntax IDs, source identity,

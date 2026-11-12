@@ -6,7 +6,7 @@ mod primitives;
 mod projection;
 mod source;
 mod source_roles;
-pub use module_sources::{ModuleSources, ModuleSourcesFailure};
+pub use module_sources::{ModuleSources, ModuleSourcesFailure, PairedModuleSources};
 pub use primitives::{
     PrimitiveAuthority, PrimitiveAuthorityError, PrimitiveBindings, PrimitiveDiagnostic,
     PrimitiveRule,

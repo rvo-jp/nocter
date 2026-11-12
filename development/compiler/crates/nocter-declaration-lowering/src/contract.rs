@@ -44,10 +44,11 @@ struct LooseCallableKey {
     label: CallableLabel,
 }
 
-/// The canonical semantic representative selected for every authored declaration surface.
+/// The canonical source-declaration representative selected for every authored surface.
 ///
 /// A public bodyless callable and its private implementation body share the public contract's
-/// representative. All other declarations initially represent themselves.
+/// representative. All other declarations initially represent themselves. This structural join
+/// does not resolve the two headers or publish normalized semantic types.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DeclarationContracts {
     representatives: Box<[SurfaceDeclarationId]>,
@@ -367,21 +368,12 @@ fn join_contracts(
         }
         let contract_id = SurfaceDeclarationId::from_index(index);
         let (exact, loose) = callable_keys(surface, contract)?;
-        let exact = candidates
-            .exact
-            .get(&exact)
-            .map(Vec::as_slice)
-            .unwrap_or_default()
-            .iter()
-            .copied()
-            .filter(|body| {
-                has_reciprocal_source_visibility(
-                    surface,
-                    contract.source(),
-                    surface.declarations()[body.index()].source(),
-                )
-            })
-            .collect::<Vec<_>>();
+        let exact = definition_candidates(
+            surface,
+            contract,
+            candidates.exact.get(&exact).map_or(&[], Vec::as_slice),
+            candidates.loose.get(&loose).map_or(&[], Vec::as_slice),
+        )?;
         match exact.as_slice() {
             [] => {
                 if let Some(body) = candidates.loose.get(&loose).and_then(|bodies| {
@@ -401,6 +393,15 @@ fn join_contracts(
                 return Err(DeclarationContractError::MissingBody(contract.node()));
             }
             [body] => {
+                if is_access_source(surface, contract)?
+                    && fingerprint(surface, contract)?
+                        != fingerprint(surface, surface.declarations()[body.index()])?
+                {
+                    return Err(DeclarationContractError::MismatchedBody {
+                        contract: contract.node(),
+                        body: surface.declarations()[body.index()].node(),
+                    });
+                }
                 if !used_bodies.insert(*body) {
                     return Err(DeclarationContractError::DuplicateBody {
                         contract: contract.node(),
@@ -474,6 +475,33 @@ fn nested_contract_declarations(
         .filter(|(_, declaration)| declaration.owner() == Some(owner))
         .map(|(index, _)| SurfaceDeclarationId::from_index(index))
         .collect()
+}
+
+/// The qualified v2 policy selects by operation identity before comparing complete headers.
+/// An exact signature cannot hide another directly paired candidate. Released selection retains
+/// its existing matching policy until that product's contract changes separately.
+pub(super) fn definition_candidates(
+    surface: &DeclarationSurface<'_>,
+    contract: SurfaceDeclaration,
+    exact: &[SurfaceDeclarationId],
+    identity: &[SurfaceDeclarationId],
+) -> Result<Vec<SurfaceDeclarationId>, DeclarationContractError> {
+    let selected = if is_access_source(surface, contract)? {
+        identity
+    } else {
+        exact
+    };
+    Ok(selected
+        .iter()
+        .copied()
+        .filter(|definition| {
+            has_reciprocal_source_visibility(
+                surface,
+                contract.source(),
+                surface.declarations()[definition.index()].source(),
+            )
+        })
+        .collect())
 }
 
 pub(super) fn has_reciprocal_source_visibility(
@@ -723,10 +751,23 @@ pub(super) fn is_eligible_contract(
     if source_kind(surface, declaration)? != ModuleSourceKind::Root {
         return Ok(false);
     }
-    if declaration.visibility().is_some() {
-        return Ok(true);
+    Ok(declaration.visibility().is_some() || is_access_source(surface, declaration)?)
+}
+
+pub(super) fn is_access_source(
+    surface: &DeclarationSurface<'_>,
+    declaration: SurfaceDeclaration,
+) -> Result<bool, DeclarationContractError> {
+    let syntax = bound_syntax(surface, declaration).ok_or(
+        DeclarationContractError::InconsistentSurface(declaration.node()),
+    )?;
+    match syntax.tree().root().kind() {
+        NodeKind::V2CoreUnit => Ok(true),
+        NodeKind::SourceFile => Ok(false),
+        _ => Err(DeclarationContractError::InconsistentSurface(
+            declaration.node(),
+        )),
     }
-    Ok(false)
 }
 
 #[cfg(test)]

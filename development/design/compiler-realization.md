@@ -83,9 +83,9 @@ every inventoried source into one visible namespace.
 Keep declaration grammar shared across file roles. Validate placement from the selected source
 kind before normalization, then select contract/definition candidates through the explicit source
 graph. The existing declaration-surface/contract stages are syntax-level infrastructure, not a
-conversion through the released borrow-based `DeclarationProgram`. Their `pub`-based eligibility
-and source-goal fences must be qualified for the value-access path before reuse. Do not silently
-make either language product accept the other's sources.
+conversion through the released borrow-based `DeclarationProgram`. Preserve the private v2
+inventory boundary, explicit grammar selection and distinct root eligibility when extending them;
+neither language product may silently accept the other's sources.
 
 One logical declaration owns the contract identity, parameter/field slots and normalized types.
 Its implementation retains its own full-header/body locators and lookup context. Signature

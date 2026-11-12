@@ -8,8 +8,8 @@ use crate::{
 };
 
 use super::{
-    DeclarationContractError, HeaderFingerprint, fingerprint, has_reciprocal_source_visibility,
-    is_eligible_contract, source_kind,
+    DeclarationContractError, HeaderFingerprint, definition_candidates, fingerprint,
+    has_reciprocal_source_visibility, is_access_source, is_eligible_contract, source_kind,
 };
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -66,20 +66,16 @@ pub(super) fn join(
             ));
         }
         let contract_id = SurfaceDeclarationId::from_index(index);
-        let candidates = exact
-            .get(&compile_time_value_key(surface, contract)?)
-            .map(Vec::as_slice)
-            .unwrap_or_default()
-            .iter()
-            .copied()
-            .filter(|definition| {
-                has_reciprocal_source_visibility(
-                    surface,
-                    contract.source(),
-                    surface.declarations()[definition.index()].source(),
-                )
-            })
-            .collect::<Vec<_>>();
+        let candidates = definition_candidates(
+            surface,
+            contract,
+            exact
+                .get(&compile_time_value_key(surface, contract)?)
+                .map_or(&[], Vec::as_slice),
+            loose
+                .get(&loose_compile_time_value_key(surface, contract)?)
+                .map_or(&[], Vec::as_slice),
+        )?;
         match candidates.as_slice() {
             [] => {
                 if let Some(definition) = loose
@@ -104,6 +100,15 @@ pub(super) fn join(
                 ));
             }
             [definition] => {
+                if is_access_source(surface, contract)?
+                    && fingerprint(surface, contract)?
+                        != fingerprint(surface, surface.declarations()[definition.index()])?
+                {
+                    return Err(DeclarationContractError::MismatchedCompileTimeInitializer {
+                        contract: contract.node(),
+                        definition: surface.declarations()[definition.index()].node(),
+                    });
+                }
                 if !used.insert(*definition) {
                     return Err(DeclarationContractError::DuplicateCompileTimeInitializer {
                         contract: contract.node(),
