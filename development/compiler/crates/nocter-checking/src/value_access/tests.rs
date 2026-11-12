@@ -1,4 +1,5 @@
 mod header_value_evidence;
+mod module_sources;
 mod source_scopes;
 use super::*;
 use nocter_declaration_lowering::access_declarations as declarations;

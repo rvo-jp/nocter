@@ -1,5 +1,5 @@
 //! Closed front-end acceptance of every definition in one private first-fragment unit.
-pub use super::staged::{SourceFailure, SourceUnit};
+pub use super::staged::{ModuleSourceUnit, SourceFailure, SourceUnit};
 use super::{Failure as BodyFailure, Query as TypedQuery, flow};
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::Program;

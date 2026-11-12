@@ -171,7 +171,7 @@ pub(super) struct Output {
     pub(super) values: BTreeMap<nocter_model::ValueCodeRoot, Arc<FrozenData>>,
     pub(super) header_sources: nocter_declaration_lowering::access_declarations::BodySources,
 }
-pub(super) use preparation::{prepare, prepare_source};
+pub(super) use preparation::{prepare, prepare_module_source, prepare_source};
 fn failure_at(
     context: &DeclarationContext<'_>,
     code: AccessCodeId,

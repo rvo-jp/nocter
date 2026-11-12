@@ -19,10 +19,8 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 mod tests;
 type Failure = accepted::Failure;
 type QueryError = DependencyQueryError<Request, SourceFailure>;
-enum Headers<'a, 'source> {
-    Closed,
-    Publishing(&'a mut declarations::Preparation<'source>),
-}
+mod headers;
+use headers::{Headers, ModuleHeaders};
 struct Preparation<'a, 'source> {
     context: Context<'source>,
     headers: Headers<'a, 'source>,
@@ -81,7 +79,7 @@ pub(in crate::value_access) fn prepare(
         .all(&mut requests, &ids)
         .map_err(|failure| match failure {
             SourceFailure::Checking(failure) => failure,
-            SourceFailure::Declarations(_) => INVALID,
+            SourceFailure::Declarations(_) | SourceFailure::Modules(_) => INVALID,
         })?;
     preparation.finish(requests)
 }
@@ -92,20 +90,43 @@ pub(in crate::value_access) fn prepare_source(
 ) -> Result<(declarations::Query, Output), SourceFailure> {
     let ids: Vec<_> = headers.code_ids().collect();
     let contracts: Vec<_> = headers.declaration_ids().collect();
-    let mut preparation =
+    let preparation =
         Preparation::new(headers.current(), Headers::Publishing(&mut headers), limits);
-    let mut requests = Dependencies::default();
-    preparation.all(&mut requests, &ids)?;
-    for declaration in contracts {
-        preparation.require_header(&mut requests, declaration)?;
-    }
-    let output = preparation.finish(requests)?;
+    let output = preparation.complete_source(&ids, &contracts)?;
     Ok((
         headers.finish_with_dependencies(output.header_sources.clone())?,
         output,
     ))
 }
+pub(in crate::value_access) fn prepare_module_source(
+    mut headers: declarations::ScopedModuleSources<'_>,
+    limits: state::Limits,
+) -> Result<(declarations::ModuleContext<'_>, Output), SourceFailure> {
+    let ids = headers.code_ids().collect::<Vec<_>>();
+    let contracts = headers.declaration_ids().collect::<Vec<_>>();
+    let binding = headers.source_binding();
+    let context = binding.current(&headers)?;
+    let mut owner = ModuleHeaders {
+        owner: &mut headers,
+        binding: &binding,
+    };
+    let preparation = Preparation::new(context, Headers::Publishing(&mut owner), limits);
+    let output = preparation.complete_source(&ids, &contracts)?;
+    Ok((headers.seal()?, output))
+}
 impl<'a, 'source> Preparation<'a, 'source> {
+    fn complete_source(
+        mut self,
+        ids: &[AccessCodeId],
+        contracts: &[DeclarationId],
+    ) -> Result<Output, SourceFailure> {
+        let mut requests = Dependencies::default();
+        self.all(&mut requests, ids)?;
+        for &declaration in contracts {
+            self.require_header(&mut requests, declaration)?;
+        }
+        self.finish(requests).map_err(Into::into)
+    }
     fn source(
         &self,
         root: ValueCodeRoot,
@@ -677,7 +698,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
                 {
                     return Ok(match &self.headers {
                         Headers::Publishing(owner) => {
-                            QueryError::Computation(owner.reject_cycle(&headers).into())
+                            QueryError::Computation(owner.reject_cycle(&headers))
                         }
                         Headers::Closed => QueryError::Computation(INVALID.into()),
                     });
@@ -750,11 +771,11 @@ impl DependencyProgress<Request, Fact, SourceFailure> for Preparation<'_, '_> {
         let Headers::Publishing(headers) = &mut self.headers else {
             return Err(INVALID.into());
         };
-        match headers.advance_with_values(declaration, |id| {
+        match headers.advance_with_values(declaration, &mut |id| {
             dependencies::value(requests, id).map(|value| &value.frozen)
         })? {
             HeaderProgress::Ready => {
-                self.context = headers.current();
+                self.context = headers.current()?;
                 Ok(DependencyStep::Complete(Fact::Header))
             }
             HeaderProgress::RequireHeaders(dependencies) => Ok(DependencyStep::Require(

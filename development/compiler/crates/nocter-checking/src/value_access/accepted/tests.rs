@@ -91,6 +91,9 @@ fn corpus_is_validated_by_the_complete_production_boundary() {
             SourceFailure::Declarations(failure) => {
                 panic!("{name}: unexpected header rejection: {failure:?}")
             }
+            SourceFailure::Modules(failure) => {
+                panic!("{name}: unexpected module input failure: {failure:?}")
+            }
             SourceFailure::Checking(failure) => failure,
         });
         if string(field(case, "expectation")) == "accept" {

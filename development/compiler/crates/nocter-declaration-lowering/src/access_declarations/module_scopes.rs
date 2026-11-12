@@ -25,6 +25,24 @@ pub struct ScopedModuleSources<'syntax> {
     headers: HeaderPublication,
     binding: Arc<ModuleSourceBinding<'syntax>>,
 }
+/// Closed header metadata and its exact current physical sources; no cross-revision reuse proof.
+#[derive(Debug)]
+pub struct ModuleContext<'syntax> {
+    program: Arc<Program>,
+    binding: Arc<ModuleSourceBinding<'syntax>>,
+}
+impl ModuleContext<'_> {
+    #[must_use]
+    pub fn program(&self) -> &Program {
+        &self.program
+    }
+    /// Open the closed metadata in this exact source binding.
+    /// # Errors
+    /// Rejects inconsistent physical source metadata; grants no body acceptance.
+    pub fn current(&self) -> Result<super::Context<'_>, ModuleSourcesFailure> {
+        self.binding.base_view(Arc::clone(&self.program))
+    }
+}
 /// One immutable physical-source/semantic-slot pairing, retained independently of header writes.
 /// No caller can construct it from separately supplied syntax, scopes or declaration identities.
 #[derive(Debug)]
@@ -169,6 +187,55 @@ impl<'syntax> ScopedModuleSources<'syntax> {
     pub fn header_expression_ids(&self) -> impl Iterator<Item = AccessCodeId> + '_ {
         self.binding.catalog.sources.expression_ids()
     }
+    /// Check bodyless markers before ordinary module source orchestration.
+    /// No primitive authority is inferred from an inventoried module or declaration name.
+    /// # Errors
+    /// Reports an unselected primitive at its actual authored declaration.
+    pub fn validate_primitive_bindings(&self) -> Result<(), ModuleSourcesFailure> {
+        let mut bindings = super::PrimitiveBindings::new(None);
+        for (raw, header) in &self.binding.catalog.parsed {
+            if let ParsedHeader::Code(header) = header {
+                let Some(DeclarationId::Code(code)) = self.binding.declarations[raw.index()] else {
+                    return Err(integrity());
+                };
+                let physical = self.binding.paired.inventory.declarations()[raw.index()];
+                bindings
+                    .select(
+                        syntax(&self.binding.paired, physical.source())?,
+                        None,
+                        code,
+                        header,
+                    )
+                    .map_err(ModuleSourcesFailure::Access)?;
+            }
+        }
+        Ok(())
+    }
+    #[must_use]
+    pub fn code_ids(&self) -> impl ExactSizeIterator<Item = AccessCodeId> + '_ {
+        self.headers.code_ids()
+    }
+    pub fn declaration_ids(&self) -> impl Iterator<Item = DeclarationId> + '_ {
+        self.headers.declaration_ids()
+    }
+    /// Classify a requested header cycle through the common declaration owner.
+    #[must_use]
+    pub fn reject_cycle(&self, path: &[DeclarationId]) -> ModuleSourcesFailure {
+        self.project_header_failure(self.headers.reject_cycle(path), None)
+    }
+    /// Consume a fully advanced writer into one immutable current-source product.
+    /// # Errors
+    /// Requires every reserved named and anonymous header to be ready.
+    pub fn seal(self) -> Result<ModuleContext<'syntax>, ModuleSourcesFailure> {
+        if !self.program().headers_complete() {
+            return Err(integrity());
+        }
+        let program = self.headers.finish().map_err(|_| integrity())?;
+        Ok(ModuleContext {
+            program: Arc::new(program),
+            binding: self.binding,
+        })
+    }
     #[must_use]
     pub fn parameter_ids(&self, code: AccessCodeId) -> Option<&[nocter_model::AccessParameterId]> {
         self.headers.parameter_ids(code)
@@ -227,6 +294,45 @@ impl ModuleSourceBinding<'_> {
             .ok_or(super::SourceMismatch::UnknownSource)?;
         syntax(&self.paired, physical).map_err(|_| super::SourceMismatch::InconsistentSyntax)
     }
+    /// Open the current snapshot before a particular body is selected.
+    /// # Errors
+    /// Rejects foreign writers and inconsistent physical source metadata.
+    pub fn current<'binding>(
+        &'binding self,
+        headers: &ScopedModuleSources<'_>,
+    ) -> Result<super::Context<'binding>, ModuleSourcesFailure> {
+        if !std::ptr::eq(self, headers.binding.as_ref()) {
+            return Err(ModuleSourcesFailure::Access(Failure::ChangedHeader));
+        }
+        self.base_view(Arc::new(headers.program()))
+    }
+    fn base_view(&self, program: Arc<Program>) -> Result<super::Context<'_>, ModuleSourcesFailure> {
+        let (source, _) = self
+            .paired
+            .inventory
+            .source_entries()
+            .next()
+            .ok_or_else(integrity)?;
+        let scope = super::definitions::HeaderScope {
+            syntax: syntax(&self.paired, source)?,
+            lookup: self.scopes[source.index()],
+        };
+        Ok(self.view(program, scope))
+    }
+    fn view<'binding>(
+        &'binding self,
+        program: Arc<Program>,
+        scope: super::definitions::HeaderScope<'binding>,
+    ) -> super::Context<'binding> {
+        super::Context {
+            program,
+            syntax: scope.syntax,
+            lookup: scope.lookup,
+            module: Some(self),
+            sources: self.catalog.sources.clone(),
+            primitives: super::PrimitiveBindings::new(None),
+        }
+    }
     /// Bind this immutable header snapshot to the actual physical source of one executable root.
     /// Existing source views can remain alive while the writer publishes more headers.
     /// This establishes neither body acceptance nor reusable source-query evidence.
@@ -241,14 +347,7 @@ impl ModuleSourceBinding<'_> {
             return Err(ModuleSourcesFailure::Access(Failure::ChangedHeader));
         }
         let scope = self.code_scope(code).map_err(|_| integrity())?;
-        Ok(super::Context {
-            program: Arc::new(headers.program()),
-            syntax: scope.syntax,
-            lookup: scope.lookup,
-            module: Some(self),
-            sources: self.catalog.sources.clone(),
-            primitives: super::PrimitiveBindings::new(None),
-        })
+        Ok(self.view(Arc::new(headers.program()), scope))
     }
 }
 fn project_namespace(

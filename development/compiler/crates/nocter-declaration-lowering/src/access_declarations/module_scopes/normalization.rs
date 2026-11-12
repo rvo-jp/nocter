@@ -216,7 +216,7 @@ impl ScopedModuleSources<'_> {
             &self.binding.paired.inventory.surface,
         )
     }
-    fn project_header_failure(
+    pub(super) fn project_header_failure(
         &self,
         failure: HeaderFailure,
         occurrence: Option<SurfaceDeclarationId>,

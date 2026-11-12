@@ -4,7 +4,7 @@ mod header_values;
 mod headers;
 mod module_scopes;
 mod module_sources;
-pub use module_scopes::{ModuleSourceBinding, ScopedModuleSources};
+pub use module_scopes::{ModuleContext, ModuleSourceBinding, ScopedModuleSources};
 mod primitives;
 mod projection;
 mod source;

@@ -7,6 +7,7 @@ use nocter_syntax::BoundSyntax;
 #[derive(Debug)]
 pub enum SourceFailure {
     Declarations(declarations::Failure),
+    Modules(declarations::ModuleSourcesFailure),
     Checking(accepted::Failure),
 }
 
@@ -24,6 +25,59 @@ impl From<accepted::Failure> for SourceFailure {
 impl From<declarations::Failure> for SourceFailure {
     fn from(failure: declarations::Failure) -> Self {
         Self::Declarations(failure)
+    }
+}
+impl From<declarations::ModuleSourcesFailure> for SourceFailure {
+    fn from(failure: declarations::ModuleSourcesFailure) -> Self {
+        match failure {
+            declarations::ModuleSourcesFailure::Access(failure) => Self::Declarations(failure),
+            failure => Self::Modules(failure),
+        }
+    }
+}
+/// Whole selected-module source acceptance through the common header/body/value coordinator.
+/// Current-source declarations remain tied to this inventory; cross-revision reuse is separate.
+#[derive(Debug)]
+pub struct ModuleSourceUnit<'syntax> {
+    declarations: declarations::ModuleContext<'syntax>,
+    unit: accepted::Unit,
+}
+impl<'syntax> ModuleSourceUnit<'syntax> {
+    /// Prepare explicit v2 module input; source topology and header agreement retain their owners.
+    /// # Errors
+    /// Reports source selection, contract, typing/safety or actual required-evaluation failures.
+    pub fn prepare(
+        input: &nocter_compile_input::CompileUnitInput<'syntax>,
+    ) -> Result<Self, SourceFailure> {
+        Self::prepare_with_limits(input, state::Limits::default())
+    }
+    /// Use the ordinary coordinator with explicit deterministic required-evaluation limits.
+    /// # Errors
+    /// Reports the same selected-module source failures as default preparation.
+    pub fn prepare_with_limits(
+        input: &nocter_compile_input::CompileUnitInput<'syntax>,
+        limits: impl Into<state::Limits>,
+    ) -> Result<Self, SourceFailure> {
+        let headers = declarations::ModuleSources::prepare(input)?
+            .pair()?
+            .reserve_names()?;
+        headers.validate_primitive_bindings()?;
+        let (declarations, evaluation) = evaluation::prepare_module_source(headers, limits.into())?;
+        let context = declarations.current()?;
+        let unit = accepted::Unit::close_evaluation(&context, evaluation)?;
+        Ok(Self { declarations, unit })
+    }
+    #[must_use]
+    pub const fn declarations(&self) -> &declarations::ModuleContext<'syntax> {
+        &self.declarations
+    }
+    #[must_use]
+    pub const fn unit(&self) -> &accepted::Unit {
+        &self.unit
+    }
+    #[must_use]
+    pub fn into_unit(self) -> accepted::Unit {
+        self.unit
     }
 }
 impl SourceUnit {

@@ -202,11 +202,15 @@ of guards can therefore verify multiple physical bodies without substituting one
 foreign syntax cannot be accepted by matching source IDs or display ranges alone.
 `Context::lookup_scope` drives authored body lookup. Declaration properties and type identities
 still come from the shared semantic program; the binding is not another declaration/type authority.
-Per-body views supply no primitive bindings or accepted-body proof. Whole-module required-value
-scheduling, source-qualified query rebinding across revisions, visibility/re-exports and ordinary
-discovery/CLI integration remain work. The header step
-can publish selected payload/Copy metadata but does not produce an accepted Unit or a reusable
-source-qualified query.
+Per-body views supply no primitive bindings or accepted-body proof. `ScopedModuleSources::seal`
+requires all reserved named and anonymous headers to be ready, consumes the writer and returns one
+immutable `ModuleContext` with the exact retained physical sources. It offers current-source views,
+not cross-revision rebinding. Code/declaration enumeration and cycle projection feed checking's
+[common source coordinator](../nocter-checking/README.md#bounded-future-value-binding-typing).
+Ordinary module orchestration rejects unselected primitive markers through the existing primitive
+authority diagnostic; it does not infer roles from inventory names. Module primitive authority,
+source-qualified query rebinding across revisions, visibility/re-exports and ordinary discovery/CLI
+integration remain work. Header publication alone does not produce an accepted Unit.
 `Context::verify_header_values` reprojects every physical source header with actual completed count
 values and requires existing published type/constraint identities to agree. It reuses the same
 header/data projection for callable inputs/results, callback contracts and record fields, including

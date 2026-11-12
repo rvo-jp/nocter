@@ -9,14 +9,17 @@ use nocter_model::{AccessCodeId, CompilationTarget, PackageIdentity, ValueFuncti
 use nocter_syntax::{NodeKind, child_node_iter};
 use std::collections::HashSet;
 
-struct Fixture {
+pub(super) struct Fixture {
     sources: SourceMap,
     trees: Vec<SyntaxTree>,
     files: Vec<(String, ModuleSourceKind)>,
     edges: Vec<(usize, usize, usize)>,
 }
 impl Fixture {
-    fn new(files: &[(&str, ModuleSourceKind, &str)], edges: &[(usize, usize, usize)]) -> Self {
+    pub(super) fn new(
+        files: &[(&str, ModuleSourceKind, &str)],
+        edges: &[(usize, usize, usize)],
+    ) -> Self {
         let mut sources = SourceMap::new();
         let trees = files
             .iter()
@@ -39,15 +42,9 @@ impl Fixture {
             edges: edges.into(),
         }
     }
-    fn prepare(&self) -> declarations::ScopedModuleSources<'_> {
-        self.prepare_with_count(None)
-    }
-    fn prepare_with_count(
-        &self,
-        value: Option<&nocter_model::FrozenData>,
-    ) -> declarations::ScopedModuleSources<'_> {
+    pub(super) fn input(&self) -> CompileUnitInput<'_> {
         let package = PackageIdentity::new("workspace:app");
-        let input = CompileUnitInput::for_goal(
+        CompileUnitInput::for_goal(
             ParseGoal::V2CoreUnit,
             CompilationTarget::Arm64Darwin,
             &self.sources,
@@ -80,7 +77,19 @@ impl Fixture {
                     SourceVisibilityResolutionInput::new(node, self.files[target].0.as_str())
                 })
                 .collect(),
-        );
+        )
+    }
+    pub(super) fn tree(&self, index: usize) -> &SyntaxTree {
+        &self.trees[index]
+    }
+    fn prepare(&self) -> declarations::ScopedModuleSources<'_> {
+        self.prepare_with_count(None)
+    }
+    fn prepare_with_count(
+        &self,
+        value: Option<&nocter_model::FrozenData>,
+    ) -> declarations::ScopedModuleSources<'_> {
+        let input = self.input();
         let mut scoped = declarations::ModuleSources::prepare(&input)
             .unwrap()
             .pair()

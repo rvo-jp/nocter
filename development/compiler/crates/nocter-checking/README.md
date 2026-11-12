@@ -239,8 +239,16 @@ owner through that same retained source binding. A query can open from a sibling
 its syntax, names and origins still come from its own physical body; it does not search again for
 a same-spelling callee. Source guards verify all selected owners before reuse. Required-evaluation
 origin projection can likewise identify an operation in any bound physical source.
-These per-body queries do not close whole-module required evaluation, source rebinding across module
-revisions, primitive authority or a Unit; `SourceUnit` remains the single-source coordinator.
+`accepted::ModuleSourceUnit` consumes explicit v2 `CompileUnitInput` through topology, source-role,
+pairing and scoped reservation before using that same source coordinator. `SourceHeaders` supplies
+single-source or module header advancement, current views and cycle rejection; body/value requests,
+const-domain checking, actual execution, source dependency guards and final Unit admission remain
+one implementation. Every physical count supplier executes in its own source scope before repeated
+headers agree. The final declarations are an immutable current `ModuleContext`, and every selected
+source is checked, including unused helpers and records. Empty libraries need no fabricated body.
+Unselected primitives reject at their authored declaration; this entry supplies no module primitive
+authority. Imports/re-exports, audiences, source rebinding across module revisions and ordinary
+package/CLI integration remain work. This bounded selected-input entry does not qualify those subjects.
 
 The private-function goal has one typed-body query over shared immutable declaration facts and
 an owner-scoped body-type extension. Each query retains its origin header prefix; binding accepts
