@@ -82,6 +82,7 @@ pub enum DeclarationRule {
     NameConflictsWithNamespace { name: Symbol },
     InconsistentBindingAudience { name: Symbol },
     UnsupportedDataType { data: BuiltinType },
+    UnsupportedCallableData,
     DuplicateRecord { first: NominalTypeId },
     DuplicateField { first: usize },
     UnknownRecordType { record: NominalTypeId },

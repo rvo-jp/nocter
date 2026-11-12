@@ -70,6 +70,7 @@ fn project(
         R::UnknownDataName { .. }
             | R::QualifiedDataName { .. }
             | R::UnsupportedDataType { .. }
+            | R::UnsupportedCallableData
             | R::NonCopyField
             | R::RepeatedFailure
             | R::RecursivePayload { .. }
@@ -112,7 +113,7 @@ fn details(
     Some(match violation.rule {
         R::InvalidInitializerHeader => (
             DiagnosticCode::E0323,
-            "initializer headers require a data value and no inputs",
+            "initializer headers require eligible final data and no inputs",
             None,
         ),
         R::DuplicateValue { first } => (
@@ -176,6 +177,11 @@ fn details(
         ),
         R::UnknownDataName { .. } => (DiagnosticCode::E0290, "unknown data type", None),
         R::QualifiedDataName { error } => qualified_data_details(error),
+        R::UnsupportedCallableData => (
+            DiagnosticCode::E0291,
+            "callable data in this position is outside the qualified witness/type model",
+            None,
+        ),
         R::UnsupportedDataType { .. } => (
             DiagnosticCode::E0291,
             "data type is outside this closed private fragment",

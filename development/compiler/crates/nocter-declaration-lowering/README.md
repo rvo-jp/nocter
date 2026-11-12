@@ -108,10 +108,15 @@ A requested header loads its define-once raw definition through the declaration 
 without examining body semantics.
 `headers` extracts syntax-only header evidence for functions and explicitly typed required constant/static initializers.
 Initializer expressions use the syntax owner's existing body-surface exclusion and current-body
-locator mechanism, so initializer-only edits rebind headers without retaining stale values. `type_syntax::value_type_syntax` projects one
-`ValueTypeSyntax` for input/result headers and checking's local annotations. Recursive
-`DataTypeSyntax` preserves tuple/group shape, named leaves and array element/length syntax for
-both consumers; record fields use that same data projection. A recognized array retains its
+locator mechanism, so initializer-only edits rebind headers without retaining stale values.
+`project_type_syntax` projects one recursive `TypeSyntax` for every header, field and local type
+position. Callable inputs/results, tuple/array elements and outcome payloads use the same tree;
+transparent groups do not discard the constructor scope of an outer suffix. One traversal owns
+leaf-name and required-length collection through all those shapes. Grouped flat callable contracts
+use the existing witness normalization. Nested callable data still lacks its required model
+qualification and reports `E0291` at the owning type, rather than an inconsistent syntax product.
+Callable initializer types likewise reach final-value eligibility (`E0323`); syntax recognition
+cannot supply a serializable environment. A recognized array retains its
 ordinary length-expression node under its actual annotation. `definitions` requests that root's
 completed usize value before constructing a closed array reference; it never evaluates syntax,
 substitutes a provisional count or interprets a literal specially. Local body annotations remain

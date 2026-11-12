@@ -1,10 +1,8 @@
 //! Syntax-only header extraction. Type/name meaning is resolved by the declaration owner.
 use super::{
-    Failure, ValueTypeSyntax,
+    Failure, TypeSyntax, project_type_syntax,
     source::{FieldSource, RecordSource},
     text,
-    type_syntax::{DataTypeSyntax, data_syntax},
-    value_type_syntax,
 };
 use nocter_declarations::value_access::CodeKind;
 use nocter_model::{CompileTimeGuarantee, SymbolTable, ValueInputOperation};
@@ -17,7 +15,7 @@ use std::sync::Arc;
 #[derive(Clone, Debug)]
 pub(super) struct ParameterHeader {
     pub name: SyntaxToken,
-    pub data: ValueTypeSyntax,
+    pub data: TypeSyntax,
     pub ty: NodeId,
     pub operation: ValueInputOperation,
 }
@@ -27,14 +25,14 @@ pub(super) struct Header {
     pub kind: CodeKind,
     pub parameters: Vec<ParameterHeader>,
     pub result_syntax: NodeId,
-    pub result_data: ValueTypeSyntax,
+    pub result_data: TypeSyntax,
     pub body: Option<NodeId>,
 }
 #[derive(Clone, Debug)]
 pub(super) struct RecordHeader {
     pub source: Arc<RecordSource>,
     pub copy: bool,
-    pub fields: Box<[DataTypeSyntax]>,
+    pub fields: Box<[TypeSyntax]>,
 }
 
 pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<Header, Failure> {
@@ -52,7 +50,7 @@ pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<H
             let operation = super::input_operation(syntax, parameter)?;
             Ok(ParameterHeader {
                 name,
-                data: value_type_syntax(syntax, ty)?,
+                data: project_type_syntax(syntax, ty)?,
                 ty,
                 operation,
             })
@@ -74,7 +72,7 @@ pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<H
         },
         parameters,
         result_syntax,
-        result_data: value_type_syntax(syntax, result_syntax)?,
+        result_data: project_type_syntax(syntax, result_syntax)?,
         body: direct_node(tree, declaration, NodeKind::Block),
     })
 }
@@ -95,7 +93,7 @@ pub(super) fn initializer(syntax: BoundSyntax<'_>, declaration: NodeId) -> Resul
         },
         parameters: Vec::new(),
         result_syntax,
-        result_data: value_type_syntax(syntax, result_syntax)?,
+        result_data: project_type_syntax(syntax, result_syntax)?,
         body: direct_node(tree, declaration, NodeKind::Expression),
     })
 }
@@ -112,7 +110,7 @@ pub(super) fn record(
         .map(|field| {
             let name = direct_identifier(tree, field).ok_or(Failure::InconsistentSyntax)?;
             let ty = direct_node(tree, field, NodeKind::Type).ok_or(Failure::InconsistentSyntax)?;
-            Ok((FieldSource { name, ty }, data_syntax(syntax, ty)?))
+            Ok((FieldSource { name, ty }, project_type_syntax(syntax, ty)?))
         })
         .collect::<Result<Vec<_>, Failure>>()?;
     let (fields, types): (Vec<_>, Vec<_>) = fields.into_iter().unzip();

@@ -2,6 +2,8 @@
 //! No released-language production is an acceptance fallback for this parse goal.
 mod directives;
 mod expression;
+mod types;
+use types::type_;
 #[cfg(test)]
 mod tests;
 
@@ -112,7 +114,7 @@ fn function(parser: &mut Parser<'_>) {
     }
     parser.complete(parameters, NodeKind::Parameters);
     parser.expect_punctuation(Punctuation::Colon);
-    annotation_type(parser);
+    type_(parser);
     parser.complete(tail, NodeKind::CallableTail);
     if primitive {
         if parser.at_punctuation(Punctuation::LeftBrace) {
@@ -153,134 +155,8 @@ fn parameter(parser: &mut Parser<'_>) {
     }
     parser.expect_name();
     parser.expect_punctuation(Punctuation::Colon);
-    annotation_type(parser);
-    parser.complete(marker, NodeKind::Parameter);
-}
-
-fn type_(parser: &mut Parser<'_>) {
-    let marker = parser.start();
-    let shape = parser.start();
-    if parser.eat_punctuation(Punctuation::LeftBracket) {
-        if parser.enter_nesting() {
-            parser.eat_newlines();
-            type_(parser);
-            parser.eat_newlines();
-            parser.expect_punctuation(Punctuation::Semicolon);
-            parser.eat_newlines();
-            expression::expression(parser, newline::Boundary::Delimited);
-            parser.eat_newlines();
-            parser.expect_punctuation(Punctuation::RightBracket);
-            parser.leave_nesting();
-            parser.complete(shape, NodeKind::FixedArrayType);
-        } else {
-            parser.recover_balanced(Punctuation::LeftBracket, Punctuation::RightBracket);
-            parser.complete(shape, NodeKind::Error);
-        }
-    } else if parser.eat_punctuation(Punctuation::LeftParen) {
-        if parser.enter_nesting() {
-            parser.eat_newlines();
-            type_(parser);
-            parser.eat_newlines();
-            let tuple = parser.eat_punctuation(Punctuation::Comma);
-            if tuple {
-                parser.eat_newlines();
-                type_(parser);
-                parser.eat_newlines();
-                while parser.eat_punctuation(Punctuation::Comma) {
-                    parser.eat_newlines();
-                    if parser.at_punctuation(Punctuation::RightParen) {
-                        break;
-                    }
-                    type_(parser);
-                    parser.eat_newlines();
-                }
-            }
-            parser.expect_punctuation(Punctuation::RightParen);
-            parser.leave_nesting();
-            parser.complete(
-                shape,
-                if tuple {
-                    NodeKind::TupleType
-                } else {
-                    NodeKind::GroupedType
-                },
-            );
-        } else {
-            parser.recover_balanced(Punctuation::LeftParen, Punctuation::RightParen);
-            parser.complete(shape, NodeKind::Error);
-        }
-    } else {
-        if matches!(
-            parser.current_kind(),
-            TokenKind::Identifier | TokenKind::Keyword(Keyword::Void)
-        ) {
-            let qualified = parser.at(TokenKind::Identifier);
-            parser.bump();
-            if qualified {
-                while parser.eat_punctuation(Punctuation::Dot) {
-                    parser.expect_name();
-                }
-            }
-        } else {
-            parser.error_token(ExpectedSyntax::Type);
-        }
-        parser.complete(shape, NodeKind::NamedType);
-    }
-    while parser.eat_punctuation(Punctuation::Question) {}
-    parser.eat_punctuation(Punctuation::Bang);
-    parser.complete(marker, NodeKind::Type);
-}
-
-fn annotation_type(parser: &mut Parser<'_>) {
-    let callable = parser.at_keyword(Keyword::Func)
-        || ((parser.at_contextual(ContextualSpelling::Mut)
-            || parser.at_contextual(ContextualSpelling::Once))
-            && parser.nth_kind(1) == TokenKind::Punctuation(Punctuation::LeftParen));
-    if !callable {
-        type_(parser);
-        return;
-    }
-    let ty = parser.start();
-    let contract = parser.start();
-    parser.bump();
-    let parameters = parser.start();
-    parser.expect_punctuation(Punctuation::LeftParen);
-    if parser.enter_nesting() {
-        parser.comma_list(
-            Punctuation::RightParen,
-            true,
-            ExpectedSyntax::Parameter,
-            |parser| {
-                let parameter = parser.start();
-                if (parser.at_contextual(ContextualSpelling::Edit)
-                    || parser.at_contextual(ContextualSpelling::Take))
-                    && matches!(
-                        parser.nth_kind(1),
-                        TokenKind::Identifier
-                            | TokenKind::Keyword(Keyword::Void)
-                            | TokenKind::Punctuation(
-                                Punctuation::LeftParen | Punctuation::LeftBracket
-                            )
-                    )
-                {
-                    let operation = parser.start();
-                    parser.bump();
-                    parser.complete(operation, NodeKind::InputOperation);
-                }
-                type_(parser);
-                parser.complete(parameter, NodeKind::CallableParameter);
-            },
-        );
-        parser.expect_punctuation(Punctuation::RightParen);
-        parser.leave_nesting();
-    } else {
-        parser.recover_balanced(Punctuation::LeftParen, Punctuation::RightParen);
-    }
-    parser.complete(parameters, NodeKind::CallableParameters);
-    parser.expect_punctuation(Punctuation::Colon);
     type_(parser);
-    parser.complete(contract, NodeKind::CallableType);
-    parser.complete(ty, NodeKind::Type);
+    parser.complete(marker, NodeKind::Parameter);
 }
 
 fn required_block(parser: &mut Parser<'_>) {
@@ -362,7 +238,7 @@ fn binding(parser: &mut Parser<'_>) {
     if parser.at_punctuation(Punctuation::Colon) {
         let annotation = parser.start();
         parser.bump();
-        annotation_type(parser);
+        type_(parser);
         parser.complete(annotation, NodeKind::TypeAnnotation);
     }
     parser.expect_punctuation(Punctuation::Equal);

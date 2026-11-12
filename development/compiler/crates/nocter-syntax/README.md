@@ -35,16 +35,19 @@ package or discovery code. It does not resolve names or apply semantic rules.
   while nested delimiters restore ordinary expression recognition without type lookup. Outer
   header parentheses are groups, not closure heads consuming the control body's brace; an
   actual closure body in a header requires a containing delimiter.
-  Local annotations, formal parameter headers and function results recognize bounded
-  `func`/`mut`/`once` callable contracts through one annotation production, with unnamed
-  data/input-operation parameters. Nested callback contracts remain outside this goal; record
-  fields remain ordinary data shapes. `mut` and `once` are contextual
-  only at an invocation head followed by `(`. Data annotations share recursive tuple/group and
-  fixed-array recognition. Array lengths use the ordinary private expression parser, retaining one
-  expression root under `FixedArrayType`; this recognizes source without normalizing a length or
-  granting an array schema. Named data paths retain every dot-separated identifier in one
-  `NamedType`, including under tuple/array/outcome and flat callable contracts. Record heads use
-  the same plain name-path shape; computed heads acquire no structural-initializer syntax.
+  One recursive type production recognizes plain `func`/`mut`/`once` contracts in initializer,
+  field, input/result, local and closure annotations, including grouped and nested positions.
+  Parameters retain unnamed data/input-operation syntax. `mut` and `once` are contextual only
+  at an invocation head followed by `(`. Recognition grants no nested witness or final-value
+  evidence; semantic consumers retain their separate qualification boundaries. Callable results
+  consume their complete result type, so `func(): T?` and `(func(): T)?` retain different trees.
+  Result chains consume the same nesting budget as delimited type recursion.
+  Tuple/group, fixed-array and outcome types use that same recursive production. Array lengths
+  use the ordinary private expression parser, retaining one expression root under `FixedArrayType`;
+  this recognizes source without normalizing a length or granting an array schema. Named data
+  paths retain every dot-separated identifier in one `NamedType`, including within callable
+  contracts. Record heads use the same plain name-path shape; computed heads acquire no
+  structural-initializer syntax.
   Dynamic slice types remain outside this goal.
   Repeated optional type suffixes and one final fallible type suffix preserve grouped layer order.
   Contextual `none` and one postfix `?` or `!` use this same
@@ -119,7 +122,9 @@ maintaining another radix/underscore parser.
   grouping. `const func` retains a dedicated compile-time modifier node; repeated, retired or
   async prefixes have no private grammar fallback. Required constant and immutable-static declarations retain their
   initializer as an expression body when present; omission remains a source-role decision.
-  Callable constant/static type annotations remain outside this bounded goal. Postfix transfer is a distinct unary node, preserving its position in a chain;
+  Callable constant/static annotations reach ordinary final-value validation; recognizing them
+  does not serialize a callable environment. Postfix transfer is a distinct unary node, preserving
+  its position in a chain;
   source ownership and repeated/fresh-source rejection remain semantic work. Contextual input and alias words are recognized structurally,
   never through name/type lookup. Its root
   is rejected by default released target-selection/compile-input constructors. Explicit goal

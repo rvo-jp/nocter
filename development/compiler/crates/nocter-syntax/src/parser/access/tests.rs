@@ -1,4 +1,5 @@
 use crate::{NodeKind, ParseGoal, SyntaxTree, parse, parse_reusable};
+mod types;
 use nocter_json::Value;
 use nocter_source::{SourceMap, SourceName};
 use std::{fs, path::PathBuf};
@@ -263,11 +264,7 @@ fn immutable_statics_use_the_initializer_surface_without_modifier_or_type_fallba
         1
     );
     super::super::snapshots::assert_token_projection(&parsed, "static initializer");
-    for source in [
-        "static var VALUE: i32 = 1",
-        "static VALUE: &i32 = 1",
-        "static VALUE: func(): i32 = action",
-    ] {
+    for source in ["static var VALUE: i32 = 1", "static VALUE: &i32 = 1"] {
         assert!(tree(source, ParseGoal::V2CoreUnit).has_errors(), "{source}");
     }
 }

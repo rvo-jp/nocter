@@ -1,6 +1,6 @@
 //! Body-local required roots, paired through one full-body source guard rather than header slots.
 use super::{BodyRoot, BodySource, Context, SourceMismatch};
-use crate::access_declarations::value_type_syntax;
+use crate::access_declarations::project_type_syntax;
 use nocter_model::{AccessCodeId, ValueExpression};
 use nocter_syntax::{
     BodySyntaxLocator, BodySyntaxProjection, BoundSyntax, NodeId, NodeKind, SyntaxElement,
@@ -86,7 +86,7 @@ impl<'source> Context<'source> {
                 .kind()
                 == NodeKind::Type
             {
-                let ty = value_type_syntax(syntax, node)
+                let ty = project_type_syntax(syntax, node)
                     .map_err(|_| SourceMismatch::InconsistentSyntax)?;
                 let mut lengths = Vec::new();
                 ty.length_expressions(&mut lengths);

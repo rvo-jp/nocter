@@ -98,9 +98,11 @@ not a language restriction derived from the current realization boundary.
 
 ## Open Findings
 
-- [ ] Complete callable types in constant/static annotations and grouped/nested type positions,
-  with declaration qualification. The private parser currently recognizes only selected outer
-  annotation boundaries; extend source admission together with callable witness/type evidence.
+- [ ] Complete nested callable data/witness support through header/data positions and the owning
+  type authority. Qualify concrete representation, substitution and callable input/result evidence;
+  one recognized type tree and a matching signature do not erase code/environment identity.
+  Any final callable-value extension must satisfy the separate constant/static serialization
+  contract; callable environments cannot inherit final-value eligibility from grammar recognition.
 - [ ] Investigate the unclassified status-1 failure of the released native test
   `network_and_tls::public_tls_and_https_reject_plain_peers_and_https_advertises_http1`.
   It is not consistently reproducible. Native exit assertions identify the sync/async image,

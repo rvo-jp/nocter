@@ -952,10 +952,11 @@
       "diagnostic": "E0370"
     },
     {
-      "id": "s06-callable-parameter-boundary",
-      "file": "s06-callable-parameter-boundary.nct",
-      "expectation": "syntax-reject",
-      "reason": "Nested callback contracts remain outside the bounded parameter grammar."
+      "id": "h09-nested-callable-witness",
+      "file": "h09-nested-callable-witness.nct",
+      "expectation": "header-reject",
+      "reason": "Nested callable data needs witness/type-model qualification; type recognition alone grants no evidence.",
+      "diagnostic": "E0291"
     },
     {
       "id": "a76-function-view-replacement",

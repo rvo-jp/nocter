@@ -277,6 +277,13 @@ new source input cannot acquire an earlier profile's authority. The proof curren
 closed name/slot layout. Ordinary package/CLI/editor integration and finer incremental reuse remain
 work; this bounded entry does not qualify them.
 
+All source annotations consume lowering's one recursive `TypeSyntax`, including parenthesized
+flat callable contracts. The ordinary witness checker still owns invocation/input/result matching;
+parentheses do not create another data or invocation identity. Nested callable data without witness evidence
+rejects at its local callable head, while unsupported header positions use the header diagnostic
+owner. Parsing a constant/static callable annotation does not grant final serialization or runtime
+initialization.
+
 The private-function goal has one typed-body query over shared immutable declaration facts and
 an owner-scoped body-type extension. Each query retains its origin header prefix; binding accepts
 only exact later extensions of that construction. `types` canonically replays those extensions and projects all

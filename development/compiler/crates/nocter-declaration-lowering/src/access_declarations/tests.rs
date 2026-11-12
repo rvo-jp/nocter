@@ -403,12 +403,11 @@ fn unready_array_header_roots_preserve_the_exact_ordinary_length_expression() {
         assert!(!context.program().header_ready(owner));
         let guard = context.header_source(owner, position).unwrap();
         let root = guard.bind(&context).unwrap();
-        let ValueTypeSyntax::Data(DataTypeSyntax::Array { element, length }) =
-            value_type_syntax(syntax, root).unwrap()
+        let TypeSyntax::Array { element, length } = project_type_syntax(syntax, root).unwrap()
         else {
             panic!("array syntax");
         };
-        assert!(matches!(*element, DataTypeSyntax::Named(_)));
+        assert!(matches!(*element, TypeSyntax::Named(_)));
         assert_eq!(
             syntax.text_at(tree.node(length).unwrap().range()),
             Some("if true { size() } else { 0 }")
@@ -583,3 +582,5 @@ fn malformed_completed_lengths_leave_raw_definition_loading_retryable_and_requir
     ));
 }
 mod primitives;
+
+mod type_syntax;

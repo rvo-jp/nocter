@@ -1,3 +1,4 @@
+mod annotations;
 mod header_value_evidence;
 mod module_sources;
 mod source_scopes;

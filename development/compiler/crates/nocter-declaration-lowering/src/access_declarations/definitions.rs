@@ -1,14 +1,14 @@
 //! Bind syntax header references through the declaration-owned construction namespace.
 use super::{
-    CodeSource, DataTypeSyntax, Failure, ValueTypeSyntax,
+    CodeSource, Failure, TypeSyntax,
     headers::{Header, RecordHeader},
     source::Sources,
     text,
 };
 use nocter_declarations::value_access::{
-    DataReference, DeclarationId, DeclarationViolation, FieldDefinition, FunctionDefinition,
-    HeaderPosition, HeaderPublication, ParameterDefinition, Program, ScopeId, TupleData,
-    ValueDefinition,
+    DataReference, DeclarationId, DeclarationRule, DeclarationViolation, FieldDefinition,
+    FunctionDefinition, HeaderPosition, HeaderPublication, ParameterDefinition, Program, ScopeId,
+    TupleData, ValueDefinition,
 };
 use nocter_model::{
     AccessCodeId, ConstantValue, FrozenData, FrozenNode, NominalTypeId, Symbol, ValueInputOperation,
@@ -20,8 +20,8 @@ use std::collections::BTreeMap;
 #[derive(Debug)]
 pub(super) struct Recipe {
     kind: nocter_declarations::value_access::CodeKind,
-    parameters: Box<[(ValueInputOperation, ValueTypeSyntax)]>,
-    result: ValueTypeSyntax,
+    parameters: Box<[(ValueInputOperation, TypeSyntax)]>,
+    result: TypeSyntax,
 }
 impl From<Header> for Recipe {
     fn from(header: Header) -> Self {
@@ -236,22 +236,30 @@ impl Definitions<'_, '_, '_> {
     }
     fn data_type(
         &mut self,
-        ty: &DataTypeSyntax,
+        ty: &TypeSyntax,
         owner: DeclarationId,
         position: HeaderPosition,
     ) -> Result<Option<DataReference>, Failure> {
         match ty {
-            DataTypeSyntax::Named(path) => self.data_path(path, owner, position),
-            DataTypeSyntax::Optional { payload, layers } => Ok(self
+            TypeSyntax::Callable(_) => {
+                self.violations.push(DeclarationViolation {
+                    declaration: owner,
+                    position,
+                    rule: DeclarationRule::UnsupportedCallableData,
+                });
+                Ok(None)
+            }
+            TypeSyntax::Named(path) => self.data_path(path, owner, position),
+            TypeSyntax::Optional { payload, layers } => Ok(self
                 .data_type(payload, owner, position)?
                 .map(|payload| DataReference::Optional {
                     payload: Box::new(payload),
                     layers: *layers,
                 })),
-            DataTypeSyntax::Fallible { payload, .. } => Ok(self
+            TypeSyntax::Fallible { payload, .. } => Ok(self
                 .data_type(payload, owner, position)?
                 .map(|payload| DataReference::Fallible(Box::new(payload)))),
-            DataTypeSyntax::Array { element, length } => {
+            TypeSyntax::Array { element, length } => {
                 nocter_source_index::SourceOrigin::from_node(self.scope.syntax.tree(), *length)
                     .map_err(|_| Failure::InconsistentSyntax)?;
                 let element = self.data_type(element, owner, position)?;
@@ -272,7 +280,7 @@ impl Definitions<'_, '_, '_> {
                     length,
                 }))
             }
-            DataTypeSyntax::Tuple(fields) => {
+            TypeSyntax::Tuple(fields) => {
                 let fields = fields
                     .iter()
                     .map(|field| self.data_type(field, owner, position))
@@ -324,15 +332,12 @@ impl Definitions<'_, '_, '_> {
     }
     fn value(
         &mut self,
-        ty: &ValueTypeSyntax,
+        ty: &TypeSyntax,
         owner: DeclarationId,
         position: HeaderPosition,
     ) -> Result<Option<ValueDefinition>, Failure> {
         Ok(match ty {
-            ValueTypeSyntax::Data(data) => self
-                .data_type(data, owner, position)?
-                .map(ValueDefinition::Data),
-            ValueTypeSyntax::Function(contract) => {
+            TypeSyntax::Callable(contract) => {
                 let inputs = contract
                     .inputs
                     .iter()
@@ -356,6 +361,9 @@ impl Definitions<'_, '_, '_> {
                     _ => None,
                 }
             }
+            data => self
+                .data_type(data, owner, position)?
+                .map(ValueDefinition::Data),
         })
     }
     fn function(
