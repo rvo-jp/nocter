@@ -10,7 +10,8 @@ func invoke(factory: (func(str, str): error)): error {
 
 func run(): i32 {
     let original = errors.operation("direct", "module message")
-    let second = invoke(errors.operation)
+    let invoke_callback: func(func(str, str): error): error = invoke
+    let second = invoke_callback(errors.operation)
     let wrapped = contexts.operation(original^, "module context")
     drop wrapped
     drop second

@@ -1,0 +1,13 @@
+const func identity(value: i32): i32 { value }
+func apply(action: func(i32): i32, value: i32): i32 { action(value) }
+const func factory(): func(i32): i32 { identity }
+const func calculate(): i32 {
+    let make: func(): func(i32): i32 = factory
+    let action = make()
+    action(42)
+}
+const ANSWER: i32 = calculate()
+func run(): i32 {
+    let invoke: func(func(i32): i32, i32): i32 = apply
+    if ANSWER == 42 && calculate() == 42 && invoke(identity, 42) == 42 { 42 } else { 0 }
+}

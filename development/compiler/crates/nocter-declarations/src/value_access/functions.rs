@@ -4,6 +4,10 @@ use nocter_model::{
     AccessCodeId, TypeAuthority, TypeId, TypeKind, ValueFunctionOrigin, ValueInputOperation,
     ValueInvocation,
 };
+mod patterns;
+pub use patterns::{
+    FunctionDataPattern, FunctionPattern, FunctionPatternMismatch, FunctionPosition,
+};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct FunctionWitness {
@@ -11,21 +15,25 @@ pub struct FunctionWitness {
     pub invocation: ValueInvocation,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct FunctionInput {
-    pub data: TypeId,
+pub struct FunctionInput<Data = TypeId> {
+    pub data: Data,
     pub operation: ValueInputOperation,
 }
 /// A structural contract constrains a witness; it is not a runtime representation or data type.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct FunctionConstraint {
+pub struct FunctionConstraint<Data = TypeId> {
     pub invocation: ValueInvocation,
-    pub inputs: Box<[FunctionInput]>,
-    pub result: TypeId,
+    pub inputs: Box<[FunctionInput<Data>]>,
+    pub result: Data,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FunctionMismatch {
     NotFunction,
     Invocation {
+        actual: ValueInvocation,
+        expected: ValueInvocation,
+    },
+    ContractInvocation {
         actual: ValueInvocation,
         expected: ValueInvocation,
     },

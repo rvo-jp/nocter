@@ -249,7 +249,7 @@ impl Checker<'_, '_> {
             )?
         };
         let constrained = if let Some(Annotation::Function(expected)) = &annotation {
-            Some(self.function_constraint_data(expression, value, expected, alias)?)
+            Some(self.function_pattern_data(expression, value, expected, alias)?)
         } else {
             None
         };

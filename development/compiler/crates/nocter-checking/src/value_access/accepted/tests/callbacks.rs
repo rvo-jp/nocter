@@ -21,6 +21,60 @@ fn calls(query: &flow::Query) -> Vec<(Origin, &[Argument])> {
 }
 
 #[test]
+fn nested_callable_patterns_preserve_required_results_and_runtime_witness_bindings() {
+    let unit = accepted(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/callable-patterns.nct"
+    )));
+    let calculate = calls(named(&unit, "calculate"));
+    let answer = unit
+        .program()
+        .resolve_code(unit.program().symbols().get("ANSWER").unwrap())
+        .unwrap();
+    assert_eq!(
+        unit.constant_value(answer).unwrap().node(),
+        &nocter_model::FrozenNode::Scalar(nocter_model::ConstantValue::Integer(42))
+    );
+    let apply = unit
+        .program()
+        .resolve(unit.program().symbols().get("apply").unwrap())
+        .unwrap();
+    let factory = unit
+        .program()
+        .resolve(unit.program().symbols().get("factory").unwrap())
+        .unwrap();
+    let identity = unit
+        .program()
+        .resolve(unit.program().symbols().get("identity").unwrap())
+        .unwrap();
+    assert_eq!(
+        calculate
+            .iter()
+            .map(|(target, _)| *target)
+            .collect::<Vec<_>>(),
+        [Origin::Declaration(factory), Origin::Declaration(identity)]
+    );
+    let run = calls(named(&unit, "run"));
+    let binding = run
+        .iter()
+        .find(|(target, _)| *target == Origin::Declaration(apply))
+        .unwrap()
+        .1
+        .iter()
+        .find_map(|argument| argument.binding.as_ref())
+        .unwrap();
+    assert_eq!(
+        unit.program()
+            .parameters()
+            .get(binding.parameter)
+            .unwrap()
+            .owner(),
+        apply
+    );
+    assert!(matches!(binding.witness.origin, Origin::Declaration(_)));
+}
+
+#[test]
 fn source_calls_bind_exact_named_and_formal_witnesses_without_erasure() {
     let unit = accepted(&source_case("a82-callback-forward-read.nct"));
     let run = calls(named(&unit, "run"));

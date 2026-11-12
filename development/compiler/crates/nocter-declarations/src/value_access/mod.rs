@@ -23,8 +23,8 @@ pub use aggregate::{AggregateForm, AggregateSchema};
 mod data;
 mod functions;
 pub use functions::{
-    FunctionConstraint, FunctionDefinition, FunctionInput, FunctionMismatch, FunctionWitness,
-    ValueDefinition,
+    FunctionConstraint, FunctionDataPattern, FunctionDefinition, FunctionInput, FunctionMismatch,
+    FunctionPattern, FunctionPatternMismatch, FunctionPosition, FunctionWitness, ValueDefinition,
 };
 mod namespace;
 pub use namespace::{Namespace, QualifiedNameError, ScopeBindingError, ScopeId};

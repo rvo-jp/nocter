@@ -278,11 +278,16 @@ closed name/slot layout. Ordinary package/CLI/editor integration and finer incre
 work; this bounded entry does not qualify them.
 
 All source annotations consume lowering's one recursive `TypeSyntax`, including parenthesized
-flat callable contracts. The ordinary witness checker still owns invocation/input/result matching;
-parentheses do not create another data or invocation identity. Nested callable data without witness evidence
-rejects at its local callable head, while unsupported header positions use the header diagnostic
-owner. Parsing a constant/static callable annotation does not grant final serialization or runtime
-initialization.
+callable contracts. Parentheses do not create another data or invocation identity. Local callable
+annotations resolve nested input/result signatures into declaration-owned `FunctionPattern`
+constraints. They check an existing named/formal/result witness recursively, preserve its identity
+and ordinary formal bindings, and report the mismatching input/result path at the supplied value.
+Only the outer invocation can adapt; a nested signature cannot alter the operation or invocation
+contract declared by the selected function. Scoped aliases retain the ordinary adapter restriction.
+An anonymous implementation still needs actual input/result witness identities; a nested signature
+alone does not invent them. Callable data in unsupported carrier/header positions still rejects
+through the local/header diagnostic owner. Parsing a constant/static callable annotation does not
+grant final serialization or runtime initialization.
 
 The private-function goal has one typed-body query over shared immutable declaration facts and
 an owner-scoped body-type extension. Each query retains its origin header prefix; binding accepts

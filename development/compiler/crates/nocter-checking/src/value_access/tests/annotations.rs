@@ -57,3 +57,107 @@ fn callable_initializer_annotations_reach_the_final_value_boundary_instead_of_sy
         );
     }
 }
+
+#[test]
+fn nested_callable_annotations_match_existing_input_and_result_witnesses_without_replacing_identity()
+ {
+    use nocter_declarations::value_access::FunctionWitness;
+    use nocter_model::{ValueFunctionOrigin, ValueInvocation};
+    let source = "func identity(value: i32): i32 { value }\nfunc apply(action: func(i32): i32, value: i32): i32 { action(value) }\nfunc make(): func(i32): i32 { identity }\nfunc run(): i32 { let invoke: func(func(i32): i32, i32): i32 = apply\nlet factory: func(): func(i32): i32 = make\nlet value = factory()\ninvoke(value, 42) }";
+    let all = queries(source).unwrap();
+    let run = named(&all, "run");
+    let program = run.program();
+    for (local, name) in [(0, "apply"), (1, "make")] {
+        let code = program
+            .resolve(program.symbols().get(name).unwrap())
+            .unwrap();
+        assert_eq!(
+            run.body().locals().iter().nth(local).unwrap().1.data,
+            program
+                .function_data(FunctionWitness {
+                    origin: ValueFunctionOrigin::Declaration(code),
+                    invocation: ValueInvocation::Read
+                })
+                .unwrap()
+        );
+    }
+    let fixture = nocter_test_support::ValueSourceFixture::new(source);
+    accepted::SourceUnit::prepare(fixture.syntax()).unwrap();
+}
+
+#[test]
+fn nested_callable_annotation_failures_report_the_contract_path_at_the_actual_value() {
+    for (annotation, reason) in [
+        (
+            "func(func(bool): i32, i32): i32",
+            "callable input 1 -> callable input 1",
+        ),
+        (
+            "func(func(i32): bool, i32): i32",
+            "callable input 1 -> callable result",
+        ),
+        (
+            "func(mut(i32): i32, i32): i32",
+            "nested callable contract requires mut",
+        ),
+        (
+            "func(once(i32): i32, i32): i32",
+            "nested callable contract requires once",
+        ),
+        (
+            "func(func(): i32, i32): i32",
+            "callable input 1 -> callable annotation requires 0 inputs",
+        ),
+        (
+            "func(func(i32): i32, func(): i32): i32",
+            "callable input 2 -> this annotation needs",
+        ),
+        (
+            "func(take func(i32): i32, i32): i32",
+            "callable input 1 requires Take",
+        ),
+        ("func(func(i32): i32): i32", "requires 1 inputs"),
+    ] {
+        let source = format!(
+            "func apply(action: func(i32): i32, value: i32): i32 {{ action(value) }}\nfunc run(): void {{ let invoke: {annotation} = apply }}"
+        );
+        let Err(Failure::Rejected(diagnostic)) = queries(&source) else {
+            panic!("{source}");
+        };
+        assert_eq!(diagnostic.rule(), Rule::TypeMismatch);
+        assert!(
+            diagnostic.source().message().contains(reason),
+            "{}",
+            diagnostic.source().message()
+        );
+        let range = diagnostic.source().primary().span().range();
+        assert_eq!(
+            &source[range.start().get() as usize..range.end().get() as usize],
+            "apply"
+        );
+    }
+}
+
+#[test]
+fn nested_annotation_adapts_only_the_outer_view_and_keeps_alias_and_identity_rules() {
+    let prefix = "func apply(action: func(i32): i32, value: i32): i32 { action(value) }\nfunc other(action: func(i32): i32, value: i32): i32 { action(value) }\nfunc identity(value: i32): i32 { value }\n";
+    assert!(queries(&format!("{prefix}func run(): i32 {{ var invoke: mut(func(i32): i32, i32): i32 = apply\ninvoke(identity, 42) }}")).is_ok());
+    for body in [
+        "let value = apply\nread alias: mut(func(i32): i32, i32): i32 = value",
+        "var invoke: mut(func(i32): i32, i32): i32 = apply\nlet upgrade: func(func(i32): i32, i32): i32 = invoke",
+        "var invoke: func(func(i32): i32, i32): i32 = apply\ninvoke = other",
+    ] {
+        reject(
+            &format!("{prefix}func run(): void {{ {body} }}"),
+            Rule::TypeMismatch,
+        );
+    }
+}
+
+#[test]
+fn a_nested_signature_does_not_invent_an_anonymous_input_witness() {
+    reject(
+        "func run(): void { let invoke: func(func(i32): i32): i32 = (action) { action(42) } }",
+        Rule::UnknownType,
+    );
+}

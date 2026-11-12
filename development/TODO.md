@@ -18,13 +18,14 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Close the callable-type finding below through one recursive type-syntax projection and ordinary
-witness/type evidence. Recognize adopted callable contracts consistently in initializer annotations,
-grouped and nested data/callable positions; keep invocation and input/result scope unambiguous.
-Preserve one declaration/type authority, qualified name lookup, current source diagnostics and
-required-count dependencies. Extend source recognition together with checked witness obligations;
-a recognized production alone is not an accepted feature. Constants/statics still need their own
-final-value eligibility, and temporary callable environments must not acquire implicit serialization.
+Extend standalone anonymous result inference through the ordinary source checker. Infer an
+unannotated closure result from its own checked return values and normal completion, without a
+placeholder type, later-use repair or a second body checker. Preserve read/edit/take defaults,
+explicit transfer, declared/expected result checking and source-local ambiguity diagnostics.
+Qualify ordinary, required and native execution together; retain broader callable input/capture
+inference and dependency obligations until their actual evidence is implemented. Nested callable
+header/carrier positions remain open under the finding below; a local annotation constraint does
+not establish their representation or substitution model.
 Keep module discovery, the remaining toolchain role families and ordinary compiler/editor integration
 open until their contracts and production paths are qualified. Keep the retained-selection work
 below open; bounded module/native execution does not close general hole relations or externally

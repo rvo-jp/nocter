@@ -17,7 +17,8 @@ coordinates, or checking internals.
 - declaration and member arenas
 - the bounded future private-function declaration authority under `value_access`: canonical
   reservations, define-once callable contracts, input operations, namespace validation, and resolved
-  value results and optional flat callable constraints, without borrowing/source-syntax representations
+  value results, normalized callable contracts and recursive annotation constraints, without
+  borrowing/source-syntax representations
 - closed nominal payload schemas under `value_access::records`: define-once records, resolved
   field identities and types, local member namespaces, finite-containment validation, and
   explicit structural Copy evidence, published in that same private program/type authority
@@ -302,7 +303,15 @@ same header TypeAuthority. Named functions publish all invocation views; formal 
 publish only the views their declared invocation can supply, independently of body use. A local
 annotation validates exact input operations, data and result, then selects a permitted view of that same witness. Typed mismatch domains and the view
 adapter policy belong here; consumers cannot substitute another declaration with an equal
-signature. Named witnesses are capture-free Copy values with trivial cleanup and no outside D/S
+signature. `FunctionConstraint<Data>` uses the same ordered contract shape for normalized data
+identities and recursive `FunctionPattern` annotation constraints. Pattern leaves require exact
+`TypeId` equality; callable nodes constrain an already selected witness. Matching resolves the
+pattern against that witness's own input/result facts and delegates exact contract checking to
+`constrain_function`. It creates no type, code or environment identity. Only the outer invocation
+view can adapt; nested callable contracts remain invariant. Failures retain their input/result
+path independently of source coordinates. Normalized contextual contracts retain exact data
+identities rather than expanding those identities into anonymous structural signatures.
+Named witnesses are capture-free Copy values with trivial cleanup and no outside D/S
 under their exact schema. This is not evidence about arbitrary structural callback contracts.
 Formal and unresolved result witnesses deliberately have no Copy evidence. Their environment
 cleanup remains symbolic; a formal cannot inherit payload properties from one currently known caller. `function_contract`

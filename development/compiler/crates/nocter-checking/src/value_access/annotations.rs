@@ -1,10 +1,11 @@
 //! An annotation constrains data or a static callable witness; it never erases the witness.
 use super::{Failure, Rule, checker::Checker};
 use nocter_declarations::value_access::{
-    FunctionConstraint, FunctionInput, FunctionMismatch, Namespace,
+    FunctionConstraint, FunctionMismatch, FunctionPattern, FunctionPatternMismatch, Namespace,
 };
 use nocter_model::{AccessExpressionId, TypeId, ValueInvocation};
 use nocter_syntax::{ContextualSpelling, Keyword, NodeId, SyntaxToken};
+mod patterns;
 
 pub(super) fn invocation_label(invocation: ValueInvocation) -> &'static str {
     match invocation {
@@ -16,7 +17,7 @@ pub(super) fn invocation_label(invocation: ValueInvocation) -> &'static str {
 
 pub(super) enum Annotation {
     Data(TypeId),
-    Function(FunctionConstraint),
+    Function(FunctionPattern),
 }
 impl Annotation {
     pub fn data(&self) -> Option<TypeId> {
@@ -121,23 +122,9 @@ impl Checker<'_, '_> {
     pub fn annotation(&mut self, node: NodeId) -> Result<Annotation, Failure> {
         use nocter_declaration_lowering::access_declarations::{TypeSyntax, project_type_syntax};
         match project_type_syntax(self.syntax(), node).map_err(|_| Failure::InconsistentSyntax)? {
-            TypeSyntax::Callable(contract) => {
-                let inputs = contract
-                    .inputs
-                    .iter()
-                    .map(|(operation, data)| {
-                        Ok(FunctionInput {
-                            data: self.annotation_data(data, false)?,
-                            operation: *operation,
-                        })
-                    })
-                    .collect::<Result<_, Failure>>()?;
-                Ok(Annotation::Function(FunctionConstraint {
-                    invocation: contract.invocation,
-                    inputs,
-                    result: self.annotation_data(&contract.result, false)?,
-                }))
-            }
+            TypeSyntax::Callable(contract) => self
+                .callable_annotation(&contract)
+                .map(Annotation::Function),
             data => self.annotation_data(&data, false).map(Annotation::Data),
         }
     }
@@ -147,7 +134,7 @@ impl Checker<'_, '_> {
         {
             self.program()
                 .function_contract(witness)
-                .map(Annotation::Function)
+                .map(|contract| Annotation::Function(FunctionPattern::exact(contract)))
                 .ok_or(Failure::InconsistentSyntax)
         } else {
             Ok(Annotation::Data(data))
@@ -163,47 +150,60 @@ impl Checker<'_, '_> {
         let Some(actual) = self.ty(value).access() else {
             return self.reject(Rule::TypeMismatch, node);
         };
-        let data = match self.program().constrain_function(actual.data(), expected) {
+        let result = self
+            .program()
+            .constrain_function(actual.data(), expected)
+            .map_err(|mismatch| FunctionPatternMismatch {
+                path: Box::new([]),
+                mismatch,
+            });
+        self.finish_function_constraint(node, actual.data(), result, alias)
+    }
+    pub(super) fn function_pattern_data(
+        &self,
+        node: NodeId,
+        value: AccessExpressionId,
+        expected: &FunctionPattern,
+        alias: bool,
+    ) -> Result<TypeId, Failure> {
+        let Some(actual) = self.ty(value).access() else {
+            return self.reject(Rule::TypeMismatch, node);
+        };
+        self.finish_function_constraint(
+            node,
+            actual.data(),
+            self.program()
+                .constrain_function_pattern(actual.data(), expected),
+            alias,
+        )
+    }
+    fn finish_function_constraint(
+        &self,
+        node: NodeId,
+        actual: TypeId,
+        result: Result<TypeId, FunctionPatternMismatch>,
+        alias: bool,
+    ) -> Result<TypeId, Failure> {
+        let data = match result {
             Ok(data) => data,
-            Err(FunctionMismatch::Integrity) => return Err(Failure::InconsistentSyntax),
-            Err(mismatch) => {
-                let message = match mismatch {
-                    FunctionMismatch::NotFunction => {
-                        "this annotation needs a concrete callable witness".to_owned()
+            Err(failure) => {
+                let mut message = String::new();
+                for position in failure.path {
+                    use nocter_declarations::value_access::FunctionPosition;
+                    use std::fmt::Write;
+                    match position {
+                        FunctionPosition::Input(index) => {
+                            write!(message, "callable input {} -> ", index + 1)
+                        }
+                        FunctionPosition::Result => write!(message, "callable result -> "),
                     }
-                    FunctionMismatch::Invocation { actual, expected } => {
-                        format!(
-                            "the {} invocation view cannot supply {}",
-                            invocation_label(actual),
-                            invocation_label(expected)
-                        )
-                    }
-                    FunctionMismatch::InputCount { actual, expected } => format!(
-                        "callable annotation requires {expected} inputs; the selected witness has {actual}"
-                    ),
-                    FunctionMismatch::Input {
-                        position,
-                        actual,
-                        expected,
-                    } => format!(
-                        "callable input {} requires {:?} {}; the selected witness supplies {:?} {}",
-                        position + 1,
-                        expected.operation,
-                        self.data_label(expected.data),
-                        actual.operation,
-                        self.data_label(actual.data)
-                    ),
-                    FunctionMismatch::Result { actual, expected } => format!(
-                        "callable result requires {}; the selected witness returns {}",
-                        self.data_label(expected),
-                        self.data_label(actual)
-                    ),
-                    FunctionMismatch::Integrity => return Err(Failure::InconsistentSyntax),
-                };
+                    .expect("writing into a string");
+                }
+                message.push_str(&self.function_mismatch_message(failure.mismatch)?);
                 return self.reject_message(Rule::TypeMismatch, node, message, Vec::new());
             }
         };
-        if data == actual.data() {
+        if data == actual {
             return Ok(data);
         }
         if alias {
@@ -211,5 +211,45 @@ impl Checker<'_, '_> {
             return self.reject_message(Rule::TypeMismatch, node, message.to_owned(), Vec::new());
         }
         Ok(data)
+    }
+    fn function_mismatch_message(&self, mismatch: FunctionMismatch) -> Result<String, Failure> {
+        Ok(match mismatch {
+            FunctionMismatch::NotFunction => {
+                "this annotation needs a selected callable witness".to_owned()
+            }
+            FunctionMismatch::Invocation { actual, expected } => {
+                format!(
+                    "the {} invocation view cannot supply {}",
+                    invocation_label(actual),
+                    invocation_label(expected)
+                )
+            }
+            FunctionMismatch::ContractInvocation { actual, expected } => format!(
+                "nested callable contract requires {} invocation; the selected contract declares {}",
+                invocation_label(expected),
+                invocation_label(actual)
+            ),
+            FunctionMismatch::InputCount { actual, expected } => format!(
+                "callable annotation requires {expected} inputs; the selected witness has {actual}"
+            ),
+            FunctionMismatch::Input {
+                position,
+                actual,
+                expected,
+            } => format!(
+                "callable input {} requires {:?} {}; the selected witness supplies {:?} {}",
+                position + 1,
+                expected.operation,
+                self.data_label(expected.data),
+                actual.operation,
+                self.data_label(actual.data)
+            ),
+            FunctionMismatch::Result { actual, expected } => format!(
+                "callable result requires {}; the selected witness returns {}",
+                self.data_label(expected),
+                self.data_label(actual)
+            ),
+            FunctionMismatch::Integrity => return Err(Failure::InconsistentSyntax),
+        })
     }
 }

@@ -108,10 +108,16 @@ impl Checker<'_, '_> {
             NodeKind::TransferExpression => self.transfer(node, reachable)?,
             NodeKind::ClosureExpression => {
                 let contract = match context {
-                    Some(Annotation::Function(contract)) => Some(contract),
+                    Some(Annotation::Function(contract)) => {
+                        let Some(contract) = contract.resolved_contract() else {
+                            return self.reject_message(Rule::UnknownType, node,
+                                "a nested callable signature alone does not establish this closure's input/result witness identities".into(), Vec::new());
+                        };
+                        Some(contract)
+                    }
                     _ => None,
                 };
-                self.closure(node, contract, reachable)?
+                self.closure(node, contract.as_ref(), reachable)?
             }
             NodeKind::StructLiteral => self.record_value(node, reachable)?,
             NodeKind::TupleExpression => {

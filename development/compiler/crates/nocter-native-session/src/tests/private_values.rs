@@ -644,6 +644,16 @@ fn private_contextual_closures_keep_selected_contracts_in_runtime_instances() {
 }
 
 #[test]
+fn private_nested_callable_patterns_preserve_witnesses_in_required_and_native_execution() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/callable-patterns.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "callable-patterns", 42);
+}
+
+#[test]
 fn private_direct_indexed_callables_keep_retirement_indices_and_snapshots() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
