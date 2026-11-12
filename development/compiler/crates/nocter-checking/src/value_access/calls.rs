@@ -107,7 +107,7 @@ impl Checker<'_, '_> {
             (_, nocter_model::FrozenNode::Variant { .. })
                 if matches!(
                     self.program().data_schema(data),
-                    Some(PayloadSchema::Optional(_))
+                    Some(PayloadSchema::Optional(_) | PayloadSchema::Fallible(_))
                 ) =>
             {
                 ExpressionKind::Constant(value.clone())

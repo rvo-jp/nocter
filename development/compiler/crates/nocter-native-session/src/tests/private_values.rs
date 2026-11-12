@@ -119,6 +119,16 @@ fn private_trusted_error_constructors_execute_real_owned_graphs() {
 }
 
 #[test]
+fn private_const_outcomes_preserve_inactive_error_payloads_and_frozen_ownership() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/const-outcome-values.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "const-outcome-values", 42);
+}
+
+#[test]
 fn private_callable_value_captures_preserve_views_state_and_recursive_cleanup() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

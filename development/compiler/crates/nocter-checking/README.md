@@ -711,9 +711,9 @@ The fallible source fixture additionally qualifies native success construction, 
 owned propagation, unit completion, scoped read/update, and deferred/cancelled implicit success
 input transfer. Recovery source additionally qualifies success-branch laziness, original-storage
 update and nested recovery order. Checking covers owned and scoped failure handlers, error-data
-forwarding, rethrow and suppression obligations. Fallible required evaluation and actual error
-creation/graph release, including executed failure handlers, remain unqualified; inactive error
-alternatives do not close those obligations.
+forwarding, rethrow and suppression obligations. The [constant domain](#constant-domain-acceptance)
+and [native owned-error effects](../nocter-machine/README.md#owned-error-effects) define their
+respective executed scope; inactive error alternatives alone establish no live-graph cleanup.
 
 ## Constant-Domain Acceptance
 
@@ -726,7 +726,7 @@ headers close without executing bodies or proving termination; every definition 
 pass ordinary typing, initialization, access and resource validation.
 
 `value_access::constant` owns this bounded domain check. It admits primitive Boolean/integer/unit
-operations, optional construction/assertion and finite record/tuple/array payload compositions of supported data, local values, read/edit aliases,
+operations, optional construction/assertion, eligible fallible success values and finite record/tuple/array payload compositions of supported data, local values, read/edit aliases,
 updates, structured control, explicit transfer, exact named values and eligible owned captured calls. Aggregate admission is independent of Copy and
 memoized by data identity rather than expanded through shared fields. `evaluation::types` is the
 single shape projection used by const-domain validation, final-data admission and closed-plan
@@ -737,7 +737,13 @@ unsupported element data. An element declaration can still be unready during req
 that identity-only edge does not request its payload header or manufacture a ready schema. Final
 Unit closure still validates every independent declaration. `Type::Unavailable` retains such an
 identity without accepting a value; positive occurrences of unsupported data remain outside the
-evaluator domain. The projection derives temporary-operation support and final serialization separately
+evaluator domain. Variant support follows representable cases: optional absence and fallible success
+do not fabricate an inactive error payload. The shared const-outcome source qualifies success
+construction, taking inputs, forwarding, assertion, frozen constant reuse and ordinary native
+execution, including absent `error?` and `(error!)?` values. Live error graphs, their destruction
+and runtime primitive calls remain unavailable. Final publication also excludes representable
+callable payloads; an unavailable opposite case does not erase that restriction.
+The projection derives temporary-operation support and final serialization separately
 from these same shapes. Exact named witnesses retain their code identity with a unit environment;
 selected read/edit/once views transport one existing payload through ordinary resource transitions.
 Value calls omit only that empty callable prefix from the declaration's explicit inputs, retaining
@@ -891,7 +897,8 @@ outer requests restart work without resetting storage. Its accounting contract b
 work/depth/storage exhaustion and unsupported final publication retain
 distinct local diagnostics. `prepare_with_limits` supplies explicit deterministic limits.
 
-Final publication admits bool, the intrinsic integer catalog, unit, program-extent text and finite closed optional/record/tuple/fixed-array
+Final publication admits bool, the intrinsic integer catalog, unit, program-extent text, eligible
+fallible success data and finite closed optional/record/tuple/fixed-array
 compositions under the shared final-data policy. Publication uses an explicit final-data policy over the shared schema traversal, independently of temporary
 execution support and Copy. The admitted aggregate schema has no user destructors or retained
 resources. Each constant reference creates a fresh ordinary value without granting its type Copy.
@@ -1421,8 +1428,9 @@ target evaluation, bounds checks and access conflicts remain in force. Restored 
 reuse that snapshot recipe for a newly evaluated number after its prior lifetime ends.
 Shared source qualifies changed user indices, repeated alternating indices, direct call retirement,
 restoration on both branches and maximum-count zero-byte arrays. A logical owned-error case checks
-that missing old data is not destroyed and snapshot retirement follows installation; actual native
-owned-error construction remains unqualified. Partial-field restoration and general relations
+that missing old data is not destroyed and snapshot retirement follows installation; the
+[native effect corpus](../nocter-machine/README.md#owned-error-effects) additionally executes
+owned-error construction and release through these restorations. Partial-field restoration and general relations
 among multiple retained holes remain separate obligations.
 Source also qualifies a later prefix loop after restoring the sole point, without replacing the
 containing array. Independent negative checks retain earlier field holes and longer-prefix holes.

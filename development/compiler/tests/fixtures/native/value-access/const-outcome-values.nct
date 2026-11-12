@@ -1,0 +1,30 @@
+const func success(): i32! { 42 }
+const func absent(): error? { none }
+const func nested(): (error!)? { none }
+const func forward(take value: i32!): i32! { value^ }
+const func asserted(): i32 {
+    let value = forward(success())
+    value^!
+}
+const VALUE: i32! = success()
+const EMPTY: error? = absent()
+const NESTED: (error!)? = nested()
+const ANSWER: i32 = asserted()
+func absent_value(take value: error?): i32 {
+    let reason = value^ otherwise { return ANSWER }
+    drop reason
+    0
+}
+func nested_value(take value: (error!)?): i32 {
+    let outcome = value^ otherwise { return ANSWER }
+    let reason = outcome^!
+    drop reason
+    0
+}
+func run(): i32 {
+    let value = VALUE
+    let first = value^!
+    let second = absent_value(EMPTY)
+    let third = nested_value(NESTED)
+    first + second + third - 84
+}

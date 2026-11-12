@@ -112,9 +112,10 @@ tests cover both matching and mismatching tags, including an absence view that r
 `PrimaryCondition` reads only a stored variant's tag and produces Boolean data; ordinary graph
 branches and returns own propagation, without accessing an absent payload.
 Value traversal, freezing, restoration and final release use iterative work, including deeply
-nested flat optional suffixes. Optional source uses this shared representation. This kernel does
-not admit error-graph values, source fallible evaluation or a runtime primitive's evaluator body.
-Those source/data/operation eligibility obligations remain with checking.
+nested flat optional suffixes. Source optional and eligible fallible values use this shared
+representation under the [checking domain](../nocter-checking/README.md#constant-domain-acceptance).
+This kernel does not admit error-graph values or a runtime primitive's evaluator body.
+Source/data/operation eligibility remains with checking.
 
 `Type::Text`/`Data::Text` retain immutable decoded UTF-8 and round-trip through the model's existing
 `ConstantValue::Text` leaf. Text is opaque to field/index and numeric operations. Source Copy

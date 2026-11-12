@@ -8,7 +8,9 @@ const INVALID: flow::IntegrityError = flow::IntegrityError::InconsistentTypedBod
 type Result<T> = std::result::Result<T, flow::IntegrityError>;
 struct Shape {
     ty: Type,
+    /// At least one value is representable. Unavailable variant payloads remain uninhabitable.
     supported: bool,
+    /// The represented domain is nonempty and contains only final-publication data.
     serializable: bool,
 }
 #[derive(Default)]
@@ -86,11 +88,12 @@ impl Types {
                     self.insert(data, ty.unwrap_or(Type::Unavailable), supported);
                     continue;
                 }
-                PayloadSchema::Fallible(_) => {
-                    // Error graph data and evaluator operations require their own admission.
-                    self.insert(data, Type::Unavailable, false);
-                    continue;
-                }
+                PayloadSchema::Fallible(payload) => vec![
+                    payload,
+                    program
+                        .data_type(nocter_model::BuiltinType::Error)
+                        .ok_or(INVALID)?,
+                ],
                 PayloadSchema::Function(witness) => match witness.origin {
                     nocter_model::ValueFunctionOrigin::Closure(code) => {
                         vec![program.closure(code).ok_or(INVALID)?.environment()]
@@ -152,14 +155,30 @@ impl Types {
         schema: PayloadSchema<'_>,
         children: Vec<usize>,
     ) -> Result<()> {
-        let supported = children.iter().all(|&id| self.shapes[id].supported);
-        let serializable = !matches!(schema, PayloadSchema::Function(_))
-            && children.iter().all(|&id| self.shapes[id].serializable);
+        let variant = matches!(
+            schema,
+            PayloadSchema::Optional(_) | PayloadSchema::Fallible(_)
+        );
+        let supported = match schema {
+            PayloadSchema::Optional(_) => true,
+            PayloadSchema::Fallible(_) => children.iter().any(|&id| self.shapes[id].supported),
+            _ => children.iter().all(|&id| self.shapes[id].supported),
+        };
+        let serializable = supported
+            && !matches!(schema, PayloadSchema::Function(_))
+            && children
+                .iter()
+                .filter(|&&id| !variant || self.shapes[id].supported)
+                .all(|&id| self.shapes[id].serializable);
         let ty = match schema {
             PayloadSchema::Aggregate(_) => Type::Record(children.into()),
             PayloadSchema::Optional(_) => Type::Variant {
                 primary: *children.first().ok_or(INVALID)?,
                 alternate: None,
+            },
+            PayloadSchema::Fallible(_) => Type::Variant {
+                primary: *children.first().ok_or(INVALID)?,
+                alternate: Some(*children.get(1).ok_or(INVALID)?),
             },
             PayloadSchema::Array(array) => Type::Array {
                 element: *children.first().ok_or(INVALID)?,
@@ -174,7 +193,7 @@ impl Types {
                     environment: *children.first().ok_or(INVALID)?,
                 }
             }
-            PayloadSchema::Builtin(_) | PayloadSchema::Fallible(_) => return Err(INVALID),
+            PayloadSchema::Builtin(_) => return Err(INVALID),
         };
         let id = self.insert(data, ty, supported);
         self.shapes[id].serializable = serializable;

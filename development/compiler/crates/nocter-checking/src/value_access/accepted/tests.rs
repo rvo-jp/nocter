@@ -335,6 +335,7 @@ mod indexed_regions;
 mod indexed_bounds;
 mod indexed_transfers;
 
+mod const_outcomes;
 mod fallible_values;
 mod optional_values;
 mod primitives;
