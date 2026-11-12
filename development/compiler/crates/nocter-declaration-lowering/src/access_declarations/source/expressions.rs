@@ -54,7 +54,10 @@ impl<'source> Context<'source> {
         owner: AccessCodeId,
     ) -> Result<BodyExpressions<'source>, SourceMismatch> {
         let source = self.body_source(owner)?;
-        let root = source.bind(self)?.body();
+        let root = source
+            .bind(self)?
+            .body()
+            .ok_or(SourceMismatch::UnknownSource)?;
         let syntax = self.syntax();
         let projection = BodySyntaxProjection::for_root(syntax.tree(), root)
             .ok_or(SourceMismatch::InconsistentSyntax)?;

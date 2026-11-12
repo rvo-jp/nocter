@@ -242,21 +242,32 @@ function validatePrimitiveTypeCatalog() {
 }
 
 function validateDiagnosticCatalog() {
-    const specificationPath = path.join(PROJECT_ROOT, "spec/tooling/diagnostics.md");
-    const specification = fs.readFileSync(specificationPath, "utf8");
-    const entries = [...specification.matchAll(/^- `(E\d{4})`:/gm)].map(match => match[1]);
+    const readCatalog = (relative, optional = false) => {
+        let specification;
+        try {
+            specification = fs.readFileSync(path.join(PROJECT_ROOT, relative), "utf8");
+        } catch (error) {
+            if (!optional || error.code !== "ENOENT") throw error;
+            specification = "";
+        }
+        const entries = [...specification.matchAll(/^- `(E\d{4})`:/gm)].map(match => match[1]);
+        return { relative, specification, entries, codes: new Set(entries) };
+    };
+    const published = readCatalog("spec/tooling/diagnostics.md");
+    const adopted = readCatalog("development/spec/tooling/diagnostics.md", true);
+    const entries = [...published.entries, ...adopted.entries];
     const catalog = new Set(entries);
     const duplicates = [...new Set(entries.filter((code, index) => entries.indexOf(code) !== index))];
-
     if (duplicates.length > 0) {
         throw new Error(`Duplicate diagnostic catalog entries: ${duplicates.join(", ")}`);
     }
-
-    const referenced = new Set(specification.match(/E\d{4}/g) || []);
-    referenced.delete("E0000");
-    const uncataloguedReferences = [...referenced].filter(code => !catalog.has(code)).sort();
-    if (uncataloguedReferences.length > 0) {
-        throw new Error(`Diagnostic examples use uncatalogued codes: ${uncataloguedReferences.join(", ")}`);
+    for (const [source, allowed] of [[published, published.codes], [adopted, catalog]]) {
+        const referenced = new Set(source.specification.match(/E\d{4}/g) || []);
+        referenced.delete("E0000");
+        const uncatalogued = [...referenced].filter(code => !allowed.has(code)).sort();
+        if (uncatalogued.length > 0) {
+            throw new Error(`Diagnostic examples use uncatalogued codes in ${source.relative}: ${uncatalogued.join(", ")}`);
+        }
     }
 
     const compilerCatalogPath = path.join(

@@ -107,11 +107,17 @@ pub struct TypeExpressionSource {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CodeKind {
     Function(CompileTimeGuarantee),
+    /// A bodyless callable declaration; primitive authority is a separate lowering receipt.
+    Primitive,
     ConstantInitializer,
     StaticInitializer,
     TypeExpression(TypeExpressionSource),
 }
 impl CodeKind {
+    #[must_use]
+    pub const fn is_callable(self) -> bool {
+        matches!(self, Self::Function(_) | Self::Primitive)
+    }
     #[must_use]
     pub const fn is_initializer(self) -> bool {
         matches!(
@@ -123,6 +129,7 @@ impl CodeKind {
     pub const fn compile_time(self) -> CompileTimeGuarantee {
         match self {
             Self::Function(capability) => capability,
+            Self::Primitive => CompileTimeGuarantee::RuntimeOnly,
             Self::ConstantInitializer | Self::StaticInitializer | Self::TypeExpression(_) => {
                 CompileTimeGuarantee::Evaluatable
             }
@@ -287,11 +294,8 @@ impl Program {
     }
     #[must_use]
     pub fn resolve(&self, name: Symbol) -> Option<AccessCodeId> {
-        self.resolve_code(name).filter(|id| {
-            self.codes
-                .get(*id)
-                .is_some_and(|c| matches!(c.kind(), CodeKind::Function(_)))
-        })
+        self.resolve_code(name)
+            .filter(|id| self.codes.get(*id).is_some_and(|c| c.kind().is_callable()))
     }
     /// Lookup any source code declaration for collision checks; not a function-value grant.
     #[must_use]

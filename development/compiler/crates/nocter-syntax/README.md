@@ -44,6 +44,8 @@ package or discovery code. It does not resolve names or apply semantic rules.
   order. `throw` requires an operand under ordinary incomplete-statement newline rules.
   Plain single/multiline strings use the shared literal recognizer and lossless string node.
   Interpolation has no fallback into the released expression grammar.
+  `primitive func` recognizes a bodyless header only; ordinary functions still require their body.
+  Recognition grants no primitive authority or source-body admission.
   Array lists, repetitions and joint bracket indexing retain distinct nodes in the same goal.
   `array_repetition_parts` supplies the seed/count source roles to lowering and checking without
   interpreting either expression. Delimiter-owned newlines and nesting limits apply equally to

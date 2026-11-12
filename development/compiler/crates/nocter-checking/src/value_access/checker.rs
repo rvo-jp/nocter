@@ -70,7 +70,8 @@ pub(super) fn prepare(
         .code_source(callable)
         .ok_or(Failure::UnknownCallable)?;
     let syntax = context.syntax();
-    let projection = BodySyntaxProjection::for_root(syntax.tree(), source.body())
+    let body_root = source.body().ok_or(Failure::InconsistentSyntax)?;
+    let projection = BodySyntaxProjection::for_root(syntax.tree(), body_root)
         .ok_or(Failure::InconsistentSyntax)?;
     let body_source = context.body_source(callable)?;
     let mut checker = Checker::new(
@@ -109,14 +110,14 @@ pub(super) fn prepare(
     }
     let root = if declaration.kind().is_initializer() {
         let value = checker.expression(
-            source.body(),
+            body_root,
             Some(Boundary::Result(declaration.result())),
             true,
         )?;
-        checker.emit_block(source.body(), Vec::new(), Some(value), checker.ty(value))?
+        checker.emit_block(body_root, Vec::new(), Some(value), checker.ty(value))?
     } else {
         checker.block(
-            source.body(),
+            body_root,
             Some(Boundary::Result(declaration.result())),
             true,
         )?

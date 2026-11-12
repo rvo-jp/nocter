@@ -457,16 +457,19 @@ fn nested_header_lengths_have_distinct_code_roots_and_neutral_source_recipes() {
         assert!(source.parameters().is_empty());
         assert_eq!(
             source.origin(),
-            nocter_syntax::SyntaxOrigin::Node(source.body())
+            nocter_syntax::SyntaxOrigin::Node(source.body().unwrap())
         );
-        assert_eq!(source.result_origin(), source.body());
+        assert_eq!(source.result_origin(), source.body().unwrap());
         assert_eq!(
-            syntax.text_at(tree.node(source.body()).unwrap().range()),
+            syntax.text_at(tree.node(source.body().unwrap()).unwrap().range()),
             Some(text)
         );
         let guard = context.body_source(id).unwrap();
         assert_eq!(guard.owner(), id);
-        assert_eq!(guard.bind(&context).unwrap().body(), source.body());
+        assert_eq!(
+            guard.bind(&context).unwrap().body().unwrap(),
+            source.body().unwrap()
+        );
     }
     let moved = source.replace("{ missing }", "{\n other\n}");
     let (next_sources, next_tree) = input(&moved, ParseGoal::V2CoreUnit);
@@ -477,7 +480,7 @@ fn nested_header_lengths_have_distinct_code_roots_and_neutral_source_recipes() {
     for (&id, &(text, _, _)) in expressions.iter().zip(&expected) {
         let source = rebound.codes.get(&id).unwrap();
         assert_eq!(
-            next.text_at(next_tree.node(source.body()).unwrap().range()),
+            next.text_at(next_tree.node(source.body().unwrap()).unwrap().range()),
             Some(text)
         );
         assert_eq!(source.name(), None);
@@ -508,7 +511,7 @@ fn a_header_requests_all_missing_lengths_in_authored_order_without_publishing_a_
         .map(|&id| {
             syntax
                 .text_at(
-                    tree.node(context.code_source(id).unwrap().body())
+                    tree.node(context.code_source(id).unwrap().body().unwrap())
                         .unwrap()
                         .range(),
                 )
@@ -558,3 +561,4 @@ fn malformed_completed_lengths_leave_raw_definition_loading_retryable_and_requir
         Err(Failure::MissingValueEvidence)
     ));
 }
+mod primitives;

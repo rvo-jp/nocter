@@ -118,7 +118,7 @@ fn project(
     let origin = if let Some(site) = error.site {
         origin(context, checked, site)?
     } else {
-        nocter_syntax::SyntaxOrigin::Node(root.body())
+        nocter_syntax::SyntaxOrigin::Node(root.body().ok_or(BodyFailure::InconsistentSyntax)?)
     };
     let (code, message) = Rule::Execution(error.rule).diagnostic()?;
     Ok(Diagnostic {

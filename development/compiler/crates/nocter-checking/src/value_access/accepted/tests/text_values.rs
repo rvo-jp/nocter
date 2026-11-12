@@ -42,3 +42,18 @@ fn text_storage_does_not_grant_copy_component_access_or_source_comparison() {
         );
     }
 }
+
+#[test]
+fn primitive_syntax_needs_authority_while_ordinary_similar_names_remain_ordinary() {
+    let fixture = nocter_test_support::ValueSourceFixture::new(
+        "primitive func new_error(code: str, message: str): error",
+    );
+    assert!(
+        matches!(SourceUnit::prepare(fixture.syntax()), Err(SourceFailure::Declarations(declarations::Failure::Primitive(diagnostic))) if diagnostic.rule() == declarations::PrimitiveRule::Unauthorized)
+    );
+    let unit = accepted("func new_error(): i32 { 42 }\nfunc run(): i32 { new_error() }");
+    assert!(matches!(
+        named(&unit, "new_error").typed().code(),
+        nocter_model::ValueCode::Declaration(_)
+    ));
+}

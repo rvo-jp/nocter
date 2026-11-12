@@ -508,3 +508,18 @@ fn plain_text_uses_shared_literal_recognition_without_interpolation_fallback() {
         .has_errors()
     );
 }
+
+#[test]
+fn primitive_functions_are_bodyless_and_do_not_relax_ordinary_definition_requirements() {
+    let text = "primitive func new_error(code: str, message: str): error";
+    let parsed = tree(text, ParseGoal::V2CoreUnit);
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics());
+    super::super::snapshots::assert_token_projection(&parsed, text);
+    for text in [
+        "primitive func raw(): void {}",
+        "func raw(): void",
+        "const primitive func raw(): void",
+    ] {
+        assert!(tree(text, ParseGoal::V2CoreUnit).has_errors(), "{text}");
+    }
+}

@@ -1,8 +1,13 @@
 //! Header-only query and exact-current binding for the future private-function grammar.
 mod definitions;
 mod headers;
+mod primitives;
 mod projection;
 mod source;
+pub use primitives::{
+    PrimitiveAuthority, PrimitiveAuthorityError, PrimitiveBindings, PrimitiveDiagnostic,
+    PrimitiveRule,
+};
 use source::RecordSource;
 pub use source::{
     BodyDependencies, BodyExpressions, BodySource, BodySourceGraph, BodySourceNode, BodySources,
@@ -35,6 +40,7 @@ pub enum Failure {
     WrongParseGoal,
     Syntax(Box<[SourceDiagnostic]>),
     Headers(Vec<HeaderDiagnostic>),
+    Primitive(Box<PrimitiveDiagnostic>),
     InconsistentSyntax,
     ChangedHeader,
     RequiredValues(Box<[AccessCodeId]>),
@@ -57,6 +63,7 @@ pub struct Query {
     surface: DeclarationSyntaxSurface,
     source_recipes: source::Recipes,
     dependencies: Option<BodySources>,
+    primitives: PrimitiveBindings,
 }
 
 /// One current source/semantic pairing. Callers cannot assemble its parts independently.
@@ -65,6 +72,7 @@ pub struct Context<'source> {
     program: Arc<Program>,
     syntax: BoundSyntax<'source>,
     sources: source::Sources,
+    primitives: PrimitiveBindings,
 }
 
 /// Exact-current construction with progressively published callable and record contracts.
@@ -77,12 +85,28 @@ pub struct Preparation<'source> {
     surface: DeclarationSyntaxSurface,
     source_recipes: source::Recipes,
     sources: source::Sources,
+    primitives: PrimitiveBindings,
 }
 impl<'source> Preparation<'source> {
     /// Closes names/slots and retains raw type recipes, without resolving types or checking bodies.
     /// # Errors
     /// Rejects a wrong goal, syntax/header-shape errors, name conflicts or broken syntax integrity.
     pub fn prepare(syntax: BoundSyntax<'source>) -> Result<Self, Failure> {
+        Self::prepare_selected(syntax, None)
+    }
+    /// Prepare headers using an explicitly selected toolchain/module primitive authority.
+    /// # Errors
+    /// Rejects unauthorized bodyless declarations and malformed ordinary headers.
+    pub fn prepare_with_primitive_authority(
+        syntax: BoundSyntax<'source>,
+        authority: &PrimitiveAuthority,
+    ) -> Result<Self, Failure> {
+        Self::prepare_selected(syntax, Some(authority))
+    }
+    fn prepare_selected(
+        syntax: BoundSyntax<'source>,
+        authority: Option<&PrimitiveAuthority>,
+    ) -> Result<Self, Failure> {
         validate_input(syntax)?;
         let tree = syntax.tree();
         let projection = project_declaration_syntax(syntax);
@@ -97,15 +121,21 @@ impl<'source> Preparation<'source> {
         let record_headers = records
             .into_iter()
             .map(|h| {
+                primitives::validate_record(syntax, authority, h.source.name)?;
                 Ok((
                     reservations.reserve_record(symbol(h.source.name)?, h.fields.len()),
                     h,
                 ))
             })
             .collect::<Result<BTreeMap<_, _>, Failure>>()?;
+        let mut primitives = PrimitiveBindings::new(authority);
         let function_headers = functions
             .into_iter()
-            .map(|h| Ok((reservations.reserve(symbol(h.name)?, h.parameters.len()), h)))
+            .map(|h| {
+                let id = reservations.reserve(symbol(h.name)?, h.parameters.len());
+                primitives.select(syntax, authority, id, &h)?;
+                Ok((id, h))
+            })
             .collect::<Result<BTreeMap<_, _>, Failure>>()?;
         let sources =
             source::Sources::reserve(&mut reservations, &function_headers, &record_headers)?;
@@ -125,6 +155,7 @@ impl<'source> Preparation<'source> {
             surface: projection.into_surface(),
             source_recipes,
             sources,
+            primitives,
         })
     }
 
@@ -192,16 +223,29 @@ impl<'source> Preparation<'source> {
                 return Ok(HeaderProgress::RequireValues(progress.missing.into()));
             }
         }
-        Ok(
-            match self
-                .headers
-                .advance(required)
-                .map_err(|failure| self.project_failure(failure))?
-            {
-                HeaderStep::Ready => HeaderProgress::Ready,
-                HeaderStep::Require(headers) => HeaderProgress::RequireHeaders(headers),
-            },
-        )
+        let step = match self
+            .headers
+            .advance(required)
+            .map_err(|failure| self.project_failure(failure))?
+        {
+            HeaderStep::Ready => HeaderProgress::Ready,
+            HeaderStep::Require(headers) => HeaderProgress::RequireHeaders(headers),
+        };
+        if step == HeaderProgress::Ready
+            && let DeclarationId::Code(id) = required
+        {
+            let program = self.headers.snapshot();
+            self.primitives.validate(
+                self.syntax,
+                &program,
+                id,
+                self.sources
+                    .codes
+                    .get(&id)
+                    .ok_or(Failure::InconsistentSyntax)?,
+            )?;
+        }
+        Ok(step)
     }
     fn publish(&mut self, required: DeclarationId) -> Result<(), Failure> {
         let mut requests = DependencyQuery::default();
@@ -218,6 +262,7 @@ impl<'source> Preparation<'source> {
             program: Arc::new(self.headers.snapshot()),
             syntax: self.syntax,
             sources: self.sources.clone(),
+            primitives: self.primitives.clone(),
         }
     }
     /// Project an exact active header cycle through the declaration owner's validation rule.
@@ -271,6 +316,7 @@ impl<'source> Preparation<'source> {
                 program: program.clone(),
                 syntax: self.syntax,
                 sources: self.sources.clone(),
+                primitives: self.primitives.clone(),
             };
             sources
                 .verify(&context)
@@ -281,6 +327,7 @@ impl<'source> Preparation<'source> {
             surface: self.surface,
             source_recipes: self.source_recipes,
             dependencies,
+            primitives: self.primitives,
         })
     }
 }
@@ -322,6 +369,15 @@ impl Query {
     pub fn prepare(syntax: BoundSyntax<'_>) -> Result<Self, Failure> {
         Preparation::prepare(syntax)?.finish()
     }
+    /// Close primitive headers with a host-selected authority; this does not admit source bodies.
+    /// # Errors
+    /// Rejects unauthorized declarations and exact signature mismatches.
+    pub fn prepare_with_primitive_authority(
+        syntax: BoundSyntax<'_>,
+        authority: &PrimitiveAuthority,
+    ) -> Result<Self, Failure> {
+        Preparation::prepare_with_primitive_authority(syntax, authority)?.finish()
+    }
     #[must_use]
     pub fn program(&self) -> &Program {
         &self.program
@@ -341,6 +397,7 @@ impl Query {
             program: Arc::clone(&self.program),
             syntax,
             sources,
+            primitives: self.primitives.clone(),
         };
         if let Some(dependencies) = &self.dependencies {
             dependencies
@@ -352,6 +409,10 @@ impl Query {
 }
 
 impl<'source> Context<'source> {
+    #[must_use]
+    pub const fn primitives(&self) -> &PrimitiveBindings {
+        &self.primitives
+    }
     #[must_use]
     pub fn program(&self) -> &Program {
         &self.program

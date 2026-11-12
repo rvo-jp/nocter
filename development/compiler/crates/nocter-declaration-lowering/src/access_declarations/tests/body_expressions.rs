@@ -9,7 +9,7 @@ fn code(context: &Context<'_>, name: &str) -> AccessCodeId {
 }
 
 fn text(context: &Context<'_>, source: &BodySource) -> String {
-    let node = source.bind(context).unwrap().body();
+    let node = source.bind(context).unwrap().body().unwrap();
     context
         .syntax()
         .text_at(context.syntax().tree().node(node).unwrap().range())
@@ -49,9 +49,9 @@ fn local_type_roots_use_the_shared_projection_without_declaring_functions() {
         assert_eq!(source.owner(), owner);
         let executable = source.bind(&context).unwrap();
         assert!(executable.parameters().is_empty());
-        assert_eq!(executable.result_origin(), executable.body());
+        assert_eq!(executable.result_origin(), executable.body().unwrap());
         assert_eq!(
-            registered.expression(source.bind(&context).unwrap().body()),
+            registered.expression(source.bind(&context).unwrap().body().unwrap()),
             Some(id)
         );
         assert_eq!(ValueCodeRoot::Expression(id).code().origin(), None);
@@ -71,7 +71,7 @@ fn local_type_roots_use_the_shared_projection_without_declaring_functions() {
     );
     assert!(
         registered
-            .expression(context.code_source(owner).unwrap().body())
+            .expression(context.code_source(owner).unwrap().body().unwrap())
             .is_none()
     );
     assert_eq!(context.program().codes().len(), 2);

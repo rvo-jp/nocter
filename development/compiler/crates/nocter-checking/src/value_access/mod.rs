@@ -315,8 +315,11 @@ impl Query {
             .ok_or(Failure::InconsistentSyntax)?
             .bind(context)?;
         let syntax = context.syntax();
-        let projection = BodySyntaxProjection::for_root(syntax.tree(), source.body())
-            .ok_or(Failure::InconsistentSyntax)?;
+        let projection = BodySyntaxProjection::for_root(
+            syntax.tree(),
+            source.body().ok_or(Failure::InconsistentSyntax)?,
+        )
+        .ok_or(Failure::InconsistentSyntax)?;
         let resolve = |site| {
             match site {
                 Site::Body(locator) => projection.resolve(locator),

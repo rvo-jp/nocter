@@ -136,6 +136,7 @@ try {
         early,
         "development/compiler/crates/nocter-language/diagnostic-codes.txt"
     );
+    assertUnreleasedDiagnosticRegistration(early, catalog);
     fs.appendFileSync(catalog, "E9999\n");
     const rejected = runBuild(early);
     if (rejected.status === 0 || !combinedOutput(rejected).includes("Diagnostic catalog drift")) {
@@ -145,6 +146,39 @@ try {
     console.log("documentation generation is deterministic and enforces publication, entry, navigation, and search boundaries");
 } finally {
     fs.rmSync(TEMP_ROOT, { recursive: true, force: true });
+}
+
+function assertUnreleasedDiagnosticRegistration(root, compilerCatalog) {
+    const adopted = path.join(root, "development/spec/tooling/diagnostics.md");
+    const published = path.join(root, "spec/tooling/diagnostics.md");
+    const compilerOriginal = fs.readFileSync(compilerCatalog, "utf8");
+    const adoptedOriginal = fs.readFileSync(adopted, "utf8");
+    const publishedOriginal = fs.readFileSync(published, "utf8");
+    try {
+        fs.appendFileSync(compilerCatalog, "E9998\n");
+        fs.appendFileSync(adopted, "\n- `E9998`: an unreleased diagnostic fixture.\n");
+        build(root);
+        const page = fs.readFileSync(path.join(generatedRoot(root), "spec/tooling/diagnostics/index.html"), "utf8");
+        const search = fs.readFileSync(path.join(generatedRoot(root), "search-index.json"), "utf8");
+        if (page.includes("E9998") || search.includes("E9998")) {
+            throw new Error("unreleased diagnostic registration leaked into published guidance");
+        }
+        fs.appendFileSync(published, "\nSee `E9998`.\n");
+        const leakedReference = runBuild(root);
+        if (leakedReference.status === 0 || !combinedOutput(leakedReference).includes("Diagnostic examples use uncatalogued codes")) {
+            throw new Error("published diagnostic guidance accepted an unreleased-only code");
+        }
+        fs.writeFileSync(published, publishedOriginal);
+        fs.appendFileSync(adopted, "\n- `E0101`: a duplicate released registration.\n");
+        const duplicate = runBuild(root);
+        if (duplicate.status === 0 || !combinedOutput(duplicate).includes("Duplicate diagnostic catalog entries")) {
+            throw new Error("diagnostic registration acquired competing version owners");
+        }
+    } finally {
+        fs.writeFileSync(compilerCatalog, compilerOriginal);
+        fs.writeFileSync(adopted, adoptedOriginal);
+        fs.writeFileSync(published, publishedOriginal);
+    }
 }
 
 function prepareTree(name, sourceTime) {

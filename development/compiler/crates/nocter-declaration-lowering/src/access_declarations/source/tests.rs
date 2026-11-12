@@ -30,7 +30,7 @@ fn exact_dependencies_rebind_current_coordinates_and_reject_changed_initializers
     let (current_sources, current_tree) = input(&changed, ParseGoal::V2CoreUnit);
     let current = query.bind(bound(&current_sources, &current_tree)).unwrap();
     dependencies.verify(&current).unwrap();
-    let root = helper.bind(&current).unwrap().body();
+    let root = helper.bind(&current).unwrap().body().unwrap();
     assert_eq!(
         current
             .syntax()

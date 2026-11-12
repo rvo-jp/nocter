@@ -20,15 +20,15 @@ impl Sources {
             .map(|(&id, h)| {
                 (
                     id,
-                    CodeSource {
-                        header: Some(CodeHeaderSource {
+                    CodeSource::declaration(
+                        CodeHeaderSource {
                             name: h.name,
                             parameters: h.parameters.iter().map(|p| p.name).collect(),
                             parameter_types: h.parameters.iter().map(|p| p.ty).collect(),
                             result: h.result_syntax,
-                        }),
-                        body: h.body,
-                    },
+                        },
+                        h.body,
+                    ),
                 )
             })
             .collect();
@@ -42,7 +42,7 @@ impl Sources {
                         },
                     )
                     .map_err(|_| Failure::InconsistentSyntax)?;
-                sources.insert(id, CodeSource { header: None, body });
+                sources.insert(id, CodeSource::expression(body));
             }
             Ok(())
         };

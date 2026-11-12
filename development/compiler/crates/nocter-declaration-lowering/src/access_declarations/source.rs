@@ -26,7 +26,9 @@ impl Sources {
     ) -> Result<Self, super::Failure> {
         let mut expressions = BTreeMap::new();
         for (&id, source) in &codes {
-            if source.header.is_none() && expressions.insert(source.body, id).is_some() {
+            if let CodeSourceKind::Expression(body) = source.kind
+                && expressions.insert(body, id).is_some()
+            {
                 return Err(super::Failure::InconsistentSyntax);
             }
         }
@@ -66,8 +68,15 @@ pub(super) struct RecordSource {
 
 #[derive(Clone, Debug)]
 pub struct CodeSource {
-    header: Option<CodeHeaderSource>,
-    body: NodeId,
+    kind: CodeSourceKind,
+}
+#[derive(Clone, Debug)]
+enum CodeSourceKind {
+    Declaration {
+        header: CodeHeaderSource,
+        body: Option<NodeId>,
+    },
+    Expression(NodeId),
 }
 #[derive(Clone, Debug)]
 struct CodeHeaderSource {
@@ -77,39 +86,57 @@ struct CodeHeaderSource {
     result: NodeId,
 }
 impl CodeSource {
+    fn declaration(header: CodeHeaderSource, body: Option<NodeId>) -> Self {
+        Self {
+            kind: CodeSourceKind::Declaration { header, body },
+        }
+    }
+    fn expression(body: NodeId) -> Self {
+        Self {
+            kind: CodeSourceKind::Expression(body),
+        }
+    }
+    fn header(&self) -> Option<&CodeHeaderSource> {
+        match &self.kind {
+            CodeSourceKind::Declaration { header, .. } => Some(header),
+            CodeSourceKind::Expression(_) => None,
+        }
+    }
     pub(super) fn name(&self) -> Option<SyntaxToken> {
-        self.header.as_ref().map(|header| header.name)
+        self.header().map(|header| header.name)
     }
     /// The authored declaration name or the exact anonymous expression root.
     #[must_use]
     pub fn origin(&self) -> SyntaxOrigin {
-        match &self.header {
-            Some(header) => SyntaxOrigin::Token(header.name),
-            None => SyntaxOrigin::Node(self.body),
+        match &self.kind {
+            CodeSourceKind::Declaration { header, .. } => SyntaxOrigin::Token(header.name),
+            CodeSourceKind::Expression(body) => SyntaxOrigin::Node(*body),
         }
     }
     #[must_use]
     pub fn parameters(&self) -> &[SyntaxToken] {
-        self.header
-            .as_ref()
-            .map_or(&[], |header| &header.parameters)
+        self.header().map_or(&[], |header| &header.parameters)
     }
     /// The authored type annotation of a named parameter, without resolving it.
     #[must_use]
     pub fn parameter_type(&self, position: usize) -> Option<NodeId> {
-        self.header.as_ref()?.parameter_types.get(position).copied()
+        self.header()?.parameter_types.get(position).copied()
     }
     /// The result annotation, or the expression requiring a usize result for anonymous code.
     #[must_use]
     pub fn result_origin(&self) -> NodeId {
-        match &self.header {
-            Some(header) => header.result,
-            None => self.body,
+        match &self.kind {
+            CodeSourceKind::Declaration { header, .. } => header.result,
+            CodeSourceKind::Expression(body) => *body,
         }
     }
+    /// The actual executable root; bodyless declarations provide none.
     #[must_use]
-    pub const fn body(&self) -> NodeId {
-        self.body
+    pub const fn body(&self) -> Option<NodeId> {
+        match &self.kind {
+            CodeSourceKind::Declaration { body, .. } => *body,
+            CodeSourceKind::Expression(body) => Some(*body),
+        }
     }
 }
 
@@ -196,13 +223,15 @@ impl BodySource {
         match self.root {
             BodyRoot::Declaration => Ok(Cow::Borrowed(source)),
             BodyRoot::Expression { locator, .. } => {
-                let projection =
-                    BodySyntaxProjection::for_root(context.syntax().tree(), source.body())
-                        .ok_or(SourceMismatch::InconsistentSyntax)?;
+                let projection = BodySyntaxProjection::for_root(
+                    context.syntax().tree(),
+                    source.body().ok_or(SourceMismatch::UnknownSource)?,
+                )
+                .ok_or(SourceMismatch::InconsistentSyntax)?;
                 let Some(SyntaxOrigin::Node(body)) = projection.resolve(locator) else {
                     return Err(SourceMismatch::InconsistentSyntax);
                 };
-                Ok(Cow::Owned(CodeSource { header: None, body }))
+                Ok(Cow::Owned(CodeSource::expression(body)))
             }
         }
     }
@@ -313,7 +342,10 @@ fn body<'context, 'source>(
     let source = context
         .code_source(owner)
         .ok_or(SourceMismatch::UnknownSource)?;
-    Ok((source, bytes(context, source.body())?))
+    Ok((
+        source,
+        bytes(context, source.body().ok_or(SourceMismatch::UnknownSource)?)?,
+    ))
 }
 fn header<'source>(
     context: &Context<'source>,
@@ -340,7 +372,7 @@ pub(super) fn header_origin(
 ) -> Option<SyntaxOrigin> {
     Some(match declaration {
         DeclarationId::Code(id) => {
-            let s = sources.get(&id)?.header.as_ref()?;
+            let s = sources.get(&id)?.header()?;
             match position {
                 HeaderPosition::Name => SyntaxOrigin::Token(s.name),
                 HeaderPosition::Parameter(i) if typed => {

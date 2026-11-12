@@ -56,7 +56,8 @@ pub(super) fn prepare(
     }
     let source = requirement.source.bind(context)?;
     let syntax = context.syntax();
-    let projection = BodySyntaxProjection::for_root(syntax.tree(), source.body())
+    let body_root = source.body().ok_or(Failure::InconsistentSyntax)?;
+    let projection = BodySyntaxProjection::for_root(syntax.tree(), body_root)
         .ok_or(Failure::InconsistentSyntax)?;
     let result = context
         .program()
@@ -75,7 +76,7 @@ pub(super) fn prepare(
         values,
     );
     checker.unavailable.clone_from(&requirement.unavailable);
-    let value = checker.expression(source.body(), Some(Boundary::Result(result)), true)?;
-    let root = checker.emit_block(source.body(), Vec::new(), Some(value), checker.ty(value))?;
+    let value = checker.expression(body_root, Some(Boundary::Result(result)), true)?;
+    let root = checker.emit_block(body_root, Vec::new(), Some(value), checker.ty(value))?;
     Ok(checker.finish(root))
 }

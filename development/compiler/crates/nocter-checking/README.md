@@ -599,6 +599,13 @@ source-version CLI or general D/S solver. The
 qualification; remaining work belongs in the [realization plan](../../../design/compiler-realization.md),
 not a duplicate crate-internal status table.
 
+## Primitive Header Boundary
+
+The ordinary value-access source entry has no primitive authority. It rejects a matching
+bodyless declaration name rather than treating it as an intrinsic. Authorized primitive
+[header metadata](../nocter-declaration-lowering/README.md#trusted-primitive-headers) alone is
+not an accepted body or executable call; that integration remains separate.
+
 ## Program-Extent Text
 
 Plain string expressions use syntax's shared escape/multiline decoder, then enter ordinary

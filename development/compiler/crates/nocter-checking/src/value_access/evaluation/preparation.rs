@@ -283,7 +283,8 @@ impl<'a, 'source> Preparation<'a, 'source> {
                     callable: owner,
                     failure: failure.into(),
                 })?
-                .body(),
+                .body()
+                .ok_or(INVALID)?,
         );
         if let Some(known) = self.expressions.get(&key) {
             if known.unavailable != required.unavailable {
@@ -636,7 +637,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
             &self.context,
             id.source_owner(),
             Rule::Execution(state::Rule::CallDepthLimit),
-            SyntaxOrigin::Node(source.body()),
+            SyntaxOrigin::Node(source.body().ok_or(INVALID)?),
         )
         .into())
     }
@@ -685,7 +686,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
                         Request::Value(root) => self
                             .source(root)
                             .ok()
-                            .map(|source| SyntaxOrigin::Node(source.body())),
+                            .and_then(|source| source.body().map(SyntaxOrigin::Node)),
                         _ => None,
                     });
                 let Some(origin) = origin else {

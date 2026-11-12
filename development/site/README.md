@@ -36,6 +36,11 @@ bypassing source-tree isolation.
 
 ## Publication Boundary
 
+Diagnostic registration is validated against the union of the published tooling catalog and
+new registrations in `development/spec/tooling/diagnostics.md`, with one owner per numeric code.
+Published diagnostic examples can reference only published registrations. Validating an adopted
+registration does not publish its page or add its text to search.
+
 The website publishes:
 
 - user-facing Markdown from the repository root, `spec/`, `examples/`, and `releases/`;

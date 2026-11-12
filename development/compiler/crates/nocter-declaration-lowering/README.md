@@ -175,6 +175,22 @@ equal declarations rebuilt by another query cannot substitute for the original l
 projection remains outside semantic type lookup.
 
 
+## Trusted Primitive Headers
+
+`PrimitiveAuthority::for_module` consumes existing toolchain locators for an explicitly selected
+standard-package module. Authored names or paths do not create that authority. Conflicting role
+or module/name entries reject the catalog before selection. The unprivileged header entry rejects
+bodyless primitive declarations; a selected ordinary definition cannot replace a primitive role.
+
+The explicit header entry consumes the runtime contract's shared value signature fragment.
+`PrimitiveBindings` retains selected/checked states in immutable construction snapshots and
+exposes a role only after exact input count, data, operations and result validation. Signature
+errors retain their actual name/input/result source subject. Binding an equal header surface
+retains that same authority lineage; body edits cannot change a role and header edits reject reuse.
+This closes primitive header metadata, not an accepted executable Unit or constant-domain
+primitive operation. Calls, dependency closure, physical ABI adaptation and actual error-graph
+construction/release still need qualification through the common consumers.
+
 ## Exact Source Evidence
 
 `access_declarations::source` owns exact source evidence shared by declaration and checking
@@ -182,6 +198,10 @@ consumers. A current declaration `Context` supplies `BodySource` capture, pairin
 code's source owner, original immutable header view and exact body bytes. No consumer can provide
 an owner and unrelated bytes independently. Byte/ancestry evidence contains no current source
 identity, node or span and grants neither contract readiness nor semantic body acceptance.
+`CodeSource` distinguishes a declaration with an optional implementation from an anonymous
+expression with a mandatory root. Neutral recipes retain the same distinction. Bodyless headers
+have no synthetic block, body byte guard, local owner or executable expression identity;
+requesting their `BodySource` fails.
 
 Binding validates exact header ancestry, then compares the selected body and returns its current
 source metadata. Relocated source and unrelated body edits remain reusable; changed guarded bytes

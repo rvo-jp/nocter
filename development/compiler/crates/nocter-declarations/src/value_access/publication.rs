@@ -213,7 +213,7 @@ impl HeaderPublication {
             .definition
             .as_ref()
             .expect("validated definition");
-        if matches!(definition.kind, super::CodeKind::Function(_)) {
+        if definition.kind.is_callable() {
             self.types = functions::publish_witnesses(&self.types, std::iter::once(id));
         }
         let mut types = self.types.transaction();

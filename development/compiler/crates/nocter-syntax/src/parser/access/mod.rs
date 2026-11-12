@@ -12,6 +12,8 @@ pub(super) fn unit(parser: &mut Parser<'_>) {
     parser.eat_newlines();
     while !parser.at(TokenKind::Eof) {
         if parser.at_keyword(Keyword::Func)
+            || (parser.at_keyword(Keyword::Primitive)
+                && parser.nth_kind(1) == TokenKind::Keyword(Keyword::Func))
             || (parser.at_keyword(Keyword::Const)
                 && parser.nth_kind(1) == TokenKind::Keyword(Keyword::Func))
         {
@@ -62,6 +64,7 @@ fn function(parser: &mut Parser<'_>) {
         parser.bump();
         parser.complete(modifier, NodeKind::CompileTimeModifier);
     }
+    let primitive = parser.eat_keyword(Keyword::Primitive);
     parser.expect_keyword(Keyword::Func);
     parser.expect_name();
     let tail = parser.start();
@@ -79,7 +82,13 @@ fn function(parser: &mut Parser<'_>) {
     parser.expect_punctuation(Punctuation::Colon);
     annotation_type(parser);
     parser.complete(tail, NodeKind::CallableTail);
-    required_block(parser);
+    if primitive {
+        if parser.at_punctuation(Punctuation::LeftBrace) {
+            parser.error_token(ExpectedSyntax::Newline);
+        }
+    } else {
+        required_block(parser);
+    }
     parser.complete(marker, NodeKind::FunctionDeclaration);
     parser.complete(item, NodeKind::Item);
 }

@@ -1,5 +1,5 @@
 //! Source-neutral capture/rebinding of executable roots and declaration header slots.
-use super::{CodeHeaderSource, CodeSource, FieldSource, RecordSource, Sources};
+use super::{CodeHeaderSource, CodeSource, CodeSourceKind, FieldSource, RecordSource, Sources};
 use crate::access_declarations::Failure;
 use nocter_model::{AccessCodeId, NominalTypeId};
 use nocter_syntax::{DeclarationSyntaxLocator, DeclarationSyntaxProjection, SyntaxOrigin};
@@ -7,9 +7,12 @@ use std::{collections::BTreeMap, sync::Arc};
 
 /// Source-neutral recipe. Its locators have meaning only with an equal declaration surface.
 #[derive(Clone, Debug)]
-struct CodeRecipe {
-    header: Option<CodeHeaderRecipe>,
-    body: DeclarationSyntaxLocator,
+enum CodeRecipe {
+    Declaration {
+        header: CodeHeaderRecipe,
+        body: Option<DeclarationSyntaxLocator>,
+    },
+    Expression(DeclarationSyntaxLocator),
 }
 #[derive(Clone, Debug)]
 struct CodeHeaderRecipe {
@@ -37,34 +40,36 @@ impl Recipes {
         sources: &Sources,
     ) -> Result<Self, Failure> {
         let locate = |origin| projection.locate(origin).ok_or(Failure::InconsistentSyntax);
+        let capture_header = |header: &CodeHeaderSource| -> Result<CodeHeaderRecipe, Failure> {
+            Ok(CodeHeaderRecipe {
+                name: locate(SyntaxOrigin::Token(header.name))?,
+                parameters: header
+                    .parameters
+                    .iter()
+                    .map(|&name| locate(SyntaxOrigin::Token(name)))
+                    .collect::<Result<_, _>>()?,
+                parameter_types: header
+                    .parameter_types
+                    .iter()
+                    .map(|&ty| locate(SyntaxOrigin::Node(ty)))
+                    .collect::<Result<_, _>>()?,
+                result: locate(SyntaxOrigin::Node(header.result))?,
+            })
+        };
         let mut recipes = BTreeMap::new();
         for (&id, source) in sources.codes.iter() {
-            recipes.insert(
-                id,
-                CodeRecipe {
-                    header: source
-                        .header
-                        .as_ref()
-                        .map(|header| {
-                            Ok::<_, Failure>(CodeHeaderRecipe {
-                                name: locate(SyntaxOrigin::Token(header.name))?,
-                                parameters: header
-                                    .parameters
-                                    .iter()
-                                    .map(|&name| locate(SyntaxOrigin::Token(name)))
-                                    .collect::<Result<_, _>>()?,
-                                parameter_types: header
-                                    .parameter_types
-                                    .iter()
-                                    .map(|&ty| locate(SyntaxOrigin::Node(ty)))
-                                    .collect::<Result<_, _>>()?,
-                                result: locate(SyntaxOrigin::Node(header.result))?,
-                            })
-                        })
+            let recipe = match &source.kind {
+                CodeSourceKind::Declaration { header, body } => CodeRecipe::Declaration {
+                    header: capture_header(header)?,
+                    body: body
+                        .map(|body| locate(SyntaxOrigin::Node(body)))
                         .transpose()?,
-                    body: locate(SyntaxOrigin::Node(source.body))?,
                 },
-            );
+                CodeSourceKind::Expression(body) => {
+                    CodeRecipe::Expression(locate(SyntaxOrigin::Node(*body))?)
+                }
+            };
+            recipes.insert(id, recipe);
         }
         let record_recipes = sources
             .records
@@ -102,36 +107,33 @@ impl Recipes {
             Some(SyntaxOrigin::Node(node)) => Ok(node),
             _ => Err(Failure::InconsistentSyntax),
         };
+        let bind_header = |header: &CodeHeaderRecipe| -> Result<CodeHeaderSource, Failure> {
+            Ok(CodeHeaderSource {
+                name: token(header.name)?,
+                parameters: header
+                    .parameters
+                    .iter()
+                    .map(|&locator| token(locator))
+                    .collect::<Result<_, _>>()?,
+                parameter_types: header
+                    .parameter_types
+                    .iter()
+                    .map(|&locator| node(locator))
+                    .collect::<Result<_, _>>()?,
+                result: node(header.result)?,
+            })
+        };
         let sources = self
             .codes
             .iter()
             .map(|(&id, recipe)| {
-                Ok((
-                    id,
-                    CodeSource {
-                        header: recipe
-                            .header
-                            .as_ref()
-                            .map(|header| {
-                                Ok::<_, Failure>(CodeHeaderSource {
-                                    name: token(header.name)?,
-                                    parameters: header
-                                        .parameters
-                                        .iter()
-                                        .map(|&locator| token(locator))
-                                        .collect::<Result<_, _>>()?,
-                                    parameter_types: header
-                                        .parameter_types
-                                        .iter()
-                                        .map(|&locator| node(locator))
-                                        .collect::<Result<_, _>>()?,
-                                    result: node(header.result)?,
-                                })
-                            })
-                            .transpose()?,
-                        body: node(recipe.body)?,
-                    },
-                ))
+                let source = match recipe {
+                    CodeRecipe::Declaration { header, body } => {
+                        CodeSource::declaration(bind_header(header)?, body.map(node).transpose()?)
+                    }
+                    CodeRecipe::Expression(body) => CodeSource::expression(node(*body)?),
+                };
+                Ok((id, source))
             })
             .collect::<Result<_, Failure>>()?;
         let record_sources = self

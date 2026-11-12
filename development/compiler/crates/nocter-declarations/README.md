@@ -129,6 +129,9 @@ enumeration belongs to this same authority, independently of source projection a
 one privately owned type authority. Callable metadata headers admit `bool`, the intrinsic integer catalog, `void`, opaque move-only
 `error`, program-extent text descriptors, closed nominal records, structural tuples, optional/fallible layers and closed array descriptors, plus flat callable
 input/result contracts.
+`CodeKind::Primitive` is a runtime-only bodyless callable metadata role. It shares ordinary
+static function-witness publication through `is_callable`; source authorization and exact
+primitive binding remain declaration-lowering obligations, independently of witness shape.
 Construction-time
 `ValueDefinition` slots share data or callable normalization. `DataReference` composes named
 leaves into minimum-two-component tuple trees, compact runs of optional layers, fallible carriers

@@ -1,5 +1,17 @@
 # Diagnostics
 
+## Additional Diagnostic Registration
+
+This section owns newly registered v2.0.0 codes. Codes already assigned by the
+[published catalog](../../../spec/tooling/diagnostics.md) keep their numeric registration there;
+their adopted v2.0.0 meanings are specified by the sections below. Do not copy released entries
+into this registration list or publish these additional entries before specification promotion.
+
+- `E0236`: a bodyless primitive callable is not selected for its exact module/declaration by the
+  toolchain, a selected role is authored as an ordinary definition, or its value-model signature
+  has not been qualified. Identify that declaration; matching source spelling alone grants no
+  primitive authority.
+
 ## Core Syntax Diagnostics
 
 The future [value/alias grammar](../language/syntactic-grammar.md#access-syntax)
@@ -32,7 +44,9 @@ These adopted obligations do not qualify the private prototype or allocate new n
 
 ## Private Header Diagnostics
 
-Resolve all headers before bodies. Duplicate function names use `E0241`, duplicate/shadowing
+Reserve declaration names before bodies, then normalize requested headers through their type/value
+dependencies. Complete Unit acceptance still checks every header, including unused declarations.
+Duplicate function names use `E0241`, duplicate/shadowing
 input names use `E0341`, and reserved function names use `E0240`, retaining the existing related
 first-declaration locations. Private record-name and field-name collisions use `E0241` with the
 first conflicting declaration related. Unknown header data names use `E0290`; a known type outside
@@ -42,6 +56,9 @@ containment cycle. These rules do not permit overload selection by input operati
 body or declaration order. Header/body mismatch reports both declarations and differing modes,
 types and origin/state relations. An impossible source/product pairing remains an integrity
 failure, never a fabricated source name error.
+An authorized primitive's input count, input data/operation or result data mismatch also uses
+`E0291`. Identify the actual name/input/result subject and state the expected contract; a failed
+signature must not leave a checked binding in a later construction snapshot or retry.
 
 ## Core Body Typing Diagnostics
 

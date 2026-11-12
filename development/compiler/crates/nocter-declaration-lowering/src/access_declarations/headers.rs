@@ -28,7 +28,7 @@ pub(super) struct Header {
     pub parameters: Vec<ParameterHeader>,
     pub result_syntax: NodeId,
     pub result_data: ValueTypeSyntax,
-    pub body: NodeId,
+    pub body: Option<NodeId>,
 }
 #[derive(Clone, Debug)]
 pub(super) struct RecordHeader {
@@ -67,11 +67,17 @@ pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<H
     };
     Ok(Header {
         name,
-        kind: CodeKind::Function(compile_time),
+        kind: if nocter_syntax::direct_token_iter(tree, declaration).any(|token| {
+            token.kind() == nocter_syntax::TokenKind::Keyword(nocter_syntax::Keyword::Primitive)
+        }) {
+            CodeKind::Primitive
+        } else {
+            CodeKind::Function(compile_time)
+        },
         parameters,
         result_syntax,
         result_data: value_type_syntax(syntax, result_syntax)?,
-        body: direct_node(tree, declaration, NodeKind::Block).ok_or(Failure::InconsistentSyntax)?,
+        body: direct_node(tree, declaration, NodeKind::Block),
     })
 }
 pub(super) fn initializer(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<Header, Failure> {
@@ -92,8 +98,10 @@ pub(super) fn initializer(syntax: BoundSyntax<'_>, declaration: NodeId) -> Resul
         parameters: Vec::new(),
         result_syntax,
         result_data: value_type_syntax(syntax, result_syntax)?,
-        body: direct_node(tree, declaration, NodeKind::Expression)
-            .ok_or(Failure::InconsistentSyntax)?,
+        body: Some(
+            direct_node(tree, declaration, NodeKind::Expression)
+                .ok_or(Failure::InconsistentSyntax)?,
+        ),
     })
 }
 pub(super) fn record(
