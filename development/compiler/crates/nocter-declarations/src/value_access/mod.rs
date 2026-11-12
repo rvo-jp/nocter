@@ -309,7 +309,8 @@ impl Program {
     pub fn declaration(&self, namespace: Namespace, name: Symbol) -> Option<DeclarationId> {
         self.declaration_in(ScopeId::ROOT, namespace, name)
     }
-    /// Closed source-local lookup. No scope fallback or transitive exposure is implied.
+    /// Closed lookup through explicitly constructed lexical parents only.
+    /// Independent source/module scopes have no implicit fallback or transitive exposure.
     #[must_use]
     pub fn declaration_in(
         &self,
@@ -535,6 +536,15 @@ impl Reservations {
     /// Panics if the scope identity space is exhausted.
     pub fn new_scope(&mut self) -> ScopeId {
         self.scopes.new_scope()
+    }
+    /// Create a lexical child of an existing scope. Its caller module is inherited from that parent.
+    /// The parent is fixed at construction; sibling and unrelated scopes remain inaccessible.
+    /// # Errors
+    /// Rejects an unknown parent without reserving a scope.
+    /// # Panics
+    /// Panics if the scope identity space is exhausted.
+    pub fn new_lexical_scope(&mut self, parent: ScopeId) -> Result<ScopeId, ScopeBindingError> {
+        self.scopes.new_lexical_scope(parent)
     }
     /// Bind an existing declaration under a name in one scope, without cloning its identity.
     /// Repeated equal bindings have set semantics. Ordinary name conflicts close at `finish`.

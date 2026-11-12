@@ -118,7 +118,14 @@ retains its authored name. Unknown scopes reject before reserving slots and cann
 lookup as a fallback.
 The same authority serves forward header references, parameter collision checks in the declaring
 scope, and published lookup. Record schemas maintain no second global index. Explicit scoped
-lookup has no implicit root or transitive fallback. The single-source convenience methods use only
+lookup has no implicit root or transitive fallback. `new_lexical_scope` creates a fixed child of an
+existing scope; only these explicit parents participate in unqualified lookup and the first
+qualified component. Nearest bindings retain their original identities, independent siblings cannot
+see each other, and lexical ancestry inherits the original caller module. A child cannot replace
+that caller with a more privileged module. Once a namespace link is selected, subsequent path
+components search its exact target without lexical inheritance. Parent edges always point to
+already existing scopes, so construction cannot create a cycle and deep lookup remains iterative.
+This semantic mechanism alone does not admit source-local block imports. The single-source convenience methods use only
 `ScopeId::ROOT`. Reserved identities grant no schema or function-value readiness. Source inventory,
 physical visibility, contract/body contexts and authored import policy remain the lowering owner's
 work. `Scopes` constructs source-independent namespace links and original caller-module facts before

@@ -10,6 +10,7 @@ pub(in crate::value_access) struct Scopes {
     pub(super) bindings: Vec<(ScopeId, Symbol, Binding)>,
     pub(super) qualifiers: BTreeMap<(ScopeId, Symbol), Qualifier>,
     pub(super) modules: BTreeMap<ScopeId, ModuleIdentity>,
+    pub(super) parents: BTreeMap<ScopeId, ScopeId>,
 }
 impl Default for Scopes {
     fn default() -> Self {
@@ -18,6 +19,7 @@ impl Default for Scopes {
             bindings: Vec::new(),
             qualifiers: BTreeMap::new(),
             modules: BTreeMap::new(),
+            parents: BTreeMap::new(),
         }
     }
 }
@@ -32,6 +34,14 @@ impl Scopes {
             .checked_add(1)
             .expect("declaration scope domain exhausted");
         scope
+    }
+    pub fn new_lexical_scope(&mut self, parent: ScopeId) -> Result<ScopeId, ScopeBindingError> {
+        if !self.contains(parent) {
+            return Err(ScopeBindingError::UnknownScope);
+        }
+        let child = self.new_scope();
+        self.parents.insert(child, parent);
+        Ok(child)
     }
     pub fn bind(
         &mut self,
@@ -57,6 +67,16 @@ impl Scopes {
     ) -> Result<(), ScopeBindingError> {
         if !self.contains(scope) {
             return Err(ScopeBindingError::UnknownScope);
+        }
+        if let Some(&parent) = self.parents.get(&scope) {
+            let module_scope =
+                std::iter::successors(Some(parent), |scope| self.parents.get(scope).copied())
+                    .find_map(|scope| self.modules.get(&scope));
+            return if module_scope == Some(&module) {
+                Ok(())
+            } else {
+                Err(ScopeBindingError::ConflictingModule)
+            };
         }
         match self.modules.entry(scope) {
             std::collections::btree_map::Entry::Vacant(entry) => {

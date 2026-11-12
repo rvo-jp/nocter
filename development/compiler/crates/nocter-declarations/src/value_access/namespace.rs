@@ -6,7 +6,9 @@ use nocter_model::{
     AccessCodeId, ArenaBuilder, BuiltinType, ModuleAudience, ModuleIdentity, Symbol, SymbolTable,
 };
 use std::{collections::BTreeMap, sync::Arc};
+mod lexical;
 mod scopes;
+use lexical::Entry;
 pub(super) use scopes::Scopes;
 
 /// Authored type and value names collide only within their own namespace.
@@ -64,13 +66,17 @@ pub(super) struct Names {
     bindings: BTreeMap<(ScopeId, Namespace, Symbol), Binding>,
     qualifiers: BTreeMap<(ScopeId, Symbol), Qualifier>,
     modules: BTreeMap<ScopeId, ModuleIdentity>,
+    parents: BTreeMap<ScopeId, ScopeId>,
 }
 impl Names {
     pub fn contains_scope(&self, scope: ScopeId) -> bool {
         scope.0 < self.count
     }
     pub fn get(&self, scope: ScopeId, namespace: Namespace, name: Symbol) -> Option<DeclarationId> {
-        Some(self.bindings.get(&(scope, namespace, name))?.declaration)
+        match self.entry(scope, namespace, name, true)? {
+            Entry::Declaration(binding) => Some(binding.declaration),
+            Entry::Qualifier(_) => None,
+        }
     }
     pub fn visible_from(
         &self,
@@ -79,11 +85,20 @@ impl Names {
         name: Symbol,
         caller: &ModuleIdentity,
     ) -> Option<DeclarationId> {
-        let binding = self.bindings.get(&(scope, namespace, name))?;
+        let Entry::Declaration(binding) = self.entry(scope, namespace, name, true)? else {
+            return None;
+        };
         visible(binding.audience.as_deref(), Some(caller)).then_some(binding.declaration)
     }
     pub fn has_namespace(&self, scope: ScopeId, name: Symbol) -> bool {
-        self.qualifiers.contains_key(&(scope, name))
+        [Namespace::Value, Namespace::Type]
+            .into_iter()
+            .any(|namespace| {
+                matches!(
+                    self.entry(scope, namespace, name, true),
+                    Some(Entry::Qualifier(_))
+                )
+            })
     }
     pub fn lookup_path(
         &self,
@@ -116,7 +131,9 @@ impl Names {
         if length == 0 {
             return Err(QualifiedNameError::EmptyPath);
         }
-        let caller = self.modules.get(&scope);
+        let caller = self
+            .lineage(scope)
+            .find_map(|scope| self.modules.get(&scope));
         let mut current = scope;
         for (position, name) in path.enumerate() {
             let last = position + 1 == length;
@@ -128,27 +145,29 @@ impl Names {
                 }
             };
             let name = name.ok_or_else(unknown)?;
-            if let Some(qualifier) = self.qualifiers.get(&(current, name)) {
-                if !visible(qualifier.audience.as_deref(), caller) {
-                    return Err(QualifiedNameError::Inaccessible { position });
+            match self
+                .entry(current, namespace, name, position == 0)
+                .ok_or_else(unknown)?
+            {
+                Entry::Qualifier(qualifier) => {
+                    if !visible(qualifier.audience.as_deref(), caller) {
+                        return Err(QualifiedNameError::Inaccessible { position });
+                    }
+                    if last {
+                        return Err(QualifiedNameError::NamespaceOnly { position });
+                    }
+                    current = qualifier.target;
                 }
-                if last {
-                    return Err(QualifiedNameError::NamespaceOnly { position });
+                Entry::Declaration(binding) => {
+                    if !last && !permit_components {
+                        return Err(QualifiedNameError::UnknownNamespace { position });
+                    }
+                    if !visible(binding.audience.as_deref(), caller) {
+                        return Err(QualifiedNameError::Inaccessible { position });
+                    }
+                    return Ok((binding.declaration, position + 1));
                 }
-                current = qualifier.target;
-                continue;
             }
-            if !last && !permit_components {
-                return Err(QualifiedNameError::UnknownNamespace { position });
-            }
-            let binding = self
-                .bindings
-                .get(&(current, namespace, name))
-                .ok_or_else(unknown)?;
-            if !visible(binding.audience.as_deref(), caller) {
-                return Err(QualifiedNameError::Inaccessible { position });
-            }
-            return Ok((binding.declaration, position + 1));
         }
         unreachable!("a nonempty finite path returns at its final component")
     }
@@ -253,6 +272,7 @@ pub(super) fn close(
         bindings: namespace,
         qualifiers: scopes.qualifiers,
         modules: scopes.modules,
+        parents: scopes.parents,
     }
 }
 

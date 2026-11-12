@@ -823,4 +823,5 @@ fn named_code_cannot_masquerade_as_an_anonymous_type_expression() {
     );
 }
 
+mod lexical_scopes;
 mod scopes;
