@@ -130,11 +130,17 @@ impl Checker<'_, '_> {
             }
             NodeKind::ReturnStatement => {
                 self.allow_return(node)?;
-                let value = if let Some(expression) = self.children(node).first() {
-                    self.expression(*expression, Some(Boundary::Result(self.result)), reachable)?
+                let expected = self.result.map(Boundary::Result);
+                let mut value = if let Some(expression) = self.children(node).first() {
+                    self.expression(*expression, expected, reachable)?
                 } else {
-                    self.unit_completion(node, Some(Boundary::Result(self.result)))?
+                    self.unit_completion(node, expected)?
                 };
+                if expected.is_none()
+                    && let Some(access) = self.ty(value).access()
+                {
+                    value = self.boundary(node, value, Boundary::Value(access.data()))?;
+                }
                 (Statement::Return(value), false)
             }
             NodeKind::ThrowStatement => {

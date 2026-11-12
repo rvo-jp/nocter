@@ -12,8 +12,11 @@ func run(): i32 {
     let original = errors.operation("direct", "module message")
     let invoke_callback: func(func(str, str): error): error = invoke
     let second = invoke_callback(errors.operation)
+    let create = () { errors.operation("inferred", "module message") }
+    let third = create()
     let wrapped = contexts.operation(original^, "module context")
     drop wrapped
     drop second
+    drop third
     42
 }

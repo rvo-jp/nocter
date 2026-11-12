@@ -18,14 +18,13 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Extend standalone anonymous result inference through the ordinary source checker. Infer an
-unannotated closure result from its own checked return values and normal completion, without a
-placeholder type, later-use repair or a second body checker. Preserve read/edit/take defaults,
-explicit transfer, declared/expected result checking and source-local ambiguity diagnostics.
-Qualify ordinary, required and native execution together; retain broader callable input/capture
-inference and dependency obligations until their actual evidence is implemented. Nested callable
-header/carrier positions remain open under the finding below; a local annotation constraint does
-not establish their representation or substitution model.
+Extend anonymous result publication to statically selected callable values through the existing
+type/witness authority and source checker. Preserve concrete returned code/environment identity,
+ordinary value supply, nested owned capture transfer, inferred/expected result checking and current
+source diagnostics through required/native execution. A nested signature alone cannot supply a
+formal input witness or establish a uniform carrier representation. Keep those general header,
+carrier, substitution and dependency obligations open under the finding below; do not introduce
+implicit erasure or a parallel result solver.
 Keep module discovery, the remaining toolchain role families and ordinary compiler/editor integration
 open until their contracts and production paths are qualified. Keep the retained-selection work
 below open; bounded module/native execution does not close general hole relations or externally

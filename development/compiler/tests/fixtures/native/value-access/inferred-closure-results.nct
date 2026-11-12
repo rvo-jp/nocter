@@ -1,0 +1,35 @@
+struct Item { value: i32 }
+const func calculate(): i32 {
+    let identity = (value: i32) { value }
+    let early = (flag: bool) {
+        if flag { return 42 }
+        42
+    }
+    let returns = (flag: bool) {
+        if flag { return 42 }
+        return 42
+    }
+    let unit = () {}
+    let unit_return = () { return }
+    unit()
+    unit_return()
+    let own = (take value: Item) { value^ }
+    let item = Item { value: 42 }
+    let moved = own(item^)
+    let tuple = (value: i32) { (value, 2) }
+    let array = (value: i32) { [value, 2] }
+    let saved = 2
+    let captured = (saved; value: i32) { value + saved }
+    let nested = () {
+        let inner = (value: bool) { return value }
+        if inner(true) { 42 } else { 0 }
+    }
+    let update = (edit value: i32) {
+        value += 1
+        value
+    }
+    var number = 41
+    if identity(42) == 42 && early(true) == 42 && early(false) == 42 && returns(true) == 42 && returns(false) == 42 && moved.value == 42 && tuple(40).0 == 40 && array(40)[0] == 40 && captured(40) == 42 && nested() == 42 && update(number) == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { if ANSWER == 42 && calculate() == 42 { 42 } else { 0 } }

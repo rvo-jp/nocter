@@ -1109,16 +1109,27 @@ payload identity. Ordinary constraint matching and invocation adaptation still c
 `closures` checks parameter count and conflicting explicit parameter data/operations or result data
 before body checking. An unmarked anonymous input inherits the selected operation even when its body
 uses less authority. With no expected callable contract it remains read, and this bounded scope
-requires explicit parameter/result data. Later uses do not repair missing context. Named declaration
-operations remain their own contracts. Environment invocation is inferred separately from reached
-capture operations; an expected view cannot grant a stronger invocation capability.
+requires explicit parameter data. An omitted result can close from the closure's own checked
+returns and normal completion when their data identities agree. Each value first passes ordinary
+owning supply; inference does not turn a read alias into ownership or omit a required transfer.
+`closures::results` consumes those existing typed operations and closes the one result slot before
+typed-body publication. An unresolved slot has no placeholder `TypeId`. Empty completion and an
+explicit empty return supply unit; a wholly diverging body with no result data needs an annotation.
+Conflicting data and result-dependent optional/failure operations without enough context report
+at the local source. Declared or expected results still supply ordinary contextual checking before
+the body. Later uses do not repair missing context. Named declaration operations remain their own
+contracts. Environment invocation is inferred separately from reached capture operations; an
+expected view cannot grant a stronger invocation capability.
 
 The shared contextual-closure source qualifies annotation/call/result completion, nested conditional
 result positions, edited caller state, taking non-Copy inputs and mut/once adapters through required
 and native execution. Formal callable invocation remains outside the evaluator domain; the fixture's
 required paths invoke exact local/factory witnesses, while native source also calls selected formals.
-General standalone inference, outside-reference capture and symbolic dependency contracts remain
-separate realization obligations.
+The shared inferred-result source checks tail/early/explicit returns, unit, record/tuple/array
+results, owned captures, nested lexical bodies and unchanged read/edit/take inputs through required
+and native execution. The shared logical-module primitive source also returns a real owned error
+from an inferred closure and executes its ordinary cleanup. General parameter inference, callable result-witness publication,
+outside-reference capture and symbolic dependency contracts remain separate realization obligations.
 
 The environment's provisional construction authority permits demand collection, not accepted
 execution. Its control graph is prepared once. Reached environment moves/drops or transfer inputs

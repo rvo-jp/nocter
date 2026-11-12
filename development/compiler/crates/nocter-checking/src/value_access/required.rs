@@ -67,7 +67,7 @@ pub(super) fn prepare(
         .ok_or(Failure::InconsistentSyntax)?;
     let mut checker = Checker::new(
         context,
-        result,
+        Some(result),
         context
             .program()
             .body_types(requirement.code())

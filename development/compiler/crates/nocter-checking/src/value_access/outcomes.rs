@@ -335,7 +335,8 @@ impl Checker<'_, '_> {
     fn absence_return(&mut self, node: NodeId) -> Result<nocter_model::AccessBlockId, Failure> {
         use super::ir::{Statement, ValueType};
         self.allow_return(node)?;
-        let Some(target) = self.absence_type(self.result) else {
+        let result = self.known_result(node)?;
+        let Some(target) = self.absence_type(result) else {
             return self.reject_message(
                 Rule::TypeMismatch,
                 node,
@@ -347,9 +348,9 @@ impl Checker<'_, '_> {
         if self
             .ty(absent)
             .access()
-            .is_some_and(|ty| ty.data() != self.result)
+            .is_some_and(|ty| ty.data() != result)
         {
-            absent = self.boundary(node, absent, Boundary::Result(self.result))?;
+            absent = self.boundary(node, absent, Boundary::Result(result))?;
         }
         let returning = self.statement(node, Statement::Return(absent))?;
         self.emit_block(node, vec![returning], None, ValueType::NEVER)
@@ -360,7 +361,8 @@ impl Checker<'_, '_> {
         error: AccessExpressionId,
     ) -> Result<AccessExpressionId, Failure> {
         self.allow_return(node)?;
-        let mut data = self.result;
+        let result = self.known_result(node)?;
+        let mut data = result;
         while let Some(PayloadSchema::Optional(payload)) = self.program().data_schema(data) {
             data = payload;
         }
@@ -391,8 +393,8 @@ impl Checker<'_, '_> {
                 .into(),
             },
         )?;
-        if data != self.result {
-            value = self.boundary(node, value, Boundary::Result(self.result))?;
+        if data != result {
+            value = self.boundary(node, value, Boundary::Result(result))?;
         }
         Ok(value)
     }

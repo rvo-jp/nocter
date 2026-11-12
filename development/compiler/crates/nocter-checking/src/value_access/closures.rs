@@ -10,6 +10,7 @@ use nocter_model::{
 };
 use nocter_syntax::{ContextualSpelling, NodeId, NodeKind, SyntaxOrigin};
 use std::sync::Arc;
+mod results;
 
 impl Checker<'_, '_> {
     pub fn closure(
@@ -55,9 +56,10 @@ impl Checker<'_, '_> {
         let inputs = nested.closure_inputs(parameters, expected)?;
         let root = nested.block(
             self.direct(node, NodeKind::Block)?,
-            Some(Boundary::Result(result)),
+            result.map(Boundary::Result),
             true,
         )?;
+        let result = nested.close_closure_result(node, root)?;
         self.types = nested.types.clone();
         let mut control = super::flow::Control::prepare(Arc::new(nested.finish(root)))
             .map_err(|_| Failure::InconsistentSyntax)?;
@@ -195,7 +197,7 @@ impl Checker<'_, '_> {
         &mut self,
         node: NodeId,
         expected: Option<&FunctionConstraint>,
-    ) -> Result<nocter_model::TypeId, Failure> {
+    ) -> Result<Option<nocter_model::TypeId>, Failure> {
         let result = if let Ok(result_node) = self.direct(node, NodeKind::ClosureResult) {
             let Annotation::Data(result) =
                 self.annotation(self.direct(result_node, NodeKind::Type)?)?
@@ -210,11 +212,9 @@ impl Checker<'_, '_> {
                     Vec::new(),
                 );
             }
-            result
-        } else if let Some(contract) = expected {
-            contract.result
+            Some(result)
         } else {
-            return self.reject_message(Rule::UnknownType, node, "this private closure scope needs result data from an expected contract or explicit annotation".into(), Vec::new());
+            expected.map(|contract| contract.result)
         };
         Ok(result)
     }

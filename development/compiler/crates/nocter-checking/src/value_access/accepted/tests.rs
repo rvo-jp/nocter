@@ -302,6 +302,7 @@ mod supply;
 mod closures;
 mod contextual_closures;
 mod dependent_results;
+mod inferred_closure_results;
 mod input_layout;
 mod unproduced;
 

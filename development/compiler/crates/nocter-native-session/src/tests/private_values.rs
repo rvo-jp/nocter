@@ -654,6 +654,16 @@ fn private_nested_callable_patterns_preserve_witnesses_in_required_and_native_ex
 }
 
 #[test]
+fn private_inferred_closure_results_share_required_and_native_value_boundaries() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/inferred-closure-results.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "inferred-closure-results", 42);
+}
+
+#[test]
 fn private_direct_indexed_callables_keep_retirement_indices_and_snapshots() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
