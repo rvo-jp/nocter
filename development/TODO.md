@@ -19,10 +19,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 ## Current Unit
 
 Connect the [adopted module/source rules](spec/language/modules.md) to one v2 declaration authority.
-Connect physical body-source views and the paired-header path to required-value scheduling and
-exact source rebinding. Separate retained immutable source binding from mutable header publication
-so their lifetimes can coexist in the ordinary coordinator. Integrate source-qualified body/value
-evidence without reserving competing semantic identities. Close direct source visibility, source-local
+Connect retained physical source binding and the paired-header writer to required-value scheduling
+and exact source rebinding. Integrate source-qualified body/value evidence and cross-source dependency
+guards in the ordinary coordinator without reserving competing semantic identities. Close direct source visibility, source-local
 imports and resolved contract agreement through that ordinary computation path before package/CLI
 integration; do not flatten all inventoried names. Keep the retained-selection work below open;
 its bounded execution does not close general hole relations or externally dependent callback effects.

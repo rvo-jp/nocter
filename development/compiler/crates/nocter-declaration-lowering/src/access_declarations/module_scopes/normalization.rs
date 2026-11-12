@@ -27,18 +27,19 @@ impl ScopedModuleSources<'_> {
         let required = required.into();
         if !self.headers.is_defined(required).ok_or_else(integrity)? {
             let occurrences = self
+                .binding
                 .catalog
                 .parsed
                 .iter()
-                .filter(|(raw, _)| self.declarations[raw.index()] == Some(required));
+                .filter(|(raw, _)| self.binding.declarations[raw.index()] == Some(required));
             let program = self.program();
             let mut projected = BTreeMap::new();
             let mut missing = Vec::new();
             for (raw, header) in occurrences {
-                let physical = self.paired.inventory.declarations()[raw.index()];
+                let physical = self.binding.paired.inventory.declarations()[raw.index()];
                 let scope = HeaderScope {
-                    syntax: syntax(&self.paired, physical.source())?,
-                    lookup: self.scopes[physical.source().index()],
+                    syntax: syntax(&self.binding.paired, physical.source())?,
+                    lookup: self.binding.scopes[physical.source().index()],
                 };
                 let Projection {
                     definition,
@@ -51,7 +52,7 @@ impl ScopedModuleSources<'_> {
                             code,
                             &definitions::Recipe::from(header.clone()),
                             &CodeSource::from_header(header),
-                            &self.catalog.sources,
+                            &self.binding.catalog.sources,
                             &mut value,
                         )
                         .map(|p| Projection {
@@ -65,7 +66,7 @@ impl ScopedModuleSources<'_> {
                             scope,
                             record,
                             header,
-                            &self.catalog.sources,
+                            &self.binding.catalog.sources,
                             &mut value,
                         )
                         .map(|p| Projection {
@@ -109,9 +110,10 @@ impl ScopedModuleSources<'_> {
     ) -> Result<(), ModuleSourcesFailure> {
         let contract = *projected
             .keys()
-            .find(|raw| self.paired.contracts.representative(**raw) == **raw)
+            .find(|raw| self.binding.paired.contracts.representative(**raw) == **raw)
             .ok_or_else(integrity)?;
         let selected = self
+            .binding
             .paired
             .contracts
             .representation(contract)
@@ -155,6 +157,7 @@ impl ScopedModuleSources<'_> {
         };
         let slots = self.headers.field_ids(record).ok_or_else(integrity)?;
         let physical_fields = self
+            .binding
             .paired
             .inventory
             .declaration_entries()
@@ -171,7 +174,7 @@ impl ScopedModuleSources<'_> {
             return Ok(false);
         }
         for (raw, definition) in physical_fields.iter().zip(&public.fields) {
-            let slot = self.fields[raw.index()].ok_or_else(integrity)?;
+            let slot = self.binding.fields[raw.index()].ok_or_else(integrity)?;
             let index = slots
                 .iter()
                 .position(|id| *id == slot)
@@ -188,8 +191,8 @@ impl ScopedModuleSources<'_> {
         contract: SurfaceDeclarationId,
         definition: SurfaceDeclarationId,
     ) -> ModuleSourcesFailure {
-        let root = self.paired.inventory.declarations()[contract.index()];
-        let body = self.paired.inventory.declarations()[definition.index()];
+        let root = self.binding.paired.inventory.declarations()[contract.index()];
+        let body = self.binding.paired.inventory.declarations()[definition.index()];
         let error = match root.kind() {
             crate::SurfaceDeclarationKind::Struct => {
                 DeclarationContractError::MismatchedRepresentation {
@@ -208,7 +211,10 @@ impl ScopedModuleSources<'_> {
                 body: body.node(),
             },
         };
-        super::super::module_sources::contract_failure(error, &self.paired.inventory.surface)
+        super::super::module_sources::contract_failure(
+            error,
+            &self.binding.paired.inventory.surface,
+        )
     }
     fn project_header_failure(
         &self,
@@ -218,20 +224,23 @@ impl ScopedModuleSources<'_> {
         let HeaderFailure::Rejected(violations) = failure else {
             return integrity();
         };
-        let mut codes = self.catalog.sources.codes.as_ref().clone();
-        let mut records = self.catalog.sources.records.as_ref().clone();
-        for (raw, header) in &self.catalog.parsed {
-            if self.paired.contracts.representative(*raw) != *raw {
+        let mut codes = self.binding.catalog.sources.codes.as_ref().clone();
+        let mut records = self.binding.catalog.sources.records.as_ref().clone();
+        for (raw, header) in &self.binding.catalog.parsed {
+            if self.binding.paired.contracts.representative(*raw) != *raw {
                 continue;
             }
             if let (Some(DeclarationId::Code(id)), ParsedHeader::Code(header)) =
-                (self.declarations[raw.index()], header)
+                (self.binding.declarations[raw.index()], header)
             {
                 codes.insert(id, CodeSource::from_header(header));
             }
         }
         if let Some(raw) = occurrence {
-            match (self.declarations[raw.index()], &self.catalog.parsed[&raw]) {
+            match (
+                self.binding.declarations[raw.index()],
+                &self.binding.catalog.parsed[&raw],
+            ) {
                 (Some(DeclarationId::Code(id)), ParsedHeader::Code(header)) => {
                     codes.insert(id, CodeSource::from_header(header));
                 }
@@ -242,6 +251,7 @@ impl ScopedModuleSources<'_> {
             }
         }
         let trees = self
+            .binding
             .paired
             .inventory
             .sources()

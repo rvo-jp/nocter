@@ -189,13 +189,16 @@ Missing completed values are distinct requests; unequal resolved lengths reject 
 loading a definition. The projection consumes supplied literal DAGs and does not evaluate them or
 certify their source. `header_expression_ids`, `code_source` and `source_for_code` expose exact
 supplier/definition metadata; they grant no body or primitive-authority acceptance.
-`context_for_code` selects the exact physical syntax and lookup scope for a definition or count
-supplier over the current immutable header snapshot. `Context::lookup_scope` drives authored body
-lookup; declaration properties and type identities still come from the shared semantic program.
-This per-body view borrows the source owner and supplies no primitive bindings or accepted-body
-proof. It cannot itself coordinate mutable header publication with long-lived source contexts.
-Whole-module required-value scheduling, independently retained source binding and exact dependency
-guards, visibility/re-exports and ordinary discovery/CLI integration remain work. The header step
+`source_binding` retains one immutable `ModuleSourceBinding` independently of the header writer.
+Its `context_for_code` selects exact physical syntax and lookup scope for a definition or count
+supplier over that writer's current immutable snapshot. Foreign writers reject even when their
+source text and local IDs agree. Source views borrow the retained binding, so they can remain live
+while headers advance and can outlive the writer itself; old snapshots remain unchanged.
+`Context::lookup_scope` drives authored body lookup. Declaration properties and type identities
+still come from the shared semantic program; the binding is not another declaration/type authority.
+Per-body views supply no primitive bindings or accepted-body proof. Whole-module required-value
+scheduling and cross-source dependency guards, visibility/re-exports and ordinary discovery/CLI
+integration remain work. The header step
 can publish selected payload/Copy metadata but does not produce an accepted Unit or a reusable
 source-qualified query.
 

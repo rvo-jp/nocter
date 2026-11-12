@@ -3,7 +3,7 @@ mod definitions;
 mod headers;
 mod module_scopes;
 mod module_sources;
-pub use module_scopes::ScopedModuleSources;
+pub use module_scopes::{ModuleSourceBinding, ScopedModuleSources};
 mod primitives;
 mod projection;
 mod source;

@@ -22,11 +22,17 @@ mod normalization;
 /// selected header publication grants no checked-body, primitive-authority or accepted-Unit proof.
 #[derive(Debug)]
 pub struct ScopedModuleSources<'syntax> {
+    headers: HeaderPublication,
+    binding: Arc<ModuleSourceBinding<'syntax>>,
+}
+/// One immutable physical-source/semantic-slot pairing, retained independently of header writes.
+/// No caller can construct it from separately supplied syntax, scopes or declaration identities.
+#[derive(Debug)]
+pub struct ModuleSourceBinding<'syntax> {
     paired: PairedModuleSources<'syntax>,
     scopes: Box<[ScopeId]>,
     declarations: Box<[Option<DeclarationId>]>,
     fields: Box<[Option<AccessFieldId>]>,
-    headers: HeaderPublication,
     catalog: catalog::Catalog,
 }
 #[derive(Debug)]
@@ -108,31 +114,37 @@ impl<'syntax> PairedModuleSources<'syntax> {
             .collect::<Result<Vec<_>, _>>()?
             .into_boxed_slice();
         Ok(ScopedModuleSources {
-            paired: self,
-            scopes,
-            declarations: declarations.into(),
-            fields,
             headers: definitions.into_publication(),
-            catalog,
+            binding: Arc::new(ModuleSourceBinding {
+                paired: self,
+                scopes,
+                declarations: declarations.into(),
+                fields,
+                catalog,
+            }),
         })
     }
 }
 impl<'syntax> ScopedModuleSources<'syntax> {
     #[must_use]
-    pub const fn paired(&self) -> &PairedModuleSources<'syntax> {
-        &self.paired
+    pub fn paired(&self) -> &PairedModuleSources<'syntax> {
+        &self.binding.paired
     }
     #[must_use]
     pub fn scope(&self, source: SurfaceSourceId) -> Option<ScopeId> {
-        self.scopes.get(source.index()).copied()
+        self.binding.scopes.get(source.index()).copied()
     }
     #[must_use]
     pub fn declaration(&self, source: SurfaceDeclarationId) -> Option<DeclarationId> {
-        self.declarations.get(source.index()).copied().flatten()
+        self.binding
+            .declarations
+            .get(source.index())
+            .copied()
+            .flatten()
     }
     #[must_use]
     pub fn field(&self, source: SurfaceDeclarationId) -> Option<AccessFieldId> {
-        self.fields.get(source.index()).copied().flatten()
+        self.binding.fields.get(source.index()).copied().flatten()
     }
     #[must_use]
     pub fn program(&self) -> Program {
@@ -141,33 +153,21 @@ impl<'syntax> ScopedModuleSources<'syntax> {
     /// Exact executable syntax for a definition or registered header count; no body acceptance.
     #[must_use]
     pub fn code_source(&self, code: AccessCodeId) -> Option<&CodeSource> {
-        self.catalog.sources.codes.get(&code)
+        self.binding.catalog.sources.codes.get(&code)
     }
     /// The physical source whose scope applies to the executable root.
     #[must_use]
     pub fn source_for_code(&self, code: AccessCodeId) -> Option<SurfaceSourceId> {
-        self.catalog.owners.get(&code).copied()
+        self.binding.catalog.owners.get(&code).copied()
     }
-    /// Bind this immutable header snapshot to the actual physical source of one executable root.
-    /// This establishes neither body acceptance nor source-qualified reusable query evidence.
-    /// # Errors
-    /// Rejects roots outside this source catalog or broken physical source identities.
-    pub fn context_for_code(
-        &self,
-        code: AccessCodeId,
-    ) -> Result<super::Context<'_>, ModuleSourcesFailure> {
-        let source = self.source_for_code(code).ok_or_else(integrity)?;
-        Ok(super::Context {
-            program: Arc::new(self.program()),
-            syntax: syntax(&self.paired, source)?,
-            lookup: self.scopes[source.index()],
-            sources: self.catalog.sources.clone(),
-            primitives: super::PrimitiveBindings::new(None),
-        })
+    /// Retain source pairing without borrowing the mutable header writer.
+    #[must_use]
+    pub fn source_binding(&self) -> Arc<ModuleSourceBinding<'syntax>> {
+        Arc::clone(&self.binding)
     }
     /// All physical count suppliers, including both occurrences of a repeated header.
     pub fn header_expression_ids(&self) -> impl Iterator<Item = AccessCodeId> + '_ {
-        self.catalog.sources.expression_ids()
+        self.binding.catalog.sources.expression_ids()
     }
     #[must_use]
     pub fn parameter_ids(&self, code: AccessCodeId) -> Option<&[nocter_model::AccessParameterId]> {
@@ -176,6 +176,35 @@ impl<'syntax> ScopedModuleSources<'syntax> {
     #[must_use]
     pub fn field_ids(&self, record: NominalTypeId) -> Option<&[AccessFieldId]> {
         self.headers.field_ids(record)
+    }
+}
+impl ModuleSourceBinding<'_> {
+    /// Bind this immutable header snapshot to the actual physical source of one executable root.
+    /// Existing source views can remain alive while the writer publishes more headers.
+    /// This establishes neither body acceptance nor reusable source-query evidence.
+    /// # Errors
+    /// Rejects a foreign header writer, unknown roots or broken physical source identities.
+    pub fn context_for_code<'binding>(
+        &'binding self,
+        headers: &ScopedModuleSources<'_>,
+        code: AccessCodeId,
+    ) -> Result<super::Context<'binding>, ModuleSourcesFailure> {
+        if !std::ptr::eq(self, headers.binding.as_ref()) {
+            return Err(ModuleSourcesFailure::Access(Failure::ChangedHeader));
+        }
+        let source = self
+            .catalog
+            .owners
+            .get(&code)
+            .copied()
+            .ok_or_else(integrity)?;
+        Ok(super::Context {
+            program: Arc::new(headers.program()),
+            syntax: syntax(&self.paired, source)?,
+            lookup: self.scopes[source.index()],
+            sources: self.catalog.sources.clone(),
+            primitives: super::PrimitiveBindings::new(None),
+        })
     }
 }
 fn project_namespace(

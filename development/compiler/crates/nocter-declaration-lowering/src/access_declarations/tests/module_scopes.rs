@@ -289,3 +289,71 @@ fn equal_header_spelling_keeps_distinct_type_meanings_in_each_physical_source() 
     assert_eq!(scoped.declaration(contract), scoped.declaration(definition));
     assert!(!program.header_ready(scoped.declaration(contract).unwrap()));
 }
+
+#[test]
+fn retained_source_binding_allows_header_writes_and_rejects_foreign_declaration_authorities() {
+    let build = || {
+        inventory(
+            &[
+                ("/app/index.nct", Root, "see ./body.nct\nfunc run(): i32"),
+                (
+                    "/app/body.nct",
+                    Implementation,
+                    "see ./index.nct\nfunc run(): i32 { 42 }",
+                ),
+            ],
+            &[(0, 0, 1), (1, 0, 0)],
+            false,
+        )
+        .pair()
+        .unwrap()
+        .reserve_names()
+        .unwrap()
+    };
+    let mut scoped = build();
+    let DeclarationId::Code(run) = scoped
+        .declaration(declaration(
+            &scoped,
+            "/app/index.nct",
+            Kind::Function,
+            "run",
+        ))
+        .unwrap()
+    else {
+        panic!("code")
+    };
+    let binding = scoped.source_binding();
+    assert!(std::sync::Arc::ptr_eq(&binding, &scoped.source_binding()));
+    let early = binding.context_for_code(&scoped, run).unwrap();
+    assert!(!early.program().header_ready(run));
+    let guard = early.body_source(run).unwrap();
+    // This mutable operation must compile with `early` still live; it borrows only `binding`.
+    assert_eq!(
+        scoped.advance_header_with_values(run, |_| None).unwrap(),
+        HeaderProgress::Ready
+    );
+    let later = binding.context_for_code(&scoped, run).unwrap();
+    assert!(!early.program().header_ready(run));
+    assert!(later.program().header_ready(run));
+    assert!(later.program().preserves_headers(early.program()));
+    assert!(guard.bind(&later).is_ok());
+    let foreign = build();
+    assert!(matches!(
+        binding.context_for_code(&foreign, run),
+        Err(ModuleSourcesFailure::Access(Failure::ChangedHeader))
+    ));
+    drop(scoped);
+    assert!(guard.bind(&early).is_ok());
+    assert!(guard.bind(&later).is_ok());
+    assert_eq!(
+        later.syntax().text_at(
+            later
+                .syntax()
+                .tree()
+                .node(later.code_source(run).unwrap().body().unwrap())
+                .unwrap()
+                .range()
+        ),
+        Some("{ 42 }")
+    );
+}

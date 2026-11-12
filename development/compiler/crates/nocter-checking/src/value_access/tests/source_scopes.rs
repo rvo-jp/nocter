@@ -141,10 +141,11 @@ fn source_views_select_direct_helpers_and_bind_queries_only_to_their_actual_body
         &[(0, 0, 1), (1, 0, 0), (1, 1, 2)],
     );
     let scoped = fixture.prepare();
+    let binding = scoped.source_binding();
     let run = code(&scoped, "/app/index.nct", "run");
     let other = code(&scoped, "/app/c.nct", "other");
-    let run_context = scoped.context_for_code(run).unwrap();
-    let other_context = scoped.context_for_code(other).unwrap();
+    let run_context = binding.context_for_code(&scoped, run).unwrap();
+    let other_context = binding.context_for_code(&scoped, other).unwrap();
     assert_ne!(run_context.lookup_scope(), other_context.lookup_scope());
     for (id, context, helper_path) in [
         (run, &run_context, "/app/b.nct"),
@@ -179,8 +180,9 @@ fn seen_sources_do_not_propagate_their_own_see_edges_into_body_lookup() {
         &[(0, 0, 1), (1, 0, 0), (1, 1, 2), (2, 0, 3)],
     );
     let scoped = fixture.prepare();
+    let binding = scoped.source_binding();
     let run = code(&scoped, "/app/index.nct", "run");
-    let context = scoped.context_for_code(run).unwrap();
+    let context = binding.context_for_code(&scoped, run).unwrap();
     let Err(Failure::Rejected(diagnostic)) = Query::prepare(&context, run) else {
         panic!("transitive name")
     };
@@ -221,8 +223,9 @@ fn local_shadow_checks_use_current_visibility_rather_than_the_root_sources_scope
             &edges,
         );
         let scoped = fixture.prepare();
+        let binding = scoped.source_binding();
         let run = code(&scoped, "/app/index.nct", "run");
-        let context = scoped.context_for_code(run).unwrap();
+        let context = binding.context_for_code(&scoped, run).unwrap();
         match Query::prepare(&context, run) {
             Ok(_) => assert!(!direct),
             Err(Failure::Rejected(error)) => {
@@ -254,10 +257,11 @@ fn annotations_and_constructions_keep_distinct_same_spelling_record_identities()
         &[(0, 0, 1), (1, 0, 0), (1, 1, 2)],
     );
     let scoped = fixture.prepare();
+    let binding = scoped.source_binding();
     let mut types = Vec::new();
     for (path, name) in [("/app/a.nct", "run"), ("/app/c.nct", "other")] {
         let id = code(&scoped, path, name);
-        let context = scoped.context_for_code(id).unwrap();
+        let context = binding.context_for_code(&scoped, id).unwrap();
         let expected = context
             .program()
             .type_named_in(context.lookup_scope(), "Data")
@@ -296,13 +300,14 @@ fn constant_requests_and_static_places_select_the_current_physical_scope() {
         &[(0, 0, 1), (1, 0, 0), (1, 1, 2)],
     );
     let scoped = fixture.prepare();
+    let binding = scoped.source_binding();
     let mut constants = Vec::new();
     for (path, name, supplier) in [
         ("/app/a.nct", "run", "/app/b.nct"),
         ("/app/c.nct", "other", "/app/c.nct"),
     ] {
         let id = code(&scoped, path, name);
-        let context = scoped.context_for_code(id).unwrap();
+        let context = binding.context_for_code(&scoped, id).unwrap();
         let Err(Failure::RequiredConstant { initializer, .. }) = Query::prepare(&context, id)
         else {
             panic!("constant dependency")
@@ -310,7 +315,7 @@ fn constant_requests_and_static_places_select_the_current_physical_scope() {
         assert_eq!(initializer, code(&scoped, supplier, "VALUE"));
         constants.push(initializer);
         let slot = code(&scoped, path, "slot");
-        let context = scoped.context_for_code(slot).unwrap();
+        let context = binding.context_for_code(&scoped, slot).unwrap();
         let query = Query::prepare(&context, slot).unwrap();
         let static_id = code(&scoped, supplier, "SLOT");
         assert!(query.body().locals().iter().any(|(_, local)| matches!(local.origin, LocalOrigin::Static(value) if value.initializer == static_id)));
