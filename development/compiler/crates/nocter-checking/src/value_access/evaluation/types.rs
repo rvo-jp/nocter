@@ -142,30 +142,42 @@ impl Types {
                 .into_iter()
                 .map(|child| self.ids.get(&child).copied().ok_or(INVALID))
                 .collect::<Result<Vec<_>>>()?;
-            let supported = children.iter().all(|&id| self.shapes[id].supported);
-            let serializable = !matches!(schema, PayloadSchema::Function(_))
-                && children.iter().all(|&id| self.shapes[id].serializable);
-            let ty = match schema {
-                PayloadSchema::Aggregate(_) => Type::Record(children.into()),
-                PayloadSchema::Optional(_) => Type::Optional(*children.first().ok_or(INVALID)?),
-                PayloadSchema::Array(array) => Type::Array {
-                    element: *children.first().ok_or(INVALID)?,
-                    length: array.length(),
-                },
-                PayloadSchema::Function(witness) => {
-                    let nocter_model::ValueFunctionOrigin::Closure(code) = witness.origin else {
-                        return Err(INVALID);
-                    };
-                    Type::CapturedFunction {
-                        code,
-                        environment: *children.first().ok_or(INVALID)?,
-                    }
-                }
-                PayloadSchema::Builtin(_) | PayloadSchema::Fallible(_) => return Err(INVALID),
-            };
-            let id = self.insert(data, ty, supported);
-            self.shapes[id].serializable = serializable;
+            self.compose(data, schema, children)?;
         }
+        Ok(())
+    }
+    fn compose(
+        &mut self,
+        data: TypeId,
+        schema: PayloadSchema<'_>,
+        children: Vec<usize>,
+    ) -> Result<()> {
+        let supported = children.iter().all(|&id| self.shapes[id].supported);
+        let serializable = !matches!(schema, PayloadSchema::Function(_))
+            && children.iter().all(|&id| self.shapes[id].serializable);
+        let ty = match schema {
+            PayloadSchema::Aggregate(_) => Type::Record(children.into()),
+            PayloadSchema::Optional(_) => Type::Variant {
+                primary: *children.first().ok_or(INVALID)?,
+                alternate: None,
+            },
+            PayloadSchema::Array(array) => Type::Array {
+                element: *children.first().ok_or(INVALID)?,
+                length: array.length(),
+            },
+            PayloadSchema::Function(witness) => {
+                let nocter_model::ValueFunctionOrigin::Closure(code) = witness.origin else {
+                    return Err(INVALID);
+                };
+                Type::CapturedFunction {
+                    code,
+                    environment: *children.first().ok_or(INVALID)?,
+                }
+            }
+            PayloadSchema::Builtin(_) | PayloadSchema::Fallible(_) => return Err(INVALID),
+        };
+        let id = self.insert(data, ty, supported);
+        self.shapes[id].serializable = serializable;
         Ok(())
     }
     fn insert(&mut self, data: TypeId, ty: Type, supported: bool) -> usize {

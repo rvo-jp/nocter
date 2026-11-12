@@ -15,7 +15,7 @@ pub use projection::{Missing, Projection, ProjectionPath};
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Type {
     /// A declared data identity without a payload representation in this table. No Value validates
-    /// against it; an empty array can still retain it as its uninstantiated element identity.
+    /// against it; empty arrays and inactive variants may retain its uninstantiated identity.
     Unavailable,
     Unit,
     /// A concrete code witness with no runtime environment; Unit is its payload.
@@ -29,7 +29,11 @@ pub enum Type {
     /// A descriptor of immutable program-extent UTF-8, with no writable components.
     Text,
     Integer(nocter_model::BuiltinType),
-    Optional(usize),
+    Variant {
+        primary: usize,
+        /// None means an absent payload, not an unavailable or uninitialized value.
+        alternate: Option<usize>,
+    },
     Record(Box<[usize]>),
     Array {
         element: usize,
@@ -40,7 +44,8 @@ impl Type {
     fn component(&self, index: usize) -> Option<usize> {
         match self {
             Self::Record(fields) => fields.get(index).copied(),
-            Self::Optional(payload) if index == 0 => Some(*payload),
+            Self::Variant { primary, .. } if index == 0 => Some(*primary),
+            Self::Variant { alternate, .. } if index == 1 => *alternate,
             Self::CapturedFunction { environment, .. } if index == 0 => Some(*environment),
             Self::Array { element, length } if u64::try_from(index).ok()? < *length => {
                 Some(*element)

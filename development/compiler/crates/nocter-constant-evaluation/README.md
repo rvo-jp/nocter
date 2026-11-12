@@ -95,9 +95,13 @@ published contract and direct remainder in the [adopted contract](../../../spec/
 only the quotient-domain policy differs, not the arithmetic implementation. Floating
 operations still require an explicit compilation target in their existing domain.
 
-`Type::Optional` retains one positive payload identity. `Data::Variant` and model-owned
-`FrozenNode::Variant` retain the selected tag and only its active payload. Validation rejects a
-missing present payload, an absent payload or a mismatching child type. Assembly owns construction;
+`Type::Variant` retains the primary payload identity and an optional alternate payload identity.
+An absent alternate payload differs from an alternate `Type::Unavailable`: no value validates
+against the latter, though another selected case can remain valid. `Data::Variant` and model-owned
+`FrozenNode::Variant` retain the selected tag and only its active payload. Validation checks the
+payload against that exact case and rejects absent, extra or mismatching data. Assembly derives
+the tag from the selected component key, including alternate component one; it does not index a
+one-element dense aggregate by that key. Assembly owns construction;
 `RequireVariant` checks the exact requested tag before payload selection and reports an inactive
 variant failure on mismatch.
 Its optional view destination must have alias storage and the exact carrier data; binding occurs
@@ -105,10 +109,12 @@ only after the successful check and uses the already established source address.
 selection then observes or edits that same storage. Guard/alias allocation failure releases partial
 working state before another request, without forming an alias to an inactive payload. Logical
 tests cover both matching and mismatching tags, including an absence view that reads no payload.
-`PrimaryCondition` reads only a stored optional's tag and produces Boolean data; ordinary graph
+`PrimaryCondition` reads only a stored variant's tag and produces Boolean data; ordinary graph
 branches and returns own propagation, without accessing an absent payload.
 Value traversal, freezing, restoration and final release use iterative work, including deeply
-nested flat optional suffixes. This adds no source comparison capability or fallible execution.
+nested flat optional suffixes. Optional source uses this shared representation. This kernel does
+not admit error-graph values, source fallible evaluation or a runtime primitive's evaluator body.
+Those source/data/operation eligibility obligations remain with checking.
 
 `Type::Text`/`Data::Text` retain immutable decoded UTF-8 and round-trip through the model's existing
 `ConstantValue::Text` leaf. Text is opaque to field/index and numeric operations. Source Copy

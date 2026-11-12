@@ -551,31 +551,40 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                 fields,
             } => {
                 let _assembly_storage = self.memory.storage.items(fields.len())?;
-                let mut values = vec![None; fields.len()];
-                for (field, source) in fields {
-                    values[*field] = Some(self.read(frame, source)?);
-                    self.memory
-                        .retire(&self.memory.address(frame, source)?, false)?;
-                }
-                let values = values
-                    .into_iter()
-                    .collect::<Option<Box<[_]>>>()
-                    .ok_or(Rule::InvalidPlan)?;
                 let data = self.memory.frames[frame]
                     .slots
                     .get(*destination)
                     .ok_or(Rule::InvalidPlan)?
                     .data;
-                let value =
-                    if matches!(self.program.types.get(data), Some(super::Type::Optional(_))) {
+                let value = if matches!(
+                    self.program.types.get(data),
+                    Some(super::Type::Variant { .. })
+                ) {
+                    match fields.as_ref() {
+                        [] => self.memory.storage.variant(false, None)?,
+                        [(field, source)] => {
+                            let payload = self.read(frame, source)?;
+                            self.memory
+                                .retire(&self.memory.address(frame, source)?, false)?;
+                            self.memory.storage.variant(*field == 0, Some(payload))?
+                        }
+                        _ => return Err(Rule::InvalidPlan),
+                    }
+                } else {
+                    let mut values = vec![None; fields.len()];
+                    for (field, source) in fields {
+                        values[*field] = Some(self.read(frame, source)?);
                         self.memory
-                            .storage
-                            .variant(!values.is_empty(), values.into_vec().into_iter().next())?
-                    } else {
-                        self.memory
-                            .storage
-                            .aggregate(values.into_vec().into_iter())?
-                    };
+                            .retire(&self.memory.address(frame, source)?, false)?;
+                    }
+                    let values = values
+                        .into_iter()
+                        .collect::<Option<Box<[_]>>>()
+                        .ok_or(Rule::InvalidPlan)?;
+                    self.memory
+                        .storage
+                        .aggregate(values.into_vec().into_iter())?
+                };
                 self.write(frame, &Place::root(*destination), value)?;
                 Ok(self
                     .memory

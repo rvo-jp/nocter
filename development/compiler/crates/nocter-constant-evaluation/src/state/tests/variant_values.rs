@@ -1,5 +1,294 @@
 //! Typed variant validity, deep immutable DAGs and failed-plan isolation.
 use super::*;
+
+#[test]
+fn binary_payloads_validate_the_selected_type_without_ever_producing_unavailable_data() {
+    let (id, _) = code_ids();
+    for (alternate, value, valid) in [
+        (
+            Type::Bool,
+            Value::variant(true, Some(Value::integer(42))),
+            true,
+        ),
+        (
+            Type::Bool,
+            Value::variant(false, Some(Value::boolean(true))),
+            true,
+        ),
+        (
+            Type::Bool,
+            Value::variant(true, Some(Value::boolean(true))),
+            false,
+        ),
+        (
+            Type::Bool,
+            Value::variant(false, Some(Value::integer(42))),
+            false,
+        ),
+        (Type::Bool, Value::variant(false, None), false),
+        (Type::Bool, Value::variant(true, None), false),
+        (
+            Type::Unavailable,
+            Value::variant(true, Some(Value::integer(42))),
+            true,
+        ),
+        (
+            Type::Unavailable,
+            Value::variant(false, Some(Value::integer(42))),
+            false,
+        ),
+        (
+            Type::Unavailable,
+            Value::variant(false, Some(Value::unit())),
+            false,
+        ),
+        (Type::Unavailable, Value::variant(false, None), false),
+    ] {
+        let mut plan = literal();
+        for slot in Arc::make_mut(&mut plan.slots) {
+            slot.data = 2;
+        }
+        plan.result = 2;
+        plan.points = plan.points.map(|_, original| {
+            let mut point = original.clone();
+            point.actions[0].operation = Operation::Literal {
+                destination: 0,
+                value: value.clone(),
+            };
+            point
+        });
+        let program = Program::new(
+            [
+                Type::Integer(nocter_model::BuiltinType::I32),
+                alternate,
+                Type::Variant {
+                    primary: 0,
+                    alternate: Some(1),
+                },
+            ],
+            BTreeMap::from([(id.into(), plan)]),
+            BTreeMap::new(),
+        );
+        assert_eq!(program.is_ok(), valid, "{value:?}");
+        if let Ok(program) = program {
+            let mut budget = Budget::new(Limits::default());
+            let answer = Executor::new(&program, &mut budget, 0)
+                .evaluate_initializer(id)
+                .unwrap();
+            assert_eq!(answer, value);
+            assert_eq!(Value::from_frozen(&answer.freeze()).unwrap(), value);
+            drop(answer);
+            assert_eq!(budget.storage_used(), 0);
+        }
+    }
+}
+
+fn alternate_plan() -> Plan {
+    let mut plan = literal();
+    plan.slots = vec![
+        Slot {
+            data: 1,
+            storage: Storage::Owned,
+        },
+        Slot {
+            data: 2,
+            storage: Storage::Owned,
+        },
+        Slot {
+            data: 2,
+            storage: Storage::Alias,
+        },
+        Slot {
+            data: 1,
+            storage: Storage::Owned,
+        },
+    ]
+    .into();
+    plan.result = 1;
+    plan.points = plan.points.map(|_, original| {
+        let mut point = original.clone();
+        point.actions = vec![
+            Action {
+                operation: Operation::Literal {
+                    destination: 0,
+                    value: Value::boolean(true),
+                },
+                alternatives: vec![Alternative {
+                    owned: BTreeMap::new(),
+                    before: Box::new([]),
+                    after: vec![
+                        Effect::Construct(0),
+                        Effect::Assemble {
+                            destination: 1,
+                            fields: vec![(1, Place::root(0))].into(),
+                        },
+                    ]
+                    .into(),
+                }]
+                .into(),
+            },
+            Action {
+                operation: Operation::RequireVariant {
+                    source: Place::root(1),
+                    primary: false,
+                    view: Some(2),
+                },
+                alternatives: vec![Alternative {
+                    owned: BTreeMap::from([(1, Box::new([]) as Box<[Missing]>)]),
+                    before: Box::new([]),
+                    after: Box::new([]),
+                }]
+                .into(),
+            },
+            Action {
+                operation: Operation::Copy {
+                    source: Place {
+                        slot: 2,
+                        fields: vec![1].into(),
+                    },
+                    destination: Place::root(3),
+                },
+                alternatives: vec![Alternative {
+                    owned: BTreeMap::from([(1, Box::new([]) as Box<[Missing]>)]),
+                    before: Box::new([]),
+                    after: vec![Effect::Construct(3), Effect::Dispose(Place::root(1))].into(),
+                }]
+                .into(),
+            },
+        ]
+        .into();
+        point.terminator = Terminator::Return(Place::root(3));
+        point
+    });
+    plan
+}
+
+#[test]
+fn alternate_assembly_and_guarded_projection_use_component_one_and_recover_after_failure() {
+    let (root, _) = code_ids();
+    let types = vec![
+        Type::Integer(nocter_model::BuiltinType::I32),
+        Type::Bool,
+        Type::Variant {
+            primary: 0,
+            alternate: Some(1),
+        },
+    ];
+    let plan = alternate_plan();
+    let program = Program::new(
+        types.clone(),
+        BTreeMap::from([(root.into(), plan.clone())]),
+        BTreeMap::new(),
+    )
+    .unwrap();
+    let mut successes = 0;
+    let mut failures = 0;
+    for capacity in 1..128 {
+        let mut budget = Budget::new(Limits::new(
+            CompileTimeEvaluationLimits::default(),
+            NonZeroU64::new(capacity).unwrap(),
+        ));
+        for _ in 0..2 {
+            budget.restart_work();
+            match Executor::new(&program, &mut budget, 0).evaluate_initializer(root) {
+                Ok(value) => {
+                    assert_eq!(value, Value::boolean(true));
+                    successes += 1;
+                    drop(value);
+                }
+                Err(error) => {
+                    assert_eq!(error.rule, Rule::StorageLimit);
+                    failures += 1;
+                }
+            }
+            assert_eq!(budget.storage_used(), 0);
+        }
+    }
+    assert!(successes > 0 && failures > 0);
+    let mut mismatch = plan;
+    mismatch.points = mismatch.points.map(|_, original| {
+        let mut point = original.clone();
+        let Operation::RequireVariant { primary, .. } = &mut point.actions[1].operation else {
+            panic!("guard");
+        };
+        *primary = true;
+        point
+    });
+    let program = Program::new(
+        types,
+        BTreeMap::from([(root.into(), mismatch)]),
+        BTreeMap::new(),
+    )
+    .unwrap();
+    let mut budget = Budget::new(Limits::default());
+    assert_eq!(
+        Executor::new(&program, &mut budget, 0)
+            .evaluate_initializer(root)
+            .unwrap_err()
+            .rule,
+        Rule::InactiveVariant
+    );
+    assert_eq!(budget.storage_used(), 0);
+}
+
+#[test]
+fn alternate_transfer_leaves_one_partial_owner_until_release_and_refunds_failed_work() {
+    let (root, _) = code_ids();
+    let mut plan = alternate_plan();
+    plan.points = plan.points.map(|_, original| {
+        let mut point = original.clone();
+        point.actions[2].operation = Operation::None;
+        point.actions[2].alternatives[0].after = vec![
+            Effect::Move {
+                source: Place {
+                    slot: 1,
+                    fields: vec![1].into(),
+                },
+                destination: Place::root(3),
+            },
+            Effect::Release(Place::root(1)),
+        ]
+        .into();
+        point
+    });
+    let program = Program::new(
+        [
+            Type::Integer(nocter_model::BuiltinType::I32),
+            Type::Bool,
+            Type::Variant {
+                primary: 0,
+                alternate: Some(1),
+            },
+        ],
+        BTreeMap::from([(root.into(), plan)]),
+        BTreeMap::new(),
+    )
+    .unwrap();
+    let mut successes = 0;
+    let mut failures = 0;
+    for capacity in 1..128 {
+        let mut budget = Budget::new(Limits::new(
+            CompileTimeEvaluationLimits::default(),
+            NonZeroU64::new(capacity).unwrap(),
+        ));
+        for _ in 0..2 {
+            budget.restart_work();
+            match Executor::new(&program, &mut budget, 0).evaluate_initializer(root) {
+                Ok(value) => {
+                    assert_eq!(value, Value::boolean(true));
+                    successes += 1;
+                    drop(value);
+                }
+                Err(error) => {
+                    assert_eq!(error.rule, Rule::StorageLimit);
+                    failures += 1;
+                }
+            }
+            assert_eq!(budget.storage_used(), 0);
+        }
+    }
+    assert!(successes > 0 && failures > 0);
+}
 #[test]
 fn optional_values_validate_the_selected_tag_and_payload_type_before_execution() {
     let (id, _) = code_ids();
@@ -27,7 +316,10 @@ fn optional_values_validate_the_selected_tag_and_payload_type_before_execution()
             Program::new(
                 [
                     Type::Integer(nocter_model::BuiltinType::I32),
-                    Type::Optional(0)
+                    Type::Variant {
+                        primary: 0,
+                        alternate: None
+                    }
                 ],
                 BTreeMap::from([(id.into(), plan)]),
                 BTreeMap::new()
@@ -140,7 +432,10 @@ fn taking_inputs_are_protected_at_their_frozen_owner_handoff_after_wrapper_mater
     let program = Program::new(
         [
             Type::Integer(nocter_model::BuiltinType::I32),
-            Type::Optional(0),
+            Type::Variant {
+                primary: 0,
+                alternate: None,
+            },
         ],
         definitions.clone(),
         BTreeMap::new(),
@@ -198,7 +493,10 @@ fn taking_inputs_are_protected_at_their_frozen_owner_handoff_after_wrapper_mater
             Program::new(
                 [
                     Type::Integer(nocter_model::BuiltinType::I32),
-                    Type::Optional(0)
+                    Type::Variant {
+                        primary: 0,
+                        alternate: None
+                    }
                 ],
                 altered,
                 BTreeMap::new()
@@ -250,7 +548,10 @@ fn primary_conditions_observe_only_the_tag_and_reject_incompatible_operand_roles
         });
         let types = [
             Type::Integer(nocter_model::BuiltinType::I32),
-            Type::Optional(0),
+            Type::Variant {
+                primary: 0,
+                alternate: None,
+            },
             Type::Bool,
         ];
         let program = Program::new(
@@ -360,7 +661,10 @@ fn guarded_optional_aliases_bind_only_matching_variants_and_release_partial_work
         });
         let types = [
             Type::Integer(nocter_model::BuiltinType::I32),
-            Type::Optional(0),
+            Type::Variant {
+                primary: 0,
+                alternate: None,
+            },
         ];
         let program = Program::new(
             types.clone(),

@@ -51,14 +51,7 @@ pub(super) fn value(program: &Program, data: usize, value: &Value) -> bool {
         match (program.types.get(data), value.data()) {
             (Some(Type::Unit | Type::NamedFunction(_)), Data::Unit)
             | (Some(Type::Bool), Data::Bool(_))
-            | (Some(Type::Text), Data::Text(_))
-            | (
-                Some(Type::Optional(_)),
-                Data::Variant {
-                    primary: false,
-                    payload: None,
-                },
-            ) => {}
+            | (Some(Type::Text), Data::Text(_)) => {}
             (Some(ty @ Type::Integer(_)), Data::Integer(value))
                 if ty
                     .scalar()
@@ -70,14 +63,13 @@ pub(super) fn value(program: &Program, data: usize, value: &Value) -> bool {
                     })
                     .is_some_and(|spec| spec.contains(*value)) => {}
 
-            (
-                Some(Type::Optional(data)),
-                Data::Variant {
-                    primary: true,
-                    payload: Some(payload),
-                },
-            ) => {
-                pending.push((*data, payload.clone()));
+            (Some(ty @ Type::Variant { .. }), Data::Variant { primary, payload }) => {
+                let expected = ty.component(usize::from(!primary));
+                match (expected, payload) {
+                    (None, None) => {}
+                    (Some(data), Some(payload)) => pending.push((data, payload.clone())),
+                    _ => return false,
+                }
             }
             (Some(Type::CapturedFunction { environment, .. }), Data::Aggregate(values))
                 if values.len() == 1 =>
@@ -127,8 +119,10 @@ pub(super) fn validate(program: &Program) -> Result<()> {
         {
             return Err(INVALID);
         }
-        if let Type::Optional(payload) = data
-            && *payload >= id
+        if let Type::Variant { primary, alternate } = data
+            && std::iter::once(primary)
+                .chain(alternate.iter())
+                .any(|&payload| payload >= id)
         {
             return Err(INVALID);
         }
@@ -413,7 +407,7 @@ fn operation(program: &Program, plan: &super::Plan, op: &Operation) -> Result<()
             source,
             destination,
         } => {
-            if !matches!(program.types.get(data(source)?), Some(Type::Optional(_)))
+            if !matches!(program.types.get(data(source)?), Some(Type::Variant { .. }))
                 || program.types.get(slot(*destination)?.data) != Some(&Type::Bool)
             {
                 return Err(INVALID);
@@ -477,7 +471,7 @@ fn variant_view(
             return Err(INVALID);
         }
     }
-    if !matches!(program.types.get(data), Some(Type::Optional(_))) {
+    if !matches!(program.types.get(data), Some(Type::Variant { .. })) {
         return Err(INVALID);
     }
     Ok(())
@@ -754,10 +748,11 @@ fn check_effect(program: &Program, plan: &super::Plan, effect: &Effect) -> Resul
         } => {
             let ty = owned(&Place::root(*destination))?;
             let schema = program.types.get(ty).ok_or(INVALID)?;
-            let complete = if matches!(schema, Type::Optional(_)) {
-                fields.len() <= 1
-            } else {
-                schema.component_count() == u64::try_from(fields.len()).ok()
+            let complete = match schema {
+                Type::Variant { alternate, .. } => {
+                    fields.len() == 1 || (fields.is_empty() && alternate.is_none())
+                }
+                _ => schema.component_count() == u64::try_from(fields.len()).ok(),
             };
             if !complete {
                 return Err(INVALID);

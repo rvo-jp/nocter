@@ -366,4 +366,4 @@ fn integer_descriptor_rejects_noninteger_builtins_even_without_values_or_plans()
     }
 }
 
-mod optional_values;
+mod variant_values;
