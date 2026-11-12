@@ -555,3 +555,39 @@ fn primitive_functions_are_bodyless_without_ordinary_implementation_syntax() {
         assert!(tree(text, ParseGoal::V2CoreUnit).has_errors(), "{text}");
     }
 }
+
+#[test]
+fn source_and_module_dependencies_share_their_exact_path_grammar_before_items() {
+    let text = "see ./body.nct\nsee ../../details/body.nct\nuse ./codec as encoding\nuse ./codec.{Decoder, Format as WireFormat}\nfunc run(): i32 { 42 }";
+    let parsed = tree(text, ParseGoal::V2CoreUnit);
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics());
+    assert_eq!(
+        parsed
+            .nodes()
+            .filter(|(_, n)| n.kind() == NodeKind::SourceVisibilityDeclaration)
+            .count(),
+        2
+    );
+    assert_eq!(
+        parsed
+            .nodes()
+            .filter(|(_, n)| n.kind() == NodeKind::UseDeclaration)
+            .count(),
+        2
+    );
+    super::super::snapshots::assert_token_projection(&parsed, text);
+    for source in [
+        "pub use ./codec",
+        "see codec.nct",
+        "see ./codec",
+        "see ./codec/",
+        "see ./../body.nct",
+        "see ./body.nct as body",
+        "func run(): void {}\nsee ./body.nct",
+        "func run(): void {}\nuse ./codec",
+    ] {
+        let parsed = tree(source, ParseGoal::V2CoreUnit);
+        assert!(parsed.has_errors(), "{source}");
+        super::super::snapshots::assert_token_projection(&parsed, source);
+    }
+}

@@ -450,13 +450,31 @@ impl From<LoweringError> for SurfaceError {
 pub fn collect_declaration_surface<'syntax>(
     input: &CompileUnitInput<'syntax>,
 ) -> Result<DeclarationSurface<'syntax>, SurfaceError> {
-    collect_declaration_surface_with(input, SyntaxAcceptance::Complete)
+    collect_declaration_surface_with(
+        input,
+        SyntaxAcceptance::Complete,
+        nocter_syntax::ParseGoal::SourceFile,
+    )
 }
 
 pub(crate) fn collect_incomplete_body_declaration_surface<'syntax>(
     input: &CompileUnitInput<'syntax>,
 ) -> Result<DeclarationSurface<'syntax>, SurfaceError> {
-    collect_declaration_surface_with(input, SyntaxAcceptance::IncompleteBodies)
+    collect_declaration_surface_with(
+        input,
+        SyntaxAcceptance::IncompleteBodies,
+        nocter_syntax::ParseGoal::SourceFile,
+    )
+}
+
+pub(crate) fn collect_access_declaration_surface<'syntax>(
+    input: &CompileUnitInput<'syntax>,
+) -> Result<DeclarationSurface<'syntax>, SurfaceError> {
+    collect_declaration_surface_with(
+        input,
+        SyntaxAcceptance::Complete,
+        nocter_syntax::ParseGoal::V2CoreUnit,
+    )
 }
 
 #[derive(Clone, Copy)]
@@ -468,8 +486,9 @@ enum SyntaxAcceptance {
 fn collect_declaration_surface_with<'syntax>(
     input: &CompileUnitInput<'syntax>,
     syntax_acceptance: SyntaxAcceptance,
+    source_goal: nocter_syntax::ParseGoal,
 ) -> Result<DeclarationSurface<'syntax>, SurfaceError> {
-    let prepared = prepare_compile_unit(input).map_err(|error| match error {
+    let prepared = prepare_compile_unit(input, source_goal).map_err(|error| match error {
         LoweringError::UnknownTargetGate(literal) => SurfaceError::UnknownTargetGate(literal),
         error => SurfaceError::Topology(error),
     })?;
@@ -517,6 +536,7 @@ fn collect_declaration_surface_with<'syntax>(
         .map(|(index, source)| (source.canonical_path(), SurfaceSourceId(index)))
         .collect();
     let source_collection = SourceCollectionInput {
+        source_goal,
         source_visibility_resolutions: &source_visibility_resolutions,
         use_resolutions: &use_resolutions,
         target_selection,
@@ -588,6 +608,7 @@ pub(crate) fn validate_primitive_type_authority(
 }
 
 struct SourceCollectionInput<'input> {
+    source_goal: nocter_syntax::ParseGoal,
     source_visibility_resolutions: &'input BTreeMap<
         SourceVisibilityResolutionKey,
         &'input crate::SourceVisibilityResolutionInput,
@@ -614,7 +635,7 @@ fn collect_source(
     declarations: &mut Vec<SurfaceDeclaration>,
 ) -> Result<(), SurfaceError> {
     let tree = source.syntax();
-    if tree.root().kind() != NodeKind::SourceFile {
+    if tree.root().kind() != input.source_goal.root_kind() {
         return Err(SurfaceError::InvalidRootShape(tree.source()));
     }
     for child in child_node_iter(tree, tree.root_id()) {
@@ -656,6 +677,7 @@ fn collect_source(
                     collect_item(
                         source_id,
                         source.kind(),
+                        input.source_goal,
                         tree,
                         child,
                         input.target_selection.item_target(child),
@@ -702,6 +724,7 @@ fn syntax_errors_are_inside_implementations(tree: &SyntaxTree) -> bool {
 fn collect_item(
     source: SurfaceSourceId,
     source_kind: ModuleSourceKind,
+    source_goal: nocter_syntax::ParseGoal,
     tree: &SyntaxTree,
     item: NodeId,
     selected_target: Option<nocter_model::CompilationTarget>,
@@ -728,10 +751,12 @@ fn collect_item(
     if has_target_gate != selected_target.is_some() {
         return Err(SurfaceError::InvalidItemShape(item));
     }
-    if source_kind == ModuleSourceKind::Implementation {
-        validate_implementation_item(tree, declaration)?;
-    } else {
-        validate_root_item(tree, declaration)?;
+    if source_goal == nocter_syntax::ParseGoal::SourceFile {
+        if source_kind == ModuleSourceKind::Implementation {
+            validate_implementation_item(tree, declaration)?;
+        } else {
+            validate_root_item(tree, declaration)?;
+        }
     }
     append_declaration(
         source,

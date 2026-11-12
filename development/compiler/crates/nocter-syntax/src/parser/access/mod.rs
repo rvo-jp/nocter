@@ -4,13 +4,33 @@ mod expression;
 #[cfg(test)]
 mod tests;
 
-use super::{CompletedMarker, Parser, block, newline, statement};
-use crate::{ContextualSpelling, ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
+use super::{CompletedMarker, Parser, block, newline, root, source_visibility, statement};
+use crate::{
+    ContextualSpelling, ExpectedSyntax, Keyword, NodeKind, ParseDiagnosticKind, Punctuation,
+    TokenKind,
+};
 
 pub(super) fn unit(parser: &mut Parser<'_>) {
     let marker = parser.start();
     parser.eat_newlines();
+    let mut declarations_started = false;
     while !parser.at(TokenKind::Eof) {
+        if parser.at_keyword(Keyword::See) || parser.at_keyword(Keyword::Use) {
+            if declarations_started {
+                parser.diagnostic(ParseDiagnosticKind::LateDependencyDeclaration);
+            }
+            if parser.at_keyword(Keyword::See) {
+                source_visibility::declaration(parser);
+            } else {
+                let dependency = parser.start();
+                parser.bump();
+                root::use_tree(parser);
+                parser.complete(dependency, NodeKind::UseDeclaration);
+            }
+            parser.require_line_end();
+            continue;
+        }
+        declarations_started = true;
         if parser.at_keyword(Keyword::Func)
             || (parser.at_keyword(Keyword::Primitive)
                 && parser.nth_kind(1) == TokenKind::Keyword(Keyword::Func))

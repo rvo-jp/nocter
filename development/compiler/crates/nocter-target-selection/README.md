@@ -9,7 +9,7 @@ Own the single syntax-backed activity decision for items and imports guarded by 
 The builder consumes syntax trees, source storage, and one selected compilation target. It publishes
 an immutable `TargetSelection` used by discovery and declaration lowering. Unknown authored targets
 remain typed source errors while their items stay inactive for safe graph discovery. The completed
-selection retains its target and exact syntax-root multiset so a compile input can reject a stale,
+selection retains its source grammar, target and exact syntax-root multiset so a compile input can reject a stale,
 reparsed, or foreign-source selection before semantic lowering.
 
 ## Invariants
@@ -23,6 +23,8 @@ reparsed, or foreign-source selection before semantic lowering.
 - Activity queries verify that the supplied node belongs to one selected syntax tree. A node from a
   reparsed or foreign tree is inactive rather than relying on the caller to establish membership.
 - One selection admits at most one syntax tree for a physical source identity.
-- Only the released `SourceFile` root enters this selection. A future private-function core root
-  is an `InconsistentSyntax` integrity error, not an empty inactive source that semantic lowering
-  could mistake for an accepted program. A rejected root cannot mutate the builder's selected set.
+- Default constructors select the released `SourceFile` grammar. `prepare_for_goal` and
+  `TargetSelectionBuilder::for_goal` require an explicit alternative goal for the bounded v2
+  inventory. A selection never mixes grammars; a wrong root is an `InconsistentSyntax` integrity
+  error and cannot mutate the selected set. Source-role, dependency, header and body validation
+  remain separate obligations; item activity is not semantic admission.

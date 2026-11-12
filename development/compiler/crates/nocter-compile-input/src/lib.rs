@@ -7,7 +7,7 @@
 use nocter_model::{BuiltinType, CompilationTarget, PackageIdentity, PackageTargetKind};
 use nocter_runtime_contract::{PrimitiveRole, RuntimeStorageRole, TargetServiceRole};
 use nocter_source::{SourceId, SourceMap};
-use nocter_syntax::{NodeId, NodeKind, SyntaxTree};
+use nocter_syntax::{NodeId, NodeKind, ParseGoal, SyntaxTree};
 use nocter_target_selection::{TargetSelection, TargetSelectionError};
 use nocter_toolchain_contract::{StandardDeclarationRole, StructuralAttachment};
 use std::sync::Arc;
@@ -647,7 +647,29 @@ impl<'syntax> CompileUnitInput<'syntax> {
         modules: Vec<ModuleInput<'syntax>>,
         use_resolutions: Vec<UseResolutionInput>,
     ) -> Self {
-        let target_selection = TargetSelection::prepare(
+        Self::for_goal(
+            ParseGoal::SourceFile,
+            target,
+            sources,
+            packages,
+            modules,
+            use_resolutions,
+        )
+    }
+
+    /// Constructs an input for an explicit source grammar. Its selection cannot mix grammars;
+    /// consumers must still select the matching semantic pipeline and validate source roles.
+    #[must_use]
+    pub fn for_goal(
+        source_goal: ParseGoal,
+        target: CompilationTarget,
+        sources: &'syntax SourceMap,
+        packages: Vec<PackageInput>,
+        modules: Vec<ModuleInput<'syntax>>,
+        use_resolutions: Vec<UseResolutionInput>,
+    ) -> Self {
+        let target_selection = TargetSelection::prepare_for_goal(
+            source_goal,
             target,
             sources,
             modules

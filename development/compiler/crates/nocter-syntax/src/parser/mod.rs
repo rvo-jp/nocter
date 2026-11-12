@@ -31,6 +31,15 @@ pub enum ParseGoal {
 }
 
 impl ParseGoal {
+    /// Root shape selected by this grammar, without granting source admission.
+    #[must_use]
+    pub const fn root_kind(self) -> NodeKind {
+        match self {
+            Self::SourceFile => NodeKind::SourceFile,
+            Self::V2CoreUnit => NodeKind::V2CoreUnit,
+        }
+    }
+
     /// Stable name used by computation identities and diagnostics.
     #[must_use]
     pub const fn as_str(self) -> &'static str {

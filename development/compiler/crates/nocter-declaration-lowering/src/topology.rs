@@ -463,10 +463,11 @@ pub(crate) struct PreparedCompileUnit<'input, 'syntax> {
 
 pub(crate) fn prepare_compile_unit<'input, 'syntax>(
     input: &'input CompileUnitInput<'syntax>,
+    source_goal: nocter_syntax::ParseGoal,
 ) -> Result<PreparedCompileUnit<'input, 'syntax>, LoweringError> {
     let packages = canonical_packages(input)?;
     let modules = canonical_modules(input, &packages)?;
-    validate_sources(input, &packages, &modules)?;
+    validate_sources(input, &packages, &modules, source_goal)?;
     let target_selection = input.target_selection().map_err(|error| match error {
         TargetSelectionError::MissingSource(source) => LoweringError::MissingSource(source),
         TargetSelectionError::InconsistentSyntax(source) => {
@@ -475,6 +476,9 @@ pub(crate) fn prepare_compile_unit<'input, 'syntax>(
         TargetSelectionError::InconsistentSnapshot => LoweringError::InconsistentTargetSelection,
         TargetSelectionError::UnknownTarget(literal) => LoweringError::UnknownTargetGate(literal),
     })?;
+    if target_selection.source_goal() != source_goal {
+        return Err(LoweringError::InconsistentTargetSelection);
+    }
     let package_target_resolutions =
         validate_package_target_resolutions(input, &packages, &modules)?;
     let source_visibility_resolutions = validate_source_visibility_resolutions(input, &modules)?;
@@ -658,6 +662,7 @@ fn validate_sources(
     input: &CompileUnitInput<'_>,
     packages: &[&PackageInput],
     modules: &[&ModuleInput<'_>],
+    source_goal: nocter_syntax::ParseGoal,
 ) -> Result<(), LoweringError> {
     let mut paths = BTreeSet::new();
     let mut source_ids = BTreeSet::new();
@@ -669,7 +674,7 @@ fn validate_sources(
         let mut roots = 0;
         let mut single_files = 0;
         for source in module.sources() {
-            if source.syntax().root().kind() != NodeKind::SourceFile {
+            if source.syntax().root().kind() != source_goal.root_kind() {
                 return Err(LoweringError::InvalidModuleSource(
                     source.canonical_path().into(),
                 ));

@@ -163,6 +163,14 @@ pub(super) fn is_primitive(syntax: BoundSyntax<'_>, declaration: NodeId) -> bool
 pub(super) fn declarations(syntax: BoundSyntax<'_>) -> Result<Vec<NodeId>, Failure> {
     let tree = syntax.tree();
     child_node_iter(tree, tree.root_id())
+        .filter(|item| {
+            !tree.node(*item).is_some_and(|node| {
+                matches!(
+                    node.kind(),
+                    NodeKind::SourceVisibilityDeclaration | NodeKind::UseDeclaration
+                )
+            })
+        })
         .map(|item| {
             if tree.node(item).is_none_or(|n| n.kind() != NodeKind::Item) {
                 return Err(Failure::InconsistentSyntax);

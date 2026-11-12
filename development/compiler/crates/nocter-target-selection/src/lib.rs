@@ -4,7 +4,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use nocter_model::CompilationTarget;
 use nocter_source::{SourceId, SourceMap};
-use nocter_syntax::{NodeId, NodeKind, SyntaxTree, child_node_iter, direct_node, node_is_complete};
+use nocter_syntax::{
+    NodeId, NodeKind, ParseGoal, SyntaxTree, child_node_iter, direct_node, node_is_complete,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TargetSelectionError {
@@ -17,6 +19,7 @@ pub enum TargetSelectionError {
 /// The immutable item/use activity decision shared by discovery and semantic lowering.
 #[derive(Clone, Debug)]
 pub struct TargetSelection {
+    source_goal: ParseGoal,
     target: CompilationTarget,
     syntax_roots: Vec<NodeId>,
     item_targets: BTreeMap<NodeId, CompilationTarget>,
@@ -44,11 +47,28 @@ impl TargetSelection {
         sources: &SourceMap,
         trees: impl IntoIterator<Item = &'tree SyntaxTree>,
     ) -> Result<Self, TargetSelectionError> {
-        let mut builder = TargetSelectionBuilder::new(target);
+        Self::prepare_for_goal(ParseGoal::SourceFile, target, sources, trees)
+    }
+
+    /// Selects one explicitly chosen source grammar, without accepting another grammar as fallback.
+    /// # Errors
+    /// Rejects inconsistent snapshots and trees from a different grammar.
+    pub fn prepare_for_goal<'tree>(
+        source_goal: ParseGoal,
+        target: CompilationTarget,
+        sources: &SourceMap,
+        trees: impl IntoIterator<Item = &'tree SyntaxTree>,
+    ) -> Result<Self, TargetSelectionError> {
+        let mut builder = TargetSelectionBuilder::for_goal(source_goal, target);
         for tree in trees {
             builder.include_tree(sources, tree)?;
         }
         Ok(builder.finish())
+    }
+
+    #[must_use]
+    pub const fn source_goal(&self) -> ParseGoal {
+        self.source_goal
     }
 
     /// Reports whether this decision belongs to the exact target, source map, and syntax snapshots
@@ -62,6 +82,9 @@ impl TargetSelection {
     ) -> bool {
         let mut roots = Vec::new();
         for tree in trees {
+            if tree.root().kind() != self.source_goal.root_kind() {
+                return false;
+            }
             let Some(source) = sources.get(tree.source()) else {
                 return false;
             };
@@ -118,7 +141,7 @@ impl TargetSelection {
         {
             return Err(TargetSelectionError::InconsistentSnapshot);
         }
-        if tree.root().kind() != NodeKind::SourceFile {
+        if tree.root().kind() != self.source_goal.root_kind() {
             return Err(TargetSelectionError::InconsistentSyntax(tree.source()));
         }
         let source = sources
@@ -193,8 +216,14 @@ impl TargetSelection {
 impl TargetSelectionBuilder {
     #[must_use]
     pub fn new(target: CompilationTarget) -> Self {
+        Self::for_goal(ParseGoal::SourceFile, target)
+    }
+
+    #[must_use]
+    pub fn for_goal(source_goal: ParseGoal, target: CompilationTarget) -> Self {
         Self {
             selection: TargetSelection {
+                source_goal,
                 target,
                 syntax_roots: Vec::new(),
                 item_targets: BTreeMap::new(),
@@ -473,6 +502,44 @@ mod tests {
         assert!(selection.matches(CompilationTarget::Arm64Darwin, &sources, [&current]));
         assert!(!selection.matches(CompilationTarget::Arm64Darwin, &sources, [&future]));
         assert!(selection.item_is_active(descendants_of_kind(&current, NodeKind::Item)[0]));
+    }
+
+    #[test]
+    fn explicit_goal_selection_never_mixes_grammars_or_admits_a_rejected_tree() {
+        let mut sources = SourceMap::new();
+        let future_id = sources
+            .add_bytes(SourceName::new("future.nct"), b"func future(): void {}")
+            .unwrap();
+        let current_id = sources
+            .add_bytes(SourceName::new("current.nct"), b"func current(): void {}")
+            .unwrap();
+        let future = parse(sources.get(future_id).unwrap(), ParseGoal::V2CoreUnit);
+        let current = parse(sources.get(current_id).unwrap(), ParseGoal::SourceFile);
+        let mut builder =
+            TargetSelectionBuilder::for_goal(ParseGoal::V2CoreUnit, CompilationTarget::Arm64Darwin);
+        builder.include_tree(&sources, &future).unwrap();
+        assert_eq!(builder.selection().source_goal(), ParseGoal::V2CoreUnit);
+        assert!(
+            matches!(builder.include_tree(&sources, &current), Err(TargetSelectionError::InconsistentSyntax(id)) if id == current_id)
+        );
+        let selected = builder.finish();
+        assert!(selected.matches(CompilationTarget::Arm64Darwin, &sources, [&future]));
+        assert!(!selected.matches(
+            CompilationTarget::Arm64Darwin,
+            &sources,
+            [&future, &current]
+        ));
+        assert!(!selected.item_is_active(descendants_of_kind(&current, NodeKind::Item)[0]));
+        assert!(selected.item_is_active(descendants_of_kind(&future, NodeKind::Item)[0]));
+        assert!(matches!(
+            TargetSelection::prepare_for_goal(
+                ParseGoal::V2CoreUnit,
+                CompilationTarget::Arm64Darwin,
+                &sources,
+                [&future, &current]
+            ),
+            Err(TargetSelectionError::InconsistentSyntax(_))
+        ));
     }
 
     #[test]

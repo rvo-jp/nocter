@@ -1,10 +1,12 @@
 //! Header-only query and exact-current binding for the future private-function grammar.
 mod definitions;
 mod headers;
+mod module_sources;
 mod primitives;
 mod projection;
 mod source;
 mod source_roles;
+pub use module_sources::{ModuleSources, ModuleSourcesFailure};
 pub use primitives::{
     PrimitiveAuthority, PrimitiveAuthorityError, PrimitiveBindings, PrimitiveDiagnostic,
     PrimitiveRule,
@@ -48,6 +50,7 @@ pub enum Failure {
     ChangedHeader,
     RequiredValues(Box<[AccessCodeId]>),
     MissingValueEvidence,
+    ModuleInputRequired,
 }
 
 /// The next source-header construction action, sharing the declaration owner's readiness rules.
@@ -112,6 +115,16 @@ impl<'source> Preparation<'source> {
     ) -> Result<Self, Failure> {
         validate_source_role(syntax, nocter_compile_input::ModuleSourceKind::SingleFile)?;
         let tree = syntax.tree();
+        if nocter_syntax::child_node_iter(tree, tree.root_id()).any(|node| {
+            tree.node(node).is_some_and(|node| {
+                matches!(
+                    node.kind(),
+                    NodeKind::SourceVisibilityDeclaration | NodeKind::UseDeclaration
+                )
+            })
+        }) {
+            return Err(Failure::ModuleInputRequired);
+        }
         let projection = project_declaration_syntax(syntax);
         let (functions, records) = headers::collect(syntax)?;
         let symbols = headers::symbols(syntax, &functions, &records);

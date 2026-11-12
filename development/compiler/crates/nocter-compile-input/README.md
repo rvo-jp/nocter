@@ -26,5 +26,8 @@ lowering.
   assembled selection remains a typed integrity error stored by the immutable input.
 - Source lookup returns a tree only when the compile unit contains exactly one tree for that source
   identity.
+- The default constructor selects released source syntax. `for_goal` selects one explicit grammar
+  for the existing immutable inventory and target-selection authority. It does not discover v2
+  packages or authorize a semantic consumer to accept a different grammar.
 - Dependency identities are canonical; display names and paths cannot substitute for them.
 - Directly constructed test inputs obey the same validation boundary as production inputs.

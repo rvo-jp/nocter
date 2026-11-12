@@ -131,7 +131,7 @@ value used beside its same-spelled type annotation/construction, and a record wh
 uses a same-spelled constant. Required evaluation and native execution consume those same
 selections. Primitive roles select value declarations; a type with that spelling cannot claim
 the role or prevent validation of its selected value contract. This remains the private
-single-source boundary, not directory-module or `see`/`use` integration.
+single-source semantic boundary; module inventory does not flatten its names.
 
 `validate_source_role` checks host-selected `ModuleSourceKind` placement over that same grammar.
 Contract headers may omit bodies/initializers and may expose an opaque record; implementation
@@ -139,8 +139,15 @@ and single-file sources require definitions. Root function bodies and value init
 at their executable source, before type normalization. Header-contained count expressions are
 not mistaken for function implementations. The default private preparation still selects the
 single-file role; role validation alone publishes no headers, bodies or module authority.
-Directory inventory, reciprocal pairing, source-local lookup and contract/definition joining
-remain integration work rather than being inferred from a filename.
+`ModuleSources` consumes an explicitly v2-selected `CompileUnitInput` through the existing
+canonical topology and surface collector, checking all source roles, including unused files.
+It preserves source/module identities and exact resolved `see`/`use` occurrences, accepts direct
+`see` cycles, and rejects missing resolutions and cross-module physical edges. Its private surface
+cannot be passed to released declaration reservation. Neither pipeline infers its grammar from a
+filename or admits the other's root. Single-source semantic preparation returns
+`ModuleInputRequired` for authored dependencies rather than silently dropping them.
+Reciprocal pairing, source-local name lookup, visibility/re-exports, resolved contract agreement
+and ordinary discovery/CLI integration remain work; inventory alone publishes no type or Unit.
 
 The reusable result owns a single immutable value-access declaration program, its exact neutral
 header surface, and projection locators. It contains no current syntax IDs, source identity,
