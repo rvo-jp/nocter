@@ -34,7 +34,39 @@ impl Checker<'_, '_> {
             .flatten())
     }
     pub fn reference_value(&mut self, node: NodeId) -> Result<AccessExpressionId, Failure> {
-        if let Some(target) = self.declared_function(node)? {
+        let token = self.name_token(node)?.ok_or(Failure::InconsistentSyntax)?;
+        self.require_header(Namespace::Value, token)?;
+        if self.lookup(self.text(token)?).is_none()
+            && let Some(name) = self.program().symbols().get(self.text(token)?)
+        {
+            if self
+                .program()
+                .has_namespace_in(self.context.lookup_scope(), name)
+            {
+                return self.reject(Rule::NamespaceValue, token);
+            }
+            if let Some(code) = self
+                .program()
+                .resolve_code_in(self.context.lookup_scope(), name)
+            {
+                return self.code_value(node, code, token);
+            }
+        }
+        self.place_value(node, Rule::TypeMismatch)
+    }
+    pub(super) fn code_value(
+        &mut self,
+        node: NodeId,
+        target: AccessCodeId,
+        token: nocter_syntax::SyntaxToken,
+    ) -> Result<AccessExpressionId, Failure> {
+        self.require_declaration(target.into(), token)?;
+        let code = self
+            .program()
+            .codes()
+            .get(target)
+            .ok_or(Failure::InconsistentSyntax)?;
+        if code.kind().is_callable() {
             let data = self
                 .program()
                 .function_data(FunctionWitness {
@@ -48,34 +80,57 @@ impl Checker<'_, '_> {
                 ExpressionKind::Function(target),
             );
         }
-        if let Some(token) = self.name_token(node)?
-            && self.lookup(self.text(token)?).is_none()
-            && let Some(target) = self
-                .program()
-                .symbols()
-                .get(self.text(token)?)
-                .and_then(|name| {
-                    self.program()
-                        .resolve_constant_in(self.context.lookup_scope(), name)
-                })
-        {
-            let data = self
-                .program()
-                .codes()
-                .get(target)
-                .ok_or(Failure::InconsistentSyntax)?
-                .result();
+        if code.kind() == nocter_declarations::value_access::CodeKind::ConstantInitializer {
+            let data = code.result();
             let value = self
                 .values
                 .value(target.into())
                 .ok_or(Failure::RequiredConstant {
                     initializer: target,
                     origin: nocter_syntax::SyntaxOrigin::Node(node),
-                })?;
-            let value = value.clone();
+                })?
+                .clone();
             return self.constant_value(node, data, &value);
         }
-        self.place_value(node, Rule::TypeMismatch)
+        if code.kind() == nocter_declarations::value_access::CodeKind::StaticInitializer {
+            let place = self.static_place(
+                nocter_model::ValueStatic {
+                    initializer: target,
+                },
+                token,
+            )?;
+            return self.emit_place(node, place);
+        }
+        Err(Failure::InconsistentSyntax)
+    }
+    pub(super) fn qualified_value(
+        &mut self,
+        node: NodeId,
+        selected: &super::qualified::QualifiedSelection,
+    ) -> Result<AccessExpressionId, Failure> {
+        if self
+            .program()
+            .codes()
+            .get(selected.code)
+            .ok_or(Failure::InconsistentSyntax)?
+            .kind()
+            == nocter_declarations::value_access::CodeKind::StaticInitializer
+        {
+            let place = self.static_place(
+                nocter_model::ValueStatic {
+                    initializer: selected.code,
+                },
+                selected.token,
+            )?;
+            let place = self.member_place(place, &selected.members)?;
+            return self.emit_place(node, place);
+        }
+        let source = self.code_value(selected.node, selected.code, selected.token)?;
+        if selected.members.is_empty() {
+            Ok(source)
+        } else {
+            self.component_value(node, source, &selected.members)
+        }
     }
     pub(super) fn constant_value(
         &mut self,
@@ -136,6 +191,26 @@ impl Checker<'_, '_> {
         self.emit(node, value_type(data, Mode::Own), kind)
     }
     fn callee(&mut self, node: NodeId, reachable: bool) -> Result<Callee, Failure> {
+        if let Some(selected) = self.qualified_selection(node)? {
+            if selected.members.is_empty()
+                && self
+                    .program()
+                    .codes()
+                    .get(selected.code)
+                    .is_some_and(|code| code.kind().is_callable())
+            {
+                return Ok(Callee {
+                    witness: FunctionWitness {
+                        origin: ValueFunctionOrigin::Declaration(selected.code),
+                        invocation: ValueInvocation::Read,
+                    },
+                    environment: None,
+                    completes: true,
+                });
+            }
+            let value = self.qualified_value(node, &selected)?;
+            return self.value_callee(node, value);
+        }
         if let Some(target) = self.declared_function(node)? {
             return Ok(Callee {
                 witness: FunctionWitness {

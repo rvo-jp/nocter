@@ -132,8 +132,11 @@ cannot silently widen an existing binding.
 link and checks both intermediate and final audiences. A target scope's own module never lends its
 privilege to the caller. Failed paths report their exact component position, without fallback or
 header readiness; unknown caller identity cannot pass a restricted boundary. Explicit outward
-`declaration_visible_from` uses the same audience predicate. Source path spelling, block scope,
-qualified body/type projection and ordinary v2 module admission remain separate obligations.
+`declaration_visible_from` uses the same audience predicate. `declaration_prefix_in` uses the
+same traversal to stop at an actual declaration and return its consumed path length; record/tuple
+members remain checking's responsibility. An uninterned spelling is represented by `None`,
+never a fabricated symbol. A suffix after the declaration need not exist in the name catalog. Source path spelling, lexical block scope and ordinary v2 discovery/CLI admission remain
+separate obligations.
 
 Callable/input and record/field tables use model-owned sparse arenas. A missing entry has no data, invocation
 contract or Copy evidence; known names can still identify its required header or forbid shadowing.

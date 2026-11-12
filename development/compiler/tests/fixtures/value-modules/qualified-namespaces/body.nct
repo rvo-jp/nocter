@@ -1,0 +1,27 @@
+use ./facade as api
+see ./index.nct
+
+const RESULT: i32 = api.storage.answer()
+
+func values(): [i32; api.storage.width()] {
+    let data: api.storage.Data = api.storage.make()
+    let call = api.storage.answer
+    let tuple = (api.storage.BASE.0, api.storage.ROOT.1)
+    [call() + data.shown - 42, api.storage.make().shown + tuple.0 - 40]
+}
+
+func inspect(value: api.storage.Data): i32 {
+    value.shown
+}
+
+func helper(): i32 { 1 }
+
+func run(): i32 {
+    let items = values()
+    let data = api.storage.make()
+    if helper() == 1 && items[0] == 42 && items[1] == 42 && RESULT == 42 && api.storage.ROOT.0 == 21 && inspect(data) == 42 {
+        42
+    } else {
+        1
+    }
+}

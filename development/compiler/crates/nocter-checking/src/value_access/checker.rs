@@ -512,12 +512,8 @@ impl<'a, 's> Checker<'a, 's> {
                 self.program()
                     .declaration_in(self.context.lookup_scope(), namespace, symbol)
             })
-            && !self.program().header_ready(declaration)
         {
-            return Err(Failure::RequiredHeader {
-                declaration,
-                origin: SyntaxOrigin::Token(token),
-            });
+            return self.require_declaration(declaration, token);
         }
         Ok(())
     }
@@ -540,8 +536,11 @@ impl<'a, 's> Checker<'a, 's> {
             || BuiltinType::from_spelling(name).is_some()
             || self.program().symbols().get(name).is_some_and(|symbol| {
                 self.program()
-                    .declaration_in(self.context.lookup_scope(), Namespace::Value, symbol)
-                    .is_some()
+                    .has_namespace_in(self.context.lookup_scope(), symbol)
+                    || self
+                        .program()
+                        .declaration_in(self.context.lookup_scope(), Namespace::Value, symbol)
+                        .is_some()
             })
     }
     pub fn unwrap(&self, mut node: NodeId) -> Result<NodeId, Failure> {

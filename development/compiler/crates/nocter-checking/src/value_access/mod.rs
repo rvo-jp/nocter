@@ -17,6 +17,7 @@ mod inputs;
 mod ir;
 mod paths;
 mod postfix;
+mod qualified;
 mod required;
 mod results;
 mod selection;
@@ -50,6 +51,9 @@ use std::{collections::BTreeMap, sync::Arc};
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Rule {
     UnknownName,
+    UnknownNamespace,
+    InaccessibleName,
+    NamespaceValue,
     UnknownField,
     InaccessibleField,
     InaccessibleRepresentation,
@@ -76,6 +80,15 @@ pub enum Rule {
 impl Rule {
     const fn diagnostic(self) -> (DiagnosticCode, &'static str) {
         match self {
+            Self::UnknownNamespace => (
+                DiagnosticCode::E0340,
+                "this path component does not name a module namespace",
+            ),
+            Self::InaccessibleName => (
+                DiagnosticCode::E0412,
+                "this qualified name is outside its visibility boundary",
+            ),
+            Self::NamespaceValue => (DiagnosticCode::E0370, "a module namespace is not a value"),
             Self::RequiredValueScope => (
                 DiagnosticCode::E0421,
                 "an enclosing local is unavailable to this required expression",

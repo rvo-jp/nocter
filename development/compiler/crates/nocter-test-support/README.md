@@ -27,6 +27,11 @@ production validation on behalf of tests.
 `ValueSourceFixture` owns exact source and production private-goal syntax for value-binding tests.
 It can load the shared physical corpus through the repository-root authority. It creates no
 accepted declaration/body/unit product; integration tests must use the normal production APIs.
+`ValueModuleFixture` similarly owns exact physical sources and explicit module/see/use selections,
+without discovery or semantic acceptance. The shared `qualified_namespace_fixture` loads the one
+module corpus under `development/compiler/tests/fixtures/value-modules/qualified-namespaces`; checking, required
+execution and native consumers use those same authored files. Semantic preparation remains in
+the consuming test, rather than becoming a second compiler in test support.
 
 `integer_failure_sources` supplies identical runtime-admissible arithmetic bodies to required and
 native execution tests. Its boundary inputs are fixture data, not a replacement for the numeric

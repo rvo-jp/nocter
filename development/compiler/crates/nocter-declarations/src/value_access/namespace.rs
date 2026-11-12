@@ -42,6 +42,7 @@ pub enum ScopeBindingError {
 pub enum QualifiedNameError {
     UnknownScope,
     EmptyPath,
+    NamespaceOnly { position: usize },
     UnknownNamespace { position: usize },
     UnknownDeclaration { position: usize },
     Inaccessible { position: usize },
@@ -88,35 +89,68 @@ impl Names {
         &self,
         scope: ScopeId,
         namespace: Namespace,
-        path: &[Symbol],
+        path: &[Option<Symbol>],
     ) -> Result<DeclarationId, QualifiedNameError> {
+        self.walk_path(scope, namespace, path.iter().copied(), false)
+            .map(|(declaration, _)| declaration)
+    }
+    pub fn lookup_prefix(
+        &self,
+        scope: ScopeId,
+        namespace: Namespace,
+        path: &[Option<Symbol>],
+    ) -> Result<(DeclarationId, usize), QualifiedNameError> {
+        self.walk_path(scope, namespace, path.iter().copied(), true)
+    }
+    fn walk_path(
+        &self,
+        scope: ScopeId,
+        namespace: Namespace,
+        path: impl ExactSizeIterator<Item = Option<Symbol>>,
+        permit_components: bool,
+    ) -> Result<(DeclarationId, usize), QualifiedNameError> {
         if !self.contains_scope(scope) {
             return Err(QualifiedNameError::UnknownScope);
         }
-        let Some((&name, qualifiers)) = path.split_last() else {
+        let length = path.len();
+        if length == 0 {
             return Err(QualifiedNameError::EmptyPath);
-        };
+        }
         let caller = self.modules.get(&scope);
         let mut current = scope;
-        for (position, name) in qualifiers.iter().copied().enumerate() {
-            let qualifier = self
-                .qualifiers
-                .get(&(current, name))
-                .ok_or(QualifiedNameError::UnknownNamespace { position })?;
-            if !visible(qualifier.audience.as_deref(), caller) {
+        for (position, name) in path.enumerate() {
+            let last = position + 1 == length;
+            let unknown = || {
+                if !last && !permit_components {
+                    QualifiedNameError::UnknownNamespace { position }
+                } else {
+                    QualifiedNameError::UnknownDeclaration { position }
+                }
+            };
+            let name = name.ok_or_else(unknown)?;
+            if let Some(qualifier) = self.qualifiers.get(&(current, name)) {
+                if !visible(qualifier.audience.as_deref(), caller) {
+                    return Err(QualifiedNameError::Inaccessible { position });
+                }
+                if last {
+                    return Err(QualifiedNameError::NamespaceOnly { position });
+                }
+                current = qualifier.target;
+                continue;
+            }
+            if !last && !permit_components {
+                return Err(QualifiedNameError::UnknownNamespace { position });
+            }
+            let binding = self
+                .bindings
+                .get(&(current, namespace, name))
+                .ok_or_else(unknown)?;
+            if !visible(binding.audience.as_deref(), caller) {
                 return Err(QualifiedNameError::Inaccessible { position });
             }
-            current = qualifier.target;
+            return Ok((binding.declaration, position + 1));
         }
-        let position = path.len() - 1;
-        let binding = self
-            .bindings
-            .get(&(current, namespace, name))
-            .ok_or(QualifiedNameError::UnknownDeclaration { position })?;
-        if !visible(binding.audience.as_deref(), caller) {
-            return Err(QualifiedNameError::Inaccessible { position });
-        }
-        Ok(binding.declaration)
+        unreachable!("a nonempty finite path returns at its final component")
     }
     pub fn values(&self) -> impl ExactSizeIterator<Item = &DeclarationId> {
         self.bindings.values().map(|binding| &binding.declaration)

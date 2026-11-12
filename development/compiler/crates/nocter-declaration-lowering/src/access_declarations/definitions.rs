@@ -201,6 +201,39 @@ impl Definitions<'_, '_, '_> {
             }
         }
     }
+    fn data_path(
+        &mut self,
+        path: &[SyntaxToken],
+        owner: DeclarationId,
+        position: HeaderPosition,
+    ) -> Result<Option<DataReference>, Failure> {
+        let [token] = path else {
+            let names = path
+                .iter()
+                .map(|&token| self.symbol(token).map(Some))
+                .collect::<Result<Vec<_>, _>>()?;
+            return match self.program.declaration_path_in(
+                self.scope.lookup,
+                nocter_declarations::value_access::Namespace::Type,
+                &names,
+            ) {
+                Ok(DeclarationId::Record(record)) => Ok(Some(DataReference::Record(record))),
+                Ok(DeclarationId::Code(_)) => Err(Failure::InconsistentSyntax),
+                Err(error) => {
+                    self.violations.push(DeclarationViolation {
+                        declaration: owner,
+                        position,
+                        rule:
+                            nocter_declarations::value_access::DeclarationRule::QualifiedDataName {
+                                error,
+                            },
+                    });
+                    Ok(None)
+                }
+            };
+        };
+        self.data(*token, owner, position)
+    }
     fn data_type(
         &mut self,
         ty: &DataTypeSyntax,
@@ -208,7 +241,7 @@ impl Definitions<'_, '_, '_> {
         position: HeaderPosition,
     ) -> Result<Option<DataReference>, Failure> {
         match ty {
-            DataTypeSyntax::Named(token) => self.data(*token, owner, position),
+            DataTypeSyntax::Named(path) => self.data_path(path, owner, position),
             DataTypeSyntax::Optional { payload, layers } => Ok(self
                 .data_type(payload, owner, position)?
                 .map(|payload| DataReference::Optional {

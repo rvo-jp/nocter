@@ -44,6 +44,28 @@ impl Checker<'_, '_> {
         };
         data.map_or_else(|| self.reject(Rule::UnknownType, token), Ok)
     }
+    pub(super) fn annotation_data_path(
+        &self,
+        path: &[SyntaxToken],
+        metadata_only: bool,
+    ) -> Result<TypeId, Failure> {
+        if let [token] = path {
+            return self.annotation_data_token(*token, metadata_only);
+        }
+        let declaration = self.declaration_path(Namespace::Type, path)?;
+        let nocter_declarations::value_access::DeclarationId::Record(record) = declaration else {
+            return Err(Failure::InconsistentSyntax);
+        };
+        if !metadata_only {
+            self.require_declaration(
+                declaration,
+                *path.last().ok_or(Failure::InconsistentSyntax)?,
+            )?;
+        }
+        self.program()
+            .record_type_identity(record)
+            .ok_or(Failure::InconsistentSyntax)
+    }
     fn annotation_data(
         &mut self,
         ty: &nocter_declaration_lowering::access_declarations::DataTypeSyntax,
@@ -51,7 +73,7 @@ impl Checker<'_, '_> {
     ) -> Result<TypeId, Failure> {
         use nocter_declaration_lowering::access_declarations::DataTypeSyntax;
         match ty {
-            DataTypeSyntax::Named(token) => self.annotation_data_token(*token, metadata_only),
+            DataTypeSyntax::Named(path) => self.annotation_data_path(path, metadata_only),
             DataTypeSyntax::Optional { payload, layers } => {
                 let mut payload = self.annotation_data(payload, metadata_only)?;
                 for _ in 0..layers.get() {

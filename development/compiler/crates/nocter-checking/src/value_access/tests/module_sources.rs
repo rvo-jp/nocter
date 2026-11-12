@@ -550,3 +550,247 @@ fn visible_field_audiences_and_complete_definition_views_do_not_depend_on_compil
         }
     }
 }
+
+#[test]
+fn qualified_namespace_reexports_use_one_target_for_headers_values_calls_and_member_chains() {
+    let fixture = nocter_test_support::qualified_namespace_fixture();
+    let source = ModuleSourceUnit::prepare(&fixture.input()).unwrap();
+    let current = source.declarations().current().unwrap();
+    let program = current.program();
+    let result = program
+        .resolve_constant_in(
+            current.lookup_scope(),
+            program.symbols().get("RESULT").unwrap(),
+        )
+        .unwrap();
+    assert_eq!(
+        source.unit().constant_value(result).unwrap().node(),
+        &nocter_model::FrozenNode::Scalar(nocter_model::ConstantValue::Integer(42))
+    );
+    let values = program
+        .resolve_in(
+            current.lookup_scope(),
+            program.symbols().get("values").unwrap(),
+        )
+        .unwrap();
+    let PayloadSchema::Array(array) = program
+        .data_schema(program.codes().get(values).unwrap().result())
+        .unwrap()
+    else {
+        panic!("array result");
+    };
+    assert_eq!(array.length(), 2);
+    assert!(source.unit().bind(&current).is_ok());
+}
+
+fn namespace_access_fixture(body: &str) -> Fixture {
+    let body = format!("use ./data/bridge as api\nsee ./index.nct\nfunc run(): i32 {{ {body} }}");
+    Fixture::new(&[
+        ("/app/index.nct", Root, "use ./data/bridge as api\nsee ./body.nct\nfunc run(): i32"),
+        ("/app/body.nct", Implementation, &body),
+        ("/app/data/bridge/index.nct", Root, "use /data as inner\nsee ./body.nct\nconst func safe(): i32"),
+        ("/app/data/bridge/body.nct", Implementation, "use /data as inner\nsee ./index.nct\nconst func safe(): i32 { inner.hidden() }"),
+        ("/app/data/index.nct", Root, "see ./body.nct\n#visibility: \"./\"\nconst func hidden(): i32\n#visibility: \"./\"\nstruct Hidden\nstruct Data { shown: i32 }\nfunc make(): Data"),
+        ("/app/data/body.nct", Implementation, "see ./index.nct\nconst func hidden(): i32 { 42 }\nstruct Hidden {}\nstruct Data { shown: i32\nhidden: i32 }\nfunc make(): Data { Data { shown: 42, hidden: 1 } }"),
+    ], &[(0, 0, 1), (1, 0, 0), (2, 0, 3), (3, 0, 2), (4, 0, 5), (5, 0, 4)])
+    .with_modules(&[(&[], &[0, 1]), (&["data", "bridge"], &[2, 3]), (&["data"], &[4, 5])])
+    .with_uses(&[(0, 0, &["data", "bridge"]), (1, 0, &["data", "bridge"]), (2, 0, &["data"]), (3, 0, &["data"])])
+}
+
+#[test]
+fn qualified_namespace_paths_preserve_source_permission_and_never_become_values_or_owners() {
+    for (body, expected) in [
+        ("api.safe()", None),
+        ("api.inner.make().shown", None),
+        (
+            "let call = api.inner.make\nlet next = call^\nnext().shown",
+            None,
+        ),
+        ("api.inner.hidden()", Some(Rule::InaccessibleName)),
+        (
+            "let values: [api.inner.Hidden; 0] = []\n42",
+            Some(Rule::InaccessibleName),
+        ),
+        ("api.inner.make().hidden", Some(Rule::InaccessibleField)),
+        (
+            "let value = api.inner.Data { shown: 42, hidden: 1 }\n42",
+            Some(Rule::InaccessibleRepresentation),
+        ),
+        ("let ns = api\n42", Some(Rule::NamespaceValue)),
+        ("let api = 42\napi", Some(Rule::ShadowedName)),
+        ("api.inner.absent()", Some(Rule::UnknownName)),
+        ("api.inner", Some(Rule::NamespaceValue)),
+        ("api.inner.make^", Some(Rule::MissingTransfer)),
+    ] {
+        let fixture = namespace_access_fixture(body);
+        let result = ModuleSourceUnit::prepare(&fixture.input());
+        if let Some(expected) = expected {
+            let Err(SourceFailure::Checking(accepted::Failure::Body {
+                failure: Failure::Rejected(diagnostic),
+                ..
+            })) = result
+            else {
+                panic!("{body}: {result:?}")
+            };
+            assert_eq!(diagnostic.rule(), expected, "{body}");
+            assert_eq!(
+                diagnostic.source().primary().source(),
+                fixture.tree(1).source()
+            );
+        } else {
+            assert!(result.is_ok(), "{body}: {result:?}");
+        }
+    }
+}
+
+#[test]
+fn qualified_headers_check_audiences_even_for_empty_arrays() {
+    for annotation in ["api.inner.Hidden", "[api.inner.Hidden; 0]", "api.inner"] {
+        let root = format!(
+            "use ./data/bridge as api\nsee ./body.nct\nfunc inspect(value: {annotation}): void"
+        );
+        let body = format!(
+            "use ./data/bridge as api\nsee ./index.nct\nfunc inspect(value: {annotation}): void {{}}"
+        );
+        let fixture = Fixture::new(
+            &[
+                ("/app/index.nct", Root, &root),
+                ("/app/body.nct", Implementation, &body),
+                ("/app/data/bridge/index.nct", Root, "use /data as inner"),
+                (
+                    "/app/data/index.nct",
+                    Root,
+                    "see ./body.nct\n#visibility: \"./\"\nstruct Hidden",
+                ),
+                (
+                    "/app/data/body.nct",
+                    Implementation,
+                    "see ./index.nct\nstruct Hidden {}",
+                ),
+            ],
+            &[(0, 0, 1), (1, 0, 0), (3, 0, 4), (4, 0, 3)],
+        )
+        .with_modules(&[
+            (&[], &[0, 1]),
+            (&["data", "bridge"], &[2]),
+            (&["data"], &[3, 4]),
+        ])
+        .with_uses(&[
+            (0, 0, &["data", "bridge"]),
+            (1, 0, &["data", "bridge"]),
+            (2, 0, &["data"]),
+        ]);
+        let Err(SourceFailure::Declarations(declarations::Failure::Headers(diagnostics))) =
+            ModuleSourceUnit::prepare(&fixture.input())
+        else {
+            panic!("inaccessible header: {annotation}");
+        };
+        let expected = if annotation == "api.inner" {
+            "E0290"
+        } else {
+            "E0412"
+        };
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.source().code() == expected
+                    && diagnostic.source().primary().source() == fixture.tree(0).source()),
+            "{diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn matching_qualified_header_spellings_cannot_choose_different_module_targets() {
+    let fixture = Fixture::new(
+        &[
+            (
+                "/app/index.nct",
+                Root,
+                "use ./a as item\nsee ./body.nct\nfunc inspect(value: item.Data): void",
+            ),
+            (
+                "/app/body.nct",
+                Implementation,
+                "use ./b as item\nsee ./index.nct\nfunc inspect(value: item.Data): void {}",
+            ),
+            ("/app/a/index.nct", Root, "see ./body.nct\nstruct Data"),
+            (
+                "/app/a/body.nct",
+                Implementation,
+                "see ./index.nct\nstruct Data {}",
+            ),
+            ("/app/b/index.nct", Root, "see ./body.nct\nstruct Data"),
+            (
+                "/app/b/body.nct",
+                Implementation,
+                "see ./index.nct\nstruct Data {}",
+            ),
+        ],
+        &[
+            (0, 0, 1),
+            (1, 0, 0),
+            (2, 0, 3),
+            (3, 0, 2),
+            (4, 0, 5),
+            (5, 0, 4),
+        ],
+    )
+    .with_modules(&[(&[], &[0, 1]), (&["a"], &[2, 3]), (&["b"], &[4, 5])])
+    .with_uses(&[(0, 0, &["a"]), (1, 0, &["b"])]);
+    let Err(SourceFailure::Modules(declarations::ModuleSourcesFailure::Contract(diagnostic))) =
+        ModuleSourceUnit::prepare(&fixture.input())
+    else {
+        panic!("identical path spelling must not merge different targets");
+    };
+    assert_eq!(
+        diagnostic.rule(),
+        nocter_declaration_lowering::DeclarationContractRule::MismatchedBody
+    );
+    assert_eq!(
+        diagnostic.source().primary().source(),
+        fixture.tree(1).source()
+    );
+    assert_eq!(
+        diagnostic.source().notes()[0].origin().source(),
+        fixture.tree(0).source()
+    );
+}
+
+#[test]
+fn namespace_aliases_collide_with_selected_types_and_authored_values_in_either_order() {
+    for imports in [
+        "use ./data.Data as api\nuse ./data as api",
+        "use ./data as api\nuse ./data.Data as api",
+        "use ./data as api\nuse ./data as api",
+    ] {
+        let fixture = Fixture::new(
+            &[
+                ("/app/index.nct", Root, imports),
+                ("/app/data/index.nct", Root, "see ./body.nct\nstruct Data"),
+                (
+                    "/app/data/body.nct",
+                    Implementation,
+                    "see ./index.nct\nstruct Data {}",
+                ),
+            ],
+            &[(1, 0, 2), (2, 0, 1)],
+        )
+        .with_modules(&[(&[], &[0]), (&["data"], &[1, 2])])
+        .with_uses(&[(0, 0, &["data"]), (0, 1, &["data"])]);
+        let Err(SourceFailure::Declarations(declarations::Failure::Namespace(diagnostic))) =
+            ModuleSourceUnit::prepare(&fixture.input())
+        else {
+            panic!("colliding import bindings: {imports}");
+        };
+        assert_eq!(
+            diagnostic.rule(),
+            nocter_declaration_lowering::NamespaceRule::NameCollision
+        );
+        assert_eq!(
+            diagnostic.source().primary().source(),
+            fixture.tree(0).source()
+        );
+        assert_eq!(diagnostic.source().notes().len(), 1);
+    }
+}

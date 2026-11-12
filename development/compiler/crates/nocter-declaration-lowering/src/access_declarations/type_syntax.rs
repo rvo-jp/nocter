@@ -19,7 +19,7 @@ pub enum ValueTypeSyntax {
 }
 #[derive(Clone, Debug)]
 pub enum DataTypeSyntax {
-    Named(SyntaxToken),
+    Named(Box<[SyntaxToken]>),
     Fallible {
         payload: Box<DataTypeSyntax>,
         marker: SyntaxToken,
@@ -54,7 +54,7 @@ impl DataTypeSyntax {
     }
     pub(super) fn tokens(&self) -> Vec<SyntaxToken> {
         match self {
-            Self::Named(token) => vec![*token],
+            Self::Named(path) => path.to_vec(),
             Self::Optional { payload, .. } | Self::Fallible { payload, .. } => payload.tokens(),
             Self::Tuple(fields) => fields.iter().flat_map(Self::tokens).collect(),
             Self::Array { element, .. } => element.tokens(),
@@ -132,9 +132,20 @@ pub(super) fn data_syntax(syntax: BoundSyntax<'_>, ty: NodeId) -> Result<DataTyp
         .ok_or(Failure::InconsistentSyntax)?
         .kind()
     {
-        NodeKind::NamedType => Ok(DataTypeSyntax::Named(
-            first_direct_token(syntax.tree(), shape).ok_or(Failure::InconsistentSyntax)?,
-        )),
+        NodeKind::NamedType => {
+            let path = nocter_syntax::direct_token_iter(syntax.tree(), shape)
+                .filter(|token| {
+                    matches!(
+                        token.kind(),
+                        TokenKind::Identifier | TokenKind::Keyword(Keyword::Void)
+                    )
+                })
+                .collect::<Box<[_]>>();
+            if path.is_empty() {
+                return Err(Failure::InconsistentSyntax);
+            }
+            Ok(DataTypeSyntax::Named(path))
+        }
         NodeKind::GroupedType => data_syntax(
             syntax,
             direct_node(syntax.tree(), shape, NodeKind::Type).ok_or(Failure::InconsistentSyntax)?,

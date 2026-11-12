@@ -185,7 +185,7 @@ impl Checker<'_, '_> {
         }
         Ok((FieldPath::new(fields), data))
     }
-    fn member_place(
+    pub(super) fn member_place(
         &mut self,
         base: AccessPlaceId,
         members: &[SyntaxToken],
@@ -196,6 +196,25 @@ impl Checker<'_, '_> {
         Ok(self.intern_place(selected.local, fields, data))
     }
     pub fn place(&mut self, node: NodeId, rule: Rule) -> Result<AccessPlaceId, Failure> {
+        if let Some(selected) = self.qualified_selection(node)? {
+            if self
+                .program()
+                .codes()
+                .get(selected.code)
+                .is_some_and(|code| {
+                    code.kind() == nocter_declarations::value_access::CodeKind::StaticInitializer
+                })
+            {
+                let place = self.static_place(
+                    nocter_model::ValueStatic {
+                        initializer: selected.code,
+                    },
+                    selected.token,
+                )?;
+                return self.member_place(place, &selected.members);
+            }
+            return self.reject(rule, selected.token);
+        }
         let (root, members) = self.selection(node)?;
         let Some(name) = self.name_token(root)? else {
             let message = if rule == Rule::MissingTransfer {
@@ -216,6 +235,9 @@ impl Checker<'_, '_> {
     ) -> Result<AccessExpressionId, Failure> {
         if self.first_array_index(node)?.is_some() {
             return self.postfix_value(node, projection, reachable);
+        }
+        if let Some(selected) = self.qualified_selection(node)? {
+            return self.qualified_value(node, &selected);
         }
         let (root, members) = self.selection(node)?;
         if let Some(name) = self.name_token(root)?
@@ -376,30 +398,33 @@ impl Checker<'_, '_> {
             self.program()
                 .resolve_static_in(self.context.lookup_scope(), name)
         }) {
-            if let Some(&local) = self.statics.get(&id) {
-                return Ok(Some(self.intern_place(
-                    local,
-                    FieldPath::default(),
-                    self.local_ty(local).data(),
-                )));
-            }
-            let data = self
-                .program()
-                .static_declaration(id)
-                .ok_or(Failure::InconsistentSyntax)?
-                .result();
-            let local = self.locals.insert(super::Local {
-                data,
-                kind: nocter_model::ValueBindingKind::ReadAlias,
-                origin: super::LocalOrigin::Static(id),
-            });
-            self.origins
-                .locals
-                .insert(local, self.site(nocter_syntax::SyntaxOrigin::Token(token))?);
-            self.statics.insert(id, local);
-            return Ok(Some(self.intern_place(local, FieldPath::default(), data)));
+            return self.static_place(id, token).map(Some);
         }
         Ok(None)
+    }
+    pub(super) fn static_place(
+        &mut self,
+        id: nocter_model::ValueStatic,
+        token: SyntaxToken,
+    ) -> Result<AccessPlaceId, Failure> {
+        if let Some(&local) = self.statics.get(&id) {
+            return Ok(self.intern_place(local, FieldPath::default(), self.local_ty(local).data()));
+        }
+        let data = self
+            .program()
+            .static_declaration(id)
+            .ok_or(Failure::InconsistentSyntax)?
+            .result();
+        let local = self.locals.insert(super::Local {
+            data,
+            kind: nocter_model::ValueBindingKind::ReadAlias,
+            origin: super::LocalOrigin::Static(id),
+        });
+        self.origins
+            .locals
+            .insert(local, self.site(nocter_syntax::SyntaxOrigin::Token(token))?);
+        self.statics.insert(id, local);
+        Ok(self.intern_place(local, FieldPath::default(), data))
     }
     pub fn place_name(&mut self, token: SyntaxToken, rule: Rule) -> Result<AccessPlaceId, Failure> {
         if let Some(place) = self.named_place(token)? {

@@ -86,6 +86,7 @@ pub enum DeclarationRule {
     DuplicateField { first: usize },
     UnknownRecordType { record: NominalTypeId },
     UnknownDataName { name: Symbol },
+    QualifiedDataName { error: QualifiedNameError },
     RecursivePayload { through: NominalTypeId },
     NonCopyField,
     RepeatedFailure,
@@ -342,9 +343,21 @@ impl Program {
         &self,
         scope: ScopeId,
         namespace: Namespace,
-        path: &[Symbol],
+        path: &[Option<Symbol>],
     ) -> Result<DeclarationId, QualifiedNameError> {
         self.namespace.lookup_path(scope, namespace, path)
+    }
+    /// Resolve the namespace/declaration prefix once, leaving record/tuple components to typing.
+    /// An uninterned spelling is `None`; suffix spellings are never required to name declarations.
+    /// # Errors
+    /// Reports the first failed namespace/declaration position without fallback or type readiness.
+    pub fn declaration_prefix_in(
+        &self,
+        scope: ScopeId,
+        namespace: Namespace,
+        path: &[Option<Symbol>],
+    ) -> Result<(DeclarationId, usize), QualifiedNameError> {
+        self.namespace.lookup_prefix(scope, namespace, path)
     }
     #[must_use]
     pub fn has_scope(&self, scope: ScopeId) -> bool {

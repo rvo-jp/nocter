@@ -1,0 +1,8 @@
+see ./body.nct
+
+const BASE: (i32, i32)
+static ROOT: (i32, i32)
+const func width(): usize
+const func answer(): i32
+struct Data { shown: i32 }
+func make(): Data

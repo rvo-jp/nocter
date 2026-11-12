@@ -42,7 +42,10 @@ package or discovery code. It does not resolve names or apply semantic rules.
   only at an invocation head followed by `(`. Data annotations share recursive tuple/group and
   fixed-array recognition. Array lengths use the ordinary private expression parser, retaining one
   expression root under `FixedArrayType`; this recognizes source without normalizing a length or
-  granting an array schema. Dynamic slice types remain outside this goal.
+  granting an array schema. Named data paths retain every dot-separated identifier in one
+  `NamedType`, including under tuple/array/outcome and flat callable contracts. Record heads use
+  the same plain name-path shape; computed heads acquire no structural-initializer syntax.
+  Dynamic slice types remain outside this goal.
   Repeated optional type suffixes and one final fallible type suffix preserve grouped layer order.
   Contextual `none` and one postfix `?` or `!` use this same
   private goal. Lowest-precedence `otherwise` and named/discard `catch` clauses retain ordinary blocks and chain in source

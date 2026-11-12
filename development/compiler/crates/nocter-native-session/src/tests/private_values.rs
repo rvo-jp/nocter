@@ -890,3 +890,14 @@ fn private_text_values_preserve_static_backing_and_value_input_transport() {
     let package = TempPackage::new();
     execute_native_status(&compile(source), &package.0, "text-values", 42);
 }
+
+#[test]
+fn qualified_module_paths_execute_original_calls_constants_statics_and_record_fields() {
+    let fixture = nocter_test_support::qualified_namespace_fixture();
+    let source =
+        nocter_checking::value_access::accepted::ModuleSourceUnit::prepare(&fixture.input())
+            .unwrap();
+    let machine = machine_unit(Arc::new(source.into_unit())).unwrap();
+    let package = TempPackage::new();
+    execute_native_status(&image(&machine), &package.0, "qualified-module-paths", 42);
+}

@@ -7,7 +7,9 @@ mod integer_sources;
 pub use array_sources::RETAINED_ARRAY_SOURCES;
 pub use integer_sources::integer_failure_sources;
 mod public_examples;
+mod value_modules;
 mod value_source;
+pub use value_modules::{ValueModuleFixture, qualified_namespace_fixture};
 pub use value_source::ValueSourceFixture;
 
 pub use public_examples::{

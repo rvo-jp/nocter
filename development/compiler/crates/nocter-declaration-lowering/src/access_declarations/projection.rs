@@ -1,6 +1,6 @@
 use super::{CodeSource, Failure, source::RecordSource};
 use nocter_declarations::value_access::{
-    DeclarationId, DeclarationRule, DeclarationViolation, HeaderPosition,
+    DeclarationId, DeclarationRule, DeclarationViolation, HeaderPosition, QualifiedNameError,
 };
 use nocter_diagnostics::{DiagnosticCode, DiagnosticNote, SourceDiagnostic};
 use nocter_model::{AccessCodeId, NominalTypeId};
@@ -68,6 +68,7 @@ fn project(
     let typed = matches!(
         violation.rule,
         R::UnknownDataName { .. }
+            | R::QualifiedDataName { .. }
             | R::UnsupportedDataType { .. }
             | R::NonCopyField
             | R::RepeatedFailure
@@ -174,6 +175,7 @@ fn details(
             None,
         ),
         R::UnknownDataName { .. } => (DiagnosticCode::E0290, "unknown data type", None),
+        R::QualifiedDataName { error } => qualified_data_details(error),
         R::UnsupportedDataType { .. } => (
             DiagnosticCode::E0291,
             "data type is outside this closed private fragment",
@@ -196,4 +198,21 @@ fn details(
         ),
         R::MissingDefinition | R::UnknownSymbol | R::UnknownRecordType { .. } => return None,
     })
+}
+
+fn qualified_data_details(
+    error: QualifiedNameError,
+) -> (DiagnosticCode, &'static str, Option<SyntaxToken>) {
+    match error {
+        QualifiedNameError::Inaccessible { .. } => (
+            DiagnosticCode::E0412,
+            "qualified data type is outside its visibility boundary",
+            None,
+        ),
+        _ => (
+            DiagnosticCode::E0290,
+            "qualified data path does not name an accessible type",
+            None,
+        ),
+    }
 }

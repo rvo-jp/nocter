@@ -4,9 +4,7 @@ use super::{
     checker::Checker,
     ir::{Boundary, ExpressionKind, FieldValue, value_type},
 };
-use nocter_declarations::value_access::{
-    AggregateForm, Namespace, PayloadReadiness, PayloadSchema,
-};
+use nocter_declarations::value_access::{AggregateForm, PayloadReadiness, PayloadSchema};
 use nocter_model::{AccessExpressionId, ValueAccessMode as Mode};
 use nocter_syntax::{NodeId, NodeKind, direct_identifier};
 use std::collections::BTreeSet;
@@ -89,15 +87,11 @@ impl Checker<'_, '_> {
         node: NodeId,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
-        let owner = self.direct(node, NodeKind::ReferenceExpression)?;
-        let name = self.token(owner)?;
-        self.require_header(Namespace::Type, name)?;
-        let Some(data) = self
-            .program()
-            .type_named_in(self.context.lookup_scope(), self.text(name)?)
-        else {
-            return self.reject(Rule::UnknownType, name);
-        };
+        let owner = self.first_child(node)?;
+        let path = self.name_path(owner)?.ok_or(Failure::InconsistentSyntax)?;
+        let path = path.into_iter().map(|(_, token)| token).collect::<Vec<_>>();
+        let name = *path.last().ok_or(Failure::InconsistentSyntax)?;
+        let data = self.annotation_data_path(&path, false)?;
         let Some(PayloadSchema::Aggregate(record)) = self.program().data_schema(data) else {
             return self.reject(Rule::InvalidConstruction, name);
         };

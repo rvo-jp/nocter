@@ -43,24 +43,14 @@ pub(super) struct ModuleExports {
     scopes: Box<[ScopeId]>,
 }
 impl ModuleExports {
-    /// Prerequisites are explicit until qualified namespace and lexical block bindings are closed.
+    /// Lexical block imports require their own closed binding product.
     pub fn require_supported(paired: &PairedModuleSources<'_>) -> Result<(), ModuleSourcesFailure> {
         let inventory = &paired.inventory;
-        let mut pending = inventory
+        let pending = inventory
             .block_imports()
             .iter()
             .map(crate::SurfaceBlockImport::node)
             .collect::<Vec<_>>();
-        for import in inventory.imports() {
-            let authored = crate::imports::syntax::read(
-                syntax(paired, import.source())?.tree(),
-                import.node(),
-            )
-            .map_err(|_| integrity())?;
-            if authored.selected.is_none() {
-                pending.push(import.node());
-            }
-        }
         if pending.is_empty() {
             Ok(())
         } else {
@@ -75,7 +65,7 @@ impl ModuleExports {
         declarations: &[Option<DeclarationId>],
         reservations: &mut Reservations,
     ) -> Result<Self, ModuleSourcesFailure> {
-        let mut bindings = ImportBindings::new(paired, source_scopes, declarations)?;
+        let mut bindings = ImportBindings::new(paired, source_scopes, declarations, reservations)?;
         for module in paired.inventory.modules_in_dependency_order() {
             for import in paired.inventory.imports().iter().filter(|import| {
                 paired.inventory.sources()[import.source().index()].module() == module
@@ -103,8 +93,28 @@ impl ModuleExports {
         program.declaration_visible_from(self.scopes[index], namespace, name, caller)
     }
 }
-type ExportKey = (Namespace, Symbol);
-type ExportNames = BTreeMap<ExportKey, (DeclarationId, Policy)>;
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+enum ExportNamespace {
+    Value,
+    Type,
+    Qualifier,
+}
+#[derive(Clone, Copy, Debug)]
+enum ExportTarget {
+    Declaration(DeclarationId),
+    Namespace(usize),
+}
+impl ExportTarget {
+    fn namespace(self) -> ExportNamespace {
+        match self {
+            Self::Declaration(DeclarationId::Code(_)) => ExportNamespace::Value,
+            Self::Declaration(DeclarationId::Record(_)) => ExportNamespace::Type,
+            Self::Namespace(_) => ExportNamespace::Qualifier,
+        }
+    }
+}
+type ExportKey = (ExportNamespace, Symbol);
+type ExportNames = BTreeMap<ExportKey, (ExportTarget, Policy)>;
 
 /// Temporary binding work, consumed before the one semantic namespace closes.
 struct ImportBindings<'a, 'syntax> {
@@ -112,13 +122,15 @@ struct ImportBindings<'a, 'syntax> {
     source_scopes: &'a [ScopeId],
     declarations: &'a [Option<DeclarationId>],
     exports: Vec<ExportNames>,
-    locals: BTreeMap<(SurfaceSourceId, Symbol), SyntaxOrigin>,
+    locals: BTreeMap<(SurfaceSourceId, ExportNamespace, Symbol), SyntaxOrigin>,
+    module_scopes: Box<[ScopeId]>,
 }
 impl<'a, 'syntax> ImportBindings<'a, 'syntax> {
     fn new(
         paired: &'a PairedModuleSources<'syntax>,
         source_scopes: &'a [ScopeId],
         declarations: &'a [Option<DeclarationId>],
+        reservations: &mut Reservations,
     ) -> Result<Self, ModuleSourcesFailure> {
         let inventory = &paired.inventory;
         let modules = inventory.surface.modules();
@@ -140,7 +152,7 @@ impl<'a, 'syntax> ImportBindings<'a, 'syntax> {
                 paired,
                 &mut exports[module],
                 name,
-                target,
+                ExportTarget::Declaration(target),
                 Policy::Declaration(raw),
             )?;
         }
@@ -150,6 +162,7 @@ impl<'a, 'syntax> ImportBindings<'a, 'syntax> {
             declarations,
             exports,
             locals: BTreeMap::new(),
+            module_scopes: modules.iter().map(|_| reservations.new_scope()).collect(),
         })
     }
     fn bind(
@@ -168,30 +181,29 @@ impl<'a, 'syntax> ImportBindings<'a, 'syntax> {
         let authored =
             crate::imports::syntax::read(syntax(paired, import.source())?.tree(), import.node())
                 .map_err(|_| integrity())?;
-        for selected in authored.selected.ok_or_else(integrity)? {
+        if authored.selected.is_none() {
+            return self.bind_namespace_import(
+                import,
+                &authored,
+                module_index,
+                target_module,
+                reservations,
+            );
+        }
+        let selected_names = authored.selected.ok_or_else(integrity)?;
+        for selected in selected_names {
             let exported = symbol(paired, import.source(), selected.exported)?;
             let local = symbol(paired, import.source(), selected.local)?;
-            let local_origin = SyntaxOrigin::Token(selected.local);
             let exported_origin = SyntaxOrigin::Token(selected.exported);
-            let spelling = inventory
-                .surface
-                .symbols()
-                .spelling(local)
-                .ok_or_else(integrity)?;
-            if BuiltinType::from_spelling(spelling).is_some()
-                || spelling == ContextualSpelling::UpperSelf.as_str()
-            {
-                return Err(namespace_failure(
-                    paired,
-                    NamespaceViolation::reserved_name(local_origin),
-                ));
-            }
             let Some(&(target, policy)) =
-                self.exports[target_module].get(&(Namespace::Type, exported))
+                self.exports[target_module].get(&(ExportNamespace::Type, exported))
             else {
                 return Err(import_failure(
                     paired,
-                    if self.exports[target_module].contains_key(&(Namespace::Value, exported)) {
+                    if self.exports[target_module].contains_key(&(ExportNamespace::Value, exported))
+                        || self.exports[target_module]
+                            .contains_key(&(ExportNamespace::Qualifier, exported))
+                    {
                         ImportViolation::non_type_selection(exported_origin)
                     } else {
                         ImportViolation::missing_imported_name(exported_origin)
@@ -217,18 +229,21 @@ impl<'a, 'syntax> ImportBindings<'a, 'syntax> {
                     ),
                 ));
             }
-            if let Some(first) =
-                local_type_origin(paired, self.declarations, import.source(), local)?
-                    .or_else(|| self.locals.get(&(import.source(), local)).copied())
-            {
-                return Err(namespace_failure(
-                    paired,
-                    NamespaceViolation::name_collision(first, local_origin),
-                ));
-            }
-            self.locals.insert((import.source(), local), local_origin);
+            self.validate_local(
+                import.source(),
+                local,
+                selected.local,
+                ExportNamespace::Type,
+            )?;
+            let ExportTarget::Declaration(declaration) = target else {
+                return Err(integrity());
+            };
             reservations
-                .bind(self.source_scopes[import.source().index()], local, target)
+                .bind(
+                    self.source_scopes[import.source().index()],
+                    local,
+                    declaration,
+                )
                 .map_err(|_| integrity())?;
             if inventory.import_audience(import.node()).is_some() {
                 insert_export(
@@ -245,45 +260,128 @@ impl<'a, 'syntax> ImportBindings<'a, 'syntax> {
         }
         Ok(())
     }
+    fn bind_namespace_import(
+        &mut self,
+        import: &crate::SurfaceImport,
+        authored: &crate::imports::syntax::ImportSyntax,
+        module_index: usize,
+        target_module: usize,
+        reservations: &mut Reservations,
+    ) -> Result<(), ModuleSourcesFailure> {
+        let paired = self.paired;
+        let inventory = &paired.inventory;
+        let name = match authored.namespace_alias {
+            Some(alias) => alias,
+            None => crate::imports::syntax::final_path_name(
+                syntax(paired, import.source())?.tree(),
+                import.node(),
+                authored.path,
+            )
+            .map_err(|_| integrity())?,
+        };
+        let local = symbol(paired, import.source(), name)?;
+        self.validate_local(import.source(), local, name, ExportNamespace::Qualifier)?;
+        reservations
+            .bind_namespace(
+                self.source_scopes[import.source().index()],
+                local,
+                self.module_scopes[target_module],
+                None,
+            )
+            .map_err(|_| integrity())?;
+        if inventory.import_audience(import.node()).is_some() {
+            insert_export(
+                paired,
+                &mut self.exports[module_index],
+                local,
+                ExportTarget::Namespace(target_module),
+                Policy::Import {
+                    node: import.node(),
+                    name,
+                },
+            )?;
+        }
+        Ok(())
+    }
+    fn validate_local(
+        &mut self,
+        source: SurfaceSourceId,
+        local: Symbol,
+        token: SyntaxToken,
+        namespace: ExportNamespace,
+    ) -> Result<(), ModuleSourcesFailure> {
+        let paired = self.paired;
+        let origin = SyntaxOrigin::Token(token);
+        let spelling = paired
+            .inventory
+            .surface
+            .symbols()
+            .spelling(local)
+            .ok_or_else(integrity)?;
+        if BuiltinType::from_spelling(spelling).is_some()
+            || spelling == ContextualSpelling::UpperSelf.as_str()
+        {
+            return Err(namespace_failure(
+                paired,
+                NamespaceViolation::reserved_name(origin),
+            ));
+        }
+        let first =
+            local_origin(paired, self.declarations, source, local, namespace)?.or_else(|| {
+                self.locals
+                    .iter()
+                    .find(|((owner, kind, name), _)| {
+                        *owner == source && *name == local && namespaces_conflict(namespace, *kind)
+                    })
+                    .map(|(_, origin)| *origin)
+            });
+        if let Some(first) = first {
+            return Err(namespace_failure(
+                paired,
+                NamespaceViolation::name_collision(first, origin),
+            ));
+        }
+        self.locals.insert((source, namespace, local), origin);
+        Ok(())
+    }
     fn finish(
         self,
         reservations: &mut Reservations,
     ) -> Result<ModuleExports, ModuleSourcesFailure> {
-        let scopes = self
-            .exports
-            .iter()
-            .map(|_| reservations.new_scope())
-            .collect::<Box<[_]>>();
+        let scopes = self.module_scopes;
         for (index, names) in self.exports.into_iter().enumerate() {
             for ((_, name), (target, policy)) in names {
-                reservations
-                    .bind_export(
-                        scopes[index],
-                        name,
-                        target,
-                        policy.audience_handle(self.paired).ok_or_else(integrity)?,
-                    )
-                    .map_err(|_| integrity())?;
+                let audience = policy.audience_handle(self.paired).ok_or_else(integrity)?;
+                match target {
+                    ExportTarget::Declaration(target) => reservations
+                        .bind_export(scopes[index], name, target, audience)
+                        .map_err(|_| integrity())?,
+                    ExportTarget::Namespace(target) => reservations
+                        .bind_namespace(scopes[index], name, scopes[target], Some(audience))
+                        .map_err(|_| integrity())?,
+                }
             }
         }
         Ok(ModuleExports { scopes })
     }
 }
 
-fn kind(target: DeclarationId) -> Namespace {
-    match target {
-        DeclarationId::Record(_) => Namespace::Type,
-        DeclarationId::Code(_) => Namespace::Value,
-    }
+fn namespaces_conflict(left: ExportNamespace, right: ExportNamespace) -> bool {
+    left == right || left == ExportNamespace::Qualifier || right == ExportNamespace::Qualifier
 }
+
 fn insert_export(
     paired: &PairedModuleSources<'_>,
     exports: &mut ExportNames,
     name: Symbol,
-    target: DeclarationId,
+    target: ExportTarget,
     policy: Policy,
 ) -> Result<(), ModuleSourcesFailure> {
-    if let Some((_, first)) = exports.insert((kind(target), name), (target, policy)) {
+    let namespace = target.namespace();
+    if let Some((_, (_, first))) = exports
+        .iter()
+        .find(|((kind, symbol), _)| *symbol == name && namespaces_conflict(namespace, *kind))
+    {
         return Err(namespace_failure(
             paired,
             NamespaceViolation::name_collision(
@@ -292,13 +390,15 @@ fn insert_export(
             ),
         ));
     }
+    exports.insert((namespace, name), (target, policy));
     Ok(())
 }
-fn local_type_origin(
+fn local_origin(
     paired: &PairedModuleSources<'_>,
     declarations: &[Option<DeclarationId>],
     source: SurfaceSourceId,
     name: Symbol,
+    namespace: ExportNamespace,
 ) -> Result<Option<SyntaxOrigin>, ModuleSourcesFailure> {
     let visible = std::iter::once(source)
         .chain(
@@ -311,8 +411,12 @@ fn local_type_origin(
         )
         .collect::<BTreeSet<_>>();
     for (raw, declaration) in paired.inventory.declaration_entries() {
-        if matches!(declarations[raw.index()], Some(DeclarationId::Record(_)))
-            && visible.contains(&declaration.source())
+        if declarations[raw.index()].is_some_and(|declaration| {
+            namespaces_conflict(
+                namespace,
+                ExportTarget::Declaration(declaration).namespace(),
+            )
+        }) && visible.contains(&declaration.source())
         {
             let token = declaration.name().ok_or_else(integrity)?;
             if symbol(paired, declaration.source(), token)? == name {

@@ -214,7 +214,13 @@ fn type_(parser: &mut Parser<'_>) {
             parser.current_kind(),
             TokenKind::Identifier | TokenKind::Keyword(Keyword::Void)
         ) {
+            let qualified = parser.at(TokenKind::Identifier);
             parser.bump();
+            if qualified {
+                while parser.eat_punctuation(Punctuation::Dot) {
+                    parser.expect_name();
+                }
+            }
         } else {
             parser.error_token(ExpectedSyntax::Type);
         }

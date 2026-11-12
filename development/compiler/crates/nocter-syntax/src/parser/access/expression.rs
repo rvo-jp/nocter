@@ -152,15 +152,23 @@ pub(super) fn postfix(parser: &mut Parser<'_>) -> Expression {
 }
 
 fn postfix_in(parser: &mut Parser<'_>, allow_braces: bool) -> Expression {
+    let mut name_path = parser.at(TokenKind::Identifier);
     let mut left = primary(parser, allow_braces);
-    while parser.at_punctuation(Punctuation::LeftParen)
+    while (allow_braces && name_path && parser.at_punctuation(Punctuation::LeftBrace))
+        || parser.at_punctuation(Punctuation::LeftParen)
         || parser.at_punctuation(Punctuation::Dot)
         || ((parser.at_punctuation(Punctuation::Caret)
             || parser.at_punctuation(Punctuation::LeftBracket))
             && previous_is_joint(parser))
     {
+        if allow_braces && name_path && parser.at_punctuation(Punctuation::LeftBrace) {
+            left = record_value(parser, left.completed);
+            name_path = false;
+            continue;
+        }
         let marker = parser.precede(left.completed);
         if parser.eat_punctuation(Punctuation::Caret) {
+            name_path = false;
             left = Expression {
                 completed: parser.complete(marker, NodeKind::TransferExpression),
             };
@@ -168,6 +176,7 @@ fn postfix_in(parser: &mut Parser<'_>, allow_braces: bool) -> Expression {
         }
         let suffix = parser.start();
         if parser.eat_punctuation(Punctuation::Dot) {
+            name_path &= parser.at(TokenKind::Identifier);
             if parser.at(TokenKind::IntegerLiteral) {
                 parser.bump();
             } else {
@@ -175,6 +184,7 @@ fn postfix_in(parser: &mut Parser<'_>, allow_braces: bool) -> Expression {
             }
             parser.complete(suffix, NodeKind::MemberSuffix);
         } else if parser.eat_punctuation(Punctuation::LeftBracket) {
+            name_path = false;
             if parser.enter_nesting() {
                 parser.eat_newlines();
                 expression(parser, newline::Boundary::Delimited);
@@ -186,6 +196,7 @@ fn postfix_in(parser: &mut Parser<'_>, allow_braces: bool) -> Expression {
             }
             parser.complete(suffix, NodeKind::IndexSuffix);
         } else {
+            name_path = false;
             parser.bump();
             if parser.enter_nesting() {
                 parser.comma_list(
@@ -265,14 +276,7 @@ fn primary(parser: &mut Parser<'_>, allow_braces: bool) -> Expression {
         }
     };
     let completed = parser.complete(marker, kind);
-    if kind == NodeKind::ReferenceExpression
-        && allow_braces
-        && parser.at_punctuation(Punctuation::LeftBrace)
-    {
-        record_value(parser, completed)
-    } else {
-        Expression { completed }
-    }
+    Expression { completed }
 }
 
 fn array(parser: &mut Parser<'_>) -> Expression {

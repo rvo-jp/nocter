@@ -681,3 +681,26 @@ fn block_imports_precede_executable_entries_and_retain_exact_dependency_nodes() 
         |diagnostic| diagnostic.kind() == crate::ParseDiagnosticKind::LateDependencyDeclaration
     ));
 }
+
+#[test]
+fn qualified_type_names_and_record_heads_preserve_one_path_without_accepting_computed_heads() {
+    for text in [
+        "func inspect(value: api.data.Data): api.data.Data { value }",
+        "struct Data { field: api.data.Data? }",
+        "func build(): api.data.Data { api.data.Data { value: 42 } }",
+        "func inspect(): i32 { let value: [api.data.Data; 0] = []\n42 }",
+        "func inspect(): void { let action: func(api.data.Data): api.data.Data = make }",
+    ] {
+        let parsed = tree(text, ParseGoal::V2CoreUnit);
+        assert!(!parsed.has_errors(), "{text}: {:?}", parsed.diagnostics());
+        super::super::snapshots::assert_token_projection(&parsed, text);
+    }
+    for text in [
+        "func bad(value: api..Data): void {}",
+        "func bad(value: api.): void {}",
+        "func bad(): void { make().Data { value: 42 } }",
+        "func bad(): void { (api.Data) { value: 42 } }",
+    ] {
+        assert!(tree(text, ParseGoal::V2CoreUnit).has_errors(), "{text}");
+    }
+}

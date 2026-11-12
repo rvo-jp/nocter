@@ -1,0 +1,18 @@
+see ./index.nct
+
+const BASE: (i32, i32) = (40, 2)
+static ROOT: (i32, i32) = (21, 21)
+
+const func width(): usize { 2 }
+const func answer(): i32 { BASE.0 + BASE.1 }
+
+struct Data {
+    shown: i32
+    hidden: i32
+}
+
+func helper(): i32 { 42 }
+
+func make(): Data {
+    Data { shown: helper(), hidden: 1 }
+}

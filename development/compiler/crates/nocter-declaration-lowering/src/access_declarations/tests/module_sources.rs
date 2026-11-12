@@ -175,10 +175,14 @@ fn exact_dependency_resolutions_preserve_module_boundaries_and_use_identity() {
     let inventory = ModuleSources::prepare(&input).unwrap();
     assert_eq!(inventory.imports().len(), 1);
     assert_eq!(inventory.imports()[0].target(), &codec_identity);
-    let use_node = inventory.imports()[0].node();
-    assert!(
-        matches!(inventory.pair().unwrap().reserve_names(), Err(ModuleSourcesFailure::Access(Failure::ModuleImportBindingsRequired(nodes))) if nodes.as_ref() == [use_node])
-    );
+    let scoped = inventory.pair().unwrap().reserve_names().unwrap();
+    let program = scoped.program();
+    assert!(program.has_namespace_in(
+        nocter_declarations::value_access::ScopeId::ROOT,
+        program.symbols().get("codec").unwrap()
+    ));
+    assert_eq!(program.codes().len(), 0);
+    assert_eq!(program.records().len(), 0);
     let see = tree(&mut sources, "/app/index.nct", "see ./codec/index.nct");
     let input = CompileUnitInput::for_goal(
         ParseGoal::V2CoreUnit,

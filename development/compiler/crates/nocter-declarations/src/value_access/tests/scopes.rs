@@ -436,7 +436,7 @@ fn namespace_paths_preserve_the_original_caller_and_never_create_a_value_or_type
             None
         );
     }
-    let path = |leaf| [name("facade"), name("inner"), name(leaf)];
+    let path = |leaf| [Some(name("facade")), Some(name("inner")), Some(name(leaf))];
     assert_eq!(
         program.declaration_path_in(ScopeId::ROOT, Namespace::Type, &path("Data")),
         Ok(data.into())
@@ -457,7 +457,11 @@ fn namespace_paths_preserve_the_original_caller_and_never_create_a_value_or_type
         program.declaration_path_in(
             ScopeId::ROOT,
             Namespace::Type,
-            &[name("facade"), name("private"), name("Data")]
+            &[
+                Some(name("facade")),
+                Some(name("private")),
+                Some(name("Data"))
+            ]
         ),
         Err(QualifiedNameError::Inaccessible { position: 1 })
     );
@@ -477,12 +481,59 @@ fn namespace_paths_preserve_the_original_caller_and_never_create_a_value_or_type
         program.declaration_path_in(
             ScopeId::ROOT,
             Namespace::Type,
-            &[name("item"), name("Data")]
+            &[Some(name("item")), Some(name("Data"))]
         ),
         Err(QualifiedNameError::UnknownNamespace { position: 0 })
     );
     assert!(!program.header_ready(data));
     assert_eq!(program.records().len(), 0);
+}
+
+#[test]
+fn qualified_prefix_selection_leaves_uninterned_members_to_ordinary_typing() {
+    let NamespacePathFixture {
+        headers,
+        symbols,
+        data,
+        ..
+    } = namespace_path_fixture();
+    let program = headers.snapshot();
+    let name = |text| symbols.get(text).unwrap();
+    assert_eq!(
+        program.declaration_prefix_in(
+            ScopeId::ROOT,
+            Namespace::Type,
+            &[
+                Some(name("facade")),
+                Some(name("inner")),
+                Some(name("Data")),
+                None
+            ]
+        ),
+        Ok((data.into(), 3))
+    );
+    assert_eq!(
+        program.declaration_path_in(
+            ScopeId::ROOT,
+            Namespace::Type,
+            &[
+                Some(name("facade")),
+                Some(name("inner")),
+                Some(name("Data")),
+                None
+            ]
+        ),
+        Err(QualifiedNameError::UnknownNamespace { position: 2 })
+    );
+    assert_eq!(
+        program.declaration_prefix_in(
+            ScopeId::ROOT,
+            Namespace::Value,
+            &[Some(name("facade")), None]
+        ),
+        Err(QualifiedNameError::UnknownDeclaration { position: 1 })
+    );
+    assert!(!program.header_ready(data));
 }
 
 #[test]
@@ -578,8 +629,8 @@ fn namespace_parameter_collisions_and_finite_cyclic_paths_share_the_closed_name_
             name: name("module")
         }));
     let program = headers.snapshot();
-    let mut path = vec![name("module"); 10_000];
-    path.push(name("Data"));
+    let mut path = vec![Some(name("module")); 10_000];
+    path.push(Some(name("Data")));
     assert_eq!(
         program.declaration_path_in(ScopeId::ROOT, Namespace::Type, &path),
         Ok(data.into())

@@ -1,177 +1,44 @@
-//! Explicit physical-source fixtures shared by scoped body queries and selected-module acceptance.
+//! Explicit physical-source fixtures shared with native consumers; checking owns its header helper.
 use super::*;
-use ModuleSourceKind::{Implementation, Root};
-use nocter_compile_input::{
-    CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageInput, PackageMode, SourceVisibilityResolutionInput,
-};
-use nocter_model::{AccessCodeId, CompilationTarget, PackageIdentity, ValueFunctionOrigin};
-use nocter_syntax::{NodeKind, child_node_iter};
+use nocter_compile_input::ModuleSourceKind::{Implementation, Root};
+use nocter_model::{AccessCodeId, ValueFunctionOrigin};
+pub(super) use nocter_test_support::ValueModuleFixture as Fixture;
 use std::collections::HashSet;
 
-pub(super) struct Fixture {
-    sources: SourceMap,
-    trees: Vec<SyntaxTree>,
-    files: Vec<(String, ModuleSourceKind)>,
-    edges: Vec<(usize, usize, usize)>,
-    modules: Vec<(Vec<String>, Vec<usize>)>,
-    uses: Vec<(usize, usize, Vec<String>)>,
-}
-impl Fixture {
-    pub(super) fn new(
-        files: &[(&str, ModuleSourceKind, &str)],
-        edges: &[(usize, usize, usize)],
-    ) -> Self {
-        let mut sources = SourceMap::new();
-        let trees = files
-            .iter()
-            .map(|(path, _, text)| {
-                let id = sources
-                    .add_bytes(SourceName::new(*path), text.as_bytes())
-                    .unwrap();
-                let tree = parse(sources.get(id).unwrap(), ParseGoal::V2CoreUnit);
-                assert!(!tree.has_errors(), "{text}: {:?}", tree.diagnostics());
-                tree
-            })
-            .collect();
-        Self {
-            sources,
-            trees,
-            files: files
-                .iter()
-                .map(|(path, role, _)| (path.to_string(), *role))
-                .collect(),
-            edges: edges.into(),
-            modules: vec![(Vec::new(), (0..files.len()).collect())],
-            uses: Vec::new(),
-        }
+fn prepare_with_count<'source>(
+    fixture: &'source Fixture,
+    value: Option<&nocter_model::FrozenData>,
+) -> declarations::ScopedModuleSources<'source> {
+    let input = fixture.input();
+    let mut scoped = declarations::ModuleSources::prepare(&input)
+        .unwrap()
+        .pair()
+        .unwrap()
+        .reserve_names()
+        .unwrap();
+    let mut seen = HashSet::new();
+    let mut pending = scoped
+        .paired()
+        .inventory()
+        .declaration_entries()
+        .filter_map(|(raw, _)| scoped.declaration(raw))
+        .chain(scoped.header_expression_ids().map(Into::into))
+        .filter(|id| seen.insert(*id))
+        .collect::<Vec<_>>();
+    while !pending.is_empty() {
+        let before = pending.len();
+        pending.retain(|id| {
+            !matches!(
+                scoped.advance_header_with_values(*id, |_| value).unwrap(),
+                declarations::HeaderProgress::Ready
+            )
+        });
+        assert!(
+            pending.len() < before,
+            "fixture has unresolved header dependencies"
+        );
     }
-    pub(super) fn with_modules(mut self, modules: &[(&[&str], &[usize])]) -> Self {
-        self.modules = modules
-            .iter()
-            .map(|(path, files)| {
-                (
-                    path.iter().map(|part| (*part).to_string()).collect(),
-                    files.to_vec(),
-                )
-            })
-            .collect();
-        self
-    }
-    pub(super) fn with_uses(mut self, uses: &[(usize, usize, &[&str])]) -> Self {
-        self.uses = uses
-            .iter()
-            .map(|(source, occurrence, target)| {
-                (
-                    *source,
-                    *occurrence,
-                    target.iter().map(|part| (*part).to_string()).collect(),
-                )
-            })
-            .collect();
-        self
-    }
-    pub(super) fn input(&self) -> CompileUnitInput<'_> {
-        let package = PackageIdentity::new("workspace:app");
-        CompileUnitInput::for_goal(
-            ParseGoal::V2CoreUnit,
-            CompilationTarget::Arm64Darwin,
-            &self.sources,
-            vec![PackageInput::new(
-                package.clone(),
-                "app",
-                PackageMode::Declared,
-            )],
-            self.modules
-                .iter()
-                .map(|(path, files)| {
-                    ModuleInput::new(
-                        ModuleIdentity::new(package.clone(), path.iter().map(String::as_str)),
-                        files
-                            .iter()
-                            .map(|&index| {
-                                ModuleSourceInput::new(
-                                    self.files[index].0.as_str(),
-                                    self.files[index].1,
-                                    &self.trees[index],
-                                )
-                            })
-                            .collect(),
-                    )
-                })
-                .collect(),
-            self.uses
-                .iter()
-                .map(|(source, occurrence, target)| {
-                    let tree = &self.trees[*source];
-                    let node = child_node_iter(tree, tree.root_id())
-                        .filter(|node| tree.node(*node).unwrap().kind() == NodeKind::UseDeclaration)
-                        .nth(*occurrence)
-                        .unwrap();
-                    nocter_compile_input::UseResolutionInput::new(
-                        node,
-                        ModuleIdentity::new(package.clone(), target.iter().map(String::as_str)),
-                    )
-                })
-                .collect(),
-        )
-        .with_source_visibility_resolutions(
-            self.edges
-                .iter()
-                .map(|&(source, occurrence, target)| {
-                    let node = child_node_iter(&self.trees[source], self.trees[source].root_id())
-                        .filter(|node| {
-                            self.trees[source].node(*node).unwrap().kind()
-                                == NodeKind::SourceVisibilityDeclaration
-                        })
-                        .nth(occurrence)
-                        .unwrap();
-                    SourceVisibilityResolutionInput::new(node, self.files[target].0.as_str())
-                })
-                .collect(),
-        )
-    }
-    pub(super) fn tree(&self, index: usize) -> &SyntaxTree {
-        &self.trees[index]
-    }
-    fn prepare(&self) -> declarations::ScopedModuleSources<'_> {
-        self.prepare_with_count(None)
-    }
-    fn prepare_with_count(
-        &self,
-        value: Option<&nocter_model::FrozenData>,
-    ) -> declarations::ScopedModuleSources<'_> {
-        let input = self.input();
-        let mut scoped = declarations::ModuleSources::prepare(&input)
-            .unwrap()
-            .pair()
-            .unwrap()
-            .reserve_names()
-            .unwrap();
-        let mut seen = HashSet::new();
-        let mut pending = scoped
-            .paired()
-            .inventory()
-            .declaration_entries()
-            .filter_map(|(raw, _)| scoped.declaration(raw))
-            .chain(scoped.header_expression_ids().map(Into::into))
-            .filter(|id| seen.insert(*id))
-            .collect::<Vec<_>>();
-        while !pending.is_empty() {
-            let before = pending.len();
-            pending.retain(|id| {
-                !matches!(
-                    scoped.advance_header_with_values(*id, |_| value).unwrap(),
-                    declarations::HeaderProgress::Ready
-                )
-            });
-            assert!(
-                pending.len() < before,
-                "fixture has unresolved header dependencies"
-            );
-        }
-        scoped
-    }
+    scoped
 }
 fn code(scoped: &declarations::ScopedModuleSources<'_>, path: &str, name: &str) -> AccessCodeId {
     let (source, _) = scoped
@@ -208,7 +75,7 @@ fn source_views_select_direct_helpers_and_rebind_queries_through_their_actual_bo
         ],
         &[(0, 0, 1), (1, 0, 0), (1, 1, 2)],
     );
-    let scoped = fixture.prepare();
+    let scoped = prepare_with_count(&fixture, None);
     let binding = scoped.source_binding();
     let run = code(&scoped, "/app/index.nct", "run");
     let other = code(&scoped, "/app/c.nct", "other");
@@ -253,7 +120,7 @@ fn seen_sources_do_not_propagate_their_own_see_edges_into_body_lookup() {
         ],
         &[(0, 0, 1), (1, 0, 0), (1, 1, 2), (2, 0, 3)],
     );
-    let scoped = fixture.prepare();
+    let scoped = prepare_with_count(&fixture, None);
     let binding = scoped.source_binding();
     let run = code(&scoped, "/app/index.nct", "run");
     let context = binding.context_for_code(&scoped, run).unwrap();
@@ -296,7 +163,7 @@ fn local_shadow_checks_use_current_visibility_rather_than_the_root_sources_scope
             ],
             &edges,
         );
-        let scoped = fixture.prepare();
+        let scoped = prepare_with_count(&fixture, None);
         let binding = scoped.source_binding();
         let run = code(&scoped, "/app/index.nct", "run");
         let context = binding.context_for_code(&scoped, run).unwrap();
@@ -330,7 +197,7 @@ fn annotations_and_constructions_keep_distinct_same_spelling_record_identities()
         ],
         &[(0, 0, 1), (1, 0, 0), (1, 1, 2)],
     );
-    let scoped = fixture.prepare();
+    let scoped = prepare_with_count(&fixture, None);
     let binding = scoped.source_binding();
     let mut types = Vec::new();
     for (path, name) in [("/app/a.nct", "run"), ("/app/c.nct", "other")] {
@@ -373,7 +240,7 @@ fn constant_requests_and_static_places_select_the_current_physical_scope() {
         ],
         &[(0, 0, 1), (1, 0, 0), (1, 1, 2)],
     );
-    let scoped = fixture.prepare();
+    let scoped = prepare_with_count(&fixture, None);
     let binding = scoped.source_binding();
     let mut constants = Vec::new();
     for (path, name, supplier) in [
@@ -411,7 +278,7 @@ fn body_and_header_guards_follow_their_owners_across_one_retained_source_binding
         ],
         &[(0, 0, 1), (1, 0, 0)],
     );
-    let scoped = fixture.prepare();
+    let scoped = prepare_with_count(&fixture, None);
     let binding = scoped.source_binding();
     let run = code(&scoped, "/app/a.nct", "run");
     let other = code(&scoped, "/app/b.nct", "other");
@@ -479,7 +346,7 @@ fn module_header_count_evidence_uses_every_physical_supplier_before_unit_closure
             nocter_model::ConstantValue::Integer(2),
         )])
         .unwrap();
-        let scoped = fixture.prepare_with_count(Some(&supplied));
+        let scoped = prepare_with_count(&fixture, Some(&supplied));
         let binding = scoped.source_binding();
         let run = code(&scoped, "/app/a.nct", "run");
         let context = binding.context_for_code(&scoped, run).unwrap();

@@ -22,9 +22,13 @@ analysis, implement backend rules, select command-line policy, or publish filesy
   [private handoff](../../../architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
   owns its admitted source and native qualification limits.
   Trusted primitive fixtures supply an explicit module authority to the same staged `SourceUnit`
-  coordinator, including required header values. A header-only query cannot replace source acceptance.
-- reusable Nocter source corpora live under `development/compiler/tests/fixtures/native/`; Rust
-  test modules select those inputs but do not embed large source packages.
+  coordinator, including required header values. Selected module sources also use the common
+  `ModuleSourceUnit` and the same Machine/ARM64/image consumers; the shared qualified-namespace
+  corpus checks original call/constant/static targets and record fields in a real native process.
+  A header-only query cannot replace source acceptance.
+- Native-specific source corpora live under `development/compiler/tests/fixtures/native/`.
+  Cross-consumer module corpora live under `development/compiler/tests/fixtures/value-modules/` and are selected by
+  `nocter-test-support`. Rust tests do not duplicate their authored source packages.
 
 ## Invariants
 

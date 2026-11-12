@@ -171,8 +171,11 @@ nominal identities into their exact source scope. Root imports also re-export th
 names, including aliases, in the topology owner's dependency order. Missing/private selections,
 non-type selections, reserved/duplicate local names and widening re-exports diagnose at the import
 with related authored origins where applicable. Ordinary imports do not propagate through `see`.
-Qualified namespace imports and body-local imports still return `ModuleImportBindingsRequired`
-with their exact nodes rather than being dropped from an apparently closed scope.
+Whole-module imports bind namespace links, including explicit/default aliases and root re-exports,
+without reserving a fake value/type. Their names conflict with both authored type/value names;
+selected type names remain in the type namespace. Namespace re-exports preserve the target export
+scope, not the re-exporter's authority over its members. Body-local imports still return
+`ModuleImportBindingsRequired` with exact nodes rather than being silently dropped.
 `ScopedModuleSources` retains the source-to-scope/declaration/field projection and the one header
 writer. Complete representations determine field count and order, while selected public fields map
 to their corresponding reserved slots. Parameter/field slot queries grant no typed metadata;
@@ -189,7 +192,9 @@ semantic scopes; construction-time target/policy tables do not survive as anothe
 `lookup_export` in scoped or sealed module contexts delegates audience-aware lookup to the semantic
 namespace. Source views retain the same audience objects for signature and visible-field checks,
 and supply their original logical caller module at scope construction. A scoped lookup grants no
-header readiness. Model-level namespace links do not by themselves admit qualified source syntax.
+header readiness. Qualified header data paths normalize in their own physical scopes through
+that same namespace authority before repeated contracts are compared. Equal path spelling cannot
+merge distinct targets; inaccessible/unknown type paths reject before publication.
 `Context::complete_record_visible` and `record_field_visible` use the same physical source binding:
 only an own/directly seen complete definition grants the representation view. Otherwise a field
 needs an audience-qualified root field contract. Record/field identities, data schemas and field
@@ -237,8 +242,8 @@ not cross-revision rebinding. Code/declaration enumeration and cycle projection 
 [common source coordinator](../nocter-checking/README.md#bounded-future-value-binding-typing).
 Ordinary module orchestration rejects unselected primitive markers through the existing primitive
 authority diagnostic; it does not infer roles from inventory names. Module primitive authority,
-source-qualified query rebinding across revisions, qualified namespace and body-local import binding,
-and ordinary discovery/CLI integration remain work. Unsupported import scopes require exact
+source-qualified query rebinding across revisions, body-local import binding and ordinary
+discovery/CLI integration remain work. Unsupported import scopes require exact
 binding evidence before scopes close; none can silently disappear from semantic admission. Header publication alone does not produce an accepted Unit.
 `Context::verify_header_values` reprojects every physical source header with actual completed count
 values and requires existing published type/constraint identities to agree. It reuses the same

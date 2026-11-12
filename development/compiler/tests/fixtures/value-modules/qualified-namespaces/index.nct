@@ -1,0 +1,7 @@
+use ./facade as api
+see ./body.nct
+
+const RESULT: i32
+func values(): [i32; api.storage.width()]
+func inspect(value: api.storage.Data): i32
+func run(): i32

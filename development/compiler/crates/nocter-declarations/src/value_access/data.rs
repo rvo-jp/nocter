@@ -142,6 +142,13 @@ impl Program {
             _ => None,
         }
     }
+    /// Existing nominal `TypeId`, independently of payload readiness; never interns a new type.
+    #[must_use]
+    pub fn record_type_identity(&self, record: NominalTypeId) -> Option<TypeId> {
+        self.types
+            .store()
+            .identity(&super::records::nominal_key(record))
+    }
     /// The named record identity, including before its payload schema is ready.
     /// This grants no field, containment, Copy or payload-readiness evidence.
     #[must_use]
@@ -180,10 +187,7 @@ impl Program {
     pub fn type_identity_named_in(&self, scope: super::ScopeId, spelling: &str) -> Option<TypeId> {
         match data_reference(&self.symbols, &self.namespace, scope, spelling)? {
             DataReference::Builtin(data) => self.data_type(data),
-            DataReference::Record(id) => self
-                .types
-                .store()
-                .identity(&super::records::nominal_key(id)),
+            DataReference::Record(id) => self.record_type_identity(id),
             DataReference::Tuple(_)
             | DataReference::Array { .. }
             | DataReference::Optional { .. }

@@ -70,7 +70,9 @@ dependencies. Complete Unit acceptance still checks every header, including unus
 Duplicate function names use `E0241`, duplicate/shadowing
 input names use `E0341`, and reserved function names use `E0240`, retaining the existing related
 first-declaration locations. Private record-name and field-name collisions use `E0241` with the
-first conflicting declaration related. Unknown header data names use `E0290`; a known type outside
+first conflicting declaration related. Unknown header data names and unresolved qualified type
+paths use `E0290`; a qualified path outside its audience uses `E0412`. Resolve each repeated header
+in its own physical source scope; equal spelling is not target agreement. A known type outside
 the closed fragment, non-finite by-value containment or an invalid `copy struct` request uses
 `E0291`. Focus the authored type or field type; relate the referenced record when explaining a
 containment cycle. These rules do not permit overload selection by input operation,
@@ -98,6 +100,7 @@ Use source operations in messages, rather than old I/U/X-qualified local types. 
 | `E0387` | Alias creation/direct update input lacks the required initialized place/authority |
 | `E0390` | Invalid selected call target or argument count |
 | `E0407` | Invalid typed discard |
+| `E0412` | Qualified path component outside the original lookup caller's audience |
 
 Exact allocation within an existing family is fixed before implementing its compiler migration;
 this table does not duplicate numeric registration. A generic read input cannot deliver T without
@@ -107,6 +110,12 @@ body extraction cannot silently change it to take. If an expected callable suppl
 operation, relate that selected contract when explaining its mismatch. Do not describe a data-type
 annotation as overriding that input operation. A fixed value supplied to an edit input needs an intentional
 mutable binding; do not silently rewrite it. A view descriptor Copy still retains its dependencies.
+
+A module namespace is not a value or existing owning source (`E0370`). Reject declaration/local
+name collisions with namespace aliases in the existing name families, rather than treating the
+alias as a function. Unresolved value-path components use `E0340`; inaccessible components use
+`E0412` at the failed component, including when a re-exporting module itself has broader access.
+After a declaration is selected, its record/tuple suffixes use ordinary field diagnostics.
 
 Record field selection and structural construction also require a source-visible contract.
 Use `E0370` for a known but inaccessible field or complete representation, identifying the selected

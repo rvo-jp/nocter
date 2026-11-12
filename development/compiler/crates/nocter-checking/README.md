@@ -254,9 +254,14 @@ ordinary header/body checking. Field selection and record construction also requ
 source's declaration-lowering-owned view: visible root fields do not grant hidden fields or an
 exhaustive structural construction contract. Both computed member values and existing-place
 selections use the same field check. Complete schemas remain available to compiler-owned layout
-and cleanup. Qualified namespace and body-local import binding, source rebinding across module
-revisions and ordinary package/CLI integration remain work. This bounded selected-input entry
-does not qualify those subjects.
+and cleanup. Qualified type annotations, function values/calls, constants, static places and
+record heads resolve through the same source namespace. The shared prefix query selects the
+declaration once before ordinary record/tuple member selection; uninterned member suffixes do
+not become namespace errors. Named and qualified references share value/static materialization.
+Intermediate namespace audiences retain the original lookup caller, and a namespace is neither a
+value nor an owning transfer source. Required evaluation uses the selected concrete targets and
+actual physical bodies. Body-local import binding, source rebinding across module revisions and
+ordinary package/CLI integration remain work; this bounded entry does not qualify them.
 
 The private-function goal has one typed-body query over shared immutable declaration facts and
 an owner-scoped body-type extension. Each query retains its origin header prefix; binding accepts
