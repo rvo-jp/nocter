@@ -194,11 +194,17 @@ Its `context_for_code` selects exact physical syntax and lookup scope for a defi
 supplier over that writer's current immutable snapshot. Foreign writers reject even when their
 source text and local IDs agree. Source views borrow the retained binding, so they can remain live
 while headers advance and can outlive the writer itself; old snapshots remain unchanged.
+`Context::for_code` selects an executable root's physical syntax and lookup scope within the same
+header snapshot. Body/header byte guards and body-local required-expression catalogs select their
+own source owners through that binding, independently of the caller's current view. A conjunction
+of guards can therefore verify multiple physical bodies without substituting one file's tree.
+`Context::source_origin` uses the actual owning tree and the shared source-index integrity checks;
+foreign syntax cannot be accepted by matching source IDs or display ranges alone.
 `Context::lookup_scope` drives authored body lookup. Declaration properties and type identities
 still come from the shared semantic program; the binding is not another declaration/type authority.
 Per-body views supply no primitive bindings or accepted-body proof. Whole-module required-value
-scheduling and cross-source dependency guards, visibility/re-exports and ordinary discovery/CLI
-integration remain work. The header step
+scheduling, source-qualified query rebinding across revisions, visibility/re-exports and ordinary
+discovery/CLI integration remain work. The header step
 can publish selected payload/Copy metadata but does not produce an accepted Unit or a reusable
 source-qualified query.
 

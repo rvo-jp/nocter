@@ -4,7 +4,7 @@ mod preparation;
 mod projection;
 mod types;
 use super::accepted::Failure;
-use super::{Failure as BodyFailure, flow, source_origin};
+use super::{Failure as BodyFailure, flow};
 use nocter_constant_evaluation::state;
 use nocter_model::FrozenData;
 pub(super) use types::Types;
@@ -93,6 +93,12 @@ fn origin(
         action: site.action,
     })
 }
+fn source_origin(
+    context: &DeclarationContext<'_>,
+    origin: nocter_syntax::SyntaxOrigin,
+) -> Result<nocter_source_index::SourceOrigin, BodyFailure> {
+    context.source_origin(origin).map_err(Into::into)
+}
 fn project(
     context: &DeclarationContext<'_>,
     checked: &super::accepted::Checked,
@@ -107,12 +113,12 @@ fn project(
         .bind(context)?;
     let mut notes = vec![DiagnosticNote::new(
         "this expression requires a compile-time value",
-        source_origin(context.syntax(), root.origin())?,
+        source_origin(context, root.origin())?,
     )];
     for &site in &error.trace {
         notes.push(DiagnosticNote::new(
             "constant evaluation depends on this operation",
-            source_origin(context.syntax(), origin(context, checked, site)?)?,
+            source_origin(context, origin(context, checked, site)?)?,
         ));
     }
     let origin = if let Some(site) = error.site {
@@ -126,7 +132,7 @@ fn project(
         source: SourceDiagnostic::new(
             code,
             message,
-            source_origin(context.syntax(), origin)?,
+            source_origin(context, origin)?,
             notes,
             None::<&str>,
         ),
@@ -138,7 +144,7 @@ fn final_diagnostic(
 ) -> Result<Diagnostic, BodyFailure> {
     let source = source.bind(context)?;
     let primary = source_origin(
-        context.syntax(),
+        context,
         nocter_syntax::SyntaxOrigin::Node(source.result_origin()),
     )?;
     let (code, message) = Rule::FinalValue.diagnostic()?;
@@ -181,7 +187,7 @@ fn failure_at(
             };
         }
     };
-    let source = match source_origin(context.syntax(), origin) {
+    let source = match source_origin(context, origin) {
         Ok(primary) => SourceDiagnostic::new(diagnostic_code, message, primary, [], None::<&str>),
         Err(failure) => {
             return Failure::Body {
@@ -203,7 +209,7 @@ fn add_dependency_note(
     let Failure::Evaluation { diagnostic, .. } = failure else {
         return Ok(());
     };
-    let origin = source_origin(context.syntax(), origin)?;
+    let origin = source_origin(context, origin)?;
     if diagnostic.source.primary() == nocter_diagnostics::DiagnosticOrigin::from(origin) {
         return Ok(());
     }

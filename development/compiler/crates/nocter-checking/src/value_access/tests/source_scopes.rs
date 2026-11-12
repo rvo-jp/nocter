@@ -122,7 +122,7 @@ fn code(scoped: &declarations::ScopedModuleSources<'_>, path: &str, name: &str) 
 }
 
 #[test]
-fn source_views_select_direct_helpers_and_bind_queries_only_to_their_actual_body() {
+fn source_views_select_direct_helpers_and_rebind_queries_through_their_actual_body() {
     let fixture = Fixture::new(
         &[
             ("/app/index.nct", Root, "see ./a.nct\nfunc run(): i32"),
@@ -160,7 +160,13 @@ fn source_views_select_direct_helpers_and_bind_queries_only_to_their_actual_body
         } else {
             &run_context
         };
-        assert!(query.bind(foreign).is_err());
+        let rebound = query.bind(foreign).unwrap();
+        assert_eq!(
+            rebound.syntax().tree().root_id(),
+            context.syntax().tree().root_id()
+        );
+        let selected = Query::prepare(foreign, id).unwrap();
+        assert_eq!(selected.body(), query.body());
     }
 }
 
@@ -321,4 +327,53 @@ fn constant_requests_and_static_places_select_the_current_physical_scope() {
         assert!(query.body().locals().iter().any(|(_, local)| matches!(local.origin, LocalOrigin::Static(value) if value.initializer == static_id)));
     }
     assert_ne!(constants[0], constants[1]);
+}
+
+#[test]
+fn body_and_header_guards_follow_their_owners_across_one_retained_source_binding() {
+    let fixture = Fixture::new(
+        &[
+            ("/app/index.nct", Root, "see ./a.nct\nfunc run(): i32"),
+            (
+                "/app/a.nct",
+                Implementation,
+                "see ./index.nct\nfunc run(): i32 { 42 }",
+            ),
+            ("/app/b.nct", Implementation, "func other(): bool { true }"),
+        ],
+        &[(0, 0, 1), (1, 0, 0)],
+    );
+    let scoped = fixture.prepare();
+    let binding = scoped.source_binding();
+    let run = code(&scoped, "/app/a.nct", "run");
+    let other = code(&scoped, "/app/b.nct", "other");
+    let context = binding.context_for_code(&scoped, run).unwrap();
+    let other_context = context.for_code(other).unwrap();
+    let mut guards = declarations::BodySources::default();
+    guards.insert(&context.body_source(run).unwrap()).unwrap();
+    guards.insert(&context.body_source(other).unwrap()).unwrap();
+    guards.verify(&context).unwrap();
+    guards.verify(&other_context).unwrap();
+    let header = context
+        .header_source(
+            other.into(),
+            nocter_declarations::value_access::HeaderPosition::Result,
+        )
+        .unwrap();
+    let node = header.bind(&context).unwrap();
+    assert_eq!(
+        context
+            .source_origin(nocter_syntax::SyntaxOrigin::Node(node))
+            .unwrap()
+            .source(),
+        other_context.syntax().tree().source()
+    );
+    let body = context.body_source(other).unwrap();
+    let root = body.bind(&context).unwrap().body().unwrap();
+    assert_eq!(
+        other_context
+            .syntax()
+            .text_at(other_context.syntax().tree().node(root).unwrap().range()),
+        Some("{ true }")
+    );
 }

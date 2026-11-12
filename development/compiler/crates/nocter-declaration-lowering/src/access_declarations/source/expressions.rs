@@ -58,7 +58,7 @@ impl<'source> Context<'source> {
             .bind(self)?
             .body()
             .ok_or(SourceMismatch::UnknownSource)?;
-        let syntax = self.syntax();
+        let syntax = self.for_code(owner)?.syntax();
         let projection = BodySyntaxProjection::for_root(syntax.tree(), root)
             .ok_or(SourceMismatch::InconsistentSyntax)?;
         let mut roots = Vec::new();

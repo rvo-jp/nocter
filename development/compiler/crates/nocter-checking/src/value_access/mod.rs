@@ -314,7 +314,7 @@ impl Query {
             .source_for_code()
             .ok_or(Failure::InconsistentSyntax)?
             .bind(context)?;
-        let syntax = context.syntax();
+        let syntax = context.for_code(self.source_owner())?.syntax();
         let projection = BodySyntaxProjection::for_root(
             syntax.tree(),
             source.body().ok_or(Failure::InconsistentSyntax)?,

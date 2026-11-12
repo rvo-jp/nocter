@@ -179,6 +179,39 @@ impl<'syntax> ScopedModuleSources<'syntax> {
     }
 }
 impl ModuleSourceBinding<'_> {
+    pub(super) fn code_scope(
+        &self,
+        code: AccessCodeId,
+    ) -> Result<super::definitions::HeaderScope<'_>, super::SourceMismatch> {
+        let source = self
+            .catalog
+            .owners
+            .get(&code)
+            .copied()
+            .ok_or(super::SourceMismatch::UnknownSource)?;
+        Ok(super::definitions::HeaderScope {
+            syntax: syntax(&self.paired, source)
+                .map_err(|_| super::SourceMismatch::InconsistentSyntax)?,
+            lookup: self.scopes[source.index()],
+        })
+    }
+    pub(super) fn syntax_for_origin(
+        &self,
+        origin: nocter_syntax::SyntaxOrigin,
+    ) -> Result<BoundSyntax<'_>, super::SourceMismatch> {
+        let source = match origin {
+            nocter_syntax::SyntaxOrigin::Node(node) => node.source(),
+            nocter_syntax::SyntaxOrigin::Token(token) => token.source(),
+        };
+        let physical = self
+            .paired
+            .inventory
+            .source_entries()
+            .find(|(_, entry)| entry.syntax().source() == source)
+            .map(|(id, _)| id)
+            .ok_or(super::SourceMismatch::UnknownSource)?;
+        syntax(&self.paired, physical).map_err(|_| super::SourceMismatch::InconsistentSyntax)
+    }
     /// Bind this immutable header snapshot to the actual physical source of one executable root.
     /// Existing source views can remain alive while the writer publishes more headers.
     /// This establishes neither body acceptance nor reusable source-query evidence.
@@ -192,16 +225,12 @@ impl ModuleSourceBinding<'_> {
         if !std::ptr::eq(self, headers.binding.as_ref()) {
             return Err(ModuleSourcesFailure::Access(Failure::ChangedHeader));
         }
-        let source = self
-            .catalog
-            .owners
-            .get(&code)
-            .copied()
-            .ok_or_else(integrity)?;
+        let scope = self.code_scope(code).map_err(|_| integrity())?;
         Ok(super::Context {
             program: Arc::new(headers.program()),
-            syntax: syntax(&self.paired, source)?,
-            lookup: self.scopes[source.index()],
+            syntax: scope.syntax,
+            lookup: scope.lookup,
+            module: Some(self),
             sources: self.catalog.sources.clone(),
             primitives: super::PrimitiveBindings::new(None),
         })

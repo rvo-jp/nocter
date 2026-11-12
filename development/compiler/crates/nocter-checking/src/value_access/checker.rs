@@ -61,6 +61,8 @@ pub(super) fn prepare(
     callable: AccessCodeId,
     values: &dyn super::evaluation::Values,
 ) -> Result<Query, Failure> {
+    let selected = context.for_code(callable)?;
+    let context = &selected;
     let declaration = context
         .program()
         .codes()
@@ -476,7 +478,7 @@ impl<'a, 's> Checker<'a, 's> {
                 "this place is {binding_description} of data type {}",
                 self.data_label(declaration.data)
             ),
-            super::source_origin(self.syntax(), related)?,
+            self.context.source_origin(related)?,
         );
         self.reject_message(rule, origin, rule.diagnostic().1.to_owned(), vec![note])
     }

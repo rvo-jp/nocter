@@ -384,12 +384,11 @@ impl<'a, 'source> Preparation<'a, 'source> {
                 Ok(format!("{role} {name}"))
             })
             .collect::<Result<Vec<_>, Failure>>()?;
-        let primary = crate::value_access::source_origin(self.context.syntax(), origin).map_err(
-            |failure| Failure::Body {
+        let primary =
+            super::source_origin(&self.context, origin).map_err(|failure| Failure::Body {
                 callable: root,
                 failure,
-            },
-        )?;
+            })?;
         let (code, message) =
             Rule::DependencyCycle
                 .diagnostic()

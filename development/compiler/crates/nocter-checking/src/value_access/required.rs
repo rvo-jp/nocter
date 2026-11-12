@@ -55,6 +55,8 @@ pub(super) fn prepare(
         return Err(Failure::InconsistentSyntax);
     }
     let source = requirement.source.bind(context)?;
+    let selected = context.for_code(requirement.source.owner())?;
+    let context = &selected;
     let syntax = context.syntax();
     let body_root = source.body().ok_or(Failure::InconsistentSyntax)?;
     let projection = BodySyntaxProjection::for_root(syntax.tree(), body_root)

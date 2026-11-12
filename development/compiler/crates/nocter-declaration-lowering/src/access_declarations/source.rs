@@ -243,7 +243,7 @@ impl BodySource {
             BodyRoot::Declaration => Ok(Cow::Borrowed(source)),
             BodyRoot::Expression { locator, .. } => {
                 let projection = BodySyntaxProjection::for_root(
-                    context.syntax().tree(),
+                    context.for_code(self.owner)?.syntax().tree(),
                     source.body().ok_or(SourceMismatch::UnknownSource)?,
                 )
                 .ok_or(SourceMismatch::InconsistentSyntax)?;
@@ -363,7 +363,10 @@ fn body<'context, 'source>(
         .ok_or(SourceMismatch::UnknownSource)?;
     Ok((
         source,
-        bytes(context, source.body().ok_or(SourceMismatch::UnknownSource)?)?,
+        bytes(
+            context.for_code(owner)?.syntax(),
+            source.body().ok_or(SourceMismatch::UnknownSource)?,
+        )?,
     ))
 }
 fn header<'source>(
@@ -380,7 +383,10 @@ fn header<'source>(
     ) else {
         return Err(SourceMismatch::UnknownSource);
     };
-    Ok((node, bytes(context, node)?))
+    Ok((
+        node,
+        bytes(context.syntax_for_origin(SyntaxOrigin::Node(node))?, node)?,
+    ))
 }
 pub(super) fn header_origin(
     sources: &BTreeMap<AccessCodeId, CodeSource>,
@@ -414,11 +420,7 @@ pub(super) fn header_origin(
     })
 }
 
-fn bytes<'source>(
-    context: &Context<'source>,
-    root: NodeId,
-) -> Result<&'source [u8], SourceMismatch> {
-    let syntax = context.syntax();
+fn bytes(syntax: nocter_syntax::BoundSyntax<'_>, root: NodeId) -> Result<&[u8], SourceMismatch> {
     let range = syntax
         .tree()
         .node(root)

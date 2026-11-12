@@ -81,6 +81,7 @@ pub struct Context<'source> {
     program: Arc<Program>,
     syntax: BoundSyntax<'source>,
     lookup: nocter_declarations::value_access::ScopeId,
+    module: Option<&'source ModuleSourceBinding<'source>>,
     sources: source::Sources,
     primitives: PrimitiveBindings,
 }
@@ -289,6 +290,7 @@ impl<'source> Preparation<'source> {
             program: Arc::new(self.headers.snapshot()),
             syntax: self.syntax,
             lookup: nocter_declarations::value_access::ScopeId::ROOT,
+            module: None,
             sources: self.sources.clone(),
             primitives: self.primitives.clone(),
         }
@@ -344,6 +346,7 @@ impl<'source> Preparation<'source> {
                 program: program.clone(),
                 syntax: self.syntax,
                 lookup: nocter_declarations::value_access::ScopeId::ROOT,
+                module: None,
                 sources: self.sources.clone(),
                 primitives: self.primitives.clone(),
             };
@@ -426,6 +429,7 @@ impl Query {
             program: Arc::clone(&self.program),
             syntax,
             lookup: nocter_declarations::value_access::ScopeId::ROOT,
+            module: None,
             sources,
             primitives: self.primitives.clone(),
         };
@@ -460,6 +464,48 @@ impl<'source> Context<'source> {
     #[must_use]
     pub const fn lookup_scope(&self) -> nocter_declarations::value_access::ScopeId {
         self.lookup
+    }
+    /// Select the same immutable header snapshot in the executable root's own source scope.
+    /// # Errors
+    /// Rejects a root outside this exact source binding.
+    pub fn for_code(&self, code: AccessCodeId) -> Result<Self, SourceMismatch> {
+        let mut selected = self.clone();
+        if let Some(binding) = self.module {
+            let scope = binding.code_scope(code)?;
+            selected.syntax = scope.syntax;
+            selected.lookup = scope.lookup;
+        } else if self.code_source(code).is_none() {
+            return Err(SourceMismatch::UnknownSource);
+        }
+        Ok(selected)
+    }
+    /// Resolve an exact syntax origin within this binding, without name or semantic lookup.
+    /// # Errors
+    /// Rejects foreign syntax/source identities through the ordinary source-index owner.
+    pub fn source_origin(
+        &self,
+        origin: nocter_syntax::SyntaxOrigin,
+    ) -> Result<nocter_source_index::SourceOrigin, SourceMismatch> {
+        let syntax = self.syntax_for_origin(origin)?;
+        match origin {
+            nocter_syntax::SyntaxOrigin::Node(node) => {
+                nocter_source_index::SourceOrigin::from_node(syntax.tree(), node)
+                    .map_err(|_| SourceMismatch::InconsistentSyntax)
+            }
+            nocter_syntax::SyntaxOrigin::Token(token) => {
+                nocter_source_index::SourceOrigin::from_token(syntax.tree(), token)
+                    .map_err(|_| SourceMismatch::InconsistentSyntax)
+            }
+        }
+    }
+    fn syntax_for_origin(
+        &self,
+        origin: nocter_syntax::SyntaxOrigin,
+    ) -> Result<BoundSyntax<'source>, SourceMismatch> {
+        match self.module {
+            Some(binding) => binding.syntax_for_origin(origin),
+            None => Ok(self.syntax),
+        }
     }
     #[must_use]
     pub fn code_source(&self, callable: AccessCodeId) -> Option<&CodeSource> {

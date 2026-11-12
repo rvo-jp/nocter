@@ -234,9 +234,13 @@ Individual body queries also consume declaration-lowering's physical module-sour
 Function/constant/static selection, local collision checks, annotation leaves and record construction
 use the context's exact lookup scope through the shared declaration namespace. Same-spelling names
 in independent sources retain distinct identities and types; only directly seen authored names are
-visible. Body binding still requires the actual owning syntax. These per-body queries do not close
-whole-module required evaluation, cross-source dependency rebinding, primitive authority or a Unit;
-`SourceUnit` remains the single-source coordinator.
+visible. Body checking, body-local required checking and typed-query binding select the actual
+owner through that same retained source binding. A query can open from a sibling source view while
+its syntax, names and origins still come from its own physical body; it does not search again for
+a same-spelling callee. Source guards verify all selected owners before reuse. Required-evaluation
+origin projection can likewise identify an operation in any bound physical source.
+These per-body queries do not close whole-module required evaluation, source rebinding across module
+revisions, primitive authority or a Unit; `SourceUnit` remains the single-source coordinator.
 
 The private-function goal has one typed-body query over shared immutable declaration facts and
 an owner-scoped body-type extension. Each query retains its origin header prefix; binding accepts
