@@ -675,7 +675,7 @@ fn validate_source_syntax(
 ) -> Result<(), SurfaceError> {
     let accepted = !tree.has_errors()
         || matches!(acceptance, SyntaxAcceptance::IncompleteBodies)
-            && syntax_errors_are_inside_blocks(tree);
+            && syntax_errors_are_inside_implementations(tree);
     if accepted {
         Ok(())
     } else {
@@ -683,18 +683,19 @@ fn validate_source_syntax(
     }
 }
 
-fn syntax_errors_are_inside_blocks(tree: &SyntaxTree) -> bool {
+fn syntax_errors_are_inside_implementations(tree: &SyntaxTree) -> bool {
     if !tree.lexed().diagnostics().is_empty() {
         return false;
     }
-    let blocks = tree
+    let bodies = tree
         .nodes()
-        .filter(|(_, node)| node.kind() == NodeKind::Block)
-        .map(|(_, node)| node.range())
+        .filter_map(|(declaration, _)| nocter_syntax::declaration_body(tree, declaration))
+        .filter_map(|body| tree.node(body))
+        .map(nocter_syntax::SyntaxNode::range)
         .collect::<Vec<_>>();
     tree.diagnostics().iter().all(|diagnostic| {
         let range = diagnostic.span().range();
-        blocks.iter().any(|block| block.contains_range(range))
+        bodies.iter().any(|body| body.contains_range(range))
     })
 }
 

@@ -2,7 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use nocter_syntax::{
-    ContextualSpelling, Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, TokenKind,
+    BoundSyntax, NodeId, NodeKind, Punctuation, SyntaxStructure, TokenKind, declaration_body,
+    direct_node, project_declaration_header, project_syntax_structure,
 };
 
 use crate::{
@@ -13,14 +14,17 @@ use crate::{
 mod compile_time_value;
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub(super) struct HeaderFingerprint(pub(super) Box<[Box<str>]>);
+pub(super) struct HeaderFingerprint(pub(super) SyntaxStructure);
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum CallableLabel {
     Named(Box<str>),
     LiteralSequence,
     LiteralString,
-    Coercion(HeaderFingerprint),
+    Coercion {
+        receiver: SyntaxStructure,
+        target: SyntaxStructure,
+    },
     Operator,
 }
 
@@ -201,7 +205,8 @@ impl std::error::Error for DeclarationContractError {}
 
 /// Joins eligible public root contracts to exact private implementation bodies.
 ///
-/// Header equality uses canonical token spelling: newlines, visibility, and bodies are excluded.
+/// Header equality uses syntax-owned canonical structure. Only the declaration's own body,
+/// visibility and members are excluded; header expression blocks remain exact.
 /// No name or type is resolved during this pass.
 ///
 /// # Errors
@@ -582,7 +587,7 @@ fn callable_keys(
             fingerprint(surface, owner)
         })
         .transpose()?;
-    let label = callable_label(declaration.kind(), &header).ok_or(
+    let label = callable_label(surface, declaration).ok_or(
         DeclarationContractError::InconsistentSurface(declaration.node()),
     )?;
     Ok((
@@ -605,114 +610,65 @@ pub(super) fn fingerprint(
     surface: &DeclarationSurface<'_>,
     declaration: SurfaceDeclaration,
 ) -> Result<HeaderFingerprint, DeclarationContractError> {
-    let surface_source = surface.sources().get(declaration.source().index()).ok_or(
+    let syntax = bound_syntax(surface, declaration).ok_or(
         DeclarationContractError::InconsistentSurface(declaration.node()),
     )?;
-    let tree = surface_source.syntax();
-    let source = surface.source_map().get(tree.source()).ok_or(
-        DeclarationContractError::InconsistentSurface(declaration.node()),
-    )?;
-    tree.node(declaration.node())
+    let header = if declaration.kind() == SurfaceDeclarationKind::OpaqueType {
+        project_syntax_structure(syntax, declaration.node())
+    } else {
+        project_declaration_header(syntax, declaration.node())
+    };
+    header
+        .map(HeaderFingerprint)
         .ok_or(DeclarationContractError::InconsistentSurface(
             declaration.node(),
-        ))?;
-    let mut pending: Vec<_> = tree
-        .children(declaration.node())
-        .iter()
-        .rev()
-        .map(|element| (*element, 0_usize))
-        .collect();
-    let mut tokens = Vec::new();
-    while let Some((element, depth)) = pending.pop() {
-        match element {
-            SyntaxElement::Node(node) => {
-                let kind = tree
-                    .node(node)
-                    .ok_or(DeclarationContractError::InconsistentSurface(
-                        declaration.node(),
-                    ))?
-                    .kind();
-                if kind == NodeKind::Visibility
-                    || kind == NodeKind::Block
-                    || matches!(
-                        declaration.kind(),
-                        SurfaceDeclarationKind::Constant | SurfaceDeclarationKind::Static
-                    ) && kind == NodeKind::Expression
-                    || is_member_declaration(kind)
-                {
-                    continue;
-                }
-                pending.extend(
-                    tree.children(node)
-                        .iter()
-                        .rev()
-                        .map(|element| (*element, depth + 1)),
-                );
-            }
-            SyntaxElement::Token(token) => {
-                if matches!(token.kind(), TokenKind::Newline | TokenKind::Eof) {
-                    continue;
-                }
-                let spelling = source.text_at(token.range()).ok_or(
-                    DeclarationContractError::InconsistentSurface(declaration.node()),
-                )?;
-                if matches!(
-                    declaration.kind(),
-                    SurfaceDeclarationKind::Constant | SurfaceDeclarationKind::Static
-                ) && depth == 0
-                    && spelling == "="
-                {
-                    continue;
-                }
-                tokens.push(Box::<str>::from(spelling));
-            }
-            SyntaxElement::Missing(_) => {
-                return Err(DeclarationContractError::InconsistentSurface(
-                    declaration.node(),
-                ));
-            }
-        }
-    }
-    Ok(HeaderFingerprint(tokens.into_boxed_slice()))
+        ))
+}
+
+fn bound_syntax<'a>(
+    surface: &'a DeclarationSurface<'_>,
+    declaration: SurfaceDeclaration,
+) -> Option<BoundSyntax<'a>> {
+    let tree = surface
+        .sources()
+        .get(declaration.source().index())?
+        .syntax();
+    BoundSyntax::new(surface.source_map().get(tree.source())?, tree)
 }
 
 fn callable_label(
-    kind: SurfaceDeclarationKind,
-    header: &HeaderFingerprint,
+    surface: &DeclarationSurface<'_>,
+    declaration: SurfaceDeclaration,
 ) -> Option<CallableLabel> {
-    let tokens = &header.0;
-    match kind {
-        SurfaceDeclarationKind::Function | SurfaceDeclarationKind::ConstructionFunction => tokens
-            .iter()
-            .position(|token| token.as_ref() == Keyword::Func.as_str())
-            .and_then(|index| tokens.get(index + 1))
-            .cloned()
-            .map(CallableLabel::Named),
-        SurfaceDeclarationKind::InterfaceMethod | SurfaceDeclarationKind::InherentMethod => tokens
-            .iter()
-            .position(|token| token.as_ref() == Punctuation::Dot.as_str())
-            .and_then(|index| tokens.get(index + 1))
-            .cloned()
-            .map(CallableLabel::Named),
+    let syntax = bound_syntax(surface, declaration)?;
+    let tree = syntax.tree();
+    match declaration.kind() {
+        SurfaceDeclarationKind::Function
+        | SurfaceDeclarationKind::ConstructionFunction
+        | SurfaceDeclarationKind::InterfaceMethod
+        | SurfaceDeclarationKind::InherentMethod => Some(CallableLabel::Named(
+            syntax.text_at(declaration.name()?.range())?.into(),
+        )),
         SurfaceDeclarationKind::Literal => {
-            if tokens
-                .iter()
-                .any(|token| token.as_ref() == Punctuation::LeftBracket.as_str())
+            let shape = direct_node(tree, declaration.node(), NodeKind::LiteralShape)?;
+            if nocter_syntax::direct_token_iter(tree, shape)
+                .any(|token| token.kind() == TokenKind::Punctuation(Punctuation::LeftBracket))
             {
                 Some(CallableLabel::LiteralSequence)
             } else {
                 Some(CallableLabel::LiteralString)
             }
         }
-        SurfaceDeclarationKind::Coercion => {
-            let end = tokens
-                .iter()
-                .position(|token| token.as_ref() == ContextualSpelling::From.as_str())
-                .unwrap_or(tokens.len());
-            Some(CallableLabel::Coercion(HeaderFingerprint(
-                tokens[..end].into(),
-            )))
-        }
+        SurfaceDeclarationKind::Coercion => Some(CallableLabel::Coercion {
+            receiver: project_syntax_structure(
+                syntax,
+                direct_node(tree, declaration.node(), NodeKind::Receiver)?,
+            )?,
+            target: project_syntax_structure(
+                syntax,
+                direct_node(tree, declaration.node(), NodeKind::Type)?,
+            )?,
+        }),
         SurfaceDeclarationKind::Equality
         | SurfaceDeclarationKind::Ordering
         | SurfaceDeclarationKind::Index
@@ -738,33 +694,10 @@ fn has_body(
     surface: &DeclarationSurface<'_>,
     declaration: SurfaceDeclaration,
 ) -> Result<bool, DeclarationContractError> {
-    let tree = surface
-        .sources()
-        .get(declaration.source().index())
-        .ok_or(DeclarationContractError::InconsistentSurface(
-            declaration.node(),
-        ))?
-        .syntax();
-    let mut pending = vec![declaration.node()];
-    while let Some(node) = pending.pop() {
-        for child in tree.children(node) {
-            if let SyntaxElement::Node(child) = child {
-                let kind = tree
-                    .node(*child)
-                    .ok_or(DeclarationContractError::InconsistentSurface(
-                        declaration.node(),
-                    ))?
-                    .kind();
-                if kind == NodeKind::Block {
-                    return Ok(true);
-                }
-                if !is_member_declaration(kind) {
-                    pending.push(*child);
-                }
-            }
-        }
-    }
-    Ok(false)
+    let syntax = bound_syntax(surface, declaration).ok_or(
+        DeclarationContractError::InconsistentSurface(declaration.node()),
+    )?;
+    Ok(declaration_body(syntax.tree(), declaration.node()).is_some())
 }
 
 fn is_separable_callable(declaration: SurfaceDeclaration) -> bool {
@@ -794,37 +727,6 @@ pub(super) fn is_eligible_contract(
         return Ok(true);
     }
     Ok(false)
-}
-
-const fn is_member_declaration(kind: NodeKind) -> bool {
-    matches!(
-        kind,
-        NodeKind::FunctionDeclaration
-            | NodeKind::ConstantDeclaration
-            | NodeKind::StaticDeclaration
-            | NodeKind::TypeAliasDeclaration
-            | NodeKind::StructDeclaration
-            | NodeKind::StructField
-            | NodeKind::EnumDeclaration
-            | NodeKind::EnumVariant
-            | NodeKind::InterfaceDeclaration
-            | NodeKind::AssociatedTypeDeclaration
-            | NodeKind::InterfaceMethod
-            | NodeKind::ConstructDeclaration
-            | NodeKind::ConstructionFunction
-            | NodeKind::LiteralDeclaration
-            | NodeKind::InstanceDeclaration
-            | NodeKind::InherentMethod
-            | NodeKind::CoercionDeclaration
-            | NodeKind::EqualityOperator
-            | NodeKind::OrderingOperator
-            | NodeKind::IndexOperator
-            | NodeKind::ExpansionOperator
-            | NodeKind::InterfaceImplementation
-            | NodeKind::AssociatedTypeBinding
-            | NodeKind::DropDeclaration
-            | NodeKind::TestDeclaration
-    )
 }
 
 #[cfg(test)]

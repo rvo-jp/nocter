@@ -42,11 +42,13 @@ pub use origin::SyntaxOrigin;
 pub use parser::{ParseGoal, ParsedSyntax, parse, parse_reusable};
 pub use provider::{DirectSourceSyntax, SourceSyntaxError, SourceSyntaxProvider};
 pub use query::{
-    array_repetition_parts, declaration_contextual_keyword_token, declaration_name_token,
+    array_repetition_parts, declaration_body, declaration_contextual_keyword_token,
+    declaration_name_token,
 };
 pub use surface::{
     DeclarationSyntaxLocator, DeclarationSyntaxProjection, DeclarationSyntaxSurface,
-    project_declaration_syntax,
+    SyntaxStructure, project_declaration_header, project_declaration_syntax,
+    project_syntax_structure,
 };
 pub use token::{Keyword, Punctuation, StringDelimiter, Token, TokenKind};
 pub use tree::{

@@ -339,3 +339,47 @@ fn unknown_target_gate_is_an_authored_surface_error() {
         Err(SurfaceError::UnknownTargetGate(_))
     ));
 }
+
+#[test]
+fn recovery_accepts_only_implementation_errors_and_never_header_expression_blocks() {
+    for (text, accepted) in [
+        (
+            "func sized(): [i32; if true { 1 } else { 2 }] { let missing = }",
+            true,
+        ),
+        ("const VALUE: usize =", true),
+        (
+            "func sized(): [i32; if true { let missing = } else { 2 }] { 42 }",
+            false,
+        ),
+        (
+            "const VALUE: [i32; if true { 1 } else { let missing = }] = [42]",
+            false,
+        ),
+    ] {
+        let mut sources = SourceMap::new();
+        let id = add_source(&mut sources, "/app/index.nct", text);
+        let tree = parse_source(&sources, id, ParseGoal::SourceFile);
+        assert!(tree.has_errors(), "{text}");
+        let input = CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
+            &sources,
+            vec![package(&tree)],
+            vec![root_module(vec![ModuleSourceInput::new(
+                "/app/index.nct",
+                ModuleSourceKind::Root,
+                &tree,
+            )])],
+            Vec::new(),
+        );
+        let result = super::collect_incomplete_body_declaration_surface(&input);
+        if accepted {
+            assert!(result.is_ok(), "{text}: {result:?}");
+        } else {
+            assert!(
+                matches!(result, Err(SurfaceError::SyntaxErrors(source)) if source == id),
+                "{text}: {result:?}"
+            );
+        }
+    }
+}

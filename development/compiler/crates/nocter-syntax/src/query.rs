@@ -13,6 +13,29 @@ pub fn array_repetition_parts(tree: &SyntaxTree, array: NodeId) -> Option<(NodeI
     expressions.next().is_none().then_some((seed, count))
 }
 
+/// Returns only the implementation root directly owned by a declaration.
+/// Blocks nested in header expressions never become callable implementations.
+#[must_use]
+pub fn declaration_body(tree: &SyntaxTree, declaration: NodeId) -> Option<NodeId> {
+    let body = match tree.node(declaration)?.kind() {
+        NodeKind::FunctionDeclaration
+        | NodeKind::ConstructionFunction
+        | NodeKind::LiteralDeclaration
+        | NodeKind::InherentMethod
+        | NodeKind::InterfaceMethod
+        | NodeKind::CoercionDeclaration
+        | NodeKind::EqualityOperator
+        | NodeKind::OrderingOperator
+        | NodeKind::IndexOperator
+        | NodeKind::ExpansionOperator
+        | NodeKind::DropDeclaration
+        | NodeKind::TestDeclaration => NodeKind::Block,
+        NodeKind::ConstantDeclaration | NodeKind::StaticDeclaration => NodeKind::Expression,
+        _ => return None,
+    };
+    crate::direct_node(tree, declaration, body)
+}
+
 /// Returns the declaration-name token defined by the grammar for one declaration node.
 ///
 /// This is the shared syntactic authority for discovery locators, semantic lowering, and source

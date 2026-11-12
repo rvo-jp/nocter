@@ -4,7 +4,7 @@ use nocter_compile_input::ModuleSourceKind;
 use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic};
 use nocter_source_index::SourceOrigin;
 use nocter_syntax::{
-    BoundSyntax, NodeId, NodeKind, Punctuation, TokenKind, direct_node, direct_token_iter,
+    BoundSyntax, NodeId, NodeKind, Punctuation, TokenKind, declaration_body, direct_token_iter,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -49,7 +49,7 @@ pub fn validate_source_role(
             .kind();
         let violation = match kind {
             NodeKind::FunctionDeclaration => {
-                let body = direct_node(syntax.tree(), declaration, NodeKind::Block);
+                let body = declaration_body(syntax.tree(), declaration);
                 match (root, body) {
                     (true, Some(body)) => Some((SourceRoleRule::BodyInContract, body)),
                     (false, None) if !headers::is_primitive(syntax, declaration) => {
@@ -59,7 +59,7 @@ pub fn validate_source_role(
                 }
             }
             NodeKind::ConstantDeclaration | NodeKind::StaticDeclaration => {
-                let value = direct_node(syntax.tree(), declaration, NodeKind::Expression);
+                let value = declaration_body(syntax.tree(), declaration);
                 match (root, value) {
                     (true, Some(value)) => Some((SourceRoleRule::InitializerInContract, value)),
                     (false, None) => Some((SourceRoleRule::MissingInitializer, declaration)),

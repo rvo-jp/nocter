@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    ExpectedSyntax, LexDiagnosticKind, NodeId, NodeKind, ParseDiagnosticKind, SyntaxElement,
-    SyntaxOrigin, SyntaxToken, SyntaxTree, TokenKind,
+    ExpectedSyntax, LexDiagnosticKind, NodeId, NodeKind, ParseDiagnosticKind, Punctuation,
+    SyntaxElement, SyntaxOrigin, SyntaxToken, SyntaxTree, TokenKind,
 };
 
 /// Canonical, source-identity-independent syntax that can affect declaration semantics.
@@ -20,6 +20,100 @@ impl DeclarationSyntaxSurface {
     #[must_use]
     pub const fn canonical_bytes(&self) -> &[u8] {
         &self.canonical
+    }
+}
+
+/// Canonical syntax structure for comparing complete authored headers or exact fragments.
+/// This carries no source coordinates, name resolution, diagnostic acceptance or type evidence.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct SyntaxStructure {
+    canonical: Box<[u8]>,
+}
+impl SyntaxStructure {
+    #[must_use]
+    pub const fn canonical_bytes(&self) -> &[u8] {
+        &self.canonical
+    }
+}
+
+/// Projects one declaration's own header, excluding its implementation, visibility and members.
+/// Header-contained expression blocks remain exact inputs. Nominal/container braces do not form
+/// part of the repeated header. Callers must validate source roles and syntax separately.
+#[must_use]
+pub fn project_declaration_header(
+    syntax: crate::BoundSyntax<'_>,
+    declaration: NodeId,
+) -> Option<SyntaxStructure> {
+    if !is_declaration(syntax.tree().node(declaration)?.kind()) {
+        return None;
+    }
+    Some(SyntaxStructure {
+        canonical: projection(
+            syntax.tree(),
+            syntax.source().text(),
+            declaration,
+            ProjectionMode::Header,
+        )
+        .surface
+        .canonical,
+    })
+}
+
+/// Projects an exact syntax subtree with no implementation/body exclusion.
+/// This is structural comparison, not syntax or semantic acceptance.
+#[must_use]
+pub fn project_syntax_structure(
+    syntax: crate::BoundSyntax<'_>,
+    root: NodeId,
+) -> Option<SyntaxStructure> {
+    syntax.tree().node(root)?;
+    Some(SyntaxStructure {
+        canonical: projection(
+            syntax.tree(),
+            syntax.source().text(),
+            root,
+            ProjectionMode::Exact,
+        )
+        .surface
+        .canonical,
+    })
+}
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum ProjectionMode {
+    Declarations,
+    Header,
+    Exact,
+}
+
+impl ProjectionMode {
+    fn omissions(self, tree: &SyntaxTree, root: NodeId) -> (HashSet<NodeId>, HashSet<SyntaxToken>) {
+        let omitted = if self == Self::Header {
+            crate::child_node_iter(tree, root)
+                .filter(|node| {
+                    tree.node(*node).is_some_and(|node| {
+                        node.kind() == NodeKind::Visibility || is_declaration(node.kind())
+                    }) || crate::declaration_body(tree, root) == Some(*node)
+                })
+                .collect::<HashSet<_>>()
+        } else {
+            HashSet::new()
+        };
+        let omitted_tokens = if self == Self::Header {
+            crate::direct_token_iter(tree, root)
+                .filter(|token| {
+                    matches!(
+                        token.kind(),
+                        TokenKind::Punctuation(
+                            Punctuation::LeftBrace | Punctuation::RightBrace | Punctuation::Equal
+                        )
+                    )
+                })
+                .collect::<HashSet<_>>()
+        } else {
+            HashSet::new()
+        };
+        (omitted, omitted_tokens)
     }
 }
 
@@ -114,6 +208,20 @@ pub(crate) fn declaration_projection(
     tree: &SyntaxTree,
     normalized_text: &str,
 ) -> DeclarationSyntaxProjection {
+    projection(
+        tree,
+        normalized_text,
+        tree.root_id(),
+        ProjectionMode::Declarations,
+    )
+}
+
+fn projection(
+    tree: &SyntaxTree,
+    normalized_text: &str,
+    root: NodeId,
+    mode: ProjectionMode,
+) -> DeclarationSyntaxProjection {
     enum Visit {
         Element(SyntaxElement),
         CloseNode,
@@ -125,15 +233,25 @@ pub(crate) fn declaration_projection(
     let mut bodies = Vec::new();
     let mut node_locators = HashMap::new();
     let mut token_locators = HashMap::new();
-    let body_roots = body_roots(tree);
-    let mut pending = vec![Visit::Element(SyntaxElement::Node(tree.root_id()))];
+    let body_roots = if mode == ProjectionMode::Declarations {
+        body_roots(tree)
+    } else {
+        HashSet::new()
+    };
+    let (omitted, omitted_tokens) = mode.omissions(tree, root);
+    let mut pending = vec![Visit::Element(SyntaxElement::Node(root))];
     while let Some(visit) = pending.pop() {
         match visit {
             Visit::Element(SyntaxElement::Node(node)) => {
+                if omitted.contains(&node) {
+                    continue;
+                }
                 let index = u32::try_from(nodes.len())
                     .expect("declaration surface node count fits stable locator domain");
-                nodes.push(node);
-                node_locators.insert(node, index);
+                if mode == ProjectionMode::Declarations {
+                    nodes.push(node);
+                    node_locators.insert(node, index);
+                }
                 let syntax = tree
                     .node(node)
                     .expect("surface traversal retains one syntax-tree owner");
@@ -157,13 +275,17 @@ pub(crate) fn declaration_projection(
                 }
             }
             Visit::Element(SyntaxElement::Token(token)) => {
-                if matches!(token.kind(), TokenKind::Newline | TokenKind::Eof) {
+                if omitted_tokens.contains(&token)
+                    || matches!(token.kind(), TokenKind::Newline | TokenKind::Eof)
+                {
                     continue;
                 }
                 let index = u32::try_from(tokens.len())
                     .expect("declaration surface token count fits stable locator domain");
-                tokens.push(token);
-                token_locators.insert(token, index);
+                if mode == ProjectionMode::Declarations {
+                    tokens.push(token);
+                    token_locators.insert(token, index);
+                }
                 encode(1, token.kind().as_str().as_bytes(), &mut canonical);
                 let text = text_at(normalized_text, token.range());
                 encode(2, text.as_bytes(), &mut canonical);
@@ -174,7 +296,9 @@ pub(crate) fn declaration_projection(
             Visit::CloseNode => canonical.push(4),
         }
     }
-    encode_declaration_diagnostics(tree, &mut canonical);
+    if mode == ProjectionMode::Declarations {
+        encode_declaration_diagnostics(tree, &mut canonical);
+    }
     DeclarationSyntaxProjection {
         surface: DeclarationSyntaxSurface {
             canonical: canonical.into_boxed_slice(),
@@ -228,29 +352,41 @@ fn encode_declaration_diagnostics(tree: &SyntaxTree, canonical: &mut Vec<u8>) {
 }
 
 fn body_roots(tree: &SyntaxTree) -> HashSet<NodeId> {
-    // Only declaration implementations are independent body inputs. Blocks in header expressions
-    // affect the declaration itself, even when they look like ordinary executable bodies.
     tree.nodes()
-        .filter_map(|(declaration, syntax)| {
-            let body = match syntax.kind() {
-                NodeKind::FunctionDeclaration
-                | NodeKind::ConstructionFunction
-                | NodeKind::LiteralDeclaration
-                | NodeKind::InherentMethod
-                | NodeKind::InterfaceMethod
-                | NodeKind::CoercionDeclaration
-                | NodeKind::EqualityOperator
-                | NodeKind::OrderingOperator
-                | NodeKind::IndexOperator
-                | NodeKind::ExpansionOperator
-                | NodeKind::DropDeclaration
-                | NodeKind::TestDeclaration => NodeKind::Block,
-                NodeKind::ConstantDeclaration | NodeKind::StaticDeclaration => NodeKind::Expression,
-                _ => return None,
-            };
-            crate::direct_node(tree, declaration, body)
-        })
+        .filter_map(|(declaration, _)| crate::declaration_body(tree, declaration))
         .collect()
+}
+
+const fn is_declaration(kind: NodeKind) -> bool {
+    matches!(
+        kind,
+        NodeKind::FunctionDeclaration
+            | NodeKind::ConstantDeclaration
+            | NodeKind::StaticDeclaration
+            | NodeKind::PrimitiveTypeDeclaration
+            | NodeKind::TypeAliasDeclaration
+            | NodeKind::StructDeclaration
+            | NodeKind::StructField
+            | NodeKind::EnumDeclaration
+            | NodeKind::EnumVariant
+            | NodeKind::InterfaceDeclaration
+            | NodeKind::AssociatedTypeDeclaration
+            | NodeKind::InterfaceMethod
+            | NodeKind::ConstructDeclaration
+            | NodeKind::ConstructionFunction
+            | NodeKind::LiteralDeclaration
+            | NodeKind::InstanceDeclaration
+            | NodeKind::InherentMethod
+            | NodeKind::CoercionDeclaration
+            | NodeKind::EqualityOperator
+            | NodeKind::OrderingOperator
+            | NodeKind::IndexOperator
+            | NodeKind::ExpansionOperator
+            | NodeKind::InterfaceImplementation
+            | NodeKind::AssociatedTypeBinding
+            | NodeKind::DropDeclaration
+            | NodeKind::TestDeclaration
+    )
 }
 
 const fn lex_diagnostic_name(kind: LexDiagnosticKind) -> &'static str {
@@ -338,6 +474,121 @@ mod tests {
             .add_bytes(SourceName::new("surface.nct"), text.as_bytes())
             .unwrap();
         parse_reusable(sources.get(source).unwrap(), ParseGoal::SourceFile).declaration_surface()
+    }
+
+    fn header(text: &str, goal: ParseGoal) -> super::SyntaxStructure {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_bytes(SourceName::new("header.nct"), text.as_bytes())
+            .unwrap();
+        let source = sources.get(source).unwrap();
+        let tree = parse(source, goal);
+        assert!(
+            !tree.has_errors(),
+            "{goal:?}: {text}: {:?}",
+            tree.diagnostics()
+        );
+        let item = crate::child_node_iter(&tree, tree.root_id())
+            .next()
+            .unwrap();
+        let declaration = crate::child_node_iter(&tree, item).next().unwrap();
+        super::project_declaration_header(
+            crate::BoundSyntax::new(source, &tree).unwrap(),
+            declaration,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn repeated_headers_exclude_only_their_own_implementation_in_both_goals() {
+        for goal in [ParseGoal::SourceFile, ParseGoal::V2CoreUnit] {
+            for (contract, implementation) in [
+                (
+                    "func sized(input: [i32; if true { 1 } else { 2 }]): usize",
+                    "func sized(input: [i32; if true { 1 } else { 2 }]): usize { 42 }",
+                ),
+                (
+                    "const VALUES: [i32; if true { 1 } else { 2 }]",
+                    "const VALUES: [i32; if true { 1 } else { 2 }] = [42]",
+                ),
+                (
+                    "static VALUES: [i32; if true { 1 } else { 2 }]",
+                    "static VALUES: [i32; if true { 1 } else { 2 }] = [42]",
+                ),
+            ] {
+                let expected = header(contract, goal);
+                assert_eq!(expected, header(implementation, goal));
+                assert_eq!(expected, header(&implementation.replace("42", "7"), goal));
+                assert_eq!(
+                    expected,
+                    header(
+                        &implementation.replace("input:", "input /* note */ :"),
+                        goal
+                    )
+                );
+                for change in ["{ 1 }", "{ 2 }"] {
+                    assert_ne!(
+                        expected,
+                        header(&implementation.replace(change, "{ 3 }"), goal)
+                    );
+                }
+            }
+            assert_eq!(
+                header("struct Item", goal),
+                header("struct Item { value: i32 }", goal)
+            );
+        }
+        assert_eq!(
+            header("pub func sized(): usize", ParseGoal::SourceFile),
+            header("func sized(): usize { 42 }", ParseGoal::SourceFile)
+        );
+    }
+
+    #[test]
+    fn header_expression_structure_and_exact_fragments_keep_their_distinct_boundaries() {
+        let mut sources = SourceMap::new();
+        let first = sources
+            .add_bytes(
+                SourceName::new("first.nct"),
+                b"func sized(): [i32; if true { 1 } else { 2 }]",
+            )
+            .unwrap();
+        let second = sources
+            .add_bytes(
+                SourceName::new("second.nct"),
+                b"func sized(): [i32; if true { 1 } else { 2 }] { 42 }",
+            )
+            .unwrap();
+        let first_tree = parse(sources.get(first).unwrap(), ParseGoal::V2CoreUnit);
+        let second_tree = parse(sources.get(second).unwrap(), ParseGoal::V2CoreUnit);
+        for (id, tree, owns_body) in [(first, &first_tree, false), (second, &second_tree, true)] {
+            assert!(!tree.has_errors());
+            let syntax = crate::BoundSyntax::new(sources.get(id).unwrap(), tree).unwrap();
+            let declaration = tree
+                .nodes()
+                .find(|(_, node)| node.kind() == NodeKind::FunctionDeclaration)
+                .unwrap()
+                .0;
+            assert_eq!(
+                crate::declaration_body(tree, declaration).is_some(),
+                owns_body
+            );
+            let canonical = super::project_declaration_header(syntax, declaration).unwrap();
+            let exact = super::project_syntax_structure(syntax, declaration).unwrap();
+            assert_eq!(canonical == exact, !owns_body);
+            assert!(super::project_declaration_header(syntax, tree.root_id()).is_none());
+            assert!(
+                super::project_syntax_structure(
+                    syntax,
+                    if id == first {
+                        second_tree.root_id()
+                    } else {
+                        first_tree.root_id()
+                    }
+                )
+                .is_none()
+            );
+        }
     }
 
     #[test]

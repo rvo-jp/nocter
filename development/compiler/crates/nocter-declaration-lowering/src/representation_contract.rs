@@ -1,8 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use nocter_syntax::{NodeKind, SyntaxElement, TokenKind};
+use nocter_syntax::{SyntaxElement, TokenKind};
 
-use crate::contract::{HeaderFingerprint, has_reciprocal_source_visibility, source_kind};
+use crate::contract::{
+    HeaderFingerprint, fingerprint, has_reciprocal_source_visibility, source_kind,
+};
 use crate::{
     DeclarationContractError, DeclarationSurface, ModuleIdentity, ModuleSourceKind,
     SurfaceDeclaration, SurfaceDeclarationId, SurfaceDeclarationKind,
@@ -121,7 +123,7 @@ fn nominal_key(
     Ok(NominalKey {
         module: source.module().clone(),
         kind: declaration.kind(),
-        header: nominal_fingerprint(surface, declaration)?,
+        header: fingerprint(surface, declaration)?,
     })
 }
 
@@ -147,57 +149,6 @@ fn loose_nominal_key(
         module: source.module().clone(),
         name: name.into(),
     })
-}
-
-fn nominal_fingerprint(
-    surface: &DeclarationSurface<'_>,
-    declaration: SurfaceDeclaration,
-) -> Result<HeaderFingerprint, DeclarationContractError> {
-    let source = &surface.sources()[declaration.source().index()];
-    let tree = source.syntax();
-    let text = surface.source_map().get(tree.source()).ok_or(
-        DeclarationContractError::InconsistentSurface(declaration.node()),
-    )?;
-    let mut tokens = Vec::new();
-    let mut pending: Vec<_> = tree
-        .children(declaration.node())
-        .iter()
-        .rev()
-        .copied()
-        .collect();
-    while let Some(element) = pending.pop() {
-        match element {
-            SyntaxElement::Node(node) => {
-                if tree.node(node).map(nocter_syntax::SyntaxNode::kind)
-                    == Some(NodeKind::Visibility)
-                {
-                    continue;
-                }
-                pending.extend(tree.children(node).iter().rev().copied());
-            }
-            SyntaxElement::Token(token) => {
-                if token.kind() == TokenKind::Punctuation(nocter_syntax::Punctuation::LeftBrace) {
-                    break;
-                }
-                if matches!(token.kind(), TokenKind::Newline | TokenKind::Eof) {
-                    continue;
-                }
-                tokens.push(
-                    text.text_at(token.range())
-                        .ok_or(DeclarationContractError::InconsistentSurface(
-                            declaration.node(),
-                        ))?
-                        .into(),
-                );
-            }
-            SyntaxElement::Missing(_) => {
-                return Err(DeclarationContractError::InconsistentSurface(
-                    declaration.node(),
-                ));
-            }
-        }
-    }
-    Ok(HeaderFingerprint(tokens.into_boxed_slice()))
 }
 
 fn is_bodyless_nominal(surface: &DeclarationSurface<'_>, declaration: SurfaceDeclaration) -> bool {

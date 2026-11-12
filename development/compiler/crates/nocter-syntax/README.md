@@ -15,7 +15,12 @@ tree share one exact source identity. It also publishes a canonical declaration-
 that excludes body contents, trivia, and source identities without interpreting a declaration.
 Each pruned semantic body root—callable block or constant/static initializer expression—is
 published separately as exact normalized body bytes keyed by its stable declaration-surface
-locator. Its source-syntax provider
+locator. `declaration_body` selects those roots directly from the owning declaration, never from
+arbitrary descendant blocks. `project_declaration_header` uses the same canonical encoder for a
+single repeated header, omitting only its own implementation, visibility and member declarations.
+Header-contained expression structure remains exact; `project_syntax_structure` retains an exact
+subtree when an operation's selection identity needs its receiver or target. These structural
+products do not resolve names or prove source acceptance. Its source-syntax provider
 contract lets callers choose direct or revisioned parsing without exposing either mechanism to
 package or discovery code. It does not resolve names or apply semantic rules.
 

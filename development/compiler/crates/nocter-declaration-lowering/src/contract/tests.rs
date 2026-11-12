@@ -940,3 +940,130 @@ fn selected_target_body_completes_one_target_independent_contract() {
         SurfaceDeclarationId::from_index(0)
     );
 }
+
+#[test]
+fn array_count_blocks_are_contract_structure_instead_of_callable_bodies() {
+    for (contract, implementation) in [
+        (
+            "pub func sized(input: [i32; if true { 1 } else { 2 }]): usize",
+            "func sized(input: [i32; if true { 1 } else { 2 }]): usize { 42 }",
+        ),
+        (
+            "pub func sized(): [i32; if true { 1 } else { 2 }]",
+            "func sized(): [i32; if true { 1 } else { 2 }] { [42] }",
+        ),
+        (
+            "pub const VALUES: [i32; if true { 1 } else { 2 }]",
+            "const VALUES: [i32; if true { 1 } else { 2 }] = [42]",
+        ),
+        (
+            "pub static VALUES: [i32; if true { 1 } else { 2 }]",
+            "static VALUES: [i32; if true { 1 } else { 2 }] = [42]",
+        ),
+    ] {
+        for change in [None, Some("{ 1 }"), Some("{ 2 }")] {
+            let implementation = change.map_or_else(
+                || implementation.to_owned(),
+                |from| implementation.replace(from, "{ 3 }"),
+            );
+            let mut sources = SourceMap::new();
+            let root_id = add_source(
+                &mut sources,
+                "/app/index.nct",
+                &format!("see ./body.nct\n{contract}\n"),
+            );
+            let body_id = add_source(
+                &mut sources,
+                "/app/body.nct",
+                &format!("see ./index.nct\n{implementation}\n"),
+            );
+            let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+            let body = parse_source(&sources, body_id, ParseGoal::SourceFile);
+            let declarations = surface(
+                &sources,
+                &root,
+                vec![
+                    ModuleSourceInput::new("/app/index.nct", ModuleSourceKind::Root, &root),
+                    ModuleSourceInput::new(
+                        "/app/body.nct",
+                        ModuleSourceKind::Implementation,
+                        &body,
+                    ),
+                ],
+                vec![
+                    source_see(&root, 0, "/app/body.nct"),
+                    source_see(&body, 0, "/app/index.nct"),
+                ],
+            );
+            let result = analyze_declaration_contracts(&declarations);
+            if change.is_none() {
+                let joined = result.unwrap();
+                assert_eq!(declarations.declarations().len(), 2);
+                assert_eq!(
+                    joined.representative(SurfaceDeclarationId::from_index(1)),
+                    SurfaceDeclarationId::from_index(0)
+                );
+            } else if contract.contains("func") {
+                assert!(
+                    matches!(result, Err(DeclarationContractError::MismatchedBody { .. })),
+                    "{contract}: {result:?}"
+                );
+            } else {
+                assert!(
+                    matches!(
+                        result,
+                        Err(DeclarationContractError::MismatchedCompileTimeInitializer { .. })
+                    ),
+                    "{contract}: {result:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn loose_operation_identity_comes_from_the_shape_and_excludes_only_its_own_origin() {
+    for (contract, implementation) in [
+        (
+            "construct Text { pub literal \"\"(bytes: [u8; 2]): Self }",
+            "construct Text { literal \"\"(bytes: str): Self { missing } }",
+        ),
+        (
+            "instance Text { pub coerce &self as &str from self }",
+            "instance Text { coerce &self as &str { self } }",
+        ),
+    ] {
+        let mut sources = SourceMap::new();
+        let root_id = add_source(
+            &mut sources,
+            "/app/index.nct",
+            &format!("see ./body.nct\n{contract}\n"),
+        );
+        let body_id = add_source(
+            &mut sources,
+            "/app/body.nct",
+            &format!("see ./index.nct\n{implementation}\n"),
+        );
+        let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+        let body = parse_source(&sources, body_id, ParseGoal::SourceFile);
+        let declarations = surface(
+            &sources,
+            &root,
+            vec![
+                ModuleSourceInput::new("/app/index.nct", ModuleSourceKind::Root, &root),
+                ModuleSourceInput::new("/app/body.nct", ModuleSourceKind::Implementation, &body),
+            ],
+            vec![
+                source_see(&root, 0, "/app/body.nct"),
+                source_see(&body, 0, "/app/index.nct"),
+            ],
+        );
+        assert!(
+            matches!(
+                analyze_declaration_contracts(&declarations),
+                Err(DeclarationContractError::MismatchedBody { .. })
+            ),
+            "{contract}"
+        );
+    }
+}
