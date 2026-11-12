@@ -297,6 +297,10 @@ impl Path {
     pub fn overlaps(&self, other: &Self) -> bool {
         self.relation(other) != PathRelation::Disjoint
     }
+    pub(super) fn matches_array_element_shape(&self, array: &Self, suffix: &FieldPath) -> bool {
+        self.0
+            .matches_array_element_shape(&array.0, &Self::from_fields(suffix).0)
+    }
     #[must_use]
     pub fn is_prefix_of(&self, other: &Self) -> bool {
         matches!(

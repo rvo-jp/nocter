@@ -106,9 +106,11 @@ impl Storage {
     pub(super) fn restore_conditional_point(
         &mut self,
         parent: &FieldPath,
+        suffix: &FieldPath,
         retirements: &BTreeSet<Location>,
     ) -> bool {
         let array = crate::value_access::paths::known(parent);
+        let suffix = crate::value_access::paths::known(suffix);
         let mut closed = Vec::new();
         for (path, slot) in &self.selections {
             let relation = crate::value_access::paths::relation(&array, path);
@@ -116,11 +118,7 @@ impl Storage {
                 continue;
             }
             if relation != nocter_model::PathRelation::Ancestor
-                || path.fields().len() != parent.fields().len() + 1
-                || !matches!(
-                    path.fields().last(),
-                    Some(nocter_model::ValueProjection::Array(_))
-                )
+                || !path.matches_array_element_shape(&array, &suffix)
                 || self.point_from_sources(path, retirements).is_none()
             {
                 return false;

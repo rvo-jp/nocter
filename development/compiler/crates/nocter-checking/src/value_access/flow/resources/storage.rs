@@ -33,11 +33,12 @@ impl State {
                 .any(|hole| hole.value() == Some(source.fields()))
         })
     }
-    /// A complete-or-point proof can project only the actual one-element missing coverage.
+    /// A complete-or-point proof can project only the actual matching missing descendant.
     /// This inspects no index value and introduces no independent ownership state.
     pub(in crate::value_access::flow) fn unique_array_point(
         &self,
         array: &Place,
+        suffix: &nocter_model::FieldPath,
     ) -> Result<Option<Place>> {
         let owner = self.owned.get(&array.holder()).ok_or(INVALID)?;
         let mut result = None;
@@ -48,14 +49,7 @@ impl State {
             let Some(path) = missing.value() else {
                 return Err(INVALID);
             };
-            if !array.fields().is_prefix_of(path)
-                || path.fields().len() != array.fields().fields().len() + 1
-                || !matches!(
-                    path.fields().last(),
-                    Some(nocter_model::ValueProjection::Array(_))
-                )
-                || result.is_some()
-            {
+            if !path.matches_array_element_shape(array.fields(), suffix) || result.is_some() {
                 return Err(INVALID);
             }
             result = Some(array.holder().place().with_fields(path.clone()));

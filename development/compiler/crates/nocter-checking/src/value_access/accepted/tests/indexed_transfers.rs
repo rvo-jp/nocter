@@ -12,15 +12,19 @@ fn projected_writes_do_not_restore_whole_elements_or_other_missing_fields() {
         "let old = pairs[index].first^\nindex = 1 - index\npairs[index].first = Item { value: 42 }",
         "let old = pairs[index].first^\nlet other = pairs[1 - index].second^\npairs[index].first = Item { value: 42 }",
         "var count = 0\nwhile count < 2 { let old = pairs[index].first^\nindex = 1 - index\ncount += 1 }\npairs[index].first = Item { value: 42 }",
+        "if flag { let old = pairs[index]^ }\npairs[index].first = Item { value: 42 }",
+        "if flag { let old = pairs[index].first^ }\npairs[index].second = Item { value: 42 }",
+        "if flag { let old = pairs[index].first^ }\nindex = 1 - index\npairs[index].first = Item { value: 42 }",
+        "if flag { let old = pairs[index].first^ } else { let old = pairs[index].second^ }\npairs[index].first = Item { value: 42 }",
     ] {
         let source = format!(
-            "struct Item {{ value: i32 }}\nstruct Pair {{ first: Item\nsecond: Item }}\nfunc work(input: usize): void {{ var pairs = [Pair {{ first: Item {{ value: 20 }}, second: Item {{ value: 22 }} }}, Pair {{ first: Item {{ value: 30 }}, second: Item {{ value: 32 }} }}]\nvar index = input\n{body}\nlet whole = pairs^ }}"
+            "struct Item {{ value: i32 }}\nstruct Pair {{ first: Item\nsecond: Item }}\nfunc work(input: usize, flag: bool): void {{ var pairs = [Pair {{ first: Item {{ value: 20 }}, second: Item {{ value: 22 }} }}, Pair {{ first: Item {{ value: 30 }}, second: Item {{ value: 32 }} }}]\nvar index = input\n{body}\nlet whole = pairs^ }}"
         );
         let fixture = nocter_test_support::ValueSourceFixture::new(&source);
         assert!(
             matches!(
                 SourceUnit::prepare(fixture.syntax()),
-                Err(SourceFailure::Checking(Failure::Flow { .. }))
+                Err(SourceFailure::Checking(Failure::Flow { diagnostics, .. })) if diagnostics.iter().any(|diagnostic| diagnostic.code() == "E0378")
             ),
             "{source}"
         );

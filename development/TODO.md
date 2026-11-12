@@ -18,7 +18,8 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Extend conditional projected-point restoration and relations among multiple holes. Establish ordinary
+Qualify abrupt completion during projected-field replacement, then extend relations among multiple
+holes and intervening call effects. Establish ordinary
 source before changing numeric history; actual missing paths and owned snapshots remain the
 authorities for consuming equality evidence. Use the retained-selection obligations below and
 the component READMEs' implemented scope; source admission alone is not required/native execution

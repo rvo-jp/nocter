@@ -77,6 +77,23 @@ impl<I> ValuePath<I> {
         self.0.is_empty()
     }
 
+    /// Recognize one array selection followed by an exact suffix. This checks shape only;
+    /// equality of the selected number and ownership of its backing require separate evidence.
+    #[must_use]
+    pub fn matches_array_element_shape(&self, array: &Self, suffix: &Self) -> bool
+    where
+        I: PartialEq,
+    {
+        let Some((ValueProjection::Array(_), tail)) = self
+            .fields()
+            .strip_prefix(array.fields())
+            .and_then(|tail| tail.split_first())
+        else {
+            return false;
+        };
+        tail == suffix.fields()
+    }
+
     /// Compare validated builtin structural paths on one root. The oracle must describe the
     /// evaluated indices in this context, not source spelling, operation IDs or physical offsets.
     /// Mismatched component families supply no disjointness proof; their schema validity belongs

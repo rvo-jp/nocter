@@ -178,6 +178,17 @@ func projected_restore(input: usize, repeated: bool): i32 {
     let complete = pairs^
     complete[0].first.value + complete[1].first.value - (if repeated { 12 } else { 9 })
 }
+func conditional_projected(input: usize, removed: bool): i32 {
+    var pairs = [Pair { first: build(20), second: build(22) },
+                 Pair { first: build(30), second: build(32) }]
+    var index = input
+    var position = input
+    if removed { let old = pairs[index].first^ } else { position = 1 - input }
+    index = 1 - index
+    pairs[position].first = build(42)
+    let complete = pairs^
+    complete[position].first.value
+}
 func run(): i32 {
     let prefix_checks = prefix_take() == 42 && prefix_read() == 42 && cancellation(false) == 42 && cancellation(true) == 40
     let field_checks = fields(0, 0) == 42 && fields(0, 1) == 42 && fields(1, 0) == 42 && fields(1, 1) == 42
@@ -195,5 +206,6 @@ func run(): i32 {
     let failed_last = restored_outcome(1, true) catch _ { 42 }
     let outcome_checks = normal_first == 42 && normal_last == 42 && failed_first == 42 && failed_last == 42
     let projected = projected_restore(0, false) == 42 && projected_restore(1, false) == 42 && projected_restore(0, true) == 42 && projected_restore(1, true) == 42
-    if prefix_checks && field_checks && early_checks && late_checks && first_mixed && last_mixed && restored && backedges && branches && epochs && outcome_checks && projected { 42 } else { 0 }
+    let conditional_fields = conditional_projected(0, false) == 42 && conditional_projected(1, false) == 42 && conditional_projected(0, true) == 42 && conditional_projected(1, true) == 42
+    if prefix_checks && field_checks && early_checks && late_checks && first_mixed && last_mixed && restored && backedges && branches && epochs && outcome_checks && projected && conditional_fields { 42 } else { 0 }
 }

@@ -367,7 +367,11 @@ impl Context<'_, '_> {
         let Some(point) = facts.conditional_restoration(self.typed, target) else {
             return Ok(None);
         };
-        if let Some(destination) = self.world.resources.unique_array_point(&point.array)? {
+        if let Some(destination) = self
+            .world
+            .resources
+            .unique_array_point(&point.array, &point.suffix)?
+        {
             return Ok(Some(destination));
         }
         // Absence of a matching snapshot is the initialized alternative, not permission

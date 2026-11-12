@@ -88,6 +88,10 @@ array elements. Different component families provide no proof when reached by th
 the declaration owner separately validates each path's shape and bounds on its selected root.
 Physical offsets, including equal offsets of zero-sized data, do not enter this relation.
 
+`ValuePath::matches_array_element_shape` recognizes an array selection with an exact suffix. Availability
+and the ownership ledger share this structural check for conditional missing descendants. It
+does not compare the middle index, establish a live snapshot or prove that the selected place exists.
+
 Recipe equality and ordering describe keys only. Even equal keys require an explicit evaluated
 index fact: a source operation can run again after mutation or a loop edge. Symbolic paths have no
 context-free prefix/overlap convenience API. Checking must establish facts in the same root,

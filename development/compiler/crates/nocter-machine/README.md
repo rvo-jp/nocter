@@ -357,6 +357,10 @@ the completed array. Single and repeated alternating-index routes release the ex
 graphs and the final fields through the existing cleanup schedule, without treating a child
 write as whole-element initialization. Replacement of the other field between extraction and
 restoration also executes its owned-graph cleanup without losing the original point's backing.
+Conditional field restoration executes both missing and initialized routes, using a saved equal
+index on the missing route and a different selected number on the initialized route. The latter
+replaces its live old graph without reading an absent snapshot; both routes then transfer and
+clean up the completed array.
 
 `owned-error-adapters.nct` executes read environments forwarded through formal consuming adapters,
 read-to-update-to-once views, repeated environment replacement followed by consuming completion,

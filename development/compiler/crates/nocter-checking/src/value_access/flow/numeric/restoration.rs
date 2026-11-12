@@ -16,6 +16,7 @@ pub(in crate::value_access::flow) struct Restoration<'a> {
 }
 pub(in crate::value_access::flow) struct ConditionalRestoration {
     pub array: Place,
+    pub suffix: nocter_model::FieldPath,
     pub local: AccessLocalId,
     pub retirements: BTreeSet<Location>,
 }
@@ -29,24 +30,26 @@ impl NumericFacts {
             return None;
         };
         let (current, sources) = self.conditional_restoration.as_ref()?;
-        if *current != selection {
+        if *current != selection || sources.is_empty() {
             return None;
         }
-        let first = RetainedIndex::for_selection(typed, *sources.first()?)?;
-        let array = first.array(typed)?;
+        let (target, suffix) = RetainedIndex::for_referent(typed, target)?;
+        let array = target.array(typed)?;
         let crate::value_access::flow::resources::Holder::Local(local) = array.holder() else {
             return None;
         };
         let mut retirements = BTreeSet::new();
         for &source in sources {
-            let point = RetainedIndex::for_selection(typed, source)?;
-            if point.array(typed)? != array {
+            let (point, source_suffix) =
+                RetainedIndex::for_referent(typed, Referent::Evaluated(source))?;
+            if point.array(typed)? != array || source_suffix != suffix {
                 return None;
             }
             retirements.extend(self.cells.histories.retirement_sites(source)?);
         }
         Some(ConditionalRestoration {
             array,
+            suffix,
             local,
             retirements,
         })

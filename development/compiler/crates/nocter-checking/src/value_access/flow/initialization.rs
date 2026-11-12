@@ -620,7 +620,7 @@ fn restore_conditional_point(
     if storage.present(&parent).state != InitializationState::Initialized {
         return Ok(false);
     }
-    Ok(storage.restore_conditional_point(&parent, &point.retirements))
+    Ok(storage.restore_conditional_point(&parent, &point.suffix, &point.retirements))
 }
 
 fn restore_point(

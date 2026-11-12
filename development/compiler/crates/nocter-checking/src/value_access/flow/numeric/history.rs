@@ -229,12 +229,9 @@ impl Histories {
         selection: AccessExpressionId,
     ) -> Option<BTreeSet<AccessExpressionId>> {
         let selection = self.selections.get(&selection)?;
-        if !selection.whole {
-            return None;
-        }
         match phases.get(selection.history)? {
             Phase::Empty => Some(BTreeSet::new()),
-            Phase::Point => {
+            Phase::Point if selection.whole => {
                 let history = self.arrays.get(selection.history)?;
                 if state.difference(cells.value(selection.index)?, history.cell) != Some(0) {
                     return None;
@@ -250,7 +247,12 @@ impl Histories {
                     .collect();
                 (!sources.is_empty()).then_some(sources)
             }
-            Phase::Prefix | Phase::ProjectedPoint(_) | Phase::Unproved => None,
+            Phase::ProjectedPoint(source) if !selection.whole && seen.contains(source) => {
+                let history = self.arrays.get(selection.history)?;
+                (state.difference(cells.value(selection.index)?, history.cell) == Some(0))
+                    .then(|| BTreeSet::from([*source]))
+            }
+            Phase::Point | Phase::Prefix | Phase::ProjectedPoint(_) | Phase::Unproved => None,
         }
     }
     pub(super) fn available(

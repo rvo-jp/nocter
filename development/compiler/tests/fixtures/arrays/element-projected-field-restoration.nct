@@ -46,6 +46,19 @@ const func disjoint(input: usize): i32 {
     let whole = pairs^
     whole[input].first.value
 }
+const func conditional(input: usize, removed: bool): i32 {
+    var pairs = initial()
+    var index = input
+    var position = input
+    if removed { let old = pairs[index].first^ } else { position = 1 - input }
+    index = 1 - index
+    pairs[position].first = Item { value: 42 }
+    let whole = pairs^
+    whole[position].first.value
+}
 const func run(): i32 {
-    if restored(0) == 42 && restored(1) == 42 && saved(0) == 42 && saved(1) == 42 && repeated(0) == 42 && repeated(1) == 42 && disjoint(0) == 42 && disjoint(1) == 42 { 42 } else { 0 }
+    let plain = restored(0) == 42 && restored(1) == 42 && saved(0) == 42 && saved(1) == 42
+    let repeated_checks = repeated(0) == 42 && repeated(1) == 42 && disjoint(0) == 42 && disjoint(1) == 42
+    let conditional_checks = conditional(0, false) == 42 && conditional(1, false) == 42 && conditional(0, true) == 42 && conditional(1, true) == 42
+    if plain && repeated_checks && conditional_checks { 42 } else { 0 }
 }

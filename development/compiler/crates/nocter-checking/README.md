@@ -1452,24 +1452,27 @@ across alternating loop indices through required/native execution. Partial trans
 a whole-element prefix. A completed replacement disjoint from the missing descendant preserves
 its single-point evidence, using the shared structural path relation even when the indices are
 unknown. It does not treat another transfer or an unknown call as a harmless replacement.
-Conditional projected-point restoration, intervening call effects and
-general relations among multiple retained holes remain separate obligations.
+Intervening call effects and general relations among multiple retained holes remain separate
+obligations.
 Source also qualifies a later prefix loop after restoring the sole point, without replacing the
 containing array. Independent negative checks retain earlier field holes and longer-prefix holes.
 
 Conditional restoration additionally supports complete-or-single-point histories at one assignment.
 Equality with the saved index is required only on the histories that contain a point; complete
 histories supply no invented snapshot. The proof retains every possible retirement source.
-Availability closes only whole-element constraints beneath that array whose causes all match
-those sources; its parent must be present and any other overlapping unavailable coverage rejects
+Whole elements and concrete descendants use the same conditional proof, with the exact suffix
+validated across every retirement source and the target. Availability closes only matching
+constraints beneath that array whose causes all match those sources; its parent must be present and any other overlapping unavailable coverage rejects
 the proof. Concrete and symbolic constraints may describe different branches of that same point.
 Prefixes and general unproved histories do not acquire this conditional proof.
 Resources select the actual unique missing-point path from each ownership alternative, preserving
 constant paths whose saved index was elided. An alternative without a missing point must have a
 complete array and uses ordinary initialized referent replacement. No numerical-equality predicate selects a backing lifetime, and inactive backing is
 never read. Shared required/native source covers absent holes, distinct retirement sites with equal
-indices, changed user indices and maximum-count zero-byte arrays. Logical error data checks the
-initialized-replacement versus saved-point alternatives; it does not qualify native error graphs.
+indices, changed user indices and maximum-count zero-byte arrays. Projected-field cases also use
+a different target number on the initialized route; that route reads no missing-point backing.
+Logical error data checks the initialized-replacement versus saved-point alternatives; the
+[native effect corpus](../nocter-machine/README.md#owned-error-effects) owns actual graph qualification.
 Cases replace elements with different values so an omitted or wrongly addressed write changes
 the result, including a flow-refined constant whose snapshot is elided.
 
