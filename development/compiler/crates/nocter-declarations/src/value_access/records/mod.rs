@@ -130,6 +130,21 @@ impl Builder {
         })
     }
 
+    pub fn has_same_reserved_layout(&self, retained: &Schemas) -> bool {
+        self.reservations.len() == retained.records.len()
+            && self.fields.len() == retained.fields.len()
+            && self.reservations.iter().all(|(id, slot)| {
+                retained
+                    .records
+                    .get(id)
+                    .is_some_and(|record| record.name == slot.name && record.fields == slot.fields)
+            })
+            && self.fields.iter().all(|(id, slot)| {
+                retained.fields.get(id).is_some_and(|field| {
+                    field.owner == slot.owner && field.position == slot.position
+                })
+            })
+    }
     pub fn scope(&self, id: NominalTypeId) -> Option<ScopeId> {
         Some(self.reservations.get(id)?.scope)
     }

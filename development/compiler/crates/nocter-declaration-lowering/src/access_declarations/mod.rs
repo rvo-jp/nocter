@@ -7,7 +7,7 @@ mod module_imports;
 mod module_scopes;
 pub use module_audiences::{ModuleAudience, VisibilityDiagnostic, VisibilityRule};
 mod module_sources;
-pub use module_scopes::{ModuleContext, ModuleSourceBinding, ScopedModuleSources};
+pub use module_scopes::{ModuleContext, ModuleQuery, ModuleSourceBinding, ScopedModuleSources};
 mod primitives;
 mod projection;
 mod source;

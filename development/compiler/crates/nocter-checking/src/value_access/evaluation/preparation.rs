@@ -112,7 +112,10 @@ pub(in crate::value_access) fn prepare_module_source(
     };
     let preparation = Preparation::new(context, Headers::Publishing(&mut owner), limits);
     let output = preparation.complete_source(&ids, &contracts)?;
-    Ok((headers.seal()?, output))
+    Ok((
+        headers.seal_with_dependencies(output.header_sources.clone())?,
+        output,
+    ))
 }
 impl<'a, 'source> Preparation<'a, 'source> {
     fn complete_source(

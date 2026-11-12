@@ -92,6 +92,13 @@ permit whole-unit closure. `is_defined` distinguishes known unloaded definitions
 it does not grant a validated contract. Raw reference, payload and Copy validation all run on demand.
 That boundary is not early array-length evaluation. Defining headers
 in a different order cannot change parameter identities.
+`HeaderPublication::has_same_reserved_layout` compares a current closed name/slot domain with a
+complete retained program. It checks the common symbol and namespace facts, original callers and
+audiences, and each code/parameter/record/field slot assignment. Equal total counts do not substitute
+for equal ownership and positions. This predicate grants no signature agreement, source equivalence,
+header readiness or type lineage; source adapters must establish their own reuse proof and keep the
+retained program. Fresh structurally equal arenas never satisfy `preserves_headers`.
+
 The lowering owner reserves functions and records in canonical namespace order.
 
 Reservation takes each callable's input count and each record's field count, assigning the entire

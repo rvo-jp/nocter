@@ -63,6 +63,31 @@ impl HeaderPublication {
             records,
         }
     }
+    /// Compare closed names and reserved slot assignments against a complete retained program.
+    /// This is structural encoding evidence only: it grants no signature equality, typed lineage,
+    /// source equivalence or permission to reuse a body. The retained program is never replaced.
+    #[must_use]
+    pub fn has_same_reserved_layout(&self, retained: &Program) -> bool {
+        retained.headers_complete()
+            && self.definitions.symbols.as_ref() == retained.symbols.as_ref()
+            && self.definitions.namespace.as_ref() == retained.namespace.as_ref()
+            && self.definitions.codes.len() == retained.codes.len()
+            && self.definitions.parameters.len() == retained.parameters.len()
+            && self.definitions.codes.iter().all(|(id, slot)| {
+                retained.codes.get(id).is_some_and(|code| {
+                    code.name == slot.name && code.parameters == slot.parameters
+                })
+            })
+            && self.definitions.parameters.iter().all(|(id, slot)| {
+                retained.parameters.get(id).is_some_and(|parameter| {
+                    parameter.owner == slot.owner && parameter.position == slot.position
+                })
+            })
+            && self
+                .definitions
+                .records
+                .has_same_reserved_layout(&retained.records)
+    }
     /// Whether this reserved definition has been loaded; no typed readiness is implied.
     #[must_use]
     pub fn is_defined(&self, id: impl Into<DeclarationId>) -> Option<bool> {

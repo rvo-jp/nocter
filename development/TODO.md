@@ -18,18 +18,18 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Close current module source/query rebinding across revisions before ordinary package/CLI
-integration. Build current physical projections from the [adopted module/source rules](spec/language/modules.md)
-and verify their relationship to the retained semantic authority before reusing any header or body.
-Preserve source-local and lexical imports, root-authored export audiences, direct-only `see`, exact
-nominal/call targets and the topology owner's import-cycle/order proof. Equal source spellings or
-freshly numbered declarations alone do not prove safe reuse. Required header values retain their
-actual source-dependency guards; changed suppliers or name bindings must invalidate affected reuse.
-Diagnostics must point into the current physical source, including when source identities or
-irrelevant body text change. Extend positive and rejection cases together; do not route this work
-through released declaration/borrow products or claim ordinary package/CLI integration yet.
-Keep the retained-selection work below open; bounded module execution does not close general hole
-relations or externally dependent callback effects.
+Connect toolchain-selected primitive roles to the selected module/source pipeline before ordinary
+package/CLI integration. Consume explicit compile-input authority and actual logical module
+identities, reusing the existing primitive selection and exact signature validator. Do not grant
+roles from source paths, familiar names, imports or matching payload layouts. Preserve one checked
+role fact per semantic code identity through progressive header views, sealed contexts, required
+execution and native consumers. Guard retained module queries against changed authority/profile
+bindings as well as current header/source dependencies. Extend actual module source and native
+cases together, including wrong-module/package, unselected markers, missing markers and mismatched
+signatures. Keep package metadata/discovery and ordinary compiler/editor integration open until
+those owning contracts and paths are qualified; do not add a public syntax or compatibility switch
+as an implementation shortcut. Keep the retained-selection work below open; bounded module
+execution does not close general hole relations or externally dependent callback effects.
 
 ## Retained Selection Closure
 

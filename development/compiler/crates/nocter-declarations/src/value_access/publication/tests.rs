@@ -5,6 +5,8 @@ use nocter_model::{
     ArenaBuilder, BuiltinType, CompileTimeGuarantee, GenericApplication, NominalTypeId, SymbolTable,
 };
 
+mod reserved_layout;
+
 #[test]
 fn selected_records_publish_transitive_schemas_without_exposing_unrelated_fields() {
     let symbols = SymbolTable::from_spellings(["Child", "Parent", "Unused", "value", "run"]);

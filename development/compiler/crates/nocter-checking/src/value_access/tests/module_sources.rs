@@ -5,6 +5,8 @@ use accepted::{ModuleSourceUnit, SourceFailure};
 use nocter_compile_input::ModuleSourceKind::{Implementation, Root};
 use nocter_declarations::value_access::PayloadSchema;
 
+mod reuse;
+
 fn counts(body_increment: u64) -> Fixture {
     let body_count =
         format!("const BASE: usize = 39\nconst func width(): usize {{ BASE + {body_increment} }}");

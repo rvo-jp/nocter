@@ -265,8 +265,13 @@ owner's exact occurrence-to-lexical-scope projection. Function/closure bodies, a
 body-local required lengths therefore resolve names in their own enclosing block without a second
 checker-side namespace or a mutable name-scope snapshot. Imported aliases cannot shadow enclosing
 runtime bindings. Leaving a block does not expose its imports to siblings or later statements.
-Source rebinding across module revisions and ordinary package/CLI integration remain work; this
-bounded entry does not qualify them.
+Selected source preparation retains the actual header-value source guards in the lowering owner's
+`ModuleQuery`. Rebinding equal headers into fresh source identities uses that same semantic
+program; existing body queries require their independent current-body and dependency guards.
+Changed runtime bodies can preserve headers, while changed count suppliers, import bindings or
+audiences invalidate affected reuse. The proof currently requires equal physical inventory and
+closed name/slot layout. Ordinary package/CLI/editor integration and finer incremental reuse remain
+work; this bounded entry does not qualify them.
 
 The private-function goal has one typed-body query over shared immutable declaration facts and
 an owner-scoped body-type extension. Each query retains its origin header prefix; binding accepts

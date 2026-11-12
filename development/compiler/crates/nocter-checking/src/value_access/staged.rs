@@ -36,7 +36,7 @@ impl From<declarations::ModuleSourcesFailure> for SourceFailure {
     }
 }
 /// Whole selected-module source acceptance through the common header/body/value coordinator.
-/// Current-source declarations remain tied to this inventory; cross-revision reuse is separate.
+/// Current declarations own this inventory; their `ModuleQuery` captures guarded header reuse.
 #[derive(Debug)]
 pub struct ModuleSourceUnit<'syntax> {
     declarations: declarations::ModuleContext<'syntax>,

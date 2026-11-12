@@ -166,7 +166,7 @@ Copy validity. `PairedModuleSources::reserve_names` allocates one semantic ident
 canonical declaration through the value-access reservation owner. One shared immutable spelling
 prefix feeds all source scopes, including exact active body-import spellings from topology
 resolution; executable local names stay outside that prefix. The lexical name domain is part of
-this current module authority, not a cross-revision header-reuse guarantee. The compiler does not
+this current module authority; the guarded reuse product below validates it across revisions. The compiler does not
 clone a symbol domain per file. Current and directly seen authored names bind those same identities, with set semantics for repeated edges
 and contract/definition occurrences. Top-level selected record-type imports bind those same
 nominal identities into their exact source scope. Root imports also re-export their selected
@@ -239,21 +239,38 @@ own source owners through that binding, independently of the caller's current vi
 of guards can therefore verify multiple physical bodies without substituting one file's tree.
 `Context::source_origin` uses the actual owning tree and the shared source-index integrity checks;
 foreign syntax cannot be accepted by matching source IDs or display ranges alone.
-`Context::lookup_scope` drives authored body lookup. Declaration properties and type identities
+`Context::lookup_scope_at` selects the exact occurrence's lexical scope for authored body lookup. Declaration properties and type identities
 still come from the shared semantic program; the binding is not another declaration/type authority.
 Per-body views supply no primitive bindings or accepted-body proof. `ScopedModuleSources::seal`
 requires all reserved named and anonymous headers to be ready, consumes the writer and returns one
 immutable `ModuleContext` with the exact retained physical sources. Before sealing, root signatures
 must expose only nominal types accessible throughout their effective audiences, including nested
 array/tuple/outcome/callback components. Hidden representation fields and private count-helper
-names do not become outward type names. It offers current-source views,
-not cross-revision rebinding. Code/declaration enumeration and cycle projection feed checking's
+names do not become outward type names. Code/declaration enumeration and cycle projection feed checking's
 [common source coordinator](../nocter-checking/README.md#bounded-future-value-binding-typing).
 Ordinary module orchestration rejects unselected primitive markers through the existing primitive
-authority diagnostic; it does not infer roles from inventory names. Module primitive authority,
-source-qualified query rebinding across revisions, body-local import binding and ordinary
-discovery/CLI integration remain work. Unsupported import scopes require exact
-binding evidence before scopes close; none can silently disappear from semantic admission. Header publication alone does not produce an accepted Unit.
+authority diagnostic; it does not infer roles from inventory names. Module primitive authority and
+ordinary discovery/CLI integration remain work. Header publication alone does not produce an
+accepted Unit.
+
+`ModuleContext::query` captures source-neutral `ModuleQuery` evidence beside the retained header
+program. Sources retain exact module/path/role and canonical declaration syntax, without current
+syntax trees or implementation bytes except required source guards. `seal_with_dependencies`
+requires every physical header count owner to have a guard from the actual required-value source
+graph, and verifies that graph against the sealed context. A manually sealed count-dependent view
+without those guards cannot become a reusable query.
+`ModuleQuery::bind` validates the new input's topology, file roles, contracts and import bindings
+through their normal owners. It requires the same target, physical inventory, canonical headers
+and complete reserved name/slot layout, then verifies the retained header suppliers against current
+physical bodies. It retains the original header/type authority and uses the new source binding;
+independent structurally equal typed arenas cannot grant lineage. No body checking, constant
+execution or second type normalization runs in this binding step. Unrelated implementation edits
+can retain headers, while changed headers, imported targets/audiences or count suppliers invalidate
+reuse. Existing typed-body queries rebind through their own byte/dependency guards and current
+locators. This whole-inventory proof is conservative: an inventory or lexical-name-domain change
+requires preparation rather than a guessed slot correspondence. It does not qualify per-declaration
+incremental reuse, package discovery or the ordinary compiler/editor workflow.
+
 `Context::verify_header_values` reprojects every physical source header with actual completed count
 values and requires existing published type/constraint identities to agree. It reuses the same
 header/data projection for callable inputs/results, callback contracts and record fields, including

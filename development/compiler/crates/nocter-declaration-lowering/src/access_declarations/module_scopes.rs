@@ -18,6 +18,8 @@ use std::{
 mod catalog;
 mod normalization;
 mod record_views;
+mod reuse;
+pub use reuse::ModuleQuery;
 
 /// Closed source names and a progressive header writer. Reservation alone grants no typed metadata;
 /// selected header publication grants no checked-body, primitive-authority or accepted-Unit proof.
@@ -26,11 +28,12 @@ pub struct ScopedModuleSources<'syntax> {
     headers: HeaderPublication,
     binding: Arc<ModuleSourceBinding<'syntax>>,
 }
-/// Closed header metadata and its exact current physical sources; no cross-revision reuse proof.
+/// Closed headers and exact current sources; `query` captures separate reusable source evidence.
 #[derive(Debug)]
 pub struct ModuleContext<'syntax> {
     program: Arc<Program>,
     binding: Arc<ModuleSourceBinding<'syntax>>,
+    dependencies: Option<super::BodySources>,
 }
 impl ModuleContext<'_> {
     #[must_use]
@@ -286,6 +289,7 @@ impl<'syntax> ScopedModuleSources<'syntax> {
         Ok(ModuleContext {
             program: Arc::new(program),
             binding: self.binding,
+            dependencies: None,
         })
     }
     #[must_use]

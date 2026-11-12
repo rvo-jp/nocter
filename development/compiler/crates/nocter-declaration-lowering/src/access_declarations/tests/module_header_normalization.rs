@@ -437,3 +437,33 @@ fn visible_nominal_fields_compare_resolved_identities_at_their_complete_slots() 
         }
     }
 }
+
+#[test]
+fn supplied_header_counts_cannot_create_a_reusable_module_query_without_source_guards() {
+    let mut scoped = count_sources();
+    let mut seen = std::collections::HashSet::new();
+    let mut pending = scoped
+        .code_ids()
+        .map(DeclarationId::Code)
+        .chain(scoped.declaration_ids())
+        .filter(|id| seen.insert(*id))
+        .collect::<Vec<_>>();
+    let two = count(2);
+    while !pending.is_empty() {
+        let before = pending.len();
+        pending.retain(|id| {
+            !matches!(
+                scoped
+                    .advance_header_with_values(*id, |_| Some(&two))
+                    .unwrap(),
+                HeaderProgress::Ready
+            )
+        });
+        assert!(pending.len() < before);
+    }
+    let current = scoped.seal().unwrap();
+    assert!(matches!(
+        current.query(),
+        Err(ModuleSourcesFailure::Access(Failure::MissingValueEvidence))
+    ));
+}
