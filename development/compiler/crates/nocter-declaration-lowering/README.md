@@ -172,9 +172,16 @@ Export construction still needs authored root declarations and audiences, indepe
 names visible in a root's local lookup scope. Equal header spellings can resolve to different
 reserved nominal identities in two physical scopes; name closure preserves that distinction and
 grants no resolved signature agreement.
-Body lookup contexts, normalization in each physical header/representation scope, resolved contract
-agreement, visibility/re-exports and ordinary discovery/CLI integration remain work. These name and
-slot products publish neither payload/Copy readiness nor an accepted Unit.
+Raw header projection reads the immutable declaration program with an explicit physical syntax
+and lookup scope. The same projection serves single-source definition loading and can compare
+repeated signatures without writing either occurrence into the semantic authority. Nominal names
+resolve to their reserved identities before payload readiness; a complete representation uses its
+own scope and full field order. Missing names retain their declaration/header positions, and foreign
+syntax is an integrity error even for an empty representation. Array counts still require the
+existing registered expression and completed-value path; projection does not evaluate them.
+Body lookup contexts, scheduling all physical header projections and count suppliers, resolved
+contract agreement, visibility/re-exports and ordinary discovery/CLI integration remain work.
+These name and slot products publish neither payload/Copy readiness nor an accepted Unit.
 
 The reusable result owns a single immutable value-access declaration program, its exact neutral
 header surface, and projection locators. It contains no current syntax IDs, source identity,

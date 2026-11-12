@@ -227,7 +227,10 @@ impl<'source> Preparation<'source> {
         {
             let progress = definitions::define(
                 &mut self.headers,
-                self.syntax,
+                definitions::HeaderScope {
+                    syntax: self.syntax,
+                    lookup: nocter_declarations::value_access::ScopeId::ROOT,
+                },
                 required,
                 &self.functions,
                 &self.sources,

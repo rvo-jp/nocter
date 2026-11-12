@@ -190,6 +190,16 @@ impl Program {
             | DataReference::Fallible(_) => None,
         }
     }
+    /// Resolve a closed header name without requiring payload or function readiness.
+    /// # Errors
+    /// Rejects missing scopes, symbols or type names through the same construction namespace.
+    pub fn resolve_data_in(
+        &self,
+        scope: super::ScopeId,
+        name: nocter_model::Symbol,
+    ) -> Result<DataReference, super::DeclarationRule> {
+        resolve_data_name(&self.symbols, &self.namespace, scope, name)
+    }
     /// Structural Copy evidence for the payload, never permission to duplicate an access.
     #[must_use]
     pub fn data_copyable(&self, data: TypeId) -> Option<bool> {
@@ -390,6 +400,19 @@ pub(super) fn builtin_copyable(data: BuiltinType) -> Option<bool> {
         BuiltinType::Error | BuiltinType::Str => Some(false),
         _ => None,
     }
+}
+
+pub(super) fn resolve_data_name(
+    symbols: &SymbolTable,
+    namespace: &super::namespace::Names,
+    scope: super::ScopeId,
+    name: nocter_model::Symbol,
+) -> Result<DataReference, super::DeclarationRule> {
+    let spelling = symbols
+        .spelling(name)
+        .ok_or(super::DeclarationRule::UnknownSymbol)?;
+    data_reference(symbols, namespace, scope, spelling)
+        .ok_or(super::DeclarationRule::UnknownDataName { name })
 }
 
 pub(super) fn data_reference(

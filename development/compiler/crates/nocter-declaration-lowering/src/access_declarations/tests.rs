@@ -7,6 +7,7 @@ mod body_expressions;
 mod module_contracts;
 mod module_scopes;
 mod module_sources;
+mod scoped_header_projection;
 mod source_roles;
 pub(super) fn input(text: &str, goal: ParseGoal) -> (SourceMap, SyntaxTree) {
     let mut sources = SourceMap::new();

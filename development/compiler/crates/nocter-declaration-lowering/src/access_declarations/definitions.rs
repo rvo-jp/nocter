@@ -7,7 +7,8 @@ use super::{
 };
 use nocter_declarations::value_access::{
     DataReference, DeclarationId, DeclarationViolation, FieldDefinition, FunctionDefinition,
-    HeaderPosition, HeaderPublication, ParameterDefinition, TupleData, ValueDefinition,
+    HeaderPosition, HeaderPublication, ParameterDefinition, Program, ScopeId, TupleData,
+    ValueDefinition,
 };
 use nocter_model::{
     AccessCodeId, ConstantValue, FrozenData, FrozenNode, NominalTypeId, Symbol, ValueInputOperation,
@@ -36,13 +37,33 @@ impl From<Header> for Recipe {
     }
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct HeaderScope<'syntax> {
+    pub syntax: BoundSyntax<'syntax>,
+    pub lookup: ScopeId,
+}
+#[derive(Debug, Eq, PartialEq)]
+pub(super) struct CodeDefinition {
+    pub kind: nocter_declarations::value_access::CodeKind,
+    pub parameters: Vec<ParameterDefinition>,
+    pub result: ValueDefinition,
+}
+#[derive(Debug, Eq, PartialEq)]
+pub(super) struct RecordDefinition {
+    pub copy: bool,
+    pub fields: Vec<FieldDefinition>,
+}
+pub(super) struct Projection<T> {
+    pub definition: Option<T>,
+    pub progress: Progress,
+}
 pub(super) struct Progress {
     pub violations: Vec<DeclarationViolation>,
     pub missing: Vec<AccessCodeId>,
 }
 struct Definitions<'a, 's, 'v> {
-    publication: &'a mut HeaderPublication,
-    syntax: BoundSyntax<'s>,
+    program: &'a Program,
+    scope: HeaderScope<'s>,
     sources: &'a Sources,
     values: &'a mut dyn FnMut(AccessCodeId) -> Option<&'v FrozenData>,
     violations: Vec<DeclarationViolation>,
@@ -50,39 +71,111 @@ struct Definitions<'a, 's, 'v> {
 }
 pub(super) fn define<'v>(
     publication: &mut HeaderPublication,
-    syntax: BoundSyntax<'_>,
+    scope: HeaderScope<'_>,
     id: DeclarationId,
     functions: &BTreeMap<AccessCodeId, Recipe>,
     sources: &Sources,
     values: &mut dyn FnMut(AccessCodeId) -> Option<&'v FrozenData>,
     records: &BTreeMap<NominalTypeId, RecordHeader>,
 ) -> Result<Progress, Failure> {
+    let program = publication.snapshot();
+    match id {
+        DeclarationId::Code(id) => {
+            let projected = project_code(
+                &program,
+                scope,
+                id,
+                functions.get(&id).ok_or(Failure::InconsistentSyntax)?,
+                sources,
+                values,
+            )?;
+            if let Some(definition) = projected.definition {
+                publication
+                    .define(
+                        id,
+                        definition.kind,
+                        definition.parameters,
+                        definition.result,
+                    )
+                    .map_err(|_| Failure::InconsistentSyntax)?;
+            }
+            Ok(projected.progress)
+        }
+        DeclarationId::Record(id) => {
+            let projected = project_record(
+                &program,
+                scope,
+                id,
+                records.get(&id).ok_or(Failure::InconsistentSyntax)?,
+                sources,
+                values,
+            )?;
+            if let Some(definition) = projected.definition {
+                publication
+                    .define_record(id, definition.copy, definition.fields)
+                    .map_err(|_| Failure::InconsistentSyntax)?;
+            }
+            Ok(projected.progress)
+        }
+    }
+}
+pub(super) fn project_code<'v>(
+    program: &Program,
+    scope: HeaderScope<'_>,
+    id: AccessCodeId,
+    header: &Recipe,
+    sources: &Sources,
+    values: &mut dyn FnMut(AccessCodeId) -> Option<&'v FrozenData>,
+) -> Result<Projection<CodeDefinition>, Failure> {
     let mut definitions = Definitions {
-        publication,
-        syntax,
+        program,
+        scope,
         sources,
         values,
         violations: Vec::new(),
         missing: Vec::new(),
     };
-    match id {
-        DeclarationId::Record(id) => {
-            definitions.record(id, records.get(&id).ok_or(Failure::InconsistentSyntax)?)?;
-        }
-        DeclarationId::Code(id) => {
-            definitions.function(id, functions.get(&id).ok_or(Failure::InconsistentSyntax)?)?;
-        }
-    }
-    Ok(Progress {
-        violations: definitions.violations,
-        missing: definitions.missing,
+    let definition = definitions.function(id, header)?;
+    Ok(Projection {
+        definition,
+        progress: Progress {
+            violations: definitions.violations,
+            missing: definitions.missing,
+        },
+    })
+}
+pub(super) fn project_record<'v>(
+    program: &Program,
+    scope: HeaderScope<'_>,
+    id: NominalTypeId,
+    header: &RecordHeader,
+    sources: &Sources,
+    values: &mut dyn FnMut(AccessCodeId) -> Option<&'v FrozenData>,
+) -> Result<Projection<RecordDefinition>, Failure> {
+    let mut definitions = Definitions {
+        program,
+        scope,
+        sources,
+        values,
+        violations: Vec::new(),
+        missing: Vec::new(),
+    };
+    let definition = definitions.record(id, header)?;
+    Ok(Projection {
+        definition,
+        progress: Progress {
+            violations: definitions.violations,
+            missing: definitions.missing,
+        },
     })
 }
 impl Definitions<'_, '_, '_> {
     fn symbol(&self, token: SyntaxToken) -> Result<Symbol, Failure> {
-        self.publication
+        nocter_source_index::SourceOrigin::from_token(self.scope.syntax.tree(), token)
+            .map_err(|_| Failure::InconsistentSyntax)?;
+        self.program
             .symbols()
-            .get(text(self.syntax, token))
+            .get(text(self.scope.syntax, token))
             .ok_or(Failure::InconsistentSyntax)
     }
     fn data(
@@ -91,7 +184,10 @@ impl Definitions<'_, '_, '_> {
         declaration: DeclarationId,
         position: HeaderPosition,
     ) -> Result<Option<DataReference>, Failure> {
-        match self.publication.resolve_data(self.symbol(token)?) {
+        match self
+            .program
+            .resolve_data_in(self.scope.lookup, self.symbol(token)?)
+        {
             Ok(data) => Ok(Some(data)),
             Err(rule) => {
                 self.violations.push(DeclarationViolation {
@@ -121,6 +217,8 @@ impl Definitions<'_, '_, '_> {
                 .data_type(payload, owner, position)?
                 .map(|payload| DataReference::Fallible(Box::new(payload)))),
             DataTypeSyntax::Array { element, length } => {
+                nocter_source_index::SourceOrigin::from_node(self.scope.syntax.tree(), *length)
+                    .map_err(|_| Failure::InconsistentSyntax)?;
                 let element = self.data_type(element, owner, position)?;
                 let code = self
                     .sources
@@ -157,7 +255,12 @@ impl Definitions<'_, '_, '_> {
             }
         }
     }
-    fn record(&mut self, id: NominalTypeId, header: &RecordHeader) -> Result<(), Failure> {
+    fn record(
+        &mut self,
+        id: NominalTypeId,
+        header: &RecordHeader,
+    ) -> Result<Option<RecordDefinition>, Failure> {
+        self.symbol(header.source.name)?;
         let fields = header
             .fields
             .iter()
@@ -179,12 +282,10 @@ impl Definitions<'_, '_, '_> {
             .collect::<Result<Vec<_>, Failure>>()?
             .into_iter()
             .collect::<Option<Vec<_>>>();
-        if let Some(fields) = fields {
-            self.publication
-                .define_record(id, header.copy, fields)
-                .map_err(|_| Failure::InconsistentSyntax)?;
-        }
-        Ok(())
+        Ok(fields.map(|fields| RecordDefinition {
+            copy: header.copy,
+            fields,
+        }))
     }
     fn value(
         &mut self,
@@ -222,7 +323,11 @@ impl Definitions<'_, '_, '_> {
             }
         })
     }
-    fn function(&mut self, id: AccessCodeId, header: &Recipe) -> Result<(), Failure> {
+    fn function(
+        &mut self,
+        id: AccessCodeId,
+        header: &Recipe,
+    ) -> Result<Option<CodeDefinition>, Failure> {
         let mut parameters = Vec::new();
         let mut complete = true;
         for (index, (operation, parameter)) in header.parameters.iter().enumerate() {
@@ -247,16 +352,15 @@ impl Definitions<'_, '_, '_> {
             }
         }
 
-        if let Some(data) = self.value(
+        let result = self.value(
             &header.result,
             DeclarationId::Code(id),
             HeaderPosition::Result,
-        )? && complete
-        {
-            self.publication
-                .define(id, header.kind, parameters, data)
-                .map_err(|_| Failure::InconsistentSyntax)?;
-        }
-        Ok(())
+        )?;
+        Ok(result.filter(|_| complete).map(|result| CodeDefinition {
+            kind: header.kind,
+            parameters,
+            result,
+        }))
     }
 }

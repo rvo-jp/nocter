@@ -31,8 +31,8 @@ pub use namespace::{Namespace, ScopeId};
 mod publication;
 pub use publication::{HeaderFailure, HeaderPublication, HeaderStep};
 mod records;
+use data::supported;
 pub use data::{ArraySchema, Component, DataReference, PayloadSchema, TupleData};
-use data::{data_reference, supported};
 pub use records::{Field, FieldDefinition, Record};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -644,12 +644,7 @@ impl Builder {
         scope: ScopeId,
         name: Symbol,
     ) -> Result<DataReference, DeclarationRule> {
-        let spelling = self
-            .symbols
-            .spelling(name)
-            .ok_or(DeclarationRule::UnknownSymbol)?;
-        data_reference(&self.symbols, &self.namespace, scope, spelling)
-            .ok_or(DeclarationRule::UnknownDataName { name })
+        data::resolve_data_name(&self.symbols, &self.namespace, scope, name)
     }
 
     /// # Errors
