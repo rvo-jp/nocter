@@ -51,6 +51,7 @@ pub(super) fn value(program: &Program, data: usize, value: &Value) -> bool {
         match (program.types.get(data), value.data()) {
             (Some(Type::Unit | Type::NamedFunction(_)), Data::Unit)
             | (Some(Type::Bool), Data::Bool(_))
+            | (Some(Type::Text), Data::Text(_))
             | (
                 Some(Type::Optional(_)),
                 Data::Variant {

@@ -127,6 +127,10 @@ pub fn prepare(
                     RuntimeType::Primitive(RuntimePrimitive::for_builtin(builtin))
                 }
                 BuiltinType::Error => RuntimeType::Primitive(RuntimePrimitive::Error),
+                BuiltinType::Str => {
+                    representations.insert(data, RuntimeTypeRepresentation::ValueText);
+                    RuntimeType::Primitive(RuntimePrimitive::Text)
+                }
                 BuiltinType::Void => RuntimeType::Unit,
                 _ => return Err(invalid()),
             },

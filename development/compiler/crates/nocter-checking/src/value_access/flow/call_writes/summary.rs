@@ -237,7 +237,7 @@ fn closed_cleanup(
         }
         match typed.program().data_schema(data) {
             Some(PayloadSchema::Builtin(
-                BuiltinType::Bool | BuiltinType::Void | BuiltinType::Error,
+                BuiltinType::Bool | BuiltinType::Void | BuiltinType::Error | BuiltinType::Str,
             )) => {}
             Some(PayloadSchema::Builtin(builtin))
                 if nocter_model::BuiltinNumericType::for_builtin(builtin)

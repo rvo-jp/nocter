@@ -100,6 +100,10 @@ impl Checker<'_, '_> {
             (Some(nocter_model::BuiltinType::Void), nocter_model::FrozenNode::Unit) => {
                 ExpressionKind::Unit
             }
+            (
+                Some(nocter_model::BuiltinType::Str),
+                nocter_model::FrozenNode::Scalar(nocter_model::ConstantValue::Text(_)),
+            ) => ExpressionKind::Constant(value.clone()),
             (_, nocter_model::FrozenNode::Variant { .. })
                 if matches!(
                     self.program().data_schema(data),

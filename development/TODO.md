@@ -27,6 +27,10 @@ metadata-only failure layouts or inactive branches do not establish actual error
 Continue with actual error-data production, required evaluation and executed failure recovery;
 the [implemented scope](compiler/crates/nocter-checking/README.md#outcome-values) owns the evidence
 boundary rather than treating source admission as executed error cleanup.
+First close trusted standard primitive construction through the shared path. Do not authorize
+primitives by an arbitrary user name, infer general text-view
+independence from program-extent literal backing, or treat static error handles as owned-graph
+release evidence.
 
 ## Retained Selection Closure
 

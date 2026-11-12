@@ -278,7 +278,10 @@ fn publication_views_restore_only_reachable_data_and_preserve_selected_sharing()
     ])
     .unwrap();
     assert!(Value::from_frozen(&frozen).is_none());
-    assert!(Value::from_frozen(&frozen.at(0).unwrap()).is_none());
+    assert_eq!(
+        Value::from_frozen(&frozen.at(0).unwrap()),
+        Some(Value::text("unrelated"))
+    );
     assert_eq!(
         Value::from_frozen(&frozen.at(1).unwrap()),
         Some(Value::integer(42))
@@ -414,4 +417,26 @@ fn failed_compact_imports_and_sparse_copy_on_write_release_every_charge() {
         assert_eq!(budget.storage_used(), 0);
     }
     assert!(failed > 0 && passed > 0);
+}
+
+#[test]
+fn text_import_charges_utf8_bytes_and_shares_a_retained_value_without_losing_its_lease() {
+    let source = Value::text("夜\0");
+    let budget = budget(5);
+    for _ in 0..2 {
+        let value = budget.storage.import(&source).unwrap();
+        let alias = value.clone();
+        assert_eq!(value, source);
+        assert_eq!(budget.storage_used(), 5);
+        assert_eq!(
+            budget.storage.import(&source).unwrap_err(),
+            Rule::StorageLimit
+        );
+        assert_eq!(budget.storage_used(), 5);
+        drop(value);
+        assert_eq!(budget.storage_used(), 5);
+        drop(alias);
+        assert_eq!(budget.storage_used(), 0);
+    }
+    assert_eq!(Value::from_frozen(&source.freeze()).unwrap(), source);
 }

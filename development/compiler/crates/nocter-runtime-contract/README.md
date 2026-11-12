@@ -71,6 +71,9 @@ public source-level imports.
   supplies the common homogeneous identity/count view, independently of physical geometry.
 - Stored data shape does not encode a value-model input operation. RuntimeValueSignature retains
   the environment/explicit local channels independently; it introduces no borrow data type.
+- `ValueText` grants stored descriptor representation only to the exact Text primitive identity.
+  Unmarked published Text remains unsized. The marker supplies descriptor geometry, not backing
+  lifetime, Copy evidence or a general string-owner/destruction contract.
 - Native callback layouts have one numeric schema; source code cannot construct or inspect them.
 - A generated file job has one fixed field schema, one operation-to-field contract, and one checked
   allocation-size calculation. Workers never retain authored path or transfer-buffer storage; a

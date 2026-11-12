@@ -554,7 +554,8 @@ including callable constraints and capture environments. Array-bearing operation
 [resource](#concrete-array-resource-frontiers) owners below. A declaration schema alone does not
 qualify an executable operation; zero count does not substitute tuple or scalar behavior.
 
-Source-admitted payload evidence consumes the declaration authority's exact Boolean/integer/unit and opaque owned-error
+Source-admitted payload evidence consumes the declaration authority's exact Boolean/integer/unit,
+program-extent text and opaque owned-error
 snapshot contracts, plus qualified optional/array/record/tuple compositions and exact
 capture-free named-function witnesses. Scalars/unit/named functions have trivial disposal; error owns graph cleanup; aggregates
 retain their own schema cleanup rather than becoming scalars.
@@ -597,6 +598,19 @@ source-version CLI or general D/S solver. The
 [private handoff](../../../architecture/pipeline/value-access-declarations.md) owns downstream
 qualification; remaining work belongs in the [realization plan](../../../design/compiler-realization.md),
 not a duplicate crate-internal status table.
+
+## Program-Extent Text
+
+Plain string expressions use syntax's shared escape/multiline decoder, then enter ordinary
+construction as `FrozenNode::Scalar(ConstantValue::Text)`. The admitted `str` payload describes
+immutable program-extent characters, with no outside data/storage dependency or heap cleanup.
+It grants no Copy evidence: existing-value supply still needs an explicit transfer, while read/edit
+inputs, descriptor replacement, records/arrays, captures, constants and immutable statics use their
+ordinary protocols. Neither byte indexing nor source text comparison follows from this admission.
+Required evaluation qualifies exact UTF-8/embedded-zero decoding and frozen publication. Native
+source qualifies descriptor storage and input/result transport; the machine data tests qualify
+backing bytes and relocations. General string construction, error-accessor dependencies,
+interpolation and trusted primitive consumers remain separate obligations.
 
 ## Outcome Values
 
@@ -859,7 +873,7 @@ outer requests restart work without resetting storage. Its accounting contract b
 work/depth/storage exhaustion and unsupported final publication retain
 distinct local diagnostics. `prepare_with_limits` supplies explicit deterministic limits.
 
-Final publication admits bool, the intrinsic integer catalog, unit and finite closed optional/record/tuple/fixed-array
+Final publication admits bool, the intrinsic integer catalog, unit, program-extent text and finite closed optional/record/tuple/fixed-array
 compositions under the shared final-data policy. Publication uses an explicit final-data policy over the shared schema traversal, independently of temporary
 execution support and Copy. The admitted aggregate schema has no user destructors or retained
 resources. Each constant reference creates a fresh ordinary value without granting its type Copy.

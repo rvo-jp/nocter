@@ -398,7 +398,9 @@ pub fn payload(program: &Program, data: TypeId) -> Result<Payload> {
             continue;
         }
         let selected = match program.data_schema(current).ok_or(INVALID)? {
-            PayloadSchema::Builtin(BuiltinType::Bool | BuiltinType::Void) => Disposal::Trivial,
+            PayloadSchema::Builtin(BuiltinType::Bool | BuiltinType::Void | BuiltinType::Str) => {
+                Disposal::Trivial
+            }
             PayloadSchema::Builtin(builtin)
                 if nocter_model::BuiltinNumericType::for_builtin(builtin)
                     .and_then(nocter_model::BuiltinNumericType::integer_bounds)

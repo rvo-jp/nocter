@@ -587,14 +587,7 @@ impl LayoutBuilder<'_> {
                     referent,
                     RuntimeType::Primitive(RuntimePrimitive::Text) | RuntimeType::Slice(_)
                 ) {
-                    Ok(MachineLayout {
-                        size: self.target.word_size() * 2,
-                        alignment: self.target.word_size(),
-                        kind: MachineLayoutKind::View {
-                            pointer_offset: 0,
-                            length_offset: self.target.word_size(),
-                        },
-                    })
+                    Ok(self.text_view())
                 } else {
                     Ok(self.pointer())
                 }
@@ -709,6 +702,11 @@ impl LayoutBuilder<'_> {
         ty: TypeId,
         primitive: RuntimePrimitive,
     ) -> Result<MachineLayout, MachineLayoutError> {
+        if primitive == RuntimePrimitive::Text
+            && self.representations.get(ty) == Some(&RuntimeTypeRepresentation::ValueText)
+        {
+            return Ok(self.text_view());
+        }
         let (size, alignment, kind) = match primitive {
             RuntimePrimitive::Bool => (1, 1, MachineLayoutKind::Scalar(MachineScalar::Bool)),
             RuntimePrimitive::Char => integer(32, false)?,
@@ -732,6 +730,17 @@ impl LayoutBuilder<'_> {
             alignment,
             kind,
         })
+    }
+
+    fn text_view(&self) -> MachineLayout {
+        MachineLayout {
+            size: self.target.word_size() * 2,
+            alignment: self.target.word_size(),
+            kind: MachineLayoutKind::View {
+                pointer_offset: 0,
+                length_offset: self.target.word_size(),
+            },
+        }
     }
 
     fn pointer(&self) -> MachineLayout {
@@ -760,7 +769,8 @@ impl LayoutBuilder<'_> {
                 fields.iter().map(|f| (Member::Value(f.field()), f.ty())),
             ),
             RuntimeTypeRepresentation::Enum { variants } => self.enumeration(ty, &variants),
-            RuntimeTypeRepresentation::Opaque { .. }
+            RuntimeTypeRepresentation::ValueText
+            | RuntimeTypeRepresentation::Opaque { .. }
             | RuntimeTypeRepresentation::Closure { .. } => {
                 Err(MachineLayoutError::InvalidRepresentation(ty))
             }

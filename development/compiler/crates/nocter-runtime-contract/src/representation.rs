@@ -126,6 +126,8 @@ impl RuntimeVariantRepresentation {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RuntimeTypeRepresentation {
+    /// A storable v2 immutable UTF-8 descriptor. Backing extent belongs to its producer.
+    ValueText,
     ValueAggregate {
         fields: Box<[RuntimeValueFieldRepresentation]>,
     },

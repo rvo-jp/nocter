@@ -110,6 +110,10 @@ branches and returns own propagation, without accessing an absent payload.
 Value traversal, freezing, restoration and final release use iterative work, including deeply
 nested flat optional suffixes. This adds no source comparison capability or fallible execution.
 
+`Type::Text`/`Data::Text` retain immutable decoded UTF-8 and round-trip through the model's existing
+`ConstantValue::Text` leaf. Text is opaque to field/index and numeric operations. Source Copy
+eligibility remains checking-owned; immutable evaluator handles grant no source copy operation.
+
 Taking call inputs retain exact received data; each selected `Invoke` records the input position
 and physical payload place to protect immediately before retiring its owner. Thus wrappers may be
 materialized during commit without snapshots of uninitialized backing. Captured environment
@@ -308,7 +312,8 @@ reset its storage charge.
 The metric counts logical live storage units, not target bytes or process RSS. Each data node,
 listed field/path/staging array charges one header plus its stored edge count. A repeated node
 charges one header and one default edge; each sparse replacement charges a numeric key and a
-value edge. Its logical count contributes no entries. Each dynamic frame, cell,
+value edge. Its logical count contributes no entries. A text node additionally charges its UTF-8
+byte count, including embedded zeros. Each dynamic frame, cell,
 ownership entry, sparse hole or literal-import traversal entry charges two metadata units. Empty
 canonical root paths need no allocation. Frame slots reference immutable plan schemas. Sharing
 handles, paths or immutable data does not duplicate their allocation charge. Reservations precede

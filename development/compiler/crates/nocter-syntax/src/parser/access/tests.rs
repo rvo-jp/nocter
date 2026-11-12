@@ -487,3 +487,24 @@ fn catch_requires_a_named_or_discard_handler_and_chains_in_source_order() {
         assert!(tree(&text, ParseGoal::V2CoreUnit).has_errors(), "{text}");
     }
 }
+
+#[test]
+fn plain_text_uses_shared_literal_recognition_without_interpolation_fallback() {
+    for text in [
+        "\"\"",
+        "\"night 夜\\0\\n\"",
+        "\"\"\"\n  first\n  second\n  \"\"\"",
+    ] {
+        let text = format!("func run(): str {{ {text} }}");
+        let parsed = tree(&text, ParseGoal::V2CoreUnit);
+        assert!(!parsed.has_errors(), "{text}: {:?}", parsed.diagnostics());
+        super::super::snapshots::assert_token_projection(&parsed, &text);
+    }
+    assert!(
+        tree(
+            "func run(): str { \"before ${value} after\" }",
+            ParseGoal::V2CoreUnit
+        )
+        .has_errors()
+    );
+}

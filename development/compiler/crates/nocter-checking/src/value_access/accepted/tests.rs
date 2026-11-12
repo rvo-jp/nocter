@@ -337,3 +337,4 @@ mod indexed_transfers;
 
 mod fallible_values;
 mod optional_values;
+mod text_values;

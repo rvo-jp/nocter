@@ -10,7 +10,7 @@ impl Storage {
         if data.composite() {
             return Err(Rule::InvalidPlan);
         }
-        let allocation = self.items(0)?;
+        let allocation = self.items(data.storage_items()?)?;
         Ok(Value {
             node: Some(Arc::new(Node {
                 data,

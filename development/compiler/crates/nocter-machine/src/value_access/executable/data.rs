@@ -1,7 +1,9 @@
 //! Serialize established literal DAGs with the common stored layout and byte-order authority.
 use super::Failure;
 use crate::identity::MachineId;
-use crate::{MachineData, MachineDataId, MachineDataTable, MachineLayoutPlan};
+use crate::{
+    MachineData, MachineDataId, MachineDataRelocation, MachineDataTable, MachineLayoutPlan,
+};
 use nocter_model::{FrozenData, TypeId};
 use nocter_runtime_contract::RuntimeEnvironment;
 use std::collections::{BTreeMap, HashMap};
@@ -11,6 +13,7 @@ pub(super) struct Data {
     values: Vec<MachineData>,
     statics: BTreeMap<nocter_model::ValueStatic, MachineDataId>,
     ids: HashMap<(TypeId, FrozenData), MachineDataId>,
+    texts: BTreeMap<Box<str>, MachineDataId>,
     remaining: usize,
 }
 impl Data {
@@ -22,6 +25,7 @@ impl Data {
             values: Vec::new(),
             statics: BTreeMap::new(),
             ids: HashMap::new(),
+            texts: BTreeMap::new(),
             remaining: 16 * 1024 * 1024,
         };
         for (&id, source) in program.statics() {
@@ -80,12 +84,42 @@ impl Data {
             .try_reserve_exact(size)
             .map_err(|_| Failure::DataLimit(ty))?;
         bytes.resize(size, 0);
-        encoding::write(runtime, layouts, ty, value, &mut bytes)?;
+        let mut relocations = Vec::new();
+        encoding::write(runtime, layouts, ty, value, &mut bytes, |offset, text| {
+            let target = self.text(ty, text)?;
+            relocations.push(MachineDataRelocation::new(offset, target));
+            Ok(())
+        })?;
+        relocations.sort_unstable_by_key(|relocation| relocation.offset());
         let id = MachineDataId::new(self.values.len());
-        self.values.push(MachineData::literal(
+        self.values.push(MachineData::relocated(
             bytes.into_boxed_slice(),
             layout.alignment(),
+            relocations.into_boxed_slice(),
         ));
+        Ok(id)
+    }
+    fn text(&mut self, owner: TypeId, text: &str) -> Result<MachineDataId, Failure> {
+        if let Some(&id) = self.texts.get(text) {
+            return Ok(id);
+        }
+        let size = text.len().max(1);
+        self.remaining = self
+            .remaining
+            .checked_sub(size)
+            .ok_or(Failure::DataLimit(owner))?;
+        let mut bytes = Vec::new();
+        bytes
+            .try_reserve_exact(size)
+            .map_err(|_| Failure::DataLimit(owner))?;
+        bytes.extend_from_slice(text.as_bytes());
+        if bytes.is_empty() {
+            bytes.push(0);
+        }
+        let id = MachineDataId::new(self.values.len());
+        self.values
+            .push(MachineData::literal(bytes.into_boxed_slice(), 1));
+        self.texts.insert(text.into(), id);
         Ok(id)
     }
     pub fn global(&self, id: nocter_model::ValueStatic) -> Option<MachineDataId> {

@@ -477,3 +477,29 @@ fn mixed_prefix_and_point_fields_keep_distinct_bounds_in_finite_cleanup() {
     }
     assert_eq!(counts[0], counts[1]);
 }
+
+#[test]
+fn text_values_serialize_decoded_bytes_and_relocations_inside_ordinary_aggregates() {
+    let text = "夜\0line";
+    let program = compile(
+        "struct Message { text: str\nnumber: i32 }\nstatic LEFT: Message = Message { text: \"夜\\0line\", number: 42 }\nstatic RIGHT: Message = Message { text: \"夜\\0line\", number: 0 }\nfunc read(value: Message): i32 { value.number }\nfunc run(): i32 { read(LEFT) + read(RIGHT) }",
+    );
+    let owners: Vec<_> = program
+        .data()
+        .iter()
+        .filter(|(_, data)| !data.relocations().is_empty())
+        .collect();
+    assert_eq!(owners.len(), 2);
+    let target = owners[0].1.relocations()[0].target();
+    for (_, data) in owners {
+        assert_eq!(data.relocations().len(), 1);
+        assert_eq!(data.relocations()[0].target(), target);
+        assert_eq!(data.relocations()[0].offset(), 0);
+        let length: [u8; 8] = data.bytes()[8..16].try_into().unwrap();
+        assert_eq!(
+            u64::from_le_bytes(length),
+            u64::try_from(text.len()).unwrap()
+        );
+    }
+    assert_eq!(program.data().get(target).unwrap().bytes(), text.as_bytes());
+}

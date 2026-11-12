@@ -92,6 +92,16 @@ impl Checker<'_, '_> {
                 self.absent(node, data_hint)?
             }
             NodeKind::ScalarLiteral => self.literal(node, false, hint)?,
+            NodeKind::StringExpression => {
+                let literal = self.direct(node, NodeKind::StringLiteral)?;
+                let text = nocter_syntax::decode_string_literal(self.syntax(), literal)
+                    .ok_or(Failure::InconsistentSyntax)?;
+                let value = nocter_model::FrozenData::new(vec![nocter_model::FrozenNode::Scalar(
+                    nocter_model::ConstantValue::Text(text),
+                )])
+                .map_err(|_| Failure::InconsistentSyntax)?;
+                self.constant_value(node, self.data(BuiltinType::Str), &value)?
+            }
             NodeKind::OutcomeExpression => self.outcome(node, projection, reachable)?,
             NodeKind::RecoveryExpression => self.recover_outcome(node, projection, reachable)?,
             NodeKind::UnitExpression => self.unit(node)?,

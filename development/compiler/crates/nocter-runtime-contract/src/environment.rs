@@ -73,7 +73,14 @@ fn validate_representations(
         if required && representation.is_none() {
             return Err(RuntimeEnvironmentError::MissingRepresentation(ty));
         }
-        if !required && representation.is_some() {
+        let text_value = matches!(
+            (kind, representation),
+            (
+                RuntimeType::Primitive(crate::RuntimePrimitive::Text),
+                Some(RuntimeTypeRepresentation::ValueText)
+            )
+        );
+        if !required && representation.is_some() && !text_value {
             return Err(RuntimeEnvironmentError::UnexpectedRepresentation(ty));
         }
     }
@@ -84,6 +91,9 @@ fn validate_representations(
         let kind_matches = matches!(
             (kind, representation),
             (
+                RuntimeType::Primitive(crate::RuntimePrimitive::Text),
+                RuntimeTypeRepresentation::ValueText
+            ) | (
                 RuntimeType::Aggregate,
                 RuntimeTypeRepresentation::Struct { .. }
                     | RuntimeTypeRepresentation::ValueAggregate { .. }
@@ -110,6 +120,7 @@ fn validate_representation(
     representation: &RuntimeTypeRepresentation,
 ) -> Result<(), RuntimeEnvironmentError> {
     match representation {
+        RuntimeTypeRepresentation::ValueText => {}
         RuntimeTypeRepresentation::ValueAggregate { fields } => {
             let mut identities = BTreeSet::new();
             for field in fields {
@@ -215,6 +226,41 @@ mod tests {
         RuntimeTypeRepresentation, RuntimeTypeRepresentationTable, RuntimeTypeTableBuilder,
         RuntimeValueFieldRepresentation,
     };
+
+    #[test]
+    fn stored_text_representation_requires_the_exact_text_identity() {
+        for primitive in [RuntimePrimitive::Text, RuntimePrimitive::Bool] {
+            let semantic = TypeStore::new();
+            let ty = semantic.builtin(BuiltinType::Str);
+            let mut types = RuntimeTypeTableBuilder::new();
+            types.insert(ty, RuntimeType::Primitive(primitive)).unwrap();
+            let types = types.finish().unwrap();
+            assert!(
+                RuntimeEnvironment::new(
+                    types.clone(),
+                    RuntimeTypeRepresentationTable::default(),
+                    RuntimeAbiIdentity::Arm64DarwinV1
+                )
+                .is_ok()
+            );
+            let result = RuntimeEnvironment::new(
+                types,
+                RuntimeTypeRepresentationTable::new(std::collections::BTreeMap::from([(
+                    ty,
+                    RuntimeTypeRepresentation::ValueText,
+                )])),
+                RuntimeAbiIdentity::Arm64DarwinV1,
+            );
+            if primitive == RuntimePrimitive::Text {
+                assert!(result.is_ok());
+            } else {
+                assert_eq!(
+                    result.unwrap_err(),
+                    RuntimeEnvironmentError::UnexpectedRepresentation(ty)
+                );
+            }
+        }
+    }
 
     #[test]
     fn aggregate_runtime_types_require_one_representation() {

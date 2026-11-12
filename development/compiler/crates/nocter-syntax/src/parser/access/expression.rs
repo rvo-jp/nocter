@@ -239,6 +239,10 @@ fn primary(parser: &mut Parser<'_>, allow_braces: bool) -> Expression {
             parser.bump();
             NodeKind::ScalarLiteral
         }
+        TokenKind::StringStart(_) => {
+            super::super::root::string_literal(parser);
+            NodeKind::StringExpression
+        }
         _ => {
             // Leave statement/delimiter boundaries to their owner, including a missing operand.
             if matches!(

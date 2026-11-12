@@ -379,7 +379,7 @@ pub(super) fn builtin_copyable(data: BuiltinType) -> Option<bool> {
         {
             Some(true)
         }
-        BuiltinType::Error => Some(false),
+        BuiltinType::Error | BuiltinType::Str => Some(false),
         _ => None,
     }
 }

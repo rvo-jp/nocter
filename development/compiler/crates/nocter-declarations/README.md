@@ -127,7 +127,7 @@ enumeration belongs to this same authority, independently of source projection a
 
 `value_access::data` owns closed data-name resolution, TypeId projection and Copy queries over
 one privately owned type authority. Callable metadata headers admit `bool`, the intrinsic integer catalog, `void`, opaque move-only
-`error`, closed nominal records, structural tuples, optional/fallible layers and closed array descriptors, plus flat callable
+`error`, program-extent text descriptors, closed nominal records, structural tuples, optional/fallible layers and closed array descriptors, plus flat callable
 input/result contracts.
 Construction-time
 `ValueDefinition` slots share data or callable normalization. `DataReference` composes named
@@ -140,6 +140,9 @@ metadata. A tuple/array component begins its own chain. Body construction, witne
 and canonical replay retain these constructors in the same type authority. The
 [checking outcome path](../nocter-checking/README.md#outcome-values) owns qualified source operations;
 schema admission alone does not establish evaluator error graphs or executed failure cleanup.
+The admitted `str` domain grants no Copy proof. Its current producers have immutable
+program-extent UTF-8 backing; general string owners and externally dependent text views need
+their own qualified payload contracts.
 Optional layers reuse the model type authority and retain positive payload containment/Copy
 requirements even when an actual value is absent. Array lengths are already
 normalized u64 target-usize values, not source expressions or symbolic guesses. One iterative

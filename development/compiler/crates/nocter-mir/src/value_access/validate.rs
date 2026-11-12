@@ -709,6 +709,13 @@ impl Context<'_> {
                     Some(RuntimeType::Optional(_)),
                 ) => {}
                 (
+                    FrozenNode::Scalar(ConstantValue::Text(_)),
+                    Some(RuntimeType::Primitive(RuntimePrimitive::Text)),
+                ) => self.require(
+                    self.program.runtime.type_representations().get(data)
+                        == Some(&RuntimeTypeRepresentation::ValueText),
+                )?,
+                (
                     FrozenNode::Scalar(ConstantValue::Integer(value)),
                     Some(RuntimeType::Primitive(_)),
                 ) if self.integer_literal(data, *value) => {}

@@ -17,6 +17,9 @@ pub struct MachineDataRelocation {
 }
 
 impl MachineDataRelocation {
+    pub(crate) const fn new(offset: u64, target: MachineDataId) -> Self {
+        Self { offset, target }
+    }
     #[must_use]
     pub const fn offset(self) -> u64 {
         self.offset
@@ -37,12 +40,19 @@ pub struct MachineData {
 }
 
 impl MachineData {
-    pub(crate) fn literal(bytes: Box<[u8]>, alignment: u64) -> Self {
+    pub(crate) fn relocated(
+        bytes: Box<[u8]>,
+        alignment: u64,
+        relocations: Box<[MachineDataRelocation]>,
+    ) -> Self {
         Self {
             bytes,
             alignment,
-            relocations: Box::new([]),
+            relocations,
         }
+    }
+    pub(crate) fn literal(bytes: Box<[u8]>, alignment: u64) -> Self {
+        Self::relocated(bytes, alignment, Box::new([]))
     }
     #[must_use]
     pub const fn bytes(&self) -> &[u8] {
@@ -326,13 +336,7 @@ fn encode_frozen(
             let bits = scalar_bits(value).ok_or(MachineProgramError::InvalidStaticData(owner))?;
             write_integer(bytes, offset, bits, layout.size(), target, owner)
         }
-        (
-            FrozenValue::Scalar(ConstantValue::Text(text)),
-            MachineLayoutKind::View {
-                pointer_offset,
-                length_offset,
-            },
-        ) => {
+        (FrozenValue::Scalar(ConstantValue::Text(text)), view @ MachineLayoutKind::View { .. }) => {
             let Some(RuntimeType::Borrow { referent, .. }) = program.types().get(ty) else {
                 return Err(MachineProgramError::InvalidStaticData(owner));
             };
@@ -342,20 +346,8 @@ fn encode_frozen(
             ) {
                 return Err(MachineProgramError::InvalidStaticData(owner));
             }
-            let pointer = offset
-                .checked_add(*pointer_offset)
+            let pointer = text_descriptor(bytes, offset, text, view, target)
                 .ok_or(MachineProgramError::InvalidStaticData(owner))?;
-            let length = offset
-                .checked_add(*length_offset)
-                .ok_or(MachineProgramError::InvalidStaticData(owner))?;
-            write_integer(
-                bytes,
-                length,
-                text.len() as u128,
-                target.word_size(),
-                target,
-                owner,
-            )?;
             relocations.push((pointer, text.clone()));
             Ok(())
         }
@@ -509,4 +501,32 @@ pub(crate) fn scalar_bits(value: &ConstantValue) -> Option<u128> {
         ConstantValue::Integer(value) => value.cast_unsigned(),
         ConstantValue::Text(_) => return None,
     })
+}
+
+/// Write a text descriptor before the image writer applies its backing relocation.
+pub(crate) fn text_descriptor(
+    bytes: &mut [u8],
+    offset: u64,
+    text: &str,
+    layout: &MachineLayoutKind,
+    target: MachineTarget,
+) -> Option<u64> {
+    let MachineLayoutKind::View {
+        pointer_offset,
+        length_offset,
+    } = layout
+    else {
+        return None;
+    };
+    let pointer = offset.checked_add(*pointer_offset)?;
+    let length = offset.checked_add(*length_offset)?;
+    write_integer_bytes(bytes, pointer, 0, target.pointer_size(), target)?;
+    write_integer_bytes(
+        bytes,
+        length,
+        text.len() as u128,
+        target.word_size(),
+        target,
+    )?;
+    Some(pointer)
 }

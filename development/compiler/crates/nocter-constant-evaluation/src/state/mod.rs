@@ -26,6 +26,8 @@ pub enum Type {
         environment: usize,
     },
     Bool,
+    /// A descriptor of immutable program-extent UTF-8, with no writable components.
+    Text,
     Integer(nocter_model::BuiltinType),
     Optional(usize),
     Record(Box<[usize]>),
@@ -75,6 +77,7 @@ impl Type {
                 Some(Self::Integer(data))
             }
             nocter_model::BuiltinType::Void => Some(Self::Unit),
+            nocter_model::BuiltinType::Str => Some(Self::Text),
             _ => None,
         }
     }

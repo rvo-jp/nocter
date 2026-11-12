@@ -113,6 +113,13 @@ padding, signed bytes and zero-size components follow those layouts. No source i
 constant evaluation runs here. A literal use loads immutable backing into its own ordinary value
 storage, preserving independent mutation without a source Copy requirement.
 
+Private program-extent text uses the explicit `ValueText` representation and the common
+pointer/byte-length view geometry. Both static encoders share descriptor byte encoding. The
+private catalog interns only actually serialized character backing by content and retains explicit
+data-to-data relocations, including nested text fields and embedded zeros. Empty text receives
+minimal physical backing; distinct static descriptor objects retain their own identities. Text
+backing counts against the same serialized-byte budget before allocation.
+
 The private catalog shares equal type/graph keys in deterministic body/action order. It bounds
 total serialized bytes before allocation and reports `ExecutableFailure::DataLimit`, including
 allocation refusal. The current byte budget is owned by its constructor. Zero-size subgraphs are

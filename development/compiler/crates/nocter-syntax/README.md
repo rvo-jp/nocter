@@ -42,6 +42,8 @@ package or discovery code. It does not resolve names or apply semantic rules.
   Contextual `none` and one postfix `?` or `!` use this same
   private goal. Lowest-precedence `otherwise` and named/discard `catch` clauses retain ordinary blocks and chain in source
   order. `throw` requires an operand under ordinary incomplete-statement newline rules.
+  Plain single/multiline strings use the shared literal recognizer and lossless string node.
+  Interpolation has no fallback into the released expression grammar.
   Array lists, repetitions and joint bracket indexing retain distinct nodes in the same goal.
   `array_repetition_parts` supplies the seed/count source roles to lowering and checking without
   interpreting either expression. Delimiter-owned newlines and nesting limits apply equally to

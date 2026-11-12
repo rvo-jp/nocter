@@ -779,3 +779,13 @@ fn private_fallible_recovery_success_keeps_handlers_lazy_and_projects_original_s
     let package = TempPackage::new();
     execute_native_status(&compile(source), &package.0, "fallible-recovery", 42);
 }
+
+#[test]
+fn private_text_values_preserve_static_backing_and_value_input_transport() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/text-values.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "text-values", 42);
+}

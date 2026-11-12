@@ -79,6 +79,7 @@ pub(super) fn write(
     ty: TypeId,
     value: &FrozenData,
     bytes: &mut [u8],
+    mut text_pointer: impl FnMut(u64, &str) -> Result<(), Failure>,
 ) -> Result<(), Failure> {
     let target = MachineTarget::select(runtime.abi());
     let mut pending = vec![Work::Value(ty, value.root(), 0)];
@@ -138,6 +139,13 @@ pub(super) fn write(
                 }
             }
             FrozenNode::Scalar(value) => {
+                if let nocter_model::ConstantValue::Text(text) = value {
+                    let pointer =
+                        crate::data::text_descriptor(bytes, offset, text, layout.kind(), target)
+                            .ok_or(Failure::InvalidRoot)?;
+                    text_pointer(pointer, text)?;
+                    continue;
+                }
                 let bits = crate::data::scalar_bits(value).ok_or(Failure::InvalidRoot)?;
                 crate::data::write_integer_bytes(bytes, offset, bits, layout.size(), target)
                     .ok_or(Failure::InvalidRoot)?;

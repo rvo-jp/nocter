@@ -24,6 +24,7 @@ impl Value {
                 Data::Unit => FrozenNode::Unit,
                 Data::Bool(value) => FrozenNode::Scalar(ConstantValue::Bool(*value)),
                 Data::Integer(value) => FrozenNode::Scalar(ConstantValue::Integer(*value)),
+                Data::Text(text) => FrozenNode::Scalar(ConstantValue::Text(text.as_ref().into())),
                 Data::Variant { primary, payload } => FrozenNode::Variant {
                     primary: *primary,
                     payload: payload.as_ref().map(|value| ids[&value.identity()]),
@@ -83,6 +84,7 @@ impl Value {
                 ),
                 FrozenNode::Scalar(ConstantValue::Bool(value)) => Self::boolean(*value),
                 FrozenNode::Scalar(ConstantValue::Integer(value)) => Self::integer(*value),
+                FrozenNode::Scalar(ConstantValue::Text(value)) => Self::text(value.as_ref()),
                 FrozenNode::Aggregate(fields) => Self::aggregate(
                     fields
                         .iter()

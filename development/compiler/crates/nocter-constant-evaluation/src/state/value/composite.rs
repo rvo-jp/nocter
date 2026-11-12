@@ -40,6 +40,7 @@ impl Data {
     }
     pub(super) fn storage_items(&self) -> Result<usize, Rule> {
         match self {
+            Self::Text(text) => Ok(text.len()),
             Self::Aggregate(fields) => Ok(fields.len()),
             Self::Variant { payload, .. } => Ok(usize::from(payload.is_some())),
             Self::Repeated { replacements, .. } => Self::repeated_items(replacements.len()),

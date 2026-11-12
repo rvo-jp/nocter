@@ -1,0 +1,28 @@
+struct Message { text: str
+    number: i32 }
+const TEXT: str = "夜\0\n\"\\"
+const MULTILINE: str = """
+    first
+    second
+    """
+static STATIC_TEXT: str = "stored"
+const func forward(take value: str): str { value^ }
+const func observe(value: str, number: i32): i32 { number }
+const func update(edit value: str): void { value = "updated" }
+const func message(): Message { Message { text: TEXT, number: 42 } }
+const func carried(take value: Message): Message { value^ }
+const func delayed(take value: str, ignored: i32): i32 { 0 }
+const func reservation(): i32 { let value = "reserved"
+    loop { let result = delayed(value^, if true { break } else { 0 })
+        return result }
+    observe(value, 42) }
+const func work(): i32 { var text = forward(TEXT)
+    update(text)
+    let value = carried(message())
+    let closed = (text^;): i32 { observe(text, 42) }
+    let wrapped: str? = "optional"
+    let extracted = wrapped^!
+    let texts = [forward(""), forward(MULTILINE)]
+    if closed() == 42 && observe(value.text, value.number) == 42 && observe(extracted, 42) == 42 && observe(texts[0], 42) == 42 && observe(texts[1], 42) == 42 && observe(STATIC_TEXT, 42) == 42 && reservation() == 42 { 42 } else { 0 } }
+const ANSWER: i32 = work()
+func run(): i32 { if work() == ANSWER { 42 } else { 0 } }
