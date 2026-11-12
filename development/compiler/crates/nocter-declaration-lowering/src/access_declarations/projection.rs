@@ -144,6 +144,21 @@ fn details(
                 Some(records.get(&id)?.fields.get(first)?.name),
             )
         }
+        R::ParameterShadowsNamespace { .. } => (
+            DiagnosticCode::E0341,
+            "parameter shadows an authored namespace binding",
+            None,
+        ),
+        R::NameConflictsWithNamespace { .. } => (
+            DiagnosticCode::E0241,
+            "declaration name conflicts with an existing namespace binding",
+            None,
+        ),
+        R::InconsistentBindingAudience { .. } => (
+            DiagnosticCode::E0241,
+            "the same declaration name has inconsistent audience bindings",
+            None,
+        ),
         R::ParameterShadowsValue { declaration } => (
             DiagnosticCode::E0341,
             "parameter shadows an authored value declaration",

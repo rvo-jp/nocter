@@ -8,7 +8,10 @@ use crate::{
 use nocter_declarations::value_access::{DeclarationId, Namespace, Program, Reservations, ScopeId};
 use nocter_model::{BuiltinType, Symbol};
 use nocter_syntax::{ContextualSpelling, NodeId, SyntaxOrigin, SyntaxToken};
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 #[derive(Clone, Copy, Debug)]
 enum Policy {
@@ -22,6 +25,12 @@ impl Policy {
             Self::Import { node, .. } => paired.inventory.import_audience(node),
         }
     }
+    fn audience_handle(self, paired: &PairedModuleSources<'_>) -> Option<Arc<ModuleAudience>> {
+        match self {
+            Self::Declaration(raw) => paired.inventory.audiences.declaration_handle(raw),
+            Self::Import { node, .. } => paired.inventory.audiences.import_handle(node),
+        }
+    }
     fn origin(self, paired: &PairedModuleSources<'_>) -> Option<SyntaxOrigin> {
         Some(SyntaxOrigin::Token(match self {
             Self::Declaration(raw) => paired.inventory.declarations()[raw.index()].name()?,
@@ -32,7 +41,6 @@ impl Policy {
 #[derive(Debug)]
 pub(super) struct ModuleExports {
     scopes: Box<[ScopeId]>,
-    policies: Box<[BTreeMap<(Namespace, Symbol), Policy>]>,
 }
 impl ModuleExports {
     /// Prerequisites are explicit until qualified namespace and lexical block bindings are closed.
@@ -92,12 +100,7 @@ impl ModuleExports {
             .modules()
             .binary_search(module)
             .ok()?;
-        self.policies[index]
-            .get(&(namespace, name))?
-            .audience(paired)?
-            .contains(caller)
-            .then_some(())?;
-        program.declaration_in(self.scopes[index], namespace, name)
+        program.declaration_visible_from(self.scopes[index], namespace, name, caller)
     }
 }
 type ExportKey = (Namespace, Symbol);
@@ -251,23 +254,19 @@ impl<'a, 'syntax> ImportBindings<'a, 'syntax> {
             .iter()
             .map(|_| reservations.new_scope())
             .collect::<Box<[_]>>();
-        let policies = self
-            .exports
-            .into_iter()
-            .enumerate()
-            .map(|(index, names)| {
-                names
-                    .into_iter()
-                    .map(|(key, (target, policy))| {
-                        reservations
-                            .bind(scopes[index], key.1, target)
-                            .map_err(|_| integrity())?;
-                        Ok((key, policy))
-                    })
-                    .collect::<Result<BTreeMap<_, _>, ModuleSourcesFailure>>()
-            })
-            .collect::<Result<Box<[_]>, _>>()?;
-        Ok(ModuleExports { scopes, policies })
+        for (index, names) in self.exports.into_iter().enumerate() {
+            for ((_, name), (target, policy)) in names {
+                reservations
+                    .bind_export(
+                        scopes[index],
+                        name,
+                        target,
+                        policy.audience_handle(self.paired).ok_or_else(integrity)?,
+                    )
+                    .map_err(|_| integrity())?;
+            }
+        }
+        Ok(ModuleExports { scopes })
     }
 }
 

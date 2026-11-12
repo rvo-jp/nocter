@@ -27,7 +27,7 @@ pub use functions::{
     ValueDefinition,
 };
 mod namespace;
-pub use namespace::{Namespace, ScopeId};
+pub use namespace::{Namespace, QualifiedNameError, ScopeBindingError, ScopeId};
 mod publication;
 pub use publication::{HeaderFailure, HeaderPublication, HeaderStep};
 mod records;
@@ -78,6 +78,9 @@ pub enum DeclarationRule {
     DuplicateValue { first: AccessCodeId },
     DuplicateParameter { first: usize },
     ParameterShadowsValue { declaration: AccessCodeId },
+    ParameterShadowsNamespace { name: Symbol },
+    NameConflictsWithNamespace { name: Symbol },
+    InconsistentBindingAudience { name: Symbol },
     UnsupportedDataType { data: BuiltinType },
     DuplicateRecord { first: NominalTypeId },
     DuplicateField { first: usize },
@@ -315,6 +318,34 @@ impl Program {
     ) -> Option<DeclarationId> {
         self.namespace.get(scope, namespace, name)
     }
+    /// Query an outward name using its audience and an explicit original logical caller.
+    /// This grants a declaration identity, not header or value readiness.
+    #[must_use]
+    pub fn declaration_visible_from(
+        &self,
+        scope: ScopeId,
+        namespace: Namespace,
+        name: Symbol,
+        caller: &nocter_model::ModuleIdentity,
+    ) -> Option<DeclarationId> {
+        self.namespace.visible_from(scope, namespace, name, caller)
+    }
+    /// Namespace presence is a name fact, never a callable/value/type grant.
+    #[must_use]
+    pub fn has_namespace_in(&self, scope: ScopeId, name: Symbol) -> bool {
+        self.namespace.has_namespace(scope, name)
+    }
+    /// Resolve a finite qualified path while retaining the original source scope's caller module.
+    /// # Errors
+    /// Reports the failed path position; no fallback, interning or typed readiness is implied.
+    pub fn declaration_path_in(
+        &self,
+        scope: ScopeId,
+        namespace: Namespace,
+        path: &[Symbol],
+    ) -> Result<DeclarationId, QualifiedNameError> {
+        self.namespace.lookup_path(scope, namespace, path)
+    }
     #[must_use]
     pub fn has_scope(&self, scope: ScopeId) -> bool {
         self.namespace.contains_scope(scope)
@@ -463,8 +494,7 @@ struct ParameterSlot {
 #[derive(Debug)]
 pub struct Reservations {
     symbols: Arc<SymbolTable>,
-    scope_count: usize,
-    bindings: Vec<(ScopeId, Symbol, DeclarationId)>,
+    scopes: namespace::Scopes,
     codes: ArenaBuilder<AccessCodeId, Reservation>,
     parameters: ArenaBuilder<AccessParameterId, ParameterSlot>,
     records: records::Builder,
@@ -480,8 +510,7 @@ impl Reservations {
     pub fn with_symbols(symbols: Arc<SymbolTable>) -> Self {
         Self {
             symbols,
-            scope_count: 1,
-            bindings: Vec::new(),
+            scopes: namespace::Scopes::default(),
             codes: ArenaBuilder::new(),
             parameters: ArenaBuilder::new(),
             records: records::Builder::default(),
@@ -492,12 +521,7 @@ impl Reservations {
     /// # Panics
     /// Panics if the scope identity space is exhausted.
     pub fn new_scope(&mut self) -> ScopeId {
-        let scope = ScopeId::new(self.scope_count);
-        self.scope_count = self
-            .scope_count
-            .checked_add(1)
-            .expect("declaration scope domain exhausted");
-        scope
+        self.scopes.new_scope()
     }
     /// Bind an existing declaration under a name in one scope, without cloning its identity.
     /// Repeated equal bindings have set semantics. Ordinary name conflicts close at `finish`.
@@ -509,18 +533,61 @@ impl Reservations {
         name: Symbol,
         declaration: impl Into<DeclarationId>,
     ) -> Result<(), DefinitionError> {
-        let declaration = declaration.into();
+        self.bind_with_audience(scope, name, declaration.into(), None)
+    }
+    fn bind_with_audience(
+        &mut self,
+        scope: ScopeId,
+        name: Symbol,
+        declaration: DeclarationId,
+        audience: Option<Arc<nocter_model::ModuleAudience>>,
+    ) -> Result<(), DefinitionError> {
         let known = match declaration {
             DeclarationId::Code(id) => self.codes.get(id).is_some_and(|code| code.name.is_some()),
             DeclarationId::Record(id) => self.records.field_ids(id).is_some(),
         };
-        if !scope.within(self.scope_count) || !known {
+        if !self.scopes.contains(scope) || !known {
             return Err(DefinitionError::UnknownId);
         }
-        self.bindings.push((scope, name, declaration));
+        self.scopes.bind(scope, name, declaration, audience);
         Ok(())
     }
 
+    /// Bind an outward declaration under one shared normalized audience.
+    /// # Errors
+    /// Rejects unknown scopes/targets before changing construction state.
+    pub fn bind_export(
+        &mut self,
+        scope: ScopeId,
+        name: Symbol,
+        declaration: impl Into<DeclarationId>,
+        audience: Arc<nocter_model::ModuleAudience>,
+    ) -> Result<(), DefinitionError> {
+        self.bind_with_audience(scope, name, declaration.into(), Some(audience))
+    }
+    /// Associate a lookup scope with its original logical caller, independently of syntax.
+    /// # Errors
+    /// Rejects an unknown scope or a different existing module without replacement.
+    pub fn set_scope_module(
+        &mut self,
+        scope: ScopeId,
+        module: nocter_model::ModuleIdentity,
+    ) -> Result<(), ScopeBindingError> {
+        self.scopes.set_module(scope, module)
+    }
+    /// Bind a namespace path step, never a value, type, declaration or payload stand-in.
+    /// # Errors
+    /// Rejects unknown scopes/symbols, reserved builtin names and conflicting links without replacement.
+    pub fn bind_namespace(
+        &mut self,
+        scope: ScopeId,
+        name: Symbol,
+        target: ScopeId,
+        audience: Option<Arc<nocter_model::ModuleAudience>>,
+    ) -> Result<(), ScopeBindingError> {
+        self.scopes
+            .bind_namespace(&self.symbols, scope, name, target, audience)
+    }
     pub fn reserve(&mut self, name: Symbol, parameter_count: usize) -> AccessCodeId {
         self.reserve_known_scope(ScopeId::ROOT, name, parameter_count)
     }
@@ -533,7 +600,7 @@ impl Reservations {
         name: Symbol,
         parameter_count: usize,
     ) -> Result<AccessCodeId, DefinitionError> {
-        if !scope.within(self.scope_count) {
+        if !self.scopes.contains(scope) {
             return Err(DefinitionError::UnknownId);
         }
         Ok(self.reserve_known_scope(scope, name, parameter_count))
@@ -582,7 +649,7 @@ impl Reservations {
         scope: ScopeId,
         source: TypeExpressionSource,
     ) -> Result<AccessCodeId, DefinitionError> {
-        if !scope.within(self.scope_count) {
+        if !self.scopes.contains(scope) {
             return Err(DefinitionError::UnknownId);
         }
         let valid = match source.declaration {
@@ -625,7 +692,7 @@ impl Reservations {
         name: Symbol,
         field_count: usize,
     ) -> Result<NominalTypeId, DefinitionError> {
-        if !scope.within(self.scope_count) {
+        if !self.scopes.contains(scope) {
             return Err(DefinitionError::UnknownId);
         }
         Ok(self.records.reserve(scope, name, field_count))
@@ -640,8 +707,7 @@ impl Reservations {
             &self.symbols,
             &self.codes,
             &self.records,
-            self.scope_count,
-            &self.bindings,
+            self.scopes,
             &mut violations,
         );
         if !violations.is_empty() {
@@ -846,14 +912,18 @@ fn validate_parameter_names(
                     Some(DeclarationRule::DuplicateParameter { first })
                 } else {
                     seen.insert(name, position);
-                    namespace.get(scope, Namespace::Value, name).map(
-                        |declaration| match declaration {
-                            DeclarationId::Code(declaration) => {
-                                DeclarationRule::ParameterShadowsValue { declaration }
-                            }
-                            DeclarationId::Record(_) => unreachable!("value namespace"),
-                        },
-                    )
+                    if namespace.has_namespace(scope, name) {
+                        Some(DeclarationRule::ParameterShadowsNamespace { name })
+                    } else {
+                        namespace
+                            .get(scope, Namespace::Value, name)
+                            .map(|declaration| match declaration {
+                                DeclarationId::Code(declaration) => {
+                                    DeclarationRule::ParameterShadowsValue { declaration }
+                                }
+                                DeclarationId::Record(_) => unreachable!("value namespace"),
+                            })
+                    }
                 }
             }
         };

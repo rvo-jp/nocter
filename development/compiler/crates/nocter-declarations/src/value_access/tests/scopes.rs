@@ -302,3 +302,287 @@ fn scoped_code_classification_never_falls_back_to_root_or_grants_unready_callabi
         assert_eq!(program.resolve_static_in(unknown, name), None);
     }
 }
+
+struct NamespacePathFixture {
+    headers: HeaderPublication,
+    symbols: SymbolTable,
+    privileged: ScopeId,
+    unknown_caller: ScopeId,
+    data: NominalTypeId,
+    hidden: NominalTypeId,
+}
+
+fn namespace_path_fixture() -> NamespacePathFixture {
+    use nocter_model::{ModuleAudience, ModuleIdentity, PackageIdentity};
+    use std::sync::Arc;
+    let symbols = SymbolTable::from_spellings([
+        "facade", "inner", "private", "Data", "Hidden", "item", "i32",
+    ]);
+    let name = |text| symbols.get(text).unwrap();
+    let mut reservations = Reservations::new(symbols.clone());
+    let privileged = reservations.new_scope();
+    let facade = reservations.new_scope();
+    let exports = reservations.new_scope();
+    let unknown_caller = reservations.new_scope();
+    let module =
+        |path: &[&str]| ModuleIdentity::new(PackageIdentity::new("app"), path.iter().copied());
+    let restricted = Arc::new(ModuleAudience::Descendants(module(&["secret"])));
+    reservations
+        .set_scope_module(ScopeId::ROOT, module(&["client"]))
+        .unwrap();
+    reservations
+        .set_scope_module(privileged, module(&["secret"]))
+        .unwrap();
+    reservations
+        .set_scope_module(facade, module(&["secret"]))
+        .unwrap();
+    reservations
+        .set_scope_module(exports, module(&["secret"]))
+        .unwrap();
+    assert_eq!(
+        reservations.set_scope_module(ScopeId::ROOT, module(&["secret"])),
+        Err(ScopeBindingError::ConflictingModule)
+    );
+    let data = reservations
+        .reserve_record_in(privileged, name("Data"), 0)
+        .unwrap();
+    let hidden = reservations
+        .reserve_record_in(privileged, name("Hidden"), 0)
+        .unwrap();
+    reservations
+        .bind_export(
+            exports,
+            name("Data"),
+            data,
+            Arc::new(ModuleAudience::Public),
+        )
+        .unwrap();
+    reservations
+        .bind_export(exports, name("Hidden"), hidden, Arc::clone(&restricted))
+        .unwrap();
+    for scope in [ScopeId::ROOT, privileged, unknown_caller] {
+        reservations
+            .bind_namespace(scope, name("facade"), facade, None)
+            .unwrap();
+    }
+    reservations
+        .bind_namespace(facade, name("inner"), exports, None)
+        .unwrap();
+    reservations
+        .bind_namespace(
+            facade,
+            name("private"),
+            exports,
+            Some(Arc::clone(&restricted)),
+        )
+        .unwrap();
+    assert_eq!(
+        reservations.bind_namespace(ScopeId::ROOT, name("facade"), exports, None),
+        Err(ScopeBindingError::ConflictingBinding)
+    );
+    assert_eq!(
+        reservations.bind_namespace(ScopeId::new(99), name("facade"), exports, None),
+        Err(ScopeBindingError::UnknownScope)
+    );
+    assert_eq!(
+        reservations.bind_namespace(ScopeId::ROOT, name("i32"), exports, None),
+        Err(ScopeBindingError::ReservedBuiltinName)
+    );
+    reservations
+        .bind_namespace(
+            ScopeId::ROOT,
+            name("facade"),
+            facade,
+            Some(Arc::new(ModuleAudience::Public)),
+        )
+        .unwrap();
+    assert_eq!(
+        reservations.bind_namespace(
+            ScopeId::ROOT,
+            name("facade"),
+            facade,
+            Some(Arc::clone(&restricted))
+        ),
+        Err(ScopeBindingError::ConflictingBinding)
+    );
+    NamespacePathFixture {
+        headers: reservations.finish().unwrap().into_publication(),
+        symbols,
+        privileged,
+        unknown_caller,
+        data,
+        hidden,
+    }
+}
+
+#[test]
+fn namespace_paths_preserve_the_original_caller_and_never_create_a_value_or_type() {
+    let NamespacePathFixture {
+        headers,
+        symbols,
+        privileged,
+        unknown_caller,
+        data,
+        hidden,
+    } = namespace_path_fixture();
+    let name = |text| symbols.get(text).unwrap();
+    assert_eq!(headers.declaration_ids().count(), 2);
+    assert_eq!(headers.code_ids().count(), 0);
+    let program = headers.snapshot();
+    assert!(program.has_namespace_in(ScopeId::ROOT, name("facade")));
+    for namespace in [Namespace::Type, Namespace::Value] {
+        assert_eq!(
+            program.declaration_in(ScopeId::ROOT, namespace, name("facade")),
+            None
+        );
+    }
+    let path = |leaf| [name("facade"), name("inner"), name(leaf)];
+    assert_eq!(
+        program.declaration_path_in(ScopeId::ROOT, Namespace::Type, &path("Data")),
+        Ok(data.into())
+    );
+    assert_eq!(
+        program.declaration_path_in(ScopeId::ROOT, Namespace::Type, &path("Hidden")),
+        Err(QualifiedNameError::Inaccessible { position: 2 })
+    );
+    assert_eq!(
+        program.declaration_path_in(privileged, Namespace::Type, &path("Hidden")),
+        Ok(hidden.into())
+    );
+    assert_eq!(
+        program.declaration_path_in(unknown_caller, Namespace::Type, &path("Hidden")),
+        Err(QualifiedNameError::Inaccessible { position: 2 })
+    );
+    assert_eq!(
+        program.declaration_path_in(
+            ScopeId::ROOT,
+            Namespace::Type,
+            &[name("facade"), name("private"), name("Data")]
+        ),
+        Err(QualifiedNameError::Inaccessible { position: 1 })
+    );
+    assert_eq!(
+        program.declaration_path_in(ScopeId::ROOT, Namespace::Type, &[]),
+        Err(QualifiedNameError::EmptyPath)
+    );
+    assert_eq!(
+        program.declaration_path_in(ScopeId::new(99), Namespace::Type, &path("Data")),
+        Err(QualifiedNameError::UnknownScope)
+    );
+    assert_eq!(
+        program.declaration_path_in(ScopeId::ROOT, Namespace::Value, &path("Data")),
+        Err(QualifiedNameError::UnknownDeclaration { position: 2 })
+    );
+    assert_eq!(
+        program.declaration_path_in(
+            ScopeId::ROOT,
+            Namespace::Type,
+            &[name("item"), name("Data")]
+        ),
+        Err(QualifiedNameError::UnknownNamespace { position: 0 })
+    );
+    assert!(!program.header_ready(data));
+    assert_eq!(program.records().len(), 0);
+}
+
+#[test]
+fn namespace_bindings_reject_typed_name_collisions_and_conflicting_export_audiences() {
+    use nocter_model::ModuleAudience;
+    use std::sync::Arc;
+    for record in [false, true] {
+        let symbols = SymbolTable::from_spellings(["item"]);
+        let name = symbols.get("item").unwrap();
+        let mut reservations = Reservations::new(symbols);
+        let exported = reservations.new_scope();
+        let id: DeclarationId = if record {
+            reservations.reserve_record(name, 0).into()
+        } else {
+            reservations.reserve(name, 0).into()
+        };
+        reservations
+            .bind_namespace(ScopeId::ROOT, name, exported, None)
+            .unwrap();
+        let errors = reservations.finish().unwrap_err();
+        assert!(errors.iter().any(|error| error.declaration == id
+            && error.rule == DeclarationRule::NameConflictsWithNamespace { name }));
+    }
+    let symbols = SymbolTable::from_spellings(["item"]);
+    let name = symbols.get("item").unwrap();
+    let mut reservations = Reservations::new(symbols);
+    let exports = reservations.new_scope();
+    let item = reservations.reserve(name, 0);
+    reservations
+        .bind_export(
+            exports,
+            name,
+            item,
+            Arc::new(ModuleAudience::Package(nocter_model::PackageIdentity::new(
+                "app",
+            ))),
+        )
+        .unwrap();
+    reservations.bind(exports, name, item).unwrap();
+    assert!(
+        reservations
+            .finish()
+            .unwrap_err()
+            .iter()
+            .any(|error| error.rule == DeclarationRule::InconsistentBindingAudience { name })
+    );
+}
+
+#[test]
+fn namespace_parameter_collisions_and_finite_cyclic_paths_share_the_closed_name_authority() {
+    let symbols = SymbolTable::from_spellings(["run", "module", "Data"]);
+    let name = |text| symbols.get(text).unwrap();
+    let mut reservations = Reservations::new(symbols.clone());
+    let linked = reservations.new_scope();
+    let run = reservations.reserve(name("run"), 1);
+    let data = reservations
+        .reserve_record_in(linked, name("Data"), 0)
+        .unwrap();
+    reservations
+        .bind_namespace(ScopeId::ROOT, name("module"), linked, None)
+        .unwrap();
+    reservations
+        .bind_namespace(linked, name("module"), linked, None)
+        .unwrap();
+    let mut headers = reservations.finish().unwrap().into_publication();
+    assert_eq!(
+        headers
+            .snapshot()
+            .parameter_name_violations_in(ScopeId::ROOT, run, [name("module")])
+            .unwrap()[0]
+            .rule,
+        DeclarationRule::ParameterShadowsNamespace {
+            name: name("module")
+        }
+    );
+    headers
+        .define(
+            run,
+            CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            [ParameterDefinition {
+                name: name("module"),
+                data: BuiltinType::I32.into(),
+                operation: ValueInputOperation::Read,
+            }],
+            BuiltinType::I32,
+        )
+        .unwrap();
+    let super::super::HeaderFailure::Rejected(errors) = headers.publish(run).unwrap_err() else {
+        panic!("parameter collision");
+    };
+    assert!(errors.iter().any(|error| error.rule
+        == DeclarationRule::ParameterShadowsNamespace {
+            name: name("module")
+        }));
+    let program = headers.snapshot();
+    let mut path = vec![name("module"); 10_000];
+    path.push(name("Data"));
+    assert_eq!(
+        program.declaration_path_in(ScopeId::ROOT, Namespace::Type, &path),
+        Ok(data.into())
+    );
+    assert!(!program.header_ready(data));
+}

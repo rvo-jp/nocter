@@ -2,8 +2,12 @@
 use super::{
     DeclarationId, DeclarationRule, DeclarationViolation, HeaderPosition, Reservation, records,
 };
-use nocter_model::{AccessCodeId, ArenaBuilder, BuiltinType, Symbol, SymbolTable};
-use std::collections::BTreeMap;
+use nocter_model::{
+    AccessCodeId, ArenaBuilder, BuiltinType, ModuleAudience, ModuleIdentity, Symbol, SymbolTable,
+};
+use std::{collections::BTreeMap, sync::Arc};
+mod scopes;
+pub(super) use scopes::Scopes;
 
 /// Authored type and value names collide only within their own namespace.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -24,32 +28,108 @@ impl ScopeId {
         self.0 < count
     }
 }
+/// Invalid scope/name construction leaves the previous binding unchanged.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ScopeBindingError {
+    UnknownScope,
+    UnknownSymbol,
+    ReservedBuiltinName,
+    ConflictingBinding,
+    ConflictingModule,
+}
+/// A failure position in the supplied finite path, without syntax or source identities.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum QualifiedNameError {
+    UnknownScope,
+    EmptyPath,
+    UnknownNamespace { position: usize },
+    UnknownDeclaration { position: usize },
+    Inaccessible { position: usize },
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct Binding {
+    declaration: DeclarationId,
+    canonical: bool,
+    audience: Option<Arc<ModuleAudience>>,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct Qualifier {
+    target: ScopeId,
+    audience: Option<Arc<ModuleAudience>>,
+}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct Names {
     count: usize,
-    bindings: BTreeMap<(ScopeId, Namespace, Symbol), (DeclarationId, bool)>,
+    bindings: BTreeMap<(ScopeId, Namespace, Symbol), Binding>,
+    qualifiers: BTreeMap<(ScopeId, Symbol), Qualifier>,
+    modules: BTreeMap<ScopeId, ModuleIdentity>,
 }
 impl Names {
     pub fn contains_scope(&self, scope: ScopeId) -> bool {
         scope.0 < self.count
     }
     pub fn get(&self, scope: ScopeId, namespace: Namespace, name: Symbol) -> Option<DeclarationId> {
-        Some(self.bindings.get(&(scope, namespace, name))?.0)
+        Some(self.bindings.get(&(scope, namespace, name))?.declaration)
+    }
+    pub fn visible_from(
+        &self,
+        scope: ScopeId,
+        namespace: Namespace,
+        name: Symbol,
+        caller: &ModuleIdentity,
+    ) -> Option<DeclarationId> {
+        let binding = self.bindings.get(&(scope, namespace, name))?;
+        visible(binding.audience.as_deref(), Some(caller)).then_some(binding.declaration)
+    }
+    pub fn has_namespace(&self, scope: ScopeId, name: Symbol) -> bool {
+        self.qualifiers.contains_key(&(scope, name))
+    }
+    pub fn lookup_path(
+        &self,
+        scope: ScopeId,
+        namespace: Namespace,
+        path: &[Symbol],
+    ) -> Result<DeclarationId, QualifiedNameError> {
+        if !self.contains_scope(scope) {
+            return Err(QualifiedNameError::UnknownScope);
+        }
+        let Some((&name, qualifiers)) = path.split_last() else {
+            return Err(QualifiedNameError::EmptyPath);
+        };
+        let caller = self.modules.get(&scope);
+        let mut current = scope;
+        for (position, name) in qualifiers.iter().copied().enumerate() {
+            let qualifier = self
+                .qualifiers
+                .get(&(current, name))
+                .ok_or(QualifiedNameError::UnknownNamespace { position })?;
+            if !visible(qualifier.audience.as_deref(), caller) {
+                return Err(QualifiedNameError::Inaccessible { position });
+            }
+            current = qualifier.target;
+        }
+        let position = path.len() - 1;
+        let binding = self
+            .bindings
+            .get(&(current, namespace, name))
+            .ok_or(QualifiedNameError::UnknownDeclaration { position })?;
+        if !visible(binding.audience.as_deref(), caller) {
+            return Err(QualifiedNameError::Inaccessible { position });
+        }
+        Ok(binding.declaration)
     }
     pub fn values(&self) -> impl ExactSizeIterator<Item = &DeclarationId> {
-        self.bindings.values().map(|(declaration, _)| declaration)
+        self.bindings.values().map(|binding| &binding.declaration)
     }
     pub fn declarations(&self) -> impl Iterator<Item = DeclarationId> + '_ {
         self.bindings
             .values()
-            .filter_map(|&(declaration, canonical)| canonical.then_some(declaration))
+            .filter_map(|binding| binding.canonical.then_some(binding.declaration))
     }
     pub fn name(&self, declaration: DeclarationId) -> Option<Symbol> {
-        self.bindings
-            .iter()
-            .find_map(|(&(_, _, name), &(id, canonical))| {
-                (canonical && id == declaration).then_some(name)
-            })
+        self.bindings.iter().find_map(|(&(_, _, name), binding)| {
+            (binding.canonical && binding.declaration == declaration).then_some(name)
+        })
     }
 }
 
@@ -57,29 +137,39 @@ pub(super) fn close(
     symbols: &SymbolTable,
     codes: &ArenaBuilder<AccessCodeId, Reservation>,
     records: &records::Builder,
-    scope_count: usize,
-    bindings: &[(ScopeId, Symbol, DeclarationId)],
+    scopes: Scopes,
     violations: &mut Vec<DeclarationViolation>,
 ) -> Names {
     let mut namespace = BTreeMap::new();
     let names = codes
         .iter()
         .filter_map(|(id, reservation)| {
-            reservation
-                .name
-                .map(|name| (DeclarationId::Code(id), reservation.scope, name, true))
+            reservation.name.map(|name| {
+                (
+                    reservation.scope,
+                    name,
+                    Binding {
+                        declaration: DeclarationId::Code(id),
+                        canonical: true,
+                        audience: None,
+                    },
+                )
+            })
         })
-        .chain(
-            records
-                .names()
-                .map(|(id, scope, name)| (DeclarationId::Record(id), scope, name, true)),
-        )
-        .chain(
-            bindings
-                .iter()
-                .map(|&(scope, name, declaration)| (declaration, scope, name, false)),
-        );
-    for (declaration, scope, name, canonical) in names {
+        .chain(records.names().map(|(id, scope, name)| {
+            (
+                scope,
+                name,
+                Binding {
+                    declaration: DeclarationId::Record(id),
+                    canonical: true,
+                    audience: None,
+                },
+            )
+        }))
+        .chain(scopes.bindings.iter().cloned());
+    for (scope, name, binding) in names {
+        let declaration = binding.declaration;
         let kind = match declaration {
             DeclarationId::Code(_) => Namespace::Value,
             DeclarationId::Record(_) => Namespace::Type,
@@ -89,18 +179,22 @@ pub(super) fn close(
             Some(name) if BuiltinType::from_spelling(name).is_some() => {
                 Some(DeclarationRule::ReservedBuiltinName)
             }
+            Some(_) if scopes.qualifiers.contains_key(&(scope, name)) => {
+                Some(DeclarationRule::NameConflictsWithNamespace { name })
+            }
             Some(_) => match namespace.entry((scope, kind, name)) {
                 std::collections::btree_map::Entry::Vacant(entry) => {
-                    entry.insert((declaration, canonical));
+                    entry.insert(binding);
                     None
                 }
                 std::collections::btree_map::Entry::Occupied(entry)
-                    if entry.get().0 == declaration =>
+                    if entry.get().declaration == declaration =>
                 {
-                    None
+                    (!same_audience(entry.get().audience.as_deref(), binding.audience.as_deref()))
+                        .then_some(DeclarationRule::InconsistentBindingAudience { name })
                 }
                 std::collections::btree_map::Entry::Occupied(entry) => {
-                    Some(match (declaration, entry.get().0) {
+                    Some(match (declaration, entry.get().declaration) {
                         (DeclarationId::Code(_), DeclarationId::Code(first)) => {
                             DeclarationRule::DuplicateValue { first }
                         }
@@ -121,7 +215,22 @@ pub(super) fn close(
         }
     }
     Names {
-        count: scope_count,
+        count: scopes.count,
         bindings: namespace,
+        qualifiers: scopes.qualifiers,
+        modules: scopes.modules,
     }
+}
+
+fn visible(audience: Option<&ModuleAudience>, caller: Option<&ModuleIdentity>) -> bool {
+    audience.is_none_or(|audience| match audience {
+        ModuleAudience::Public => true,
+        _ => caller.is_some_and(|caller| audience.contains(caller)),
+    })
+}
+
+fn same_audience(left: Option<&ModuleAudience>, right: Option<&ModuleAudience>) -> bool {
+    let left = left.unwrap_or(&ModuleAudience::Public);
+    let right = right.unwrap_or(&ModuleAudience::Public);
+    left.is_within(right) && right.is_within(left)
 }

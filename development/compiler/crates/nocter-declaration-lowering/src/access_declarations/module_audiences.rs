@@ -7,7 +7,7 @@ use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic};
 pub use nocter_model::ModuleAudience;
 use nocter_source_index::SourceOrigin;
 use nocter_syntax::{BoundSyntax, NodeId, NodeKind, direct_node};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum VisibilityRule {
@@ -32,12 +32,12 @@ impl VisibilityDiagnostic {
 }
 #[derive(Debug)]
 pub(super) struct ModuleAudiences {
-    declarations: Box<[Option<ModuleAudience>]>,
-    imports: BTreeMap<NodeId, ModuleAudience>,
+    declarations: Box<[Option<Arc<ModuleAudience>>]>,
+    imports: BTreeMap<NodeId, Arc<ModuleAudience>>,
 }
 impl ModuleAudiences {
     pub fn prepare(surface: &DeclarationSurface<'_>) -> Result<Self, Failure> {
-        let mut declarations: Vec<Option<ModuleAudience>> =
+        let mut declarations: Vec<Option<Arc<ModuleAudience>>> =
             vec![None; surface.declarations().len()];
         for (index, declaration) in surface.declarations().iter().enumerate() {
             let source = &surface.sources()[declaration.source().index()];
@@ -69,7 +69,7 @@ impl ModuleAudiences {
             } else {
                 audience
             };
-            declarations[index] = Some(audience);
+            declarations[index] = Some(Arc::new(audience));
         }
         let mut imports = BTreeMap::new();
         for import in surface.imports() {
@@ -91,7 +91,7 @@ impl ModuleAudiences {
                 syntax,
                 direct_node(syntax.tree(), import.node(), NodeKind::Visibility),
             )?;
-            imports.insert(import.node(), audience);
+            imports.insert(import.node(), Arc::new(audience));
         }
         Ok(Self {
             declarations: declarations.into(),
@@ -99,10 +99,16 @@ impl ModuleAudiences {
         })
     }
     pub fn declaration(&self, raw: SurfaceDeclarationId) -> Option<&ModuleAudience> {
-        self.declarations.get(raw.index())?.as_ref()
+        self.declarations.get(raw.index())?.as_deref()
+    }
+    pub fn declaration_handle(&self, raw: SurfaceDeclarationId) -> Option<Arc<ModuleAudience>> {
+        self.declarations.get(raw.index())?.clone()
+    }
+    pub fn import_handle(&self, node: NodeId) -> Option<Arc<ModuleAudience>> {
+        self.imports.get(&node).cloned()
     }
     pub fn import(&self, node: NodeId) -> Option<&ModuleAudience> {
-        self.imports.get(&node)
+        self.imports.get(&node).map(AsRef::as_ref)
     }
 }
 fn resolve(

@@ -102,6 +102,11 @@ impl<'syntax> PairedModuleSources<'syntax> {
                 }
             })
             .collect();
+        for (source, physical) in inventory.source_entries() {
+            reservations
+                .set_scope_module(scopes[source.index()], physical.module().clone())
+                .map_err(|_| integrity())?;
+        }
         let mut declarations = vec![None; inventory.declarations().len()];
         reserve_canonical(
             &self,

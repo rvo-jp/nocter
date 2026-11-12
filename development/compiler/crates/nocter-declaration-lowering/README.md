@@ -183,11 +183,13 @@ boundaries; implementation location cannot alter them. Non-root visibility direc
 `ModuleSourceBinding::exports` enumerates only authored top-level root contracts with semantic
 identities and effective audiences, never helpers made visible by `see`; this inventory alone
 proves neither completed signatures nor accepted bodies.
-Module export scopes bind original declaration identities through that same semantic namespace;
-retained policy entries refer to the owning root declaration/import rather than copying its
-audience. The temporary import plan does not survive as another semantic target table.
-`lookup_export` in scoped or sealed module contexts applies the requested caller's audience before
-querying that namespace. A scoped lookup grants no header readiness.
+Module export scopes bind original declaration identities and shared immutable audience facts
+through that same semantic namespace. The retained export projection only maps modules to their
+semantic scopes; construction-time target/policy tables do not survive as another lookup authority.
+`lookup_export` in scoped or sealed module contexts delegates audience-aware lookup to the semantic
+namespace. Source views retain the same audience objects for signature and visible-field checks,
+and supply their original logical caller module at scope construction. A scoped lookup grants no
+header readiness. Model-level namespace links do not by themselves admit qualified source syntax.
 `Context::complete_record_visible` and `record_field_visible` use the same physical source binding:
 only an own/directly seen complete definition grants the representation view. Otherwise a field
 needs an audience-qualified root field contract. Record/field identities, data schemas and field

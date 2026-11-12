@@ -120,8 +120,20 @@ The same authority serves forward header references, parameter collision checks 
 scope, and published lookup. Record schemas maintain no second global index. Explicit scoped
 lookup has no implicit root or transitive fallback. The single-source convenience methods use only
 `ScopeId::ROOT`. Reserved identities grant no schema or function-value readiness. Source inventory,
-physical visibility, contract/body contexts and import policy remain the lowering owner's work;
-this model does not derive source edges or complete v2 module integration.
+physical visibility, contract/body contexts and authored import policy remain the lowering owner's
+work. `Scopes` constructs source-independent namespace links and original caller-module facts before
+that same name closure; links allocate no code, record, payload or type. Namespace names conflict
+with authored type/value names and parameters, while type/value names remain independent.
+`bind_export` shares an immutable normalized audience with an outward declaration binding;
+`bind_namespace` can attach an audience to one path step. Invalid construction does not replace an
+existing module/link. Equivalent audience sets are equal binding requests; different audiences
+cannot silently widen an existing binding.
+`declaration_path_in` walks a finite path iteratively, retains the original caller across every
+link and checks both intermediate and final audiences. A target scope's own module never lends its
+privilege to the caller. Failed paths report their exact component position, without fallback or
+header readiness; unknown caller identity cannot pass a restricted boundary. Explicit outward
+`declaration_visible_from` uses the same audience predicate. Source path spelling, block scope,
+qualified body/type projection and ordinary v2 module admission remain separate obligations.
 
 Callable/input and record/field tables use model-owned sparse arenas. A missing entry has no data, invocation
 contract or Copy evidence; known names can still identify its required header or forbid shadowing.
