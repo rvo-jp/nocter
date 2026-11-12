@@ -113,6 +113,7 @@ impl Program {
         program.types = types
             .commit(&self.types)
             .map_err(|_| BodyTypeError::InvalidExtension)?;
+        super::containment::validate(&program)?;
         // Nominal metadata is a header fact. Body-dependent structure is never written into it.
         debug_assert!(program.preserves_headers(self));
         Ok(ResolvedBodyTypes {

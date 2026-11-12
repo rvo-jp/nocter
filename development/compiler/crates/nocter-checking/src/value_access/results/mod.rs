@@ -215,7 +215,12 @@ pub(super) fn close(
     }
     let projection = program
         .resolve_body_types(&witnesses)
-        .map_err(|_| accepted::Failure::Integrity(flow::IntegrityError::InconsistentTypedBody))?;
+        .map_err(|error| match error {
+            nocter_declarations::value_access::BodyTypeError::RecursiveEnvironment(id) => {
+                projection::recursive_environment(context, &scope, id)
+            }
+            _ => accepted::Failure::Integrity(flow::IntegrityError::InconsistentTypedBody),
+        })?;
     let program = Arc::new(projection.program().clone());
     for (&root, control) in controls {
         let query = Arc::make_mut(&mut control.typed);

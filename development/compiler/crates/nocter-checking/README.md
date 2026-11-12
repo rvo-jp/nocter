@@ -356,7 +356,9 @@ Prepared value flow establishes return anchors; declared argument types alone ca
 After deferred identity equalities are proved, the declaration owner's
 [`resolve_body_types`](../nocter-declarations/README.md#future-value-declaration-boundary)
 normalizes result/application leaves and their containing structural shapes in the same type
-authority. `results::projection` rewrites every data-bearing body slot against that one projection,
+authority, including the declaration owner's captured-environment containment check. A
+result-induced positive environment cycle projects to its defining capture expression as
+InvalidConstruction rather than becoming an integrity failure. `results::projection` rewrites every data-bearing body slot against that one projection,
 or retains a proved-unproduced application's contract. During that same traversal, `supply` freezes pending operations against
 the resolved data and source access. Unproduced supplies close explicitly without choosing Copy
 or move. `results::unproduced` rejects any reached evaluation, input preparation, forwarding,

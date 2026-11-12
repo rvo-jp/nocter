@@ -3,6 +3,36 @@ use super::Evidence;
 use crate::value_access::{Failure, Query, ir::ExpressionKind};
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 
+pub(super) fn recursive_environment(
+    context: &DeclarationContext<'_>,
+    scope: &std::collections::BTreeMap<
+        nocter_model::ValueCode,
+        &crate::value_access::flow::Control,
+    >,
+    id: nocter_model::ValueClosure,
+) -> crate::value_access::accepted::Failure {
+    for control in scope.values() {
+        let query = &control.typed;
+        for (expression, value) in query.body.expressions.iter() {
+            if matches!(value.kind, ExpressionKind::Closure { closure, .. } if closure == id) {
+                return crate::value_access::accepted::Failure::Body {
+                    callable: query.source_owner(),
+                    failure: crate::value_access::diagnostics::query_rejection(
+                        context,
+                        query,
+                        Some(expression),
+                        crate::value_access::Rule::InvalidConstruction,
+                        "callable-result resolution makes this captured environment contain itself by value",
+                    ),
+                };
+            }
+        }
+    }
+    crate::value_access::accepted::Failure::Integrity(
+        crate::value_access::flow::IntegrityError::InconsistentTypedBody,
+    )
+}
+
 pub(super) fn project(
     context: &DeclarationContext<'_>,
     query: &mut Query,

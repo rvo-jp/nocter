@@ -5,6 +5,7 @@ use nocter_model::{
     ValueCodeRoot, ValueFunctionOrigin, ValueInvocation,
 };
 use std::collections::BTreeMap;
+mod containment;
 mod resolution;
 pub use resolution::ResolvedBodyTypes;
 
@@ -13,6 +14,7 @@ pub enum BodyTypeError {
     ForeignDeclarations,
     InvalidApplication,
     InvalidExtension,
+    RecursiveEnvironment(nocter_model::ValueClosure),
 }
 
 /// Descriptor readiness is distinct from payload evidence and Copy eligibility.
@@ -92,7 +94,8 @@ impl BodyTypes {
             .map_err(|_| BodyTypeError::InvalidExtension)?;
         Ok(data)
     }
-    /// Publish one closed owned environment; it has no inferred external R/D/S.
+    /// Publish an owned environment descriptor; result identities may still need closure.
+    /// It has no inferred external R/D/S and grants no pending payload or Copy evidence.
     /// # Errors
     /// Rejects a foreign/duplicate code identity, unsupported environment or nonordinary contract data.
     pub fn closure(
@@ -104,7 +107,7 @@ impl BodyTypes {
         let ordinary = |data| ordinary_data(&self.program, data);
         if id.owner != self.owner
             || self.program.closures.contains_key(&id)
-            || !self.program.owned_payload_supported(environment)
+            || self.program.payload_readiness(environment) == PayloadReadiness::Unsupported
             || !ordinary(contract.result)
             || contract.inputs.iter().any(|input| !ordinary(input.data))
         {

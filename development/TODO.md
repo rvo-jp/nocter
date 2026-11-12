@@ -20,9 +20,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 Extend explicit owned capture environments over result-resolved callable payloads. Reuse the shared
 type/result authority and actual formation facts across lexical code. Close Copy and frozen
-func/mut/once operations without strengthening a formal contract from actual callers. Validate
-finite environment containment after substitution, including result-induced cycles and zero-array
-containment edges. Qualify nested capture/views, non-Copy retirement, required/native execution and
+func/mut/once operations without strengthening a formal contract from actual callers. Preserve the
+declaration owner's [result-induced containment proof](compiler/crates/nocter-declarations/README.md#future-value-declaration-boundary).
+Qualify nested capture/views, non-Copy retirement, required/native execution and
 source reuse. Keep unsupported formal/absent payloads locally diagnosed until their own evidence
 closes; general formal storage and outside R/D/S remain separate obligations.
 

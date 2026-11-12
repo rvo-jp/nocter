@@ -3,6 +3,7 @@ use super::super::*;
 use nocter_model::ValueInvocation;
 
 mod arrays;
+mod containment;
 mod expression_roots;
 
 #[test]
@@ -481,7 +482,7 @@ fn pending_closure_reservations_survive_child_publication_and_key_exhaustion() {
 }
 
 #[test]
-fn callable_capture_payloads_require_exact_witnesses_and_failed_publication_is_atomic() {
+fn callable_capture_descriptors_keep_pending_payloads_unproved_and_publication_atomic() {
     let (header, [root, factory, _]) = application_headers();
     let named = header
         .function_data(FunctionWitness {
@@ -513,10 +514,18 @@ fn callable_capture_payloads_require_exact_witnesses_and_failed_publication_is_a
         inputs: Box::new([]),
         result: header.data_type(BuiltinType::Void).unwrap(),
     };
+    let captured = body.closure(id, pending, contract.clone()).unwrap();
     assert_eq!(
-        body.closure(id, pending, contract.clone()),
+        body.program().payload_readiness(captured),
+        PayloadReadiness::Pending
+    );
+    assert!(!body.program().owned_payload_supported(captured));
+    assert_eq!(body.program().data_copyable(captured), Some(false));
+    assert_eq!(
+        body.closure(id, named, contract.clone()),
         Err(super::BodyTypeError::InvalidExtension)
     );
-    assert!(body.program().closure(id).is_none());
-    body.closure(id, named, contract).unwrap();
+    assert_eq!(body.program().closure(id).unwrap().environment(), pending);
+    let other = body.reserve_closure().unwrap();
+    body.closure(other, named, contract).unwrap();
 }

@@ -266,11 +266,13 @@ The same body construction authority reserves closure slots before their bodies 
 Nested checking advances that root's lexical cursor; publishing an inner schema cannot reuse a
 pending outer slot. Publication and key exhaustion preserve existing reservations. This cursor is
 discarded on freeze and supplies no runtime environment identity or ownership registry.
-That branch also publishes closed single-value closure environment schemas under lexical
+That branch also publishes owned closure environment descriptors under lexical
 owner/slot code keys. Environment, flat input/result data and inferred invocation are distinct
 schema components. `owned_payload_supported` owns the common closed payload domain for environments, tuples and arrays:
 closed builtin/record/tuple/array data and exact named/captured callable payloads. Formal and
-unresolved result/application witnesses supply no such payload evidence. Copy and recursive cleanup
+unresolved result/application witnesses supply no such payload evidence. A valid pending result
+may occur in an environment descriptor, but source admission must establish its closed payload
+before execution. Copy and recursive cleanup
 follow the actual environment schema, independently of invocation. All permitted views belong to the same body-owned key.
 Tuples and closed fixed-array descriptors use that same body construction authority, including
 within a capture body. Its array constructor takes an established element TypeId and closed
@@ -296,6 +298,13 @@ canonical authority. Its transient projection covers all source type identities 
 data slots; immutable header/nominal metadata stays unchanged. Equal normalized shapes become one
 type, including maximum-count arrays, without expanding their cardinality. Checking must project
 every body slot and discharge construction/supply obligations before executable admission.
+The same unpublished normalization checks result-induced captured-environment containment with
+the shared dependency query. Tuples, positive arrays and captured payloads retain their actual
+containment edges; zero arrays cut the element edge. Named functions contain neither their input
+nor result signatures, and the header owner retains nominal finite-containment authority. Unknown
+formal/result leaves gain no payload evidence. A positive environment cycle rejects atomically
+before publishing resolved types; empty-edge cycles remain finite and may be Copy. Query-owned
+frames and memoized shapes avoid host recursion and expansion of shared payload paths.
 
 Canonical replay validates retained ready contracts, exact namespace and sparse-table lineage, persistent
 header-prefix ancestry and each suffix's body owner. It records each body's own prefix boundary;
