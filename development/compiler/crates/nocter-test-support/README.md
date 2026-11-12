@@ -27,3 +27,7 @@ production validation on behalf of tests.
 `ValueSourceFixture` owns exact source and production private-goal syntax for value-binding tests.
 It can load the shared physical corpus through the repository-root authority. It creates no
 accepted declaration/body/unit product; integration tests must use the normal production APIs.
+
+`integer_failure_sources` supplies identical runtime-admissible arithmetic bodies to required and
+native execution tests. Its boundary inputs are fixture data, not a replacement for the numeric
+policy; consumers assert the failure at their own production boundary.

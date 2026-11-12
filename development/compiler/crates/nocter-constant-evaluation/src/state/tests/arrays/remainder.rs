@@ -83,8 +83,8 @@ fn plan(length: u64, left: u64, right: u64) -> Plan {
 
 fn types(length: u64) -> Vec<Type> {
     vec![
-        Type::I32,
-        Type::Usize,
+        Type::Integer(nocter_model::BuiltinType::I32),
+        Type::Integer(nocter_model::BuiltinType::Usize),
         Type::Record(vec![0, 0].into()),
         Type::Array { element: 2, length },
     ]

@@ -232,7 +232,7 @@ fn program(operation: Op, offered: Op) -> Result<Program, Rule> {
     };
     Program::new(
         vec![
-            Type::I32,
+            Type::Integer(nocter_model::BuiltinType::I32),
             Type::CapturedFunction {
                 code,
                 environment: 0,

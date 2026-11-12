@@ -765,7 +765,7 @@ fn runtime_type_table(
     representations: &RuntimeTypeRepresentationTable,
     runtime_storage: &nocter_runtime_contract::RuntimeStorageRegistry,
 ) -> Result<nocter_runtime_contract::RuntimeTypeTable, ExecutableProgramError> {
-    use nocter_model::{BuiltinType, TypeKind};
+    use nocter_model::TypeKind;
     use nocter_runtime_contract::{RuntimePrimitive, RuntimeType, RuntimeTypeTableBuilder};
 
     let mut table = RuntimeTypeTableBuilder::new();
@@ -782,26 +782,9 @@ fn runtime_type_table(
             continue;
         }
         let runtime = match kind {
-            TypeKind::Builtin(builtin) => RuntimeType::Primitive(match builtin {
-                BuiltinType::Bool => RuntimePrimitive::Bool,
-                BuiltinType::Char => RuntimePrimitive::Char,
-                BuiltinType::F32 => RuntimePrimitive::Float32,
-                BuiltinType::F64 => RuntimePrimitive::Float64,
-                BuiltinType::I8 => RuntimePrimitive::Signed(8),
-                BuiltinType::I16 => RuntimePrimitive::Signed(16),
-                BuiltinType::I32 => RuntimePrimitive::Signed(32),
-                BuiltinType::I64 => RuntimePrimitive::Signed(64),
-                BuiltinType::U8 => RuntimePrimitive::Unsigned(8),
-                BuiltinType::U16 => RuntimePrimitive::Unsigned(16),
-                BuiltinType::U32 => RuntimePrimitive::Unsigned(32),
-                BuiltinType::U64 => RuntimePrimitive::Unsigned(64),
-                BuiltinType::Isize => RuntimePrimitive::Isize,
-                BuiltinType::Usize => RuntimePrimitive::Usize,
-                BuiltinType::Error => RuntimePrimitive::Error,
-                BuiltinType::Str => RuntimePrimitive::Text,
-                BuiltinType::Void => RuntimePrimitive::Void,
-                BuiltinType::Never => RuntimePrimitive::Never,
-            }),
+            TypeKind::Builtin(builtin) => {
+                RuntimeType::Primitive(RuntimePrimitive::for_builtin(*builtin))
+            }
             TypeKind::Pointer(pointee) => RuntimeType::Pointer(*pointee),
             TypeKind::Borrow {
                 capability,

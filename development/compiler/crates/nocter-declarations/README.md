@@ -126,7 +126,7 @@ its parent's complete fields and local member namespace. Reserved callable and d
 enumeration belongs to this same authority, independently of source projection and readiness.
 
 `value_access::data` owns closed data-name resolution, TypeId projection and Copy queries over
-one privately owned type authority. Callable metadata headers admit `bool`, `i32`, `usize`, `void`, opaque move-only
+one privately owned type authority. Callable metadata headers admit `bool`, the intrinsic integer catalog, `void`, opaque move-only
 `error`, closed nominal records, structural tuples and closed array descriptors, plus flat callable
 input/result contracts.
 Construction-time

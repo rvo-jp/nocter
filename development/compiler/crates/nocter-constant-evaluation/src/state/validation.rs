@@ -24,7 +24,8 @@ pub(super) fn place_data(program: &Program, slots: &[super::Slot], place: &Place
             super::Projection::Index { slot, bound } => {
                 let snapshot = slots.get(*slot).ok_or(INVALID)?;
                 if snapshot.storage != Storage::Owned
-                    || program.types.get(snapshot.data) != Some(&Type::Usize)
+                    || program.types.get(snapshot.data)
+                        != Some(&Type::Integer(nocter_model::BuiltinType::Usize))
                 {
                     return Err(INVALID);
                 }
@@ -50,7 +51,7 @@ pub(super) fn value(program: &Program, data: usize, value: &Value) -> bool {
         match (program.types.get(data), value.data()) {
             (Some(Type::Unit | Type::NamedFunction(_)), Data::Unit)
             | (Some(Type::Bool), Data::Bool(_)) => {}
-            (Some(ty @ (Type::I32 | Type::Usize)), Data::Integer(value))
+            (Some(ty @ Type::Integer(_)), Data::Integer(value))
                 if ty
                     .scalar()
                     .and_then(|ty| match ty {
@@ -98,6 +99,11 @@ pub(super) fn value(program: &Program, data: usize, value: &Value) -> bool {
 }
 pub(super) fn validate(program: &Program) -> Result<()> {
     for (id, data) in program.types.iter().enumerate() {
+        if let Type::Integer(builtin) = data
+            && crate::support::integer_spec(*builtin).is_none()
+        {
+            return Err(INVALID);
+        }
         if let Type::Record(fields) = data
             && fields.iter().any(|&field| field >= id)
         {
@@ -340,11 +346,14 @@ fn operation(program: &Program, plan: &super::Plan, op: &Operation) -> Result<()
             operation,
             operand,
         } => {
-            let expected = match operation {
-                crate::CompileTimeUnaryOperation::LogicalNot => Type::Bool,
-                crate::CompileTimeUnaryOperation::Negate => Type::I32,
+            let operand_type = program.types.get(data(operand)?);
+            let valid = match operation {
+                crate::CompileTimeUnaryOperation::LogicalNot => operand_type == Some(&Type::Bool),
+                crate::CompileTimeUnaryOperation::Negate => matches!(operand_type,
+                    Some(Type::Integer(builtin)) if crate::support::integer_spec(*builtin)
+                        .is_some_and(|spec| spec.signed)),
             };
-            if program.types.get(data(operand)?) != Some(&expected) {
+            if !valid {
                 return Err(INVALID);
             }
             equal(slot(*destination)?.data, data(operand)?)
@@ -366,16 +375,14 @@ fn operation(program: &Program, plan: &super::Plan, op: &Operation) -> Result<()
                 operation,
                 crate::CompileTimeComparisonOperation::Equal
                     | crate::CompileTimeComparisonOperation::NotEqual
-            ) && !matches!(
-                program.types.get(data(left)?),
-                Some(Type::I32 | Type::Usize)
-            ) {
+            ) && !matches!(program.types.get(data(left)?), Some(Type::Integer(_)))
+            {
                 return Err(INVALID);
             }
             if program.types.get(slot(*destination)?.data) != Some(&Type::Bool)
                 || !matches!(
                     program.types.get(data(left)?),
-                    Some(Type::Bool | Type::I32 | Type::Usize)
+                    Some(Type::Bool | Type::Integer(_))
                 )
             {
                 return Err(INVALID);
@@ -406,7 +413,7 @@ fn binary_operation(
         return Err(INVALID);
     }
     let data = place(program, plan, left)?;
-    if !matches!(program.types.get(data), Some(Type::I32 | Type::Usize))
+    if !matches!(program.types.get(data), Some(Type::Integer(_)))
         || place(program, plan, right)? != data
         || place(program, plan, destination)? != data
     {
@@ -444,7 +451,8 @@ fn index_operation(
     let result = ordinary_slot(plan, destination)?;
     if (result.storage == Storage::Alias) != alias
         || result.data != *element
-        || program.types.get(place(program, plan, index)?) != Some(&Type::Usize)
+        || program.types.get(place(program, plan, index)?)
+            != Some(&Type::Integer(nocter_model::BuiltinType::Usize))
     {
         return Err(INVALID);
     }
@@ -500,7 +508,10 @@ fn bounded_array(
         .is_none_or(|slot| slot.storage != Storage::Owned)
         || plan.slots.get(endpoint).is_none_or(|slot| {
             slot.storage != Storage::Owned
-                || !matches!(program.types.get(slot.data), Some(Type::Usize))
+                || !matches!(
+                    program.types.get(slot.data),
+                    Some(Type::Integer(nocter_model::BuiltinType::Usize))
+                )
         })
     {
         return Err(INVALID);

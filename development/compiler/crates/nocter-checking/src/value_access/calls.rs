@@ -82,9 +82,9 @@ impl Checker<'_, '_> {
     ) -> Result<AccessExpressionId, Failure> {
         let kind = match (self.program().data_kind(data), value.node()) {
             (
-                Some(builtin @ (nocter_model::BuiltinType::I32 | nocter_model::BuiltinType::Usize)),
+                Some(builtin),
                 nocter_model::FrozenNode::Scalar(nocter_model::ConstantValue::Integer(value)),
-            ) => {
+            ) if self.integer_data(data) => {
                 let (min, max) = nocter_model::BuiltinNumericType::for_builtin(builtin)
                     .and_then(nocter_model::BuiltinNumericType::integer_bounds)
                     .ok_or(Failure::InconsistentSyntax)?;

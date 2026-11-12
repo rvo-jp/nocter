@@ -19,7 +19,11 @@ fn action(operation: Operation, owned: &[usize], after: Vec<Effect>) -> Action {
     }
 }
 fn types(length: u64) -> Vec<Type> {
-    vec![Type::I32, Type::Usize, Type::Array { element: 0, length }]
+    vec![
+        Type::Integer(nocter_model::BuiltinType::I32),
+        Type::Integer(nocter_model::BuiltinType::Usize),
+        Type::Array { element: 0, length },
+    ]
 }
 fn array(values: &[i32]) -> Value {
     Value::aggregate(
@@ -307,10 +311,14 @@ fn homogeneous_metadata_and_every_index_role_validate_before_execution() {
     }
     for domain in [
         types(1),
-        vec![Type::I32, Type::Usize, Type::Record(vec![0, 0].into())],
         vec![
-            Type::I32,
-            Type::Usize,
+            Type::Integer(nocter_model::BuiltinType::I32),
+            Type::Integer(nocter_model::BuiltinType::Usize),
+            Type::Record(vec![0, 0].into()),
+        ],
+        vec![
+            Type::Integer(nocter_model::BuiltinType::I32),
+            Type::Integer(nocter_model::BuiltinType::Usize),
             Type::Array {
                 element: 1,
                 length: 2,
@@ -338,7 +346,11 @@ fn homogeneous_metadata_and_every_index_role_validate_before_execution() {
             Value::repeated(Value::boolean(true), NonZeroU64::new(2).unwrap()),
         ),
         (
-            vec![Type::I32, Type::Usize, Type::Record(vec![0, 0].into())],
+            vec![
+                Type::Integer(nocter_model::BuiltinType::I32),
+                Type::Integer(nocter_model::BuiltinType::Usize),
+                Type::Record(vec![0, 0].into()),
+            ],
             Value::repeated(Value::integer(11), NonZeroU64::new(2).unwrap()),
         ),
         (
@@ -385,7 +397,7 @@ fn array_metadata_preserves_finite_containment_without_expanding_counts() {
     }
     Program::new(
         vec![
-            Type::I32,
+            Type::Integer(nocter_model::BuiltinType::I32),
             Type::Array {
                 element: 0,
                 length: u64::MAX,
@@ -752,7 +764,11 @@ fn repetition_operations_validate_the_result_shape_role_count_and_element_identi
         (types(2), 1, Storage::Auxiliary),
         (types(2), 0, Storage::Alias),
         (
-            vec![Type::I32, Type::Usize, Type::Record(vec![0, 0].into())],
+            vec![
+                Type::Integer(nocter_model::BuiltinType::I32),
+                Type::Integer(nocter_model::BuiltinType::Usize),
+                Type::Record(vec![0, 0].into()),
+            ],
             0,
             Storage::Auxiliary,
         ),

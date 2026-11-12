@@ -16,7 +16,7 @@ fn returned_values_retain_one_charge_without_charging_handle_clones() {
     let mut budget = budget(16);
     let (code, _) = super::tests::code_ids();
     let program = Program::new(
-        [Type::I32],
+        [Type::Integer(nocter_model::BuiltinType::I32)],
         BTreeMap::from([(code.into(), super::tests::literal())]),
         BTreeMap::new(),
     )
@@ -40,7 +40,7 @@ fn retained_outputs_eventually_exhaust_storage_and_failed_frames_are_reusable() 
     let mut budget = budget(16);
     let (code, _) = super::tests::code_ids();
     let program = Program::new(
-        [Type::I32],
+        [Type::Integer(nocter_model::BuiltinType::I32)],
         BTreeMap::from([(code.into(), super::tests::literal())]),
         BTreeMap::new(),
     )
@@ -198,7 +198,7 @@ fn wide_import_and_staging_fail_without_leaking_reservations() {
 #[test]
 fn closed_literal_dags_validate_and_execute_without_expanding_shared_subgraphs() {
     let (code, _) = super::tests::code_ids();
-    let mut types = vec![Type::I32];
+    let mut types = vec![Type::Integer(nocter_model::BuiltinType::I32)];
     let mut source = Value::integer(42);
     for index in 0..120 {
         types.push(Type::Record(vec![index, index].into()));
@@ -239,7 +239,7 @@ fn closed_literal_dags_validate_and_execute_without_expanding_shared_subgraphs()
 fn excessive_suspended_depth_rejects_without_overflow_or_allocating_a_frame() {
     let (code, _) = super::tests::code_ids();
     let program = Program::new(
-        [Type::I32],
+        [Type::Integer(nocter_model::BuiltinType::I32)],
         BTreeMap::from([(code.into(), super::tests::literal())]),
         BTreeMap::new(),
     )

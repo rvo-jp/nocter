@@ -18,12 +18,14 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Close scalar integer coverage against the adopted contracts and the released primitive catalog.
-First reconcile the normative integer owner with remaining builtin data, then use one target-aware
-integer policy for declarations, literal/operation typing, required evaluation, runtime storage and
-native instructions. Preserve i32 default literals, exact operand data, checked mathematical results
-and source-order snapshots. Qualify boundary values, failure paths, narrow fields/arrays and ABI
-channels through shared required/native source; do not silently inherit unspecified scalar behavior.
+Close optional values against the adopted outcome contract, starting with finite payload families
+already admitted by the common value path. Use one declaration/type authority and one tagged-value
+model for contextual construction, exact forwarding, nested none/present layers, Copy and explicit
+retirement. Extend required evaluation, frozen publication, native storage/ABI and conditional
+cleanup through shared source before claiming executable support. Preserve read/edit input
+operations and original source preparation order; an optional tag cannot manufacture ownership or
+repair an unsupported callable/dependency contract. Keep the remaining outcome propagation and
+failure obligations explicit as this source family is integrated.
 
 ## Retained Selection Closure
 

@@ -1,5 +1,5 @@
 //! Complete source arrays through the common Machine and native process.
-use super::{TempPackage, compile, execute_native_status};
+use super::{TempPackage, compile, execute_native_signal, execute_native_status};
 
 #[test]
 fn private_prefix_loops_preserve_exact_closure_call_effects() {
@@ -142,9 +142,6 @@ fn private_frozen_arrays_serialize_listed_and_sparse_repeated_storage() {
 
 #[test]
 fn private_array_bounds_trap_even_when_no_payload_is_read_or_written() {
-    use std::os::unix::fs::PermissionsExt;
-    use std::os::unix::process::ExitStatusExt;
-    use std::process::Command;
     for (name, source) in [
         (
             "array-empty-bounds",
@@ -203,14 +200,7 @@ fn private_array_bounds_trap_even_when_no_payload_is_read_or_written() {
         ),
     ] {
         let package = TempPackage::new();
-        let executable = package.0.join(name);
-        std::fs::write(&executable, compile(source).bytes()).unwrap();
-        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755)).unwrap();
-        let status = Command::new(&executable)
-            .current_dir(&package.0)
-            .status()
-            .unwrap();
-        assert_eq!(status.signal(), Some(5), "{name}: {status:?}");
+        execute_native_signal(&compile(source), &package.0, name, 5);
     }
 }
 

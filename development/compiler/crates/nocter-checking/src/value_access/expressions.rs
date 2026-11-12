@@ -188,7 +188,12 @@ impl Checker<'_, '_> {
         self.require_data(operand, data, child)?;
         let ty = value_type(data, Mode::Own).with_continuation(self.ty(operand).may_complete());
         if operation == Unary::CheckedNegate
-            && self.program().data_kind(data) == Some(BuiltinType::Usize)
+            && matches!(
+                self.program()
+                    .data_kind(data)
+                    .and_then(nocter_model::BuiltinNumericType::for_builtin),
+                Some(nocter_model::BuiltinNumericType::Integer { signed: false, .. })
+            )
         {
             // Unsigned negation uses the ordinary checked subtraction kernel, including its trap.
             let zero = self.emit(

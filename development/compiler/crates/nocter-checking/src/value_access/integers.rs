@@ -4,7 +4,7 @@ use super::{
     booleans::{self, Demand},
     checker::Checker,
 };
-use nocter_model::{AccessExpressionId, BuiltinType, TypeId, ValueAccess};
+use nocter_model::{AccessExpressionId, TypeId, ValueAccess};
 use nocter_syntax::{NodeId, NodeKind, Punctuation, TokenKind};
 impl Checker<'_, '_> {
     pub fn binary_operands(
@@ -44,10 +44,11 @@ impl Checker<'_, '_> {
         )
     }
     pub fn integer_data(&self, data: TypeId) -> bool {
-        matches!(
-            self.program().data_kind(data),
-            Some(BuiltinType::I32 | BuiltinType::Usize)
-        )
+        self.program()
+            .data_kind(data)
+            .and_then(nocter_model::BuiltinNumericType::for_builtin)
+            .and_then(nocter_model::BuiltinNumericType::integer_bounds)
+            .is_some()
     }
     pub fn integer_hint(&self, hint: Option<TypeId>) -> Option<TypeId> {
         hint.filter(|&data| self.integer_data(data))

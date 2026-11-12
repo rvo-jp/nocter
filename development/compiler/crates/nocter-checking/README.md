@@ -297,8 +297,9 @@ classification of literal-only arithmetic. Selected data constraints can flow fr
 without reevaluating an expression or converting a typed name/call. Execution and scalar snapshots
 remain left to right. Input data hints remain separate from binding operations, so a read/edit
 input does not accidentally acquire a copied or moved value. Unsigned negation freezes the same
-checked subtraction operation as zero minus the operand. i32/usize range checks use the model's
-numeric profile; the private source currently qualifies its 64-bit usize only. Header and
+checked subtraction operation as zero minus the operand. All fixed-width signed/unsigned integer
+range checks use the model's numeric profile; isize and usize retain distinct identities under the
+qualified 64-bit target profile. Header and
 [body-local array lengths](#body-local-required-expressions) use ordinary usize checking and
 required execution. [Listed array values](#array-construction) share the ordinary aggregate path.
 [Selection and complete replacement](#array-selection) use evaluated element addresses;
@@ -546,7 +547,7 @@ including callable constraints and capture environments. Array-bearing operation
 [resource](#concrete-array-resource-frontiers) owners below. A declaration schema alone does not
 qualify an executable operation; zero count does not substitute tuple or scalar behavior.
 
-Source-admitted payload evidence consumes the declaration authority's exact bool/i32/usize/void and opaque owned-error
+Source-admitted payload evidence consumes the declaration authority's exact Boolean/integer/unit and opaque owned-error
 snapshot contracts, plus qualified array/record/tuple compositions and exact
 capture-free named-function witnesses. Scalars/unit/named functions have trivial disposal; error owns graph cleanup; aggregates
 retain their own schema cleanup rather than becoming scalars.
@@ -600,7 +601,7 @@ Direct and exact named-value calls require the selected declaration's authored c
 headers close without executing bodies or proving termination; every definition must independently
 pass ordinary typing, initialization, access and resource validation.
 
-`value_access::constant` owns this bounded domain check. It admits primitive Boolean/i32/usize/unit
+`value_access::constant` owns this bounded domain check. It admits primitive Boolean/integer/unit
 operations, finite record/tuple/array payload compositions of supported data, local values, read/edit aliases,
 updates, structured control, explicit transfer, exact named values and eligible owned captured calls. Aggregate admission is independent of Copy and
 memoized by data identity rather than expanded through shared fields. `evaluation::types` is the
@@ -766,7 +767,7 @@ outer requests restart work without resetting storage. Its accounting contract b
 work/depth/storage exhaustion and unsupported final publication retain
 distinct local diagnostics. `prepare_with_limits` supplies explicit deterministic limits.
 
-Final publication admits bool, i32, usize, unit and finite closed record/tuple/fixed-array
+Final publication admits bool, the intrinsic integer catalog, unit and finite closed record/tuple/fixed-array
 compositions under the shared final-data policy. Publication uses an explicit final-data policy over the shared schema traversal, independently of temporary
 execution support and Copy. The admitted aggregate schema has no user destructors or retained
 resources. Each constant reference creates a fresh ordinary value without granting its type Copy.

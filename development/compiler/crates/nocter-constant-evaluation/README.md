@@ -68,7 +68,11 @@ its typed bodies or source. `Program::new` validates finite type/field schemas, 
 operation shapes, exact call signatures and resource references. Equal owning-state guards cannot
 select different resource phases. Initialization thunks have no inputs and cannot be ordinary call
 targets. Positional type identities retain the producer's nominal distinctions within one immutable
-table; structurally similar records do not make call edges interchangeable.
+table; structurally similar records do not make call edges interchangeable. Integer entries retain
+one exact builtin identity; the shared numeric profile owns their sign, width and bounds. The plan
+boundary rejects noninteger builtin identities even when no value or operation uses that entry.
+Unsigned negation arrives as checked zero subtraction, while signed negation retains its unary
+operation. Pointer-size entries use the qualified target profile, independently of host size.
 
 Plan tables, direct-call edges and execution sites retain a complete `ValueCode`, including lexical
 captured code. A required failure separately retains its requested initializer `ValueCodeRoot`.
@@ -84,7 +88,7 @@ source closure eligibility. Checking owns those admission and projection obligat
 `Type::builtin` owns the admitted primitive domain for the current 64-bit profile. The checker uses that same admission
 for body-domain checks. Ordered aggregate schemas compose those leaves without claiming Copy. Checking retains source
 record/tuple type distinctions while using that one evaluator shape. Schema
-projection and value validation memoize shared subgraphs rather than expanding trees. Boolean/i32/usize
+projection and value validation memoize shared subgraphs rather than expanding trees. Boolean/integer
 arithmetic delegates to the common scalar operations without a target-dependent fallback. The
 selected integer domain preserves the distinction between checked-quotient remainder in the
 published contract and direct remainder in the [adopted contract](../../../spec/language/integers.md);
@@ -296,7 +300,7 @@ shared data reserves its new node and field references before shallow cloning; d
 shared until their own path is updated. Thus scalar snapshots and independent aggregate values keep
 their semantics while sharing physical data. Returned handles keep their lease after frame
 teardown or publication. This is evaluator storage identity, not source nominal identity or a
-source comparison capability. Integer nodes carry mathematical i128 data; exact i32/usize
+source comparison capability. Integer nodes carry mathematical i128 data; exact integer
 range and operation identity come from validated slots, not from the payload or host integer size.
 
 `Program::new` validates every literal shape and each operation/call's type edges. Execution

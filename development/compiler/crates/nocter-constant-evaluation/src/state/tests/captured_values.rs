@@ -31,7 +31,7 @@ fn capture(destination: usize, source: usize) -> Effect {
 }
 fn independent_copies(owner: AccessCodeId) -> Program {
     let types = [
-        Type::I32,
+        Type::Integer(nocter_model::BuiltinType::I32),
         Type::CapturedFunction {
             code: code(owner, 0),
             environment: 0,
@@ -183,7 +183,7 @@ fn captured_schema_and_adapter_edges_preserve_code_and_environment_identity() {
             environment: 0,
         }],
         vec![
-            Type::I32,
+            Type::Integer(nocter_model::BuiltinType::I32),
             Type::CapturedFunction {
                 code: code(root, 0),
                 environment: 2,
@@ -237,8 +237,8 @@ fn captured_schema_and_adapter_edges_preserve_code_and_environment_identity() {
         assert!(matches!(
             Program::new(
                 vec![
-                    Type::I32,
-                    Type::Usize,
+                    Type::Integer(nocter_model::BuiltinType::I32),
+                    Type::Integer(nocter_model::BuiltinType::Usize),
                     Type::CapturedFunction {
                         code: code(root, 0),
                         environment: 0

@@ -1,5 +1,6 @@
-//! Target-profile usize and contextual literals use the ordinary typed/evaluator path.
+//! Exact integer data and contextual literals use the ordinary typed/evaluator path.
 use super::*;
+use crate::value_access::staged::SourceFailure;
 use nocter_constant_evaluation::state::Value as Data;
 fn constant(source: &str) -> nocter_model::FrozenData {
     let unit = accepted(source);
@@ -126,4 +127,60 @@ fn unsigned_failures_and_operand_order_reach_required_evaluation() {
         ),
         Data::integer(0).freeze()
     );
+}
+
+#[test]
+fn integer_catalog_boundaries_storage_and_call_channels_agree_in_required_execution() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/integer-values.nct"
+    ));
+    assert_eq!(constant(source), Data::integer(42).freeze());
+}
+
+#[test]
+fn integer_catalog_arithmetic_failures_are_evaluated_without_runtime_fallback() {
+    for (name, source) in nocter_test_support::integer_failure_sources() {
+        let source = format!("{source}\nconst ANSWER: i32 = calculate()");
+        let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+        let result = crate::value_access::accepted::SourceUnit::prepare(fixture.syntax());
+        assert!(
+            matches!(result, Err(SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })) if diagnostic.rule() == crate::value_access::evaluation::Rule::Execution(nocter_constant_evaluation::state::Rule::ArithmeticFailure)),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn exact_integer_data_cannot_be_changed_by_context_or_literal_magnitude() {
+    for body in [
+        "let value: i8 = 128",
+        "let value: i8 = -129",
+        "let value: u8 = -1",
+        "let value: u8 = 256",
+        "let value: u16 = 65536",
+        "let value: u32 = 4294967296",
+        "let value: i64 = 9223372036854775808",
+        "let value: u64 = 18446744073709551616",
+        "let value: isize = -9223372036854775809",
+        "let value: i8 = 1\nlet other: u8 = value",
+        "let value: u64 = 1\nlet other: usize = value",
+        "let value: i64 = 1\nlet other: isize = value",
+        "let value = 1\nlet other: i64 = value",
+        "let value: u8 = 1\nlet other: i8 = 1\nlet sum = value + other",
+        "if false { let value: i8 = 128 }",
+    ] {
+        let source = format!("func run(): void {{ {body} }}");
+        let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+        assert!(
+            matches!(
+                crate::value_access::accepted::SourceUnit::prepare(fixture.syntax()),
+                Err(SourceFailure::Checking(Failure::Body {
+                    failure: BodyFailure::Rejected(_),
+                    ..
+                }))
+            ),
+            "{source}"
+        );
+    }
 }

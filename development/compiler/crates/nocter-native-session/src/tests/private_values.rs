@@ -1,5 +1,5 @@
 //! Real private source through the common Machine, ARM64, image writer and native process.
-use super::{TempPackage, execute_native_status};
+use super::{TempPackage, execute_native_signal, execute_native_status};
 use nocter_checking::value_access::accepted::SourceUnit;
 use nocter_runtime_contract::RuntimeAbiIdentity;
 use nocter_target_program::value_access::{InstanceProgram, lifecycle};
@@ -278,10 +278,6 @@ fn private_zero_byte_values_keep_addressable_scoped_channels() {
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn private_required_arithmetic_checks_reach_native_traps() {
-    use std::os::unix::fs::PermissionsExt;
-    use std::os::unix::process::ExitStatusExt;
-    use std::process::Command;
-
     for (name, source) in [
         (
             "usize-overflow",
@@ -325,19 +321,8 @@ fn private_required_arithmetic_checks_reach_native_traps() {
         ),
     ] {
         let package = TempPackage::new();
-        let executable = package.0.join(name);
-        std::fs::write(&executable, compile(source).bytes()).unwrap();
-        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755)).unwrap();
-        let status = Command::new(&executable)
-            .current_dir(&package.0)
-            .status()
-            .unwrap();
         // Darwin reports the compiler-emitted `brk` instruction as SIGTRAP.
-        assert_eq!(
-            status.signal(),
-            Some(5),
-            "native image ended with {status:?}"
-        );
+        execute_native_signal(&compile(source), &package.0, name, 5);
     }
 }
 
@@ -579,4 +564,22 @@ fn private_adapted_callable_element_transfers_share_prefix_and_cancellation_phas
         "adapted-element-transfers",
         42,
     );
+}
+
+#[test]
+fn private_integer_catalog_preserves_boundaries_narrow_storage_and_abi() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/integer-values.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "integer-values", 42);
+}
+
+#[test]
+fn private_integer_catalog_failures_preserve_native_traps_and_evaluation_order() {
+    let package = TempPackage::new();
+    for (name, source) in nocter_test_support::integer_failure_sources() {
+        execute_native_signal(&compile(&source), &package.0, &name, 5);
+    }
 }

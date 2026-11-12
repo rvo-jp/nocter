@@ -26,8 +26,7 @@ pub enum Type {
         environment: usize,
     },
     Bool,
-    I32,
-    Usize,
+    Integer(nocter_model::BuiltinType),
     Record(Box<[usize]>),
     Array {
         element: usize,
@@ -57,12 +56,7 @@ impl Type {
     pub const fn scalar(&self) -> Option<crate::ConstantScalarType> {
         match self {
             Self::Bool => Some(crate::ConstantScalarType::Bool),
-            Self::I32 => Some(crate::ConstantScalarType::Integer(
-                nocter_model::BuiltinType::I32,
-            )),
-            Self::Usize => Some(crate::ConstantScalarType::Integer(
-                nocter_model::BuiltinType::Usize,
-            )),
+            Self::Integer(builtin) => Some(crate::ConstantScalarType::Integer(*builtin)),
             _ => None,
         }
     }
@@ -71,8 +65,13 @@ impl Type {
     pub const fn builtin(data: nocter_model::BuiltinType) -> Option<Self> {
         match data {
             nocter_model::BuiltinType::Bool => Some(Self::Bool),
-            nocter_model::BuiltinType::I32 => Some(Self::I32),
-            nocter_model::BuiltinType::Usize => Some(Self::Usize),
+            _ if matches!(
+                nocter_model::BuiltinNumericType::for_builtin(data),
+                Some(nocter_model::BuiltinNumericType::Integer { .. })
+            ) =>
+            {
+                Some(Self::Integer(data))
+            }
             nocter_model::BuiltinType::Void => Some(Self::Unit),
             _ => None,
         }

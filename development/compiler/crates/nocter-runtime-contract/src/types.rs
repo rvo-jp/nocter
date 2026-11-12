@@ -19,6 +19,56 @@ pub enum RuntimePrimitive {
     Never,
 }
 
+impl RuntimePrimitive {
+    /// The representation boundary for exact source builtin identities.
+    #[must_use]
+    pub fn for_builtin(builtin: nocter_model::BuiltinType) -> Self {
+        use nocter_model::BuiltinType;
+        match builtin {
+            BuiltinType::Bool => Self::Bool,
+            BuiltinType::Char => Self::Char,
+            BuiltinType::F32 => Self::Float32,
+            BuiltinType::F64 => Self::Float64,
+            BuiltinType::I8
+            | BuiltinType::I16
+            | BuiltinType::I32
+            | BuiltinType::I64
+            | BuiltinType::U8
+            | BuiltinType::U16
+            | BuiltinType::U32
+            | BuiltinType::U64 => {
+                let Some(nocter_model::BuiltinNumericType::Integer { bits, signed }) =
+                    nocter_model::BuiltinNumericType::for_builtin(builtin)
+                else {
+                    unreachable!("integer builtin has an integer profile")
+                };
+                if signed {
+                    Self::Signed(u16::from(bits))
+                } else {
+                    Self::Unsigned(u16::from(bits))
+                }
+            }
+            BuiltinType::Isize => Self::Isize,
+            BuiltinType::Usize => Self::Usize,
+            BuiltinType::Error => Self::Error,
+            BuiltinType::Str => Self::Text,
+            BuiltinType::Void => Self::Void,
+            BuiltinType::Never => Self::Never,
+        }
+    }
+
+    /// Integer range policy shared with source typing and constant evaluation.
+    #[must_use]
+    pub fn integer(self) -> Option<nocter_model::BuiltinNumericType> {
+        nocter_model::BuiltinType::ALL
+            .iter()
+            .copied()
+            .find(|&builtin| Self::for_builtin(builtin) == self)
+            .and_then(nocter_model::BuiltinNumericType::for_builtin)
+            .filter(|numeric| numeric.integer_bounds().is_some())
+    }
+}
+
 /// One fully concrete runtime type. Symbolic semantic forms are intentionally unrepresentable.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RuntimeType {

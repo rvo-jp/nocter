@@ -7,17 +7,17 @@ evidence. It is an adopted contract, not a compiler-support claim. The
 
 ## Core Primitive Comparisons
 
-Initial primitive `==`/`!=` compare matching `bool`, `i32`, `usize`, or `void` payloads and construct a
+Initial primitive `==`/`!=` compare matching `bool`, intrinsic integer, or `void` payloads and construct a
 Boolean value. Reading an operand does not transfer its owner. Unit equality is true and inequality
 false after evaluating both operands in source order. Do not remove their effects/access validation.
 Opaque `error` has no primitive equality. Nominal entries below do not add structural equality
 or expand this primitive domain. Other primitive families need their own adopted contracts;
 the published domain is not inherited.
 
-Matching i32 and usize operands additionally have intrinsic strict comparison by their signed
-and unsigned integer values respectively. Their contextual integer literals follow the
-[integer contract](integers.md#unsigned-size-integers-and-literal-context). Bool and unit have no
-intrinsic ordering. The derived rules below apply to both integer types;
+Matching integer operands additionally have intrinsic strict comparison by their signed
+or unsigned integer values. Their contextual integer literals follow the
+[integer contract](integers.md#pointer-size-integers-and-literal-context). Bool and unit have no
+intrinsic ordering. The derived rules below apply to all intrinsic integer types;
 their known total integer relations may justify an equivalent lowering only while preserving
 operand evaluation, access and effects. A primitive witness does not change a generic body's
 already checked input/preparation contract.

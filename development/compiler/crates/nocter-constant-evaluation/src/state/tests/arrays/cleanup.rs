@@ -127,8 +127,8 @@ fn nested_partial_elements_and_intact_intervals_share_one_retirement_frontier() 
         execute(
             plan,
             vec![
-                Type::I32,
-                Type::Usize,
+                Type::Integer(nocter_model::BuiltinType::I32),
+                Type::Integer(nocter_model::BuiltinType::Usize),
                 Type::Record(vec![0, 0].into()),
                 Type::Array {
                     element: 2,
@@ -329,8 +329,8 @@ fn retained_partial_elements_preserve_sparse_cleanup_and_recover_exhausted_budge
         for position in [0, length - 1] {
             let program = Program::new(
                 vec![
-                    Type::I32,
-                    Type::Usize,
+                    Type::Integer(nocter_model::BuiltinType::I32),
+                    Type::Integer(nocter_model::BuiltinType::Usize),
                     Type::Record(vec![0, 0].into()),
                     Type::Array { element: 2, length },
                 ],

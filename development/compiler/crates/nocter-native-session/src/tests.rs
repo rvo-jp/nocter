@@ -217,23 +217,41 @@ fn module_roots(root: &Path) -> Vec<Vec<Box<str>>> {
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-fn execute_native_status(image: &NativeImage, root: &Path, name: &str, expected: i32) {
+fn execute_native(image: &NativeImage, root: &Path, name: &str) -> std::process::ExitStatus {
     use std::os::unix::fs::PermissionsExt;
     use std::process::Command;
 
     let executable = root.join(name);
     fs::write(&executable, image.bytes()).unwrap();
     fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
-    let status = Command::new(&executable)
+    Command::new(&executable)
         .current_dir(root)
         .status()
-        .unwrap();
+        .unwrap()
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn execute_native_status(image: &NativeImage, root: &Path, name: &str, expected: i32) {
+    let status = execute_native(image, root, name);
     assert_eq!(
         status.code(),
         Some(expected),
         "native image {name} exited with {status:?}"
     );
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn execute_native_signal(image: &NativeImage, root: &Path, name: &str, expected: i32) {
+    use std::os::unix::process::ExitStatusExt;
+    let status = execute_native(image, root, name);
+    assert_eq!(
+        status.signal(),
+        Some(expected),
+        "native image {name} exited with {status:?}"
+    );
+}
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+fn execute_native_signal(_image: &NativeImage, _root: &Path, _name: &str, _expected: i32) {}
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_native_status(_image: &NativeImage, _root: &Path, _name: &str, _expected: i32) {}

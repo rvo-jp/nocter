@@ -294,25 +294,22 @@ impl Context<'_> {
     fn primitive(&self, data: TypeId, role: RuntimePrimitive) -> bool {
         self.program.runtime.types().get(data) == Some(&RuntimeType::Primitive(role))
     }
+    fn integer_type(&self, data: TypeId) -> Option<nocter_model::BuiltinNumericType> {
+        match self.program.runtime.types().get(data)? {
+            RuntimeType::Primitive(primitive) => primitive.integer(),
+            _ => None,
+        }
+    }
     fn integer(&self, data: TypeId) -> bool {
-        self.primitive(data, RuntimePrimitive::Signed(32))
-            || self.primitive(data, RuntimePrimitive::Usize)
+        self.integer_type(data).is_some()
     }
     fn integer_literal(&self, data: TypeId, value: i128) -> bool {
-        let builtin = if self.primitive(data, RuntimePrimitive::Signed(32)) {
-            nocter_model::BuiltinType::I32
-        } else if self.primitive(data, RuntimePrimitive::Usize) {
-            nocter_model::BuiltinType::Usize
-        } else {
-            return false;
-        };
-        nocter_model::BuiltinNumericType::for_builtin(builtin)
+        self.integer_type(data)
             .and_then(nocter_model::BuiltinNumericType::integer_bounds)
             .is_some_and(|(minimum, maximum)| value >= minimum && value <= maximum)
     }
     #[allow(clippy::too_many_lines)]
     fn operation(&self, operation: &Operation) -> Result<(), Failure> {
-        let integer = RuntimePrimitive::Signed(32);
         let boolean = RuntimePrimitive::Bool;
         match operation {
             Operation::BoundsTrap => Ok(()),
@@ -417,8 +414,10 @@ impl Context<'_> {
                             && *check == Check::NotRequired
                     }
                     Unary::Negate => {
-                        self.primitive(operand.data, integer)
-                            && self.primitive(destination.data, integer)
+                        matches!(
+                            self.integer_type(operand.data),
+                            Some(nocter_model::BuiltinNumericType::Integer { signed: true, .. })
+                        ) && operand.data == destination.data
                             && *check == Check::Required
                     }
                 })
@@ -667,9 +666,7 @@ impl Context<'_> {
                 ) => {}
                 (
                     FrozenNode::Scalar(ConstantValue::Integer(value)),
-                    Some(RuntimeType::Primitive(
-                        RuntimePrimitive::Signed(32) | RuntimePrimitive::Usize,
-                    )),
+                    Some(RuntimeType::Primitive(_)),
                 ) if self.integer_literal(data, *value) => {}
                 (
                     FrozenNode::Aggregate(values),

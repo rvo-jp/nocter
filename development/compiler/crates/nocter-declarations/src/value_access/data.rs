@@ -311,7 +311,13 @@ pub(super) fn supported(data: BuiltinType) -> bool {
 
 pub(super) fn builtin_copyable(data: BuiltinType) -> Option<bool> {
     match data {
-        BuiltinType::Bool | BuiltinType::I32 | BuiltinType::Usize | BuiltinType::Void => Some(true),
+        BuiltinType::Bool | BuiltinType::Void => Some(true),
+        _ if nocter_model::BuiltinNumericType::for_builtin(data)
+            .and_then(nocter_model::BuiltinNumericType::integer_bounds)
+            .is_some() =>
+        {
+            Some(true)
+        }
         BuiltinType::Error => Some(false),
         _ => None,
     }

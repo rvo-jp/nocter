@@ -1,0 +1,168 @@
+const func increment_i8(edit value: i8): i8 { value += 1
+    value }
+const func receive_i8(take value: i8): i8 { value }
+const func check_i8(): bool {
+    let low: i8 = -(128)
+    let high: i8 = 127
+    var value: i8 = 20
+    let total = value + increment_i8(value) + 1
+    let values: [i8; 2] = [low, high]
+    let repeated = [value; 2]
+    let received = receive_i8(value^)
+    low == -128 && high == 127 && low + 1 == -127 && high - 1 == 126 && high / 2 == 63 && high % 2 == 1 && total == 42 && received == 21 && values[0] == low && values[1] == high && repeated[1] == 21 && low % -1 == 0 && low / 1 == low && -(low + 1) == 127
+}
+
+const func increment_i16(edit value: i16): i16 { value += 1
+    value }
+const func receive_i16(take value: i16): i16 { value }
+const func check_i16(): bool {
+    let low: i16 = -(32768)
+    let high: i16 = 32767
+    var value: i16 = 20
+    let total = value + increment_i16(value) + 1
+    let values: [i16; 2] = [low, high]
+    let repeated = [value; 2]
+    let received = receive_i16(value^)
+    low == -32768 && high == 32767 && low + 1 == -32767 && high - 1 == 32766 && high / 2 == 16383 && high % 2 == 1 && total == 42 && received == 21 && values[0] == low && values[1] == high && repeated[1] == 21 && low % -1 == 0 && low / 1 == low && -(low + 1) == 32767
+}
+
+const func increment_i32(edit value: i32): i32 { value += 1
+    value }
+const func receive_i32(take value: i32): i32 { value }
+const func check_i32(): bool {
+    let low: i32 = -(2147483648)
+    let high: i32 = 2147483647
+    var value: i32 = 20
+    let total = value + increment_i32(value) + 1
+    let values: [i32; 2] = [low, high]
+    let repeated = [value; 2]
+    let received = receive_i32(value^)
+    low == -2147483648 && high == 2147483647 && low + 1 == -2147483647 && high - 1 == 2147483646 && high / 2 == 1073741823 && high % 2 == 1 && total == 42 && received == 21 && values[0] == low && values[1] == high && repeated[1] == 21 && low % -1 == 0 && low / 1 == low && -(low + 1) == 2147483647
+}
+
+const func increment_i64(edit value: i64): i64 { value += 1
+    value }
+const func receive_i64(take value: i64): i64 { value }
+const func check_i64(): bool {
+    let low: i64 = -(9223372036854775808)
+    let high: i64 = 9223372036854775807
+    var value: i64 = 20
+    let total = value + increment_i64(value) + 1
+    let values: [i64; 2] = [low, high]
+    let repeated = [value; 2]
+    let received = receive_i64(value^)
+    low == -9223372036854775808 && high == 9223372036854775807 && low + 1 == -9223372036854775807 && high - 1 == 9223372036854775806 && high / 2 == 4611686018427387903 && high % 2 == 1 && total == 42 && received == 21 && values[0] == low && values[1] == high && repeated[1] == 21 && low % -1 == 0 && low / 1 == low && -(low + 1) == 9223372036854775807
+}
+
+const func increment_u8(edit value: u8): u8 { value += 1
+    value }
+const func receive_u8(take value: u8): u8 { value }
+const func check_u8(): bool {
+    let low: u8 = -(0)
+    let high: u8 = 255
+    var value: u8 = 20
+    let total = value + increment_u8(value) + 1
+    let values: [u8; 2] = [low, high]
+    let repeated = [value; 2]
+    let received = receive_u8(value^)
+    low == 0 && high == 255 && low + 1 == 1 && high - 1 == 254 && high / 2 == 127 && high % 2 == 1 && total == 42 && received == 21 && values[0] == low && values[1] == high && repeated[1] == 21 && -low == 0 && high / 255 == 1
+}
+
+const func increment_u16(edit value: u16): u16 { value += 1
+    value }
+const func receive_u16(take value: u16): u16 { value }
+const func check_u16(): bool {
+    let low: u16 = -(0)
+    let high: u16 = 65535
+    var value: u16 = 20
+    let total = value + increment_u16(value) + 1
+    let values: [u16; 2] = [low, high]
+    let repeated = [value; 2]
+    let received = receive_u16(value^)
+    low == 0 && high == 65535 && low + 1 == 1 && high - 1 == 65534 && high / 2 == 32767 && high % 2 == 1 && total == 42 && received == 21 && values[0] == low && values[1] == high && repeated[1] == 21 && -low == 0 && high / 65535 == 1
+}
+
+const func increment_u32(edit value: u32): u32 { value += 1
+    value }
+const func receive_u32(take value: u32): u32 { value }
+const func check_u32(): bool {
+    let low: u32 = -(0)
+    let high: u32 = 4294967295
+    var value: u32 = 20
+    let total = value + increment_u32(value) + 1
+    let values: [u32; 2] = [low, high]
+    let repeated = [value; 2]
+    let received = receive_u32(value^)
+    low == 0 && high == 4294967295 && low + 1 == 1 && high - 1 == 4294967294 && high / 2 == 2147483647 && high % 2 == 1 && total == 42 && received == 21 && values[0] == low && values[1] == high && repeated[1] == 21 && -low == 0 && high / 4294967295 == 1
+}
+
+const func increment_u64(edit value: u64): u64 { value += 1
+    value }
+const func receive_u64(take value: u64): u64 { value }
+const func check_u64(): bool {
+    let low: u64 = -(0)
+    let high: u64 = 18446744073709551615
+    var value: u64 = 20
+    let total = value + increment_u64(value) + 1
+    let values: [u64; 2] = [low, high]
+    let repeated = [value; 2]
+    let received = receive_u64(value^)
+    low == 0 && high == 18446744073709551615 && low + 1 == 1 && high - 1 == 18446744073709551614 && high / 2 == 9223372036854775807 && high % 2 == 1 && total == 42 && received == 21 && values[0] == low && values[1] == high && repeated[1] == 21 && -low == 0 && high / 18446744073709551615 == 1
+}
+
+const func increment_isize(edit value: isize): isize { value += 1
+    value }
+const func receive_isize(take value: isize): isize { value }
+const func check_isize(): bool {
+    let low: isize = -(9223372036854775808)
+    let high: isize = 9223372036854775807
+    var value: isize = 20
+    let total = value + increment_isize(value) + 1
+    let values: [isize; 2] = [low, high]
+    let repeated = [value; 2]
+    let received = receive_isize(value^)
+    low == -9223372036854775808 && high == 9223372036854775807 && low + 1 == -9223372036854775807 && high - 1 == 9223372036854775806 && high / 2 == 4611686018427387903 && high % 2 == 1 && total == 42 && received == 21 && values[0] == low && values[1] == high && repeated[1] == 21 && low % -1 == 0 && low / 1 == low && -(low + 1) == 9223372036854775807
+}
+
+const func increment_usize(edit value: usize): usize { value += 1
+    value }
+const func receive_usize(take value: usize): usize { value }
+const func check_usize(): bool {
+    let low: usize = -(0)
+    let high: usize = 18446744073709551615
+    var value: usize = 20
+    let total = value + increment_usize(value) + 1
+    let values: [usize; 2] = [low, high]
+    let repeated = [value; 2]
+    let received = receive_usize(value^)
+    low == 0 && high == 18446744073709551615 && low + 1 == 1 && high - 1 == 18446744073709551614 && high / 2 == 9223372036854775807 && high % 2 == 1 && total == 42 && received == 21 && values[0] == low && values[1] == high && repeated[1] == 21 && -low == 0 && high / 18446744073709551615 == 1
+}
+
+copy struct Narrow { a: u8
+    b: i16
+    c: u32
+    d: i8
+    e: u16
+    f: i64
+    g: u64
+    h: isize
+    i: usize }
+const func record(value: Narrow): Narrow { value }
+const LIMITS: Narrow = Narrow { a: 255, b: -32768, c: 4294967295, d: -128, e: 65535, f: -9223372036854775808, g: 18446744073709551615, h: -9223372036854775808, i: 18446744073709551615 }
+static BOUNDS: Narrow = LIMITS
+const func check_storage(): bool {
+    let input = BOUNDS
+    var values = [record(input); 3]
+    values[1].a = 7
+    values[1].b += 1
+    values[1].c -= 1
+    values[1].d += 1
+    values[1].e -= 1
+    let copied = record(values[1])
+    let tuple = (copied.a, copied.b, copied.c, copied.d, copied.e, copied.f, copied.g, copied.h, copied.i)
+    values[0].a == 255 && values[2].b == -32768 && tuple.0 == 7 && tuple.1 == -32767 && tuple.2 == 4294967294 && tuple.3 == -127 && tuple.4 == 65534 && tuple.5 == -9223372036854775808 && tuple.6 == 18446744073709551615 && tuple.7 == -9223372036854775808 && tuple.8 == 18446744073709551615
+}
+
+const func calculate(): i32 { if check_i8() && check_i16() && check_i32() && check_i64() && check_u8() && check_u16() && check_u32() && check_u64() && check_isize() && check_usize() && check_storage() { 42 } else { 0 } }
+const ANSWER: i32 = calculate()
+func run(): i32 { if ANSWER == 42 { calculate() } else { 0 } }

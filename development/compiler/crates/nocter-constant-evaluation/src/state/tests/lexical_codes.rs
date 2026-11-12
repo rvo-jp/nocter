@@ -39,7 +39,7 @@ fn lexical_plans_do_not_alias_their_owner_or_siblings() {
     let alpha = closure(first, 0);
     let beta = closure(owner.into(), 1);
     let program = Program::new(
-        [Type::I32],
+        [Type::Integer(nocter_model::BuiltinType::I32)],
         BTreeMap::from([
             (owner.into(), number(3, true)),
             (first.code(), call(alpha, true)),
@@ -83,7 +83,7 @@ fn lexical_failure_sites_keep_the_real_call_path_and_refund_failed_frames() {
         terminator: Terminator::Jump(entry),
     });
     let program = Program::new(
-        [Type::I32],
+        [Type::Integer(nocter_model::BuiltinType::I32)],
         BTreeMap::from([
             (owner.into(), call(alpha, true)),
             (alpha, call(beta, false)),
@@ -132,7 +132,11 @@ fn lexical_calls_cannot_fall_back_to_roots_siblings_or_initializers() {
         ]),
     ] {
         assert!(matches!(
-            Program::new([Type::I32], plans, BTreeMap::new()),
+            Program::new(
+                [Type::Integer(nocter_model::BuiltinType::I32)],
+                plans,
+                BTreeMap::new()
+            ),
             Err(Rule::InvalidPlan)
         ));
     }

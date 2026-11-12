@@ -107,8 +107,12 @@ pub fn prepare(
             }
             PayloadSchema::Builtin(builtin) => match builtin {
                 BuiltinType::Bool => RuntimeType::Primitive(RuntimePrimitive::Bool),
-                BuiltinType::I32 => RuntimeType::Primitive(RuntimePrimitive::Signed(32)),
-                BuiltinType::Usize => RuntimeType::Primitive(RuntimePrimitive::Usize),
+                _ if nocter_model::BuiltinNumericType::for_builtin(builtin)
+                    .and_then(nocter_model::BuiltinNumericType::integer_bounds)
+                    .is_some() =>
+                {
+                    RuntimeType::Primitive(RuntimePrimitive::for_builtin(builtin))
+                }
                 BuiltinType::Error => RuntimeType::Primitive(RuntimePrimitive::Error),
                 BuiltinType::Void => RuntimeType::Unit,
                 _ => return Err(invalid()),

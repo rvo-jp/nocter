@@ -237,12 +237,12 @@ fn closed_cleanup(
         }
         match typed.program().data_schema(data) {
             Some(PayloadSchema::Builtin(
-                BuiltinType::Bool
-                | BuiltinType::I32
-                | BuiltinType::Usize
-                | BuiltinType::Void
-                | BuiltinType::Error,
+                BuiltinType::Bool | BuiltinType::Void | BuiltinType::Error,
             )) => {}
+            Some(PayloadSchema::Builtin(builtin))
+                if nocter_model::BuiltinNumericType::for_builtin(builtin)
+                    .and_then(nocter_model::BuiltinNumericType::integer_bounds)
+                    .is_some() => {}
             Some(PayloadSchema::Aggregate(schema)) => {
                 pending.extend(schema.components().map(|field| field.data));
             }

@@ -179,7 +179,7 @@ fn positive_counts_retain_containment_edges_and_failed_cycles_publish_no_fields(
 }
 #[test]
 fn empty_count_does_not_validate_a_bad_element_or_an_invalid_independent_declaration() {
-    for builtin in [BuiltinType::Never, BuiltinType::U8] {
+    for builtin in [BuiltinType::Never, BuiltinType::F32] {
         let symbols = SymbolTable::from_spellings(["Bad", "value"]);
         let mut reservations = Reservations::new(symbols.clone());
         let bad = reservations.reserve_record(symbols.get("Bad").unwrap(), 1);

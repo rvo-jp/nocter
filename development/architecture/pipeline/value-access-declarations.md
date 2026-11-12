@@ -453,8 +453,9 @@ value-field identities survive this boundary; they are never converted into publ
 field identities or reconstructed from names. Access operations remain separate from data shape.
 
 For the bounded private fragment, the explicitly selected runtime ABI supplies scalar and error
-handle layouts. The private usize domain uses the qualified 64-bit numeric profile and its
-explicit runtime usize role, independently of the compiler host. A stored `void` value selects a zero-byte, alignment-one runtime unit, distinct
+handle layouts. Intrinsic integers use the shared numeric profile. Pointer-size isize/usize use the qualified
+64-bit profile and distinct runtime roles, independently of the compiler host; fixed-width signed
+and unsigned values retain their own data and stored widths. A stored `void` value selects a zero-byte, alignment-one runtime unit, distinct
 from the published pipeline's completion-only runtime void. Records and tuples use
 declaration/index-order member placement with each member's alignment and final aggregate padding. Machine owns the single
 recursive layout calculation, checked size arithmetic and member correspondence for both pipeline
@@ -527,12 +528,12 @@ edge, without reconstructing an adapter or its target from types.
 
 Each action evaluates its resource guard once, performs before effects and writes, establishes
 committed call bindings, computes its selected operation, and performs after effects and writes on
-normal completion. Arithmetic computes before writing its destination and retains required i32
+normal completion. Arithmetic computes before writing its destination and retains required integer
 overflow/division checks. Operand snapshots remain before later operand effects. Comparisons may
 normalize relation/operand order only over those completed snapshots. Short-circuit behavior stays
 in the frozen graph and cannot become an eager binary operation. Branch predicates and return
 answers survive their original cleanup boundaries.
-Relational normalization uses the admitted i32 total order; it supplies no rule for floating-point
+Relational normalization uses the admitted intrinsic integer total orders; it supplies no rule for floating-point
 or user-defined comparisons.
 
 An ordinary result and an address channel remain distinct. The private computation contract does

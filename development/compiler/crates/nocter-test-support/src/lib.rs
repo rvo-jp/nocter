@@ -3,7 +3,9 @@
 use std::{path::PathBuf, sync::OnceLock};
 
 mod array_sources;
+mod integer_sources;
 pub use array_sources::RETAINED_ARRAY_SOURCES;
+pub use integer_sources::integer_failure_sources;
 mod public_examples;
 mod value_source;
 pub use value_source::ValueSourceFixture;

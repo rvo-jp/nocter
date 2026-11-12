@@ -353,7 +353,7 @@ fn record_rejections_keep_field_ownership_through_body_and_value_requests() {
         ("copy struct Bad { payload: error }", "error"),
         ("struct Bad { payload: Bad }", "Bad"),
         ("struct Bad { payload: Missing }", "Missing"),
-        ("struct Bad { payload: i64 }", "i64"),
+        ("struct Bad { payload: f32 }", "f32"),
     ] {
         let source = format!(
             "{declaration}\nconst ANSWER: i32 = if false {{ let _ = deep()\n0 }} else {{ 42 }}\nconst func deep(): Bad {{ loop {{}} }}"
@@ -391,10 +391,10 @@ fn raw_type_names_are_resolved_only_when_their_declaration_is_requested() {
             "Missing",
         ),
         (
-            "struct Invalid { value: i64 }\nconst ANSWER: i32 = 42",
+            "struct Invalid { value: f32 }\nconst ANSWER: i32 = 42",
             "Invalid",
             HeaderPosition::Field(0),
-            "i64",
+            "f32",
         ),
         (
             "func invalid(action: func(Missing): i32): void {}\nconst ANSWER: i32 = 42",
