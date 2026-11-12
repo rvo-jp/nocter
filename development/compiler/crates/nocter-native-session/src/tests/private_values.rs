@@ -129,6 +129,16 @@ fn private_const_outcomes_preserve_inactive_error_payloads_and_frozen_ownership(
 }
 
 #[test]
+fn private_owned_error_adapters_release_live_environments_and_preserve_failure_results() {
+    let machine = trusted_error_machine(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/owned-error-adapters.nct"
+    )));
+    let package = TempPackage::new();
+    execute_native_status(&image(&machine), &package.0, "owned-error-adapters", 42);
+}
+
+#[test]
 fn private_callable_value_captures_preserve_views_state_and_recursive_cleanup() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

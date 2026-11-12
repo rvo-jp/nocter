@@ -53,8 +53,8 @@ layout fields, generated operations, an arbitrary iteration cutoff or a constant
   general numeric relations among holes within one array. Keep
   unproved relations local and explicit. Do not read uninitialized alternative backing or choose
   guards from numeric equality alone; preserve actual original-index mutation and empty/MAX spans.
-- [ ] Extend actual owned-error array cleanup to remaining adapter forms and externally dependent
-  captures through the
+- [ ] Extend actual owned-error array cleanup to externally dependent captures and their
+  surviving callback results through the
   [native array consumer](compiler/crates/nocter-machine/README.md#owned-error-effects).
   Emitted/image-only cleanup is not execution of an owned error graph.
 

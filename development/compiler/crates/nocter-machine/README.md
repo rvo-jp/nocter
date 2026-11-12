@@ -351,6 +351,13 @@ the previously extracted owner; outer recovery releases the propagated error gra
 ABI carries both the indirect record outcome and direct integer outcome without reading inactive
 payload backing.
 
-These are bounded executed effects. Remaining adapter forms still need their own actual graph qualification. General user destructors
+`owned-error-adapters.nct` executes read environments forwarded through formal consuming adapters,
+read-to-update-to-once views, repeated environment replacement followed by consuming completion,
+and consuming bodies with partial record/retained-array cleanup. A fallible read body also returns
+a separate error graph: adapter cleanup releases its environment before the caller handles that
+failure. The original body invocation contract determines whether cleanup belongs to the body or
+the adapter; weakening a callable view creates no second owner.
+
+These are bounded executed effects. Outside-dependent captures, general user destructors
 and required-evaluator error graphs remain separate domains. Large-cardinality helper/image tests
 do not imply execution of correspondingly large owned graphs.

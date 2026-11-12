@@ -1,0 +1,70 @@
+primitive func create_failure(code: str, message: str): error
+primitive func context_error(take value: error, message: str): error
+
+struct Pair {
+    first: error
+    second: error
+}
+
+func make(code: str): error {
+    context_error(create_failure(code, "leaf"), "context")
+}
+func observe(value: error): void {}
+func replace(edit value: error, take next: error): void { value = next^ }
+func invoke(take action: once(): i32): i32 { action^() }
+func update(take action: once(take error): i32, take next: error): i32 {
+    action^(next^)
+}
+func forward(take action: func(): i32): i32 { invoke(action^) }
+
+func read_environment(): i32 {
+    let held = make("read")
+    let action = (held^;): i32 { observe(held)
+                               42 }
+    forward(action^)
+}
+func updated_environment(): i32 {
+    let held = make("old")
+    var action = (held^; take next: error): i32 { replace(held, next^)
+                                                42 }
+    let first = action(make("first replacement"))
+    let second = update(action^, make("second replacement"))
+    if first == 42 { second } else { 0 }
+}
+func view_chain(): i32 {
+    let held = make("weakened views")
+    let reader = (held^;): i32 { observe(held)
+                               42 }
+    var updater: mut(): i32 = reader^
+    let first = updater()
+    let finish: once(): i32 = updater^
+    let second = finish^()
+    if first == 42 { second } else { 0 }
+}
+func consumed_environment(): i32 {
+    let pair = Pair { first: make("moved field"), second: make("remaining field") }
+    let action = (pair^;): i32 { let first = pair.first^
+                               drop first
+                               42 }
+    invoke(action^)
+}
+func selected_environment(index: usize): i32 {
+    let values = [make("first"), make("second"), make("third")]
+    let action = (values^, index;): i32 { let selected = values[index]^
+                                        drop selected
+                                        42 }
+    invoke(action^)
+}
+func invoke_fallible(take action: once(): i32!): i32! { action^()? }
+func failed_environment(): i32 {
+    let held = make("retained on failure")
+    let action = (held^;): i32! { observe(held)
+                                throw make("returned failure") }
+    invoke_fallible(action^) catch reason {
+        drop reason
+        42
+    }
+}
+func run(): i32 {
+    if read_environment() == 42 && view_chain() == 42 && updated_environment() == 42 && consumed_environment() == 42 && selected_environment(0) == 42 && selected_environment(1) == 42 && selected_environment(2) == 42 && failed_environment() == 42 { 42 } else { 0 }
+}
