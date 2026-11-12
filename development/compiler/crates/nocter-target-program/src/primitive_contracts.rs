@@ -10,7 +10,7 @@ use nocter_declarations::{
 use nocter_model::{
     AllocationGuarantee, BorrowCapability, BuiltinType, CallableGuarantees, CallableId,
     CompilationTarget, GenericParameterId, NominalTypeId, NonblockingGuarantee, PackageId,
-    TrapGuarantee, TypeId, TypeKind, TypeStore,
+    TrapGuarantee, TypeId, TypeKind, TypeStore, ValueInputOperation,
 };
 use nocter_runtime_contract::{RuntimeStorageRegistry, RuntimeStorageRole};
 
@@ -481,6 +481,33 @@ fn validate_supporting_struct(
         })
 }
 
+/// Adapt the shared constructor fragment to the published type-qualified input representation.
+fn published_value_constructor(role: PrimitiveRole) -> PrimitiveContract {
+    let signature = role
+        .value_signature()
+        .expect("selected value constructor signature");
+    let parameters = signature
+        .inputs()
+        .iter()
+        .map(|input| {
+            let data = TypeContract::Builtin(input.data());
+            match input.operation() {
+                ValueInputOperation::Read => TypeContract::readonly(data),
+                ValueInputOperation::Edit => TypeContract::readwrite(data),
+                ValueInputOperation::Take => data,
+            }
+        })
+        .collect();
+    PrimitiveContract {
+        generic_count: 0,
+        parameters,
+        result: TypeContract::Builtin(signature.result()),
+        exposure: PrimitiveExposure::SourcePrivate,
+        target: None,
+        provenance_parameters: Vec::new(),
+    }
+}
+
 // This is the closed registry's declarative data table. Keeping all role-to-contract rows in one
 // exhaustive match makes review detect omissions and accidental fallthrough directly.
 #[allow(clippy::too_many_lines)]
@@ -525,22 +552,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         }
     };
     match role {
-        PrimitiveRole::NewError => make(
-            0,
-            vec![str_ref(), str_ref()],
-            builtin(BuiltinType::Error),
-            private,
-            None,
-            vec![],
-        ),
-        PrimitiveRole::ErrorContext => make(
-            0,
-            vec![builtin(BuiltinType::Error), str_ref()],
-            builtin(BuiltinType::Error),
-            private,
-            None,
-            vec![],
-        ),
+        PrimitiveRole::NewError | PrimitiveRole::ErrorContext => published_value_constructor(role),
         PrimitiveRole::ErrorCode | PrimitiveRole::ErrorMessage => make(
             0,
             vec![TypeContract::readonly(builtin(BuiltinType::Error))],

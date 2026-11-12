@@ -36,6 +36,10 @@ does not inspect syntax or repeat checking decisions.
 - Every concrete dispatch comes from checking's selected semantic authority.
 - A target-service dispatch retains the catalog-owned target, calling convention, import, and ABI
   classes; executable closure never derives them from a declaration name.
+- Error-constructor signature validation consumes the runtime contract's shared value signature.
+  Its published adapter expresses read/edit inputs as the published access-qualified type and
+  taking inputs as values. Published exposure, target and provenance checks remain here;
+  the adapter does not authorize a v2 bodyless source declaration.
 - Runtime storage is accepted only from a toolchain-selected, fieldless, unique nominal declaration
   in the standard package; its physical layout remains outside semantic representation.
 - Runtime-storage bindings are validated before primitive signatures that refer to them. An invalid

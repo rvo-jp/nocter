@@ -1294,3 +1294,10 @@ fn executable_type_representations_specialize_complete_nominal_storage() {
     }
     assert!(pair_seen && choice_seen);
 }
+
+#[test]
+fn standard_error_constructor_fixture_validates_against_shared_value_signatures() {
+    let _ = build_target_program(&Fixture::with_app(
+        "func main(): void { let failure = error.new(\"app.test\", \"message\").context(\"outer\") }",
+    ));
+}

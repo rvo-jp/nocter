@@ -16,6 +16,8 @@ public source-level imports.
 ## Internal Responsibilities
 
 - primitive role identities
+- one role-owned value input/data signature for the error-constructor fragment, independently of
+  source authorization, physical ABI, execution facts and result-origin proof
 - one exhaustive per-role runtime profile joining primitive execution facts, produced-computation
   classification, and hidden-context requirements
 - closed invocation allocation and synchronous-wait facts for primitive roles
@@ -49,6 +51,11 @@ public source-level imports.
 
 - A role has one numeric and structural authority.
 - Source spelling and visibility are not runtime identities.
+- `PrimitiveRole::value_signature` owns the shared error-constructor shape. Published target
+  validation adapts its read/take operations to the published type-qualified representation;
+  consumers must not maintain another constructor signature table. Other roles need their own
+  signature closure before entering this fragment. A descriptor alone grants no v2 source,
+  evaluator or executable primitive admission.
 - A closed operating-system role owns its syscall identity, fixed flags, and result convention in
   the target backend. Standard-library source can select the semantic role but cannot reproduce or
   override those ABI constants.
