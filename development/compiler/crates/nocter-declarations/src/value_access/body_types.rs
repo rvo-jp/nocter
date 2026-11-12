@@ -130,7 +130,7 @@ impl BodyTypes {
     /// Publish an owned environment descriptor; result identities may still need closure.
     /// It has no inferred external R/D/S and grants no pending payload or Copy evidence.
     /// # Errors
-    /// Rejects a foreign/duplicate code identity, unsupported environment or nonordinary contract data.
+    /// Rejects a foreign/duplicate code identity, unsupported environment or input/result descriptor.
     pub fn closure(
         &mut self,
         id: nocter_model::ValueClosure,
@@ -141,7 +141,11 @@ impl BodyTypes {
         if id.owner != self.owner
             || self.program.closures.contains_key(&id)
             || self.program.payload_readiness(environment) == PayloadReadiness::Unsupported
-            || !ordinary(contract.result)
+            || !(ordinary(contract.result)
+                || matches!(
+                    self.program.data_schema(contract.result),
+                    Some(super::PayloadSchema::Function(_))
+                ))
             || contract.inputs.iter().any(|input| !ordinary(input.data))
         {
             return Err(BodyTypeError::InvalidExtension);

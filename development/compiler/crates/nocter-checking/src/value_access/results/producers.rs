@@ -13,9 +13,9 @@ pub(super) type Inputs = BTreeMap<AccessParameterId, Producers>;
 pub(super) struct Report {
     pub(super) returned: Vec<(FunctionWitness, AccessExpressionId)>,
     pub(super) applications: BTreeMap<ValueApplication, Inputs>,
-    /// Received capture leaves retain their originating application relation, never its signature
-    /// as a concrete code anchor. An uncommitted origin can therefore remain genuinely empty.
-    pub(super) input_applications: BTreeSet<ValueApplication>,
+    /// Received or transported leaves retain their original relation, never a signature-derived
+    /// concrete anchor. An uncommitted origin can therefore remain genuinely empty.
+    pub(super) referenced_applications: BTreeSet<ValueApplication>,
 }
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum Key {
@@ -33,7 +33,7 @@ type State = BTreeMap<Key, Facts>;
 pub(super) fn analyze(control: &flow::Control) -> Result<Report, flow::IntegrityError> {
     let query = &control.typed;
     let mut initial = State::new();
-    let mut input_applications = BTreeSet::new();
+    let mut referenced_applications = BTreeSet::new();
     for (local, value) in query.body.locals.iter() {
         if value.origin.is_input() {
             let facts = Facts::received(
@@ -41,7 +41,7 @@ pub(super) fn analyze(control: &flow::Control) -> Result<Report, flow::Integrity
                 value.data,
                 value.origin == crate::value_access::ir::LocalOrigin::Capture,
             )?;
-            input_applications.extend(facts.applications());
+            referenced_applications.extend(facts.applications());
             initial.insert(Key::Local(local), facts);
         }
     }
@@ -74,7 +74,13 @@ pub(super) fn analyze(control: &flow::Control) -> Result<Report, flow::Integrity
                     );
                 }
                 flow::Operation::CommitCall(id) => {
-                    commit(query, id, &mut state, &mut applications)?;
+                    commit(
+                        query,
+                        id,
+                        &mut state,
+                        &mut applications,
+                        &mut referenced_applications,
+                    )?;
                 }
                 flow::Operation::Forward { source, result, .. } => {
                     let facts = forward(query, source, expression_data(query, result)?, &state)?;
@@ -122,7 +128,7 @@ pub(super) fn analyze(control: &flow::Control) -> Result<Report, flow::Integrity
     Ok(Report {
         returned: returned.into_iter().collect(),
         applications,
-        input_applications,
+        referenced_applications,
     })
 }
 fn assign(
@@ -170,30 +176,21 @@ fn commit(
     id: AccessExpressionId,
     state: &mut State,
     applications: &mut BTreeMap<ValueApplication, Inputs>,
+    references: &mut BTreeSet<ValueApplication>,
 ) -> Result<(), flow::IntegrityError> {
+    let Some(result) = super::applications::call_result(query, id)? else {
+        return Ok(());
+    };
+    let Some(application) = result.created else {
+        let facts = Facts::received(query.program(), result.data, true)?;
+        references.extend(facts.applications());
+        state.insert(Key::Expression(id), facts);
+        return Ok(());
+    };
     let expression = query.body.expressions.get(id).ok_or(INVALID)?;
-    let Some(PayloadSchema::Function(witness)) = expression
-        .ty
-        .access()
-        .and_then(|a| query.program().data_schema(a.data()))
-    else {
-        return Ok(());
-    };
-    let ValueFunctionOrigin::Application(application) = witness.origin else {
-        return Ok(());
-    };
-    let ExpressionKind::Call {
-        target: ValueFunctionOrigin::Declaration(factory),
-        arguments,
-        ..
-    } = &expression.kind
-    else {
+    let ExpressionKind::Call { arguments, .. } = &expression.kind else {
         return Err(INVALID);
     };
-    if application.owner != query.code() || application.call != id || application.callee != *factory
-    {
-        return Err(INVALID);
-    }
     let inputs = applications.entry(application).or_default();
     for (index, argument) in arguments.iter().enumerate() {
         if let Some(binding) = &argument.binding {
@@ -205,10 +202,10 @@ fn commit(
             );
         }
     }
-    state.insert(
-        Key::Expression(id),
-        Facts::single(expression_data(query, id)?, witness),
-    );
+    let Some(PayloadSchema::Function(witness)) = query.program().data_schema(result.data) else {
+        return Err(INVALID);
+    };
+    state.insert(Key::Expression(id), Facts::single(result.data, witness));
 
     Ok(())
 }

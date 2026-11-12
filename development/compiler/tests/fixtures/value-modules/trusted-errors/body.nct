@@ -14,9 +14,14 @@ func run(): i32 {
     let second = invoke_callback(errors.operation)
     let create = () { errors.operation("inferred", "module message") }
     let third = create()
+    let owned = errors.operation("returned", "owned capture")
+    let make_returner = (owned^;) { (owned^;) { owned^ } }
+    let returner = make_returner^()
+    let fourth = returner^()
     let wrapped = contexts.operation(original^, "module context")
     drop wrapped
     drop second
     drop third
+    drop fourth
     42
 }

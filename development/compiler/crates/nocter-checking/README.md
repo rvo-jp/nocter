@@ -403,6 +403,15 @@ No provisional result/application signature supplies a return anchor. These are 
 not an owner, availability or numerical-disjointness proof. Moves and drops remain subject to the
 separate initialization/access/resource validation.
 
+`results::applications` classifies each selected call result once. A newly reserved factory
+application must match its owner/call/callee key and declared result invocation. Transport through
+a closure retains the original application and must match that callee's exact result descriptor;
+it cannot create another factory equation or substitute an unrelated existing application.
+Committed calls propagate concrete returned callable leaves and symbolic application references
+through the existing sparse facts. A symbolic reference remains a relation term, never a code
+anchor inferred from a structural signature. The same classification serves producer collection
+and application closure.
+
 `results::solve` first closes reachable result relations to one named or own-input witness per
 function. `results::relations` owns one finite positive-equation solver for unions and selected
 applications. Recursive substitution uses formal IDs and finite application nodes rather than
@@ -1128,8 +1137,13 @@ required paths invoke exact local/factory witnesses, while native source also ca
 The shared inferred-result source checks tail/early/explicit returns, unit, record/tuple/array
 results, owned captures, nested lexical bodies and unchanged read/edit/take inputs through required
 and native execution. The shared logical-module primitive source also returns a real owned error
-from an inferred closure and executes its ordinary cleanup. General parameter inference, callable result-witness publication,
-outside-reference capture and symbolic dependency contracts remain separate realization obligations.
+from an inferred closure and executes its ordinary cleanup. Inferred results may also retain an
+existing named function, a nested owned closure or an application of a declared callable factory.
+The same canonical result projection closes pending leaves in the result contract; no extra
+producer table or signature-based erasure is introduced. Returned environments pass ordinary owning
+supply and cleanup. The shared inferred-callable-result source covers these paths in required and
+native execution. General parameter/formal-witness inference, outside-reference capture and symbolic
+dependency contracts remain separate realization obligations.
 
 The environment's provisional construction authority permits demand collection, not accepted
 execution. Its control graph is prepared once. Reached environment moves/drops or transfer inputs

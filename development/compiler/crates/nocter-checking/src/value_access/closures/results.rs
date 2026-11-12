@@ -1,6 +1,5 @@
 //! Close an anonymous result from its own checked body; later uses cannot select its contract.
 use crate::value_access::{Failure, Rule, Site, checker::Checker, ir::Statement};
-use nocter_declarations::value_access::PayloadSchema;
 use nocter_diagnostics::DiagnosticNote;
 use nocter_model::{AccessBlockId, AccessExpressionId, TypeId};
 use nocter_syntax::NodeId;
@@ -55,13 +54,6 @@ impl Checker<'_, '_> {
                 return self.reject_message(Rule::TypeMismatch, origin,
                     format!("closure result inference needs one data type, but returns include {} and {}; write a result annotation to supply context", self.data_label(result), self.data_label(actual)), vec![related]);
             }
-        }
-        if matches!(
-            self.program().data_schema(result),
-            Some(PayloadSchema::Function(_))
-        ) {
-            return self.reject_message(Rule::UnknownType, node,
-                "this anonymous result needs callable witness publication beyond the current closure result model".into(), Vec::new());
         }
         self.result = Some(result);
         Ok(result)

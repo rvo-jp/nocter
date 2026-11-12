@@ -3,6 +3,7 @@ use super::super::*;
 use nocter_model::ValueInvocation;
 
 mod arrays;
+mod callable_results;
 mod containment;
 mod expression_roots;
 

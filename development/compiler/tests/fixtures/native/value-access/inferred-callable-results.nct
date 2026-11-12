@@ -1,0 +1,30 @@
+struct Item { value: i32 }
+const func identity(value: i32): i32 { value }
+const func selected(): func(i32): i32 { identity }
+const func through_closure(): func(i32): i32 {
+    let make = () { identity }
+    make()
+}
+const func through_tuple(): func(i32): i32 {
+    let make = () { (identity, 42) }
+    let value = make()
+    value.0
+}
+const func calculate(): i32 {
+    let make_named = () { identity }
+    let named = make_named()
+    let saved = 2
+    let make_captured = (saved;) { (saved; value: i32) { value + saved } }
+    let captured = make_captured()
+    let make_selected = () { selected() }
+    let selected_value = make_selected()
+    let forwarded = through_closure()
+    let tuple_value = through_tuple()
+    let item = Item { value: 42 }
+    let make_owned = (item^;) { (item^;) { let value = item^
+                                         value.value } }
+    let owned = make_owned^()
+    if named(42) == 42 && captured(40) == 42 && selected_value(42) == 42 && forwarded(42) == 42 && tuple_value(42) == 42 && owned^() == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { if ANSWER == 42 && calculate() == 42 { 42 } else { 0 } }

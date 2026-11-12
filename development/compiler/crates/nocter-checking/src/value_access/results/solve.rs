@@ -22,10 +22,10 @@ pub(super) fn solve(
     let mut evidence = Evidence::default();
     let mut equations = Relations::new();
     let mut committed = BTreeSet::new();
-    let mut input_applications = BTreeSet::new();
+    let mut referenced_applications = BTreeSet::new();
     for (&id, control) in &controls {
         let report = super::producers::analyze(control).map_err(accepted::Failure::Integrity)?;
-        input_applications.extend(report.input_applications);
+        referenced_applications.extend(report.referenced_applications);
         if let nocter_model::ValueCode::Declaration(id) = id
             && control
                 .typed
@@ -56,9 +56,9 @@ pub(super) fn solve(
             );
         }
     }
-    // A received capture carries this exact result family. Only an actual committed call adds
+    // A received capture or transported result carries this exact family. A committed factory adds
     // producer facts here; an absent origin is an empty equation, not a signature-derived anchor.
-    for application in input_applications {
+    for application in referenced_applications {
         equations
             .entry(Origin::Application(application))
             .or_insert_with(|| Relation::Union(Producers::new()));
@@ -122,28 +122,17 @@ fn close_applications(
     for control in controls.values() {
         let query = &control.typed;
         for (id, expression) in query.body.expressions.iter() {
-            let ExpressionKind::Call {
-                target, arguments, ..
-            } = &expression.kind
+            let ExpressionKind::Call { arguments, .. } = &expression.kind else {
+                continue;
+            };
+            let Some(result) = super::applications::call_result(query, id)
+                .map_err(accepted::Failure::Integrity)?
             else {
                 continue;
             };
-            let Some(PayloadSchema::Function(witness)) = expression
-                .ty
-                .access()
-                .and_then(|a| query.program().data_schema(a.data()))
-            else {
+            let Some(application) = result.created else {
                 continue;
             };
-            let Origin::Application(application) = witness.origin else {
-                continue;
-            };
-            if application.owner != query.code()
-                || application.call != id
-                || *target != Origin::Declaration(application.callee)
-            {
-                return Err(INVALID);
-            }
             let inputs = arguments
                 .iter()
                 .filter_map(|argument| argument.binding.as_ref())

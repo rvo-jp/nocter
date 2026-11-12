@@ -341,7 +341,10 @@ Nested checking advances that root's lexical cursor; publishing an inner schema 
 pending outer slot. Publication and key exhaustion preserve existing reservations. This cursor is
 discarded on freeze and supplies no runtime environment identity or ownership registry.
 That branch also publishes owned closure environment descriptors under lexical
-owner/slot code keys. Environment, flat input/result data and inferred invocation are distinct
+owner/slot code keys. A closure result may retain an existing named, lexical or pending application
+witness in the same authority. Result metadata grants no producer, environment, Copy or invocation
+proof; ordinary body/result closure still establishes those obligations. Callable input witness
+introduction remains separate. Environment, input/result data and inferred invocation are distinct
 schema components. `owned_payload_supported` owns the common closed payload domain for environments, tuples and arrays:
 closed builtin/record/tuple/array data and exact named/captured callable payloads. Formal and
 unresolved result/application witnesses supply no such payload evidence. A valid pending result

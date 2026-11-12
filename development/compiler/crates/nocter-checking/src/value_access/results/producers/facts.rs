@@ -38,7 +38,7 @@ impl Facts {
     pub(super) fn received(
         program: &Program,
         data: TypeId,
-        captured: bool,
+        retain_applications: bool,
     ) -> Result<Self, IntegrityError> {
         let mut result = Self::default();
         let mut pending = vec![data];
@@ -50,7 +50,7 @@ impl Facts {
             match program.data_schema(data).ok_or(INVALID)? {
                 PayloadSchema::Function(witness)
                     if !matches!(witness.origin, ValueFunctionOrigin::Result(_))
-                        && (captured
+                        && (retain_applications
                             || !matches!(witness.origin, ValueFunctionOrigin::Application(_))) =>
                 {
                     result.join(&Self::single(data, witness));

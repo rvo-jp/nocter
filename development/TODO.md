@@ -18,13 +18,13 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Extend anonymous result publication to statically selected callable values through the existing
-type/witness authority and source checker. Preserve concrete returned code/environment identity,
-ordinary value supply, nested owned capture transfer, inferred/expected result checking and current
-source diagnostics through required/native execution. A nested signature alone cannot supply a
-formal input witness or establish a uniform carrier representation. Keep those general header,
-carrier, substitution and dependency obligations open under the finding below; do not introduce
-implicit erasure or a parallel result solver.
+Close adopted explicit and expected callable result constraints for anonymous implementations
+through the same recursive annotation model and source checker. Supply available input/result
+context without inventing concrete witness identities; check each returned value through ordinary
+value supply and invocation adaptation, then publish its established result data. Preserve one
+canonical result solver, original code/environment identity and local diagnostics through required
+and native execution. General formal-input witness introduction, carrier representation and
+external dependency obligations remain open under the finding below.
 Keep module discovery, the remaining toolchain role families and ordinary compiler/editor integration
 open until their contracts and production paths are qualified. Keep the retained-selection work
 below open; bounded module/native execution does not close general hole relations or externally
