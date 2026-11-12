@@ -248,8 +248,15 @@ headers agree. The final declarations are an immutable current `ModuleContext`, 
 source is checked, including unused helpers and records. Empty libraries need no fabricated body.
 Unselected primitives reject at their authored declaration; this entry supplies no module primitive
 authority. Sealing checks effective root audiences and outward nominal signature exposure through
-that same declaration binding; hidden representation payloads remain private. Import/re-export
-bindings, source rebinding across module revisions and ordinary package/CLI integration remain work. This bounded selected-input entry does not qualify those subjects.
+that same declaration binding; hidden representation payloads remain private. Top-level selected
+record-type imports and root re-export chains preserve their original nominal identity through
+ordinary header/body checking. Field selection and record construction also require the physical
+source's declaration-lowering-owned view: visible root fields do not grant hidden fields or an
+exhaustive structural construction contract. Both computed member values and existing-place
+selections use the same field check. Complete schemas remain available to compiler-owned layout
+and cleanup. Qualified namespace and body-local import binding, source rebinding across module
+revisions and ordinary package/CLI integration remain work. This bounded selected-input entry
+does not qualify those subjects.
 
 The private-function goal has one typed-body query over shared immutable declaration facts and
 an owner-scoped body-type extension. Each query retains its origin header prefix; binding accepts

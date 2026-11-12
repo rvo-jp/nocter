@@ -104,6 +104,13 @@ impl Checker<'_, '_> {
         let AggregateForm::Record(_) = record.form() else {
             return self.reject(Rule::InvalidConstruction, name);
         };
+        let nominal = self
+            .program()
+            .record_identity(data)
+            .ok_or(Failure::InconsistentSyntax)?;
+        if !self.context.complete_record_visible(nominal) {
+            return self.reject(Rule::InaccessibleRepresentation, name);
+        }
         let count = record.len();
         let initializer = self.direct(node, NodeKind::StructInitializer)?;
         let mut seen = BTreeSet::new();

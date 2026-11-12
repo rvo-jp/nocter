@@ -3,20 +3,20 @@ use nocter_syntax::{NodeId, NodeKind, SyntaxToken, SyntaxTree, direct_node, dire
 use super::ImportError;
 
 #[derive(Clone, Copy, Debug)]
-pub(super) struct SelectedNameSyntax {
-    pub(super) exported: SyntaxToken,
-    pub(super) local: SyntaxToken,
+pub(crate) struct SelectedNameSyntax {
+    pub(crate) exported: SyntaxToken,
+    pub(crate) local: SyntaxToken,
 }
 
 #[derive(Debug)]
-pub(super) struct ImportSyntax {
-    pub(super) visibility: Option<NodeId>,
-    pub(super) path: NodeId,
-    pub(super) namespace_alias: Option<SyntaxToken>,
-    pub(super) selected: Option<Vec<SelectedNameSyntax>>,
+pub(crate) struct ImportSyntax {
+    pub(crate) visibility: Option<NodeId>,
+    pub(crate) path: NodeId,
+    pub(crate) namespace_alias: Option<SyntaxToken>,
+    pub(crate) selected: Option<Vec<SelectedNameSyntax>>,
 }
 
-pub(super) fn read(tree: &SyntaxTree, declaration: NodeId) -> Result<ImportSyntax, ImportError> {
+pub(crate) fn read(tree: &SyntaxTree, declaration: NodeId) -> Result<ImportSyntax, ImportError> {
     if tree.node(declaration).map(nocter_syntax::SyntaxNode::kind) != Some(NodeKind::UseDeclaration)
     {
         return Err(ImportError::InvalidSyntax(declaration));
@@ -37,7 +37,7 @@ pub(super) fn read(tree: &SyntaxTree, declaration: NodeId) -> Result<ImportSynta
     })
 }
 
-pub(super) fn final_path_name(
+pub(crate) fn final_path_name(
     tree: &SyntaxTree,
     declaration: NodeId,
     path: NodeId,

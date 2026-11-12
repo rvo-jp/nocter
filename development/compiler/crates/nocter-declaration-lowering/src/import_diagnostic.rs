@@ -1,9 +1,6 @@
 use std::fmt;
 
-use crate::{
-    CompileUnitInput, ImportRule, ImportViolation, SourceDiagnostic,
-    diagnostic::project_syntax_diagnostic,
-};
+use crate::{CompileUnitInput, ImportRule, ImportViolation, SourceDiagnostic};
 
 /// One import rule projected to exact source syntax.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -17,9 +14,29 @@ impl ImportDiagnostic {
         violation: ImportViolation,
         input: &CompileUnitInput<'_>,
     ) -> Result<Self, ImportViolation> {
+        let trees = crate::diagnostic::input_trees(input).collect::<Vec<_>>();
+        Self::project_trees(violation, &trees)
+    }
+
+    pub(crate) fn project_surface(
+        violation: ImportViolation,
+        surface: &crate::DeclarationSurface<'_>,
+    ) -> Result<Self, ImportViolation> {
+        let trees = surface
+            .sources()
+            .iter()
+            .map(crate::SurfaceSource::syntax)
+            .collect::<Vec<_>>();
+        Self::project_trees(violation, &trees)
+    }
+
+    fn project_trees(
+        violation: ImportViolation,
+        trees: &[&nocter_syntax::SyntaxTree],
+    ) -> Result<Self, ImportViolation> {
         let rule = violation.rule();
-        let source = project_syntax_diagnostic(
-            input,
+        let source = crate::diagnostic::project_syntax_diagnostic_from_trees(
+            trees,
             violation.primary(),
             violation.related(),
             rule.code(),

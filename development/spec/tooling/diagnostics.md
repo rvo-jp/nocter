@@ -108,6 +108,12 @@ operation, relate that selected contract when explaining its mismatch. Do not de
 annotation as overriding that input operation. A fixed value supplied to an edit input needs an intentional
 mutable binding; do not silently rewrite it. A view descriptor Copy still retains its dependencies.
 
+Record field selection and structural construction also require a source-visible contract.
+Use `E0370` for a known but inaccessible field or complete representation, identifying the selected
+field or construction type. Compiler knowledge of private fields is not source permission. Visible
+root fields alone do not imply a structural grant, including when they happen to exhaust the
+current representation or the opaque record is empty.
+
 A field of a computed record value delivers a value, not existing mutable storage. Reject local
 alias creation or assignment at that attempted operation. The adopted future call protocol can
 lend update access through its owned temporary. Actual implementation coverage belongs to the

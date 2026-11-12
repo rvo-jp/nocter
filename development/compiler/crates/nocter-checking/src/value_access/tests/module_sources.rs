@@ -223,3 +223,330 @@ fn module_visibility_sealing_checks_signature_names_without_exposing_hidden_repr
         }
     }
 }
+
+#[test]
+fn selected_type_imports_and_root_reexports_share_the_original_nominal_identity() {
+    use nocter_compile_input::ModuleIdentity;
+    use nocter_declarations::value_access::Namespace;
+    use nocter_model::PackageIdentity;
+    let fixture = Fixture::new(&[
+        ("/app/index.nct", Root, "use ./wire.Item as PublicItem\nsee ./body.nct\nfunc inspect(value: PublicItem): void"),
+        ("/app/body.nct", Implementation, "use ./wire.Item as PublicItem\nsee ./index.nct\nfunc inspect(value: PublicItem): void {}"),
+        ("/app/wire/index.nct", Root, "use ../data.Data as Item"),
+        ("/app/data/index.nct", Root, "see ./body.nct\nstruct Data"),
+        ("/app/data/body.nct", Implementation, "see ./index.nct\nstruct Data { value: i32 }"),
+    ], &[(0, 0, 1), (1, 0, 0), (3, 0, 4), (4, 0, 3)])
+    .with_modules(&[(&[], &[0, 1]), (&["wire"], &[2]), (&["data"], &[3, 4])])
+    .with_uses(&[(0, 0, &["wire"]), (1, 0, &["wire"]), (2, 0, &["data"])]);
+    let source = ModuleSourceUnit::prepare(&fixture.input()).unwrap();
+    let program = source.declarations().program();
+    let identity = |path: &[&str]| {
+        ModuleIdentity::new(PackageIdentity::new("workspace:app"), path.iter().copied())
+    };
+    let root = identity(&[]);
+    let lookup = |path: &[&str], name| {
+        source
+            .declarations()
+            .lookup_export(
+                &identity(path),
+                &root,
+                Namespace::Type,
+                program.symbols().get(name).unwrap(),
+            )
+            .unwrap()
+    };
+    assert_eq!(lookup(&[], "PublicItem"), lookup(&["wire"], "Item"));
+    assert_eq!(lookup(&[], "PublicItem"), lookup(&["data"], "Data"));
+    let current = source.declarations().current().unwrap();
+    assert!(source.unit().bind(&current).is_ok());
+}
+
+#[test]
+fn selected_type_imports_diagnose_missing_private_non_type_and_widening_names_at_the_import() {
+    use nocter_declaration_lowering::{ImportRule, NamespaceRule};
+    for (import, restriction, expected_import, expected_namespace) in [
+        (
+            "use ./data.Absent",
+            "",
+            Some(ImportRule::MissingImportedName),
+            None,
+        ),
+        (
+            "use ./data.Hidden",
+            "",
+            Some(ImportRule::MissingImportedName),
+            None,
+        ),
+        (
+            "use ./data.compute",
+            "",
+            Some(ImportRule::NonTypeSelection),
+            None,
+        ),
+        (
+            "use ./data.Data",
+            "#visibility: \"./\"\n",
+            Some(ImportRule::InaccessibleImportedName),
+            None,
+        ),
+        (
+            "use ./data.Data",
+            "#visibility: \"/\"\n",
+            Some(ImportRule::WideningReexport),
+            None,
+        ),
+        (
+            "#visibility: \"/\"\nuse ./data.Data",
+            "#visibility: \"/\"\n",
+            None,
+            None,
+        ),
+        (
+            "use ./data.{Data as Item, Data as Item}",
+            "",
+            None,
+            Some(NamespaceRule::NameCollision),
+        ),
+        (
+            "use ./data.Data as i32",
+            "",
+            None,
+            Some(NamespaceRule::ReservedName),
+        ),
+    ] {
+        let root = format!("see ./body.nct\n{restriction}struct Data\nfunc compute(): i32");
+        let fixture = Fixture::new(
+            &[
+                ("/app/index.nct", Root, import),
+                ("/app/data/index.nct", Root, &root),
+                (
+                    "/app/data/body.nct",
+                    Implementation,
+                    "see ./index.nct\nstruct Data {}\nstruct Hidden {}\nfunc compute(): i32 { 42 }",
+                ),
+            ],
+            &[(1, 0, 2), (2, 0, 1)],
+        )
+        .with_modules(&[(&[], &[0]), (&["data"], &[1, 2])])
+        .with_uses(&[(0, 0, &["data"])]);
+        let result = ModuleSourceUnit::prepare(&fixture.input());
+        let diagnostic = match (result, expected_import, expected_namespace) {
+            (Ok(_), None, None) => continue,
+            (
+                Err(SourceFailure::Declarations(declarations::Failure::Import(diagnostic))),
+                Some(rule),
+                None,
+            ) => {
+                assert_eq!(diagnostic.rule(), rule, "{import}");
+                diagnostic.source().clone()
+            }
+            (
+                Err(SourceFailure::Declarations(declarations::Failure::Namespace(diagnostic))),
+                None,
+                Some(rule),
+            ) => {
+                assert_eq!(diagnostic.rule(), rule, "{import}");
+                diagnostic.source().clone()
+            }
+            (result, _, _) => panic!("{import}: {result:?}"),
+        };
+        assert_eq!(diagnostic.primary().source(), fixture.tree(0).source());
+    }
+}
+
+#[test]
+fn seeing_a_source_does_not_inherit_its_imports_into_either_header() {
+    for importing in [0, 1] {
+        let texts = [
+            "see ./body.nct\nfunc inspect(value: Item): void",
+            "see ./index.nct\nfunc inspect(value: Item): void {}",
+        ];
+        let mut texts = texts.map(str::to_owned);
+        texts[importing] = format!("use ./data.Data as Item\n{}", texts[importing]);
+        let fixture = Fixture::new(
+            &[
+                ("/app/index.nct", Root, &texts[0]),
+                ("/app/body.nct", Implementation, &texts[1]),
+                ("/app/data/index.nct", Root, "see ./body.nct\nstruct Data"),
+                (
+                    "/app/data/body.nct",
+                    Implementation,
+                    "see ./index.nct\nstruct Data {}",
+                ),
+            ],
+            &[(0, 0, 1), (1, 0, 0), (2, 0, 3), (3, 0, 2)],
+        )
+        .with_modules(&[(&[], &[0, 1]), (&["data"], &[2, 3])])
+        .with_uses(&[(importing, 0, &["data"])]);
+        let Err(SourceFailure::Declarations(declarations::Failure::Headers(diagnostics))) =
+            ModuleSourceUnit::prepare(&fixture.input())
+        else {
+            panic!("imports must remain physical-source-local")
+        };
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.source().code() == "E0290"
+                    && diagnostic.source().primary().source()
+                        == fixture.tree(1 - importing).source())
+        );
+    }
+}
+
+#[test]
+fn imported_nominals_do_not_grant_hidden_fields_or_structural_construction() {
+    for (root_record, definition, signature, expression) in [
+        (
+            "struct Data { shown: i32 }",
+            "struct Data { shown: i32\nhidden: i32 }",
+            "func inspect(value: Data): i32",
+            "value.hidden",
+        ),
+        (
+            "struct Data { shown: i32 }",
+            "struct Data { shown: i32\nhidden: i32 }",
+            "func inspect(take value: Data): i32",
+            "(value^).hidden",
+        ),
+        (
+            "struct Data { shown: i32 }",
+            "struct Data { shown: i32\nhidden: i32 }",
+            "func build(): Data",
+            "Data { shown: 1, hidden: 2 }",
+        ),
+        (
+            "struct Data { shown: i32 }",
+            "struct Data { shown: i32 }",
+            "func build(): Data",
+            "Data { shown: 1 }",
+        ),
+        (
+            "struct Data",
+            "struct Data {}",
+            "func build(): Data",
+            "Data {}",
+        ),
+    ] {
+        let app = format!("use ./data.Data\nsee ./body.nct\n{signature}");
+        let app_body = format!("use ./data.Data\nsee ./index.nct\n{signature} {{ {expression} }}");
+        let data = format!("see ./body.nct\n{root_record}");
+        let data_body = format!("see ./index.nct\n{definition}");
+        let fixture = Fixture::new(
+            &[
+                ("/app/index.nct", Root, &app),
+                ("/app/body.nct", Implementation, &app_body),
+                ("/app/data/index.nct", Root, &data),
+                ("/app/data/body.nct", Implementation, &data_body),
+            ],
+            &[(0, 0, 1), (1, 0, 0), (2, 0, 3), (3, 0, 2)],
+        )
+        .with_modules(&[(&[], &[0, 1]), (&["data"], &[2, 3])])
+        .with_uses(&[(0, 0, &["data"]), (1, 0, &["data"])]);
+        let Err(SourceFailure::Checking(accepted::Failure::Body {
+            failure: Failure::Rejected(diagnostic),
+            ..
+        })) = ModuleSourceUnit::prepare(&fixture.input())
+        else {
+            panic!("expected a source permission rejection: {expression}")
+        };
+        assert_eq!(
+            diagnostic.rule(),
+            if expression.ends_with(".hidden") {
+                Rule::InaccessibleField
+            } else {
+                Rule::InaccessibleRepresentation
+            }
+        );
+        assert_eq!(
+            diagnostic.source().primary().source(),
+            fixture.tree(1).source()
+        );
+    }
+}
+
+#[test]
+fn visible_field_audiences_and_complete_definition_views_do_not_depend_on_compiler_schema_knowledge()
+ {
+    for restrict in [false, true] {
+        let data = format!(
+            "see ./body.nct\nstruct Data {{\n{}shown: i32\n}}",
+            if restrict {
+                "#visibility: \"./\"\n"
+            } else {
+                ""
+            }
+        );
+        let fixture = Fixture::new(&[
+            ("/app/index.nct", Root, "use ./data.Data\nsee ./body.nct\nfunc inspect(value: Data): i32"),
+            ("/app/body.nct", Implementation, "use ./data.Data\nsee ./index.nct\nfunc inspect(value: Data): i32 { value.shown }"),
+            ("/app/data/index.nct", Root, &data),
+            ("/app/data/body.nct", Implementation, "see ./index.nct\nstruct Data { shown: i32\nhidden: i32 }\nfunc build(): Data { Data { shown: 1, hidden: 2 } }\nfunc inspect(value: Data): i32 { value.hidden }"),
+        ], &[(0, 0, 1), (1, 0, 0), (2, 0, 3), (3, 0, 2)])
+        .with_modules(&[(&[], &[0, 1]), (&["data"], &[2, 3])])
+        .with_uses(&[(0, 0, &["data"]), (1, 0, &["data"])]);
+        let result = ModuleSourceUnit::prepare(&fixture.input());
+        if restrict {
+            let Err(SourceFailure::Checking(accepted::Failure::Body {
+                failure: Failure::Rejected(diagnostic),
+                ..
+            })) = result
+            else {
+                panic!("restricted field: {result:?}")
+            };
+            assert_eq!(diagnostic.rule(), Rule::InaccessibleField);
+            assert_eq!(
+                diagnostic.source().primary().source(),
+                fixture.tree(1).source()
+            );
+        } else {
+            assert!(result.is_ok(), "{result:?}");
+        }
+    }
+    for see_representation in [false, true] {
+        let caller = format!(
+            "see ./index.nct\n{}func inspect(value: Data): i32 {{ value.hidden }}",
+            if see_representation {
+                "see ./representation.nct\n"
+            } else {
+                ""
+            }
+        );
+        let mut edges = vec![(0, 0, 1), (0, 1, 2), (1, 0, 0), (2, 0, 0)];
+        if see_representation {
+            edges.push((2, 1, 1));
+        }
+        let fixture = Fixture::new(
+            &[
+                (
+                    "/app/index.nct",
+                    Root,
+                    "see ./representation.nct\nsee ./caller.nct\nstruct Data\nfunc inspect(value: Data): i32",
+                ),
+                (
+                    "/app/representation.nct",
+                    Implementation,
+                    "see ./index.nct\nstruct Data { hidden: i32 }",
+                ),
+                ("/app/caller.nct", Implementation, &caller),
+            ],
+            &edges,
+        );
+        let result = ModuleSourceUnit::prepare(&fixture.input());
+        if see_representation {
+            assert!(result.is_ok(), "{result:?}");
+        } else {
+            let Err(SourceFailure::Checking(accepted::Failure::Body {
+                failure: Failure::Rejected(diagnostic),
+                ..
+            })) = result
+            else {
+                panic!("transitive complete representation: {result:?}")
+            };
+            assert_eq!(diagnostic.rule(), Rule::InaccessibleField);
+            assert_eq!(
+                diagnostic.source().primary().source(),
+                fixture.tree(2).source()
+            );
+        }
+    }
+}

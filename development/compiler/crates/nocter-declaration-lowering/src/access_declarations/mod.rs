@@ -3,6 +3,7 @@ mod definitions;
 mod header_values;
 mod headers;
 mod module_audiences;
+mod module_imports;
 mod module_scopes;
 pub use module_audiences::{ModuleAudience, VisibilityDiagnostic, VisibilityRule};
 mod module_sources;
@@ -52,6 +53,8 @@ pub enum Failure {
     Primitive(Box<PrimitiveDiagnostic>),
     SourceRole(Box<SourceRoleDiagnostic>),
     Visibility(Box<VisibilityDiagnostic>),
+    Import(Box<crate::ImportDiagnostic>),
+    Namespace(Box<crate::NamespaceDiagnostic>),
     InconsistentSyntax,
     ChangedHeader,
     RequiredValues(Box<[AccessCodeId]>),
@@ -469,6 +472,35 @@ impl<'source> Context<'source> {
     #[must_use]
     pub const fn lookup_scope(&self) -> nocter_declarations::value_access::ScopeId {
         self.lookup
+    }
+    /// Whether this physical source may use the complete record representation.
+    /// This grants source permission only, never payload or header readiness.
+    #[must_use]
+    pub fn complete_record_visible(&self, record: nocter_model::NominalTypeId) -> bool {
+        self.module.map_or_else(
+            || self.sources.records.contains_key(&record),
+            |binding| binding.complete_record_visible(self.syntax, record),
+        )
+    }
+    /// Whether one existing record field is visible through a complete definition or root contract.
+    #[must_use]
+    pub fn record_field_visible(
+        &self,
+        record: nocter_model::NominalTypeId,
+        field: nocter_model::AccessFieldId,
+    ) -> bool {
+        if self
+            .program
+            .fields()
+            .get(field)
+            .is_none_or(|field| field.owner() != record)
+        {
+            return false;
+        }
+        self.module.map_or_else(
+            || self.sources.records.contains_key(&record),
+            |binding| binding.field_visible(self.syntax, record, field),
+        )
     }
     /// Select the same immutable header snapshot in the executable root's own source scope.
     /// # Errors

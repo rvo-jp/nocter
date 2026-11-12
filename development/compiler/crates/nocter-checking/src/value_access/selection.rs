@@ -146,6 +146,15 @@ impl Checker<'_, '_> {
             None
         };
         if let Some(field) = field {
+            if let ValueField::Record(id) = field {
+                let record = self
+                    .program()
+                    .record_identity(data)
+                    .ok_or(Failure::InconsistentSyntax)?;
+                if !self.context.record_field_visible(record, id) {
+                    return self.reject(Rule::InaccessibleField, token);
+                }
+            }
             return Ok(field);
         }
         self.reject_message(

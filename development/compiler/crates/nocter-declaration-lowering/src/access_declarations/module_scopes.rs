@@ -17,6 +17,7 @@ use std::{
 
 mod catalog;
 mod normalization;
+mod record_views;
 
 /// Closed source names and a progressive header writer. Reservation alone grants no typed metadata;
 /// selected header publication grants no checked-body, primitive-authority or accepted-Unit proof.
@@ -36,6 +37,24 @@ impl ModuleContext<'_> {
     pub fn program(&self) -> &Program {
         &self.program
     }
+    /// Resolve an exported name without widening its authored audience.
+    #[must_use]
+    pub fn lookup_export(
+        &self,
+        module: &crate::ModuleIdentity,
+        caller: &crate::ModuleIdentity,
+        namespace: nocter_declarations::value_access::Namespace,
+        name: Symbol,
+    ) -> Option<DeclarationId> {
+        self.binding.exports.lookup(
+            &self.binding.paired,
+            &self.program,
+            module,
+            caller,
+            namespace,
+            name,
+        )
+    }
     /// Open the closed metadata in this exact source binding.
     /// # Errors
     /// Rejects inconsistent physical source metadata; grants no body acceptance.
@@ -52,6 +71,7 @@ pub struct ModuleSourceBinding<'syntax> {
     declarations: Box<[Option<DeclarationId>]>,
     fields: Box<[Option<AccessFieldId>]>,
     catalog: catalog::Catalog,
+    exports: super::module_imports::ModuleExports,
 }
 #[derive(Debug)]
 enum ParsedHeader {
@@ -66,26 +86,10 @@ struct FieldPosition {
 impl<'syntax> PairedModuleSources<'syntax> {
     /// Reserve one semantic identity per paired declaration and close direct authored lookup.
     /// # Errors
-    /// Requires import binding evidence before processing `use`; rejects name conflicts locally.
+    /// Rejects unclosed namespace/block imports and authored source-local name conflicts.
     pub fn reserve_names(self) -> Result<ScopedModuleSources<'syntax>, ModuleSourcesFailure> {
         let inventory = &self.inventory;
-        if !inventory.imports().is_empty() || !inventory.block_imports().is_empty() {
-            return Err(ModuleSourcesFailure::Access(
-                Failure::ModuleImportBindingsRequired(
-                    inventory
-                        .imports()
-                        .iter()
-                        .map(crate::SurfaceImport::node)
-                        .chain(
-                            inventory
-                                .block_imports()
-                                .iter()
-                                .map(crate::SurfaceBlockImport::node),
-                        )
-                        .collect(),
-                ),
-            ));
-        }
+        super::module_imports::ModuleExports::require_supported(&self)?;
         let parsed = collect_headers(&self)?;
         let mut reservations = Reservations::with_symbols(inventory.surface.symbol_handle());
         let scopes: Box<[_]> = inventory
@@ -110,6 +114,12 @@ impl<'syntax> PairedModuleSources<'syntax> {
             declarations[id.index()] = declarations[self.contracts.representative(id).index()];
         }
         bind_sources(&self, &scopes, &declarations, &mut reservations)?;
+        let exports = super::module_imports::ModuleExports::bind(
+            &self,
+            &scopes,
+            &declarations,
+            &mut reservations,
+        )?;
         let field_positions = field_positions(&self, &declarations);
         let catalog = catalog::Catalog::reserve(
             &self,
@@ -145,6 +155,7 @@ impl<'syntax> PairedModuleSources<'syntax> {
                 declarations: declarations.into(),
                 fields,
                 catalog,
+                exports,
             }),
         })
     }
@@ -173,6 +184,24 @@ impl<'syntax> ScopedModuleSources<'syntax> {
     #[must_use]
     pub fn program(&self) -> Program {
         self.headers.snapshot()
+    }
+    /// Look up a promised module export under its effective audience; grants no header readiness.
+    #[must_use]
+    pub fn lookup_export(
+        &self,
+        module: &crate::ModuleIdentity,
+        caller: &crate::ModuleIdentity,
+        namespace: nocter_declarations::value_access::Namespace,
+        name: Symbol,
+    ) -> Option<DeclarationId> {
+        self.binding.exports.lookup(
+            &self.binding.paired,
+            &self.headers.snapshot(),
+            module,
+            caller,
+            namespace,
+            name,
+        )
     }
     /// Exact executable syntax for a definition or registered header count; no body acceptance.
     #[must_use]
@@ -456,10 +485,10 @@ fn field_positions(
     }
     fields.into()
 }
-fn integrity() -> ModuleSourcesFailure {
+pub(super) fn integrity() -> ModuleSourcesFailure {
     ModuleSourcesFailure::Access(Failure::InconsistentSyntax)
 }
-fn syntax<'a>(
+pub(super) fn syntax<'a>(
     paired: &'a PairedModuleSources<'_>,
     source: SurfaceSourceId,
 ) -> Result<BoundSyntax<'a>, ModuleSourcesFailure> {
@@ -478,7 +507,7 @@ fn syntax<'a>(
     )
     .ok_or_else(integrity)
 }
-fn symbol(
+pub(super) fn symbol(
     paired: &PairedModuleSources<'_>,
     source: SurfaceSourceId,
     token: SyntaxToken,

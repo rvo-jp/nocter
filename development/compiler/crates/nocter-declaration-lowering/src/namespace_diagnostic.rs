@@ -1,9 +1,6 @@
 use std::fmt;
 
-use crate::{
-    CompileUnitInput, NamespaceRule, NamespaceViolation, SourceDiagnostic,
-    diagnostic::project_syntax_diagnostic,
-};
+use crate::{CompileUnitInput, NamespaceRule, NamespaceViolation, SourceDiagnostic};
 
 /// One namespace rule projected to exact source syntax.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -17,9 +14,29 @@ impl NamespaceDiagnostic {
         violation: NamespaceViolation,
         input: &CompileUnitInput<'_>,
     ) -> Result<Self, NamespaceViolation> {
+        let trees = crate::diagnostic::input_trees(input).collect::<Vec<_>>();
+        Self::project_trees(violation, &trees)
+    }
+
+    pub(crate) fn project_surface(
+        violation: NamespaceViolation,
+        surface: &crate::DeclarationSurface<'_>,
+    ) -> Result<Self, NamespaceViolation> {
+        let trees = surface
+            .sources()
+            .iter()
+            .map(crate::SurfaceSource::syntax)
+            .collect::<Vec<_>>();
+        Self::project_trees(violation, &trees)
+    }
+
+    fn project_trees(
+        violation: NamespaceViolation,
+        trees: &[&nocter_syntax::SyntaxTree],
+    ) -> Result<Self, NamespaceViolation> {
         let rule = violation.rule();
-        let source = project_syntax_diagnostic(
-            input,
+        let source = crate::diagnostic::project_syntax_diagnostic_from_trees(
+            trees,
             violation.primary(),
             violation.related(),
             rule.code(),

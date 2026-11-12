@@ -46,7 +46,28 @@ pub(crate) fn project_syntax_diagnostic(
     related_message: Option<&'static str>,
     help: &'static str,
 ) -> Option<SourceDiagnostic> {
-    let primary = origin_from_syntax(input_trees(input), primary)?;
+    let trees = input_trees(input).collect::<Vec<_>>();
+    project_syntax_diagnostic_from_trees(
+        &trees,
+        primary,
+        related,
+        code,
+        message,
+        related_message,
+        help,
+    )
+}
+
+pub(crate) fn project_syntax_diagnostic_from_trees(
+    trees: &[&SyntaxTree],
+    primary: SyntaxOrigin,
+    related: impl IntoIterator<Item = SyntaxOrigin>,
+    code: DiagnosticCode,
+    message: &'static str,
+    related_message: Option<&'static str>,
+    help: &'static str,
+) -> Option<SourceDiagnostic> {
+    let primary = origin_from_syntax(trees.iter().copied(), primary)?;
     let related = related.into_iter().collect::<Vec<_>>();
     let related_message = if related.is_empty() {
         ""
@@ -56,7 +77,7 @@ pub(crate) fn project_syntax_diagnostic(
     let notes = related
         .into_iter()
         .map(|syntax| {
-            origin_from_syntax(input_trees(input), syntax)
+            origin_from_syntax(trees.iter().copied(), syntax)
                 .map(|origin| DiagnosticNote::new(related_message, origin))
         })
         .collect::<Option<Vec<_>>>()?;

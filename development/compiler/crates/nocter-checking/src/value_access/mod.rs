@@ -51,6 +51,8 @@ use std::{collections::BTreeMap, sync::Arc};
 pub enum Rule {
     UnknownName,
     UnknownField,
+    InaccessibleField,
+    InaccessibleRepresentation,
     UnknownType,
     UnsupportedData,
     UnknownResultType,
@@ -85,6 +87,14 @@ impl Rule {
             Self::UnknownResultType => (
                 DiagnosticCode::E0370,
                 "field selection needs a known record result type",
+            ),
+            Self::InaccessibleField => (
+                DiagnosticCode::E0370,
+                "this source cannot access the selected record field",
+            ),
+            Self::InaccessibleRepresentation => (
+                DiagnosticCode::E0370,
+                "record construction requires a visible complete definition or an explicit structural grant",
             ),
             Self::UnknownField => (
                 DiagnosticCode::E0370,

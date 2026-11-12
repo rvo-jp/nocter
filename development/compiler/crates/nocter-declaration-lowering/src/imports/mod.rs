@@ -1,7 +1,7 @@
 mod access;
 mod prelude;
 mod projection;
-mod syntax;
+pub(crate) mod syntax;
 mod violation;
 
 use std::collections::BTreeMap;

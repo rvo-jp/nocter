@@ -132,8 +132,9 @@ The shared name-space source qualifies a callable and record with the same spell
 value used beside its same-spelled type annotation/construction, and a record whose array count
 uses a same-spelled constant. Required evaluation and native execution consume those same
 selections. Primitive roles select value declarations; a type with that spelling cannot claim
-the role or prevent validation of its selected value contract. Whole-source Unit preparation and
-reusable header queries remain bounded to single-source input; module inventory does not flatten names.
+the role or prevent validation of its selected value contract. The single-source `SourceUnit`
+entry and reusable header queries require single-source input; selected module acceptance uses
+the same semantic authority without flattening inventoried names.
 
 `validate_source_role` checks host-selected `ModuleSourceKind` placement over that same grammar.
 Contract headers may omit bodies/initializers and may expose an opaque record; implementation
@@ -148,8 +149,8 @@ It preserves source/module identities and exact resolved `see`/`use` occurrences
 also closes one deterministic dependency-first module order for both top-level and body-local
 imports. The surface retains this order, and released import/re-export resolution consumes it
 rather than rebuilding a second dependency graph. Inactive target items do not add edges;
-unreachable active block imports do. Cycle diagnostics retain the actual import occurrences. Its private surface
-cannot be passed to released declaration reservation. Neither pipeline infers its grammar from a
+unreachable active block imports do. Cycle diagnostics retain the actual import occurrences.
+Its private surface cannot be passed to released declaration reservation. Neither pipeline infers its grammar from a
 filename or admits the other's root. Single-source semantic preparation returns
 `ModuleInputRequired` for authored dependencies rather than silently dropping them.
 `ModuleSources::pair` closes source-structural contract/definition pairs through the same matcher
@@ -165,9 +166,13 @@ Copy validity. `PairedModuleSources::reserve_names` allocates one semantic ident
 canonical declaration through the value-access reservation owner. One shared immutable spelling
 prefix feeds all source scopes; the compiler does not clone a symbol domain per file. Current and
 directly seen authored names bind those same identities, with set semantics for repeated edges
-and contract/definition occurrences. Imports are a separate required binding product: an authored
-`use` returns `ModuleImportBindingsRequired` with its exact nodes rather than being dropped from
-an apparently closed scope.
+and contract/definition occurrences. Top-level selected record-type imports bind those same
+nominal identities into their exact source scope. Root imports also re-export their selected
+names, including aliases, in the topology owner's dependency order. Missing/private selections,
+non-type selections, reserved/duplicate local names and widening re-exports diagnose at the import
+with related authored origins where applicable. Ordinary imports do not propagate through `see`.
+Qualified namespace imports and body-local imports still return `ModuleImportBindingsRequired`
+with their exact nodes rather than being dropped from an apparently closed scope.
 `ScopedModuleSources` retains the source-to-scope/declaration/field projection and the one header
 writer. Complete representations determine field count and order, while selected public fields map
 to their corresponding reserved slots. Parameter/field slot queries grant no typed metadata;
@@ -178,6 +183,16 @@ boundaries; implementation location cannot alter them. Non-root visibility direc
 `ModuleSourceBinding::exports` enumerates only authored top-level root contracts with semantic
 identities and effective audiences, never helpers made visible by `see`; this inventory alone
 proves neither completed signatures nor accepted bodies.
+Module export scopes bind original declaration identities through that same semantic namespace;
+retained policy entries refer to the owning root declaration/import rather than copying its
+audience. The temporary import plan does not survive as another semantic target table.
+`lookup_export` in scoped or sealed module contexts applies the requested caller's audience before
+querying that namespace. A scoped lookup grants no header readiness.
+`Context::complete_record_visible` and `record_field_visible` use the same physical source binding:
+only an own/directly seen complete definition grants the representation view. Otherwise a field
+needs an audience-qualified root field contract. Record/field identities, data schemas and field
+slots still come from the semantic program; compiler knowledge of a hidden payload grants no
+source permission. These queries do not add structural grants to the bounded grammar.
 Raw header projection reads the immutable declaration program with an explicit physical syntax
 and lookup scope. The same projection serves single-source definition loading and every physical
 occurrence of a module header. Nominal names resolve to reserved identities before payload readiness;
@@ -220,9 +235,9 @@ not cross-revision rebinding. Code/declaration enumeration and cycle projection 
 [common source coordinator](../nocter-checking/README.md#bounded-future-value-binding-typing).
 Ordinary module orchestration rejects unselected primitive markers through the existing primitive
 authority diagnostic; it does not infer roles from inventory names. Module primitive authority,
-source-qualified query rebinding across revisions, import/re-export binding and ordinary discovery/CLI
-integration remain work. Both top-level and body-local imports require exact binding evidence before
-scopes close; neither can silently disappear from semantic admission. Header publication alone does not produce an accepted Unit.
+source-qualified query rebinding across revisions, qualified namespace and body-local import binding,
+and ordinary discovery/CLI integration remain work. Unsupported import scopes require exact
+binding evidence before scopes close; none can silently disappear from semantic admission. Header publication alone does not produce an accepted Unit.
 `Context::verify_header_values` reprojects every physical source header with actual completed count
 values and requires existing published type/constraint identities to agree. It reuses the same
 header/data projection for callable inputs/results, callback contracts and record fields, including

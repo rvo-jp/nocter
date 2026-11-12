@@ -1,4 +1,4 @@
-//! Actual body typing over physical source views. No whole-module Unit or evaluation claim.
+//! Explicit physical-source fixtures shared by scoped body queries and selected-module acceptance.
 use super::*;
 use ModuleSourceKind::{Implementation, Root};
 use nocter_compile_input::{
@@ -14,6 +14,8 @@ pub(super) struct Fixture {
     trees: Vec<SyntaxTree>,
     files: Vec<(String, ModuleSourceKind)>,
     edges: Vec<(usize, usize, usize)>,
+    modules: Vec<(Vec<String>, Vec<usize>)>,
+    uses: Vec<(usize, usize, Vec<String>)>,
 }
 impl Fixture {
     pub(super) fn new(
@@ -40,7 +42,34 @@ impl Fixture {
                 .map(|(path, role, _)| (path.to_string(), *role))
                 .collect(),
             edges: edges.into(),
+            modules: vec![(Vec::new(), (0..files.len()).collect())],
+            uses: Vec::new(),
         }
+    }
+    pub(super) fn with_modules(mut self, modules: &[(&[&str], &[usize])]) -> Self {
+        self.modules = modules
+            .iter()
+            .map(|(path, files)| {
+                (
+                    path.iter().map(|part| (*part).to_string()).collect(),
+                    files.to_vec(),
+                )
+            })
+            .collect();
+        self
+    }
+    pub(super) fn with_uses(mut self, uses: &[(usize, usize, &[&str])]) -> Self {
+        self.uses = uses
+            .iter()
+            .map(|(source, occurrence, target)| {
+                (
+                    *source,
+                    *occurrence,
+                    target.iter().map(|part| (*part).to_string()).collect(),
+                )
+            })
+            .collect();
+        self
     }
     pub(super) fn input(&self) -> CompileUnitInput<'_> {
         let package = PackageIdentity::new("workspace:app");
@@ -53,15 +82,38 @@ impl Fixture {
                 "app",
                 PackageMode::Declared,
             )],
-            vec![ModuleInput::new(
-                ModuleIdentity::new(package, Vec::<&str>::new()),
-                self.files
-                    .iter()
-                    .zip(&self.trees)
-                    .map(|((path, role), tree)| ModuleSourceInput::new(path.as_str(), *role, tree))
-                    .collect(),
-            )],
-            Vec::new(),
+            self.modules
+                .iter()
+                .map(|(path, files)| {
+                    ModuleInput::new(
+                        ModuleIdentity::new(package.clone(), path.iter().map(String::as_str)),
+                        files
+                            .iter()
+                            .map(|&index| {
+                                ModuleSourceInput::new(
+                                    self.files[index].0.as_str(),
+                                    self.files[index].1,
+                                    &self.trees[index],
+                                )
+                            })
+                            .collect(),
+                    )
+                })
+                .collect(),
+            self.uses
+                .iter()
+                .map(|(source, occurrence, target)| {
+                    let tree = &self.trees[*source];
+                    let node = child_node_iter(tree, tree.root_id())
+                        .filter(|node| tree.node(*node).unwrap().kind() == NodeKind::UseDeclaration)
+                        .nth(*occurrence)
+                        .unwrap();
+                    nocter_compile_input::UseResolutionInput::new(
+                        node,
+                        ModuleIdentity::new(package.clone(), target.iter().map(String::as_str)),
+                    )
+                })
+                .collect(),
         )
         .with_source_visibility_resolutions(
             self.edges
