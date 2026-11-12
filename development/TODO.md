@@ -18,13 +18,13 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Extend scoped optional projection from the qualified `!` assertion to `?`, then integrate
-`otherwise`. Reuse the existing source receipt, tag-stability evidence, address projection and
-normal return/cancellation protocols. A scoped `?` must preserve its carrier and return absence
-through the current callable's declared outer optional layer. Do not create an owning Copy,
-upgrade readonly authority, reevaluate a saved index, or retain a fallback-local owner. Qualify
-required/native success, absence, nested views, source survival and cancellation before claiming
-support. Keep remaining fallible/error and general dependency obligations explicit.
+Integrate optional recovery (`otherwise`) with the qualified value and scoped elimination paths.
+Use one carrier acquisition/receipt and the existing tag condition, branch, answer protection and
+scope/return/cancellation protocols. Run fallback only on absence and preserve nested payload data
+without flattening. Value recovery must supply owned results normally; scoped recovery must retain
+an existing surviving place without an owning Copy or an escaping fallback-local owner. Keep
+unqualified alternative-root, dependency and fallible/error behavior explicit, and qualify required
+and native source before claiming support.
 
 ## Retained Selection Closure
 
@@ -92,11 +92,6 @@ not a language restriction derived from the current realization boundary.
   publication is not implied by qualification.
 
 ## Open Findings
-
-- [ ] Extend scoped optional control from assertion to propagation and recovery. Direct existing
-  place requests for `?` currently reject explicitly, preserving value propagation for owning
-  consumers and produced/transferred carriers. Use the same source receipt and tag-stability
-  authority; do not introduce a hidden owning Copy or allow a fallback-local root to escape.
 
 - [ ] Investigate the unclassified status-1 failure of the released native test
   `network_and_tls::public_tls_and_https_reject_plain_peers_and_https_advertises_http1`.

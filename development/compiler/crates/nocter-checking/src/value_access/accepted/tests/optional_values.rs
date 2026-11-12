@@ -220,7 +220,6 @@ fn scoped_optional_places_cannot_manufacture_update_authority_or_surviving_tempo
         "func set(edit value: i32): void { value = 42 }\nfunc run(value: i32?): void { set(value!) }",
         "func run(): void { let value: i32? = 42\nedit payload = value! }",
         "func make(): i32? { 42 }\nfunc run(): void { read payload = make()! }",
-        "func run(value: i32?): i32? { read payload = value?\npayload }",
     ] {
         let fixture = nocter_test_support::ValueSourceFixture::new(source);
         assert!(
@@ -230,6 +229,43 @@ fn scoped_optional_places_cannot_manufacture_update_authority_or_surviving_tempo
                     failure: BodyFailure::Rejected(_),
                     ..
                 }))
+            ),
+            "{source}"
+        );
+    }
+}
+
+#[test]
+fn scoped_optional_propagation_preserves_noncopy_sources_callers_and_saved_indices() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/optional-place-propagation.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
+    for (name, ty) in [("absent_nested", "i32??"), ("absent_unit", "void?")] {
+        let source = format!("{source}\nconst EMPTY: {ty} = {name}()");
+        assert_eq!(answer(&source, "EMPTY"), Datum::variant(false, None));
+    }
+}
+#[test]
+fn scoped_optional_propagation_keeps_tag_stability_and_readonly_authority() {
+    for source in [
+        "func run(value: i32?): i32 { read payload = value?\npayload }",
+        "func set(edit value: i32): void { value = 42 }\nfunc run(value: i32?): void? { set(value?) }",
+        "func make(): i32? { 42 }\nfunc run(): i32? { read payload = make()?\npayload }",
+        "func run(): i32? { var value: i32? = 42\nread payload = value?\nvalue = none\npayload }",
+        "func run(): i32? { let value: i32? = 42\nread payload = value?\ndrop value\npayload }",
+    ] {
+        let fixture = nocter_test_support::ValueSourceFixture::new(source);
+        assert!(
+            matches!(
+                SourceUnit::prepare(fixture.syntax()),
+                Err(SourceFailure::Checking(
+                    Failure::Body {
+                        failure: BodyFailure::Rejected(_),
+                        ..
+                    } | Failure::Flow { .. }
+                ))
             ),
             "{source}"
         );

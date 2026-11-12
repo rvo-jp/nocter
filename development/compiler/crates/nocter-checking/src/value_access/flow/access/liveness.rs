@@ -293,10 +293,10 @@ fn expression_uses(
     let update = updating(after, Carrier::Expression(id));
     let mut uses = Vec::new();
     match typed.body().expressions().get(id).ok_or(INVALID)?.kind {
-        ExpressionKind::PrimaryCondition { source: place } | ExpressionKind::Place(place) => {
+        ExpressionKind::Place(place) => {
             uses.push((Carrier::Local(root(typed, place)?), update));
         }
-        ExpressionKind::GuardView { source } => {
+        ExpressionKind::PrimaryCondition { source } | ExpressionKind::GuardView { source } => {
             uses.push((referent_carrier(typed, source)?, update));
         }
         ExpressionKind::Move(place) => {

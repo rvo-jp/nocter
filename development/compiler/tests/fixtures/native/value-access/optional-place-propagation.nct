@@ -1,0 +1,62 @@
+struct Pair { first: i32
+    second: i32 }
+const func inspect(value: Pair): i32 { value.first }
+const func borrowed(value: Pair?): i32? { read payload = value?
+    payload.first }
+const func borrowed_call(value: Pair?): i32? { inspect(value?) }
+const func updated(edit value: i32?): void? { edit payload = value?
+    payload = 42 }
+const func disjoint(edit value: Pair?): i32? {
+    edit first = (value?).first
+    read second = (value?).second
+    first = 21
+    first + second
+}
+const func nested(value: i32??): i32?? { read payload = (value?)?
+    payload }
+const func move_after_read(): i32? { let value: Pair? = Pair { first: 42, second: 0 }
+    let answer = inspect(value?)
+    let moved = value^!
+    answer + moved.second }
+const func indexed(edit values: [i32?; 2], edit index: usize): void? {
+    edit payload = values[index]?
+    index = 1
+    payload += 21
+}
+const func receive(take value: Pair?, observed: i32, edit counter: i32): i32 {
+    counter += 100
+    observed
+}
+const func cancelled(edit counter: i32): i32? { let value = Pair { first: 42, second: 0 }
+    let missing: i32? = none
+    receive(value^, missing?, counter) }
+const func closure_boundary(): i32 { let value: i32? = none
+    let action = (value;): i32? { read payload = value?
+        payload }
+    let absent = action()
+    42 }
+const func absent_nested(): i32?? { let inner: i32? = none
+    let value: i32?? = inner
+    read payload = (value?)?
+    payload }
+const func absent_unit(): void? { var value: i32? = none
+    updated(value) }
+const func calculate(): i32 {
+    let value: Pair? = Pair { first: 42, second: 0 }
+    var pair: Pair? = Pair { first: 1, second: 21 }
+    let separate = disjoint(pair)!
+    var scalar: i32? = 1
+    let _ = updated(scalar)!
+    var values: [i32?; 2] = [21, 7]
+    var index: usize = 0
+    let _ = indexed(values, index)!
+    var missing: [i32?; 2] = [none, 7]
+    var untouched: usize = 0
+    let absent = indexed(missing, untouched)
+    var counter = 42
+    let cancelled_result = cancelled(counter)
+    let deep: i32?? = 42
+    if separate == 42 && borrowed(value)! == 42 && borrowed_call(value)! == 42 && scalar! == 42 && values[0]! == 42 && index == 1 && untouched == 0 && missing[1]! == 7 && counter == 42 && move_after_read()! == 42 && (nested(deep)!)! == 42 && closure_boundary() == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { if ANSWER == 42 { calculate() } else { 0 } }

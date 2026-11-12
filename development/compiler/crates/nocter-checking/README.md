@@ -605,15 +605,18 @@ absence branch returns the declared outer optional absence. The supplied carrier
 owner and the selected answer is protected before its lexical cleanup. Existing return flow
 cancels enclosing prepared calls and retires scopes; no separate propagation cleanup protocol is
 introduced. A closure uses its own result contract. Initializers and non-optional callable results
-cannot propagate absence. Direct read/edit operands and scoped bindings request an existing payload place for postfix `!`.
-`Scoped` forms its source once before `GuardView` checks the tag and retains its stability; ordinary
-selection, argument reservation and alias binding then use the original payload storage. The access
+cannot propagate absence. Direct read/edit operands and scoped bindings request an existing payload
+place for postfix `!` or `?`. `Scoped` forms its source once and forwards that same carrier place
+after its guard/control; the payload selector stays outside the receipt. `GuardView` checks the tag
+and retains its stability. Ordinary selection, argument reservation and alias binding then use the
+original payload storage. Scoped propagation returns absence through the same callable return
+protocol without transferring the carrier. Its tag condition consumes a resolved place, including
+an already saved indexed address, and reads no payload data. The access
 world retains tag evidence with dependent places, including read reservations whose neutral
 intermediates can be released. A tag pin grants no update authority and prevents carrier replacement
 or retirement while allowing otherwise authorized disjoint payload accesses. It is compilation
 state, with no runtime owner or lock table. Named aliases cannot keep a produced temporary alive.
-Scoped `?` and recovery remain open; their direct place requests reject explicitly rather than
-silently updating or observing an owned snapshot.
+Recovery remains open. The scoped path does not silently update or observe an owned snapshot.
 
 Implicit optional input wrappers retain the original direct-transfer reservation. Complete bundle
 validation precedes wrapper materialization and original-source retirement; later reads and

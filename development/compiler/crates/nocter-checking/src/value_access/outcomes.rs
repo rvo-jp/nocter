@@ -91,14 +91,6 @@ impl Checker<'_, '_> {
             let source =
                 self.expression_with_projection(child, None, None, projection, reachable)?;
             if let Some(place) = self.expression_referent(source) {
-                if propagate {
-                    return self.reject_message(
-                        Rule::TypeMismatch,
-                        node,
-                        "scoped optional propagation is not available yet".into(),
-                        Vec::new(),
-                    );
-                }
                 let Some(access) = self.ty(source).access() else {
                     return self.reject(Rule::TypeMismatch, node);
                 };
@@ -110,25 +102,13 @@ impl Checker<'_, '_> {
                 if projection == Some(Mode::Update) {
                     self.require_writable_referent(place, node, Rule::InvalidUpdate)?;
                 }
-                let guard = self.emit(
+                return self.scoped_optional(
                     node,
-                    value_type(access.data(), Mode::Read),
-                    ExpressionKind::GuardView { source: place },
-                )?;
-                let projected = self.emit(
-                    node,
-                    value_type(payload, Mode::Read),
-                    ExpressionKind::Select {
-                        source: guard,
-                        fields: FieldPath::new([ValueField::Variant(true)]),
-                        action: SelectionAction::Access,
-                    },
-                )?;
-                return self.emit(
-                    node,
-                    value_type(payload, Mode::Read)
-                        .with_continuation(self.ty(source).may_complete()),
-                    ExpressionKind::Scoped { source, projected },
+                    source,
+                    place,
+                    access.data(),
+                    payload,
+                    propagate,
                 );
             }
             // Reuse the already checked produced value rather than preparing it twice.
@@ -219,25 +199,9 @@ impl Checker<'_, '_> {
         node: NodeId,
         source: AccessExpressionId,
     ) -> Result<AccessExpressionId, Failure> {
-        use super::ir::{Local, LocalOrigin, Statement, ValueType};
+        use super::ir::{Local, LocalOrigin, Statement};
         use nocter_model::{BuiltinType, ValueBindingKind};
-        if matches!(self.code, nocter_model::ValueCode::Expression(_))
-            || matches!(self.code, nocter_model::ValueCode::Declaration(code)
-                if self.program().codes().get(code).is_some_and(|code| code.kind().is_initializer()))
-        {
-            return self.reject(Rule::InvalidReturn, node);
-        }
-        if !matches!(
-            self.program().data_schema(self.result),
-            Some(PayloadSchema::Optional(_))
-        ) {
-            return self.reject_message(
-                Rule::TypeMismatch,
-                node,
-                "optional propagation needs an optional callable result".into(),
-                Vec::new(),
-            );
-        }
+        let else_block = self.absence_return(node)?;
         let (source, data, payload) = self.supply_optional(node, source)?;
         let local = self.locals.insert(Local {
             data,
@@ -258,14 +222,13 @@ impl Checker<'_, '_> {
         let condition = self.emit(
             node,
             value_type(self.data(BuiltinType::Bool), Mode::Own),
-            ExpressionKind::PrimaryCondition { source: place },
+            ExpressionKind::PrimaryCondition {
+                source: place.into(),
+            },
         )?;
         let carrier = self.transfer_place(node, place)?;
         let present = self.select_optional_payload(node, carrier, payload)?;
         let then_block = self.emit_block(node, Vec::new(), Some(present), self.ty(present))?;
-        let absent = self.absent(node, Some(self.result))?;
-        let returning = self.statement(node, Statement::Return(absent))?;
-        let else_block = self.emit_block(node, vec![returning], None, ValueType::NEVER)?;
         let selected = self.emit(
             node,
             self.ty(present),
@@ -280,5 +243,77 @@ impl Checker<'_, '_> {
             .with_continuation(self.ty(source).may_complete());
         let block = self.emit_block(node, vec![binding], Some(selected), ty)?;
         self.emit(node, ty, ExpressionKind::Block { block })
+    }
+    fn absence_return(&mut self, node: NodeId) -> Result<nocter_model::AccessBlockId, Failure> {
+        use super::ir::{Statement, ValueType};
+        if matches!(self.code, nocter_model::ValueCode::Expression(_))
+            || matches!(self.code, nocter_model::ValueCode::Declaration(code)
+                if self.program().codes().get(code).is_some_and(|code| code.kind().is_initializer()))
+        {
+            return self.reject(Rule::InvalidReturn, node);
+        }
+        if !matches!(
+            self.program().data_schema(self.result),
+            Some(PayloadSchema::Optional(_))
+        ) {
+            return self.reject_message(
+                Rule::TypeMismatch,
+                node,
+                "optional propagation needs an optional callable result".into(),
+                Vec::new(),
+            );
+        }
+        let absent = self.absent(node, Some(self.result))?;
+        let returning = self.statement(node, Statement::Return(absent))?;
+        self.emit_block(node, vec![returning], None, ValueType::NEVER)
+    }
+    fn scoped_optional(
+        &mut self,
+        node: NodeId,
+        source: AccessExpressionId,
+        place: super::Referent,
+        data: TypeId,
+        payload: TypeId,
+        propagate: bool,
+    ) -> Result<AccessExpressionId, Failure> {
+        let guard = self.emit(
+            node,
+            value_type(data, Mode::Read),
+            ExpressionKind::GuardView { source: place },
+        )?;
+        let projected = if propagate {
+            let condition = self.emit(
+                node,
+                value_type(self.data(nocter_model::BuiltinType::Bool), Mode::Own),
+                ExpressionKind::PrimaryCondition { source: place },
+            )?;
+            let then_block = self.emit_block(node, Vec::new(), Some(guard), self.ty(guard))?;
+            let else_block = self.absence_return(node)?;
+            self.emit(
+                node,
+                self.ty(guard),
+                ExpressionKind::If {
+                    condition,
+                    then_block,
+                    else_block,
+                },
+            )?
+        } else {
+            guard
+        };
+        let receipt = self.emit(
+            node,
+            value_type(data, Mode::Read).with_continuation(self.ty(source).may_complete()),
+            ExpressionKind::Scoped { source, projected },
+        )?;
+        self.emit(
+            node,
+            value_type(payload, Mode::Read).with_continuation(self.ty(source).may_complete()),
+            ExpressionKind::Select {
+                source: receipt,
+                fields: FieldPath::new([ValueField::Variant(true)]),
+                action: SelectionAction::Access,
+            },
+        )
     }
 }

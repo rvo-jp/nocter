@@ -158,13 +158,13 @@ impl Referent {
                             self = source;
                             continue;
                         }
-                        ExpressionKind::Scoped { projected, .. } => projected,
                         ExpressionKind::Index {
                             base,
                             action: IndexAction::Access,
                             ..
                         } => base,
-                        ExpressionKind::Select {
+                        ExpressionKind::Scoped { source, .. }
+                        | ExpressionKind::Select {
                             source,
                             action: SelectionAction::Access,
                             ..
@@ -306,7 +306,8 @@ pub enum ExpressionKind {
     AdaptFunction {
         source: AccessExpressionId,
     },
-    /// Form an existing place once before evaluating its guarded projection.
+    /// Form one carrier place once, then forward that same place after its guard/control.
+    /// Source and projected have the same data; payload selection remains outside this receipt.
     Scoped {
         source: AccessExpressionId,
         projected: AccessExpressionId,
@@ -321,7 +322,7 @@ pub enum ExpressionKind {
     },
     /// Observe a stored carrier tag without transferring or retaining its payload.
     PrimaryCondition {
-        source: AccessPlaceId,
+        source: Referent,
     },
     /// Require the primary branch before forwarding this owned carrier to payload selection.
     RequirePrimary {

@@ -100,12 +100,10 @@ impl Builder<'_> {
                     .checked
                     .typed()
                     .body()
-                    .places()
-                    .get(source)
-                    .ok_or_else(|| self.invalid())?
-                    .data;
+                    .referent_data(source)
+                    .ok_or_else(|| self.invalid())?;
                 Operation::PrimaryCondition {
-                    source: self.selected(source, self.data(data)?)?,
+                    source: self.referent(source, self.data(data)?)?,
                     destination,
                 }
             }

@@ -611,7 +611,7 @@ impl Builder<'_, '_> {
                 value: plan::Value::unit(),
             },
             ExpressionKind::PrimaryCondition { source } => plan::Operation::PrimaryCondition {
-                source: self.selected(source)?,
+                source: self.referent(source)?,
                 destination,
             },
             ExpressionKind::GuardView { source } => plan::Operation::RequirePrimary {

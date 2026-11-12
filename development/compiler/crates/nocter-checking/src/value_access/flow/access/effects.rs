@@ -379,9 +379,8 @@ impl Context<'_, '_> {
                 RetentionKind::Tag,
             ),
             ExpressionKind::PrimaryCondition { source } => {
-                if let Some((region, actor)) = self.referent(source.into())? {
-                    self.world
-                        .check(&region, actor, Mode::Read, self.at, self.live)?;
+                if let Some((region, actor)) = self.referent(source)? {
+                    self.world.check_tag(&region, actor, self.at, self.live)?;
                 }
                 Ok(Value::without_referent(Mode::Own))
             }

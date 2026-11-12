@@ -79,7 +79,7 @@ impl Referent {
                             self = *source;
                             continue;
                         }
-                        ExpressionKind::Scoped { projected, .. } => *projected,
+                        ExpressionKind::Scoped { source, .. } => *source,
                         ExpressionKind::Index {
                             base,
                             index: operand,

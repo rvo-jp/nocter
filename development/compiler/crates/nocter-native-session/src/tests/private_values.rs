@@ -623,6 +623,18 @@ fn private_optional_absence_assertions_trap_before_payload_reads_and_without_unw
             "func run(): i32 { let value: void? = none\nlet _ = value!\n42 }",
         ),
         (
+            "scoped-nested-propagated-none",
+            "func absent(): i32?? { let inner: i32? = none\nlet value: i32?? = inner\nread payload = (value?)?\npayload }\nfunc run(): i32 { let inner = absent()!\n42 }",
+        ),
+        (
+            "scoped-unit-propagated-none",
+            "func absent(): void? { var value: i32? = none\nedit payload = value?\npayload = 42 }\nfunc run(): i32 { let _ = absent()!\n42 }",
+        ),
+        (
+            "scoped-absence-before-later-exit",
+            "func observe(value: i32, other: i32): i32 { value }\nfunc absent(): i32? { let value: i32? = none\nobserve(value?, if true { return 42 } else { 0 }) }\nfunc run(): i32 { absent()! }",
+        ),
+        (
             "scoped-empty-optional-array",
             "func observe(value: error): void {}\nfunc run(): i32 { let values: [error?; 0] = []\nobserve(values[0]!)\n42 }",
         ),
@@ -660,4 +672,19 @@ fn private_optional_places_edit_existing_payloads_with_stable_tags_and_saved_ind
     ));
     let package = TempPackage::new();
     execute_native_status(&compile(source), &package.0, "optional-places", 42);
+}
+
+#[test]
+fn private_optional_place_propagation_keeps_sources_tags_and_cancellation() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/optional-place-propagation.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "optional-place-propagation",
+        42,
+    );
 }
