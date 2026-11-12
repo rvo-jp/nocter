@@ -145,15 +145,18 @@ impl<'a, 'source> Preparation<'a, 'source> {
     ) -> Result<(), SourceFailure> {
         for &id in ids {
             self.require_header(requests, id.into())?;
-            if self
+            let kind = self
                 .context
                 .program()
                 .codes()
                 .get(id)
                 .ok_or(INVALID)?
-                .kind()
-                .is_initializer()
-            {
+                .kind();
+            if kind == nocter_declarations::value_access::CodeKind::Primitive {
+                if self.context.primitives().role(id).is_none() {
+                    return Err(INVALID.into());
+                }
+            } else if kind.is_initializer() {
                 self.budget.restart_work();
                 let fact = requests
                     .resolve_steps(self, Request::Value(id.into()))
@@ -469,6 +472,14 @@ impl<'a, 'source> Preparation<'a, 'source> {
                 {
                     continue;
                 }
+                if let ValueCode::Declaration(id) = code
+                    && self.context.primitives().role(id).is_some()
+                {
+                    // A runtime operation participates in the dependency graph without a source
+                    // body. The ordinary const-domain check rejects invoking it before execution.
+                    selected.insert(code, Needed { demand, origin });
+                    continue;
+                }
                 let Some(root_query) = dependencies::body(requests, code.root()) else {
                     return Ok(GraphProgress::Require(
                         code.root(),
@@ -488,7 +499,14 @@ impl<'a, 'source> Preparation<'a, 'source> {
                     pending.push((target, needed, Some(CallOrigin { parent: code, site })));
                 }
             }
-            let roots: BTreeSet<_> = selected.keys().map(|code| code.root()).collect();
+            let roots: BTreeSet<_> = selected
+                .keys()
+                .filter(|code| match code {
+                    ValueCode::Declaration(id) => self.context.primitives().role(*id).is_none(),
+                    _ => true,
+                })
+                .map(|code| code.root())
+                .collect();
             let queries = roots
                 .into_iter()
                 .map(|id| Ok((id, dependencies::body(requests, id).ok_or(INVALID)?.clone())))

@@ -587,7 +587,7 @@ The whole-unit constructor validates every definition, including unused/recursiv
 publishes no partial accepted value after any typing/init/access/resource failure. It owns the
 same shared declaration facts, canonical type authority, closed result evidence and all body/flow
 reports. It rejects an incomplete ready-header view before evaluation or acceptance. Admission
-also proves exact callable-body and required-initializer-value coverage; a coordinator's
+also proves exact source-body, checked bodyless-primitive and required-initializer-value coverage; a coordinator's
 omitted body or missing, extra or role-substituted value cannot become a complete Unit. Source
 binding validates every original body before exposing current projections. An equal but separately rebuilt program or changed sibling
 cannot substitute for that authority. The sole body catalog exposes exact semantic-ID lookup for
@@ -602,9 +602,16 @@ not a duplicate crate-internal status table.
 ## Primitive Header Boundary
 
 The ordinary value-access source entry has no primitive authority. It rejects a matching
-bodyless declaration name rather than treating it as an intrinsic. Authorized primitive
-[header metadata](../nocter-declaration-lowering/README.md#trusted-primitive-headers) alone is
-not an accepted body or executable call; that integration remains separate.
+bodyless declaration name rather than treating it as an intrinsic. Explicit authorized source
+preparation uses the same staged contract, body and required-value coordinator with checked
+[header bindings](../nocter-declaration-lowering/README.md#trusted-primitive-headers).
+The complete Unit retains those immutable bindings: every source definition has a checked body,
+while every primitive has an exact checked role and no body. Neither a fabricated empty body nor
+an omitted ordinary definition satisfies coverage. Binding still requires the original header
+authority. Runtime primitive calls use ordinary input/result and cleanup checks; required closures
+reject them through the ordinary runtime-call diagnostic rather than requesting absent source.
+This is source acceptance, not a native runtime-call ABI or executed error-graph certificate.
+Caller-write summaries remain conservative for these bodyless operations.
 
 ## Program-Extent Text
 

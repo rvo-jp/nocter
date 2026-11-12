@@ -31,9 +31,10 @@ First close trusted standard primitive construction through the shared path. Do 
 primitives by an arbitrary user name, infer general text-view
 independence from program-extent literal backing, or treat static error handles as owned-graph
 release evidence.
-Connect checked primitive header bindings to accepted-body/dependency closure and the common
-native call ABI. Preserve actual absent bodies and explicit physical address channels; header
-recognition or signature authority does not establish constructor execution or graph cleanup.
+Connect the accepted Unit's checked bodyless primitive bindings to the common native call ABI.
+Preserve actual absent bodies and explicit physical address channels; source acceptance does not
+establish constructor execution or graph cleanup. Required closures must retain ordinary
+runtime-call rejection rather than searching for an absent primitive source body.
 
 ## Retained Selection Closure
 

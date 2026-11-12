@@ -57,6 +57,7 @@ pub struct Unit {
     closures: BTreeMap<nocter_model::ValueClosure, flow::Query>,
     program: Arc<Program>,
     header: Arc<Program>,
+    primitives: nocter_declaration_lowering::access_declarations::PrimitiveBindings,
     bodies: BTreeMap<nocter_model::ValueCodeRoot, flow::Query>,
     result_evidence: Arc<super::results::Evidence>,
 }
@@ -90,15 +91,18 @@ impl Unit {
         evaluation: super::evaluation::Output,
     ) -> Result<Self, Failure> {
         let declarations = context.program().codes();
-        let complete_bodies = evaluation
-            .queries
-            .keys()
-            .filter(|root| matches!(root, nocter_model::ValueCodeRoot::Declaration(_)))
-            .count()
-            == declarations.len()
-            && declarations
-                .iter()
-                .all(|(id, _)| evaluation.queries.contains_key(&id.into()));
+        let complete_bodies = declarations.iter().all(|(id, code)| {
+            let checked_role = context.primitives().role(id).is_some();
+            let source_body = evaluation.queries.contains_key(&id.into());
+            if code.kind() == nocter_declarations::value_access::CodeKind::Primitive {
+                checked_role && !source_body
+            } else {
+                !checked_role && source_body
+            }
+        }) && evaluation.queries.keys().all(|root| match root {
+            nocter_model::ValueCodeRoot::Declaration(id) => declarations.get(*id).is_some(),
+            nocter_model::ValueCodeRoot::Expression(_) => true,
+        });
         let requires_value = |root| match root {
             nocter_model::ValueCodeRoot::Declaration(id) => declarations
                 .get(id)
@@ -137,6 +141,7 @@ impl Unit {
             closures,
             program,
             header: context.program_handle(),
+            primitives: context.primitives().clone(),
             bodies,
             result_evidence,
         })
@@ -164,6 +169,13 @@ impl Unit {
     #[must_use]
     pub fn program(&self) -> &Program {
         &self.program
+    }
+    /// Exact checked bodyless declarations retained from this unit's header authority.
+    #[must_use]
+    pub const fn primitives(
+        &self,
+    ) -> &nocter_declaration_lowering::access_declarations::PrimitiveBindings {
+        &self.primitives
     }
     /// Project data through this complete unit's closed result and payload evidence.
     /// # Errors

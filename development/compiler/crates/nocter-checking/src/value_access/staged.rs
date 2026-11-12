@@ -41,7 +41,26 @@ impl SourceUnit {
     ) -> Result<Self, SourceFailure> {
         let headers =
             declarations::Preparation::prepare(syntax).map_err(SourceFailure::Declarations)?;
-        let (declarations, evaluation) = evaluation::prepare_source(headers, limits.into())?;
+        Self::close(syntax, headers, limits.into())
+    }
+    /// Admit only primitive declarations selected by this host-provided module authority.
+    /// # Errors
+    /// Reports the same whole-source failures as ordinary preparation; authority never supplies a body.
+    pub fn prepare_with_primitive_authority(
+        syntax: BoundSyntax<'_>,
+        authority: &declarations::PrimitiveAuthority,
+        limits: impl Into<state::Limits>,
+    ) -> Result<Self, SourceFailure> {
+        let headers =
+            declarations::Preparation::prepare_with_primitive_authority(syntax, authority)?;
+        Self::close(syntax, headers, limits.into())
+    }
+    fn close(
+        syntax: BoundSyntax<'_>,
+        headers: declarations::Preparation<'_>,
+        limits: state::Limits,
+    ) -> Result<Self, SourceFailure> {
+        let (declarations, evaluation) = evaluation::prepare_source(headers, limits)?;
         let context = declarations
             .bind(syntax)
             .map_err(SourceFailure::Declarations)?;
