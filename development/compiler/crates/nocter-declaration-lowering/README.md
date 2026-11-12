@@ -157,9 +157,24 @@ and share their source representative with the corresponding definition field. H
 remain independent occurrences in representation order. No structural grant is admitted by this
 bounded grammar.
 `PairedModuleSources` still proves neither resolved header equality nor normalized representation/
-Copy validity. Source-local name lookup, visibility/re-exports, resolved contract agreement and
-ordinary discovery/CLI integration remain work; neither inventory nor structural pairing publishes
-a type or accepted Unit.
+Copy validity. `PairedModuleSources::reserve_names` allocates one semantic identity for each
+canonical declaration through the value-access reservation owner. One shared immutable spelling
+prefix feeds all source scopes; the compiler does not clone a symbol domain per file. Current and
+directly seen authored names bind those same identities, with set semantics for repeated edges
+and contract/definition occurrences. Imports are a separate required binding product: an authored
+`use` returns `ModuleImportBindingsRequired` with its exact nodes rather than being dropped from
+an apparently closed scope.
+`ScopedModuleSources` retains the source-to-scope/declaration/field projection and the one header
+writer. Complete representations determine field count and order, while selected public fields map
+to their corresponding reserved slots. Parameter/field slot queries grant no typed metadata;
+namespace conflicts use the shared header diagnostic projector over the actual owning trees.
+Export construction still needs authored root declarations and audiences, independently of the
+names visible in a root's local lookup scope. Equal header spellings can resolve to different
+reserved nominal identities in two physical scopes; name closure preserves that distinction and
+grants no resolved signature agreement.
+Body lookup contexts, normalization in each physical header/representation scope, resolved contract
+agreement, visibility/re-exports and ordinary discovery/CLI integration remain work. These name and
+slot products publish neither payload/Copy readiness nor an accepted Unit.
 
 The reusable result owns a single immutable value-access declaration program, its exact neutral
 header surface, and projection locators. It contains no current syntax IDs, source identity,

@@ -409,7 +409,7 @@ struct ParameterSlot {
 /// Construction-only identity reservation. Authored headers load only after names are closed.
 #[derive(Debug)]
 pub struct Reservations {
-    symbols: SymbolTable,
+    symbols: Arc<SymbolTable>,
     scope_count: usize,
     bindings: Vec<(ScopeId, Symbol, DeclarationId)>,
     codes: ArenaBuilder<AccessCodeId, Reservation>,
@@ -420,6 +420,11 @@ pub struct Reservations {
 impl Reservations {
     #[must_use]
     pub fn new(symbols: SymbolTable) -> Self {
+        Self::with_symbols(Arc::new(symbols))
+    }
+    /// Share one exact immutable spelling domain with the source declaration inventory.
+    #[must_use]
+    pub fn with_symbols(symbols: Arc<SymbolTable>) -> Self {
         Self {
             symbols,
             scope_count: 1,
@@ -575,7 +580,7 @@ impl Reservations {
             return Err(violations);
         }
         Ok(Builder {
-            symbols: self.symbols.into(),
+            symbols: self.symbols,
             codes: self.codes,
             parameters: self.parameters.finish(),
             records: self.records,

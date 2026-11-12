@@ -71,6 +71,16 @@ impl HeaderPublication {
             DeclarationId::Record(id) => self.definitions.records.is_defined(id),
         }
     }
+    /// Reserved input slots, without typed parameter contracts.
+    #[must_use]
+    pub fn parameter_ids(&self, code: AccessCodeId) -> Option<&[AccessParameterId]> {
+        self.definitions.parameter_ids(code)
+    }
+    /// Reserved representation slots, without payload or Copy readiness.
+    #[must_use]
+    pub fn field_ids(&self, record: NominalTypeId) -> Option<&[nocter_model::AccessFieldId]> {
+        self.definitions.field_ids(record)
+    }
     /// The fixed symbol domain used by raw definitions and every ready view.
     #[must_use]
     pub fn symbols(&self) -> &nocter_model::SymbolTable {

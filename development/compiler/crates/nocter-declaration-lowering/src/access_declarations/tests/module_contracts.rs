@@ -10,7 +10,7 @@ use nocter_model::{CompilationTarget, PackageIdentity};
 use nocter_target_selection::TargetSelection;
 use std::sync::Arc;
 
-fn inventory(
+pub(super) fn inventory(
     files: &[(&str, ModuleSourceKind, &str)],
     edges: &[(usize, usize, usize)],
     reverse: bool,

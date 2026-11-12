@@ -96,10 +96,7 @@ pub(super) fn initializer(syntax: BoundSyntax<'_>, declaration: NodeId) -> Resul
         parameters: Vec::new(),
         result_syntax,
         result_data: value_type_syntax(syntax, result_syntax)?,
-        body: Some(
-            direct_node(tree, declaration, NodeKind::Expression)
-                .ok_or(Failure::InconsistentSyntax)?,
-        ),
+        body: direct_node(tree, declaration, NodeKind::Expression),
     })
 }
 pub(super) fn record(

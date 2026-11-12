@@ -91,6 +91,25 @@ impl CodeSource {
             kind: CodeSourceKind::Declaration { header, body },
         }
     }
+    pub(in crate::access_declarations) fn from_header(header: &super::headers::Header) -> Self {
+        Self::declaration(
+            CodeHeaderSource {
+                name: header.name,
+                parameters: header
+                    .parameters
+                    .iter()
+                    .map(|parameter| parameter.name)
+                    .collect(),
+                parameter_types: header
+                    .parameters
+                    .iter()
+                    .map(|parameter| parameter.ty)
+                    .collect(),
+                result: header.result_syntax,
+            },
+            header.body,
+        )
+    }
     fn expression(body: NodeId) -> Self {
         Self {
             kind: CodeSourceKind::Expression(body),

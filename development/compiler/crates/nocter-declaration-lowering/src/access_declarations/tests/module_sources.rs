@@ -127,7 +127,7 @@ fn source_roles_are_checked_for_unused_inventory_members() {
         Vec::new(),
     );
     assert!(
-        matches!(ModuleSources::prepare(&input), Err(ModuleSourcesFailure::Role(Failure::SourceRole(diagnostic))) if diagnostic.rule() == SourceRoleRule::MissingBody)
+        matches!(ModuleSources::prepare(&input), Err(ModuleSourcesFailure::Access(Failure::SourceRole(diagnostic))) if diagnostic.rule() == SourceRoleRule::MissingBody)
     );
 }
 
@@ -166,6 +166,10 @@ fn exact_dependency_resolutions_preserve_module_boundaries_and_use_identity() {
     let inventory = ModuleSources::prepare(&input).unwrap();
     assert_eq!(inventory.imports().len(), 1);
     assert_eq!(inventory.imports()[0].target(), &codec_identity);
+    let use_node = inventory.imports()[0].node();
+    assert!(
+        matches!(inventory.pair().unwrap().reserve_names(), Err(ModuleSourcesFailure::Access(Failure::ModuleImportBindingsRequired(nodes))) if nodes.as_ref() == [use_node])
+    );
     let see = tree(&mut sources, "/app/index.nct", "see ./codec/index.nct");
     let input = CompileUnitInput::for_goal(
         ParseGoal::V2CoreUnit,

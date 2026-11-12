@@ -360,7 +360,8 @@ pub(crate) fn reserve_with_contracts(
         package_target_resolutions,
         declarations,
     } = surface.into_parts();
-    let mut program = DeclarationProgramBuilder::new(target, symbols);
+    let mut program =
+        DeclarationProgramBuilder::new(target, std::sync::Arc::unwrap_or_clone(symbols));
     let mut source_index = crate::frontend_projection::FrontendProjectionBuilder::new(
         source_map.as_source_map(),
         &sources,

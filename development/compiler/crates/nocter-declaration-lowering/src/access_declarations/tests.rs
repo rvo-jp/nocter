@@ -5,6 +5,7 @@ use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 mod body_expressions;
 mod module_contracts;
+mod module_scopes;
 mod module_sources;
 mod source_roles;
 pub(super) fn input(text: &str, goal: ParseGoal) -> (SourceMap, SyntaxTree) {

@@ -1,5 +1,5 @@
 //! Reserve exact executable roots before closing the declaration name domain.
-use super::{CodeHeaderSource, CodeSource, Sources};
+use super::{CodeSource, Sources};
 use crate::access_declarations::{
     Failure,
     headers::{Header, RecordHeader},
@@ -17,20 +17,7 @@ impl Sources {
     ) -> Result<Self, Failure> {
         let mut sources: BTreeMap<_, _> = function_headers
             .iter()
-            .map(|(&id, h)| {
-                (
-                    id,
-                    CodeSource::declaration(
-                        CodeHeaderSource {
-                            name: h.name,
-                            parameters: h.parameters.iter().map(|p| p.name).collect(),
-                            parameter_types: h.parameters.iter().map(|p| p.ty).collect(),
-                            result: h.result_syntax,
-                        },
-                        h.body,
-                    ),
-                )
-            })
+            .map(|(&id, header)| (id, CodeSource::from_header(header)))
             .collect();
         let mut register = |declaration, position, lengths: Vec<NodeId>| -> Result<(), Failure> {
             for body in lengths {

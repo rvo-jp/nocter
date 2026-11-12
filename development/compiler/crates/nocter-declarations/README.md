@@ -95,8 +95,10 @@ in a different order cannot change parameter identities.
 The lowering owner reserves functions and records in canonical namespace order.
 
 Reservation takes each callable's input count and each record's field count, assigning the entire
-slot domain in authored position order before any data type is resolved. Construction-only slot
-queries expose those identities, not parameter contracts, field payloads or a partial program.
+slot domain in authored position order before any data type is resolved. `with_symbols` can share
+the source inventory's exact immutable spelling owner; ordinary construction delegates to that same
+reservation path. Construction and incremental-publication slot queries expose those identities,
+not parameter contracts, field payloads or a partial program.
 Definitions must match their reserved arity exactly; a wrong count leaves the slot/definition
 state untouched and can be retried. A second definition still rejects without replacement.
 Publication maps those exact reserved slots into typed parameters and fields; it never assigns

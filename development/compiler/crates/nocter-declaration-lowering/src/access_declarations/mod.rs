@@ -1,7 +1,9 @@
 //! Header-only query and exact-current binding for the future private-function grammar.
 mod definitions;
 mod headers;
+mod module_scopes;
 mod module_sources;
+pub use module_scopes::ScopedModuleSources;
 mod primitives;
 mod projection;
 mod source;
@@ -51,6 +53,7 @@ pub enum Failure {
     RequiredValues(Box<[AccessCodeId]>),
     MissingValueEvidence,
     ModuleInputRequired,
+    ModuleImportBindingsRequired(Box<[nocter_syntax::NodeId]>),
 }
 
 /// The next source-header construction action, sharing the declaration owner's readiness rules.

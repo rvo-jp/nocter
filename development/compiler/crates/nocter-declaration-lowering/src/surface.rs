@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::fmt;
+use std::sync::Arc;
 
 use nocter_model::{CompilationTarget, SymbolTable};
 use nocter_source::{SourceId, SourceMap};
@@ -266,7 +267,7 @@ impl SurfaceDeclaration {
 pub struct DeclarationSurface<'syntax> {
     target: CompilationTarget,
     source_map: SourceMapHandle<'syntax>,
-    symbols: SymbolTable,
+    symbols: Arc<SymbolTable>,
     packages: Box<[PackageInput]>,
     root_packages: Box<[crate::PackageIdentity]>,
     modules: Box<[ModuleIdentity]>,
@@ -290,8 +291,12 @@ impl<'syntax> DeclarationSurface<'syntax> {
     }
 
     #[must_use]
-    pub const fn symbols(&self) -> &SymbolTable {
+    pub fn symbols(&self) -> &SymbolTable {
         &self.symbols
+    }
+
+    pub(crate) fn symbol_handle(&self) -> Arc<SymbolTable> {
+        Arc::clone(&self.symbols)
     }
 
     #[must_use]
@@ -350,7 +355,7 @@ impl<'syntax> DeclarationSurface<'syntax> {
 pub(crate) struct SurfaceParts<'syntax> {
     pub(crate) target: CompilationTarget,
     pub(crate) source_map: SourceMapHandle<'syntax>,
-    pub(crate) symbols: SymbolTable,
+    pub(crate) symbols: Arc<SymbolTable>,
     pub(crate) packages: Box<[PackageInput]>,
     pub(crate) root_packages: Box<[crate::PackageIdentity]>,
     pub(crate) modules: Box<[ModuleIdentity]>,
@@ -556,7 +561,7 @@ fn collect_declaration_surface_with<'syntax>(
     Ok(DeclarationSurface {
         target: input.target(),
         source_map: input.source_map_handle(),
-        symbols,
+        symbols: symbols.into(),
         packages: packages
             .into_iter()
             .cloned()

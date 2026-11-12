@@ -12,12 +12,12 @@ use nocter_syntax::BoundSyntax;
 /// The private surface cannot be passed into released declaration reservation.
 #[derive(Debug)]
 pub struct ModuleSources<'syntax> {
-    surface: DeclarationSurface<'syntax>,
+    pub(super) surface: DeclarationSurface<'syntax>,
 }
 #[derive(Debug)]
 pub enum ModuleSourcesFailure {
     Surface(SurfaceError),
-    Role(Failure),
+    Access(Failure),
     Contract(DeclarationContractDiagnostic),
     InconsistentContract(DeclarationContractError),
 }
@@ -25,8 +25,8 @@ pub enum ModuleSourcesFailure {
 /// remain required before one semantic declaration authority can be published.
 #[derive(Debug)]
 pub struct PairedModuleSources<'syntax> {
-    inventory: ModuleSources<'syntax>,
-    contracts: DeclarationContracts,
+    pub(super) inventory: ModuleSources<'syntax>,
+    pub(super) contracts: DeclarationContracts,
 }
 impl<'syntax> PairedModuleSources<'syntax> {
     #[must_use]
@@ -51,11 +51,11 @@ impl<'syntax> ModuleSources<'syntax> {
                 surface
                     .source_map()
                     .get(source.syntax().source())
-                    .ok_or(ModuleSourcesFailure::Role(Failure::InconsistentSyntax))?,
+                    .ok_or(ModuleSourcesFailure::Access(Failure::InconsistentSyntax))?,
                 source.syntax(),
             )
-            .ok_or(ModuleSourcesFailure::Role(Failure::InconsistentSyntax))?;
-            validate_source_role(syntax, source.kind()).map_err(ModuleSourcesFailure::Role)?;
+            .ok_or(ModuleSourcesFailure::Access(Failure::InconsistentSyntax))?;
+            validate_source_role(syntax, source.kind()).map_err(ModuleSourcesFailure::Access)?;
         }
         Ok(Self { surface })
     }
@@ -73,6 +73,15 @@ impl<'syntax> ModuleSources<'syntax> {
             inventory: self,
             contracts,
         })
+    }
+    #[must_use]
+    pub fn source_entries(
+        &self,
+    ) -> impl ExactSizeIterator<Item = (crate::SurfaceSourceId, &SurfaceSource<'syntax>)> {
+        self.sources()
+            .iter()
+            .enumerate()
+            .map(|(index, source)| (crate::SurfaceSourceId::from_index(index), source))
     }
     #[must_use]
     pub fn declaration_entries(

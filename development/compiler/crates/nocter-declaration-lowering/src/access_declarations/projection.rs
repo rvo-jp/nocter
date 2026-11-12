@@ -29,18 +29,37 @@ pub(super) fn project_violations(
     records: &BTreeMap<NominalTypeId, Arc<RecordSource>>,
     violations: Vec<DeclarationViolation>,
 ) -> Failure {
+    project_violations_in(&[tree], sources, records, violations)
+}
+pub(super) fn project_violations_in(
+    trees: &[&SyntaxTree],
+    sources: &BTreeMap<AccessCodeId, CodeSource>,
+    records: &BTreeMap<NominalTypeId, Arc<RecordSource>>,
+    violations: Vec<DeclarationViolation>,
+) -> Failure {
+    let origin = |source| crate::diagnostic::origin_from_syntax(trees.iter().copied(), source);
     let projected = violations
         .into_iter()
-        .map(|v| project(tree, sources, records, v))
+        .map(|v| project(&origin, sources, records, v))
         .collect::<Option<Vec<_>>>();
     let Some(mut diagnostics) = projected else {
         return Failure::InconsistentSyntax;
     };
-    diagnostics.sort_by_key(|d| d.source.primary().span().range().start());
+    let order: BTreeMap<_, _> = trees
+        .iter()
+        .enumerate()
+        .map(|(index, tree)| (tree.source(), index))
+        .collect();
+    diagnostics.sort_by_key(|d| {
+        (
+            order[&d.source.primary().source()],
+            d.source.primary().span().range().start(),
+        )
+    });
     Failure::Headers(diagnostics)
 }
 fn project(
-    tree: &SyntaxTree,
+    origin: &impl Fn(SyntaxOrigin) -> Option<SourceOrigin>,
     sources: &BTreeMap<AccessCodeId, CodeSource>,
     records: &BTreeMap<NominalTypeId, Arc<RecordSource>>,
     violation: DeclarationViolation,
@@ -62,11 +81,11 @@ fn project(
         typed,
     )?;
     let (code, message, related) = details(sources, records, violation)?;
-    let primary = origin(tree, primary)?;
+    let primary = origin(primary)?;
     let notes = if let Some(token) = related {
         Some(DiagnosticNote::new(
             "related declaration is here",
-            origin(tree, SyntaxOrigin::Token(token))?,
+            origin(SyntaxOrigin::Token(token))?,
         ))
     } else {
         None
@@ -82,6 +101,7 @@ fn project(
         ),
     })
 }
+
 fn details(
     sources: &BTreeMap<AccessCodeId, CodeSource>,
     records: &BTreeMap<NominalTypeId, Arc<RecordSource>>,
@@ -161,11 +181,4 @@ fn details(
         ),
         R::MissingDefinition | R::UnknownSymbol | R::UnknownRecordType { .. } => return None,
     })
-}
-
-fn origin(tree: &SyntaxTree, source: SyntaxOrigin) -> Option<SourceOrigin> {
-    match source {
-        SyntaxOrigin::Token(t) => SourceOrigin::from_token(tree, t).ok(),
-        SyntaxOrigin::Node(n) => SourceOrigin::from_node(tree, n).ok(),
-    }
 }
