@@ -22,8 +22,8 @@ Connect the [adopted module/source rules](spec/language/modules.md) to one v2 de
 Close source-local imports and re-exports over the shared module declaration authority. Preserve
 authored root contracts and their effective audiences as the export source; direct `see` lookup is
 not an export inventory and imports do not propagate through seen sources. Bind selected type names
-and qualified namespaces, reject inaccessible/widening exports and import cycles, and preserve
-body-local import scope. Extend current module source acceptance with those bindings and
+and qualified namespaces, reject inaccessible/widening exports, preserve the topology owner's
+import-cycle/order proof, and retain body-local import scope. Extend current module source acceptance with those bindings and
 source/query rebinding across revisions before ordinary package/CLI integration; do not flatten all
 inventoried names. Keep the retained-selection work below open;
 its bounded execution does not close general hole relations or externally dependent callback effects.

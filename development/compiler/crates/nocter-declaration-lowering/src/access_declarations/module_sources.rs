@@ -120,6 +120,13 @@ impl<'syntax> ModuleSources<'syntax> {
     pub const fn block_imports(&self) -> &[crate::SurfaceBlockImport] {
         self.surface.block_imports()
     }
+    /// The topology owner's dependency-first order; includes every selected import scope.
+    #[must_use]
+    pub fn modules_in_dependency_order(
+        &self,
+    ) -> impl ExactSizeIterator<Item = &nocter_compile_input::ModuleIdentity> {
+        self.surface.modules_in_dependency_order()
+    }
     #[must_use]
     pub const fn imports(&self) -> &[SurfaceImport] {
         self.surface.imports()

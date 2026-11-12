@@ -271,6 +271,7 @@ pub struct DeclarationSurface<'syntax> {
     packages: Box<[PackageInput]>,
     root_packages: Box<[crate::PackageIdentity]>,
     modules: Box<[ModuleIdentity]>,
+    module_order: Box<[usize]>,
     sources: Box<[SurfaceSource<'syntax>]>,
     source_visibilities: Box<[SurfaceVisibility]>,
     imports: Box<[SurfaceImport]>,
@@ -309,6 +310,13 @@ impl<'syntax> DeclarationSurface<'syntax> {
         &self.modules
     }
 
+    /// Exact selected module dependency order, including body-local imports.
+    /// Every module occurs once; dependencies precede their importers.
+    #[must_use]
+    pub fn modules_in_dependency_order(&self) -> impl ExactSizeIterator<Item = &ModuleIdentity> {
+        self.module_order.iter().map(|&index| &self.modules[index])
+    }
+
     #[must_use]
     pub const fn sources(&self) -> &[SurfaceSource<'syntax>] {
         &self.sources
@@ -342,6 +350,7 @@ impl<'syntax> DeclarationSurface<'syntax> {
             packages: self.packages,
             root_packages: self.root_packages,
             modules: self.modules,
+            module_order: self.module_order,
             sources: self.sources,
             source_visibilities: self.source_visibilities,
             imports: self.imports,
@@ -359,6 +368,7 @@ pub(crate) struct SurfaceParts<'syntax> {
     pub(crate) packages: Box<[PackageInput]>,
     pub(crate) root_packages: Box<[crate::PackageIdentity]>,
     pub(crate) modules: Box<[ModuleIdentity]>,
+    pub(crate) module_order: Box<[usize]>,
     pub(crate) sources: Box<[SurfaceSource<'syntax>]>,
     pub(crate) source_visibilities: Box<[SurfaceVisibility]>,
     pub(crate) imports: Box<[SurfaceImport]>,
@@ -506,6 +516,10 @@ fn collect_declaration_surface_with<'syntax>(
         package_target_resolutions,
         target_selection,
     } = prepared;
+    let crate::topology::PreparedUseResolutions {
+        by_node: use_resolutions,
+        module_order,
+    } = use_resolutions;
     let mut sources = Vec::new();
     let mut source_visibilities = Vec::new();
     let mut imports = Vec::new();
@@ -573,6 +587,7 @@ fn collect_declaration_surface_with<'syntax>(
             .map(|module| module.identity().clone())
             .collect::<Vec<_>>()
             .into_boxed_slice(),
+        module_order,
         sources: sources.into_boxed_slice(),
         source_visibilities: source_visibilities.into_boxed_slice(),
         imports: imports.into_boxed_slice(),

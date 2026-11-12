@@ -450,13 +450,18 @@ impl From<TopologyViolation> for LoweringError {
     }
 }
 
+pub(crate) struct PreparedUseResolutions<'input> {
+    pub(crate) by_node: BTreeMap<UseResolutionKey, PreparedUseResolution<'input>>,
+    pub(crate) module_order: Box<[usize]>,
+}
+
 pub(crate) struct PreparedCompileUnit<'input, 'syntax> {
     pub(crate) symbols: SymbolTable,
     pub(crate) packages: Vec<&'input PackageInput>,
     pub(crate) modules: Vec<&'input ModuleInput<'syntax>>,
     pub(crate) source_visibility_resolutions:
         BTreeMap<SourceVisibilityResolutionKey, &'input SourceVisibilityResolutionInput>,
-    pub(crate) use_resolutions: BTreeMap<UseResolutionKey, PreparedUseResolution<'input>>,
+    pub(crate) use_resolutions: PreparedUseResolutions<'input>,
     pub(crate) package_target_resolutions: Vec<&'input crate::PackageTargetResolutionInput>,
     pub(crate) target_selection: &'input TargetSelection,
 }
@@ -817,7 +822,7 @@ fn validate_use_resolutions<'input, 'syntax>(
     input: &'input CompileUnitInput<'syntax>,
     modules: &[&'input ModuleInput<'syntax>],
     target_selection: &TargetSelection,
-) -> Result<BTreeMap<UseResolutionKey, PreparedUseResolution<'input>>, LoweringError> {
+) -> Result<PreparedUseResolutions<'input>, LoweringError> {
     let mut authored = BTreeMap::new();
     let mut source_owners = BTreeMap::new();
     let module_indices: BTreeMap<_, _> = modules
@@ -883,8 +888,11 @@ fn validate_use_resolutions<'input, 'syntax>(
         return Err(LoweringError::MissingUseResolution(*declaration));
     }
 
-    validate_acyclic_modules(modules, &module_edges)?;
-    Ok(resolved)
+    let module_order = dependency_order(modules, &module_edges)?;
+    Ok(PreparedUseResolutions {
+        by_node: resolved,
+        module_order,
+    })
 }
 
 fn collect_source_visibility_nodes(
@@ -940,10 +948,10 @@ fn collect_use_nodes(
     Ok(())
 }
 
-fn validate_acyclic_modules(
+fn dependency_order(
     modules: &[&ModuleInput<'_>],
     edges: &[BTreeMap<usize, NodeId>],
-) -> Result<(), LoweringError> {
+) -> Result<Box<[usize]>, LoweringError> {
     let mut indegree = vec![0usize; modules.len()];
     for targets in edges {
         for target in targets.keys() {
@@ -955,9 +963,9 @@ fn validate_acyclic_modules(
         .enumerate()
         .filter_map(|(index, degree)| (*degree == 0).then_some(index))
         .collect();
-    let mut visited = 0;
+    let mut order = Vec::with_capacity(modules.len());
     while let Some(index) = ready.pop_first() {
-        visited += 1;
+        order.push(index);
         for target in edges[index].keys() {
             indegree[*target] -= 1;
             if indegree[*target] == 0 {
@@ -965,14 +973,16 @@ fn validate_acyclic_modules(
             }
         }
     }
-    if visited != modules.len() {
+    if order.len() != modules.len() {
         let imports = module_cycle_witness(edges, &indegree)
             .expect("unvisited module graph contains a cycle witness");
         return Err(TopologyViolation::module_import_cycle(imports)
             .expect("module cycle contains at least one import")
             .into());
     }
-    Ok(())
+    // Edges run from importer to dependency; consumers require dependencies first.
+    order.reverse();
+    Ok(order.into_boxed_slice())
 }
 
 fn module_cycle_witness(

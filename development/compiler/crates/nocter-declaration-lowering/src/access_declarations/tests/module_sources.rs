@@ -330,3 +330,161 @@ fn body_local_imports_require_exact_binding_evidence_before_scope_closure() {
         Err(ModuleSourcesFailure::Access(Failure::ModuleImportBindingsRequired(nodes))) if nodes.as_ref() == [node]
     ));
 }
+
+#[test]
+fn one_topology_order_includes_block_imports_and_excludes_inactive_items() {
+    let mut sources = SourceMap::new();
+    let root = tree(&mut sources, "/app/index.nct", "use ./a");
+    let a = tree(&mut sources, "/app/a/index.nct", "use ../b");
+    let a_body = tree(
+        &mut sources,
+        "/app/a/body.nct",
+        "func unused(): void { if false { use ../c } }\n#target: \"x64-linux\"\nfunc ignored(): void { use ../missing }",
+    );
+    let b = tree(&mut sources, "/app/b/index.nct", "");
+    let c = tree(&mut sources, "/app/c/index.nct", "");
+    let identity = |path: &[&str]| {
+        ModuleIdentity::new(PackageIdentity::new("workspace:app"), path.iter().copied())
+    };
+    let modules = vec![
+        module(
+            vec![ModuleSourceInput::new(
+                "/app/index.nct",
+                ModuleSourceKind::Root,
+                &root,
+            )],
+            &[],
+        ),
+        module(
+            vec![
+                ModuleSourceInput::new("/app/a/index.nct", ModuleSourceKind::Root, &a),
+                ModuleSourceInput::new(
+                    "/app/a/body.nct",
+                    ModuleSourceKind::Implementation,
+                    &a_body,
+                ),
+            ],
+            &["a"],
+        ),
+        module(
+            vec![ModuleSourceInput::new(
+                "/app/b/index.nct",
+                ModuleSourceKind::Root,
+                &b,
+            )],
+            &["b"],
+        ),
+        module(
+            vec![ModuleSourceInput::new(
+                "/app/c/index.nct",
+                ModuleSourceKind::Root,
+                &c,
+            )],
+            &["c"],
+        ),
+    ];
+    let resolutions = vec![
+        module_use(&root, 0, identity(&["a"])),
+        module_use(&a, 0, identity(&["b"])),
+        module_use(&a_body, 0, identity(&["c"])),
+    ];
+    let mut expected = None;
+    for reverse in [false, true] {
+        let mut modules = modules.clone();
+        let mut resolutions = resolutions.clone();
+        if reverse {
+            modules.reverse();
+            resolutions.reverse();
+        }
+        let input = CompileUnitInput::for_goal(
+            ParseGoal::V2CoreUnit,
+            CompilationTarget::Arm64Darwin,
+            &sources,
+            vec![package()],
+            modules,
+            resolutions,
+        );
+        let inventory = ModuleSources::prepare(&input).unwrap();
+        let order = inventory
+            .modules_in_dependency_order()
+            .cloned()
+            .collect::<Vec<_>>();
+        assert_eq!(order.len(), 4);
+        assert_eq!(
+            order
+                .iter()
+                .collect::<std::collections::BTreeSet<_>>()
+                .len(),
+            4
+        );
+        let position = |path: &[&str]| {
+            order
+                .iter()
+                .position(|module| *module == identity(path))
+                .unwrap()
+        };
+        assert!(position(&["b"]) < position(&["a"]));
+        assert!(position(&["c"]) < position(&["a"]));
+        assert!(position(&["a"]) < position(&[]));
+        assert_eq!(inventory.block_imports().len(), 1);
+        if let Some(expected) = &expected {
+            assert_eq!(&order, expected);
+        } else {
+            expected = Some(order);
+        }
+    }
+}
+
+#[test]
+fn unreachable_block_imports_participate_in_the_same_module_cycle_diagnostic() {
+    let mut sources = SourceMap::new();
+    let root = tree(&mut sources, "/app/index.nct", "use ./a");
+    let a = tree(&mut sources, "/app/a/index.nct", "");
+    let body = tree(
+        &mut sources,
+        "/app/a/body.nct",
+        "func unused(): void { if false { use / as app } }",
+    );
+    let input = CompileUnitInput::for_goal(
+        ParseGoal::V2CoreUnit,
+        CompilationTarget::Arm64Darwin,
+        &sources,
+        vec![package()],
+        vec![
+            module(
+                vec![ModuleSourceInput::new(
+                    "/app/index.nct",
+                    ModuleSourceKind::Root,
+                    &root,
+                )],
+                &[],
+            ),
+            module(
+                vec![
+                    ModuleSourceInput::new("/app/a/index.nct", ModuleSourceKind::Root, &a),
+                    ModuleSourceInput::new(
+                        "/app/a/body.nct",
+                        ModuleSourceKind::Implementation,
+                        &body,
+                    ),
+                ],
+                &["a"],
+            ),
+        ],
+        vec![
+            module_use(
+                &root,
+                0,
+                ModuleIdentity::new(PackageIdentity::new("workspace:app"), ["a"]),
+            ),
+            module_use(
+                &body,
+                0,
+                ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new()),
+            ),
+        ],
+    );
+    assert!(
+        matches!(ModuleSources::prepare(&input), Err(ModuleSourcesFailure::Surface(SurfaceError::Topology(LoweringError::Rule(violation)))) if violation.rule() == crate::TopologyRule::ModuleImportCycle)
+    );
+}

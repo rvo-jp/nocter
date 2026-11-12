@@ -144,7 +144,11 @@ single-file role; role validation alone publishes no headers, bodies or module a
 `ModuleSources` consumes an explicitly v2-selected `CompileUnitInput` through the existing
 canonical topology and surface collector, checking all source roles, including unused files.
 It preserves source/module identities and exact resolved `see`/`use` occurrences, accepts direct
-`see` cycles, and rejects missing resolutions and cross-module physical edges. Its private surface
+`see` cycles, and rejects missing resolutions and cross-module physical edges. The topology owner
+also closes one deterministic dependency-first module order for both top-level and body-local
+imports. The surface retains this order, and released import/re-export resolution consumes it
+rather than rebuilding a second dependency graph. Inactive target items do not add edges;
+unreachable active block imports do. Cycle diagnostics retain the actual import occurrences. Its private surface
 cannot be passed to released declaration reservation. Neither pipeline infers its grammar from a
 filename or admits the other's root. Single-source semantic preparation returns
 `ModuleInputRequired` for authored dependencies rather than silently dropping them.

@@ -4,7 +4,7 @@ mod projection;
 mod syntax;
 mod violation;
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::fmt;
 
 use nocter_declarations::{
@@ -35,7 +35,6 @@ pub enum ImportError {
     InvalidSyntax(NodeId),
     UnknownModule(NodeId),
     InvalidVisibility(NodeId),
-    DependencyCycle(ModuleId),
     InconsistentSource(SourceId),
 }
 
@@ -67,12 +66,6 @@ impl fmt::Display for ImportError {
             }
             Self::InvalidVisibility(declaration) => {
                 write!(formatter, "import {declaration:?} has invalid visibility")
-            }
-            Self::DependencyCycle(module) => {
-                write!(
-                    formatter,
-                    "module import dependency cycle reaches {module:?}"
-                )
             }
             Self::InconsistentSource(source) => {
                 write!(formatter, "{source} has an inconsistent import origin")
@@ -226,7 +219,7 @@ fn resolve_authored_imports(
     import_paths: &mut [Option<SyntaxOrigin>],
 ) -> Result<(), ImportError> {
     let groups = group_imports(generics)?;
-    let order = dependency_order(generics, &groups.dependencies)?;
+    let order = generics.headers.reserved.module_order.clone();
     for module_index in order {
         for import_index in &groups.by_module[module_index] {
             let import = generics.headers.reserved.imports[*import_index].clone();
@@ -522,13 +515,11 @@ fn insert_binding(
 
 struct ImportGroups {
     by_module: Vec<Vec<usize>>,
-    dependencies: Vec<BTreeSet<usize>>,
 }
 
 fn group_imports(generics: &PreparedGenerics<'_>) -> Result<ImportGroups, ImportError> {
     let reserved = &generics.headers.reserved;
     let mut grouped = vec![Vec::new(); reserved.modules.len()];
-    let mut dependencies = vec![BTreeSet::new(); reserved.modules.len()];
     for (index, import) in reserved.imports.iter().enumerate() {
         let module = reserved
             .module_for_source(import.source())
@@ -536,52 +527,8 @@ fn group_imports(generics: &PreparedGenerics<'_>) -> Result<ImportGroups, Import
         let module_index = module_index_by_id(reserved, module)
             .ok_or(ImportError::MissingSource(import.source()))?;
         grouped[module_index].push(index);
-        let target_index = module_index_by_identity(reserved, import.target())
-            .ok_or(ImportError::UnknownModule(import.node()))?;
-        dependencies[module_index].insert(target_index);
     }
-    Ok(ImportGroups {
-        by_module: grouped,
-        dependencies,
-    })
-}
-
-fn dependency_order(
-    generics: &PreparedGenerics<'_>,
-    dependencies: &[BTreeSet<usize>],
-) -> Result<Vec<usize>, ImportError> {
-    let mut remaining: Vec<_> = dependencies.iter().map(BTreeSet::len).collect();
-    let mut dependents = vec![BTreeSet::new(); dependencies.len()];
-    for (module, targets) in dependencies.iter().enumerate() {
-        for target in targets {
-            dependents[*target].insert(module);
-        }
-    }
-    let mut ready: BTreeSet<_> = remaining
-        .iter()
-        .enumerate()
-        .filter_map(|(index, count)| (*count == 0).then_some(index))
-        .collect();
-    let mut order = Vec::with_capacity(dependencies.len());
-    while let Some(module) = ready.pop_first() {
-        order.push(module);
-        for dependent in &dependents[module] {
-            remaining[*dependent] -= 1;
-            if remaining[*dependent] == 0 {
-                ready.insert(*dependent);
-            }
-        }
-    }
-    if order.len() != dependencies.len() {
-        let index = remaining
-            .iter()
-            .position(|count| *count != 0)
-            .expect("cyclic dependency has a remaining module");
-        return Err(ImportError::DependencyCycle(
-            generics.headers.reserved.module_ids[index],
-        ));
-    }
-    Ok(order)
+    Ok(ImportGroups { by_module: grouped })
 }
 
 fn resolve_selected(
