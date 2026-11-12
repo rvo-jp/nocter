@@ -14,21 +14,31 @@ into this registration list or publish these additional entries before specifica
 - `E0237`: an executable body or value initializer occurs in a contract-only root source.
   Identify the body or initializer; root declarations do not acquire an implementation merely
   because their header is valid.
+- `E0238`: a visibility directive occurs outside a contract root. Identify the directive;
+  an implementation or single-file declaration cannot publish its own outward audience.
+- `E0239`: a visibility path is malformed, selects no actual ancestor module boundary, or
+  traverses above the package root. Identify the path literal and distinguish invalid path
+  structure from traversal above the package.
+- `E0244`: an exported signature names a nominal type unavailable throughout its effective
+  audience. Identify the signature annotation and relate the narrower or source-private type.
+  Hidden representation fields do not become outward signature components.
 
 ## Source Role Diagnostics
 
 File roles come from the selected module input, not a diagnostic filename or type lookup.
 An ordinary/single-file callable without its body uses `E0253`; an omitted constant/static
 initializer uses `E0275`; an omitted record representation uses `E0231`. Contract-only roots
-reject executable definitions with `E0237`. Role checking alone does not prove reciprocal
+reject executable definitions with `E0237`; non-root visibility directives use `E0238`.
+Role checking alone does not prove reciprocal
 pairing, complete signature agreement, visibility, type readiness or accepted-unit validity.
 
 ## Core Syntax Diagnostics
 
 The future [value/alias grammar](../language/syntactic-grammar.md#access-syntax)
 defines adopted recognition. Ordinary parser failures use `E0120` and identify
-the expected production. There is no surviving direct-marker assertion grammar or unary `&&`
-subdivision. Retired prefix spelling is not an automatic repair opportunity: replacing a prefix
+the expected production. Repeated names in one item-directive group also use `E0120`,
+identifying the repeated directive rather than selecting the first or last value. There is no
+surviving direct-marker assertion grammar or unary `&&` subdivision. Retired prefix spelling is not an automatic repair opportunity: replacing a prefix
 with a binding/input operation requires knowing its intended behavior.
 
 Retain non-place alias initializers/assignment targets in syntax for semantic diagnostics. A

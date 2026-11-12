@@ -69,13 +69,19 @@ impl<'syntax> PairedModuleSources<'syntax> {
     /// Requires import binding evidence before processing `use`; rejects name conflicts locally.
     pub fn reserve_names(self) -> Result<ScopedModuleSources<'syntax>, ModuleSourcesFailure> {
         let inventory = &self.inventory;
-        if !inventory.imports().is_empty() {
+        if !inventory.imports().is_empty() || !inventory.block_imports().is_empty() {
             return Err(ModuleSourcesFailure::Access(
                 Failure::ModuleImportBindingsRequired(
                     inventory
                         .imports()
                         .iter()
                         .map(crate::SurfaceImport::node)
+                        .chain(
+                            inventory
+                                .block_imports()
+                                .iter()
+                                .map(crate::SurfaceBlockImport::node),
+                        )
                         .collect(),
                 ),
             ));
@@ -231,6 +237,17 @@ impl<'syntax> ScopedModuleSources<'syntax> {
             return Err(integrity());
         }
         let program = self.headers.finish().map_err(|_| integrity())?;
+        self.binding
+            .paired
+            .inventory
+            .audiences
+            .verify_signatures(
+                &self.binding.paired.inventory.surface,
+                &self.binding.declarations,
+                &self.binding.fields,
+                &program,
+            )
+            .map_err(ModuleSourcesFailure::Access)?;
         Ok(ModuleContext {
             program: Arc::new(program),
             binding: self.binding,
@@ -246,6 +263,25 @@ impl<'syntax> ScopedModuleSources<'syntax> {
     }
 }
 impl ModuleSourceBinding<'_> {
+    /// Authored top-level root contracts only. This enumerates promises, not ready API evidence.
+    pub fn exports(
+        &self,
+    ) -> impl Iterator<Item = (SurfaceDeclarationId, DeclarationId, &super::ModuleAudience)> + '_
+    {
+        self.paired
+            .inventory
+            .declaration_entries()
+            .filter_map(|(raw, declaration)| {
+                if declaration.owner().is_some() {
+                    return None;
+                }
+                Some((
+                    raw,
+                    self.declarations[raw.index()]?,
+                    self.paired.inventory.audience(raw)?,
+                ))
+            })
+    }
     pub(super) fn header_scopes(
         &self,
     ) -> Result<Vec<super::definitions::HeaderScope<'_>>, super::SourceMismatch> {

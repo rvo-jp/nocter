@@ -1,5 +1,6 @@
 //! Recognition of the future bounded private core, using the shared lossless parser.
 //! No released-language production is an acceptance fallback for this parse goal.
+mod directives;
 mod expression;
 #[cfg(test)]
 mod tests;
@@ -15,18 +16,28 @@ pub(super) fn unit(parser: &mut Parser<'_>) {
     parser.eat_newlines();
     let mut declarations_started = false;
     while !parser.at(TokenKind::Eof) {
-        if parser.at_keyword(Keyword::See) || parser.at_keyword(Keyword::Use) {
+        if parser.at_keyword(Keyword::See) {
             if declarations_started {
                 parser.diagnostic(ParseDiagnosticKind::LateDependencyDeclaration);
             }
-            if parser.at_keyword(Keyword::See) {
-                source_visibility::declaration(parser);
-            } else {
-                let dependency = parser.start();
-                parser.bump();
-                root::use_tree(parser);
-                parser.complete(dependency, NodeKind::UseDeclaration);
+            source_visibility::declaration(parser);
+            parser.require_line_end();
+            continue;
+        }
+        let entry = parser.start();
+        let target = directives::prefix(parser, true);
+        if parser.at_keyword(Keyword::Use) {
+            if declarations_started {
+                parser.diagnostic(ParseDiagnosticKind::LateDependencyDeclaration);
             }
+            if target {
+                parser.diagnostic(ParseDiagnosticKind::Expected(
+                    ExpectedSyntax::TargetableItem,
+                ));
+            }
+            parser.bump();
+            root::use_tree(parser);
+            parser.complete(entry, NodeKind::UseDeclaration);
             parser.require_line_end();
             continue;
         }
@@ -51,6 +62,7 @@ pub(super) fn unit(parser: &mut Parser<'_>) {
             parser.error_token(ExpectedSyntax::Keyword(Keyword::Func));
             parser.recover_to_line_end();
         }
+        parser.complete(entry, NodeKind::Item);
         parser.require_line_end();
     }
     parser.bump();
@@ -58,7 +70,6 @@ pub(super) fn unit(parser: &mut Parser<'_>) {
 }
 
 fn record(parser: &mut Parser<'_>) {
-    let item = parser.start();
     let marker = parser.start();
     if parser.at_contextual(ContextualSpelling::Copy) {
         parser.bump();
@@ -68,6 +79,7 @@ fn record(parser: &mut Parser<'_>) {
     if parser.at_punctuation(Punctuation::LeftBrace) {
         parser.braced_line_sequence(ExpectedSyntax::DeclarationMember, |parser| {
             let field = parser.start();
+            directives::prefix(parser, false);
             parser.expect_name();
             parser.expect_punctuation(Punctuation::Colon);
             type_(parser);
@@ -75,11 +87,9 @@ fn record(parser: &mut Parser<'_>) {
         });
     }
     parser.complete(marker, NodeKind::StructDeclaration);
-    parser.complete(item, NodeKind::Item);
 }
 
 fn function(parser: &mut Parser<'_>) {
-    let item = parser.start();
     let marker = parser.start();
     if parser.at_keyword(Keyword::Const) {
         let modifier = parser.start();
@@ -112,11 +122,9 @@ fn function(parser: &mut Parser<'_>) {
         required_block(parser);
     }
     parser.complete(marker, NodeKind::FunctionDeclaration);
-    parser.complete(item, NodeKind::Item);
 }
 
 fn initializer(parser: &mut Parser<'_>) {
-    let item = parser.start();
     let marker = parser.start();
     let kind = if parser.at_contextual(ContextualSpelling::Static) {
         NodeKind::StaticDeclaration
@@ -131,7 +139,6 @@ fn initializer(parser: &mut Parser<'_>) {
         expression::expression(parser, newline::Boundary::Statement);
     }
     parser.complete(marker, kind);
-    parser.complete(item, NodeKind::Item);
 }
 
 fn parameter(parser: &mut Parser<'_>) {
@@ -284,6 +291,7 @@ fn required_block(parser: &mut Parser<'_>) {
         return;
     }
     parser.eat_newlines();
+    super::block::parse_use_prefix(parser);
     if !parser.at_punctuation(Punctuation::RightBrace) && !parser.at(TokenKind::Eof) {
         let sequence = parser.start();
         parser.line_sequence(Punctuation::RightBrace, ExpectedSyntax::Expression, entry);
@@ -296,6 +304,10 @@ fn required_block(parser: &mut Parser<'_>) {
 
 fn entry(parser: &mut Parser<'_>) {
     match parser.current_kind() {
+        TokenKind::Keyword(Keyword::Use) => {
+            parser.diagnostic(ParseDiagnosticKind::LateDependencyDeclaration);
+            super::block::block_use(parser);
+        }
         TokenKind::Keyword(Keyword::Let | Keyword::Var) => binding(parser),
         TokenKind::Identifier
             if (parser.at_contextual(ContextualSpelling::Read)

@@ -53,6 +53,13 @@ package or discovery code. It does not resolve names or apply semantic rules.
   constant/static initializers may be omitted in syntax; host-selected source-role validation
   distinguishes contract headers from implementation definitions before semantic admission.
   Recognition grants no primitive authority or source-body admission.
+  Consecutive `#visibility`/`#target` prefixes attach to one item across trivia; repeated directive
+  names and orphan groups reject. Visibility also attaches structurally to record fields and
+  `use`; target gates on fields or `use` remain outside this bounded goal.
+  Block-local imports use the shared dependency-prefix recognizer before executable entries;
+  late imports diagnose without falling back to an expression. Placement and audiences
+  are semantic responsibilities. `item_declaration` selects the one declaration beside its
+  directive nodes using the same declaration classification as canonical surface projection.
   Array lists, repetitions and joint bracket indexing retain distinct nodes in the same goal.
   `array_repetition_parts` supplies the seed/count source roles to lowering and checking without
   interpreting either expression. Delimiter-owned newlines and nesting limits apply equally to

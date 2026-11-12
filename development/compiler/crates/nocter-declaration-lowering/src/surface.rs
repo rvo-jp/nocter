@@ -736,7 +736,12 @@ fn collect_item(
     declarations: &mut Vec<SurfaceDeclaration>,
 ) -> Result<(), SurfaceError> {
     let mut has_target_gate = false;
-    let mut declaration = None;
+    let mut visibility = None;
+    let declaration =
+        nocter_syntax::item_declaration(tree, item).ok_or(SurfaceError::InvalidItemShape(item))?;
+    if top_level_kind(tree, declaration).is_none() {
+        return Err(SurfaceError::InvalidItemShape(item));
+    }
     for child in child_node_iter(tree, item) {
         let kind = tree
             .node(child)
@@ -744,15 +749,16 @@ fn collect_item(
             .kind();
         if kind == NodeKind::TargetDirective {
             has_target_gate = true;
-        } else if top_level_kind(tree, child).is_some() {
-            if declaration.replace(child).is_some() {
+        } else if kind == NodeKind::Visibility
+            && source_goal == nocter_syntax::ParseGoal::V2CoreUnit
+        {
+            if visibility.replace(child).is_some() {
                 return Err(SurfaceError::InvalidItemShape(item));
             }
-        } else {
+        } else if child != declaration {
             return Err(SurfaceError::InvalidItemShape(item));
         }
     }
-    let declaration = declaration.ok_or(SurfaceError::InvalidItemShape(item))?;
     if has_target_gate != selected_target.is_some() {
         return Err(SurfaceError::InvalidItemShape(item));
     }
@@ -769,6 +775,7 @@ fn collect_item(
         declaration,
         None,
         selected_target,
+        visibility,
         declarations,
     )
 }
@@ -779,10 +786,11 @@ fn append_declaration(
     node: NodeId,
     owner: Option<SurfaceDeclarationId>,
     target_gate: Option<nocter_model::CompilationTarget>,
+    visibility: Option<NodeId>,
     declarations: &mut Vec<SurfaceDeclaration>,
 ) -> Result<(), SurfaceError> {
-    let mut pending = vec![(node, owner, target_gate)];
-    while let Some((node, owner, target_gate)) = pending.pop() {
+    let mut pending = vec![(node, owner, target_gate, visibility)];
+    while let Some((node, owner, target_gate, visibility)) = pending.pop() {
         tree.node(node)
             .ok_or(SurfaceError::InvalidItemShape(node))?;
         let kind = declaration_kind(tree, node).ok_or(SurfaceError::InvalidItemShape(node))?;
@@ -798,13 +806,13 @@ fn append_declaration(
             owner,
             name,
             entity_origin,
-            visibility: direct_node(tree, node, NodeKind::Visibility),
+            visibility: visibility.or_else(|| direct_node(tree, node, NodeKind::Visibility)),
             target_gate,
             interface_default: kind == SurfaceDeclarationKind::InterfaceMethod
                 && direct_node(tree, node, NodeKind::InterfaceDefaultModifier).is_some(),
         });
         for nested in nested_declarations(tree, node)?.into_iter().rev() {
-            pending.push((nested, Some(id), None));
+            pending.push((nested, Some(id), None, None));
         }
     }
     Ok(())

@@ -591,3 +591,93 @@ fn source_and_module_dependencies_share_their_exact_path_grammar_before_items() 
         super::super::snapshots::assert_token_projection(&parsed, source);
     }
 }
+
+#[test]
+fn grouped_item_directives_attach_once_and_keep_field_and_use_visibility_structural() {
+    use crate::{ParseDiagnosticKind, child_node_iter, direct_node, item_declaration};
+    let text = "#visibility: \"/\"\n// keep the same prefix across trivia\n\n#target: \"arm64-darwin\"\nfunc first(): i32\nfunc second(): i32\n#visibility: \"./\"\nstruct Data {\n#visibility: \"/\"\nvalue: i32\n}";
+    let parsed = tree(text, ParseGoal::V2CoreUnit);
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics());
+    let items = child_node_iter(&parsed, parsed.root_id()).collect::<Vec<_>>();
+    assert_eq!(items.len(), 3);
+    assert!(direct_node(&parsed, items[0], NodeKind::Visibility).is_some());
+    assert!(direct_node(&parsed, items[0], NodeKind::TargetDirective).is_some());
+    assert!(direct_node(&parsed, items[1], NodeKind::Visibility).is_none());
+    assert!(
+        items
+            .iter()
+            .all(|item| item_declaration(&parsed, *item).is_some())
+    );
+    let field = parsed
+        .nodes()
+        .find(|(_, node)| node.kind() == NodeKind::StructField)
+        .unwrap()
+        .0;
+    assert!(direct_node(&parsed, field, NodeKind::Visibility).is_some());
+    let name = crate::declaration_name_token(&parsed, field).unwrap();
+    assert_eq!(
+        &text[usize::try_from(name.range().start().get()).unwrap()
+            ..usize::try_from(name.range().end().get()).unwrap()],
+        "value"
+    );
+    super::super::snapshots::assert_token_projection(&parsed, text);
+    let parsed = tree(
+        "#visibility: \"/\"\nuse ./codec.{Data, Item as Other}",
+        ParseGoal::V2CoreUnit,
+    );
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics());
+    let dependency = child_node_iter(&parsed, parsed.root_id()).next().unwrap();
+    assert_eq!(
+        parsed.node(dependency).unwrap().kind(),
+        NodeKind::UseDeclaration
+    );
+    assert!(direct_node(&parsed, dependency, NodeKind::Visibility).is_some());
+    for text in [
+        "#visibility: \"/\"\n#visibility: \"./\"\nfunc f(): void",
+        "#target: \"arm64-darwin\"\n#visibility: \"/\"\n#target: \"arm64-darwin\"\nfunc f(): void",
+    ] {
+        let parsed = tree(text, ParseGoal::V2CoreUnit);
+        assert!(
+            parsed
+                .diagnostics()
+                .iter()
+                .any(|d| d.kind() == ParseDiagnosticKind::DuplicateItemDirective)
+        );
+    }
+    for text in [
+        "#visibility: \"/\"",
+        "#visibility: \"/\" func f(): void",
+        "#unknown: \"/\"\nfunc f(): void",
+        "#visibility: \"/\"\nsee ./body.nct",
+        "#visibility: \"/\"\nfunc f(): void\n#visibility: \"/\"\nuse ./codec",
+    ] {
+        assert!(tree(text, ParseGoal::V2CoreUnit).has_errors(), "{text}");
+    }
+    assert!(tree("#visibility: \"/\"\nfunc f(): void", ParseGoal::SourceFile).has_errors());
+}
+
+#[test]
+fn block_imports_precede_executable_entries_and_retain_exact_dependency_nodes() {
+    for text in [
+        "func run(): i32 { use ./codec\n42 }",
+        "func run(): void { use ./codec }",
+        "func run(): i32 { if true { use ./codec as encoding\n42 } else { 0 } }",
+    ] {
+        let parsed = tree(text, ParseGoal::V2CoreUnit);
+        assert!(!parsed.has_errors(), "{text}: {:?}", parsed.diagnostics());
+        assert_eq!(
+            parsed
+                .nodes()
+                .filter(|(_, node)| node.kind() == NodeKind::BlockUseDeclaration)
+                .count(),
+            1
+        );
+    }
+    let parsed = tree(
+        "func run(): void { let value = 42\nuse ./codec }",
+        ParseGoal::V2CoreUnit,
+    );
+    assert!(parsed.diagnostics().iter().any(
+        |diagnostic| diagnostic.kind() == crate::ParseDiagnosticKind::LateDependencyDeclaration
+    ));
+}

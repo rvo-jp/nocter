@@ -156,3 +156,70 @@ fn module_source_coordinator_accepts_empty_library_sources_and_rejects_unselecte
         primitive.tree(1).source()
     );
 }
+
+#[test]
+fn module_visibility_sealing_checks_signature_names_without_exposing_hidden_representation_fields()
+{
+    for (root, body, accepted) in [
+        (
+            "struct Outer\nfunc inspect(value: Outer): void",
+            "struct Outer { hidden: Private }\nstruct Private {}\nfunc inspect(value: Outer): void {}",
+            true,
+        ),
+        (
+            "struct Outer { shown: Private }",
+            "struct Outer { shown: Private }\nstruct Private {}",
+            false,
+        ),
+        (
+            "func inspect(value: Private): void",
+            "struct Private {}\nfunc inspect(value: Private): void {}",
+            false,
+        ),
+        (
+            "func inspect(value: [Private; 0]): void",
+            "struct Private {}\nfunc inspect(value: [Private; 0]): void {}",
+            false,
+        ),
+        (
+            "func inspect(action: func(Private): void): void",
+            "struct Private {}\nfunc inspect(action: func(Private): void): void {}",
+            false,
+        ),
+        (
+            "#visibility: \"/\"\nstruct Restricted\nfunc inspect(value: Restricted): void",
+            "struct Restricted {}\nfunc inspect(value: Restricted): void {}",
+            false,
+        ),
+        (
+            "#visibility: \"/\"\nstruct Restricted\n#visibility: \"./\"\nfunc inspect(value: Restricted): void",
+            "struct Restricted {}\nfunc inspect(value: Restricted): void {}",
+            true,
+        ),
+    ] {
+        let root = format!("see ./body.nct\n{root}");
+        let body = format!("see ./index.nct\n{body}");
+        let fixture = Fixture::new(
+            &[
+                ("/app/index.nct", Root, &root),
+                ("/app/body.nct", Implementation, &body),
+            ],
+            &[(0, 0, 1), (1, 0, 0)],
+        );
+        let result = ModuleSourceUnit::prepare(&fixture.input());
+        if accepted {
+            assert!(result.is_ok(), "{root}: {result:?}");
+        } else {
+            let Err(SourceFailure::Declarations(declarations::Failure::Visibility(error))) = result
+            else {
+                panic!("signature exposure: {root}: {result:?}")
+            };
+            assert_eq!(
+                error.rule(),
+                declarations::VisibilityRule::SignatureExposure
+            );
+            assert_eq!(error.source().primary().source(), fixture.tree(0).source());
+            assert_eq!(error.source().notes().len(), 1);
+        }
+    }
+}

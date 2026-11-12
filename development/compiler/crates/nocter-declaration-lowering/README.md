@@ -168,8 +168,12 @@ an apparently closed scope.
 writer. Complete representations determine field count and order, while selected public fields map
 to their corresponding reserved slots. Parameter/field slot queries grant no typed metadata;
 namespace conflicts use the shared header diagnostic projector over the actual owning trees.
-Export construction still needs authored root declarations and audiences, independently of the
-names visible in a root's local lookup scope.
+`ModuleSources` normalizes root-authored declaration and re-export audiences independently of
+local lookup. Members intersect their owner's audience. Paths select exact package/module
+boundaries; implementation location cannot alter them. Non-root visibility directives reject.
+`ModuleSourceBinding::exports` enumerates only authored top-level root contracts with semantic
+identities and effective audiences, never helpers made visible by `see`; this inventory alone
+proves neither completed signatures nor accepted bodies.
 Raw header projection reads the immutable declaration program with an explicit physical syntax
 and lookup scope. The same projection serves single-source definition loading and every physical
 occurrence of a module header. Nominal names resolve to reserved identities before payload readiness;
@@ -204,13 +208,17 @@ foreign syntax cannot be accepted by matching source IDs or display ranges alone
 still come from the shared semantic program; the binding is not another declaration/type authority.
 Per-body views supply no primitive bindings or accepted-body proof. `ScopedModuleSources::seal`
 requires all reserved named and anonymous headers to be ready, consumes the writer and returns one
-immutable `ModuleContext` with the exact retained physical sources. It offers current-source views,
+immutable `ModuleContext` with the exact retained physical sources. Before sealing, root signatures
+must expose only nominal types accessible throughout their effective audiences, including nested
+array/tuple/outcome/callback components. Hidden representation fields and private count-helper
+names do not become outward type names. It offers current-source views,
 not cross-revision rebinding. Code/declaration enumeration and cycle projection feed checking's
 [common source coordinator](../nocter-checking/README.md#bounded-future-value-binding-typing).
 Ordinary module orchestration rejects unselected primitive markers through the existing primitive
 authority diagnostic; it does not infer roles from inventory names. Module primitive authority,
-source-qualified query rebinding across revisions, visibility/re-exports and ordinary discovery/CLI
-integration remain work. Header publication alone does not produce an accepted Unit.
+source-qualified query rebinding across revisions, import/re-export binding and ordinary discovery/CLI
+integration remain work. Both top-level and body-local imports require exact binding evidence before
+scopes close; neither can silently disappear from semantic admission. Header publication alone does not produce an accepted Unit.
 `Context::verify_header_values` reprojects every physical source header with actual completed count
 values and requires existing published type/constraint identities to agree. It reuses the same
 header/data projection for callable inputs/results, callback contracts and record fields, including

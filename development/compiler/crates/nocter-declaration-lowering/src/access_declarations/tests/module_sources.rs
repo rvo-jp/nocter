@@ -91,7 +91,11 @@ fn inventories_every_source_without_flattening_duplicate_private_names_or_resolv
 
 #[test]
 fn dependencies_cannot_be_silently_dropped_by_the_single_source_semantic_query() {
-    for dependency in ["see ./missing.nct", "use ./codec"] {
+    for dependency in [
+        "see ./missing.nct",
+        "use ./codec",
+        "#target: \"arm64-darwin\"",
+    ] {
         let (sources, tree) = input(
             &format!("{dependency}\nfunc run(): i32 {{ 42 }}"),
             ParseGoal::V2CoreUnit,
@@ -101,6 +105,11 @@ fn dependencies_cannot_be_silently_dropped_by_the_single_source_semantic_query()
             Err(Failure::ModuleInputRequired)
         ));
     }
+    let (sources, tree) = input("func run(): i32 { use ./codec\n42 }", ParseGoal::V2CoreUnit);
+    assert!(matches!(
+        Query::prepare(bound(&sources, &tree)),
+        Err(Failure::ModuleInputRequired)
+    ));
 }
 
 #[test]
@@ -267,5 +276,57 @@ fn physical_dependencies_need_closed_resolutions_and_released_sources_cannot_ent
         Err(ModuleSourcesFailure::Surface(SurfaceError::Topology(
             LoweringError::InvalidModuleSource(_)
         )))
+    ));
+}
+
+#[test]
+fn body_local_imports_require_exact_binding_evidence_before_scope_closure() {
+    let mut sources = SourceMap::new();
+    let source = tree(
+        &mut sources,
+        "/app/main.nct",
+        "func run(): i32 { use ./codec\n42 }",
+    );
+    let root = tree(&mut sources, "/app/index.nct", "");
+    let codec = tree(&mut sources, "/app/codec/index.nct", "");
+    let input = CompileUnitInput::for_goal(
+        ParseGoal::V2CoreUnit,
+        CompilationTarget::Arm64Darwin,
+        &sources,
+        vec![package()],
+        vec![
+            module(
+                vec![
+                    ModuleSourceInput::new("/app/index.nct", ModuleSourceKind::Root, &root),
+                    ModuleSourceInput::new(
+                        "/app/main.nct",
+                        ModuleSourceKind::Implementation,
+                        &source,
+                    ),
+                ],
+                &[],
+            ),
+            module(
+                vec![ModuleSourceInput::new(
+                    "/app/codec/index.nct",
+                    ModuleSourceKind::Root,
+                    &codec,
+                )],
+                &["codec"],
+            ),
+        ],
+        vec![module_use(
+            &source,
+            0,
+            ModuleIdentity::new(PackageIdentity::new("workspace:app"), ["codec"]),
+        )],
+    );
+    let inventory = ModuleSources::prepare(&input).unwrap();
+    assert!(inventory.imports().is_empty());
+    assert_eq!(inventory.block_imports().len(), 1);
+    let node = inventory.block_imports()[0].node();
+    assert!(matches!(
+        inventory.pair().unwrap().reserve_names(),
+        Err(ModuleSourcesFailure::Access(Failure::ModuleImportBindingsRequired(nodes))) if nodes.as_ref() == [node]
     ));
 }

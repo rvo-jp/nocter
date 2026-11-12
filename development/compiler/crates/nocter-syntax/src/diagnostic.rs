@@ -38,6 +38,7 @@ pub enum ExpectedSyntax {
 pub enum ParseDiagnosticKind {
     Expected(ExpectedSyntax),
     LateDependencyDeclaration,
+    DuplicateItemDirective,
     NestingLimit,
 }
 

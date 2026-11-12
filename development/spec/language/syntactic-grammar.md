@@ -10,6 +10,7 @@ or module grammar; unspecified productions remain outside the development specif
 | Spelling | Contextual grammar position |
 | --- | --- |
 | `read` | scoped read binding only |
+| `visibility` | Item directive name immediately after `#`, before `:` |
 | `edit` | scoped update binding, input operation, enum branch or for operation |
 | `take` | value-receiving input, enum branch or for operation |
 | `mut` | updating invocation head of a callable type |

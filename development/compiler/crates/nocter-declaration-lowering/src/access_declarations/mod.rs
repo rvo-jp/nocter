@@ -2,7 +2,9 @@
 mod definitions;
 mod header_values;
 mod headers;
+mod module_audiences;
 mod module_scopes;
+pub use module_audiences::{ModuleAudience, VisibilityDiagnostic, VisibilityRule};
 mod module_sources;
 pub use module_scopes::{ModuleContext, ModuleSourceBinding, ScopedModuleSources};
 mod primitives;
@@ -49,6 +51,7 @@ pub enum Failure {
     Headers(Vec<HeaderDiagnostic>),
     Primitive(Box<PrimitiveDiagnostic>),
     SourceRole(Box<SourceRoleDiagnostic>),
+    Visibility(Box<VisibilityDiagnostic>),
     InconsistentSyntax,
     ChangedHeader,
     RequiredValues(Box<[AccessCodeId]>),
@@ -121,13 +124,14 @@ impl<'source> Preparation<'source> {
     ) -> Result<Self, Failure> {
         validate_source_role(syntax, nocter_compile_input::ModuleSourceKind::SingleFile)?;
         let tree = syntax.tree();
-        if nocter_syntax::child_node_iter(tree, tree.root_id()).any(|node| {
-            tree.node(node).is_some_and(|node| {
-                matches!(
-                    node.kind(),
-                    NodeKind::SourceVisibilityDeclaration | NodeKind::UseDeclaration
-                )
-            })
+        if tree.nodes().any(|(_, node)| {
+            matches!(
+                node.kind(),
+                NodeKind::SourceVisibilityDeclaration
+                    | NodeKind::UseDeclaration
+                    | NodeKind::BlockUseDeclaration
+                    | NodeKind::TargetDirective
+            )
         }) {
             return Err(Failure::ModuleInputRequired);
         }

@@ -10,6 +10,32 @@ pub(crate) enum VisibilityResolutionError {
     AbovePackageRoot(NodeId),
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum AncestorBoundaryError {
+    AbovePackageRoot,
+    NotModule,
+}
+
+/// Resolve complete relative path steps from the declaring module, never a body's source folder.
+pub(crate) fn ancestor_module<'a>(
+    modules: &'a [crate::ModuleIdentity],
+    declaring: &crate::ModuleIdentity,
+    levels: usize,
+) -> Result<&'a crate::ModuleIdentity, AncestorBoundaryError> {
+    let length = declaring
+        .path()
+        .len()
+        .checked_sub(levels)
+        .ok_or(AncestorBoundaryError::AbovePackageRoot)?;
+    let boundary = &declaring.path()[..length];
+    modules
+        .iter()
+        .find(|candidate| {
+            candidate.package() == declaring.package() && candidate.path() == boundary
+        })
+        .ok_or(AncestorBoundaryError::NotModule)
+}
+
 pub(crate) fn resolve_authored(
     reserved: &ReservedDeclarations<'_>,
     source_id: SurfaceSourceId,
@@ -53,16 +79,17 @@ pub(crate) fn resolve_authored(
         value if value % 2 == 0 => value / 2,
         _ => return Err(VisibilityResolutionError::Invalid(visibility)),
     };
-    if ancestors > module.path().len() {
-        return Err(VisibilityResolutionError::AbovePackageRoot(visibility));
-    }
-    let boundary_path = &module.path()[..module.path().len() - ancestors];
+    let boundary_module =
+        ancestor_module(&reserved.modules, module, ancestors).map_err(|error| match error {
+            AncestorBoundaryError::AbovePackageRoot => {
+                VisibilityResolutionError::AbovePackageRoot(visibility)
+            }
+            AncestorBoundaryError::NotModule => VisibilityResolutionError::Invalid(visibility),
+        })?;
     let boundary = reserved
         .modules
         .iter()
-        .position(|candidate| {
-            candidate.package() == module.package() && candidate.path() == boundary_path
-        })
+        .position(|candidate| candidate == boundary_module)
         .and_then(|index| reserved.module_ids.get(index))
         .copied()
         .ok_or(VisibilityResolutionError::Invalid(visibility))?;

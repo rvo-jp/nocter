@@ -14,6 +14,7 @@ pub enum SourceRoleRule {
     MissingBody,
     MissingInitializer,
     MissingRepresentation,
+    VisibilityOutsideContract,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SourceRoleDiagnostic {
@@ -41,6 +42,15 @@ pub fn validate_source_role(
 ) -> Result<(), Failure> {
     validate_input(syntax)?;
     let root = role == ModuleSourceKind::Root;
+    if !root
+        && let Some((node, _)) = syntax
+            .tree()
+            .nodes()
+            .filter(|(_, node)| node.kind() == NodeKind::Visibility)
+            .min_by_key(|(_, node)| node.range().start())
+    {
+        return reject(syntax, SourceRoleRule::VisibilityOutsideContract, node);
+    }
     for declaration in headers::declarations(syntax)? {
         let kind = syntax
             .tree()
@@ -99,6 +109,10 @@ fn reject(syntax: BoundSyntax<'_>, rule: SourceRoleRule, subject: NodeId) -> Res
         SourceRoleRule::MissingInitializer => (
             DiagnosticCode::E0275,
             "a value outside a contract source requires its initializer",
+        ),
+        SourceRoleRule::VisibilityOutsideContract => (
+            DiagnosticCode::E0238,
+            "visibility directives belong to eligible index.nct contracts",
         ),
         SourceRoleRule::MissingRepresentation => (
             DiagnosticCode::E0231,

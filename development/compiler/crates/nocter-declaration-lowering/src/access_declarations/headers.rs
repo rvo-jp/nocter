@@ -172,11 +172,7 @@ pub(super) fn declarations(syntax: BoundSyntax<'_>) -> Result<Vec<NodeId>, Failu
             if tree.node(item).is_none_or(|n| n.kind() != NodeKind::Item) {
                 return Err(Failure::InconsistentSyntax);
             }
-            let children = child_node_iter(tree, item).collect::<Vec<_>>();
-            let [declaration] = children.as_slice() else {
-                return Err(Failure::InconsistentSyntax);
-            };
-            Ok(*declaration)
+            nocter_syntax::item_declaration(tree, item).ok_or(Failure::InconsistentSyntax)
         })
         .collect()
 }

@@ -357,3 +357,81 @@ fn retained_source_binding_allows_header_writes_and_rejects_foreign_declaration_
         Some("{ 42 }")
     );
 }
+
+#[test]
+fn root_export_inventory_does_not_publish_helpers_visible_through_see() {
+    let scoped = inventory(
+        &[
+            (
+                "/app/index.nct",
+                Root,
+                "see ./body.nct\n#visibility: \"/\"\n#target: \"arm64-darwin\"\nfunc run(): i32\n#target: \"x64-linux\"\nstruct Unselected",
+            ),
+            (
+                "/app/body.nct",
+                Implementation,
+                "see ./index.nct\nfunc run(): i32 { helper() }\nfunc helper(): i32 { 42 }",
+            ),
+        ],
+        &[(0, 0, 1), (1, 0, 0)],
+        false,
+    )
+    .pair()
+    .unwrap()
+    .reserve_names()
+    .unwrap();
+    let binding = scoped.source_binding();
+    let exports = binding.exports().collect::<Vec<_>>();
+    assert_eq!(exports.len(), 1);
+    assert_eq!(
+        exports[0].0,
+        declaration(&scoped, "/app/index.nct", Kind::Function, "run")
+    );
+    assert!(matches!(exports[0].2, ModuleAudience::Package(_)));
+    assert!(lookup(&scoped, "/app/index.nct", Namespace::Value, "helper").is_some());
+    assert!(
+        scoped
+            .paired()
+            .inventory()
+            .audience(declaration(
+                &scoped,
+                "/app/body.nct",
+                Kind::Function,
+                "helper"
+            ))
+            .is_none()
+    );
+}
+
+#[test]
+fn field_audiences_cannot_widen_their_root_owner_and_directives_do_not_set_defaults() {
+    let scoped = inventory(
+        &[
+            ("/app/index.nct", Root,
+             "see ./body.nct\n#visibility: \"/\"\nstruct Data {\nvalue: i32\n#visibility: \"./\"\nother: i32\n}\nfunc run(): void"),
+            ("/app/body.nct", Implementation,
+             "see ./index.nct\nstruct Data { value: i32\nother: i32 }\nfunc run(): void {}"),
+        ],
+        &[(0, 0, 1), (1, 0, 0)], false,
+    ).pair().unwrap().reserve_names().unwrap();
+    let inventory = scoped.paired().inventory();
+    for (kind, name) in [
+        (Kind::Struct, "Data"),
+        (Kind::Field, "value"),
+        (Kind::Field, "other"),
+    ] {
+        assert!(matches!(
+            inventory.audience(declaration(&scoped, "/app/index.nct", kind, name)),
+            Some(ModuleAudience::Package(_))
+        ));
+    }
+    assert_eq!(
+        inventory.audience(declaration(
+            &scoped,
+            "/app/index.nct",
+            Kind::Function,
+            "run"
+        )),
+        Some(&ModuleAudience::Public)
+    );
+}

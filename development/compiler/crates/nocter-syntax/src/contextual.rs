@@ -52,6 +52,7 @@ contextual_spellings! {
     Error => "error",
     Discard => "_",
     Target => "target",
+    Visibility => "visibility",
 }
 
 #[cfg(test)]

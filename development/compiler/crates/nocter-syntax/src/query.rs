@@ -83,10 +83,10 @@ pub fn declaration_name_token(tree: &SyntaxTree, declaration: NodeId) -> Option<
                 token.kind() == TokenKind::Punctuation(Punctuation::Dot)
             })
         }
-        NodeKind::StructField | NodeKind::EnumVariant => tokens
-            .iter()
-            .copied()
-            .find(|token| token.kind() == TokenKind::Identifier),
+        NodeKind::StructField | NodeKind::EnumVariant => {
+            crate::direct_token_iter(tree, declaration)
+                .find(|token| token.kind() == TokenKind::Identifier)
+        }
         _ => None,
     }
 }
@@ -138,4 +138,54 @@ fn name_after(
 
 fn descendant_tokens(tree: &SyntaxTree, node: NodeId) -> Vec<SyntaxToken> {
     crate::descendant_token_iter(tree, node).collect()
+}
+
+/// Select exactly one declaration from an item, ignoring only its directive prefix nodes.
+/// This grants structural identity only, not directive validity or declaration acceptance.
+#[must_use]
+pub fn item_declaration(tree: &SyntaxTree, item: NodeId) -> Option<NodeId> {
+    if tree.node(item)?.kind() != NodeKind::Item {
+        return None;
+    }
+    let mut children = crate::child_node_iter(tree, item).filter(|node| {
+        !matches!(
+            tree.node(*node).map(crate::SyntaxNode::kind),
+            Some(NodeKind::Visibility | NodeKind::TargetDirective)
+        )
+    });
+    let declaration = children.next()?;
+    (children.next().is_none() && is_declaration(tree.node(declaration)?.kind()))
+        .then_some(declaration)
+}
+
+pub(crate) const fn is_declaration(kind: NodeKind) -> bool {
+    matches!(
+        kind,
+        NodeKind::FunctionDeclaration
+            | NodeKind::ConstantDeclaration
+            | NodeKind::StaticDeclaration
+            | NodeKind::PrimitiveTypeDeclaration
+            | NodeKind::TypeAliasDeclaration
+            | NodeKind::StructDeclaration
+            | NodeKind::StructField
+            | NodeKind::EnumDeclaration
+            | NodeKind::EnumVariant
+            | NodeKind::InterfaceDeclaration
+            | NodeKind::AssociatedTypeDeclaration
+            | NodeKind::InterfaceMethod
+            | NodeKind::ConstructDeclaration
+            | NodeKind::ConstructionFunction
+            | NodeKind::LiteralDeclaration
+            | NodeKind::InstanceDeclaration
+            | NodeKind::InherentMethod
+            | NodeKind::CoercionDeclaration
+            | NodeKind::EqualityOperator
+            | NodeKind::OrderingOperator
+            | NodeKind::IndexOperator
+            | NodeKind::ExpansionOperator
+            | NodeKind::InterfaceImplementation
+            | NodeKind::AssociatedTypeBinding
+            | NodeKind::DropDeclaration
+            | NodeKind::TestDeclaration
+    )
 }

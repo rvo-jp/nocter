@@ -107,3 +107,29 @@ fn role_checks_do_not_replace_primitive_authority_or_change_role_from_filename()
         Err(Failure::SourceRole(_))
     ));
 }
+
+#[test]
+fn visibility_is_a_root_contract_directive_not_an_implementation_or_single_file_mode() {
+    for text in [
+        "#visibility: \"/\"\nfunc run(): i32 { 42 }",
+        "struct Data {\n#visibility: \"/\"\nvalue: i32\n}",
+        "#visibility: \"/\"\nuse ./codec",
+    ] {
+        let (sources, tree) = input(text, ParseGoal::V2CoreUnit);
+        assert!(!tree.has_errors(), "{text}: {:?}", tree.diagnostics());
+        for role in [
+            ModuleSourceKind::Implementation,
+            ModuleSourceKind::SingleFile,
+        ] {
+            let Err(Failure::SourceRole(diagnostic)) =
+                validate_source_role(bound(&sources, &tree), role)
+            else {
+                panic!("visibility placement")
+            };
+            assert_eq!(diagnostic.rule(), SourceRoleRule::VisibilityOutsideContract);
+            assert_eq!(diagnostic.source().code(), "E0238");
+        }
+    }
+    let (sources, tree) = input("#visibility: \"/\"\nfunc run(): i32", ParseGoal::V2CoreUnit);
+    validate_source_role(bound(&sources, &tree), ModuleSourceKind::Root).unwrap();
+}

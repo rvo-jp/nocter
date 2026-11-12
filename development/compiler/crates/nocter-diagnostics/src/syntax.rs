@@ -142,6 +142,11 @@ pub fn parse_diagnostic(diagnostic: ParseDiagnostic) -> SourceDiagnostic {
             "top-level `see` and `use` declarations must precede items".into(),
             Some("move this dependency declaration before the first item"),
         ),
+        ParseDiagnosticKind::DuplicateItemDirective => (
+            DiagnosticCode::E0120,
+            "an item directive name cannot be repeated for one subject".into(),
+            Some("keep one directive of each name on this subject"),
+        ),
         ParseDiagnosticKind::NestingLimit => (
             DiagnosticCode::E0122,
             "source nesting exceeds the compiler limit".into(),

@@ -13,6 +13,7 @@ use nocter_syntax::BoundSyntax;
 #[derive(Debug)]
 pub struct ModuleSources<'syntax> {
     pub(super) surface: DeclarationSurface<'syntax>,
+    pub(super) audiences: super::module_audiences::ModuleAudiences,
 }
 #[derive(Debug)]
 pub enum ModuleSourcesFailure {
@@ -57,7 +58,9 @@ impl<'syntax> ModuleSources<'syntax> {
             .ok_or(ModuleSourcesFailure::Access(Failure::InconsistentSyntax))?;
             validate_source_role(syntax, source.kind()).map_err(ModuleSourcesFailure::Access)?;
         }
-        Ok(Self { surface })
+        let audiences = super::module_audiences::ModuleAudiences::prepare(&surface)
+            .map_err(ModuleSourcesFailure::Access)?;
+        Ok(Self { surface, audiences })
     }
     /// Pair root contracts with directly reciprocal complete definitions, without resolving types.
     /// # Errors
@@ -69,6 +72,14 @@ impl<'syntax> ModuleSources<'syntax> {
             inventory: self,
             contracts,
         })
+    }
+    #[must_use]
+    pub fn audience(&self, declaration: SurfaceDeclarationId) -> Option<&super::ModuleAudience> {
+        self.audiences.declaration(declaration)
+    }
+    #[must_use]
+    pub fn import_audience(&self, node: nocter_syntax::NodeId) -> Option<&super::ModuleAudience> {
+        self.audiences.import(node)
     }
     #[must_use]
     pub fn source_entries(
@@ -104,6 +115,10 @@ impl<'syntax> ModuleSources<'syntax> {
     #[must_use]
     pub const fn source_visibilities(&self) -> &[SurfaceVisibility] {
         self.surface.source_visibilities()
+    }
+    #[must_use]
+    pub const fn block_imports(&self) -> &[crate::SurfaceBlockImport] {
+        self.surface.block_imports()
     }
     #[must_use]
     pub const fn imports(&self) -> &[SurfaceImport] {

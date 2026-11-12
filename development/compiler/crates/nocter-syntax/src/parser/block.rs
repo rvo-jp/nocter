@@ -36,7 +36,7 @@ fn block(parser: &mut Parser<'_>) -> CompletedMarker {
     parser.complete(marker, NodeKind::Block)
 }
 
-fn parse_use_prefix(parser: &mut Parser<'_>) {
+pub(super) fn parse_use_prefix(parser: &mut Parser<'_>) {
     while parser.at_keyword(Keyword::Use) {
         block_use(parser);
         if parser.at_punctuation(Punctuation::RightBrace) || parser.at(TokenKind::Eof) {
@@ -53,7 +53,7 @@ fn parse_use_prefix(parser: &mut Parser<'_>) {
     }
 }
 
-fn block_use(parser: &mut Parser<'_>) {
+pub(super) fn block_use(parser: &mut Parser<'_>) {
     let marker = parser.start();
     parser.expect_keyword(Keyword::Use);
     root::use_tree(parser);

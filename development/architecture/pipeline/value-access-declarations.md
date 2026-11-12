@@ -148,8 +148,11 @@ alternative worlds. Only the complete private-unit constructor closes all body/c
 intermediate facts cannot be treated as its accepted product.
 
 The released compile-input/target-selection boundary rejects this future root, and no conversion
-from this declaration product to the released program exists. Public roots, module joining,
-general compound header types, generic/interface evidence, dependent results without an
+from this declaration product to the released program exists. The bounded selected-module entry
+uses this same value-access authority; its implemented source, pairing, audience and orchestration
+scope belongs to [declaration lowering](../../compiler/crates/nocter-declaration-lowering/README.md)
+and [checking](../../compiler/crates/nocter-checking/README.md). Import/re-export binding, ordinary
+module discovery/CLI integration, general compound header types, generic/interface evidence, dependent results without an
 established required input witness, nested callback contracts, general captured environments, general outcomes,
 async/effects and standard-library migration remain outside this implemented boundary.
 

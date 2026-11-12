@@ -247,8 +247,9 @@ one implementation. Every physical count supplier executes in its own source sco
 headers agree. The final declarations are an immutable current `ModuleContext`, and every selected
 source is checked, including unused helpers and records. Empty libraries need no fabricated body.
 Unselected primitives reject at their authored declaration; this entry supplies no module primitive
-authority. Imports/re-exports, audiences, source rebinding across module revisions and ordinary
-package/CLI integration remain work. This bounded selected-input entry does not qualify those subjects.
+authority. Sealing checks effective root audiences and outward nominal signature exposure through
+that same declaration binding; hidden representation payloads remain private. Import/re-export
+bindings, source rebinding across module revisions and ordinary package/CLI integration remain work. This bounded selected-input entry does not qualify those subjects.
 
 The private-function goal has one typed-body query over shared immutable declaration facts and
 an owner-scoped body-type extension. Each query retains its origin header prefix; binding accepts

@@ -1,3 +1,4 @@
+use crate::query::is_declaration;
 use std::collections::{HashMap, HashSet};
 
 use crate::{
@@ -344,6 +345,9 @@ fn encode_declaration_diagnostics(tree: &SyntaxTree, canonical: &mut Vec<u8>) {
             ParseDiagnosticKind::LateDependencyDeclaration => {
                 encode(7, b"late_dependency_declaration", canonical);
             }
+            ParseDiagnosticKind::DuplicateItemDirective => {
+                encode(7, b"duplicate_item_directive", canonical);
+            }
             ParseDiagnosticKind::NestingLimit => {
                 encode(7, b"nesting_limit", canonical);
             }
@@ -355,38 +359,6 @@ fn body_roots(tree: &SyntaxTree) -> HashSet<NodeId> {
     tree.nodes()
         .filter_map(|(declaration, _)| crate::declaration_body(tree, declaration))
         .collect()
-}
-
-const fn is_declaration(kind: NodeKind) -> bool {
-    matches!(
-        kind,
-        NodeKind::FunctionDeclaration
-            | NodeKind::ConstantDeclaration
-            | NodeKind::StaticDeclaration
-            | NodeKind::PrimitiveTypeDeclaration
-            | NodeKind::TypeAliasDeclaration
-            | NodeKind::StructDeclaration
-            | NodeKind::StructField
-            | NodeKind::EnumDeclaration
-            | NodeKind::EnumVariant
-            | NodeKind::InterfaceDeclaration
-            | NodeKind::AssociatedTypeDeclaration
-            | NodeKind::InterfaceMethod
-            | NodeKind::ConstructDeclaration
-            | NodeKind::ConstructionFunction
-            | NodeKind::LiteralDeclaration
-            | NodeKind::InstanceDeclaration
-            | NodeKind::InherentMethod
-            | NodeKind::CoercionDeclaration
-            | NodeKind::EqualityOperator
-            | NodeKind::OrderingOperator
-            | NodeKind::IndexOperator
-            | NodeKind::ExpansionOperator
-            | NodeKind::InterfaceImplementation
-            | NodeKind::AssociatedTypeBinding
-            | NodeKind::DropDeclaration
-            | NodeKind::TestDeclaration
-    )
 }
 
 const fn lex_diagnostic_name(kind: LexDiagnosticKind) -> &'static str {
@@ -491,7 +463,7 @@ mod tests {
         let item = crate::child_node_iter(&tree, tree.root_id())
             .next()
             .unwrap();
-        let declaration = crate::child_node_iter(&tree, item).next().unwrap();
+        let declaration = crate::item_declaration(&tree, item).unwrap();
         super::project_declaration_header(
             crate::BoundSyntax::new(source, &tree).unwrap(),
             declaration,
