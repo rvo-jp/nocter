@@ -149,11 +149,22 @@ fn access_operations_do_not_change_data_layout_or_create_borrow_types() {
     assert_eq!(root.calls().len(), 3);
     for call in root.calls().values() {
         assert_eq!(call.inputs()[0].payload.data(), data);
-        let signature = storage::signature(&instances, call.target()).unwrap();
+        let target = call.target().instance().unwrap();
+        let signature = storage::signature(&instances, target).unwrap();
         let abi = MachineValueCallableAbi::build(signature, &layouts).unwrap();
         let (input, transport) = abi.inputs().next().unwrap();
-        assert_eq!(input.local, call.inputs()[0].input.local);
-        assert_eq!(input.operation, call.inputs()[0].input.operation);
+        assert_eq!(
+            input.local,
+            instances
+                .body(target)
+                .unwrap()
+                .typed()
+                .body()
+                .inputs()
+                .explicit()[0]
+                .local
+        );
+        assert_eq!(input.operation, call.inputs()[0].operation);
         assert_eq!(transport.ty(), data);
         assert!(
             matches!(abi.transport().result(), MachineResultAbi::Value(result) if result.class() == MachineValueClass::Zero)
@@ -226,10 +237,14 @@ fn dependent_and_captured_source_witnesses_reach_closed_layouts() {
                 }
             }
             for call in instance.calls().values() {
-                let signature = storage::signature(&instances, call.target()).unwrap();
-                for (&binding, input) in call.inputs().iter().zip(signature.explicit()) {
-                    assert_eq!(input.local, binding.input.local);
-                    assert_eq!(input.operation, binding.input.operation);
+                let target = call.target().instance().unwrap();
+                let signature = storage::signature(&instances, target).unwrap();
+                let body = instances.body(target).unwrap().typed().body();
+                for (index, (&binding, input)) in
+                    call.inputs().iter().zip(signature.explicit()).enumerate()
+                {
+                    assert_eq!(input.local, body.inputs().explicit()[index].local);
+                    assert_eq!(input.operation, binding.operation);
                     assert_eq!(input.data, binding.payload.data());
                 }
                 assert_eq!(call.inputs().len(), signature.explicit().len());

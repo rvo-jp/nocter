@@ -31,7 +31,8 @@ First close trusted standard primitive construction through the shared path. Do 
 primitives by an arbitrary user name, infer general text-view
 independence from program-extent literal backing, or treat static error handles as owned-graph
 release evidence.
-Connect the accepted Unit's checked bodyless primitive bindings to the common native call ABI.
+Extend the static instance consumer's distinct primitive call edges through MIR and the common
+native call ABI; MIR currently rejects those edges explicitly.
 Preserve actual absent bodies and explicit physical address channels; source acceptance does not
 establish constructor execution or graph cleanup. Required closures must retain ordinary
 runtime-call rejection rather than searching for an absent primitive source body.

@@ -7,7 +7,7 @@ pub mod storage;
 #[cfg(test)]
 mod tests;
 
-pub use invocation::{Environment, EnvironmentExit, InputBinding, Invocation};
+pub use invocation::{CallTarget, Environment, EnvironmentExit, InputBinding, Invocation};
 use nocter_checking::value_access::{
     accepted::{DataEvidence, Unit},
     flow,
@@ -79,6 +79,7 @@ impl Instance {
 pub enum Failure {
     UnknownRoot(AccessCodeId),
     InitializerRoot(AccessCodeId),
+    BodylessRoot(AccessCodeId),
     UnboundRoot(AccessParameterId),
     InvalidAcceptedUnit,
 }

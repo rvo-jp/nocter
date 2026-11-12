@@ -6,6 +6,7 @@ use nocter_checking::value_access::{
     flow::resources::Payload,
 };
 use nocter_model::{AccessExpressionId, AccessInstanceId, TypeId, ValueCode, ValueInputOperation};
+use nocter_runtime_contract::PrimitiveRole;
 use std::collections::BTreeMap;
 const INVALID: Failure = Failure::InvalidAcceptedUnit;
 
@@ -43,14 +44,29 @@ pub enum Environment {
 pub struct InputBinding {
     /// Slot in the committed prepared bundle.
     pub argument: usize,
-    pub input: BodyInput,
+    /// The explicit input's ordinal is its position in this list; no callee local is invented.
+    pub operation: ValueInputOperation,
     /// Concrete data obligation; the input operation, not this schema, grants ownership.
     pub payload: Payload,
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CallTarget {
+    Body(AccessInstanceId),
+    Primitive(PrimitiveRole),
+}
+impl CallTarget {
+    #[must_use]
+    pub const fn instance(self) -> Option<AccessInstanceId> {
+        match self {
+            Self::Body(id) => Some(id),
+            Self::Primitive(_) => None,
+        }
+    }
 }
 /// One reached invocation, paired with its concrete target and checked input-slot mapping.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Invocation {
-    target: AccessInstanceId,
+    target: CallTarget,
     kind: CallKind,
     inputs: Box<[InputBinding]>,
     environment: Environment,
@@ -58,7 +74,7 @@ pub struct Invocation {
 }
 impl Invocation {
     #[must_use]
-    pub const fn target(&self) -> AccessInstanceId {
+    pub const fn target(&self) -> CallTarget {
         self.target
     }
     #[must_use]
@@ -85,7 +101,7 @@ pub(super) fn bind(
     caller: &nocter_checking::value_access::flow::Query,
     call: AccessExpressionId,
     code: ValueCode,
-    target: AccessInstanceId,
+    target: CallTarget,
 ) -> Result<Invocation, Failure> {
     let expression = caller
         .typed()
@@ -104,10 +120,34 @@ pub(super) fn bind(
         .get(&expression.ty.normal().ok_or(INVALID)?.data())
         .and_then(DataEvidence::payload)
         .ok_or(INVALID)?;
-    let body = unit.code_body(code).ok_or(INVALID)?.typed().body();
+    let body = unit.code_body(code).map(|body| body.typed().body());
+    let expected: Vec<_> = match target {
+        CallTarget::Body(_) => body
+            .ok_or(INVALID)?
+            .inputs()
+            .explicit()
+            .iter()
+            .map(|input| input.operation)
+            .collect(),
+        CallTarget::Primitive(role) => {
+            let ValueCode::Declaration(id) = code else {
+                return Err(INVALID);
+            };
+            if unit.primitives().role(id) != Some(role) || body.is_some() {
+                return Err(INVALID);
+            }
+            role.value_signature()
+                .ok_or(INVALID)?
+                .inputs()
+                .iter()
+                .map(|input| input.operation())
+                .collect()
+        }
+    };
+    let environment_input = body.and_then(|body| body.inputs().environment());
     let (offset, environment) = match kind {
         CallKind::Direct => {
-            if !matches!(code, ValueCode::Declaration(_)) || body.inputs().environment().is_some() {
+            if !matches!(code, ValueCode::Declaration(_)) || environment_input.is_some() {
                 return Err(INVALID);
             }
             (0, Environment::None)
@@ -132,24 +172,24 @@ pub(super) fn bind(
                     code,
                     carrier,
                     argument.operation,
-                    body.inputs().environment(),
+                    environment_input,
                     data,
                 )?,
             )
         }
     };
     let explicit = arguments.get(offset..).ok_or(INVALID)?;
-    if explicit.len() != body.inputs().explicit().len() {
+    if explicit.len() != expected.len() {
         return Err(INVALID);
     }
     let mut inputs = Vec::new();
-    for (index, (argument, &input)) in explicit.iter().zip(body.inputs().explicit()).enumerate() {
-        if argument.operation != input.operation {
+    for (index, (argument, operation)) in explicit.iter().zip(expected).enumerate() {
+        if argument.operation != operation {
             return Err(INVALID);
         }
         inputs.push(InputBinding {
             argument: offset + index,
-            input,
+            operation,
             payload: argument_payload(caller, data, argument)?,
         });
     }

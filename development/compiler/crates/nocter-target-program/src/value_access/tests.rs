@@ -8,6 +8,7 @@ use nocter_model::{ValueFunctionOrigin, ValueInvocation};
 use nocter_test_support::ValueSourceFixture;
 use std::fmt::Write as _;
 mod captured;
+mod primitives;
 
 #[test]
 fn zero_capture_metadata_does_not_require_a_binding_for_a_trapping_element_projection() {
@@ -109,7 +110,12 @@ fn captured_code_invocation_selects_its_checked_body() {
         .next()
         .unwrap();
     assert!(matches!(
-        graph.instances().get(edge.target()).unwrap().key().code(),
+        graph
+            .instances()
+            .get(edge.target().instance().unwrap())
+            .unwrap()
+            .key()
+            .code(),
         ValueCode::Closure(_)
     ));
 }
@@ -178,7 +184,7 @@ fn forwarded_formals_close_to_one_named_dispatch_without_rechecking_bodies() {
             .1
             .calls
             .values()
-            .map(Invocation::target)
+            .map(|call| call.target().instance().unwrap())
             .collect::<Vec<_>>(),
         [increment_id]
     );
@@ -189,7 +195,12 @@ fn recursion_reuses_the_reserved_instance_instead_of_expanding_witness_terms() {
     let graph = close_case("a88-callback-recursive-forward.nct");
     assert_eq!(graph.instances().len(), 3);
     let (apply_id, apply) = instance(&graph, "apply");
-    assert!(apply.calls.values().any(|call| call.target() == apply_id));
+    assert!(
+        apply
+            .calls
+            .values()
+            .any(|call| call.target().instance().unwrap() == apply_id)
+    );
     assert_eq!(apply.calls.len(), 2);
 }
 
@@ -200,7 +211,14 @@ fn equal_signatures_keep_distinct_positions_and_targets() {
     let mut targets = apply
         .calls
         .values()
-        .map(|call| graph.instances().get(call.target()).unwrap().key.code)
+        .map(|call| {
+            graph
+                .instances()
+                .get(call.target().instance().unwrap())
+                .unwrap()
+                .key
+                .code
+        })
         .collect::<Vec<_>>();
     targets.sort();
     let mut expected = vec![
@@ -423,7 +441,7 @@ fn repeated_concrete_bindings_share_one_instance_and_distinct_bindings_do_not() 
         .unwrap()
         .calls
         .values()
-        .map(Invocation::target)
+        .map(|call| call.target().instance().unwrap())
         .collect::<Vec<_>>();
     assert_eq!(calls.len(), 3);
     assert_eq!(calls[0], calls[2]);
@@ -512,7 +530,15 @@ fn direct_and_value_invocations_keep_explicit_environment_shape() {
         }
         let apply = graph
             .instances()
-            .get(root.calls.values().next().unwrap().target())
+            .get(
+                root.calls
+                    .values()
+                    .next()
+                    .unwrap()
+                    .target()
+                    .instance()
+                    .unwrap(),
+            )
             .unwrap();
         assert_eq!(apply.key.witnesses.len(), 1);
     }
@@ -566,9 +592,14 @@ func run(): i32 { bounce(increment, decrement, false) }",
             instance
                 .calls
                 .values()
-                .any(|call| call.target() == instances[1 - index].0)
+                .any(|call| call.target().instance().unwrap() == instances[1 - index].0)
         );
-        assert!(!instance.calls.values().any(|call| call.target() == *id));
+        assert!(
+            !instance
+                .calls
+                .values()
+                .any(|call| call.target().instance().unwrap() == *id)
+        );
     }
 }
 

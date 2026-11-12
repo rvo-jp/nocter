@@ -21,8 +21,11 @@ fn assert_closed(graph: &InstanceProgram) {
                 .is_none_or(|p| p.disposal() != Disposal::FunctionEnvironment)
         }));
         for call in instance.calls().values() {
-            let target = graph.instances().get(call.target()).unwrap();
-            let body = graph.body(call.target()).unwrap();
+            let target = graph
+                .instances()
+                .get(call.target().instance().unwrap())
+                .unwrap();
+            let body = graph.body(call.target().instance().unwrap()).unwrap();
             assert_eq!(
                 target.data()[&body.typed().result_data()].payload(),
                 Some(call.result())
@@ -81,7 +84,10 @@ fn environment_and_explicit_edit_take_inputs_have_independent_frozen_channels() 
     let graph = close_case("a147-owned-capture-input-operations.nct");
     let call = root(&graph).calls().values().next().unwrap();
     assert_eq!(call.kind(), CallKind::Value);
-    let body = graph.body(call.target()).unwrap().typed();
+    let body = graph
+        .body(call.target().instance().unwrap())
+        .unwrap()
+        .typed();
     assert_eq!(body.source_owner(), callable(graph.unit(), "run"));
     assert!(matches!(body.code(), ValueCode::Closure(_)));
     let Environment::Capture {
@@ -109,16 +115,16 @@ fn environment_and_explicit_edit_take_inputs_have_independent_frozen_channels() 
     );
     assert_eq!(exit, EnvironmentExit::Retained);
     let inputs = call.inputs();
+    assert_eq!((inputs[0].argument, inputs[0].operation), (1, Op::Edit));
+    assert_eq!((inputs[1].argument, inputs[1].operation), (2, Op::Take));
     assert_eq!(
-        (inputs[0].argument, inputs[0].input.operation),
-        (1, Op::Edit)
+        inputs[0].operation,
+        body.body().inputs().explicit()[0].operation
     );
     assert_eq!(
-        (inputs[1].argument, inputs[1].input.operation),
-        (2, Op::Take)
+        inputs[1].operation,
+        body.body().inputs().explicit()[1].operation
     );
-    assert_eq!(inputs[0].input, body.body().inputs().explicit()[0]);
-    assert_eq!(inputs[1].input, body.body().inputs().explicit()[1]);
 }
 
 #[test]
@@ -129,7 +135,11 @@ fn one_checked_body_is_shared_across_read_update_and_consuming_views() {
     assert_eq!(graph.instances().len(), 3);
     let calls = root(&graph).calls().values().collect::<Vec<_>>();
     assert_eq!(calls.len(), 3);
-    assert!(calls.iter().all(|call| call.target() == calls[0].target()));
+    assert!(
+        calls
+            .iter()
+            .all(|call| call.target().instance().unwrap() == calls[0].target().instance().unwrap())
+    );
     for (call, expected) in calls.iter().zip([Op::Read, Op::Edit, Op::Take]) {
         let Environment::Capture {
             supplied,
@@ -199,7 +209,7 @@ fn consuming_adapter_cleans_the_post_update_environment() {
     assert_eq!(supplied, Op::Take);
     assert_eq!(input.operation, Op::Edit);
     assert_eq!(exit, EnvironmentExit::DisposeBeforeResult(payload));
-    assert_eq!(call.inputs()[0].input.operation, Op::Take);
+    assert_eq!(call.inputs()[0].operation, Op::Take);
     assert_closed(&graph);
 }
 
@@ -236,7 +246,7 @@ fn runtime_environment_values_do_not_duplicate_code_instances() {
     let targets = root(&graph)
         .calls()
         .values()
-        .map(Invocation::target)
+        .map(|call| call.target().instance().unwrap())
         .collect::<Vec<_>>();
     assert_eq!(targets.len(), 4);
     assert_eq!(targets[0], targets[1]);
@@ -254,7 +264,7 @@ fn equal_signatures_keep_lexical_producers_distinct_through_generic_inputs() {
     let targets = root(&graph)
         .calls()
         .values()
-        .map(Invocation::target)
+        .map(|call| call.target().instance().unwrap())
         .collect::<Vec<_>>();
     assert_eq!(targets[0], targets[2]);
     assert_ne!(targets[0], targets[1]);
@@ -291,7 +301,9 @@ fn named_and_captured_recursion_share_the_same_reserved_instance_graph() {
         .values()
         .next()
         .unwrap()
-        .target();
+        .target()
+        .instance()
+        .unwrap();
     assert_eq!(
         graph
             .instances()
@@ -301,7 +313,9 @@ fn named_and_captured_recursion_share_the_same_reserved_instance_graph() {
             .values()
             .next()
             .unwrap()
-            .target(),
+            .target()
+            .instance()
+            .unwrap(),
         graph.root()
     );
     let bridge = graph
@@ -316,7 +330,7 @@ fn named_and_captured_recursion_share_the_same_reserved_instance_graph() {
     assert_eq!(bridge.environment(), Environment::None);
     assert_eq!(bridge.inputs()[0].argument, 0);
     assert_eq!(
-        bridge.inputs()[0].input,
+        bridge.inputs()[0].operation,
         graph
             .body(graph.root())
             .unwrap()
@@ -324,6 +338,7 @@ fn named_and_captured_recursion_share_the_same_reserved_instance_graph() {
             .body()
             .inputs()
             .explicit()[0]
+            .operation
     );
     assert_closed(&graph);
 }
@@ -335,7 +350,12 @@ fn recursive_callback_forwarding_preserves_the_captured_witness() {
     );
     assert_eq!(graph.instances().len(), 3);
     let (apply_id, apply) = instance(&graph, "apply");
-    assert!(apply.calls().values().any(|call| call.target() == apply_id));
+    assert!(
+        apply
+            .calls()
+            .values()
+            .any(|call| call.target().instance().unwrap() == apply_id)
+    );
     assert!(matches!(
         apply.key().witnesses().values().next().unwrap().code(),
         ValueCode::Closure(_)

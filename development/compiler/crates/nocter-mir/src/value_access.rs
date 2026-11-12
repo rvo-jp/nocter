@@ -295,6 +295,7 @@ impl Body {
 pub enum Failure {
     Storage(storage::Failure),
     InvalidBody(AccessInstanceId),
+    PrimitiveCall(nocter_runtime_contract::PrimitiveRole),
 }
 
 /// One immutable global object with its exact closed runtime data.

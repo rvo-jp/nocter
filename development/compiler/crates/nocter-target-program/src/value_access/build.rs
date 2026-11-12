@@ -1,5 +1,5 @@
 //! Root-driven interning closes selected calls once. Recursive edges reuse reserved instances.
-use super::{Failure, Instance, InstanceKey, InstanceProgram, invocation, projection};
+use super::{CallTarget, Failure, Instance, InstanceKey, InstanceProgram, invocation, projection};
 use nocter_checking::value_access::{ExpressionKind, accepted::Unit, flow::Operation};
 use nocter_model::{AccessCodeId, AccessInstanceId, ArenaBuilder};
 use std::{
@@ -67,7 +67,18 @@ impl Builder {
             };
             let selected = projection::callee(unit.program(), &key, *target, arguments)?;
             let code = selected.code;
-            let target = self.intern(selected);
+            let target = match code {
+                nocter_model::ValueCode::Declaration(id)
+                    if unit.primitives().role(id).is_some() =>
+                {
+                    CallTarget::Primitive(
+                        unit.primitives()
+                            .role(id)
+                            .ok_or(Failure::InvalidAcceptedUnit)?,
+                    )
+                }
+                _ => CallTarget::Body(self.intern(selected)),
+            };
             let edge = invocation::bind(unit, &data, body, call, code, target)?;
             calls.insert(call, edge);
         }
@@ -86,6 +97,9 @@ pub(super) fn close(unit: Arc<Unit>, root: AccessCodeId) -> Result<InstanceProgr
         .ok_or(Failure::UnknownRoot(root))?;
     if declaration.kind().is_initializer() {
         return Err(Failure::InitializerRoot(root));
+    }
+    if unit.primitives().role(root).is_some() {
+        return Err(Failure::BodylessRoot(root));
     }
     for &id in declaration.parameters() {
         if unit
@@ -119,9 +133,11 @@ pub(super) fn close(unit: Arc<Unit>, root: AccessCodeId) -> Result<InstanceProgr
     })?;
     for (_, instance) in instances.iter() {
         for call in instance.calls.values() {
-            let callee = instances
-                .get(call.target())
-                .ok_or(Failure::InvalidAcceptedUnit)?;
+            let CallTarget::Body(target) = call.target() else {
+                validate_primitive(&unit, call)?;
+                continue;
+            };
+            let callee = instances.get(target).ok_or(Failure::InvalidAcceptedUnit)?;
             let body = unit
                 .code_body(callee.key.code)
                 .ok_or(Failure::InvalidAcceptedUnit)?
@@ -135,17 +151,22 @@ pub(super) fn close(unit: Arc<Unit>, root: AccessCodeId) -> Result<InstanceProgr
             {
                 return Err(Failure::InvalidAcceptedUnit);
             }
-            for binding in call.inputs() {
+            let inputs = body.body().inputs().explicit();
+            if inputs.len() != call.inputs().len() {
+                return Err(Failure::InvalidAcceptedUnit);
+            }
+            for (binding, input) in call.inputs().iter().zip(inputs) {
                 let local = body
                     .body()
                     .locals()
-                    .get(binding.input.local)
+                    .get(input.local)
                     .ok_or(Failure::InvalidAcceptedUnit)?;
-                if callee
-                    .data
-                    .get(&local.data)
-                    .and_then(nocter_checking::value_access::accepted::DataEvidence::payload)
-                    != Some(binding.payload)
+                if input.operation != binding.operation
+                    || callee
+                        .data
+                        .get(&local.data)
+                        .and_then(nocter_checking::value_access::accepted::DataEvidence::payload)
+                        != Some(binding.payload)
                 {
                     return Err(Failure::InvalidAcceptedUnit);
                 }
@@ -157,4 +178,25 @@ pub(super) fn close(unit: Arc<Unit>, root: AccessCodeId) -> Result<InstanceProgr
         root,
         instances,
     })
+}
+
+fn validate_primitive(unit: &Unit, call: &invocation::Invocation) -> Result<(), Failure> {
+    let CallTarget::Primitive(role) = call.target() else {
+        return Err(Failure::InvalidAcceptedUnit);
+    };
+    let signature = role.value_signature().ok_or(Failure::InvalidAcceptedUnit)?;
+    if unit.program().data_kind(call.result().data()) != Some(signature.result())
+        || call.inputs().len() != signature.inputs().len()
+        || call
+            .inputs()
+            .iter()
+            .zip(signature.inputs())
+            .any(|(actual, expected)| {
+                actual.operation != expected.operation()
+                    || unit.program().data_kind(actual.payload.data()) != Some(expected.data())
+            })
+    {
+        return Err(Failure::InvalidAcceptedUnit);
+    }
+    Ok(())
 }

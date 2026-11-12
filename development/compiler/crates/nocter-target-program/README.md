@@ -113,17 +113,26 @@ empty array and has no callable binding for an element that cannot exist. Reache
 and seed disposal retain their real bindings, while the body preserves its original bounds trap
 through native execution. Detached function metadata cannot force a phantom callee or carrier.
 
-`invocation` binds each reached call's committed prepared bundle to the checked body's frozen input
-layout. An edge retains the concrete instance, direct/value kind, explicit argument-to-local map,
+`invocation` binds each reached call's committed prepared bundle to the selected ordered inputs.
+An edge retains the concrete body instance or checked primitive role, direct/value kind, explicit argument-to-input map,
 environment channel and concrete input/result obligations. A named value supplies a code token without a
 body environment; a captured value supplies its exact carrier and environment payloads to the declared body
 slot. Original body invocation and supplied adapter view remain distinct. Normal completion either
 retains the environment, leaves remaining-payload cleanup with a consuming body, or disposes an
 adapter-owned environment before result delivery. Copy supply refers to its prepared snapshot,
 not its original source owner. No unwind/cancellation guarantee is inferred from this normal exit
-recipe. Final freeze verifies each edge's input/result payloads against its selected concrete body.
+recipe. Explicit bindings retain their ordinal, operation and payload; body-local identities remain
+with the body's input layout instead of being duplicated in every caller edge.
+Final freeze verifies each edge's input/result payloads against its selected concrete body or the
+runtime contract's sole primitive value signature.
 Input locals are relative to the selected body and a fresh invocation activation; sharing a
 static instance never shares runtime environment values, owner state or storage between calls.
+
+Checked bodyless primitives create no source instance, local slot, lifecycle body or synthetic
+callee environment. Named primitive witnesses can pass through ordinary callback instances and
+retain their normal code-token adapter cleanup. A bodyless declaration cannot be a source-body
+root. This static closure supplies neither the primitive's physical runtime ABI nor native
+execution authority; downstream consumers must qualify that operation explicitly.
 
 Each instance retains its exact accepted body and these frozen edges/data maps. Consumers cannot
 recheck a body, select by names, infer an environment offset from arity, recover source-level Copy

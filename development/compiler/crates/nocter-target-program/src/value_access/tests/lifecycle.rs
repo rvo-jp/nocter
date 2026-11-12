@@ -97,7 +97,7 @@ fn a_consuming_body_keeps_its_partial_cleanup_without_second_adapter_destruction
     let Environment::Capture { input, .. } = selected.environment() else {
         panic!("capture");
     };
-    let body = &program.bodies()[&selected.target()];
+    let body = &program.bodies()[&selected.target().instance().unwrap()];
     let mut disposed = Vec::new();
     let mut released = Vec::new();
     for alternative in body

@@ -59,6 +59,8 @@ data/input authority. Its builder freezes the reachable control graph, interns d
 selected scalar operations and static calls, and integrates resource phases and committed call
 bindings. The result contains its runtime environment and closed bodies, with no checking/target
 storage reference. There is no separately pairable storage companion or released MirProgram adapter.
+Static primitive edges currently reject with an explicit `PrimitiveCall` boundary failure; a
+checked role is not a MIR body or native ABI certificate. No empty body is synthesized for it.
 
 `computation` consumes selected operation kinds and frozen call edges; it does not infer Copy,
 access, result witnesses or dispatch. Private required constants arrive as ordinary primitive

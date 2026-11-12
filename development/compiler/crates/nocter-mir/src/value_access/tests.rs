@@ -26,6 +26,51 @@ fn operations(body: &Body) -> impl Iterator<Item = &Operation> {
 }
 
 #[test]
+fn static_primitive_calls_do_not_receive_fake_mir_bodies_or_native_authority() {
+    use nocter_compile_input::{ModuleIdentity, PrimitiveRoleLocator, ToolchainInput};
+    use nocter_declaration_lowering::access_declarations as declarations;
+    use nocter_model::PackageIdentity;
+    use nocter_runtime_contract::PrimitiveRole;
+    let package = PackageIdentity::new("test:standard");
+    let module = ModuleIdentity::new(package.clone(), ["error"]);
+    let toolchain = ToolchainInput::new(
+        package.clone(),
+        ModuleIdentity::new(package, ["prelude"]),
+        Vec::new(),
+        Vec::new(),
+    )
+    .with_primitive_roles(vec![PrimitiveRoleLocator::new(
+        PrimitiveRole::NewError,
+        module.clone(),
+        "create_failure",
+    )]);
+    let authority = declarations::PrimitiveAuthority::for_module(&toolchain, &module).unwrap();
+    let fixture = ValueSourceFixture::new(
+        "primitive func create_failure(code: str, message: str): error\nfunc run(): void { let failure = create_failure(\"test\", \"message\")\ndrop failure }",
+    );
+    let headers =
+        declarations::Query::prepare_with_primitive_authority(fixture.syntax(), &authority)
+            .unwrap();
+    let unit = Arc::new(
+        nocter_checking::value_access::accepted::Unit::prepare(
+            &headers.bind(fixture.syntax()).unwrap(),
+        )
+        .unwrap(),
+    );
+    let root = unit
+        .program()
+        .resolve_code(unit.program().symbols().get("run").unwrap())
+        .unwrap();
+    let instances = Arc::new(InstanceProgram::prepare(unit, root).unwrap());
+    assert_eq!(instances.instances().len(), 1);
+    let lifecycle = lifecycle::Program::prepare(instances).unwrap();
+    assert!(matches!(
+        Program::lower(&lifecycle, RuntimeAbiIdentity::Arm64DarwinV1),
+        Err(Failure::PrimitiveCall(PrimitiveRole::NewError))
+    ));
+}
+
+#[test]
 fn snapshots_precede_later_operand_calls_and_checked_arithmetic_uses_the_snapshots() {
     let program = lower(
         "func next(edit value: i32): i32 { value += 1\nvalue }\nfunc run(): i32 { var value = 0\nvalue + next(value) }",

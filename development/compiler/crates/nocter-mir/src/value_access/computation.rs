@@ -294,13 +294,18 @@ impl Builder<'_> {
         for binding in selected.inputs() {
             inputs.push(CallInput {
                 source: self.argument(id, binding.argument)?,
-                operation: binding.input.operation,
+                operation: binding.operation,
             });
         }
         let data = selected.result().data();
         let answer = self.snapshot(SlotKey::Answer(id), data)?;
         Ok(Call {
-            target: selected.target(),
+            target: match selected.target() {
+                nocter_target_program::value_access::CallTarget::Body(id) => id,
+                nocter_target_program::value_access::CallTarget::Primitive(role) => {
+                    return Err(Failure::PrimitiveCall(role));
+                }
+            },
             inputs: inputs.into(),
             answer,
         })

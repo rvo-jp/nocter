@@ -2048,6 +2048,7 @@ name = "nocter-mir"
 version = "0.0.0"
 dependencies = [
  "nocter-checking",
+ "nocter-compile-input",
  "nocter-declaration-lowering",
  "nocter-model",
  "nocter-runtime-contract",
@@ -2224,6 +2225,7 @@ name = "nocter-target-program"
 version = "0.0.0"
 dependencies = [
  "nocter-checking",
+ "nocter-compile-input",
  "nocter-declaration-lowering",
  "nocter-declarations",
  "nocter-model",
