@@ -25,7 +25,8 @@ use crate::{
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ParseGoal {
     SourceFile,
-    /// Bounded future-language private function unit; not a released package/source file.
+    /// Bounded future declaration grammar; source-role admission belongs to lowering.
+    /// This is not a released package/source-file goal.
     V2CoreUnit,
 }
 

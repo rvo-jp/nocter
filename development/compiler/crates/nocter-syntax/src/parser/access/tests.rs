@@ -264,13 +264,46 @@ fn immutable_statics_use_the_initializer_surface_without_modifier_or_type_fallba
     );
     super::super::snapshots::assert_token_projection(&parsed, "static initializer");
     for source in [
-        "static VALUE: i32",
         "static var VALUE: i32 = 1",
         "static VALUE: &i32 = 1",
         "static VALUE: func(): i32 = action",
     ] {
         assert!(tree(source, ParseGoal::V2CoreUnit).has_errors(), "{source}");
     }
+}
+
+#[test]
+fn contract_header_shapes_share_the_declaration_grammar_without_fabricated_bodies() {
+    let source = "func answer(value: i32): i32\nconst VALUE: i32\nstatic ROOT: i32\nstruct Opaque\ncopy struct Visible { value: i32 }";
+    let parsed = tree(source, ParseGoal::V2CoreUnit);
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics());
+    assert!(
+        !parsed
+            .nodes()
+            .any(|(_, node)| node.kind() == NodeKind::Block)
+    );
+    assert!(
+        !parsed
+            .nodes()
+            .any(|(_, node)| node.kind() == NodeKind::Expression)
+    );
+    super::super::snapshots::assert_token_projection(&parsed, "contract header shapes");
+    let mut sources = SourceMap::new();
+    let id = sources
+        .add_bytes(SourceName::new("unit.nct"), b"func answer(value: i32): i32")
+        .unwrap();
+    let header = parse_reusable(sources.get(id).unwrap(), ParseGoal::V2CoreUnit);
+    let id = sources
+        .add_bytes(
+            SourceName::new("body.nct"),
+            b"func answer(value: i32): i32 { value }",
+        )
+        .unwrap();
+    let implementation = parse_reusable(sources.get(id).unwrap(), ParseGoal::V2CoreUnit);
+    assert_ne!(
+        header.declaration_surface(),
+        implementation.declaration_surface()
+    );
 }
 
 #[test]
@@ -510,14 +543,13 @@ fn plain_text_uses_shared_literal_recognition_without_interpolation_fallback() {
 }
 
 #[test]
-fn primitive_functions_are_bodyless_and_do_not_relax_ordinary_definition_requirements() {
+fn primitive_functions_are_bodyless_without_ordinary_implementation_syntax() {
     let text = "primitive func new_error(code: str, message: str): error";
     let parsed = tree(text, ParseGoal::V2CoreUnit);
     assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics());
     super::super::snapshots::assert_token_projection(&parsed, text);
     for text in [
         "primitive func raw(): void {}",
-        "func raw(): void",
         "const primitive func raw(): void",
     ] {
         assert!(tree(text, ParseGoal::V2CoreUnit).has_errors(), "{text}");

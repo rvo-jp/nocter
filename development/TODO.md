@@ -93,6 +93,12 @@ not a language restriction derived from the current realization boundary.
 
 ## Open Findings
 
+- [ ] Replace the token-only callable contract fingerprint with syntax-owned canonical header
+  structure. The current released matcher excludes every block, including header-contained array
+  count branches; body detection can also mistake those blocks for an implementation. Preserve
+  explicit implementation-root selection and canonical header
+  agreement before reusing contract matching for v2, without flattening nested expression meaning.
+
 - [ ] Complete callable types in constant/static annotations and grouped/nested type positions,
   with declaration qualification. The private parser currently recognizes only selected outer
   annotation boundaries; extend source admission together with callable witness/type evidence.

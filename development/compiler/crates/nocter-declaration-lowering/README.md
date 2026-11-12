@@ -127,7 +127,16 @@ value used beside its same-spelled type annotation/construction, and a record wh
 uses a same-spelled constant. Required evaluation and native execution consume those same
 selections. Primitive roles select value declarations; a type with that spelling cannot claim
 the role or prevent validation of its selected value contract. This remains the private
-single-source boundary, not directory/source-role or `see`/`use` integration.
+single-source boundary, not directory-module or `see`/`use` integration.
+
+`validate_source_role` checks host-selected `ModuleSourceKind` placement over that same grammar.
+Contract headers may omit bodies/initializers and may expose an opaque record; implementation
+and single-file sources require definitions. Root function bodies and value initializers reject
+at their executable source, before type normalization. Header-contained count expressions are
+not mistaken for function implementations. The default private preparation still selects the
+single-file role; role validation alone publishes no headers, bodies or module authority.
+Directory inventory, reciprocal pairing, source-local lookup and contract/definition joining
+remain integration work rather than being inferred from a filename.
 
 The reusable result owns a single immutable value-access declaration program, its exact neutral
 header surface, and projection locators. It contains no current syntax IDs, source identity,

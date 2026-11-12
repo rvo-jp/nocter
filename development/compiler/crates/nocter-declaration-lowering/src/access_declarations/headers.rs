@@ -67,9 +67,7 @@ pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<H
     };
     Ok(Header {
         name,
-        kind: if nocter_syntax::direct_token_iter(tree, declaration).any(|token| {
-            token.kind() == nocter_syntax::TokenKind::Keyword(nocter_syntax::Keyword::Primitive)
-        }) {
+        kind: if is_primitive(syntax, declaration) {
             CodeKind::Primitive
         } else {
             CodeKind::Function(compile_time)
@@ -137,23 +135,16 @@ pub(super) fn collect(
     let tree = syntax.tree();
     let mut functions = Vec::new();
     let mut records = Vec::new();
-    for item in child_node_iter(tree, tree.root_id()) {
-        if tree.node(item).is_none_or(|n| n.kind() != NodeKind::Item) {
-            return Err(Failure::InconsistentSyntax);
-        }
-        let children = child_node_iter(tree, item).collect::<Vec<_>>();
-        let [declaration] = children.as_slice() else {
-            return Err(Failure::InconsistentSyntax);
-        };
-        match tree.node(*declaration).map(nocter_syntax::SyntaxNode::kind) {
+    for declaration in declarations(syntax)? {
+        match tree.node(declaration).map(nocter_syntax::SyntaxNode::kind) {
             Some(NodeKind::FunctionDeclaration) => {
-                functions.push(function(syntax, *declaration)?);
+                functions.push(function(syntax, declaration)?);
             }
             Some(NodeKind::ConstantDeclaration | NodeKind::StaticDeclaration) => {
-                functions.push(initializer(syntax, *declaration)?);
+                functions.push(initializer(syntax, declaration)?);
             }
             Some(NodeKind::StructDeclaration) => {
-                records.push(record(syntax, *declaration)?);
+                records.push(record(syntax, declaration)?);
             }
             _ => return Err(Failure::InconsistentSyntax),
         }
@@ -161,6 +152,28 @@ pub(super) fn collect(
     functions.sort_by_key(|h| text(syntax, h.name));
     records.sort_by_key(|h| text(syntax, h.source.name));
     Ok((functions, records))
+}
+
+pub(super) fn is_primitive(syntax: BoundSyntax<'_>, declaration: NodeId) -> bool {
+    nocter_syntax::direct_token_iter(syntax.tree(), declaration).any(|token| {
+        token.kind() == nocter_syntax::TokenKind::Keyword(nocter_syntax::Keyword::Primitive)
+    })
+}
+
+pub(super) fn declarations(syntax: BoundSyntax<'_>) -> Result<Vec<NodeId>, Failure> {
+    let tree = syntax.tree();
+    child_node_iter(tree, tree.root_id())
+        .map(|item| {
+            if tree.node(item).is_none_or(|n| n.kind() != NodeKind::Item) {
+                return Err(Failure::InconsistentSyntax);
+            }
+            let children = child_node_iter(tree, item).collect::<Vec<_>>();
+            let [declaration] = children.as_slice() else {
+                return Err(Failure::InconsistentSyntax);
+            };
+            Ok(*declaration)
+        })
+        .collect()
 }
 
 /// Header spellings only; initializer and callable bodies never participate in this symbol prefix.

@@ -44,7 +44,9 @@ package or discovery code. It does not resolve names or apply semantic rules.
   order. `throw` requires an operand under ordinary incomplete-statement newline rules.
   Plain single/multiline strings use the shared literal recognizer and lossless string node.
   Interpolation has no fallback into the released expression grammar.
-  `primitive func` recognizes a bodyless header only; ordinary functions still require their body.
+  `primitive func` recognizes a bodyless header only. Ordinary function bodies, record braces and
+  constant/static initializers may be omitted in syntax; host-selected source-role validation
+  distinguishes contract headers from implementation definitions before semantic admission.
   Recognition grants no primitive authority or source-body admission.
   Array lists, repetitions and joint bracket indexing retain distinct nodes in the same goal.
   `array_repetition_parts` supplies the seed/count source roles to lowering and checking without
@@ -101,8 +103,8 @@ maintaining another radix/underscore parser.
   grammar has no access-qualified type or prefix update/transfer assertion, including under
   grouping. `const func` retains a dedicated compile-time modifier node; repeated, retired or
   async prefixes have no private grammar fallback. Required constant and immutable-static declarations retain their
-  initializer as an expression body; a bodyless initializer or callable type annotation is outside
-  this bounded goal. Postfix transfer is a distinct unary node, preserving its position in a chain;
+  initializer as an expression body when present; omission remains a source-role decision.
+  Callable constant/static type annotations remain outside this bounded goal. Postfix transfer is a distinct unary node, preserving its position in a chain;
   source ownership and repeated/fresh-source rejection remain semantic work. Contextual input and alias words are recognized structurally,
   never through name/type lookup. Its root
   cannot be admitted by the released target-selection/compile-input boundary. This goal is not

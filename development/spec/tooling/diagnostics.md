@@ -11,6 +11,17 @@ into this registration list or publish these additional entries before specifica
   toolchain, a selected role is authored as an ordinary definition, or its value-model signature
   has not been qualified. Identify that declaration; matching source spelling alone grants no
   primitive authority.
+- `E0237`: an executable body or value initializer occurs in a contract-only root source.
+  Identify the body or initializer; root declarations do not acquire an implementation merely
+  because their header is valid.
+
+## Source Role Diagnostics
+
+File roles come from the selected module input, not a diagnostic filename or type lookup.
+An ordinary/single-file callable without its body uses `E0253`; an omitted constant/static
+initializer uses `E0275`; an omitted record representation uses `E0231`. Contract-only roots
+reject executable definitions with `E0237`. Role checking alone does not prove reciprocal
+pairing, complete signature agreement, visibility, type readiness or accepted-unit validity.
 
 ## Core Syntax Diagnostics
 

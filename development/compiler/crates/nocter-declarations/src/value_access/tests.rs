@@ -275,11 +275,20 @@ fn equal_type_and_value_spellings_retain_distinct_unready_identities() {
     let record = reservations.reserve_record(name, 0);
     let code = reservations.reserve(name, 0);
     let builder = reservations.finish().unwrap();
-    assert_eq!(builder.resolve_data(name), Ok(DataReference::Record(record)));
+    assert_eq!(
+        builder.resolve_data(name),
+        Ok(DataReference::Record(record))
+    );
     let headers = builder.into_publication();
     let program = headers.snapshot();
-    assert_eq!(program.declaration(Namespace::Type, name), Some(record.into()));
-    assert_eq!(program.declaration(Namespace::Value, name), Some(code.into()));
+    assert_eq!(
+        program.declaration(Namespace::Type, name),
+        Some(record.into())
+    );
+    assert_eq!(
+        program.declaration(Namespace::Value, name),
+        Some(code.into())
+    );
     assert!(!program.header_ready(record));
     assert!(!program.header_ready(code));
     assert_eq!(program.resolve_record(name), Some(record));

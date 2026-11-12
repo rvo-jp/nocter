@@ -4,6 +4,7 @@ mod headers;
 mod primitives;
 mod projection;
 mod source;
+mod source_roles;
 pub use primitives::{
     PrimitiveAuthority, PrimitiveAuthorityError, PrimitiveBindings, PrimitiveDiagnostic,
     PrimitiveRule,
@@ -13,6 +14,7 @@ pub use source::{
     BodyDependencies, BodyExpressions, BodySource, BodySourceGraph, BodySourceNode, BodySources,
     CodeSource, HeaderSource, SourceMismatch,
 };
+pub use source_roles::{SourceRoleDiagnostic, SourceRoleRule, validate_source_role};
 mod type_syntax;
 pub use type_syntax::{DataTypeSyntax, FunctionTypeSyntax, ValueTypeSyntax, value_type_syntax};
 #[cfg(test)]
@@ -41,6 +43,7 @@ pub enum Failure {
     Syntax(Box<[SourceDiagnostic]>),
     Headers(Vec<HeaderDiagnostic>),
     Primitive(Box<PrimitiveDiagnostic>),
+    SourceRole(Box<SourceRoleDiagnostic>),
     InconsistentSyntax,
     ChangedHeader,
     RequiredValues(Box<[AccessCodeId]>),
@@ -107,7 +110,7 @@ impl<'source> Preparation<'source> {
         syntax: BoundSyntax<'source>,
         authority: Option<&PrimitiveAuthority>,
     ) -> Result<Self, Failure> {
-        validate_input(syntax)?;
+        validate_source_role(syntax, nocter_compile_input::ModuleSourceKind::SingleFile)?;
         let tree = syntax.tree();
         let projection = project_declaration_syntax(syntax);
         let (functions, records) = headers::collect(syntax)?;

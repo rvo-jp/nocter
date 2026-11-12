@@ -45,13 +45,15 @@ fn record(parser: &mut Parser<'_>) {
     }
     parser.expect_keyword(Keyword::Struct);
     parser.expect_name();
-    parser.braced_line_sequence(ExpectedSyntax::DeclarationMember, |parser| {
-        let field = parser.start();
-        parser.expect_name();
-        parser.expect_punctuation(Punctuation::Colon);
-        type_(parser);
-        parser.complete(field, NodeKind::StructField);
-    });
+    if parser.at_punctuation(Punctuation::LeftBrace) {
+        parser.braced_line_sequence(ExpectedSyntax::DeclarationMember, |parser| {
+            let field = parser.start();
+            parser.expect_name();
+            parser.expect_punctuation(Punctuation::Colon);
+            type_(parser);
+            parser.complete(field, NodeKind::StructField);
+        });
+    }
     parser.complete(marker, NodeKind::StructDeclaration);
     parser.complete(item, NodeKind::Item);
 }
@@ -86,7 +88,7 @@ fn function(parser: &mut Parser<'_>) {
         if parser.at_punctuation(Punctuation::LeftBrace) {
             parser.error_token(ExpectedSyntax::Newline);
         }
-    } else {
+    } else if parser.at_punctuation(Punctuation::LeftBrace) {
         required_block(parser);
     }
     parser.complete(marker, NodeKind::FunctionDeclaration);
@@ -105,8 +107,9 @@ fn initializer(parser: &mut Parser<'_>) {
     parser.expect_name();
     parser.expect_punctuation(Punctuation::Colon);
     type_(parser);
-    parser.expect_punctuation(Punctuation::Equal);
-    expression::expression(parser, newline::Boundary::Statement);
+    if parser.eat_punctuation(Punctuation::Equal) {
+        expression::expression(parser, newline::Boundary::Statement);
+    }
     parser.complete(marker, kind);
     parser.complete(item, NodeKind::Item);
 }

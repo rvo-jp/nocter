@@ -73,6 +73,33 @@ locations, selected operations and expected resource/access results. Required CT
 checked operations and evaluator capability, not an independent source interpreter. User protocol
 names do not authorize hidden effects, root stability or target primitives.
 
+## Module and Contract Source Realization
+
+The [module contract](../spec/language/modules.md) owns source meaning. Discovery's existing
+`CompileUnitInput` remains the sole inventory and resolved physical-edge handoff. Reuse its
+module/source identities and selected roots; do not add a second filesystem loader or flatten
+every inventoried source into one visible namespace.
+
+Keep declaration grammar shared across file roles. Validate placement from the selected source
+kind before normalization, then select contract/definition candidates through the explicit source
+graph. The existing declaration-surface/contract stages are syntax-level infrastructure, not a
+conversion through the released borrow-based `DeclarationProgram`. Their `pub`-based eligibility
+and source-goal fences must be qualified for the value-access path before reuse. Do not silently
+make either language product accept the other's sources.
+
+One logical declaration owns the contract identity, parameter/field slots and normalized types.
+Its implementation retains its own full-header/body locators and lookup context. Signature
+agreement needs both canonical source structure and resolved contract equality; a token-only
+comparison must not erase meaningful jointness or header-contained expression structure. Body
+editing must preserve unrelated contract evidence while pairing, visibility and inventory edits
+invalidate the affected namespace products. Current-source binding must choose each source's
+actual syntax rather than interpreting all locators through one tree.
+
+Qualify missing, duplicate and mismatching implementations, direct versus transitive visibility,
+source-local imports and independent helper spellings with real multi-source input. Root-role
+recognition alone grants no public type representation, target primitive, executable body or
+accepted Unit. Ordinary CLI/library integration follows that closed source/declaration authority.
+
 ## Conditional Const Admission
 
 The [const contract](../spec/language/constant-evaluation.md) owns eligibility and publication.
