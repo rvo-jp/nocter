@@ -529,7 +529,7 @@ fn transfer(
                     violations,
                 )?;
             }
-            Operation::Forward { source, result } => {
+            Operation::Forward { source, result, .. } => {
                 require_forwarded(typed, facts, state, *source, *result, location, violations)?;
             }
             Operation::IndexFailure(_)

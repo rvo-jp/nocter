@@ -728,3 +728,18 @@ fn private_optional_recovery_preserves_alternative_places_and_authority() {
     let package = TempPackage::new();
     execute_native_status(&compile(source), &package.0, "optional-recovery-places", 42);
 }
+
+#[test]
+fn private_scoped_recovery_lends_owned_fallbacks_through_evaluation_frames() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/optional-recovery-temporaries.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "optional-recovery-temporaries",
+        42,
+    );
+}

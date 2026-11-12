@@ -21,6 +21,10 @@ impl AccessDiagnostic {
 impl Context<'_, '_> {
     fn root_origin(&self, root: Root) -> Result<nocter_syntax::SyntaxOrigin, Failure> {
         Ok(match root {
+            Root::Expression(source) => self
+                .typed()
+                .expression_origin(source)
+                .ok_or(Failure::InconsistentSyntax)?,
             Root::Temporary { call, index } => {
                 let crate::value_access::ExpressionKind::Call { arguments, .. } = &self
                     .query()
@@ -56,7 +60,9 @@ impl Context<'_, '_> {
                                 .then_some(local)
                         })
                         .ok_or(Failure::InconsistentSyntax)?,
-                    Root::Temporary { .. } => return Err(Failure::InconsistentSyntax),
+                    Root::Expression(_) | Root::Temporary { .. } => {
+                        return Err(Failure::InconsistentSyntax);
+                    }
                 };
                 self.typed()
                     .local_origin(local)

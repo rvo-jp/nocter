@@ -20,6 +20,7 @@ pub enum Root {
     Static(nocter_model::ValueStatic),
     Owned(AccessLocalId),
     Input(AccessLocalId),
+    Expression(nocter_model::AccessExpressionId),
     Temporary {
         call: nocter_model::AccessExpressionId,
         index: usize,

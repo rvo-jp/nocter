@@ -557,7 +557,7 @@ Copy, trivial cleanup or empty D/S. Owning formals retain a symbolic environment
 tied to their witness. The producer domain also admits the bounded owned-environment schema described below;
 general retained footprints and concrete executable witness specialization remain separate obligations. Dependent aggregates,
 user destructors, capabilities, general captured environments, nested callback contracts, generics,
-fallible values, propagation/recovery, async and regions require their own later schemas/validation.
+fallible construction/propagation/recovery, async and regions require their own later schemas/validation.
 
 The source/body goal admits closed record/tuple data and local/input-rooted component selections through
 this same typing, initialization, access and resource path. Source integration tests assert exact
@@ -627,9 +627,21 @@ an outside referent can survive a handler-local alias, while a handler-owned val
 One typed projection traversal enumerates normal provenance alternatives for authority and
 conservative producer analysis. Initialization validates each selected source before forwarding;
 access analysis retains the actual selected root through cleanup and use, without re-reading
-unchosen source slots. A unique root/path query never guesses among alternatives. Fresh owned
-fallbacks needing conditional caller-temporary storage, and fallible recovery, remain outside
-this qualified path.
+unchosen source slots. A unique root/path query never guesses among alternatives, including
+an existing place versus owned temporary backing.
+
+A direct read/edit input demand can also lend a fresh owned fallback, applying ordinary value
+construction before lending when contextual wrappers are needed. An existing place must already
+have compatible data and authority. `TemporaryPlace` aliases
+the actual owning expression's payload, keeping its existing ledger entry and owned slot separate
+from the alias slot. Scope-exiting `Forward` protects that owner in the parent evaluation frame;
+ordinary alias forwarding does not extend its lifetime. Earlier-frame owners retain their
+original registration and cleanup order. The selected branch uses ordinary neutral reservations
+and complete-bundle validation. Normal completion, cancellation and frame exit check retained
+access before destroying its backing. Handler-local destruction still precedes delivery; an
+explicitly acquired local result can become the bounded temporary. Strict named-alias demands
+cannot create such backing or upgrade a read-only existing branch. These facts add no runtime
+owner table or physical payload move. Fallible recovery remains outside this qualified path.
 
 Implicit optional input wrappers retain the original direct-transfer reservation. Complete bundle
 validation precedes wrapper materialization and original-source retirement; later reads and

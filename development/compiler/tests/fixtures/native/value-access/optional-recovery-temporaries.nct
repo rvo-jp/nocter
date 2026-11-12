@@ -1,0 +1,71 @@
+struct Item { value: i32 }
+const func make(edit count: i32): Item { count += 1
+    Item { value: 42 } }
+const func inspect(value: Item): i32 { value.value }
+const func modify(edit value: Item): i32 { value.value += 1
+    value.value }
+const func read_input(value: Item?, edit count: i32): i32 {
+    inspect(value otherwise { make(count) })
+}
+const func edit_input(edit value: Item?, edit count: i32): i32 {
+    modify(value otherwise { make(count) })
+}
+const func nested(value: Item?, edit count: i32, flag: bool): i32 {
+    inspect(value otherwise {
+        if flag { make(count) } else { let local = make(count)
+            local^ }
+    })
+}
+const func receive(take value: Item, observed: Item, later: i32): void {}
+const func cancelled(edit count: i32): i32 {
+    let candidate = Item { value: 42 }
+    let source: Item? = none
+    loop { receive(candidate^, source otherwise { make(count) }, if true { break } else { 0 })
+        return 0 }
+    candidate.value
+}
+const func unit(value: void): i32 { 42 }
+const func unit_input(value: void?): i32 { unit(value otherwise {}) }
+const func inspect_optional(value: i32?): i32 { value otherwise { 7 } }
+const func lift_input(value: i32??): i32 { inspect_optional(value otherwise { 42 }) }
+const func set_optional(edit value: i32?): i32 { value = 42
+    value! }
+const func edit_lift_input(edit value: i32??): i32 { set_optional(value otherwise { 1 }) }
+const func still_absent(value: i32??): i32 { read payload = value otherwise { return 42 }
+    0 }
+const func repeated(edit count: i32): i32 {
+    var value: Item? = none
+    var index = 0
+    var total = 0
+    while index < 4 {
+        total += inspect(value otherwise { make(count) })
+        value = if index == 0 || index == 2 { Item { value: 1 } } else { none }
+        index += 1
+    }
+    total
+}
+const func calculate(): i32 {
+    var count = 0
+    var present: Item? = Item { value: 1 }
+    var absent: Item? = none
+    let read_present = read_input(present, count)
+    let untouched = count
+    let read_absent = read_input(absent, count)
+    let edit_present = edit_input(present, count)
+    let edit_absent = edit_input(absent, count)
+    let nested_first = nested(absent, count, true)
+    let nested_last = nested(absent, count, false)
+    let cancelled_result = cancelled(count)
+    let original = present^!
+    let reused_frames = repeated(count)
+    let inner_none: i32? = none
+    var present_inner_none: i32?? = inner_none
+    var outer_none: i32?? = none
+    let retained_inner = lift_input(present_inner_none)
+    let constructed_inner = lift_input(none)
+    let edited_present = edit_lift_input(present_inner_none)
+    let edited_temporary = edit_lift_input(outer_none)
+    if read_present == 1 && untouched == 0 && read_absent == 42 && edit_present == 2 && edit_absent == 43 && nested_first == 42 && nested_last == 42 && cancelled_result == 42 && count == 7 && reused_frames == 86 && retained_inner == 7 && constructed_inner == 42 && edited_present == 42 && edited_temporary == 42 && still_absent(outer_none) == 42 && (present_inner_none!)! == 42 && original.value == 2 && unit_input(none) == 42 && unit_input(()) == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { if ANSWER == 42 { calculate() } else { 0 } }

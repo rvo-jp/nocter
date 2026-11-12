@@ -116,6 +116,9 @@ impl World {
                 .resources
                 .contains(super::super::resources::Holder::Local(local)),
             Root::Input(_) | Root::Static(_) => true,
+            Root::Expression(source) => self
+                .resources
+                .contains(super::super::resources::Holder::Expression(source)),
             Root::Temporary { call, index } => {
                 use super::super::resources::Holder;
                 self.resources.contains(Holder::Prepared { call, index })

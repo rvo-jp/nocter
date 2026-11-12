@@ -68,6 +68,7 @@ pub enum Operation {
     Forward {
         source: AccessExpressionId,
         result: AccessExpressionId,
+        scope_exit: bool,
     },
     /// Short-circuit Boolean answers copy the selected payload into a fresh X result.
     BooleanAnswer {

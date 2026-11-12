@@ -18,12 +18,12 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Extend direct scoped call recovery (`otherwise`) to a fresh owned fallback. The present branch
-must still access the existing carrier payload, while the absent branch may need a caller-owned
-temporary bounded by the argument-evaluation frame. Preserve conditional ownership, cancellation,
-answer protection and cleanup through the existing frame/resource protocols; do not snapshot the
-present branch merely to align branch storage, or let a named alias retain an invisible owner.
-Keep fallible/error behavior explicit and qualify required/native source and negative cases.
+Extend outcome construction and elimination from optional to fallible carriers under the unified
+error contract. Establish the necessary error-data construction and cleanup dependencies before
+claiming execution of owned failure payloads. Preserve exact layer order, explicit failure
+selection, ordinary acquisition/return/handler cleanup, and scoped projections without hidden
+error extraction. Qualify required/native source and negative cases through the shared pipeline;
+metadata-only failure layouts or inactive branches do not establish actual error-graph cleanup.
 
 ## Retained Selection Closure
 

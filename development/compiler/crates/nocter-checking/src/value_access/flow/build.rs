@@ -221,6 +221,7 @@ impl Builder<'_> {
                                 Operation::Forward {
                                     source: result,
                                     result: destination,
+                                    scope_exit: true,
                                 },
                             )?;
                             self.end(result, point)?;
@@ -407,6 +408,7 @@ impl Builder<'_> {
                         Operation::Forward {
                             source: *projected,
                             result: id,
+                            scope_exit: false,
                         },
                     )?;
                 }

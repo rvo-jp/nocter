@@ -98,6 +98,8 @@ pub struct Place {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BoundaryAction {
     ReadPlace,
+    /// A bounded call-input view into an owned expression payload.
+    TemporaryPlace,
     DelegateUpdate,
     CopyPayload,
     /// Intermediate value supply; result identity must close before Copy or move is selected.
@@ -157,7 +159,20 @@ impl Referent {
         expression: impl Fn(AccessExpressionId) -> Option<&'a Expression>,
         block: impl Fn(AccessBlockId) -> Option<&'a Block>,
     ) -> Option<Vec<AccessPlaceId>> {
-        let mut bases: Vec<_> = self
+        self.static_roots(expression, block)?
+            .into_iter()
+            .map(|root| match root {
+                super::paths::ProjectionRoot::Place(place) => Some(place),
+                super::paths::ProjectionRoot::Temporary(_) => None,
+            })
+            .collect()
+    }
+    pub(super) fn static_roots<'a>(
+        self,
+        expression: impl Fn(AccessExpressionId) -> Option<&'a Expression>,
+        block: impl Fn(AccessBlockId) -> Option<&'a Block>,
+    ) -> Option<Vec<super::paths::ProjectionRoot>> {
+        let mut roots: Vec<_> = self
             .projections(
                 expression,
                 block,
@@ -166,11 +181,11 @@ impl Referent {
                 |_, _| Some(()),
             )?
             .into_iter()
-            .map(|(base, _)| base)
+            .map(|(root, _)| root)
             .collect();
-        bases.sort_unstable();
-        bases.dedup();
-        Some(bases)
+        roots.sort_unstable();
+        roots.dedup();
+        Some(roots)
     }
 }
 impl From<AccessPlaceId> for Referent {
@@ -409,10 +424,13 @@ impl Expression {
             {
                 Some(Referent::Evaluated(id))
             }
-            ExpressionKind::Scoped { .. } | ExpressionKind::GuardView { .. } => {
-                Some(Referent::Evaluated(id))
+            ExpressionKind::Boundary {
+                action: BoundaryAction::TemporaryPlace,
+                ..
             }
-            ExpressionKind::Index {
+            | ExpressionKind::Scoped { .. }
+            | ExpressionKind::GuardView { .. }
+            | ExpressionKind::Index {
                 action: IndexAction::Access,
                 ..
             }
@@ -566,18 +584,40 @@ impl TypedBody {
     }
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct Projection {
+    pub mode: ValueAccessMode,
+    pub temporary: bool,
+}
+impl Projection {
+    pub const fn place(mode: ValueAccessMode) -> Self {
+        Self {
+            mode,
+            temporary: false,
+        }
+    }
+    pub const fn input(mode: ValueAccessMode) -> Self {
+        Self {
+            mode,
+            temporary: true,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub(super) enum Boundary {
     Binding(ValueAccess),
     /// Demand an existing place without activating a read/update grant during preparation.
     Place(ValueAccess),
+    /// A direct scoped input can also lend a fresh owned value within its evaluation frame.
+    Input(ValueAccess),
     Value(TypeId),
     Result(TypeId),
 }
 impl Boundary {
     pub(super) const fn ty(self) -> ValueAccess {
         match self {
-            Self::Binding(ty) | Self::Place(ty) => ty,
+            Self::Binding(ty) | Self::Place(ty) | Self::Input(ty) => ty,
             Self::Value(data) | Self::Result(data) => ValueAccess::new(data, ValueAccessMode::Own),
         }
     }

@@ -161,7 +161,7 @@ fn plan(
         | Operation::Condition(value)
         | Operation::Discard(value)
         | Operation::StageReturn(value) => uses.push((Carrier::Expression(*value), false)),
-        Operation::Forward { source, result } => {
+        Operation::Forward { source, result, .. } => {
             uses.push((
                 Carrier::Expression(*source),
                 updating(after, Carrier::Expression(*result)),

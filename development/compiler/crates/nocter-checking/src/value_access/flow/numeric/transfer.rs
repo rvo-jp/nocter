@@ -119,7 +119,7 @@ pub(super) fn action(
                 assign(state, target, cells.value(value));
             }
         }
-        Operation::Forward { source, result } => {
+        Operation::Forward { source, result, .. } => {
             if let Some(target) = cells.value(result) {
                 assign(state, target, cells.value(source));
             }

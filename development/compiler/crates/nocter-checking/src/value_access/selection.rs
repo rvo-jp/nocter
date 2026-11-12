@@ -202,7 +202,7 @@ impl Checker<'_, '_> {
     pub fn member_value(
         &mut self,
         node: NodeId,
-        projection: Option<Mode>,
+        projection: Option<super::ir::Projection>,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
         if self.first_array_index(node)?.is_some() {
@@ -302,7 +302,13 @@ impl Checker<'_, '_> {
                 NodeKind::OutcomeExpression | NodeKind::RecoveryExpression
             )
         {
-            let value = self.expression_with_projection(node, None, None, Some(mode), reachable)?;
+            let value = self.expression_with_projection(
+                node,
+                None,
+                None,
+                Some(super::ir::Projection::place(mode)),
+                reachable,
+            )?;
             if self.expression_referent(value).is_none() {
                 return self.reject(rule, node);
             }
@@ -421,12 +427,25 @@ impl Checker<'_, '_> {
         node: NodeId,
         rule: Rule,
     ) -> Result<(), Failure> {
-        let places = source
-            .static_bases(|id| self.expressions.get(id), |id| self.blocks.get(id))
+        let roots = source
+            .static_roots(|id| self.expressions.get(id), |id| self.blocks.get(id))
             .ok_or(Failure::InconsistentSyntax)?;
-        for place in places {
-            if !self.writable_place(place) {
-                return self.reject_local(rule, node, self.selected_place(place).local);
+        for root in roots {
+            match root {
+                super::paths::ProjectionRoot::Place(place) => {
+                    if !self.writable_place(place) {
+                        return self.reject_local(rule, node, self.selected_place(place).local);
+                    }
+                }
+                super::paths::ProjectionRoot::Temporary(source) => {
+                    if self
+                        .ty(source)
+                        .normal()
+                        .is_none_or(|ty| ty.mode() != Mode::Own)
+                    {
+                        return Err(Failure::InconsistentSyntax);
+                    }
+                }
             }
         }
         Ok(())

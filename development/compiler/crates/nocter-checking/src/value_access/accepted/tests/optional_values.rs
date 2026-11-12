@@ -373,3 +373,34 @@ fn every_selected_fallback_place_is_initialized_before_forwarding() {
         "{source}"
     );
 }
+
+#[test]
+fn scoped_call_recovery_lends_conditional_owned_fallbacks_through_the_existing_frame() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/optional-recovery-temporaries.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
+}
+#[test]
+fn bounded_recovery_temporaries_do_not_escape_upgrade_sources_or_restore_acquired_locals() {
+    for source in [
+        "struct Item { value: i32 }\nfunc make(): Item { Item { value: 42 } }\nfunc run(value: Item?): i32 { read selected = value otherwise { make() }\nselected.value }",
+        "struct Item { value: i32 }\nfunc make(): Item { Item { value: 42 } }\nfunc modify(edit value: Item): i32 { value.value }\nfunc run(value: Item?): i32 { modify(value otherwise { make() }) }",
+        "struct Item { value: i32 }\nfunc receive(value: Item, later: i32): void {}\nfunc run(value: Item?): i32 { let backup = Item { value: 42 }\nloop { receive(value otherwise { backup^ }, if true { break } else { 0 }) }\nbackup.value }",
+    ] {
+        let fixture = nocter_test_support::ValueSourceFixture::new(source);
+        assert!(
+            matches!(
+                SourceUnit::prepare(fixture.syntax()),
+                Err(SourceFailure::Checking(
+                    Failure::Body {
+                        failure: BodyFailure::Rejected(_),
+                        ..
+                    } | Failure::Flow { .. }
+                ))
+            ),
+            "{source}"
+        );
+    }
+}

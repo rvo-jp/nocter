@@ -79,14 +79,17 @@ impl Checker<'_, '_> {
     pub(super) fn outcome(
         &mut self,
         node: NodeId,
-        projection: Option<Mode>,
+        projection: Option<super::ir::Projection>,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
         let propagate = nocter_syntax::direct_token_iter(self.syntax().tree(), node).any(|token| {
             token.kind()
                 == nocter_syntax::TokenKind::Punctuation(nocter_syntax::Punctuation::Question)
         });
-        if matches!(projection, Some(Mode::Read | Mode::Update)) {
+        if matches!(
+            projection.map(|request| request.mode),
+            Some(Mode::Read | Mode::Update)
+        ) {
             let child = self.first_child(node)?;
             let source =
                 self.expression_with_projection(child, None, None, projection, reachable)?;
@@ -99,7 +102,7 @@ impl Checker<'_, '_> {
                 else {
                     return self.reject(Rule::TypeMismatch, node);
                 };
-                if projection == Some(Mode::Update) {
+                if projection.is_some_and(|request| request.mode == Mode::Update) {
                     self.require_writable_referent(place, node, Rule::InvalidUpdate)?;
                 }
                 let fallback = if propagate {
@@ -329,7 +332,7 @@ impl Checker<'_, '_> {
     pub(super) fn recover_optional(
         &mut self,
         node: NodeId,
-        projection: Option<Mode>,
+        projection: Option<super::ir::Projection>,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
         use nocter_syntax::NodeKind;
@@ -345,18 +348,25 @@ impl Checker<'_, '_> {
         let clause = self.direct(node, NodeKind::RecoveryClause)?;
         let block = self.direct(clause, NodeKind::Block)?;
         let fallback_reachable = reachable && self.ty(source).may_complete();
-        if matches!(projection, Some(Mode::Read | Mode::Update))
-            && let Some(place) = self.expression_referent(source)
+        if matches!(
+            projection.map(|request| request.mode),
+            Some(Mode::Read | Mode::Update)
+        ) && let Some(place) = self.expression_referent(source)
         {
-            if projection == Some(Mode::Update) {
+            if projection.is_some_and(|request| request.mode == Mode::Update) {
                 self.require_writable_referent(place, node, Rule::InvalidUpdate)?;
             }
             let fallback = self.block(
                 block,
-                Some(Boundary::Place(nocter_model::ValueAccess::new(
-                    payload,
-                    projection.unwrap(),
-                ))),
+                Some({
+                    let request = projection.unwrap();
+                    let access = nocter_model::ValueAccess::new(payload, request.mode);
+                    if request.temporary {
+                        Boundary::Input(access)
+                    } else {
+                        Boundary::Place(access)
+                    }
+                }),
                 fallback_reachable,
             )?;
             let guard = self.emit(

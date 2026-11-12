@@ -95,15 +95,24 @@ impl Context<'_, '_> {
                 }
                 self.construct(result)?;
             }
-            Operation::Forward { source, result } => {
+            Operation::Forward {
+                source,
+                result,
+                scope_exit,
+            } => {
                 if self.owns_expression(source)? {
                     self.world.resources.move_to(
                         self.typed.program(),
                         &Holder::Expression(source).place(),
                         &Holder::Expression(result).place(),
-                        true,
+                        scope_exit,
                         &mut self.steps,
                     )?;
+                } else if scope_exit && let Some(key) = self.world.value(result)?.access {
+                    let region = &self.world.nodes.get(&key).ok_or(Failure::Integrity)?.region;
+                    if let super::super::Root::Expression(owner) = region.root {
+                        self.world.resources.protect_expression(owner, source)?;
+                    }
                 }
             }
             Operation::Bind { local, value } => {

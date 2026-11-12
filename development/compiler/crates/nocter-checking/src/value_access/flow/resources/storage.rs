@@ -85,6 +85,35 @@ impl State {
         });
         Ok(())
     }
+    /// Protect the actual backing of a forwarded alias before this result frame ends.
+    /// An owner already held by an outer frame stays there; no physical move is introduced.
+    pub(in crate::value_access::flow) fn protect_expression(
+        &mut self,
+        source: AccessExpressionId,
+        result_frame: AccessExpressionId,
+    ) -> Result<()> {
+        let holder = Holder::Expression(source);
+        if !self.owned.contains_key(&holder) {
+            return Err(INVALID);
+        }
+        let current = self.frames.len().checked_sub(1).ok_or(INVALID)?;
+        if self.frames[current].id != result_frame {
+            return Err(INVALID);
+        }
+        let owning = self
+            .frames
+            .iter()
+            .position(|frame| frame.temporaries.contains(&holder))
+            .ok_or(INVALID)?;
+        if owning == current {
+            let outer = current.checked_sub(1).ok_or(INVALID)?;
+            self.frames[current]
+                .temporaries
+                .retain(|&item| item != holder);
+            self.frames[outer].temporaries.push(holder);
+        }
+        Ok(())
+    }
     pub fn ending(&self, id: AccessExpressionId) -> Result<Vec<Holder>> {
         let frame = self.frames.last().ok_or(INVALID)?;
         if frame.id != id {

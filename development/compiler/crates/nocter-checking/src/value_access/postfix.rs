@@ -1,13 +1,13 @@
 //! Prepare a postfix spine iteratively; operands retain the ordinary source-order boundaries.
 use super::{Failure, Rule, checker::Checker};
-use nocter_model::{AccessExpressionId, ValueAccessMode};
+use nocter_model::AccessExpressionId;
 use nocter_syntax::{NodeId, NodeKind};
 
 impl Checker<'_, '_> {
     pub(super) fn postfix_value(
         &mut self,
         node: NodeId,
-        projection: Option<ValueAccessMode>,
+        projection: Option<super::ir::Projection>,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
         let mut spine = Vec::new();

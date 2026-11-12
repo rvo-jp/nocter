@@ -303,8 +303,13 @@ fn invocation(
     };
     let selects_source = |source: super::Referent| {
         source
-            .static_bases(|id| body.expressions().get(id), |id| body.blocks().get(id))
-            .is_some_and(|bases| bases.into_iter().any(selects))
+            .static_roots(|id| body.expressions().get(id), |id| body.blocks().get(id))
+            .is_some_and(|roots| {
+                roots.into_iter().any(|root| match root {
+                    super::paths::ProjectionRoot::Place(place) => selects(place),
+                    super::paths::ProjectionRoot::Temporary(_) => false,
+                })
+            })
     };
     let mut invocation = ValueInvocation::Read;
     let mut pending = std::collections::BTreeSet::from([control.graph.entry()]);

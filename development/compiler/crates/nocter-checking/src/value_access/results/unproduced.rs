@@ -48,7 +48,7 @@ pub(in crate::value_access) fn validate(
                     };
                     check(arguments.get(argument).ok_or(invalid)?.value)?;
                 }
-                flow::Operation::Forward { source, result }
+                flow::Operation::Forward { source, result, .. }
                 | flow::Operation::BooleanAnswer { source, result } => {
                     check(source)?;
                     check(result)?;

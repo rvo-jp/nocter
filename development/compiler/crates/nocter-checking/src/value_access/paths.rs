@@ -62,6 +62,12 @@ pub(super) enum ProjectionRoots {
     Unforwarded,
 }
 
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub(super) enum ProjectionRoot {
+    Place(AccessPlaceId),
+    Temporary(AccessExpressionId),
+}
+
 impl Referent {
     /// Enumerate normal place alternatives through one typed projection traversal. These are
     /// conservative provenance possibilities, not evidence that all branches execute or alias.
@@ -72,7 +78,7 @@ impl Referent {
         roots: ProjectionRoots,
         constant: impl Fn(u64) -> I,
         index: impl Fn(AccessExpressionId, AccessExpressionId) -> Option<I>,
-    ) -> Option<Vec<(AccessPlaceId, ValuePath<I>)>> {
+    ) -> Option<Vec<(ProjectionRoot, ValuePath<I>)>> {
         let mut pending = vec![(self, Vec::<ValuePath<I>>::new())];
         let mut result = Vec::new();
         while let Some((source, mut suffixes)) = pending.pop() {
@@ -84,12 +90,26 @@ impl Referent {
                     .into_iter()
                     .rev()
                     .flat_map(|path| path.fields().to_vec());
-                result.push((base, ValuePath::new(fields)));
+                result.push((ProjectionRoot::Place(base), ValuePath::new(fields)));
                 continue;
             };
             let value = expression(id)?;
             if value.referent(id) != Some(Referent::Evaluated(id)) {
                 return None;
+            }
+            if let ExpressionKind::Boundary {
+                source,
+                action: super::BoundaryAction::TemporaryPlace,
+            } = value.kind
+            {
+                if roots == ProjectionRoots::All {
+                    let fields = suffixes
+                        .into_iter()
+                        .rev()
+                        .flat_map(|path| path.fields().to_vec());
+                    result.push((ProjectionRoot::Temporary(source), ValuePath::new(fields)));
+                }
+                continue;
             }
             if roots == ProjectionRoots::Unforwarded
                 && matches!(
@@ -167,6 +187,9 @@ impl Referent {
         self.projections(expression, block, roots, &constant, index)?
             .into_iter()
             .map(|(base, suffix)| {
+                let ProjectionRoot::Place(base) = base else {
+                    return None;
+                };
                 let base = place(base)?;
                 Some((
                     base.local,

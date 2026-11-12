@@ -371,7 +371,7 @@ impl Builder<'_, '_> {
                 source: self.value(source)?,
                 destination: plan::Place::root(self.holder(Holder::Expression(result))?),
             },
-            flow::Operation::Forward { source, result } => {
+            flow::Operation::Forward { source, result, .. } => {
                 if self.expression(result)?.access().ok_or(INVALID)?.mode() == ValueAccessMode::Own
                 {
                     plan::Operation::None
@@ -635,7 +635,10 @@ impl Builder<'_, '_> {
             },
             ExpressionKind::Boundary {
                 source,
-                action: BoundaryAction::ReadPlace | BoundaryAction::DelegateUpdate,
+                action:
+                    BoundaryAction::ReadPlace
+                    | BoundaryAction::DelegateUpdate
+                    | BoundaryAction::TemporaryPlace,
             } => plan::Operation::Alias {
                 destination,
                 source: self.value(source)?,

@@ -38,7 +38,7 @@ impl Checker<'_, '_> {
             node,
             Some(&hint),
             None,
-            Some(input.operation.access_mode()),
+            Some(super::ir::Projection::input(input.operation.access_mode())),
             reachable,
         )
     }
@@ -63,7 +63,13 @@ impl Checker<'_, '_> {
             node,
             context,
             expected,
-            expected.map(|boundary| boundary.ty().mode()),
+            expected.map(|boundary| {
+                if matches!(boundary, Boundary::Input(_)) {
+                    super::ir::Projection::input(boundary.ty().mode())
+                } else {
+                    super::ir::Projection::place(boundary.ty().mode())
+                }
+            }),
             reachable,
         )
     }
@@ -72,7 +78,7 @@ impl Checker<'_, '_> {
         node: NodeId,
         context: Option<&Annotation>,
         expected: Option<Boundary>,
-        projection: Option<Mode>,
+        projection: Option<super::ir::Projection>,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
         let data_hint = context.and_then(Annotation::data);

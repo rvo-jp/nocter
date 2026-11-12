@@ -76,7 +76,7 @@ pub(super) fn analyze(control: &flow::Control) -> Result<Report, flow::Integrity
                 flow::Operation::CommitCall(id) => {
                     commit(query, id, &mut state, &mut applications)?;
                 }
-                flow::Operation::Forward { source, result } => {
+                flow::Operation::Forward { source, result, .. } => {
                     let facts = forward(query, source, expression_data(query, result)?, &state)?;
                     state.insert(Key::Expression(result), facts);
                 }
@@ -132,7 +132,7 @@ fn assign(
     state: &mut State,
 ) -> Result<(), flow::IntegrityError> {
     let bases = target
-        .static_bases(
+        .static_roots(
             |id| query.body.expressions.get(id),
             |id| query.body.blocks.get(id),
         )
@@ -151,6 +151,9 @@ fn assign(
         }
     }
     for base in bases {
+        let crate::value_access::paths::ProjectionRoot::Place(base) = base else {
+            continue;
+        };
         let place = query.body.places.get(base).ok_or(INVALID)?;
         // Updates preserve the selected leaf type. Retain possible producers in every
         // candidate root without guessing the selected branch or evaluated index.

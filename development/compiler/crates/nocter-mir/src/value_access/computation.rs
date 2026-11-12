@@ -153,7 +153,9 @@ impl Builder<'_> {
                 Self::alias(source, destination.slot)
             }
             ExpressionKind::Boundary { source, action } => match action {
-                BoundaryAction::ReadPlace | BoundaryAction::DelegateUpdate => {
+                BoundaryAction::ReadPlace
+                | BoundaryAction::DelegateUpdate
+                | BoundaryAction::TemporaryPlace => {
                     let source = self.value(source)?;
                     Self::alias(source, destination.slot)
                 }
@@ -358,7 +360,7 @@ impl Builder<'_> {
                 source: self.value(source)?,
                 destination: self.result(result)?,
             },
-            flow::Operation::Forward { source, result } => {
+            flow::Operation::Forward { source, result, .. } => {
                 let destination = self.result(result)?;
                 let mode = self
                     .checked

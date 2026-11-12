@@ -70,7 +70,7 @@ pub(super) fn apply(
         Operation::PrepareOperand { value, .. } | Operation::Condition(value) => {
             context.read(context.world.value(*value)?)?;
         }
-        Operation::Forward { source, result } => {
+        Operation::Forward { source, result, .. } => {
             let value = context.world.value(*source)?;
             context
                 .world
@@ -143,13 +143,17 @@ pub(super) fn apply(
 impl Context<'_, '_> {
     fn end_evaluation_access(&self, id: AccessExpressionId) -> Result<()> {
         for holder in self.world.resources.ending(id)? {
-            if let super::super::resources::Holder::Temporary { call, index } = holder {
-                self.write(
-                    &Root::Temporary { call, index }.region(),
-                    None,
-                    Mode::Own,
-                    None,
-                )?;
+            let root = match holder {
+                super::super::resources::Holder::Temporary { call, index } => {
+                    Some(Root::Temporary { call, index })
+                }
+                super::super::resources::Holder::Expression(source) => {
+                    Some(Root::Expression(source))
+                }
+                _ => None,
+            };
+            if let Some(root) = root {
+                self.write(&root.region(), None, Mode::Own, None)?;
             }
         }
 
@@ -400,6 +404,19 @@ impl Context<'_, '_> {
                     .ok_or(Failure::Integrity)?
                     .referent(source);
                 match action {
+                    BoundaryAction::TemporaryPlace => {
+                        if self.world.value(source)?.mode != Mode::Own
+                            || !self.world.resources.initialized_root(
+                                super::super::resources::Holder::Expression(source),
+                            )
+                        {
+                            return Err(Failure::Integrity);
+                        }
+                        self.retain_place(
+                            Key::Expression(id),
+                            Some((Root::Expression(source).region(), None)),
+                        )
+                    }
                     BoundaryAction::ReadPlace | BoundaryAction::DelegateUpdate => self.create(
                         Key::Expression(id),
                         self.referent(place.ok_or(Failure::Integrity)?)?,

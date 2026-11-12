@@ -586,6 +586,39 @@ impl<'a, 's> Checker<'a, 's> {
         source: AccessExpressionId,
         boundary: Boundary,
     ) -> Result<AccessExpressionId, Failure> {
+        if let Boundary::Input(expected) = boundary {
+            if self.expression_referent(source).is_some() {
+                self.require_data(source, expected.data(), node)?;
+                return self.place_boundary(node, source, expected);
+            }
+            let source = if self
+                .ty(source)
+                .access()
+                .is_some_and(|ty| ty.data() != expected.data())
+            {
+                self.value_boundary(node, source, Boundary::Value(expected.data()))?
+            } else {
+                source
+            };
+            if !self.ty(source).may_complete() {
+                return Ok(source);
+            }
+            if self
+                .ty(source)
+                .normal()
+                .is_none_or(|ty| ty.mode() != Mode::Own)
+            {
+                return Err(Failure::InconsistentSyntax);
+            }
+            return self.emit(
+                node,
+                ValueType::known(Ty::new(expected.data(), Mode::Read)),
+                ExpressionKind::Boundary {
+                    source,
+                    action: BoundaryAction::TemporaryPlace,
+                },
+            );
+        }
         if let Boundary::Place(expected) = boundary {
             self.require_data(source, expected.data(), node)?;
             return self.place_boundary(node, source, expected);
