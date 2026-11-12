@@ -13,6 +13,14 @@ const func count(): usize? { 2 }
 const func large(): u64? { 18446744073709551615 }
 const func small(): u8? { 255 }
 const func completed(): void? { () }
+const func implicit_completed(): void? {}
+const func bare_completed(): void?? { return }
+const func conditional_completed(flag: bool): void? { if flag {} }
+const func branches_completed(flag: bool): void?? { if flag {} else { return } }
+const func complete_while_preparing(): void?? {
+    let item = Item { value: 42 }
+    wrapped_discard(item^, if true { return } else { 0 })
+}
 copy struct Batch { values: [i32?; count()!] }
 const LIFTED: i32?? = lift(none)
 const VALUES: (u8?, i16??, void?) = (255, -32768, ())
@@ -66,6 +74,13 @@ const func calculate(): i32 {
     let unused = LIFTED!
     let _ = VALUES.2!
     let _ = completed()!
+    let _ = implicit_completed()!
+    let _ = conditional_completed(true)!
+    let _ = conditional_completed(false)!
+    let _ = (branches_completed(true)!)!
+    let _ = (branches_completed(false)!)!
+    let _ = (bare_completed()!)!
+    let _ = (complete_while_preparing()!)!
     let owned_value = owned()
     let item = owned_value^!
     let array = [owned(); 1]

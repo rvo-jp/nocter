@@ -98,3 +98,30 @@ fn implicit_wrapper_reservations_reject_mutation_double_transfer_and_post_commit
         );
     }
 }
+
+#[test]
+fn missing_payloads_do_not_turn_into_absence_or_invent_unit_conversion() {
+    for source in [
+        "func run(): i32? {}",
+        "func run(): i32?? { return }",
+        "func run(): (void, void)? {}",
+        "func run(): i32? { if true { return } else { 42 } }",
+    ] {
+        let fixture = nocter_test_support::ValueSourceFixture::new(source);
+        assert!(
+            matches!(SourceUnit::prepare(fixture.syntax()),
+            Err(SourceFailure::Checking(Failure::Body { failure: BodyFailure::Rejected(diagnostic), .. }))
+                if diagnostic.rule() == crate::value_access::Rule::MissingResult),
+            "{source}"
+        );
+    }
+}
+
+#[test]
+fn a_conditional_without_else_still_requires_a_unit_branch_before_contextual_wrapping() {
+    let fixture =
+        nocter_test_support::ValueSourceFixture::new("func run(): void? { if true { none } }");
+    assert!(matches!(SourceUnit::prepare(fixture.syntax()),
+        Err(SourceFailure::Checking(Failure::Body { failure: BodyFailure::Rejected(diagnostic), .. }))
+            if diagnostic.rule() == crate::value_access::Rule::TypeMismatch));
+}

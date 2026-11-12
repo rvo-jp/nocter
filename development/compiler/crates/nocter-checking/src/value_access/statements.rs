@@ -70,22 +70,29 @@ impl Checker<'_, '_> {
             }
         }
         if result.is_none() && continues {
-            if let Some(Boundary::Value(ty) | Boundary::Result(ty)) = expected
-                && ty != self.data(BuiltinType::Void)
-            {
-                return self.reject(Rule::MissingResult, node);
-            }
-            let mut unit = self.unit(node)?;
-            if let Some(boundary) = expected {
-                unit = self.boundary(node, unit, boundary)?;
-            }
-            result = Some(unit);
+            result = Some(self.unit_completion(node, expected)?);
         }
         let ty = result
             .map_or(ValueType::NEVER, |value| self.ty(value))
             .with_continuation(continues);
         self.scopes.pop();
         self.emit_block(node, statements, result, ty)
+    }
+
+    /// Implicit completion supplies the ordinary unit value through the selected result boundary.
+    /// A missing non-unit payload remains a missing-result diagnostic, never implicit absence.
+    fn unit_completion(
+        &mut self,
+        node: NodeId,
+        expected: Option<Boundary>,
+    ) -> Result<nocter_model::AccessExpressionId, Failure> {
+        if let Some(Boundary::Value(data) | Boundary::Result(data)) = expected
+            && self.optional_payload(data) != self.data(BuiltinType::Void)
+        {
+            return self.reject(Rule::MissingResult, node);
+        }
+        let value = self.unit(node)?;
+        expected.map_or(Ok(value), |boundary| self.boundary(node, value, boundary))
     }
 
     fn check_statement(
@@ -121,11 +128,7 @@ impl Checker<'_, '_> {
                 let value = if let Some(expression) = self.children(node).first() {
                     self.expression(*expression, Some(Boundary::Result(self.result)), reachable)?
                 } else {
-                    if self.result != self.data(BuiltinType::Void) {
-                        return self.reject(Rule::MissingResult, node);
-                    }
-                    let unit = self.unit(node)?;
-                    self.boundary(node, unit, Boundary::Result(self.result))?
+                    self.unit_completion(node, Some(Boundary::Result(self.result)))?
                 };
                 (Statement::Return(value), false)
             }

@@ -18,8 +18,8 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Close implicit unit completion and bare return against the qualified optional value path, then
-extend optional elimination to the adopted propagation/recovery contract. Reuse ordinary result
+Extend optional elimination to the adopted propagation/recovery contract against the qualified
+optional construction/assertion and ordinary unit-completion path. Reuse ordinary result
 construction, branch flow, call cancellation and scope cleanup; do not add an outcome-specific
 owner registry or a second return protocol. Stage propagated absence before cleanup and preserve
 Copy snapshots versus explicit carrier retirement. Qualify required and native source before
@@ -91,11 +91,6 @@ not a language restriction derived from the current realization boundary.
   publication is not implied by qualification.
 
 ## Open Findings
-
-- [ ] Implicit unit completion and bare return still require the result to be exactly void.
-  The adopted construction contract also admits present void optionals. Apply the common result
-  boundary without inventing absence, preserve missing-result diagnostics for non-unit payloads,
-  and qualify nested optional completion and enclosing-call interruption.
 
 - [ ] Investigate the unclassified status-1 failure of the released native test
   `network_and_tls::public_tls_and_https_reject_plain_peers_and_https_advertises_http1`.

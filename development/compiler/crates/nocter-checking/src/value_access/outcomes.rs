@@ -8,7 +8,7 @@ use nocter_declarations::value_access::PayloadSchema;
 use nocter_model::{AccessExpressionId, FieldPath, TypeId, ValueAccessMode as Mode, ValueField};
 use nocter_syntax::NodeId;
 impl Checker<'_, '_> {
-    pub(super) fn literal_data_hint(&self, mut data: TypeId) -> TypeId {
+    pub(super) fn optional_payload(&self, mut data: TypeId) -> TypeId {
         while let Some(PayloadSchema::Optional(payload)) = self.program().data_schema(data) {
             data = payload;
         }

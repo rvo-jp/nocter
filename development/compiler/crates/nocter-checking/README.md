@@ -597,7 +597,10 @@ not a duplicate crate-internal status table.
 before adding optional layers. Payload readiness and Copy use the declaration authority's
 positive optional edge; the current tag does not grant Copy. Whole-value postfix `!` supplies
 the carrier first, checks presence, then selects its payload through ordinary Copy/transfer and
-remaining-container cleanup. Read/edit result projections and propagation/recovery remain open.
+remaining-container cleanup. Empty completion and bare return supply the ordinary unit value
+through that same result boundary, including present optional layers. A conditional without else
+first supplies unit, then applies its enclosing value context; it cannot return branch absence.
+Read/edit result projections and propagation/recovery remain open.
 
 Implicit optional input wrappers retain the original direct-transfer reservation. Complete bundle
 validation precedes wrapper materialization and original-source retirement; later reads and

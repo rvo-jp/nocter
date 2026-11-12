@@ -54,7 +54,7 @@ impl Checker<'_, '_> {
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
         let data_hint = context.and_then(Annotation::data);
-        let hint = data_hint.map(|data| self.literal_data_hint(data));
+        let hint = data_hint.map(|data| self.optional_payload(data));
         let node = self.unwrap(node)?;
         let expr = match self.kind(node)? {
             NodeKind::ReferenceExpression => self.reference_value(node)?,
@@ -332,12 +332,14 @@ impl Checker<'_, '_> {
         let expected = expected.filter(|_| self.ty(condition).may_complete());
         let alternative = self.direct(node, NodeKind::ElseClause).ok();
         // Without else the operation completes with unit, not a retained branch access.
-        let branch_expected = expected.or_else(|| {
-            alternative.is_none().then_some(Boundary::Binding(Ty::new(
+        let branch_expected = if alternative.is_none() {
+            Some(Boundary::Binding(Ty::new(
                 self.data(BuiltinType::Void),
                 Mode::Own,
             )))
-        });
+        } else {
+            expected
+        };
         let unit_hint = Annotation::Data(self.data(BuiltinType::Void));
         let branch_hint = if alternative.is_none() {
             Some(&unit_hint)
@@ -373,12 +375,6 @@ impl Checker<'_, '_> {
             if let Some(boundary) = branch_expected {
                 unit = self.boundary(node, unit, boundary)?;
             }
-            // An absent else forces a normally producing then branch to unit too.
-            if let Some(ty) = self.block_ty(then_block).normal()
-                && ty.data() != self.data(BuiltinType::Void)
-            {
-                return self.reject(Rule::TypeMismatch, node);
-            }
             self.emit_block(node, Vec::new(), Some(unit), self.ty(unit))?
         };
         let (left, right) = (self.block_ty(then_block), self.block_ty(else_block));
@@ -413,7 +409,7 @@ impl Checker<'_, '_> {
         let ty = access
             .map_or(ValueType::NEVER, ValueType::known)
             .with_continuation(completes);
-        self.emit(
+        let value = self.emit(
             node,
             ty,
             ExpressionKind::If {
@@ -421,7 +417,14 @@ impl Checker<'_, '_> {
                 then_block,
                 else_block,
             },
-        )
+        )?;
+        if alternative.is_none()
+            && let Some(boundary) = expected
+        {
+            self.boundary(node, value, boundary)
+        } else {
+            Ok(value)
+        }
     }
     pub fn block_ty(&self, id: AccessBlockId) -> ValueType {
         self.blocks.get(id).expect("own block").ty
