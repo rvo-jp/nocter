@@ -1,7 +1,7 @@
 const func success(): i32! { 42 }
 const func absent(): error? { none }
 const func nested(): (error!)? { none }
-const func forward(take value: i32!): i32! { value^ }
+const func forward(take value: i32!): i32! { value^? }
 const func asserted(): i32 {
     let value = forward(success())
     value^!
@@ -26,5 +26,6 @@ func run(): i32 {
     let first = value^!
     let second = absent_value(EMPTY)
     let third = nested_value(NESTED)
-    first + second + third - 84
+    let computed = forward(VALUE)!
+    first + second + third + computed - 126
 }

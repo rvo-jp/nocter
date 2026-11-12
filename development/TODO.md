@@ -18,25 +18,12 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Close the remaining fallible-value realization under the unified error contract. Extend the
-qualified native error construction to required data and broader cleanup. Preserve exact layer order, explicit failure
-selection, ordinary acquisition/return/handler cleanup, and scoped projections without hidden
-error extraction. Qualify required/native source and negative cases through the shared pipeline;
-metadata-only failure layouts or inactive branches do not establish actual error-graph cleanup.
-Continue with outcome evaluation within the adopted const domain and general executed cleanup;
-the [implemented scope](compiler/crates/nocter-checking/README.md#outcome-values) owns the evidence
-boundary rather than treating source admission as executed error cleanup.
-Extend trusted standard primitive construction through the shared path. Do not authorize
-primitives by an arbitrary user name, infer general text-view
-independence from program-extent literal backing, or treat static error handles as owned-graph
-release evidence.
-Extend actual owned-error graph cleanup beyond the bounded native construction corpus to the
-retained-array selections, nested cleanup and adapter cases below. Preserve actual absent bodies
-and explicit physical address channels. Required closures must retain ordinary
-runtime-call rejection rather than searching for an absent primitive source body.
-Runtime primitive construction and live error-graph destruction remain outside the adopted
-evaluator domain. Qualify eligible inactive failure payloads without inventing an error value
-or an implicit evaluator implementation for a runtime primitive.
+Extend restoration from whole retained array elements to their projected fields. Establish the
+ordinary-source cases first, then connect numeric equality, actual missing paths and snapshot
+retirement through the shared typed projection authority. Qualify safe restoration and local
+rejection of changed indices, other fields, overlapping holes and unsafe backedges. Use the
+retained-selection obligations below and the component READMEs' implemented scope; source
+admission alone is not required/native execution or actual owned-error cleanup.
 
 ## Retained Selection Closure
 

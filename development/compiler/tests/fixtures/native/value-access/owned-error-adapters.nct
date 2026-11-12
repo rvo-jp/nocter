@@ -55,7 +55,8 @@ func selected_environment(index: usize): i32 {
                                         42 }
     invoke(action^)
 }
-func invoke_fallible(take action: once(): i32!): i32! { action^()? }
+const func relay(take value: i32!): i32! { value^? }
+func invoke_fallible(take action: once(): i32!): i32! { relay(action^())? }
 func failed_environment(): i32 {
     let held = make("retained on failure")
     let action = (held^;): i32! { observe(held)

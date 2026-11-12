@@ -36,6 +36,115 @@ fn outcome_representation_closes_each_ordinary_source_seam() {
 }
 
 #[test]
+fn inactive_payload_cleanup_uses_only_representable_cases() {
+    for source in [
+        "const func discard(take value: i32!): i32 { 42 }\nconst VALUE: i32 = discard(1)",
+        "const func discard(take value: error?): i32 { 42 }\nconst VALUE: i32 = discard(none)",
+        "const func discard(): i32 { let value: error? = none\ndrop value\n42 }\nconst VALUE: i32 = discard()",
+        "const func discard(): i32 { let values: [error?; 3] = [none, none, none]\nlet selected = values[1]^\ndrop selected\n42 }\nconst VALUE: i32 = discard()",
+    ] {
+        assert_eq!(
+            super::initializers::answer(source, "VALUE"),
+            Datum::integer(42)
+        );
+    }
+}
+
+#[test]
+fn success_propagation_does_not_materialize_its_impossible_error_case() {
+    assert_eq!(
+        super::initializers::answer(
+            "const func forward(take value: i32!): i32! { value^? }\nconst VALUE: i32! = forward(42)",
+            "VALUE"
+        ),
+        Datum::variant(true, Some(Datum::integer(42)))
+    );
+}
+
+#[test]
+fn an_uninhabited_projection_still_performs_its_variant_assertion() {
+    let fixture = nocter_test_support::ValueSourceFixture::new(
+        "const func fail(): i32! { let value: error? = none\nthrow value^! }\nconst VALUE: i32! = fail()",
+    );
+    let Err(SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })) =
+        SourceUnit::prepare(fixture.syntax())
+    else {
+        panic!("expected the assertion on an absent payload to fail during evaluation");
+    };
+    assert_eq!(
+        diagnostic.rule(),
+        crate::value_access::evaluation::Rule::Execution(
+            nocter_constant_evaluation::state::Rule::InactiveVariant
+        )
+    );
+}
+
+#[test]
+fn nested_unavailable_payloads_preserve_the_original_failure_site() {
+    use std::fmt::Write as _;
+    let mut source = String::from("struct Layer0 { child: error }\n");
+    for index in 1..64 {
+        writeln!(
+            source,
+            "struct Layer{index} {{ child: Layer{} }}",
+            index - 1
+        )
+        .unwrap();
+    }
+    source.push_str("const func fail(): i32! { let value: Layer63? = none\nthrow ");
+    source.push_str(&"(".repeat(64));
+    source.push_str("value^!");
+    for _ in 0..64 {
+        source.push_str(").child");
+    }
+    source.push_str(" }\nconst VALUE: i32! = fail()");
+    let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+    let diagnostic = match SourceUnit::prepare(fixture.syntax()) {
+        Err(SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })) => diagnostic,
+        Err(failure) => panic!("expected an absent-payload assertion: {failure:?}"),
+        Ok(_) => panic!("expected the original absent-payload assertion to fail"),
+    };
+    assert_eq!(
+        diagnostic.rule(),
+        crate::value_access::evaluation::Rule::Execution(
+            nocter_constant_evaluation::state::Rule::InactiveVariant
+        )
+    );
+    let range = diagnostic.source().primary().span().range();
+    assert_eq!(fixture.syntax().text_at(range), Some("value^!"));
+}
+
+#[test]
+fn uninhabited_projection_does_not_authorize_error_operations_or_dead_runtime_calls() {
+    use crate::value_access::constant::Rule;
+    let rejected = |source: &str| {
+        let fixture = nocter_test_support::ValueSourceFixture::new(source);
+        let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+            SourceUnit::prepare(fixture.syntax())
+        else {
+            panic!("expected a constant-domain failure: {source}");
+        };
+        diagnostic.rule()
+    };
+    assert!(matches!(
+        rejected("const func forward(take value: error): i32! { throw value^ }"),
+        Rule::UnsupportedData(_)
+    ));
+    assert!(matches!(
+        rejected(
+            "const func recover(take value: i32!): i32 { value^ catch reason { drop reason\n0 } }"
+        ),
+        Rule::UnsupportedCleanup(_)
+    ));
+    assert!(matches!(
+        rejected(
+            "func runtime(): i32 { 0 }\nconst func recover(take value: i32!): i32 { value^ catch _ { runtime() } }"
+        ),
+        Rule::RuntimeCall(_)
+    ));
+}
+
+#[test]
 fn success_and_inactive_error_data_execute_and_freeze_without_error_values() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

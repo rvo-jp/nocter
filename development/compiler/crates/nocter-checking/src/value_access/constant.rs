@@ -9,6 +9,7 @@ use nocter_model::{
 };
 
 mod captured;
+mod representation;
 pub(super) use captured::Availability;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -156,6 +157,7 @@ pub(super) fn check(
 ) -> Result<Option<Violation>, flow::IntegrityError> {
     let program = query.typed().program();
     let mut domain = super::evaluation::Types::default();
+    let mut projections = representation::Projections::default();
     // Walk all typed expressions, not only reachable graph points. An unevaluated branch or
     // interrupted input cannot hide an authored runtime-only call or an unsupported operation.
     for (id, expression) in query.typed().body().expressions().iter() {
@@ -193,6 +195,7 @@ pub(super) fn check(
         // here; operation checks above still apply independently of continuation.
         if let Some(value) = expression.ty.normal()
             && !domain.supports(program, value.data())?
+            && !projections.uninhabited(query, id, &mut domain)?
         {
             return Ok(Some(Violation {
                 site: Site::Expression(id),

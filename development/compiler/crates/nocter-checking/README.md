@@ -739,10 +739,20 @@ Unit closure still validates every independent declaration. `Type::Unavailable` 
 identity without accepting a value; positive occurrences of unsupported data remain outside the
 evaluator domain. Variant support follows representable cases: optional absence and fallible success
 do not fabricate an inactive error payload. The shared const-outcome source qualifies success
-construction, taking inputs, forwarding, assertion, frozen constant reuse and ordinary native
+construction, taking inputs, forwarding, assertion, success propagation, frozen constant reuse and ordinary native
 execution, including absent `error?` and `(error!)?` values. Live error graphs, their destruction
 and runtime primitive calls remain unavailable. Final publication also excludes representable
 callable payloads; an unavailable opposite case does not erase that restriction.
+Selecting an unavailable payload from a represented carrier cannot produce an evaluator value.
+The domain check retains this uninhabited projection through ordinary value boundaries, allowing
+the lowered failure arm of `?` without creating error data. Execution still performs the ordinary
+tag test or assertion. This is evaluator representation evidence, not source reachability;
+runtime calls and explicit error destruction remain rejected even in an inactive handler.
+Absent optional payloads and partial arrays of those values use ordinary sparse cleanup.
+Projection facts are memoized within one domain check rather than rewalking a deep expression
+chain. Nested unavailable payloads still report the original assertion site. Native source also
+passes an actual failure through the same const transfer body; evaluator-only absence evidence
+does not remove its runtime failure path.
 The projection derives temporary-operation support and final serialization separately
 from these same shapes. Exact named witnesses retain their code identity with a unit environment;
 selected read/edit/once views transport one existing payload through ordinary resource transitions.
