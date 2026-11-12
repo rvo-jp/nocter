@@ -565,7 +565,7 @@ Copy, trivial cleanup or empty D/S. Owning formals retain a symbolic environment
 tied to their witness. The producer domain also admits the bounded owned-environment schema described below;
 general retained footprints and concrete executable witness specialization remain separate obligations. Dependent aggregates,
 user destructors, capabilities, general captured environments, nested callback contracts, generics,
-actual error-data construction, async and regions require their own later schemas/validation.
+general error-data construction, async and regions require their own later schemas/validation.
 
 The source/body goal admits closed record/tuple data and local/input-rooted component selections through
 this same typing, initialization, access and resource path. Source integration tests assert exact
@@ -610,7 +610,8 @@ while every primitive has an exact checked role and no body. Neither a fabricate
 an omitted ordinary definition satisfies coverage. Binding still requires the original header
 authority. Runtime primitive calls use ordinary input/result and cleanup checks; required closures
 reject them through the ordinary runtime-call diagnostic rather than requesting absent source.
-This is source acceptance, not a native runtime-call ABI or executed error-graph certificate.
+Native constructor execution is qualified separately by the
+[Machine consumer](../nocter-machine/README.md#private-runtime-error-construction).
 Caller-write summaries remain conservative for these bodyless operations.
 
 ## Program-Extent Text
@@ -646,7 +647,9 @@ Fallible value propagation transfers the alternate error into the callable's uni
 outer optional layers are constructed present. `throw` uses that same ordinary result/return
 path with an owned error, while ordinary return of error data selects success. No exception edge,
 implicit error copy or failure-to-absence conversion is introduced. Source checking qualifies
-these ownership/branch decisions, not execution of an owned error graph.
+these ownership/branch decisions. Actual runtime failure construction, propagation and owned
+recovery execute through the [Machine consumer](../nocter-machine/README.md#private-runtime-error-construction);
+required evaluation still has no owned-error graph domain.
 Direct read/edit operands and scoped bindings request an existing payload
 place for postfix `!` or `?`. `Scoped` forms its source once and forwards the place selected by
 its projection/control. Assertion and propagation retain the carrier, with the payload selector

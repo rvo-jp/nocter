@@ -59,8 +59,10 @@ data/input authority. Its builder freezes the reachable control graph, interns d
 selected scalar operations and static calls, and integrates resource phases and committed call
 bindings. The result contains its runtime environment and closed bodies, with no checking/target
 storage reference. There is no separately pairable storage companion or released MirProgram adapter.
-Static primitive edges currently reject with an explicit `PrimitiveCall` boundary failure; a
-checked role is not a MIR body or native ABI certificate. No empty body is synthesized for it.
+Static primitive edges retain their closed roles without adding a body or input locals. Validation
+checks their data and input operations against the runtime contract's sole value signature;
+unsupported roles and substituted signatures reject. Only body edges participate in body-graph
+reachability. The Machine consumer owns their physical ABI qualification.
 
 `computation` consumes selected operation kinds and frozen call edges; it does not infer Copy,
 access, result witnesses or dispatch. Private required constants arrive as ordinary primitive

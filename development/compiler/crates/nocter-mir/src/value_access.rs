@@ -12,6 +12,7 @@ use nocter_model::{
     TypeId,
 };
 use nocter_runtime_contract::{RuntimeAbiIdentity, RuntimeEnvironment, RuntimeValueSignature};
+pub use nocter_target_program::value_access::CallTarget;
 use nocter_target_program::value_access::{lifecycle, storage};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -140,7 +141,7 @@ pub struct CallInput {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Call {
-    pub target: AccessInstanceId,
+    pub target: CallTarget,
     /// Frozen callee signature order, including its environment when present.
     pub inputs: Box<[CallInput]>,
     /// Filled on normal return before adapter cleanup or result receipt.
@@ -295,7 +296,6 @@ impl Body {
 pub enum Failure {
     Storage(storage::Failure),
     InvalidBody(AccessInstanceId),
-    PrimitiveCall(nocter_runtime_contract::PrimitiveRole),
 }
 
 /// One immutable global object with its exact closed runtime data.

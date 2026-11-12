@@ -1,0 +1,68 @@
+primitive func create_failure(code: str, message: str): error
+primitive func context_error(take value: error, message: str): error
+
+struct Pair {
+    first: error
+    second: error
+}
+
+func make(code: str): error {
+    context_error(create_failure(code, "leaf message"), "outer context")
+}
+
+func fail(): i32! {
+    throw make("failure")
+}
+
+func propagate(): i32! {
+    fail()?
+}
+
+func apply(factory: func(str, str): error): error {
+    factory("callback", "callback message")
+}
+
+func run(): i32 {
+    let direct = make("direct")
+    drop direct
+
+    let pair = Pair { first: make("first field"), second: make("second field") }
+    let field = pair.first^
+    drop field
+    drop pair
+
+    let values = [make("first item"), make("second item"), make("third item")]
+    let item = values[1]^
+    drop item
+    drop values
+
+    var restored = [make("old item"), make("retained item")]
+    let old = restored[0]^
+    drop old
+    restored[0] = make("replacement item")
+    drop restored
+
+    let empty: [error; 0] = [make("discarded seed"); 0]
+    drop empty
+    let single = [make("single seed"); 1]
+    drop single
+
+    let captured = make("captured")
+    let action = (captured^;): void {}
+    drop action
+
+    let named = apply(create_failure)
+    drop named
+
+    let retained = make("adapter owned")
+    let reader = (retained^;): i32 { 42 }
+    let finish: once(): i32 = reader^
+    let answer = finish^()
+
+    let recovered = fail() catch failure {
+        drop failure
+        21
+    }
+    let forwarded = propagate() catch _ { 21 }
+    if answer == 42 { recovered + forwarded } else { 0 }
+}

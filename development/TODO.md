@@ -18,23 +18,21 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Extend outcome construction and elimination from optional to fallible carriers under the unified
-error contract. Establish the necessary error-data construction and cleanup dependencies before
-claiming execution of owned failure payloads. Preserve exact layer order, explicit failure
+Close the remaining fallible-value realization under the unified error contract. Extend the
+qualified native error construction to required data and broader cleanup. Preserve exact layer order, explicit failure
 selection, ordinary acquisition/return/handler cleanup, and scoped projections without hidden
 error extraction. Qualify required/native source and negative cases through the shared pipeline;
 metadata-only failure layouts or inactive branches do not establish actual error-graph cleanup.
-Continue with actual error-data production, required evaluation and executed failure recovery;
+Continue with required error-data evaluation and general executed cleanup;
 the [implemented scope](compiler/crates/nocter-checking/README.md#outcome-values) owns the evidence
 boundary rather than treating source admission as executed error cleanup.
-First close trusted standard primitive construction through the shared path. Do not authorize
+Extend trusted standard primitive construction through the shared path. Do not authorize
 primitives by an arbitrary user name, infer general text-view
 independence from program-extent literal backing, or treat static error handles as owned-graph
 release evidence.
-Extend the static instance consumer's distinct primitive call edges through MIR and the common
-native call ABI; MIR currently rejects those edges explicitly.
-Preserve actual absent bodies and explicit physical address channels; source acceptance does not
-establish constructor execution or graph cleanup. Required closures must retain ordinary
+Extend actual owned-error graph cleanup beyond the bounded native construction corpus to the
+retained-array selections, nested cleanup and adapter cases below. Preserve actual absent bodies
+and explicit physical address channels. Required closures must retain ordinary
 runtime-call rejection rather than searching for an absent primitive source body.
 
 ## Retained Selection Closure
@@ -78,8 +76,8 @@ not a language restriction derived from the current realization boundary.
   interfaces/generics/witnesses, constant arguments and symbolic conditions,
   exports and conditional const admission. Follow the [realization obligations](design/compiler-realization.md)
   and owning specifications, with ordinary source evidence for safe and unsafe cases.
-- [ ] Close outcomes, runtime error construction, source-level nontrivial record/capture destruction,
-  normal adapter cleanup before answer receipt, and absence of repeated body-owned destruction.
+- [ ] Close required outcome/error construction, general source-level record/capture destruction,
+  cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
   with actual effects while preserving frozen channels, backing and cleanup timing.
 - [ ] Close remaining expression/control, comparison, typed literal/conversion/operator, capability,

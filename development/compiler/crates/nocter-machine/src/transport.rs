@@ -371,9 +371,9 @@ pub(crate) struct MachineRuntimeCallAbiTable {
 }
 
 impl MachineRuntimeCallAbiTable {
-    pub(crate) fn empty() -> Self {
+    pub(crate) fn from_values(values: Vec<MachineCallableAbi>) -> Self {
         Self {
-            values: MachineTable::from_values(Vec::new()),
+            values: MachineTable::from_values(values),
         }
     }
     pub(crate) fn get(&self, id: MachineRuntimeCallAbiId) -> Option<&MachineCallableAbi> {
@@ -480,9 +480,7 @@ impl MachineAbiPlan {
     }
 
     pub(crate) fn finish(self) -> MachineRuntimeCallAbiTable {
-        MachineRuntimeCallAbiTable {
-            values: MachineTable::from_values(self.runtime_call_abis),
-        }
+        MachineRuntimeCallAbiTable::from_values(self.runtime_call_abis)
     }
 }
 

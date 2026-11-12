@@ -134,6 +134,26 @@ code binds body-local address slots to immutable backing; callable signatures an
 remain unchanged. Static and literal data share the total serialization budget and common scalar
 encoding. No static initializer becomes a runtime function.
 
+## Private Runtime Error Construction
+
+Checked primitive edges retain their roles through MIR. The private consumer plans their stored
+builtin inputs and result through the common runtime-call ABI planner, interns equal physical
+ABIs and retains ordinary `MachinePrimitiveTarget` entries. It creates no synthetic source body,
+local or callable instance. A body read/edit channel receives an address; the qualified error
+constructors receive the text descriptor stored at that address. Loading it into the runtime's
+ABI grants no source Copy operation. The shared role contract remains the signature owner;
+the existing context planner, ARM64 primitive selector and graph release implementation remain
+the native consumers.
+
+`owned-error-construction.nct` executes selected `NewError` and `ErrorContext` calls with real owned
+graphs. It covers direct release, partial record and constant-index array cleanup, restoration,
+zero/one-count seed cleanup, owning-capture disposal and consumption through a restricted-view
+adapter, primitive callback witnesses, explicit failure, propagation and owned
+named/discarded failure recovery. The native test verifies that constructor calls and graph-release
+operations survive Machine lowering, then executes the ordinary image. This does not qualify
+arbitrary text backing, error accessors, required-evaluator error graphs, user destructors or
+all retained-index cleanup cases.
+
 ## Private Optional Execution
 
 The private consumer uses the common optional/fallible layouts, tag encoding and payload offsets. Stored tag
@@ -150,7 +170,8 @@ assertion through the same result transport, with separate absence/bounds traps 
 inactive fallible payload can be read.
 Recovery success paths also qualify lazy handlers, preserved original-storage update and ordered
 optional/fallible recovery. Alternate access guards use the requested tag through the same
-non-unwinding branch protocol. Executed failure handlers still require actual error production.
+non-unwinding branch protocol. Actual owned failure recovery uses the
+[runtime construction](#private-runtime-error-construction) path.
 
 Layout and cleanup dependency discovery use iterative work over the same actual schema requests,
 retaining positive-cycle rejection and empty-array/pointer cuts. Flat optional suffix depth does
@@ -211,8 +232,9 @@ Complete-array cleanup uses that same countdown traversal, calling one selected 
 reverse index order. Shared helpers are selected per concrete data schema, without an element-sized
 call catalog or a second resource ledger. Empty arrays and elements without cleanup require no
 helper. Source with a divergent error-array producer qualifies helper structure and image lowering;
-it does not establish execution of an owned error graph. Actual error construction and nontrivial
-resource-release effects still need source/native qualification.
+it does not establish execution of an owned error graph. The separate
+[runtime construction](#private-runtime-error-construction) corpus executes constant-index partial
+cleanup and complete-array release; general retained-index cases need their own executed graphs.
 
 Partial-array cleanup consumes private MIR's checked half-open intervals. The same countdown CFG
 starts at the interval end and stops at its lower bound, addressing the original array with each
@@ -222,8 +244,8 @@ elements around either a source-proven constant hole or a retained index. The re
 bounds check survives before capture; helper endpoints read the captured scalar. Retained element
 projections load that same slot at each use; their addresses are not cached across alternative
 blocks, where the first load would fail to dominate another route. This nontrivial helper evidence
-remains image/structure
-qualification until actual source error construction is available.
+remains image/structure qualification for retained-index cases beyond the separately executed
+constant-index construction corpus.
 
 For multiple unordered retained field holes, `body::remainder` traverses elements and components
 in reverse order and guards only the missing subtrees with predicates over the saved indices.
@@ -232,7 +254,7 @@ helper; trivial data needs no traversal. Generated structure depends on schemas 
 not array cardinality, and no runtime ownership table or element-sized metadata is added.
 Cleanup-helper registration exhaustively covers complete, interval and sparse-remainder operations.
 Nontrivial error-field cases qualify generated predicates, helpers and finite image structure;
-actual owned-error construction/destruction through source remains the separate gate above.
+actual owned-error cleanup for those mixed retained-field paths remains separately unqualified.
 Mixed prefix/point cleanup retains prefix exclusions as regions: an element is excluded while its
 index is below the saved frontier's successor. That shared successor calculation also serves
 ordinary through/after spans and remains valid at maximum usize. Source cases execute zero-trip,

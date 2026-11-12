@@ -300,12 +300,7 @@ impl Builder<'_> {
         let data = selected.result().data();
         let answer = self.snapshot(SlotKey::Answer(id), data)?;
         Ok(Call {
-            target: match selected.target() {
-                nocter_target_program::value_access::CallTarget::Body(id) => id,
-                nocter_target_program::value_access::CallTarget::Primitive(role) => {
-                    return Err(Failure::PrimitiveCall(role));
-                }
-            },
+            target: selected.target(),
             inputs: inputs.into(),
             answer,
         })

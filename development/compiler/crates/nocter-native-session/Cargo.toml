@@ -18,6 +18,7 @@ nocter-source-index = { path = "../nocter-source-index" }
 nocter-target-program = { path = "../nocter-target-program" }
 
 [dev-dependencies]
+nocter-declaration-lowering = { path = "../nocter-declaration-lowering" }
 nocter-checking = { path = "../nocter-checking", features = ["test-api"] }
 nocter-compiler-computation = { path = "../nocter-compiler-computation" }
 nocter-compile-input = { path = "../nocter-compile-input" }

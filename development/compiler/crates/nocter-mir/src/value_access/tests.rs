@@ -26,7 +26,7 @@ fn operations(body: &Body) -> impl Iterator<Item = &Operation> {
 }
 
 #[test]
-fn static_primitive_calls_do_not_receive_fake_mir_bodies_or_native_authority() {
+fn static_primitive_calls_keep_closed_roles_without_fake_mir_bodies() {
     use nocter_compile_input::{ModuleIdentity, PrimitiveRoleLocator, ToolchainInput};
     use nocter_declaration_lowering::access_declarations as declarations;
     use nocter_model::PackageIdentity;
@@ -64,10 +64,28 @@ fn static_primitive_calls_do_not_receive_fake_mir_bodies_or_native_authority() {
     let instances = Arc::new(InstanceProgram::prepare(unit, root).unwrap());
     assert_eq!(instances.instances().len(), 1);
     let lifecycle = lifecycle::Program::prepare(instances).unwrap();
-    assert!(matches!(
-        Program::lower(&lifecycle, RuntimeAbiIdentity::Arm64DarwinV1),
-        Err(Failure::PrimitiveCall(PrimitiveRole::NewError))
-    ));
+    let program = Program::lower(&lifecycle, RuntimeAbiIdentity::Arm64DarwinV1).unwrap();
+    assert_eq!(program.bodies.len(), 1);
+    assert!(operations(&program.bodies[&program.root]).any(|operation| matches!(operation, Operation::Call(call) if call.target == CallTarget::Primitive(PrimitiveRole::NewError))));
+    for role in [PrimitiveRole::ErrorContext, PrimitiveRole::ErrorCode] {
+        let mut invalid = program.clone();
+        for operation in invalid
+            .bodies
+            .get_mut(&invalid.root)
+            .unwrap()
+            .actions
+            .values_mut()
+            .flat_map(|action| action.operations.iter_mut())
+        {
+            if let Operation::Call(call) = operation {
+                call.target = CallTarget::Primitive(role);
+            }
+        }
+        assert!(matches!(
+            validate::program(&invalid),
+            Err(Failure::InvalidBody(_))
+        ));
+    }
 }
 
 #[test]
@@ -264,7 +282,7 @@ fn consuming_adapter_call_projects_the_environment_and_protects_the_answer() {
                 let Operation::Call(call) = operation else {
                     continue;
                 };
-                let callee = &program.bodies[&call.target];
+                let callee = &program.bodies[&call.target.instance().unwrap()];
                 if callee.signature.environment().is_none() {
                     continue;
                 }

@@ -572,6 +572,7 @@ computation with a scalar consumer, without runtime array layout or array-parame
 Immutable statics retain one place identity across bodies, with separate address bindings rather
 than callable inputs or local owners. Their frozen data uses the same physical serializer without
 runtime initialization. Machine owns layout, byte encoding and serialization limits, while checking owns final-data eligibility. Helper-generation tests qualify shared error/record
-destruction structure; source-level runtime error construction and nontrivial destruction through
-adapters are not yet native-qualified. This boundary establishes correctness evidence, not a
+destruction structure. Selected runtime error constructors and their bounded executed cleanup use
+the [Machine qualification](../../compiler/crates/nocter-machine/README.md#private-runtime-error-construction);
+general nontrivial destruction through adapters remains unqualified. This boundary establishes correctness evidence, not a
 performance claim or complete v2.0.0 support.

@@ -1,6 +1,7 @@
 //! Private MIR enters the ordinary Machine program, body optimizer and native consumers.
 mod body;
 mod data;
+mod primitives;
 use super::ExecutableFailure as Failure;
 use crate::identity::{MachineId, MachineTable};
 use crate::{
@@ -19,6 +20,7 @@ struct Context<'a> {
     functions: BTreeMap<AccessInstanceId, MachineFunctionId>,
     abis: BTreeMap<AccessInstanceId, MachineCallableAbi>,
     cleanup: BTreeMap<TypeId, MachineFunctionId>,
+    primitives: BTreeMap<nocter_runtime_contract::PrimitiveRole, crate::MachinePrimitiveTarget>,
 }
 
 pub(super) fn program(program: &mir::Program) -> Result<MachineProgram, Failure> {
@@ -78,6 +80,7 @@ pub(super) fn program(program: &mir::Program) -> Result<MachineProgram, Failure>
         })
         .collect::<Result<_, Failure>>()?;
     let data = data::Data::build(program, &layouts)?;
+    let (primitives, runtime_call_abis) = primitives::prepare(program, &layouts)?;
     let context = Context {
         data: &data,
         program,
@@ -85,6 +88,7 @@ pub(super) fn program(program: &mir::Program) -> Result<MachineProgram, Failure>
         functions,
         abis,
         cleanup: cleanup_plan(program)?,
+        primitives,
     };
     let mut values = Vec::new();
     for (&id, source) in program.bodies() {
@@ -108,7 +112,7 @@ pub(super) fn program(program: &mir::Program) -> Result<MachineProgram, Failure>
     let contexts = crate::MachineContextPlans::build(&functions).map_err(Failure::Context)?;
     Ok(MachineProgram::new(crate::program::MachineProgramParts {
         layouts: layouts.finish(),
-        runtime_call_abis: crate::transport::MachineRuntimeCallAbiTable::empty(),
+        runtime_call_abis,
         imports: crate::import::MachineImportTable::empty(),
         data: data.finish(),
         contexts,

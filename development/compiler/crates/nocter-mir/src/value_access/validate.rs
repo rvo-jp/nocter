@@ -1,6 +1,7 @@
 //! Integrity of the closed product, never another source-acceptance or ownership checker.
 use super::{
-    Body, Effect, Failure, Operation, Place, Program, Projection, SlotKey, Storage, Terminator,
+    Body, CallTarget, Effect, Failure, Operation, Place, Program, Projection, SlotKey, Storage,
+    Terminator,
 };
 use crate::{
     MirArithmeticCheck as Check, MirBinaryOperation as Binary, MirUnaryOperation as Unary,
@@ -42,8 +43,10 @@ pub(super) fn program(program: &Program) -> Result<(), Failure> {
         }
         let body = program.bodies.get(&id).ok_or(Failure::InvalidBody(id))?;
         for operation in body.actions.values().flat_map(|action| &action.operations) {
-            if let Operation::Call(call) = operation {
-                pending.insert(call.target);
+            if let Operation::Call(call) = operation
+                && let CallTarget::Body(target) = call.target
+            {
+                pending.insert(target);
             }
         }
     }
@@ -504,24 +507,49 @@ impl Context<'_> {
             }
             Operation::Call(call) => {
                 self.place(&call.answer)?;
-                let callee = self
-                    .program
-                    .bodies
-                    .get(&call.target)
-                    .ok_or_else(|| self.invalid())?;
-                let inputs = callee.signature.ordered().collect::<Vec<_>>();
-                self.require(
-                    call.inputs.len() == inputs.len()
-                        && call.answer.data == callee.signature.result(),
-                )?;
+                let (inputs, result) = match call.target {
+                    CallTarget::Body(target) => {
+                        let callee = self
+                            .program
+                            .bodies
+                            .get(&target)
+                            .ok_or_else(|| self.invalid())?;
+                        (
+                            callee
+                                .signature
+                                .ordered()
+                                .map(|input| (input.data, input.operation))
+                                .collect::<Vec<_>>(),
+                            callee.signature.result(),
+                        )
+                    }
+                    CallTarget::Primitive(role) => {
+                        let signature = role.value_signature().ok_or_else(|| self.invalid())?;
+                        let data = |builtin| {
+                            self.program
+                                .runtime
+                                .types()
+                                .primitive(RuntimePrimitive::for_builtin(builtin))
+                                .ok_or_else(|| self.invalid())
+                        };
+                        (
+                            signature
+                                .inputs()
+                                .iter()
+                                .map(|input| Ok((data(input.data())?, input.operation())))
+                                .collect::<Result<Vec<_>, Failure>>()?,
+                            data(signature.result())?,
+                        )
+                    }
+                };
+                self.require(call.inputs.len() == inputs.len() && call.answer.data == result)?;
                 self.require(self.body.slots.get(call.answer.slot).is_some_and(|slot| {
                     slot.storage == Storage::Payload && matches!(slot.key, SlotKey::Answer(_))
                 }))?;
                 for (actual, expected) in call.inputs.iter().zip(inputs) {
                     self.place(&actual.source)?;
                     self.require(
-                        actual.source.data == expected.data
-                            && actual.operation == expected.operation,
+                        actual.source.data == expected.0 && actual.operation == expected.1,
                     )?;
                     if actual.operation == ValueInputOperation::Take {
                         self.require(

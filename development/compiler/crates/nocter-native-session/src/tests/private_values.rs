@@ -9,6 +9,12 @@ use std::sync::Arc;
 fn machine(source: &str) -> nocter_machine::MachineProgram {
     let fixture = ValueSourceFixture::new(source);
     let unit = Arc::new(SourceUnit::prepare(fixture.syntax()).unwrap().into_unit());
+    machine_unit(unit)
+        .unwrap_or_else(|failure| panic!("machine lowering failed for {source:?}: {failure:?}"))
+}
+fn machine_unit(
+    unit: Arc<nocter_checking::value_access::accepted::Unit>,
+) -> Result<nocter_machine::MachineProgram, nocter_machine::value_access::ExecutableFailure> {
     let root = unit
         .program()
         .resolve(unit.program().symbols().get("run").unwrap())
@@ -19,7 +25,6 @@ fn machine(source: &str) -> nocter_machine::MachineProgram {
         nocter_mir::value_access::Program::lower(&lifecycle, RuntimeAbiIdentity::Arm64DarwinV1)
             .unwrap();
     nocter_machine::value_access::lower(&mir)
-        .unwrap_or_else(|failure| panic!("machine lowering failed for {source:?}: {failure:?}"))
 }
 
 #[test]
@@ -43,8 +48,74 @@ fn private_result_owned_captures_close_nested_environments_and_source_operations
 }
 fn compile(source: &str) -> crate::NativeImage {
     let machine = machine(source);
-    let arm = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    image(&machine)
+}
+fn image(machine: &nocter_machine::MachineProgram) -> crate::NativeImage {
+    let arm = nocter_arm64::Arm64Program::lower_machine(machine).unwrap();
     crate::NativeImage::from_macho(nocter_macho::MachOImage::build(&arm).unwrap())
+}
+
+#[test]
+fn private_trusted_error_constructors_execute_real_owned_graphs() {
+    use nocter_compile_input::{ModuleIdentity, PrimitiveRoleLocator, ToolchainInput};
+    use nocter_declaration_lowering::access_declarations as declarations;
+    use nocter_model::PackageIdentity;
+    use nocter_runtime_contract::PrimitiveRole;
+    let package = PackageIdentity::new("test:standard");
+    let module = ModuleIdentity::new(package.clone(), ["error"]);
+    let toolchain = ToolchainInput::new(
+        package.clone(),
+        ModuleIdentity::new(package, ["prelude"]),
+        Vec::new(),
+        Vec::new(),
+    )
+    .with_primitive_roles(vec![
+        PrimitiveRoleLocator::new(PrimitiveRole::NewError, module.clone(), "create_failure"),
+        PrimitiveRoleLocator::new(PrimitiveRole::ErrorContext, module.clone(), "context_error"),
+    ]);
+    let authority = declarations::PrimitiveAuthority::for_module(&toolchain, &module).unwrap();
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/owned-error-construction.nct"
+    ));
+    let fixture = ValueSourceFixture::new(source);
+    let headers =
+        declarations::Query::prepare_with_primitive_authority(fixture.syntax(), &authority)
+            .unwrap();
+    let unit = Arc::new(
+        nocter_checking::value_access::accepted::Unit::prepare(
+            &headers.bind(fixture.syntax()).unwrap(),
+        )
+        .unwrap(),
+    );
+    let machine = machine_unit(unit).unwrap();
+    let mut constructors = std::collections::BTreeSet::new();
+    let mut releases = 0;
+    for (_, function) in machine.functions() {
+        for (_, operation) in function.body().operations() {
+            match operation.kind() {
+                nocter_machine::MachineOperationKind::Call(call) => {
+                    if let nocter_machine::MachineCallTarget::Primitive(target) = call.target() {
+                        constructors.insert(target.role());
+                        let abi = machine.primitive_abi(target).unwrap();
+                        assert_eq!(abi.arguments().len(), 2);
+                        assert_eq!(abi.stack_argument_size(), 0);
+                    }
+                }
+                nocter_machine::MachineOperationKind::ReleaseError { .. } => releases += 1,
+                _ => {}
+            }
+        }
+    }
+    assert_eq!(
+        constructors,
+        [PrimitiveRole::NewError, PrimitiveRole::ErrorContext]
+            .into_iter()
+            .collect()
+    );
+    assert!(releases > 0);
+    let package = TempPackage::new();
+    execute_native_status(&image(&machine), &package.0, "owned-error-constructors", 42);
 }
 
 #[test]

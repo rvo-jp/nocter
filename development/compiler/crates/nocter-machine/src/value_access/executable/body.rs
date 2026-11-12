@@ -560,27 +560,40 @@ impl<'a> Builder<'a> {
     fn call(&mut self, call: &mir::Call) -> Result<(), Failure> {
         let mut arguments = Vec::new();
         for input in &call.inputs {
-            arguments.push(if input.operation == ValueInputOperation::Take {
-                self.load(&input.source)?
-            } else {
-                let source = self.place(&input.source)?;
-                self.value(
-                    input.source.data,
-                    true,
-                    MachineOperationKind::AddressOf { source },
-                )?
-            });
+            // Body read/edit channels receive an address. The trusted runtime's closed ABI
+            // receives the descriptor value at that address; this load grants no source Copy.
+            arguments.push(
+                if input.operation == ValueInputOperation::Take
+                    || matches!(call.target, mir::CallTarget::Primitive(_))
+                {
+                    self.load(&input.source)?
+                } else {
+                    let source = self.place(&input.source)?;
+                    self.value(
+                        input.source.data,
+                        true,
+                        MachineOperationKind::AddressOf { source },
+                    )?
+                },
+            );
         }
-        let target = *self
-            .context
-            .functions
-            .get(&call.target)
-            .ok_or_else(Self::invalid)?;
+        let target = match call.target {
+            mir::CallTarget::Body(id) => MachineCallTarget::Direct(
+                *self.context.functions.get(&id).ok_or_else(Self::invalid)?,
+            ),
+            mir::CallTarget::Primitive(role) => MachineCallTarget::Primitive(
+                self.context
+                    .primitives
+                    .get(&role)
+                    .ok_or_else(Self::invalid)?
+                    .clone(),
+            ),
+        };
         let value = self.value(
             call.answer.data,
             false,
             MachineOperationKind::Call(MachineCall::new(
-                MachineCallTarget::Direct(target),
+                target,
                 arguments,
                 MachineCallAllocation::Inherit,
                 None,
