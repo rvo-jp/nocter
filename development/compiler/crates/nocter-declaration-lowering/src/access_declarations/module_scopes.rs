@@ -1,4 +1,4 @@
-//! Source-local names and slots over one declaration writer. No type/body admission occurs here.
+//! Source-local names, physical headers and progressive metadata over one declaration writer.
 use super::{
     CodeSource, Failure, ModuleSourcesFailure, PairedModuleSources,
     headers::{self, Header, RecordHeader},
@@ -15,7 +15,11 @@ use std::{
     sync::Arc,
 };
 
-/// Closed names and reserved identities only. No normalized contract, payload, Copy or body proof.
+mod catalog;
+mod normalization;
+
+/// Closed source names and a progressive header writer. Reservation alone grants no typed metadata;
+/// selected header publication grants no checked-body, primitive-authority or accepted-Unit proof.
 #[derive(Debug)]
 pub struct ScopedModuleSources<'syntax> {
     paired: PairedModuleSources<'syntax>,
@@ -23,11 +27,17 @@ pub struct ScopedModuleSources<'syntax> {
     declarations: Box<[Option<DeclarationId>]>,
     fields: Box<[Option<AccessFieldId>]>,
     headers: HeaderPublication,
+    catalog: catalog::Catalog,
 }
 #[derive(Debug)]
 enum ParsedHeader {
     Code(Header),
     Record(RecordHeader),
+}
+#[derive(Clone, Copy)]
+struct FieldPosition {
+    record: NominalTypeId,
+    index: usize,
 }
 impl<'syntax> PairedModuleSources<'syntax> {
     /// Reserve one semantic identity per paired declaration and close direct authored lookup.
@@ -70,16 +80,40 @@ impl<'syntax> PairedModuleSources<'syntax> {
             declarations[id.index()] = declarations[self.contracts.representative(id).index()];
         }
         bind_sources(&self, &scopes, &declarations, &mut reservations)?;
-        let definitions = reservations
-            .finish()
-            .map_err(|violations| project_namespace(&self, &parsed, &declarations, violations))?;
-        let fields = field_mappings(&self, &definitions, &declarations)?;
+        let field_positions = field_positions(&self, &declarations);
+        let catalog = catalog::Catalog::reserve(
+            &self,
+            parsed,
+            &scopes,
+            &declarations,
+            &field_positions,
+            &mut reservations,
+        )?;
+        let definitions = reservations.finish().map_err(|violations| {
+            project_namespace(&self, &catalog.parsed, &declarations, violations)
+        })?;
+        let fields = field_positions
+            .iter()
+            .map(|position| {
+                position
+                    .map(|position| {
+                        definitions
+                            .field_ids(position.record)
+                            .and_then(|fields| fields.get(position.index))
+                            .copied()
+                            .ok_or_else(integrity)
+                    })
+                    .transpose()
+            })
+            .collect::<Result<Vec<_>, _>>()?
+            .into_boxed_slice();
         Ok(ScopedModuleSources {
             paired: self,
             scopes,
             declarations: declarations.into(),
             fields,
             headers: definitions.into_publication(),
+            catalog,
         })
     }
 }
@@ -103,6 +137,20 @@ impl<'syntax> ScopedModuleSources<'syntax> {
     #[must_use]
     pub fn program(&self) -> Program {
         self.headers.snapshot()
+    }
+    /// Exact executable syntax for a definition or registered header count; no body acceptance.
+    #[must_use]
+    pub fn code_source(&self, code: AccessCodeId) -> Option<&CodeSource> {
+        self.catalog.sources.codes.get(&code)
+    }
+    /// The physical source whose scope applies to the executable root.
+    #[must_use]
+    pub fn source_for_code(&self, code: AccessCodeId) -> Option<SurfaceSourceId> {
+        self.catalog.owners.get(&code).copied()
+    }
+    /// All physical count suppliers, including both occurrences of a repeated header.
+    pub fn header_expression_ids(&self) -> impl Iterator<Item = AccessCodeId> + '_ {
+        self.catalog.sources.expression_ids()
     }
     #[must_use]
     pub fn parameter_ids(&self, code: AccessCodeId) -> Option<&[nocter_model::AccessParameterId]> {
@@ -145,11 +193,10 @@ fn project_namespace(
         &trees, &codes, &records, violations,
     ))
 }
-fn field_mappings(
+fn field_positions(
     paired: &PairedModuleSources<'_>,
-    definitions: &nocter_declarations::value_access::Builder,
     declarations: &[Option<DeclarationId>],
-) -> Result<Box<[Option<AccessFieldId>]>, ModuleSourcesFailure> {
+) -> Box<[Option<FieldPosition>]> {
     let inventory = &paired.inventory;
     let mut fields = vec![None; inventory.declarations().len()];
     for (contract, declaration) in inventory.declaration_entries() {
@@ -165,7 +212,6 @@ fn field_mappings(
             .contracts
             .representation(contract)
             .unwrap_or(contract);
-        let slots = definitions.field_ids(record).ok_or_else(integrity)?;
         let authored = inventory
             .declaration_entries()
             .filter(|(_, field)| {
@@ -173,17 +219,17 @@ fn field_mappings(
                     && field.kind() == SurfaceDeclarationKind::Field
             })
             .collect::<Vec<_>>();
-        if authored.len() != slots.len() {
-            return Err(integrity());
-        }
-        for ((field, _), slot) in authored.into_iter().zip(slots) {
-            fields[paired.contracts.representative(field).index()] = Some(*slot);
+        for (position, (field, _)) in authored.into_iter().enumerate() {
+            fields[paired.contracts.representative(field).index()] = Some(FieldPosition {
+                record,
+                index: position,
+            });
         }
     }
     for (id, _) in inventory.declaration_entries() {
         fields[id.index()] = fields[paired.contracts.representative(id).index()];
     }
-    Ok(fields.into())
+    fields.into()
 }
 fn integrity() -> ModuleSourcesFailure {
     ModuleSourcesFailure::Access(Failure::InconsistentSyntax)

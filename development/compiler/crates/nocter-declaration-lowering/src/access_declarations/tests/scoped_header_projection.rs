@@ -66,6 +66,7 @@ fn project_function(
         HeaderScope { syntax, lookup },
         code,
         &Recipe::from(header),
+        sources.codes.get(&code).unwrap(),
         &sources,
         &mut |_| None,
     )
@@ -197,6 +198,7 @@ fn unknown_header_names_are_local_violations_and_foreign_tokens_are_integrity_fa
             },
             code,
             &Recipe::from(header),
+            sources.codes.get(&code).unwrap(),
             &sources,
             &mut |_| None
         ),

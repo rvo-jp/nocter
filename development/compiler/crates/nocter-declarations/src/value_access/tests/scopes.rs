@@ -201,3 +201,55 @@ fn unknown_scopes_reject_reservation_and_builtin_lookup_without_mutating_slots()
         Ok(DataReference::Builtin(BuiltinType::I32))
     );
 }
+
+#[test]
+fn repeated_type_slots_can_reserve_distinct_physical_expression_scopes() {
+    let symbols = SymbolTable::from_spellings(["run"]);
+    let name = symbols.get("run").unwrap();
+    let mut declarations = Reservations::new(symbols);
+    let other = declarations.new_scope();
+    let code = declarations.reserve(name, 0);
+    let slot = TypeExpressionSource {
+        declaration: code.into(),
+        position: HeaderPosition::Result,
+    };
+    let root_count = declarations.reserve_type_expression(slot).unwrap();
+    let other_count = declarations
+        .reserve_type_expression_in(other, slot)
+        .unwrap();
+    assert_ne!(root_count, other_count);
+    assert_eq!(
+        declarations.codes.get(root_count).unwrap().scope,
+        ScopeId::ROOT
+    );
+    assert_eq!(declarations.codes.get(other_count).unwrap().scope, other);
+    for (scope, site) in [
+        (ScopeId::new(2), slot),
+        (
+            other,
+            TypeExpressionSource {
+                declaration: root_count.into(),
+                position: HeaderPosition::Result,
+            },
+        ),
+        (
+            other,
+            TypeExpressionSource {
+                declaration: code.into(),
+                position: HeaderPosition::Parameter(0),
+            },
+        ),
+    ] {
+        assert_eq!(
+            declarations.reserve_type_expression_in(scope, site),
+            Err(DefinitionError::UnknownId)
+        );
+    }
+    let headers = declarations.finish().unwrap().into_publication();
+    assert_eq!(headers.declaration_ids().count(), 1);
+    assert_eq!(
+        headers.code_ids().collect::<Vec<_>>(),
+        [code, root_count, other_count]
+    );
+    assert!(!headers.snapshot().headers_complete());
+}

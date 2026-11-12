@@ -5,7 +5,7 @@ use crate::{SurfaceDeclarationId, SurfaceDeclarationKind as Kind, SurfaceSourceI
 use nocter_compile_input::ModuleSourceKind::{Implementation, Root};
 use nocter_declarations::value_access::{DeclarationId, DeclarationRule, Namespace, ScopeId};
 
-fn source(scoped: &ScopedModuleSources<'_>, path: &str) -> SurfaceSourceId {
+pub(super) fn source(scoped: &ScopedModuleSources<'_>, path: &str) -> SurfaceSourceId {
     scoped
         .paired()
         .inventory()
@@ -14,7 +14,7 @@ fn source(scoped: &ScopedModuleSources<'_>, path: &str) -> SurfaceSourceId {
         .unwrap()
         .0
 }
-fn declaration(
+pub(super) fn declaration(
     scoped: &ScopedModuleSources<'_>,
     path: &str,
     kind: Kind,

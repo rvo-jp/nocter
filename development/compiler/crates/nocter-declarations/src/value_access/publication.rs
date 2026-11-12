@@ -11,7 +11,7 @@ use nocter_model::{
     AccessCodeId, AccessParameterId, NominalTypeId, SparseArenaBuilder, Symbol, TypeAuthority,
     TypeKind, ValueFunctionOrigin, ValueInvocation,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[cfg(test)]
 mod tests;
@@ -206,12 +206,12 @@ impl HeaderPublication {
                     .definition
                     .as_ref()
                     .expect("validated definition");
-                let mut records = Vec::new();
+                let mut records = BTreeSet::new();
                 let mut require_record = |data: &super::DataReference| {
                     if let super::DataReference::Record(id) = data
                         && self.records.get(*id).is_none()
                     {
-                        records.push(DeclarationId::Record(*id));
+                        records.insert(*id);
                     }
                 };
                 for parameter in &definition.parameters {
@@ -219,7 +219,9 @@ impl HeaderPublication {
                 }
                 definition.result_data.visit_payload_data(require_record);
                 if !records.is_empty() {
-                    return Ok(HeaderStep::Require(records.into()));
+                    return Ok(HeaderStep::Require(
+                        records.into_iter().map(DeclarationId::Record).collect(),
+                    ));
                 }
                 self.publish_code(id);
             }

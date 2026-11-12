@@ -169,19 +169,29 @@ writer. Complete representations determine field count and order, while selected
 to their corresponding reserved slots. Parameter/field slot queries grant no typed metadata;
 namespace conflicts use the shared header diagnostic projector over the actual owning trees.
 Export construction still needs authored root declarations and audiences, independently of the
-names visible in a root's local lookup scope. Equal header spellings can resolve to different
-reserved nominal identities in two physical scopes; name closure preserves that distinction and
-grants no resolved signature agreement.
+names visible in a root's local lookup scope.
 Raw header projection reads the immutable declaration program with an explicit physical syntax
-and lookup scope. The same projection serves single-source definition loading and can compare
-repeated signatures without writing either occurrence into the semantic authority. Nominal names
-resolve to their reserved identities before payload readiness; a complete representation uses its
-own scope and full field order. Missing names retain their declaration/header positions, and foreign
-syntax is an integrity error even for an empty representation. Array counts still require the
-existing registered expression and completed-value path; projection does not evaluate them.
-Body lookup contexts, scheduling all physical header projections and count suppliers, resolved
-contract agreement, visibility/re-exports and ordinary discovery/CLI integration remain work.
-These name and slot products publish neither payload/Copy readiness nor an accepted Unit.
+and lookup scope. The same projection serves single-source definition loading and every physical
+occurrence of a module header. Nominal names resolve to reserved identities before payload readiness;
+missing names and parameter collisions retain their own physical header positions. Foreign syntax
+is an integrity error even for an empty representation. Parameter-name validation shares the
+semantic owner's policy, including implementation-only visible names.
+`advance_header_with_values` resolves all occurrences before loading one raw semantic definition.
+Equal spelling bound to different nominal identities is a contract mismatch, using the shared
+contract diagnostic with both locations. Selected public record fields compare against the actual
+complete representation slots; private fields do not need another public declaration. Agreed
+headers advance through the existing publication writer and its record prerequisites, finite
+payload and Copy validation. Previously published snapshots remain immutable.
+All physical array-count expressions are reserved before namespace closure, including repeated
+parameter/result counts and visible fields at their actual representation slots. Each expression
+retains its own source/scope and executable root, independently of the shared declaration owner.
+Missing completed values are distinct requests; unequal resolved lengths reject agreement without
+loading a definition. The projection consumes supplied literal DAGs and does not evaluate them or
+certify their source. `header_expression_ids`, `code_source` and `source_for_code` expose exact
+supplier/definition metadata; they grant no body or primitive-authority acceptance.
+Body lookup contexts, required-value scheduling and exact source dependency guards, visibility/
+re-exports and ordinary discovery/CLI integration remain work. The header step can publish selected
+payload/Copy metadata but does not produce an accepted Unit or a reusable source-qualified query.
 
 The reusable result owns a single immutable value-access declaration program, its exact neutral
 header surface, and projection locators. It contains no current syntax IDs, source identity,

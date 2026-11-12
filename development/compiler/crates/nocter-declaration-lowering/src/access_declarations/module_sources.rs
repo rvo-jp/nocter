@@ -63,12 +63,8 @@ impl<'syntax> ModuleSources<'syntax> {
     /// # Errors
     /// Reports missing, duplicate or structurally mismatching definitions at their real sources.
     pub fn pair(self) -> Result<PairedModuleSources<'syntax>, ModuleSourcesFailure> {
-        let contracts = crate::analyze_declaration_contracts(&self.surface).map_err(|error| {
-            match DeclarationContractDiagnostic::project(error, &self.surface) {
-                Ok(diagnostic) => ModuleSourcesFailure::Contract(diagnostic),
-                Err(error) => ModuleSourcesFailure::InconsistentContract(error),
-            }
-        })?;
+        let contracts = crate::analyze_declaration_contracts(&self.surface)
+            .map_err(|error| contract_failure(error, &self.surface))?;
         Ok(PairedModuleSources {
             inventory: self,
             contracts,
@@ -112,5 +108,15 @@ impl<'syntax> ModuleSources<'syntax> {
     #[must_use]
     pub const fn imports(&self) -> &[SurfaceImport] {
         self.surface.imports()
+    }
+}
+
+pub(super) fn contract_failure(
+    error: DeclarationContractError,
+    surface: &DeclarationSurface<'_>,
+) -> ModuleSourcesFailure {
+    match DeclarationContractDiagnostic::project(error, surface) {
+        Ok(diagnostic) => ModuleSourcesFailure::Contract(diagnostic),
+        Err(error) => ModuleSourcesFailure::InconsistentContract(error),
     }
 }

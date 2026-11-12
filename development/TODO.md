@@ -19,10 +19,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 ## Current Unit
 
 Connect the [adopted module/source rules](spec/language/modules.md) to one v2 declaration authority.
-Thread per-source declaration scopes through header normalization, body lookup and exact source
-rebinding. Consume paired contracts/definitions without reserving competing semantic identities,
-and validate the complete repeated headers in their own lookup contexts. Close direct source
-visibility, source-local imports and resolved contract agreement before ordinary package/CLI
+Thread per-source declaration scopes through body lookup, required-value scheduling and exact
+source rebinding. Integrate the paired-header path with source-qualified body/value evidence
+without reserving competing semantic identities. Close direct source visibility, source-local
+imports and resolved contract agreement through that ordinary computation path before package/CLI
 integration; do not flatten all inventoried names. Keep the retained-selection work below open;
 its bounded execution does not close general hole relations or externally dependent callback effects.
 

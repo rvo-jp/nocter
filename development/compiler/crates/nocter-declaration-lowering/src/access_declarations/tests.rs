@@ -5,6 +5,7 @@ use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 mod body_expressions;
 mod module_contracts;
+mod module_header_normalization;
 mod module_scopes;
 mod module_sources;
 mod scoped_header_projection;

@@ -110,7 +110,7 @@ impl CodeSource {
             header.body,
         )
     }
-    fn expression(body: NodeId) -> Self {
+    pub(in crate::access_declarations) fn expression(body: NodeId) -> Self {
         Self {
             kind: CodeSourceKind::Expression(body),
         }

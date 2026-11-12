@@ -1,6 +1,6 @@
 //! Bind syntax header references through the declaration-owned construction namespace.
 use super::{
-    DataTypeSyntax, Failure, ValueTypeSyntax,
+    CodeSource, DataTypeSyntax, Failure, ValueTypeSyntax,
     headers::{Header, RecordHeader},
     source::Sources,
     text,
@@ -86,6 +86,7 @@ pub(super) fn define<'v>(
                 scope,
                 id,
                 functions.get(&id).ok_or(Failure::InconsistentSyntax)?,
+                sources.codes.get(&id).ok_or(Failure::InconsistentSyntax)?,
                 sources,
                 values,
             )?;
@@ -124,6 +125,7 @@ pub(super) fn project_code<'v>(
     scope: HeaderScope<'_>,
     id: AccessCodeId,
     header: &Recipe,
+    source: &CodeSource,
     sources: &Sources,
     values: &mut dyn FnMut(AccessCodeId) -> Option<&'v FrozenData>,
 ) -> Result<Projection<CodeDefinition>, Failure> {
@@ -135,7 +137,7 @@ pub(super) fn project_code<'v>(
         violations: Vec::new(),
         missing: Vec::new(),
     };
-    let definition = definitions.function(id, header)?;
+    let definition = definitions.function(id, header, source)?;
     Ok(Projection {
         definition,
         progress: Progress {
@@ -327,7 +329,19 @@ impl Definitions<'_, '_, '_> {
         &mut self,
         id: AccessCodeId,
         header: &Recipe,
+        source: &CodeSource,
     ) -> Result<Option<CodeDefinition>, Failure> {
+        self.symbol(source.name().ok_or(Failure::InconsistentSyntax)?)?;
+        let names = source
+            .parameters()
+            .iter()
+            .map(|token| self.symbol(*token))
+            .collect::<Result<Vec<_>, _>>()?;
+        self.violations.extend(
+            self.program
+                .parameter_name_violations_in(self.scope.lookup, id, names.iter().copied())
+                .map_err(|_| Failure::InconsistentSyntax)?,
+        );
         let mut parameters = Vec::new();
         let mut complete = true;
         for (index, (operation, parameter)) in header.parameters.iter().enumerate() {
@@ -336,14 +350,7 @@ impl Definitions<'_, '_, '_> {
             let data = self.value(parameter, owner, position)?;
             if let Some(data) = data {
                 parameters.push(ParameterDefinition {
-                    name: self.symbol(
-                        *self
-                            .sources
-                            .codes
-                            .get(&id)
-                            .and_then(|s| s.parameters().get(index))
-                            .ok_or(Failure::InconsistentSyntax)?,
-                    )?,
+                    name: *names.get(index).ok_or(Failure::InconsistentSyntax)?,
                     data,
                     operation: *operation,
                 });

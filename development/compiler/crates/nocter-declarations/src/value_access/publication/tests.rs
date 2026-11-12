@@ -173,6 +173,10 @@ fn callable_contracts_close_record_data_in_nested_callback_slots() {
         )
         .unwrap();
     let mut headers = builder.into_publication();
+    assert_eq!(
+        headers.advance(run).unwrap(),
+        HeaderStep::Require(Box::new([record.into()]))
+    );
     headers.publish(run).unwrap();
     let program = headers.snapshot();
     assert!(program.headers_complete());

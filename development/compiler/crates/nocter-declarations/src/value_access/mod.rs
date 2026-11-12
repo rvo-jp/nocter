@@ -234,6 +234,35 @@ pub struct Program {
 }
 
 impl Program {
+    /// Validate names in one physical header scope without publishing typed inputs.
+    /// # Errors
+    /// Rejects an unknown scope or named declaration identity.
+    pub fn parameter_name_violations_in(
+        &self,
+        scope: ScopeId,
+        code: AccessCodeId,
+        names: impl IntoIterator<Item = Symbol>,
+    ) -> Result<Vec<DeclarationViolation>, DefinitionError> {
+        if !self.has_scope(scope)
+            || !self
+                .namespace
+                .declarations()
+                .any(|id| id == DeclarationId::Code(code))
+        {
+            return Err(DefinitionError::UnknownId);
+        }
+        let mut violations = Vec::new();
+        validate_parameter_names(
+            &self.symbols,
+            &self.namespace,
+            scope,
+            code,
+            names,
+            &mut violations,
+        );
+        Ok(violations)
+    }
+
     #[must_use]
     pub const fn headers_complete(&self) -> bool {
         self.codes.is_complete()
@@ -511,6 +540,27 @@ impl Reservations {
         &mut self,
         source: TypeExpressionSource,
     ) -> Result<AccessCodeId, DefinitionError> {
+        let scope = match source.declaration {
+            DeclarationId::Code(id) => self.codes.get(id).ok_or(DefinitionError::UnknownId)?.scope,
+            DeclarationId::Record(id) => {
+                self.records.scope(id).ok_or(DefinitionError::UnknownId)?
+            }
+        };
+        self.reserve_type_expression_in(scope, source)
+    }
+
+    /// Reserve a physical header expression in its own lookup scope. Paired headers can share
+    /// their semantic owner while their count suppliers resolve through different source scopes.
+    /// # Errors
+    /// Rejects an unknown scope or non-type owner slot before allocating anonymous code.
+    pub fn reserve_type_expression_in(
+        &mut self,
+        scope: ScopeId,
+        source: TypeExpressionSource,
+    ) -> Result<AccessCodeId, DefinitionError> {
+        if !scope.within(self.scope_count) {
+            return Err(DefinitionError::UnknownId);
+        }
         let valid = match source.declaration {
             DeclarationId::Code(id) => self.codes.get(id).is_some_and(|code| {
                 code.name.is_some() && match source.position {
@@ -526,12 +576,6 @@ impl Reservations {
         if !valid {
             return Err(DefinitionError::UnknownId);
         }
-        let scope = match source.declaration {
-            DeclarationId::Code(id) => self.codes.get(id).ok_or(DefinitionError::UnknownId)?.scope,
-            DeclarationId::Record(id) => {
-                self.records.scope(id).ok_or(DefinitionError::UnknownId)?
-            }
-        };
         Ok(self.codes.insert(Reservation {
             scope,
             name: None,
@@ -732,36 +776,15 @@ fn validate_definition(
             rule: DeclarationRule::InvalidInitializerHeader,
         });
     }
-    let mut seen = BTreeMap::new();
+    validate_parameter_names(
+        symbols,
+        namespace,
+        reservation.scope,
+        id,
+        definition.parameters.iter().map(|parameter| parameter.name),
+        violations,
+    );
     for (position, parameter) in definition.parameters.iter().enumerate() {
-        let rule = match symbols.spelling(parameter.name) {
-            None => Some(DeclarationRule::UnknownSymbol),
-            Some(name) if BuiltinType::from_spelling(name).is_some() => {
-                Some(DeclarationRule::ReservedBuiltinName)
-            }
-            Some(_) => {
-                if let Some(&first) = seen.get(&parameter.name) {
-                    Some(DeclarationRule::DuplicateParameter { first })
-                } else {
-                    seen.insert(parameter.name, position);
-                    namespace
-                        .get(reservation.scope, Namespace::Value, parameter.name)
-                        .map(|declaration| match declaration {
-                            DeclarationId::Code(declaration) => {
-                                DeclarationRule::ParameterShadowsValue { declaration }
-                            }
-                            DeclarationId::Record(_) => unreachable!("value namespace"),
-                        })
-                }
-            }
-        };
-        if let Some(rule) = rule {
-            violations.push(DeclarationViolation {
-                declaration: DeclarationId::Code(id),
-                position: HeaderPosition::Parameter(position),
-                rule,
-            });
-        }
         validate_value(
             id,
             HeaderPosition::Parameter(position),
@@ -777,6 +800,47 @@ fn validate_definition(
         records,
         violations,
     );
+}
+
+fn validate_parameter_names(
+    symbols: &SymbolTable,
+    namespace: &namespace::Names,
+    scope: ScopeId,
+    id: AccessCodeId,
+    names: impl IntoIterator<Item = Symbol>,
+    violations: &mut Vec<DeclarationViolation>,
+) {
+    let mut seen = BTreeMap::new();
+    for (position, name) in names.into_iter().enumerate() {
+        let rule = match symbols.spelling(name) {
+            None => Some(DeclarationRule::UnknownSymbol),
+            Some(name) if BuiltinType::from_spelling(name).is_some() => {
+                Some(DeclarationRule::ReservedBuiltinName)
+            }
+            Some(_) => {
+                if let Some(&first) = seen.get(&name) {
+                    Some(DeclarationRule::DuplicateParameter { first })
+                } else {
+                    seen.insert(name, position);
+                    namespace.get(scope, Namespace::Value, name).map(
+                        |declaration| match declaration {
+                            DeclarationId::Code(declaration) => {
+                                DeclarationRule::ParameterShadowsValue { declaration }
+                            }
+                            DeclarationId::Record(_) => unreachable!("value namespace"),
+                        },
+                    )
+                }
+            }
+        };
+        if let Some(rule) = rule {
+            violations.push(DeclarationViolation {
+                declaration: DeclarationId::Code(id),
+                position: HeaderPosition::Parameter(position),
+                rule,
+            });
+        }
+    }
 }
 
 fn validate_value(
