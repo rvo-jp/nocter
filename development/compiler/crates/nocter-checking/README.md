@@ -1116,6 +1116,9 @@ followed iteratively with cycle rejection. Replacement additionally checks the o
 referent's cleanup type. Exact owned-closure cleanup follows its declaration-owned
 environment schema recursively, including aggregate payloads. Destruction releases that environment
 without invoking the captured body; body invocation effects do not become destruction effects.
+Optional cleanup checks its payload; fallible cleanup checks both the success payload and the
+builtin error contract. A currently selected tag cannot certify an otherwise unknown cleanup.
+Caller-write evidence grants no constant-evaluation capability or error-graph evaluator operation.
 The shared lexical scope supplies captured bodies to that same solver. An edited environment has
 its own input root; a consuming body owns its received environment instead. Closure environments
 also participate in cleanup eligibility, including read/edit bodies driven through taking adapters.

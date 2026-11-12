@@ -23,7 +23,7 @@ qualified native error construction to required data and broader cleanup. Preser
 selection, ordinary acquisition/return/handler cleanup, and scoped projections without hidden
 error extraction. Qualify required/native source and negative cases through the shared pipeline;
 metadata-only failure layouts or inactive branches do not establish actual error-graph cleanup.
-Continue with required error-data evaluation and general executed cleanup;
+Continue with outcome evaluation within the adopted const domain and general executed cleanup;
 the [implemented scope](compiler/crates/nocter-checking/README.md#outcome-values) owns the evidence
 boundary rather than treating source admission as executed error cleanup.
 Extend trusted standard primitive construction through the shared path. Do not authorize
@@ -34,6 +34,9 @@ Extend actual owned-error graph cleanup beyond the bounded native construction c
 retained-array selections, nested cleanup and adapter cases below. Preserve actual absent bodies
 and explicit physical address channels. Required closures must retain ordinary
 runtime-call rejection rather than searching for an absent primitive source body.
+Runtime primitive construction and live error-graph destruction remain outside the adopted
+evaluator domain. Qualify eligible inactive failure payloads without inventing an error value
+or an implicit evaluator implementation for a runtime primitive.
 
 ## Retained Selection Closure
 
@@ -77,7 +80,7 @@ not a language restriction derived from the current realization boundary.
   interfaces/generics/witnesses, constant arguments and symbolic conditions,
   exports and conditional const admission. Follow the [realization obligations](design/compiler-realization.md)
   and owning specifications, with ordinary source evidence for safe and unsafe cases.
-- [ ] Close required outcome/error construction, general source-level record/capture destruction,
+- [ ] Close required outcome construction within the adopted const domain, general source-level record/capture destruction,
   cleanup for remaining adapter forms, and absence of repeated body-owned destruction.
   Extend the [common native path](architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
   with actual effects while preserving frozen channels, backing and cleanup timing.
@@ -103,8 +106,6 @@ not a language restriction derived from the current realization boundary.
 
 ## Open Findings
 
-- [ ] Close caller-write cleanup evidence for fallible schemas. Owned outcomes currently stay
-  unknown even when their success payload and builtin error cleanup are separately qualified.
 - [ ] Investigate the unclassified status-1 failure of the released native test
   `network_and_tls::public_tls_and_https_reject_plain_peers_and_https_advertises_http1`.
   It is not consistently reproducible. Native exit assertions identify the sync/async image,

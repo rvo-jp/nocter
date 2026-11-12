@@ -150,6 +150,17 @@ func restored_prefix(input: usize, flag: bool): i32 {
     }
     if input == 0 { total - 20 } else { total - 18 }
 }
+func fallible_build(value: i32, fail: bool): Item! {
+    if fail { throw context_error(create_failure("replacement", "failed"), "context") }
+    build(value)
+}
+func restored_outcome(input: usize, fail: bool): i32! {
+    var items = [build(40), build(2)]
+    let old = items[input]^
+    items[input] = fallible_build(old.value, fail)?
+    let complete = items^
+    complete[0].value + complete[1].value
+}
 func run(): i32 {
     let prefix_checks = prefix_take() == 42 && prefix_read() == 42 && cancellation(false) == 42 && cancellation(true) == 40
     let field_checks = fields(0, 0) == 42 && fields(0, 1) == 42 && fields(1, 0) == 42 && fields(1, 1) == 42
@@ -161,5 +172,10 @@ func run(): i32 {
     let backedges = restore_repeated(0) == 42 && restore_repeated(1) == 42 && replace_loop() == 42
     let branches = restore_branches(0, true) == 42 && restore_branches(1, true) == 42 && restore_branches(0, false) == 42 && restore_branches(1, false) == 42
     let epochs = restored_prefix(0, true) == 42 && restored_prefix(1, true) == 42 && restored_prefix(0, false) == 42 && restored_prefix(1, false) == 42
-    if prefix_checks && field_checks && early_checks && late_checks && first_mixed && last_mixed && restored && backedges && branches && epochs { 42 } else { 0 }
+    let normal_first = restored_outcome(0, false) catch _ { 0 }
+    let normal_last = restored_outcome(1, false) catch _ { 0 }
+    let failed_first = restored_outcome(0, true) catch _ { 42 }
+    let failed_last = restored_outcome(1, true) catch _ { 42 }
+    let outcome_checks = normal_first == 42 && normal_last == 42 && failed_first == 42 && failed_last == 42
+    if prefix_checks && field_checks && early_checks && late_checks && first_mixed && last_mixed && restored && backedges && branches && epochs && outcome_checks { 42 } else { 0 }
 }

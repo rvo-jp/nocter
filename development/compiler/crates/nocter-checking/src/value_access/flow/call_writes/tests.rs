@@ -80,6 +80,29 @@ fn code(controls: &[Control], name: &str) -> AccessCodeId {
 }
 
 #[test]
+fn fallible_cleanup_closes_both_variants_without_certifying_an_unbound_environment() {
+    let controls = controls(
+        "func maybe(): i32! { 42 }\nfunc wrap(take callback: func(): void): i32! { 42 }\nfunc idle(): void {}\nfunc run(): void { let first = wrap(idle)\nlet second = maybe() }",
+    );
+    let catalog = Catalog::prepare(&controls).unwrap();
+    for name in ["maybe", "run"] {
+        assert_eq!(
+            catalog.summaries[&Request::unbound(code(&controls, name).into())],
+            Writes::Known(BTreeSet::new())
+        );
+    }
+    let wrap = ValueCode::Declaration(code(&controls, "wrap"));
+    assert_eq!(catalog.summaries[&Request::unbound(wrap)], Writes::Unknown);
+    let bound: Vec<_> = catalog
+        .summaries
+        .iter()
+        .filter(|(request, _)| request.code == wrap && !request.bindings.is_empty())
+        .collect();
+    assert_eq!(bound.len(), 1);
+    assert_eq!(bound[0].1, &Writes::Known(BTreeSet::new()));
+}
+
+#[test]
 fn captured_code_summaries_separate_retained_environments_and_explicit_inputs() {
     let controls = controls(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

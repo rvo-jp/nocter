@@ -260,6 +260,15 @@ fn closed_cleanup(
                     .and_then(nocter_model::BuiltinNumericType::integer_bounds)
                     .is_some() => {}
             Some(PayloadSchema::Optional(payload)) => pending.push(payload),
+            Some(PayloadSchema::Fallible(payload)) => {
+                pending.push(payload);
+                pending.push(
+                    typed
+                        .program()
+                        .data_type(BuiltinType::Error)
+                        .ok_or(INVALID)?,
+                );
+            }
             Some(PayloadSchema::Aggregate(schema)) => {
                 pending.extend(schema.components().map(|field| field.data));
             }

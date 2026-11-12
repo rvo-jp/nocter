@@ -345,6 +345,11 @@ containing array on each backedge, and start a fresh prefix after conditional re
 replacement producer may construct an error snapshot without destroying the caller's saved-index
 facts; checking supplies the separately qualified caller-write evidence. A wrapper's actual index
 write still rejects an unsafe restoration.
+Fallible replacement producers execute both success and failure with owned record payloads.
+Failure propagation precedes destination receipt and releases the remaining partial array and
+the previously extracted owner; outer recovery releases the propagated error graph. The common
+ABI carries both the indirect record outcome and direct integer outcome without reading inactive
+payload backing.
 
 These are bounded executed effects. Remaining adapter forms still need their own actual graph qualification. General user destructors
 and required-evaluator error graphs remain separate domains. Large-cardinality helper/image tests
