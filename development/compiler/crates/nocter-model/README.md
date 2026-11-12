@@ -2,7 +2,7 @@
 
 ## Responsibility
 
-Own dependency-light semantic identity domains, package/target identities, symbols, structural type
+Own dependency-light semantic identity domains, package/module/target identities, symbols, structural type
 keys, immutable type snapshots, and type-construction authority.
 
 ## Contract
@@ -24,7 +24,10 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
   source typing, evaluation, nominal identity and layout remain
   outside this representation
 - dependency-light capability-evidence identities owned by checking authorities
-- deterministic symbols and package identities
+- deterministic symbols and exact package/module identities; module identity contains no source
+  tree or filesystem lookup. Source-independent module audiences own inclusion/intersection over
+  exact packages and module descendants; source lowering normalizes authored paths and applies
+  those facts to declarations
 - structural type interning and projections
 - one builtin numeric profile and its mathematical integer bounds, independent of host word size
 - one source-visible index-check disposition, reexported by checking, MIR and Machine rather than

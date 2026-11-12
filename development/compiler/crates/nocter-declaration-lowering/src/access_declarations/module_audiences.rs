@@ -4,52 +4,11 @@ use super::Failure;
 use crate::{DeclarationSurface, SurfaceDeclarationId};
 use nocter_compile_input::{ModuleIdentity, ModuleSourceKind};
 use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic};
-use nocter_model::PackageIdentity;
+pub use nocter_model::ModuleAudience;
 use nocter_source_index::SourceOrigin;
 use nocter_syntax::{BoundSyntax, NodeId, NodeKind, direct_node};
 use std::collections::BTreeMap;
 
-/// A normalized outward audience, not permission to see a private physical source.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ModuleAudience {
-    Public,
-    Package(PackageIdentity),
-    Descendants(ModuleIdentity),
-}
-impl ModuleAudience {
-    #[must_use]
-    pub fn contains(&self, caller: &ModuleIdentity) -> bool {
-        match self {
-            Self::Public => true,
-            Self::Package(package) => caller.package() == package,
-            Self::Descendants(boundary) => {
-                caller.package() == boundary.package() && caller.path().starts_with(boundary.path())
-            }
-        }
-    }
-    #[must_use]
-    pub fn is_within(&self, target: &Self) -> bool {
-        match (self, target) {
-            (_, Self::Public) => true,
-            (Self::Public, _) => false,
-            (Self::Package(a), Self::Package(b)) => a == b,
-            (Self::Descendants(a), Self::Package(b)) => a.package() == b,
-            (Self::Package(a), Self::Descendants(b)) => b.path().is_empty() && a == b.package(),
-            (Self::Descendants(a), Self::Descendants(b)) => {
-                a.package() == b.package() && a.path().starts_with(b.path())
-            }
-        }
-    }
-    fn intersection(self, owner: &Self) -> Option<Self> {
-        if self.is_within(owner) {
-            Some(self)
-        } else if owner.is_within(&self) {
-            Some(owner.clone())
-        } else {
-            None
-        }
-    }
-}
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum VisibilityRule {
     InvalidPath,

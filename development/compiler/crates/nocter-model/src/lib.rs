@@ -17,6 +17,7 @@ pub use frozen_data::{FrozenData, FrozenNode, InvalidFrozenData};
 mod construction_identity;
 mod field_path;
 mod id;
+mod module;
 mod numeric;
 mod origin;
 mod package;
@@ -47,6 +48,7 @@ pub use id::{
     NominalTypeId, OpaqueTypeId, PackageId, PackageTargetId, ParameterId, PlaceId, RequirementId,
     StaticId, TestId, TypeAliasId, TypeId, VariantId,
 };
+pub use module::{ModuleAudience, ModuleIdentity};
 pub use numeric::{BuiltinNumericType, lossless_builtin_numeric_conversion};
 pub use origin::{
     DuplicateOrigin, InputProvenance, InputProvenanceConstraint, InvalidInputProvenance,

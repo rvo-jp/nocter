@@ -177,8 +177,8 @@ with their exact nodes rather than being dropped from an apparently closed scope
 writer. Complete representations determine field count and order, while selected public fields map
 to their corresponding reserved slots. Parameter/field slot queries grant no typed metadata;
 namespace conflicts use the shared header diagnostic projector over the actual owning trees.
-`ModuleSources` normalizes root-authored declaration and re-export audiences independently of
-local lookup. Members intersect their owner's audience. Paths select exact package/module
+`ModuleSources` normalizes authored paths into model-owned `ModuleAudience` facts for root
+declarations and re-exports independently of local lookup. Members intersect their owner's audience. Paths select exact package/module
 boundaries; implementation location cannot alter them. Non-root visibility directives reject.
 `ModuleSourceBinding::exports` enumerates only authored top-level root contracts with semantic
 identities and effective audiences, never helpers made visible by `see`; this inventory alone

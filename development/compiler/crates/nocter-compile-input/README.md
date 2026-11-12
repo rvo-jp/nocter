@@ -10,8 +10,9 @@ target validation.
 The crate packages reached sources and syntax trees, package/module identity, dependency edges,
 selected target facts, toolchain declaration locators, and runtime contract input into immutable
 values. Primitive, trusted target-service, and runtime-storage locators name exact declarations but
-contain no resolved semantic identity. The crate does not discover files or perform semantic
-lowering.
+contain no resolved declaration/type IDs. Exact package/module identities come from `nocter-model`;
+this crate re-exports module identity without owning another definition. It does not discover
+files or perform semantic lowering.
 
 ## Invariants
 

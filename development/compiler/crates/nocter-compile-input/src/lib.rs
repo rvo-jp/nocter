@@ -13,10 +13,9 @@ use nocter_toolchain_contract::{StandardDeclarationRole, StructuralAttachment};
 use std::sync::Arc;
 
 mod dependency;
-mod identity;
 
 pub use dependency::{SourceVisibilityResolutionInput, UseResolutionInput};
-pub use identity::ModuleIdentity;
+pub use nocter_model::ModuleIdentity;
 pub use nocter_syntax::is_valid_module_segment;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
