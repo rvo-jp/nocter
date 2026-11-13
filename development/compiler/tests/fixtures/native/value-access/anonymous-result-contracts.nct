@@ -1,0 +1,57 @@
+struct Item { value: i32 }
+const func identity(value: i32): i32 { value }
+const func selected(): func(i32): i32 { identity }
+const func calculate(): i32 {
+    let explicit = (): func(i32): i32 { identity }
+    let expected: func(): func(i32): i32 = () { (value) { value } }
+    let mutable: func(): mut(i32): i32 = () { (value) { value } }
+    let consuming = (): once(i32): i32 { return identity }
+    let early = (flag: bool): mut(i32): i32 {
+        if flag { return identity }
+        identity
+    }
+    let deep: func(): func(): func(i32): i32 = () { () { (value) { value } } }
+    let saved = 2
+    let captures = (saved;): func(i32): i32 { (saved; value) { value + saved } }
+    let taking = (): func(take Item): i32 { (value) { value.value } }
+    let optional = (): func(i32?): i32? { (value) { value? } }
+    let convergent = (flag: bool): func(i32): i32 {
+        if flag { return selected() }
+        selected()
+    }
+    let tuples = (flag: bool) {
+        if flag { return (selected(), 42) }
+        (selected(), 42)
+    }
+    let first = explicit()
+    let second = expected()
+    var edited = mutable()
+    let once = consuming()
+    var branch = early(true)
+    let with_capture = captures()
+    let take_item = taking()
+    let item = Item { value: 42 }
+    let maybe = optional()
+    let common = convergent(true)
+    let common_again = convergent(false)
+    let bundle = tuples(true)
+    let other_bundle = tuples(false)
+    if first(42) == 42 && second(42) == 42 && edited(42) == 42 && once^(42) == 42 && branch(42) == 42 && deep()()(42) == 42 && with_capture(40) == 42 && take_item(item^) == 42 && maybe(42)! == 42 && common(42) == 42 && common_again(42) == 42 && bundle.0(42) == 42 && other_bundle.0(42) == 42 { 42 } else { 0 }
+}
+func choose(take action: func(i32): i32): func(i32): i32 { action^ }
+func interrupted(): i32 {
+    let maker = (flag: bool) {
+        if flag { return choose(if true { loop {} } else { loop {} }) }
+        identity
+    }
+    let value = maker(false)
+    value(42)
+}
+func apply(action: func(i32): i32, value: i32): i32 { action(value) }
+func higher_order(): i32 {
+    let make = (): func(func(i32): i32, i32): i32 { apply }
+    let invoke = make()
+    invoke(identity, 42)
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { if ANSWER == 42 && calculate() == 42 && interrupted() == 42 && higher_order() == 42 { 42 } else { 0 } }

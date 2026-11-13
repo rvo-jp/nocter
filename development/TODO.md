@@ -18,13 +18,12 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Close adopted explicit and expected callable result constraints for anonymous implementations
-through the same recursive annotation model and source checker. Supply available input/result
-context without inventing concrete witness identities; check each returned value through ordinary
-value supply and invocation adaptation, then publish its established result data. Preserve one
-canonical result solver, original code/environment identity and local diagnostics through required
-and native execution. General formal-input witness introduction, carrier representation and
-external dependency obligations remain open under the finding below.
+Centralize frozen callable-view substitution and call-environment decoding shared by effect
+analysis and native instance selection. Preserve one-step formal binding, selected invocation
+restrictions, explicit direct/value call roles, conservative unknown effects for unbound witnesses
+and rejection of unbound executable instances. Reuse declaration/model facts rather than another
+binding authority, target search or body retyping. Qualify the shared source/instance paths and
+failure guards before extending general anonymous formal-input or evaluator substitution scopes.
 Keep module discovery, the remaining toolchain role families and ordinary compiler/editor integration
 open until their contracts and production paths are qualified. Keep the retained-selection work
 below open; bounded module/native execution does not close general hole relations or externally

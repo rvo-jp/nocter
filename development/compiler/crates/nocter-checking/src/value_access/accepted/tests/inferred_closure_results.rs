@@ -73,6 +73,90 @@ fn inferred_callable_results_preserve_named_captured_and_application_witnesses()
 }
 
 #[test]
+fn explicit_and_expected_anonymous_callable_results_share_checked_value_supply_and_views() {
+    let unit = accepted(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/anonymous-result-contracts.nct"
+    )));
+    let answer = unit
+        .program()
+        .resolve_code(unit.program().symbols().get("ANSWER").unwrap())
+        .unwrap();
+    assert_eq!(
+        unit.constant_value(answer).unwrap().node(),
+        &FrozenNode::Scalar(ConstantValue::Integer(42))
+    );
+}
+
+#[test]
+fn anonymous_callable_result_constraints_keep_data_operations_and_actual_invocation_limits() {
+    for body in [
+        "let make = (): func(usize): i32 { identity }",
+        "let make: func(): i32 = (): func(i32): i32 { identity }",
+        "let make: func(): func(bool): i32 = () { (value: i32) { value } }",
+        "let make = (): func(take Item): i32 { (edit value: Item) { value.value } }",
+        "let make = (item^;): func(): Item { (item^;) { item^ } }",
+    ] {
+        let source = format!(
+            "struct Item {{ value: i32 }}\nfunc identity(value: i32): i32 {{ value }}\nfunc run(take item: Item): void {{ {body} }}"
+        );
+        let (sources, tree) = input(&source);
+        assert!(
+            matches!(SourceUnit::prepare(bound(&sources, &tree)), Err(SourceFailure::Checking(Failure::Body { failure: BodyFailure::Rejected(diagnostic), .. })) if diagnostic.rule() == Rule::TypeMismatch),
+            "{source}"
+        );
+    }
+    let source = "func run(): void { let make = (): func(): i32 { loop {} } }";
+    let (sources, tree) = input(source);
+    assert!(
+        matches!(SourceUnit::prepare(bound(&sources, &tree)), Err(SourceFailure::Checking(Failure::Body { failure: BodyFailure::Rejected(diagnostic), .. })) if diagnostic.rule() == Rule::UnknownType && diagnostic.source().message().contains("signature alone"))
+    );
+}
+
+#[test]
+fn anonymous_result_application_equalities_reject_distinct_code_at_the_real_return_value() {
+    let source = "func left(value: i32): i32 { value }\nfunc right(value: i32): i32 { value + 1 }\nfunc first(): func(i32): i32 { left }\nfunc second(): func(i32): i32 { right }\nfunc run(): void { let make = (flag: bool): func(i32): i32 { if flag { return first() }\nsecond() } }";
+    let (sources, tree) = input(source);
+    let Err(SourceFailure::Checking(Failure::Body {
+        failure: BodyFailure::Rejected(diagnostic),
+        ..
+    })) = SourceUnit::prepare(bound(&sources, &tree))
+    else {
+        panic!("distinct result witnesses");
+    };
+    assert_eq!(diagnostic.rule(), Rule::TypeMismatch);
+    let range = diagnostic.source().primary().span().range();
+    assert_eq!(
+        &source[range.start().get() as usize..range.end().get() as usize],
+        "second()"
+    );
+}
+
+#[test]
+fn a_known_interrupted_return_shape_remains_available_without_claiming_a_returned_value() {
+    let unit = accepted(
+        "func scalar(value: i32): i32 { value }\nfunc run(): void { let action = () { return scalar(if true { loop {} } else { loop {} }) } }",
+    );
+    assert_eq!(unit.closures().len(), 1);
+    let (&id, body) = unit.closures().iter().next().unwrap();
+    assert_eq!(
+        unit.program()
+            .data_kind(unit.program().closure(id).unwrap().contract().result),
+        Some(BuiltinType::I32)
+    );
+    assert!(
+        !body
+            .typed()
+            .body()
+            .blocks()
+            .get(body.typed().body().root())
+            .unwrap()
+            .ty
+            .may_complete()
+    );
+}
+
+#[test]
 fn runtime_callable_transport_closes_without_a_required_initializer() {
     accepted(
         "func identity(value: i32): i32 { value }\nfunc selected(): func(i32): i32 { identity }\nfunc run(): i32 { let make = () { selected() }\nlet value = make()\nvalue(42) }",
@@ -139,6 +223,11 @@ fn returning_a_callable_does_not_manufacture_const_invocation_capability() {
 fn inferred_returns_require_consistent_data_and_never_change_input_operations_or_repair_later() {
     for (body, rule, reason) in [
         (
+            "let action = (flag: bool) { if flag { return scalar(if true { loop {} } else { loop {} }) }\ntrue }",
+            Rule::TypeMismatch,
+            "returns include",
+        ),
+        (
             "let action = (value: i32) { if value == 0 { return true }\n42 }",
             Rule::TypeMismatch,
             "returns include",
@@ -169,7 +258,9 @@ fn inferred_returns_require_consistent_data_and_never_change_input_operations_or
             "mutable",
         ),
     ] {
-        let source = format!("struct Item {{ value: i32 }}\nfunc run(): void {{ {body} }}");
+        let source = format!(
+            "struct Item {{ value: i32 }}\nfunc scalar(value: i32): i32 {{ value }}\nfunc run(): void {{ {body} }}"
+        );
         let (sources, tree) = input(&source);
         let Err(SourceFailure::Checking(Failure::Body {
             failure: BodyFailure::Rejected(diagnostic),

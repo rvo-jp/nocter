@@ -4,7 +4,9 @@ use super::ir::{
     value_type,
 };
 use super::{Failure, Rule, annotations::Annotation, checker::Checker};
-use nocter_declarations::value_access::{FunctionConstraint, FunctionInput};
+use nocter_declarations::value_access::{
+    FunctionConstraint, FunctionDataPattern, FunctionInput, FunctionPattern,
+};
 use nocter_model::{
     AccessLocalId, ValueAccessMode, ValueBindingKind, ValueInputOperation, ValueInvocation,
 };
@@ -16,7 +18,7 @@ impl Checker<'_, '_> {
     pub fn closure(
         &mut self,
         node: NodeId,
-        expected: Option<&FunctionConstraint>,
+        expected: Option<&FunctionPattern>,
         _reachable: bool,
     ) -> Result<nocter_model::AccessExpressionId, Failure> {
         let head = self.direct(node, NodeKind::ClosureHead)?;
@@ -54,9 +56,16 @@ impl Checker<'_, '_> {
         nested.bind_captures(&capture_names, environment)?;
         let parameters = self.direct(head, NodeKind::ClosureParameters)?;
         let inputs = nested.closure_inputs(parameters, expected)?;
-        let root = nested.block(
+        let boundary = nested
+            .result
+            .as_ref()
+            .and_then(Annotation::data)
+            .map(Boundary::Result);
+        let hint = nested.result_hint()?;
+        let root = nested.block_with_hint(
             self.direct(node, NodeKind::Block)?,
-            result.map(Boundary::Result),
+            boundary,
+            hint.as_ref(),
             true,
         )?;
         let result = nested.close_closure_result(node, root)?;
@@ -196,15 +205,14 @@ impl Checker<'_, '_> {
     fn closure_result(
         &mut self,
         node: NodeId,
-        expected: Option<&FunctionConstraint>,
-    ) -> Result<Option<nocter_model::TypeId>, Failure> {
+        expected: Option<&FunctionPattern>,
+    ) -> Result<Option<Annotation>, Failure> {
         let result = if let Ok(result_node) = self.direct(node, NodeKind::ClosureResult) {
-            let Annotation::Data(result) =
-                self.annotation(self.direct(result_node, NodeKind::Type)?)?
-            else {
-                return self.reject(Rule::UnknownType, result_node);
-            };
-            if expected.is_some_and(|contract| contract.result != result) {
+            let result = self.annotation(self.direct(result_node, NodeKind::Type)?)?;
+            if let (Some(actual), Some(FunctionDataPattern::Data(expected))) =
+                (result.data(), expected.map(|contract| &contract.result))
+                && actual != *expected
+            {
                 return self.reject_message(
                     Rule::TypeMismatch,
                     result_node,
@@ -214,14 +222,44 @@ impl Checker<'_, '_> {
             }
             Some(result)
         } else {
-            expected.map(|contract| contract.result)
+            expected.map(|contract| match &contract.result {
+                FunctionDataPattern::Data(data) => Annotation::Data(*data),
+                FunctionDataPattern::Function(pattern) => Annotation::Function((**pattern).clone()),
+            })
         };
         Ok(result)
+    }
+    fn selected_closure_input(
+        &self,
+        expected: Option<&FunctionPattern>,
+        index: usize,
+        parameter: NodeId,
+    ) -> Result<Option<FunctionInput>, Failure> {
+        let Some(input) = expected.map(|contract| &contract.inputs[index]) else {
+            return Ok(None);
+        };
+        let FunctionDataPattern::Data(data) = &input.data else {
+            return self.reject_message(Rule::UnknownType, parameter,
+                "a nested callable input signature needs a formal witness identity; this anonymous input scope cannot invent one".into(), Vec::new());
+        };
+        if matches!(
+            self.program().data_schema(*data),
+            Some(nocter_declarations::value_access::PayloadSchema::Function(
+                _
+            ))
+        ) {
+            return self.reject_message(Rule::UnknownType, parameter,
+                "this anonymous callable input needs formal witness publication beyond the current input model".into(), Vec::new());
+        }
+        Ok(Some(FunctionInput {
+            data: *data,
+            operation: input.operation,
+        }))
     }
     fn closure_inputs(
         &mut self,
         parameters: NodeId,
-        expected: Option<&FunctionConstraint>,
+        expected: Option<&FunctionPattern>,
     ) -> Result<Vec<FunctionInput>, Failure> {
         let mut inputs = Vec::new();
         let parameters_syntax = self.children(parameters);
@@ -234,7 +272,7 @@ impl Checker<'_, '_> {
             );
         }
         for (index, parameter) in parameters_syntax.into_iter().enumerate() {
-            let selected = expected.map(|contract| contract.inputs[index]);
+            let selected = self.selected_closure_input(expected, index, parameter)?;
             let token = self.token(parameter)?;
             let name = self.text(token)?.to_owned();
             if self.shadows_name(&name, token)? {

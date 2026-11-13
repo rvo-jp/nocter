@@ -679,6 +679,21 @@ fn private_inferred_callable_results_retain_code_and_owned_capture_transport() {
 }
 
 #[test]
+fn private_anonymous_callable_result_contracts_keep_context_and_invocation_adapters() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/anonymous-result-contracts.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "anonymous-result-contracts",
+        42,
+    );
+}
+
+#[test]
 fn private_direct_indexed_callables_keep_retirement_indices_and_snapshots() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

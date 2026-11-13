@@ -27,54 +27,11 @@ impl Checker<'_, '_> {
             .map(Some)
     }
     pub(in crate::value_access) fn defer_equal(&mut self, left: Ty, right: Ty) -> bool {
-        if left.mode() != right.mode() {
+        let Some(equalities) =
+            deferred_equalities(self.program(), left, right, self.expressions.next_id())
+        else {
             return false;
-        }
-        let mut pending = vec![(left.data(), right.data())];
-        let mut seen = std::collections::BTreeSet::new();
-        let mut equalities = Vec::new();
-        while let Some((left, right)) = pending.pop() {
-            if left == right || !seen.insert((left, right)) {
-                continue;
-            }
-            match (
-                self.program().data_schema(left),
-                self.program().data_schema(right),
-            ) {
-                (Some(PayloadSchema::Function(a)), Some(PayloadSchema::Function(b)))
-                    if (is_result(self.program(), left) || is_result(self.program(), right))
-                        && a.invocation == b.invocation
-                        && self.program().function_contract(a)
-                            == self.program().function_contract(b) =>
-                {
-                    equalities.push(Equality {
-                        left,
-                        right,
-                        origin: self.expressions.next_id(),
-                    });
-                }
-                (Some(PayloadSchema::Array(a)), Some(PayloadSchema::Array(b)))
-                    if a.length() == b.length() =>
-                {
-                    pending.push((a.element(), b.element()));
-                }
-                (Some(PayloadSchema::Aggregate(a)), Some(PayloadSchema::Aggregate(b))) => {
-                    use nocter_declarations::value_access::AggregateForm;
-                    let (AggregateForm::Tuple(a), AggregateForm::Tuple(b)) = (a.form(), b.form())
-                    else {
-                        return false;
-                    };
-                    if a.len() != b.len() {
-                        return false;
-                    }
-                    pending.extend(a.iter().copied().zip(b.iter().copied()));
-                }
-                _ => return false,
-            }
-        }
-        if equalities.is_empty() {
-            return false;
-        }
+        };
         self.equalities.extend(equalities);
         self.pending_results = true;
         true
@@ -126,4 +83,58 @@ impl Checker<'_, '_> {
         }
         Ok(Some(value))
     }
+}
+
+/// Prepare the existing witnessed-result obligations without mutating a typing frame.
+pub(in crate::value_access) fn deferred_equalities(
+    program: &nocter_declarations::value_access::Program,
+    left: Ty,
+    right: Ty,
+    origin: AccessExpressionId,
+) -> Option<Vec<Equality>> {
+    if left.mode() != right.mode() {
+        return None;
+    }
+    let mut pending = vec![(left.data(), right.data())];
+    let mut seen = std::collections::BTreeSet::new();
+    let mut equalities = Vec::new();
+    while let Some((left, right)) = pending.pop() {
+        if left == right || !seen.insert((left, right)) {
+            continue;
+        }
+        match (program.data_schema(left), program.data_schema(right)) {
+            (Some(PayloadSchema::Function(a)), Some(PayloadSchema::Function(b)))
+                if (is_result(program, left) || is_result(program, right))
+                    && a.invocation == b.invocation
+                    && program.function_contract(a) == program.function_contract(b) =>
+            {
+                equalities.push(Equality {
+                    left,
+                    right,
+                    origin,
+                });
+            }
+            (Some(PayloadSchema::Array(a)), Some(PayloadSchema::Array(b)))
+                if a.length() == b.length() =>
+            {
+                pending.push((a.element(), b.element()));
+            }
+            (Some(PayloadSchema::Aggregate(a)), Some(PayloadSchema::Aggregate(b))) => {
+                use nocter_declarations::value_access::AggregateForm;
+                let (AggregateForm::Tuple(a), AggregateForm::Tuple(b)) = (a.form(), b.form())
+                else {
+                    return None;
+                };
+                if a.len() != b.len() {
+                    return None;
+                }
+                pending.extend(a.iter().copied().zip(b.iter().copied()));
+            }
+            _ => return None,
+        }
+    }
+    if equalities.is_empty() {
+        return None;
+    }
+    Some(equalities)
 }

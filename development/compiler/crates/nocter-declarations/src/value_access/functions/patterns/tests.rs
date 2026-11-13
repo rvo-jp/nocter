@@ -42,7 +42,6 @@ fn structural_annotation_constraints_preserve_both_code_and_formal_data_identiti
     let data = |id| program.function_data(witness(id)).unwrap();
     let left_contract = program.function_contract(witness(left)).unwrap();
     let exact = FunctionPattern::exact(left_contract.clone());
-    assert_eq!(exact.resolved_contract(), Some(left_contract.clone()));
     assert_eq!(
         program.constrain_function_pattern(data(left), &exact),
         Ok(data(left))
@@ -62,7 +61,6 @@ fn structural_annotation_constraints_preserve_both_code_and_formal_data_identiti
     structural.inputs[0].data = FunctionDataPattern::Function(Box::new(FunctionPattern::exact(
         program.function_contract(formal).unwrap(),
     )));
-    assert!(structural.resolved_contract().is_none());
     let before = program.types.store().clone();
     for id in [left, right] {
         assert_eq!(

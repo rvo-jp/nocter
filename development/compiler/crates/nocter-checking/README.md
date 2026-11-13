@@ -284,8 +284,9 @@ constraints. They check an existing named/formal/result witness recursively, pre
 and ordinary formal bindings, and report the mismatching input/result path at the supplied value.
 Only the outer invocation can adapt; a nested signature cannot alter the operation or invocation
 contract declared by the selected function. Scoped aliases retain the ordinary adapter restriction.
-An anonymous implementation still needs actual input/result witness identities; a nested signature
-alone does not invent them. Callable data in unsupported carrier/header positions still rejects
+An anonymous implementation receives available data and result constraints directly; nested
+callable results close from the checked returned values. A nested input signature alone still
+does not introduce a formal witness identity. Callable data in unsupported carrier/header positions still rejects
 through the local/header diagnostic owner. Parsing a constant/static callable annotation does not
 grant final serialization or runtime initialization.
 
@@ -1119,15 +1120,22 @@ payload identity. Ordinary constraint matching and invocation adaptation still c
 before body checking. An unmarked anonymous input inherits the selected operation even when its body
 uses less authority. With no expected callable contract it remains read, and this bounded scope
 requires explicit parameter data. An omitted result can close from the closure's own checked
-returns and normal completion when their data identities agree. Each value first passes ordinary
+returns and normal completion when their data identities agree or the existing result solver
+proves their pending witnesses equal. Each value first passes ordinary
 owning supply; inference does not turn a read alias into ownership or omit a required transfer.
 `closures::results` consumes those existing typed operations and closes the one result slot before
 typed-body publication. An unresolved slot has no placeholder `TypeId`. Empty completion and an
 explicit empty return supply unit; a wholly diverging body with no result data needs an annotation.
 Conflicting data and result-dependent optional/failure operations without enough context report
 at the local source. Declared or expected results still supply ordinary contextual checking before
-the body. Later uses do not repair missing context. Named declaration operations remain their own
-contracts. Environment invocation is inferred separately from reached capture operations; an
+the body. Explicit callable result annotations and expected nested callable results use that same
+`Annotation`/`FunctionPattern` constraint model. It supplies inner anonymous input data and operations
+before checking each inner body, without selecting concrete returned code from the signature.
+Each explicit or block-final return passes ordinary value supply and any permitted invocation
+adapter. Only established result data replaces the construction-only constraint before publication.
+Known data results keep their existing contextual checking; general anonymous formal input witness
+introduction remains unqualified. Later uses do not repair missing context. Named declaration
+operations remain their own contracts. Environment invocation is inferred separately from reached capture operations; an
 expected view cannot grant a stronger invocation capability.
 
 The shared contextual-closure source qualifies annotation/call/result completion, nested conditional
@@ -1142,7 +1150,15 @@ existing named function, a nested owned closure or an application of a declared 
 The same canonical result projection closes pending leaves in the result contract; no extra
 producer table or signature-based erasure is introduced. Returned environments pass ordinary owning
 supply and cleanup. The shared inferred-callable-result source covers these paths in required and
-native execution. General parameter/formal-witness inference, outside-reference capture and symbolic
+native execution. The shared anonymous-result-contract source additionally checks explicit/expected
+nested results, contextual take inputs, early returns and mut/once result adapters. Returning an
+existing higher-order named function retains its already declared formal inputs; the annotation
+does not introduce anonymous input witnesses. Distinct result
+applications with matching structure retain obligations in the existing witnessed-result solver;
+only proof of the actual common code can close them. Normally supplied results select the
+inferred identity before interrupted expressions. Known interrupted shapes still undergo contract
+checks and cannot claim a produced value; without a normal candidate their static shape remains
+available, independently of execution and witness-production evidence. General parameter/formal-witness inference, outside-reference capture and symbolic
 dependency contracts remain separate realization obligations.
 
 The environment's provisional construction authority permits demand collection, not accepted

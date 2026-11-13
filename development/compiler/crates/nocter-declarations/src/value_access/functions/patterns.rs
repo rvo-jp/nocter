@@ -42,28 +42,6 @@ impl FunctionPattern {
             result: FunctionDataPattern::Data(contract.result),
         }
     }
-    /// Contextual implementation requires actual data identities, not merely nested signatures.
-    #[must_use]
-    pub fn resolved_contract(&self) -> Option<FunctionConstraint> {
-        let data = |pattern: &FunctionDataPattern| match pattern {
-            FunctionDataPattern::Data(data) => Some(*data),
-            FunctionDataPattern::Function(_) => None,
-        };
-        Some(FunctionConstraint {
-            invocation: self.invocation,
-            inputs: self
-                .inputs
-                .iter()
-                .map(|input| {
-                    Some(FunctionInput {
-                        operation: input.operation,
-                        data: data(&input.data)?,
-                    })
-                })
-                .collect::<Option<_>>()?,
-            result: data(&self.result)?,
-        })
-    }
 }
 impl Program {
     /// Match a recursive annotation against one selected witness. Only its outer invocation can

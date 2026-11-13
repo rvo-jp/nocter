@@ -1,3 +1,4 @@
+use super::annotations::Annotation;
 use super::{
     BodyDiagnostic, Failure, Origins, Query, Rule, Site,
     ir::{
@@ -34,7 +35,7 @@ pub(super) struct Checker<'a, 's> {
     pub context: &'a DeclarationContext<'s>,
     pub values: &'a dyn super::evaluation::Values,
     pub source: nocter_declaration_lowering::access_declarations::BodySource,
-    pub result: Option<TypeId>,
+    pub result: Option<Annotation>,
     pub types: nocter_declarations::value_access::BodyTypes,
     pub pending_results: bool,
     pub equalities: Vec<super::results::Equality>,
@@ -78,7 +79,7 @@ pub(super) fn prepare(
     let body_source = context.body_source(callable)?;
     let mut checker = Checker::new(
         context,
-        Some(declaration.result()),
+        Some(Annotation::Data(declaration.result())),
         context
             .program()
             .body_types(callable)
@@ -129,22 +130,30 @@ pub(super) fn prepare(
 
 impl<'a, 's> Checker<'a, 's> {
     pub(super) fn known_result(&self, node: NodeId) -> Result<TypeId, Failure> {
-        self.result.map_or_else(|| self.reject_message(
+        self.result.as_ref().and_then(Annotation::data).map_or_else(|| self.reject_message(
             Rule::UnknownType, node,
             "this result-dependent operation needs an explicit optional/fallible closure result or an expected contract".into(), Vec::new(),
         ), Ok)
     }
+    pub(super) fn result_hint(&self) -> Result<Option<Annotation>, Failure> {
+        match &self.result {
+            Some(Annotation::Data(data)) => self.contextual_type(*data).map(Some),
+            other => Ok(other.clone()),
+        }
+    }
     pub(super) fn new(
         context: &'a DeclarationContext<'s>,
-        result: Option<TypeId>,
+        result: Option<Annotation>,
         types: nocter_declarations::value_access::BodyTypes,
         projection: Arc<BodySyntaxProjection>,
         source: nocter_declaration_lowering::access_declarations::BodySource,
         code: nocter_model::ValueCode,
         values: &'a dyn super::evaluation::Values,
     ) -> Self {
-        let pending_results =
-            result.is_some_and(|result| super::results::is_result(types.program(), result));
+        let pending_results = result
+            .as_ref()
+            .and_then(Annotation::data)
+            .is_some_and(|result| super::results::is_result(types.program(), result));
         Self {
             context,
             values,
@@ -181,6 +190,7 @@ impl<'a, 's> Checker<'a, 's> {
             source: self.source,
             result_data: self
                 .result
+                .and_then(|result| result.data())
                 .expect("result contract closed before typed body publication"),
             results_closed: !self.pending_results,
             result_evidence: None,

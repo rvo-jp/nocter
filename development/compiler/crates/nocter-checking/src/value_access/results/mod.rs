@@ -5,6 +5,7 @@ mod projection;
 mod relations;
 mod solve;
 mod typing;
+pub(super) use typing::deferred_equalities;
 mod unproduced;
 
 use super::{Failure, Query, accepted, flow};
@@ -19,7 +20,7 @@ use std::{collections::BTreeMap, sync::Arc};
 pub(super) struct Equality {
     pub(super) left: TypeId,
     pub(super) right: TypeId,
-    /// The boundary or conditional operation emits this reserved identity immediately next.
+    /// The owning typed operation used to project a source-local mismatch.
     origin: AccessExpressionId,
 }
 #[derive(Clone, Debug, Default)]
