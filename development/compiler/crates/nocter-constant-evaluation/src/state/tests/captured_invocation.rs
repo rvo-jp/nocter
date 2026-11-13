@@ -174,7 +174,7 @@ fn caller(target: nocter_model::ValueCode, offered: Op) -> Plan {
             before,
             Operation::Call {
                 destination,
-                target,
+                target: target.into(),
                 inputs: vec![match offered {
                     Op::Read => Input::Read(Place {
                         slot: source,
@@ -259,7 +259,10 @@ fn program(operation: Op, offered: Op) -> Result<Program, Rule> {
                 owner.into(),
                 caller(nocter_model::ValueCode::Closure(code), offered),
             ),
-            (nocter_model::ValueCode::Closure(code), body(operation)),
+            (
+                nocter_model::ValueCode::Closure(code).into(),
+                body(operation),
+            ),
         ]),
         BTreeMap::new(),
     )
@@ -311,7 +314,11 @@ fn weaker_handoffs_and_invalid_adapter_backing_reject_before_execution() {
     });
     for backing in [None, Some(0), Some(1), Some(2), Some(99)] {
         let mut valid = program(Op::Edit, Op::Take).unwrap();
-        valid.plans.get_mut(&code).unwrap().environment_backing = backing;
+        valid
+            .plans
+            .get_mut(&code.into())
+            .unwrap()
+            .environment_backing = backing;
         assert!(matches!(
             Program::new(valid.types, valid.plans, valid.statics),
             Err(Rule::InvalidPlan)

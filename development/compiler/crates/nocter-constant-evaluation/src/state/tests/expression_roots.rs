@@ -22,14 +22,14 @@ fn expression_value_domain_comes_from_the_validated_plan_not_its_code_identity()
     assert!(
         Program::new(
             [Type::Integer(nocter_model::BuiltinType::I32)],
-            BTreeMap::from([(root.code(), number(u64::MAX))]),
+            BTreeMap::from([(root.code().into(), number(u64::MAX))]),
             BTreeMap::new()
         )
         .is_err()
     );
     let program = Program::new(
         [Type::Integer(nocter_model::BuiltinType::Usize)],
-        BTreeMap::from([(root.code(), number(u64::MAX))]),
+        BTreeMap::from([(root.code().into(), number(u64::MAX))]),
         BTreeMap::new(),
     )
     .unwrap();
@@ -65,8 +65,8 @@ fn expression_roots_execute_independently_of_their_source_owner_and_siblings() {
         [Type::Integer(nocter_model::BuiltinType::I32)],
         BTreeMap::from([
             (owner.into(), number(3)),
-            (first.code(), number(42)),
-            (second.code(), number(7)),
+            (first.code().into(), number(42)),
+            (second.code().into(), number(7)),
         ]),
         BTreeMap::new(),
     )
@@ -83,7 +83,7 @@ fn expression_roots_execute_independently_of_their_source_owner_and_siblings() {
     assert_eq!(budget.storage_used(), 0);
     let without_parent = Program::new(
         [Type::Integer(nocter_model::BuiltinType::I32)],
-        BTreeMap::from([(first.code(), number(42))]),
+        BTreeMap::from([(first.code().into(), number(42))]),
         BTreeMap::new(),
     )
     .unwrap();
@@ -131,7 +131,10 @@ fn expression_failure_retains_its_root_and_real_helper_call_sites_without_a_pare
     };
     let program = Program::new(
         [Type::Integer(nocter_model::BuiltinType::I32)],
-        BTreeMap::from([(root.code(), call(helper)), (helper.into(), helper_plan)]),
+        BTreeMap::from([
+            (root.code().into(), call(helper)),
+            (helper.into(), helper_plan),
+        ]),
         BTreeMap::new(),
     )
     .unwrap();
@@ -159,7 +162,7 @@ fn expression_roots_are_required_initializers_and_never_declared_call_targets() 
     assert!(matches!(
         Program::new(
             [Type::Integer(nocter_model::BuiltinType::I32)],
-            BTreeMap::from([(root.code(), callable)]),
+            BTreeMap::from([(root.code().into(), callable)]),
             BTreeMap::new()
         ),
         Err(Rule::InvalidPlan)
@@ -169,7 +172,7 @@ fn expression_roots_are_required_initializers_and_never_declared_call_targets() 
     assert!(matches!(
         Program::new(
             [Type::Integer(nocter_model::BuiltinType::I32)],
-            BTreeMap::from([(root.code(), with_input)]),
+            BTreeMap::from([(root.code().into(), with_input)]),
             BTreeMap::new()
         ),
         Err(Rule::InvalidPlan)
@@ -177,7 +180,7 @@ fn expression_roots_are_required_initializers_and_never_declared_call_targets() 
     assert!(matches!(
         Program::new(
             [Type::Integer(nocter_model::BuiltinType::I32)],
-            BTreeMap::from([(root.code(), call(owner))]),
+            BTreeMap::from([(root.code().into(), call(owner))]),
             BTreeMap::new()
         ),
         Err(Rule::InvalidPlan)

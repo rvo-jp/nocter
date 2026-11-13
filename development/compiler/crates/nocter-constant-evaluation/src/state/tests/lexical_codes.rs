@@ -18,7 +18,7 @@ fn number(value: i32, initializer: bool) -> Plan {
     });
     plan
 }
-fn call(target: ValueCode, initializer: bool) -> Plan {
+fn call(target: CodeInstance, initializer: bool) -> Plan {
     let mut plan = number(0, initializer);
     plan.points = plan.points.map(|_, point| {
         let mut point = point.clone();
@@ -42,10 +42,10 @@ fn lexical_plans_do_not_alias_their_owner_or_siblings() {
         [Type::Integer(nocter_model::BuiltinType::I32)],
         BTreeMap::from([
             (owner.into(), number(3, true)),
-            (first.code(), call(alpha, true)),
-            (second.code(), call(beta, true)),
-            (alpha, number(42, false)),
-            (beta, number(7, false)),
+            (first.code().into(), call(alpha.into(), true)),
+            (second.code().into(), call(beta.into(), true)),
+            (alpha.into(), number(42, false)),
+            (beta.into(), number(7, false)),
         ]),
         BTreeMap::new(),
     )
@@ -85,10 +85,10 @@ fn lexical_failure_sites_keep_the_real_call_path_and_refund_failed_frames() {
     let program = Program::new(
         [Type::Integer(nocter_model::BuiltinType::I32)],
         BTreeMap::from([
-            (owner.into(), call(alpha, true)),
-            (alpha, call(beta, false)),
-            (beta, forever),
-            (recovery.code(), number(42, true)),
+            (owner.into(), call(alpha.into(), true)),
+            (alpha.into(), call(beta.into(), false)),
+            (beta.into(), forever),
+            (recovery.code().into(), number(42, true)),
         ]),
         BTreeMap::new(),
     )
@@ -124,11 +124,14 @@ fn lexical_calls_cannot_fall_back_to_roots_siblings_or_initializers() {
     let beta = closure(owner.into(), 1);
     let expression = ValueCodeRoot::Expression(ValueExpression { owner, slot: 0 });
     for plans in [
-        BTreeMap::from([(alpha, number(42, true))]),
-        BTreeMap::from([(owner.into(), call(beta, true)), (alpha, number(42, false))]),
+        BTreeMap::from([(alpha.into(), number(42, true))]),
         BTreeMap::from([
-            (owner.into(), call(expression.code(), true)),
-            (expression.code(), number(42, true)),
+            (owner.into(), call(beta.into(), true)),
+            (alpha.into(), number(42, false)),
+        ]),
+        BTreeMap::from([
+            (owner.into(), call(expression.code().into(), true)),
+            (expression.code().into(), number(42, true)),
         ]),
     ] {
         assert!(matches!(
@@ -140,4 +143,96 @@ fn lexical_calls_cannot_fall_back_to_roots_siblings_or_initializers() {
             Err(Rule::InvalidPlan)
         ));
     }
+}
+
+#[test]
+fn selected_instances_of_one_source_do_not_alias_or_fall_back() {
+    let (owner, _) = code_ids();
+    let source = closure(owner.into(), 0);
+    let alpha = CodeInstance {
+        source,
+        instance: 1,
+    };
+    let beta = CodeInstance {
+        source,
+        instance: 2,
+    };
+    let second = ValueCodeRoot::Expression(ValueExpression { owner, slot: 0 });
+    let program = Program::new(
+        [Type::Integer(nocter_model::BuiltinType::I32)],
+        BTreeMap::from([
+            (owner.into(), call(alpha, true)),
+            (second.code().into(), call(beta, true)),
+            (source.into(), number(3, false)),
+            (alpha, number(42, false)),
+            (beta, number(7, false)),
+        ]),
+        BTreeMap::new(),
+    )
+    .unwrap();
+    let mut budget = Budget::new(Limits::default());
+    for (root, expected) in [(owner.into(), 42), (second, 7)] {
+        assert_eq!(
+            Executor::new(&program, &mut budget, 0)
+                .evaluate_initializer(root)
+                .unwrap(),
+            Value::integer(expected)
+        );
+        assert_eq!(budget.storage_used(), 0);
+    }
+    let mut missing = program;
+    missing.plans.remove(&beta);
+    assert!(matches!(
+        Program::new(missing.types, missing.plans, missing.statics),
+        Err(Rule::InvalidPlan)
+    ));
+}
+
+#[test]
+fn recursive_instance_failures_keep_semantic_sites_and_refund_frames() {
+    let (owner, helper) = code_ids();
+    let source = helper.into();
+    let first = CodeInstance {
+        source,
+        instance: 1,
+    };
+    let recursive = CodeInstance {
+        source,
+        instance: 2,
+    };
+    let recovery = ValueCodeRoot::Expression(ValueExpression { owner, slot: 0 });
+    let program = Program::new(
+        [Type::Integer(nocter_model::BuiltinType::I32)],
+        BTreeMap::from([
+            (owner.into(), call(first, true)),
+            (first, call(recursive, false)),
+            (recursive, call(recursive, false)),
+            (recovery.code().into(), number(42, true)),
+        ]),
+        BTreeMap::new(),
+    )
+    .unwrap();
+    let mut budget = Budget::new(CompileTimeEvaluationLimits::new(
+        NonZeroU64::new(100).unwrap(),
+        NonZeroU32::new(4).unwrap(),
+    ));
+    let error = Executor::new(&program, &mut budget, 0)
+        .evaluate_initializer(owner)
+        .unwrap_err();
+    assert_eq!(error.rule, Rule::CallDepthLimit);
+    assert_eq!(error.code, owner.into());
+    assert_eq!(error.site.unwrap().code, source);
+    assert_eq!(
+        error.trace.iter().map(|site| site.code).collect::<Vec<_>>(),
+        [source, source, owner.into()]
+    );
+    assert_eq!(budget.storage_used(), 0);
+    budget.restart_work();
+    assert_eq!(
+        Executor::new(&program, &mut budget, 0)
+            .evaluate_initializer(recovery)
+            .unwrap(),
+        Value::integer(42)
+    );
+    assert_eq!(budget.storage_used(), 0);
 }

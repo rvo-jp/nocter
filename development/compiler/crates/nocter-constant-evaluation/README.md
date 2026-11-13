@@ -74,12 +74,16 @@ boundary rejects noninteger builtin identities even when no value or operation u
 Unsigned negation arrives as checked zero subtraction, while signed negation retains its unary
 operation. Pointer-size entries use the qualified target profile, independently of host size.
 
-Plan tables, direct-call edges and execution sites retain a complete `ValueCode`, including lexical
-captured code. A required failure separately retains its requested initializer `ValueCodeRoot`.
+Plan tables and direct-call edges select a `CodeInstance`: the complete semantic `ValueCode`,
+including lexical captured code, plus a program-local instance number. Multiple lowered plans may
+share one checked source identity without aliasing their dispatch keys. Zero is the default instance
+used by the current source projection; this key alone grants no callable binding or const capability.
+Execution sites and callable environment types retain the original semantic code. A required failure
+separately retains its requested initializer `ValueCodeRoot`.
 Sibling closures and their root can reuse local point/action IDs without sharing a plan or a
 failure site. Different required expressions can also share a source owner; that parent's plan
 need not exist. Expression roots are input-free initializers and closure code is never an
-initializer. Calls select an exact non-initializer code key without falling back to its source
+initializer. Calls select an exact non-initializer instance key without falling back to its source
 owner or another closure. The validated plan supplies input/result types; the evaluator cannot
 infer a data contract from a code key. Work/storage/depth accounting and failure paths use the
 same executor for all code. Lexical-plan support alone supplies neither captured environments nor

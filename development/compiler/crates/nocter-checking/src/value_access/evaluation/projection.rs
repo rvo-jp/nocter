@@ -577,7 +577,7 @@ impl Builder<'_, '_> {
         }
         Ok(plan::Operation::Call {
             destination: self.holder(Holder::Expression(id))?,
-            target,
+            target: target.into(),
             inputs: inputs.into(),
         })
     }
@@ -912,7 +912,7 @@ pub(super) fn prepare(
     let mut types = Types::default();
     let mut plans = BTreeMap::new();
     while let Some(id) = pending.pop() {
-        if plans.contains_key(&id) {
+        if plans.contains_key(&id.into()) {
             continue;
         }
         let query = checked.code(id).ok_or(INVALID)?;
@@ -927,11 +927,11 @@ pub(super) fn prepare(
         for (_, point) in plan.points.iter() {
             for action in &point.actions {
                 if let plan::Operation::Call { target, .. } = action.operation {
-                    pending.push(target);
+                    pending.push(target.source);
                 }
             }
         }
-        plans.insert(id, plan);
+        plans.insert(id.into(), plan);
     }
     let mut statics = BTreeMap::new();
     for plan in plans.values() {

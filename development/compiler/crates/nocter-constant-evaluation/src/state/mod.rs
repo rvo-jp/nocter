@@ -12,6 +12,27 @@ pub use value::{Data, Value};
 mod projection;
 pub use projection::{Missing, Projection, ProjectionPath};
 
+/// One lowered plan of a semantic code body. Instance numbers are local to this Program;
+/// source identities remain unchanged for diagnostics and callable environment types.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct CodeInstance {
+    pub source: ValueCode,
+    pub instance: u32,
+}
+impl From<ValueCode> for CodeInstance {
+    fn from(source: ValueCode) -> Self {
+        Self {
+            source,
+            instance: 0,
+        }
+    }
+}
+impl From<AccessCodeId> for CodeInstance {
+    fn from(code: AccessCodeId) -> Self {
+        ValueCode::Declaration(code).into()
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Type {
     /// A declared data identity without a payload representation in this table. No Value validates
@@ -238,7 +259,7 @@ pub enum Operation {
     },
     Call {
         destination: usize,
-        target: ValueCode,
+        target: CodeInstance,
         inputs: Box<[Input]>,
     },
 }
@@ -305,14 +326,14 @@ pub struct Static {
 pub struct Program {
     types: Box<[Type]>,
     statics: BTreeMap<nocter_model::ValueStatic, Static>,
-    plans: BTreeMap<ValueCode, Plan>,
+    plans: BTreeMap<CodeInstance, Plan>,
 }
 impl Program {
     /// # Errors
     /// Rejects invalid types, slots, control, call contracts or resource-plan references.
     pub fn new(
         types: impl Into<Box<[Type]>>,
-        plans: BTreeMap<ValueCode, Plan>,
+        plans: BTreeMap<CodeInstance, Plan>,
         statics: BTreeMap<nocter_model::ValueStatic, Static>,
     ) -> Result<Self, Rule> {
         let program = Self {

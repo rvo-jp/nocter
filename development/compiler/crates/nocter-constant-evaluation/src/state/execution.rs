@@ -60,10 +60,10 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         let result = if self
             .program
             .plans
-            .get(&code.code())
+            .get(&code.code().into())
             .is_some_and(|p| p.initializer)
         {
-            self.invoke(code.code(), &[])
+            self.invoke(code.code().into(), &[])
         } else {
             Err(Rule::InvalidPlan)
         };
@@ -77,7 +77,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
     fn tick(&mut self) -> Result<()> {
         self.budget.step()
     }
-    fn invoke(&mut self, code: ValueCode, inputs: &[Cell]) -> Result<Value> {
+    fn invoke(&mut self, code: super::CodeInstance, inputs: &[Cell]) -> Result<Value> {
         if self
             .memory
             .frames
@@ -92,7 +92,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             return Err(Rule::InvalidPlan);
         }
         let mut frame = Frame::new(&self.memory.storage, plan.slots.clone())?;
-        self.bind_inputs(code, plan, &mut frame, inputs)?;
+        self.bind_inputs(code.source, plan, &mut frame, inputs)?;
         for &(slot, id) in &plan.statics {
             let value = &self
                 .program
@@ -105,7 +105,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         let index = self.memory.frames.len();
         self.memory.frames.push(frame);
         let saved = self.site;
-        let result = self.run(code, plan, index);
+        let result = self.run(code.source, plan, index);
         if result.is_err() && self.failed_site.is_none() {
             self.failed_site = self.site;
         }

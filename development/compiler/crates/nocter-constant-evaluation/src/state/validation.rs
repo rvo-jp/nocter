@@ -143,7 +143,7 @@ pub(super) fn validate(program: &Program) -> Result<()> {
         }
     }
     for (&code, plan) in &program.plans {
-        match code {
+        match code.source {
             nocter_model::ValueCode::Expression(_) if !plan.initializer => return Err(INVALID),
             nocter_model::ValueCode::Closure(_) if plan.initializer => return Err(INVALID),
             _ => {}
@@ -153,7 +153,7 @@ pub(super) fn validate(program: &Program) -> Result<()> {
             let &(input, operation) = plan.inputs.first().ok_or(INVALID)?;
             let source = plan.slots.get(input).ok_or(INVALID)?;
             let target = plan.slots.get(backing).ok_or(INVALID)?;
-            if !matches!(code, nocter_model::ValueCode::Closure(_))
+            if !matches!(code.source, nocter_model::ValueCode::Closure(_))
                 || operation == nocter_model::ValueInputOperation::Take
                 || target.storage != Storage::Auxiliary
                 || target.data != source.data
@@ -565,7 +565,7 @@ fn call(
     program: &Program,
     plan: &super::Plan,
     destination: usize,
-    target: nocter_model::ValueCode,
+    target: super::CodeInstance,
     inputs: &[super::Input],
 ) -> Result<()> {
     let callee = program.plans.get(&target).ok_or(INVALID)?;
@@ -577,7 +577,7 @@ fn call(
     }
     for (index, (input, &(parameter, operation))) in inputs.iter().zip(&callee.inputs).enumerate() {
         let environment_adapter = index == 0
-            && matches!(target, nocter_model::ValueCode::Closure(_))
+            && matches!(target.source, nocter_model::ValueCode::Closure(_))
             && match (input.operation(), operation) {
                 (
                     nocter_model::ValueInputOperation::Edit,
