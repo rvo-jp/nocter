@@ -8,7 +8,7 @@ use nocter_model::{ValueAccess, ValueAccessMode, ValueInvocation};
 use std::sync::Arc;
 
 #[test]
-fn application_transport_requires_the_exact_callee_result_and_creation_keeps_the_declared_view() {
+fn application_creation_keeps_its_own_call_template_and_declared_view() {
     let source = "func left(value: i32): i32 { value }\nfunc right(value: i32): i32 { value + 1 }\nfunc make_left(): func(i32): i32 { left }\nfunc make_right(): func(i32): i32 { right }\nfunc run(): void { let creator = () { make_left() }\nlet other = () { make_right() }\nlet first = creator()\nlet second = other() }";
     let (sources, tree) = input(source);
     let headers = access_declarations::Query::prepare(bound(&sources, &tree)).unwrap();
@@ -29,7 +29,16 @@ fn application_transport_requires_the_exact_callee_result_and_creation_keeps_the
     assert_eq!(calls.len(), 2);
     let first = call_result(&query, calls[0]).unwrap().unwrap();
     let second = call_result(&query, calls[1]).unwrap().unwrap();
-    assert!(first.created.is_none() && second.created.is_none());
+    let first_key = first.created.unwrap();
+    let second_key = second.created.unwrap();
+    assert_eq!(first_key.owner, query.code());
+    assert_eq!(first_key.call, calls[0]);
+    assert_eq!(second_key.owner, query.code());
+    assert_eq!(second_key.call, calls[1]);
+    assert_ne!(
+        query.program().application_template(first_key),
+        query.program().application_template(second_key)
+    );
     assert_ne!(first.data, second.data);
     query.body.expressions = query.body.expressions.map(|id, expression| {
         let mut expression = expression.clone();

@@ -1,8 +1,8 @@
 //! Owner-scoped body type construction and canonical replay over one immutable header prefix.
 use super::{Program, TypeScope};
 use nocter_model::{
-    AccessCodeId, AccessExpressionId, TypeCursor, TypeId, TypeKind, ValueApplication, ValueCode,
-    ValueCodeRoot, ValueFunctionOrigin,
+    AccessExpressionId, TypeCursor, TypeId, TypeKind, ValueApplication, ValueCode, ValueCodeRoot,
+    ValueFunctionOrigin,
 };
 use std::collections::BTreeMap;
 mod containment;
@@ -32,7 +32,6 @@ pub enum PayloadReadiness {
 pub struct BodyTypes {
     owner: ValueCodeRoot,
     program: Program,
-    applications: BTreeMap<(ValueCode, AccessExpressionId), AccessCodeId>,
     next_closure: Option<u32>,
 }
 impl BodyTypes {
@@ -237,34 +236,38 @@ impl BodyTypes {
         &mut self,
         owner: ValueCode,
         call: AccessExpressionId,
-        callee: AccessCodeId,
+        callee: impl Into<super::FunctionWitness>,
     ) -> Result<TypeId, BodyTypeError> {
-        if owner.root() != self.owner
-            || self
-                .applications
-                .get(&(owner, call))
-                .is_some_and(|selected| *selected != callee)
+        if owner.root() != self.owner {
+            return Err(BodyTypeError::InvalidApplication);
+        }
+        let result = self
+            .program
+            .function_contract(callee.into())
+            .ok_or(BodyTypeError::InvalidApplication)?
+            .result;
+        let Some(super::PayloadSchema::Function(template)) = self.program.data_schema(result)
+        else {
+            return Err(BodyTypeError::InvalidApplication);
+        };
+        let application = ValueApplication { owner, call };
+        if self
+            .program
+            .application_template(application)
+            .is_some_and(|previous| previous != template)
         {
             return Err(BodyTypeError::InvalidApplication);
         }
-        let declared = self
-            .program
-            .codes
-            .get(callee)
-            .and_then(super::Code::result_contract)
-            .ok_or(BodyTypeError::InvalidApplication)?
-            .invocation;
-        let origin = ValueFunctionOrigin::Application(ValueApplication {
-            owner,
-            call,
-            callee,
-        });
         let mut types = self.program.types.transaction();
-        let selected = super::functions::intern_views(&mut types, origin, declared);
+        let selected = super::functions::intern_views(
+            &mut types,
+            ValueFunctionOrigin::Application(application),
+            template.invocation,
+        );
         self.program.types = types
             .commit(&self.program.types)
             .map_err(|_| BodyTypeError::InvalidExtension)?;
-        self.applications.insert((owner, call), callee);
+        self.program.applications.insert(application, template);
         Ok(selected)
     }
     #[must_use]
@@ -362,7 +365,6 @@ impl Program {
         Ok(BodyTypes {
             owner,
             program,
-            applications: BTreeMap::new(),
             next_closure: Some(0),
         })
     }
@@ -380,6 +382,7 @@ impl Program {
         let mut projections = BTreeMap::new();
         let mut closures = BTreeMap::new();
         let mut closure_parameters = BTreeMap::new();
+        let mut applications = BTreeMap::new();
         for (owner, body) in bodies {
             if body.type_scope != TypeScope::Body(owner)
                 || !self.preserves_headers(body)
@@ -391,7 +394,15 @@ impl Program {
                 return Err(BodyTypeError::InvalidApplication);
             }
             let prefix = body.header_prefix.cursor();
-            let projection = replay_types(self, body, owner, &mut types)?;
+            let projection = replay_types(body, owner, &mut types)?;
+            for (&application, &template) in &body.applications {
+                if application.owner.root() != owner
+                    || body.function_data(template).is_none()
+                    || applications.insert(application, template).is_some()
+                {
+                    return Err(BodyTypeError::InvalidApplication);
+                }
+            }
             for (&parameter, contract) in &body.closure_parameters {
                 let nocter_model::ValueParameter::Closure {
                     owner: closure,
@@ -446,6 +457,7 @@ impl Program {
         program.type_scope = TypeScope::Canonical;
         program.closures = closures;
         program.closure_parameters = closure_parameters;
+        program.applications = applications;
         program.types = types
             .commit(&self.types)
             .map_err(|_| BodyTypeError::InvalidExtension)?;
@@ -508,7 +520,6 @@ fn ordinary_data(program: &Program, data: TypeId) -> bool {
 }
 
 fn replay_types(
-    header: &Program,
     body: &Program,
     owner: ValueCodeRoot,
     types: &mut nocter_model::TypeTransaction,
@@ -547,11 +558,9 @@ fn replay_types(
                         ValueCode::Closure(id) => body.closure(id).is_some(),
                         ValueCode::Declaration(_) | ValueCode::Expression(_) => true,
                     }
-                    && header
-                        .codes
-                        .get(application.callee)
-                        .and_then(super::Code::result_contract)
-                        .is_some_and(|contract| contract.invocation.can_supply(*invocation))
+                    && body
+                        .application_template(*application)
+                        .is_some_and(|template| template.invocation.can_supply(*invocation))
             }
             TypeKind::Optional(payload) => structural_component(body, *payload),
             TypeKind::Fallible(payload) => {

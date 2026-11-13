@@ -17,6 +17,8 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
 - define-once sparse arenas over reserved domains, with persistent immutable views and exact
   single-writer ancestry; absent slots contain no provisional semantic value
 - source-independent compile-time expression identities
+- `ValueApplication` keys identify the caller code and call slot; the declaration authority owns
+  their result templates, and typed calls own callee selection
 - `ValueParameter` formal keys for real declaration inputs and lexical anonymous owner/position
   pairs; these keys grant no signature, concrete code, environment or runtime layout
 - `ValueStatic` place keys linked to initializer declarations; the declaration authority validates

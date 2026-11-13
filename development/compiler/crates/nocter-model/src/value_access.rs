@@ -213,7 +213,6 @@ impl ValueCode {
 pub struct ValueApplication {
     pub owner: ValueCode,
     pub call: crate::AccessExpressionId,
-    pub callee: crate::AccessCodeId,
 }
 
 /// Invocation access, independent of a callable value's binding or explicit inputs.
@@ -263,7 +262,6 @@ mod tests {
             ValueFunctionOrigin::Application(ValueApplication {
                 owner: ValueCode::Declaration(code),
                 call,
-                callee: code,
             }),
         ] {
             assert_eq!(symbolic.code(), None);

@@ -1,0 +1,38 @@
+const func identity(value: i32): i32 { value }
+const func increment(value: i32): i32 { value + 1 }
+func relay(take action: func(i32): i32): func(i32): i32 { action^ }
+func pending(): i32 {
+    let pass = (take action: func(i32): i32) { relay(action^) }
+    let first = pass(identity)
+    let second = pass(increment)
+    if first(42) == 42 && second(41) == 42 { 42 } else { 0 }
+}
+func higher_order(): i32 {
+    let make = () { (take action: func(i32): i32) { relay(action^) } }
+    let apply = make()
+    let action = apply(identity)
+    action(42)
+}
+func adapted(): i32 {
+    let consume = (take action: mut(i32): i32): once(i32): i32 { action^ }
+    var action: mut(i32): i32 = identity
+    let selected = consume(action^)
+    selected^(42)
+}
+func interrupted(): i32 {
+    let pass = (take action: func(i32): i32) { relay(action^) }
+    if false {
+        let result = pass(if true { loop {} } else { loop {} })
+        let ignored = result(42)
+    }
+    42
+}
+const func calculate(): i32 {
+    let make = () { (value: i32) { value } }
+    let action = make()
+    action(42)
+}
+const ANSWER: i32 = calculate()
+func run(): i32 {
+    if ANSWER == 42 && calculate() == 42 && pending() == 42 && higher_order() == 42 && adapted() == 42 && interrupted() == 42 { 42 } else { 0 }
+}

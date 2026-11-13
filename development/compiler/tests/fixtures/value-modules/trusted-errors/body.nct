@@ -8,6 +8,8 @@ func invoke(factory: (func(str, str): error)): error {
     factory("callback", "module message")
 }
 
+func relay_returner(take action: once(): error): once(): error { action^ }
+
 func run(): i32 {
     let original = errors.operation("direct", "module message")
     let invoke_callback: func(func(str, str): error): error = invoke
@@ -19,7 +21,7 @@ func run(): i32 {
     let returner = make_returner^()
     let fourth = returner^()
     let call = (take action: once(): error) { action^() }
-    let pass = (take action: once(): error) { action^ }
+    let pass = (take action: once(): error) { relay_returner(action^) }
     let returned = pass((fourth^;) { fourth^ })
     let fifth = call(returned^)
     let dispose = (take action: once(): error) { () }

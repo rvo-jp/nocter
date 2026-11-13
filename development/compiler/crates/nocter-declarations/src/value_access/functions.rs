@@ -15,6 +15,14 @@ pub struct FunctionWitness {
     pub origin: ValueFunctionOrigin,
     pub invocation: ValueInvocation,
 }
+impl From<AccessCodeId> for FunctionWitness {
+    fn from(code: AccessCodeId) -> Self {
+        Self {
+            origin: ValueFunctionOrigin::Declaration(code),
+            invocation: ValueInvocation::Read,
+        }
+    }
+}
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct FunctionInput<Data = TypeId> {
     pub data: Data,
@@ -125,6 +133,14 @@ pub(super) fn intern_views(
 }
 
 impl Program {
+    /// The result template selected at this call. It constrains a result, never proves a producer.
+    #[must_use]
+    pub fn application_template(
+        &self,
+        application: nocter_model::ValueApplication,
+    ) -> Option<FunctionWitness> {
+        self.applications.get(&application).copied()
+    }
     /// Project an anonymous result through this call's frozen bindings. Named result families keep
     /// their separate application relation. No callee body or concrete environment is inspected.
     #[must_use]
@@ -189,7 +205,18 @@ impl Program {
     }
     /// The contract of an already selected concrete or formal witness. No candidate search occurs.
     #[must_use]
-    pub fn function_contract(&self, witness: FunctionWitness) -> Option<FunctionConstraint> {
+    pub fn function_contract(&self, mut witness: FunctionWitness) -> Option<FunctionConstraint> {
+        let mut seen = std::collections::BTreeSet::new();
+        while let ValueFunctionOrigin::Application(application) = witness.origin {
+            if !seen.insert(application) {
+                return None;
+            }
+            let template = self.application_template(application)?;
+            if !template.invocation.can_supply(witness.invocation) {
+                return None;
+            }
+            witness.origin = template.origin;
+        }
         let mut contract = match witness.origin {
             ValueFunctionOrigin::Closure(id) => self.closure(id)?.contract().clone(),
             ValueFunctionOrigin::Declaration(id) => {
@@ -216,11 +243,7 @@ impl Program {
             }
             ValueFunctionOrigin::Parameter(id) => self.parameter_contract(id)?.clone(),
             ValueFunctionOrigin::Result(id) => self.codes.get(id)?.result_contract()?.clone(),
-            ValueFunctionOrigin::Application(application) => self
-                .codes
-                .get(application.callee)?
-                .result_contract()?
-                .clone(),
+            ValueFunctionOrigin::Application(_) => return None,
         };
         if !contract.invocation.can_supply(witness.invocation) {
             return None;
@@ -261,7 +284,7 @@ impl Program {
                 if !self.has_type_root(application.owner.root()) {
                     return None;
                 }
-                self.codes.get(application.callee)?.result_contract()?;
+                self.function_contract(witness)?;
             }
         }
         self.types.store().identity(&TypeKind::ValueFunction {

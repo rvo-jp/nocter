@@ -237,6 +237,7 @@ pub struct Program {
     records: records::Schemas,
     closures: BTreeMap<nocter_model::ValueClosure, Closure>,
     closure_parameters: BTreeMap<nocter_model::ValueParameter, FunctionConstraint>,
+    applications: BTreeMap<nocter_model::ValueApplication, FunctionWitness>,
 }
 
 impl Program {

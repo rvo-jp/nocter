@@ -1,25 +1,37 @@
-//! Finite positive witness equations; application substitutes selected formal identities, never names.
+//! Finite positive witness equations; call applications consume actual code return summaries.
 use super::producers::{Inputs, Producers};
 use nocter_declarations::value_access::FunctionWitness;
-use nocter_model::{ValueFunctionOrigin as Origin, ValueInvocation};
+use nocter_model::{ValueApplication, ValueCode, ValueFunctionOrigin as Origin, ValueInvocation};
 use std::collections::BTreeMap;
 
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub(super) enum Term {
+    Result(ValueCode),
+    Application(ValueApplication),
+}
 pub(super) enum Relation {
     Union(Producers),
     Apply {
-        callee: nocter_model::AccessCodeId,
+        callee: FunctionWitness,
         inputs: Inputs,
     },
 }
-pub(super) type Relations = BTreeMap<Origin, Relation>;
-pub(super) type Solutions = BTreeMap<Origin, Producers>;
+pub(super) type Relations = BTreeMap<Term, Relation>;
+pub(super) type Solutions = BTreeMap<Term, Producers>;
 
 fn values(term: FunctionWitness, known: &Solutions) -> Result<Producers, ()> {
     let selected = match term.origin {
         Origin::Declaration(_) | Origin::Closure(_) | Origin::Parameter(_) => {
             Producers::from([term])
         }
-        _ => known.get(&term.origin).ok_or(())?.clone(),
+        Origin::Result(code) => known
+            .get(&Term::Result(ValueCode::Declaration(code)))
+            .ok_or(())?
+            .clone(),
+        Origin::Application(application) => known
+            .get(&Term::Application(application))
+            .ok_or(())?
+            .clone(),
     };
     selected
         .into_iter()
@@ -38,12 +50,12 @@ fn adapt(source: FunctionWitness, invocation: ValueInvocation) -> Result<Functio
 pub(super) fn solve(relations: &Relations) -> Result<Solutions, ()> {
     let mut known = relations
         .keys()
-        .map(|&origin| (origin, Producers::new()))
+        .map(|&term| (term, Producers::new()))
         .collect::<Solutions>();
     loop {
         let mut changed = false;
-        for (&origin, relation) in relations {
-            let mut next = known[&origin].clone();
+        for (&term, relation) in relations {
+            let mut next = known[&term].clone();
             match relation {
                 Relation::Union(terms) => {
                     for &term in terms {
@@ -51,23 +63,28 @@ pub(super) fn solve(relations: &Relations) -> Result<Solutions, ()> {
                     }
                 }
                 Relation::Apply { callee, inputs } => {
-                    for &result in known.get(&Origin::Result(*callee)).ok_or(())? {
-                        if let Origin::Parameter(parameter) = result.origin {
-                            if let Some(actuals) = inputs.get(&parameter) {
-                                for &actual in actuals {
-                                    for witness in values(actual, &known)? {
-                                        next.insert(adapt(witness, result.invocation)?);
+                    for selected in values(*callee, &known)? {
+                        let Some(code) = selected.origin.code() else {
+                            continue;
+                        };
+                        for &result in known.get(&Term::Result(code)).ok_or(())? {
+                            if let Origin::Parameter(parameter) = result.origin {
+                                if let Some(actuals) = inputs.get(&parameter) {
+                                    for &actual in actuals {
+                                        for witness in values(actual, &known)? {
+                                            next.insert(adapt(witness, result.invocation)?);
+                                        }
                                     }
                                 }
+                            } else {
+                                next.insert(result);
                             }
-                        } else {
-                            next.insert(result);
                         }
                     }
                 }
             }
-            if next != known[&origin] {
-                known.insert(origin, next);
+            if next != known[&term] {
+                known.insert(term, next);
                 changed = true;
             }
         }
@@ -76,3 +93,6 @@ pub(super) fn solve(relations: &Relations) -> Result<Solutions, ()> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

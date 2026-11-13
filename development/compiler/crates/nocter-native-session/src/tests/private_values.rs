@@ -1008,3 +1008,18 @@ fn private_anonymous_callable_inputs_bind_named_captured_and_forwarded_environme
         42,
     );
 }
+
+#[test]
+fn private_anonymous_callable_applications_close_deferred_and_returned_callee_bindings() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/anonymous-callable-applications.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "anonymous-callable-applications",
+        42,
+    );
+}

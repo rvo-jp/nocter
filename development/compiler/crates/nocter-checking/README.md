@@ -406,19 +406,18 @@ No provisional result/application signature supplies a return anchor. These are 
 not an owner, availability or numerical-disjointness proof. Moves and drops remain subject to the
 separate initialization/access/resource validation.
 
-`results::applications` classifies each selected call result once. A newly reserved factory
-application must match its owner/call/callee key and declared result invocation. Transport through
-a closure retains the original application and must match that callee's exact result descriptor;
-it cannot create another factory equation or substitute an unrelated existing application.
-Committed calls propagate concrete returned callable leaves and symbolic application references
-through the existing sparse facts. A symbolic reference remains a relation term, never a code
-anchor inferred from a structural signature. The same classification serves producer collection
-and application closure.
-
-`results::solve` first closes reachable result relations to one named or own-input witness per
-function. `results::relations` owns one finite positive-equation solver for unions and selected
-applications. Recursive substitution uses formal IDs and finite application nodes rather than
-expanding witness names. Unanchored recursion and heterogeneous return relations reject.
+`results::applications` classifies each selected call result once. A newly reserved callable result
+application must match its caller/call key, the selected callee's result template and declared result
+invocation. A callable result of a named, anonymous or returned callee gets its own application;
+a structural carrier transports its existing leaf relations. It cannot borrow an unrelated
+application. Committed calls propagate actual returned callable leaves and symbolic references
+through the same sparse producer facts. Missing source applications remain empty premises.
+`results::relations` owns one finite positive-equation solver for unions and selected applications.
+Return-summary terms use the named or anonymous code identity; applications consume the actual
+callee's summary and frozen inputs. A callee returned by another application resolves through those
+same equations. Result templates never supply return producers. Recursive substitution uses formal
+IDs and finite application nodes rather than expanding witness names. Unanchored recursion and
+heterogeneous return relations reject.
 The established summaries then instantiate every typed call application through its frozen
 actual bindings, retaining known types even on interruption. A missing producer for an application
 without a reachable commit closes as explicit Unproduced evidence, preserving the structural
@@ -1144,13 +1143,18 @@ before the body is checked. Input operations remain explicit or contextual; body
 read input into take. The input's lexical closure and ordinal identify its witness, independently
 of another closure with the same signature. Ordinary call preparation freezes formal-to-actual
 bindings, including forwarding between named and anonymous bodies. A taking anonymous input may
-return its environment. `Program::function_result` projects that result through the current call's
-frozen bindings; typing and result transport consume the same projection without retyping a body.
-After deferred result closure, a normal call must still agree with that projection. A dependency
-revealed only by a factory result currently rejects at that call rather than publishing the callee's
-unbound formal to its caller; its caller-owned application relation is not qualified yet.
+return its environment through the same caller-owned application relation. A result revealed by a
+factory inside that anonymous body retains its dependency until the common equations bind the
+caller's actual input. `Program::function_result` independently projects the closed declared
+result through those frozen bindings to validate normal call-result agreement. No body is retyped
+and no callee-owned formal is published as a caller value.
 General callable carriers, deeper callable signatures within those inputs, inferred capture
 footprints and evaluator formal substitution remain unqualified.
+The shared anonymous-callable-application source covers deferred input returns, calls through
+returned higher-order code, result invocation adapters and interrupted inputs. Its required path
+executes a returned concrete callback; formal callback invocation remains unqualified for required
+execution. The logical-module primitive source also carries a real owned-error environment through
+a deferred anonymous return and executes its invocation and cleanup.
 
 The shared contextual-closure source qualifies annotation/call/result completion, nested conditional
 result positions, edited caller state, taking non-Copy inputs and mut/once adapters through required

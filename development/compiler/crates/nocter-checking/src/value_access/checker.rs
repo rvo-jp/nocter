@@ -429,7 +429,7 @@ impl<'a, 's> Checker<'a, 's> {
                     | nocter_model::ValueFunctionOrigin::Result(id) =>
                         self.program().code_label(id),
                     nocter_model::ValueFunctionOrigin::Application(application) =>
-                        self.program().code_label(application.callee),
+                        self.program().root_label(application.owner.root()),
                     nocter_model::ValueFunctionOrigin::Parameter(id) =>
                         self.program().parameter_label(id),
                 }

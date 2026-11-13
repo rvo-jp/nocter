@@ -3,7 +3,7 @@ use super::{
     ApplicationEvidence, Evidence,
     producers::Producers,
     reject,
-    relations::{self, Relation, Relations},
+    relations::{self, Relation, Relations, Solutions, Term},
 };
 use crate::value_access::{ExpressionKind, accepted, flow};
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
@@ -26,31 +26,29 @@ pub(super) fn solve(
     for (&id, control) in &controls {
         let report = super::producers::analyze(control).map_err(accepted::Failure::Integrity)?;
         referenced_applications.extend(report.referenced_applications);
-        if let nocter_model::ValueCode::Declaration(id) = id
-            && control
+        if matches!(
+            control
                 .typed
                 .program()
-                .codes()
-                .get(id)
-                .ok_or(INVALID)?
-                .result_contract()
-                .is_some()
-        {
+                .data_schema(control.typed.result_data()),
+            Some(PayloadSchema::Function(_))
+        ) {
             evidence
                 .bodies
                 .insert(&control.typed.source)
                 .map_err(|_| INVALID)?;
             equations.insert(
-                Origin::Result(id),
+                Term::Result(id),
                 Relation::Union(report.returned.into_iter().map(|(w, _)| w).collect()),
             );
         }
         for (application, inputs) in report.applications {
             committed.insert(application);
             equations.insert(
-                Origin::Application(application),
+                Term::Application(application),
                 Relation::Apply {
-                    callee: application.callee,
+                    callee: super::applications::callee(&control.typed, application.call)
+                        .map_err(accepted::Failure::Integrity)?,
                     inputs,
                 },
             );
@@ -60,12 +58,14 @@ pub(super) fn solve(
     // producer facts here; an absent origin is an empty equation, not a signature-derived anchor.
     for application in referenced_applications {
         equations
-            .entry(Origin::Application(application))
+            .entry(Term::Application(application))
             .or_insert_with(|| Relation::Union(Producers::new()));
     }
     let solved = relations::solve(&equations).map_err(|()| INVALID)?;
     for (&origin, producers) in &solved {
-        let Origin::Result(id) = origin else { continue };
+        let Term::Result(nocter_model::ValueCode::Declaration(id)) = origin else {
+            continue;
+        };
         let query = &controls
             .get(&nocter_model::ValueCode::Declaration(id))
             .ok_or(INVALID)?
@@ -94,7 +94,7 @@ pub(super) fn solve(
         }
         evidence.producers.insert(id, witness);
     }
-    close_applications(context, &controls, &committed, &mut evidence)?;
+    close_applications(context, &controls, &committed, &solved, &mut evidence)?;
     Ok(evidence)
 }
 fn single(producers: &Producers) -> Option<FunctionWitness> {
@@ -104,16 +104,18 @@ fn close_applications(
     context: &DeclarationContext<'_>,
     controls: &BTreeMap<nocter_model::ValueCode, &flow::Control>,
     committed: &BTreeSet<nocter_model::ValueApplication>,
+    summaries: &Solutions,
     evidence: &mut Evidence,
 ) -> Result<(), accepted::Failure> {
-    let mut equations = evidence
-        .producers
+    let mut equations = summaries
         .iter()
-        .map(|(&id, &witness)| {
-            (
-                Origin::Result(id),
-                Relation::Union(Producers::from([witness])),
-            )
+        .map(|(&term, producers)| {
+            let producers = if matches!(term, Term::Result(_)) {
+                producers.clone()
+            } else {
+                Producers::new()
+            };
+            (term, Relation::Union(producers))
         })
         .collect::<Relations>();
     for control in controls.values() {
@@ -136,9 +138,10 @@ fn close_applications(
                 .map(|binding| (binding.parameter, Producers::from([binding.witness])))
                 .collect();
             equations.insert(
-                Origin::Application(application),
+                Term::Application(application),
                 Relation::Apply {
-                    callee: application.callee,
+                    callee: super::applications::callee(query, id)
+                        .map_err(accepted::Failure::Integrity)?,
                     inputs,
                 },
             );
@@ -146,7 +149,7 @@ fn close_applications(
     }
     let solved = relations::solve(&equations).map_err(|()| INVALID)?;
     for (origin, producers) in solved {
-        let Origin::Application(application) = origin else {
+        let Term::Application(application) = origin else {
             continue;
         };
         let query = &controls.get(&application.owner).ok_or(INVALID)?.typed;

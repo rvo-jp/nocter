@@ -18,13 +18,14 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Close deferred anonymous callable-result applications before extending evaluator formal substitution.
-Use the existing result equations and body type authority to bind each call's result to its own
-frozen inputs, including a result that resolves through a named factory to the anonymous callee's
-formal input. Preserve local diagnosis until that application is qualified; do not publish a callee's
-unbound formal as a caller value, inspect/retype bodies per call, or introduce a parallel producer
-solver. Then extend required execution through the same bindings. Keep deeper callable data,
-inferred captures, module/toolchain integration and retained-selection closure open.
+Prepare required callable-input execution by sharing mechanical bound-code instance selection with
+native instances. Keep exact formal identity coverage and selected invocation views in one
+metadata authority, using frozen call bindings and existing witness substitution. Body availability,
+const admission, representation, lifecycle and ownership proofs remain with their consumers.
+Then extend required evaluation to per-instance binding contexts and conditional const availability;
+a known caller never grants unconditional capability to an unbound body. Keep dependent carriers,
+deeper callable inputs, inferred captures, module/toolchain integration and retained-selection
+closure open.
 
 ## Retained Selection Closure
 
@@ -94,10 +95,6 @@ not a language restriction derived from the current realization boundary.
 
 ## Open Findings
 
-- [ ] Qualify deferred anonymous result applications through a factory-dependent own input.
-  The direct own-input return path substitutes frozen bindings, but a result resolved only during
-  whole-unit result closure needs a caller-owned application relation. Keep source-local rejection
-  until that relation is implemented; general dependent callable carriers remain unqualified too.
 - [ ] Complete nested callable data/witness support through header/data positions and the owning
   type authority. Qualify concrete representation, substitution and callable input/result evidence;
   one recognized type tree and a matching signature do not erase code/environment identity.

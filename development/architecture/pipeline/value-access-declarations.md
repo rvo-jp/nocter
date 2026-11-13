@@ -241,8 +241,11 @@ Before access/resource validation, checking propagates static code/view producer
 this same graph's reachable successors, without depending on initialization. Actual staged
 return values and prepared argument producers, rather than provisional expression types,
 establish result equations. Finite monotone closure requires a named/captured-code or own-input anchor and
-preserves invocation views. Selected call applications substitute actual bindings into those
-established relations, then deferred identity equalities are proved. Projection closes existing type/witness identities and freezes pending value supply
+preserves invocation views. Named and anonymous code share return-summary terms. Each callable
+result application has a caller/call-slot identity and a declaration-owned result template; its
+frozen call selects the callee. Applications substitute actual bindings into reached return facts,
+including callees returned by other applications, then deferred identity equalities are proved.
+Templates supply no return anchor. Projection closes existing type/witness identities and freezes pending value supply
 from the exact payload schema and source access. It does not repeat typing or graph construction;
 known moves remain moves. Initialization then runs once over the frozen operations, followed by
 access/resource validation. Producer facts do not prove owner availability and cannot replace

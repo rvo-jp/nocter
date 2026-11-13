@@ -102,7 +102,7 @@ fn validate_payload(
         // reachable-use validator proves that fact over the original control graph.
         return Ok(());
     }
-    validate_call_result(context, query, id, expression)?;
+    validate_call_result(query, expression)?;
     if matches!(
         expression.kind,
         ExpressionKind::Aggregate { .. } | ExpressionKind::Repeat { .. }
@@ -152,9 +152,7 @@ fn validate_payload(
 }
 
 fn validate_call_result(
-    context: &DeclarationContext<'_>,
     query: &Query,
-    id: nocter_model::AccessExpressionId,
     expression: &crate::value_access::ir::Expression,
 ) -> Result<(), Failure> {
     use nocter_declarations::value_access::PayloadSchema;
@@ -189,13 +187,7 @@ fn validate_call_result(
             },
         );
         if result != Some(access.data()) {
-            return Err(crate::value_access::diagnostics::query_rejection(
-                context,
-                query,
-                Some(id),
-                crate::value_access::Rule::UnsupportedData,
-                "this dependent anonymous callable result needs call application substitution that is not qualified yet",
-            ));
+            return Err(Failure::InconsistentSyntax);
         }
     }
     Ok(())

@@ -572,3 +572,5 @@ fn fallible_body_types_preserve_branch_data_copy_and_canonical_replay() {
 }
 
 mod anonymous_inputs;
+
+mod applications;

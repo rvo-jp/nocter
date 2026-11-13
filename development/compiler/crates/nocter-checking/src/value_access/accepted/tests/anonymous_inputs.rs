@@ -90,15 +90,26 @@ fn dependent_anonymous_result_carriers_do_not_escape_with_an_unbound_callee_form
 }
 
 #[test]
-fn pending_anonymous_result_bindings_reject_locally_until_application_substitution_closes() {
-    let source = "func identity(value: i32): i32 { value }\nfunc relay(take action: func(i32): i32): func(i32): i32 { action^ }\nfunc run(): i32 { let pass = (take action: func(i32): i32) { relay(action^) }\nlet selected = pass(identity)\nselected(42) }";
+fn pending_anonymous_result_bindings_close_through_owned_call_applications() {
+    let unit = accepted(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/anonymous-callable-applications.nct"
+    )));
+    let answer = unit
+        .program()
+        .resolve_code(unit.program().symbols().get("ANSWER").unwrap())
+        .unwrap();
+    assert_eq!(
+        unit.constant_value(answer).unwrap().node(),
+        &nocter_model::FrozenNode::Scalar(nocter_model::ConstantValue::Integer(42))
+    );
+}
+
+#[test]
+fn an_anonymous_result_shape_with_no_return_producer_does_not_create_a_witness() {
+    let source = "func identity(value: i32): i32 { value }\nfunc run(): i32 { let make = () { if true { loop {} }\nreturn identity }\nlet action = make()\naction(42) }";
     let (sources, tree) = input(source);
-    match SourceUnit::prepare(bound(&sources, &tree)) {
-        Err(SourceFailure::Checking(Failure::Body {
-            failure: BodyFailure::Rejected(diagnostic),
-            ..
-        })) if diagnostic.rule() == crate::value_access::Rule::UnsupportedData => {}
-        Ok(_) => panic!("an unbound anonymous result reached whole-source acceptance"),
-        Err(error) => panic!("a source-local rejection is required: {error:?}"),
-    }
+    assert!(matches!(SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Body { failure: BodyFailure::Rejected(diagnostic), .. }))
+        if diagnostic.rule() == crate::value_access::Rule::TypeMismatch));
 }

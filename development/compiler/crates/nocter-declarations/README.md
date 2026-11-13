@@ -338,12 +338,15 @@ followed recursively. This operation creates no type, chooses no target and gran
 or payload proof. Consumers retain identity-domain and binding-coverage validation, with their own
 conservative-analysis or closed-execution admission boundary.
 
-`body_types` owns the narrow body-type construction capability. A selected factory call interns
-its caller/operation/callee key and all permitted views over its immutable ready-header prefix. A
-construction-only reservation forbids selecting two callees for one operation within the same lexical
-`ValueCode`. A root and its closures have independent operation arenas and reservations. It is discarded
-on freeze; no dispatch search or source syntax enters the program. Branches share declaration,
-namespace and record metadata instead of cloning those authorities.
+`body_types` owns the narrow body-type construction capability. Every selected call returning a
+callable interns its caller/call key and exactly the views permitted by its declared result. One
+immutable `Program::application_template` fact owns that result witness template; the call IR owns
+the selected callee. The template supplies structural constraints, not a concrete return producer,
+owned environment or Copy proof. Named, anonymous and already returned callees share this path.
+A root and its closures have independent operation arenas. Canonical replay preserves their
+application facts in the same authority; no dispatch search or source syntax enters the program.
+Application contract lookup follows templates iteratively and rejects cycles without a recursion
+limit. Branches share declaration, namespace and record metadata instead of cloning those authorities.
 Its owner is a complete `ValueCodeRoot`, including a body-local expression identity when selected.
 Different expressions in one source body have distinct suffix, closure and application domains;
 sharing their source owner cannot merge those domains. A declaration branch requires its ready

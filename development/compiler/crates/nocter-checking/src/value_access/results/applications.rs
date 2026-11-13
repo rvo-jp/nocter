@@ -36,13 +36,20 @@ pub(super) fn call_result(
         && application.owner == query.code()
         && application.call == id
     {
-        if *target != ValueFunctionOrigin::Declaration(application.callee)
-            || query
-                .program()
-                .codes()
-                .get(application.callee)
-                .and_then(nocter_declarations::value_access::Code::result_contract)
-                .is_none_or(|contract| contract.invocation != result_invocation)
+        let template = query
+            .program()
+            .application_template(application)
+            .ok_or(INVALID)?;
+        let result = query
+            .program()
+            .function_contract(FunctionWitness {
+                origin: *target,
+                invocation,
+            })
+            .ok_or(INVALID)?
+            .result;
+        if !matches!(query.program().data_schema(result), Some(PayloadSchema::Function(actual)) if actual == template)
+            || result_invocation != template.invocation
         {
             return Err(INVALID);
         }
@@ -74,4 +81,22 @@ pub(super) fn call_result(
         data,
         created: None,
     }))
+}
+
+pub(super) fn callee(
+    query: &Query,
+    id: AccessExpressionId,
+) -> Result<FunctionWitness, flow::IntegrityError> {
+    let ExpressionKind::Call {
+        target,
+        kind,
+        arguments,
+    } = &query.body().expressions().get(id).ok_or(INVALID)?.kind
+    else {
+        return Err(INVALID);
+    };
+    Ok(FunctionWitness {
+        origin: *target,
+        invocation: kind.invocation(arguments).ok_or(INVALID)?,
+    })
 }

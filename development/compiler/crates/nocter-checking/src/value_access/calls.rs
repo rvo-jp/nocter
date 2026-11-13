@@ -288,29 +288,15 @@ impl Checker<'_, '_> {
             continues &= self.ty(value).may_complete();
             plans.push(self.prepare_input(syntax, value, expected)?);
         }
-        let result = match selected.witness.origin {
-            ValueFunctionOrigin::Declaration(callee)
-                if self
-                    .program()
-                    .codes()
-                    .get(callee)
-                    .is_some_and(|callable| callable.result_contract().is_some()) =>
-            {
-                self.types
-                    .application(self.code, self.expressions.next_id(), callee)
-                    .map_err(|_| Failure::InconsistentSyntax)?
-            }
-            _ => self
-                .program()
-                .function_result(selected.witness, |parameter| {
-                    plans
-                        .iter()
-                        .filter_map(|argument| argument.binding.as_ref())
-                        .find(|binding| binding.parameter == parameter)
-                        .map(|binding| binding.witness)
-                })
-                .or_else(|| (!continues).then_some(contract.result))
-                .ok_or(Failure::InconsistentSyntax)?,
+        let result = if matches!(
+            self.program().data_schema(contract.result),
+            Some(PayloadSchema::Function(_))
+        ) {
+            self.types
+                .application(self.code, self.expressions.next_id(), selected.witness)
+                .map_err(|_| Failure::InconsistentSyntax)?
+        } else {
+            contract.result
         };
         self.emit(
             node,
