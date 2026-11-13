@@ -24,6 +24,9 @@ pub(in crate::value_access) struct CallEdge<'a> {
     template: &'a Result<CallTemplate, flow::IntegrityError>,
 }
 impl CallEdge<'_> {
+    pub(super) fn template(&self) -> Result<&CallTemplate, flow::IntegrityError> {
+        self.template.as_ref().map_err(|error| *error)
+    }
     pub(in crate::value_access) fn expression(&self) -> AccessExpressionId {
         self.expression
     }

@@ -98,19 +98,12 @@ not a language restriction derived from the current realization boundary.
 
 ## Open Findings
 
-- [ ] Close statically known callee conditions in uninvoked const definitions and inferred
-  closure availability. Qualify `const func impossible(): i32 { apply(runtime) }` where
-  `apply` invokes its callable input and `runtime` lacks authored const. A direct callee's const
-  flag must not hide an already-false selected binding, including through forwarding/recursion.
-  Add the source reproducer before the fix; preserve unresolved outer inputs as conditions,
-  fixed-operation definition errors, matched body/cause receipts and dormant runtime values.
-
-- [ ] Compose witness-dependent const conditions symbolically instead of enumerating concrete
-  witness-call closures. Permuting callbacks still expands condition frames when their code can
-  be invoked. Fixed-target closures share conditions only after actual callable data qualification;
-  evaluator bodies are realized on actual entry through fixed immediate call contracts. Preserve
-  fixed forbidden-operation checks, matched body/condition/plan products, actual cleanup and
-  ordinary source safety. Work quotas bound uncertainty without proving eligibility.
+- [ ] Replace remaining concrete-frame expansion in required const eligibility with guarded
+  symbolic discharge. The definition-owned invocation conjunction detects closed false bindings,
+  but is not a complete certificate for input representation, actual cleanup or arbitrary
+  caller contexts. Qualify those conditions through the same matched body/type products,
+  preserving exact supplying-argument causes and source safety. Work quotas bound uncertainty
+  without proving eligibility; module publication retains its independent qualification.
 - [ ] Complete nested callable data/witness support through header/data positions and the owning
   type authority. Qualify concrete representation, substitution and callable input/result evidence;
   one recognized type tree and a matching signature do not erase code/environment identity.

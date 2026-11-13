@@ -1,16 +1,22 @@
 //! Definition-owned anonymous invocation availability, separate from environment transport.
-use super::{Diagnostic, Failure, INVALID, Requirements, Rule, Site, Violation, flow};
+use super::{Diagnostic, Failure, INVALID, Requirements, Rule, Violation, flow};
 use nocter_diagnostics::DiagnosticNote;
-use nocter_model::{ValueClosure, ValueCode, ValueFunctionOrigin};
+use nocter_model::{ValueClosure, ValueCode};
 use std::{
     collections::{BTreeMap, VecDeque},
     sync::Arc,
 };
 
+#[derive(Clone, Copy, Debug)]
+enum Cause {
+    Local(Violation),
+    Conditional(super::invocations::ViolationProof),
+}
 #[derive(Debug)]
 pub(in crate::value_access) struct Catalog {
     requirements: BTreeMap<ValueCode, Requirements>,
-    states: BTreeMap<ValueClosure, Option<Violation>>,
+    states: BTreeMap<ValueClosure, Option<Cause>>,
+    invocations: super::invocations::Invocations,
 }
 impl Catalog {
     pub(in crate::value_access) fn prepare(
@@ -23,31 +29,20 @@ impl Catalog {
                 return Err(INVALID);
             }
         }
+        let invocations = super::invocations::Invocations::prepare(&requirements)?;
         let mut states = BTreeMap::new();
-        let mut dependents =
-            BTreeMap::<ValueClosure, Vec<(ValueClosure, nocter_model::AccessExpressionId)>>::new();
+        let dependents = invocations.captured_dependents();
         for (&source, item) in &requirements {
             let ValueCode::Closure(code) = source else {
                 continue;
             };
-            let mut violation = item.check(&|_| true, None)?;
-            for call in item.call_expressions() {
-                let (id, expression) = call?;
-                if let crate::value_access::ExpressionKind::Call {
-                    target: ValueFunctionOrigin::Closure(target),
-                    ..
-                } = *expression
-                {
-                    dependents.entry(target).or_default().push((code, id));
-                    if !requirements.contains_key(&ValueCode::Closure(target))
-                        && violation.is_none()
-                    {
-                        violation = Some(Violation {
-                            site: Site::Expression(id),
-                            rule: Rule::CapturedCall(target),
-                        });
-                    }
-                }
+            let mut violation = item.check(&|_| true, None)?.map(Cause::Local);
+            if violation.is_none() {
+                violation = invocations
+                    .violation(item, &|target| {
+                        requirements.contains_key(&ValueCode::Closure(target))
+                    })?
+                    .map(Cause::Conditional);
             }
             states.insert(code, violation);
         }
@@ -56,13 +51,10 @@ impl Catalog {
             .filter_map(|(&code, cause)| cause.is_some().then_some(code))
             .collect();
         while let Some(target) = pending.pop_front() {
-            for &(code, expression) in dependents.get(&target).into_iter().flatten() {
+            for &(code, proof) in dependents.get(&target).into_iter().flatten() {
                 let state = states.get_mut(&code).ok_or(INVALID)?;
                 if state.is_none() {
-                    *state = Some(Violation {
-                        site: Site::Expression(expression),
-                        rule: Rule::CapturedCall(target),
-                    });
+                    *state = Some(Cause::Conditional(proof));
                     pending.push_back(code);
                 }
             }
@@ -70,7 +62,41 @@ impl Catalog {
         Ok(Self {
             requirements,
             states,
+            invocations,
         })
+    }
+    pub(in crate::value_access) fn closed_violation(
+        &self,
+        code: ValueCode,
+        verified: &crate::value_access::results::Verified<'_, '_>,
+    ) -> Result<
+        Option<(nocter_model::AccessCodeId, Diagnostic)>,
+        crate::value_access::accepted::Failure,
+    > {
+        let item = self
+            .requirements
+            .get(&code)
+            .ok_or(crate::value_access::accepted::Failure::Integrity(INVALID))?;
+        let Some(proof) = self
+            .invocations
+            .violation(item, &|code| self.permitted_template(code))
+            .map_err(crate::value_access::accepted::Failure::Integrity)?
+        else {
+            return Ok(None);
+        };
+        let (callable, mut diagnostic) = self
+            .invocations
+            .project(proof, &self.requirements, verified)
+            .map_err(|failure| crate::value_access::accepted::Failure::Body {
+                callable: code.source_owner(),
+                failure,
+            })?;
+        self.annotate(diagnostic.rule(), &mut diagnostic, verified)
+            .map_err(|failure| crate::value_access::accepted::Failure::Body {
+                callable,
+                failure,
+            })?;
+        Ok(Some((callable, diagnostic)))
     }
     pub(in crate::value_access) fn traversal(&self) -> super::Traversal {
         let scope = self
@@ -98,13 +124,22 @@ impl Catalog {
             let Some(Some(cause)) = self.states.get(&code) else {
                 break;
             };
-            let bound = self
-                .requirements
-                .get(&ValueCode::Closure(code))
-                .ok_or(Failure::InconsistentSyntax)?
-                .body()
-                .bind_verified(verified)?;
-            let projected = (*cause).project(&bound)?;
+            let projected = match *cause {
+                Cause::Local(violation) => {
+                    let bound = self
+                        .requirements
+                        .get(&ValueCode::Closure(code))
+                        .ok_or(Failure::InconsistentSyntax)?
+                        .body()
+                        .bind_verified(verified)?;
+                    violation.project(&bound)?
+                }
+                Cause::Conditional(proof) => {
+                    self.invocations
+                        .project(proof, &self.requirements, verified)?
+                        .1
+                }
+            };
             diagnostic.source.push_note(DiagnosticNote::new(
                 format!(
                     "captured invocation depends on this operation: {}",
@@ -112,7 +147,10 @@ impl Catalog {
                 ),
                 projected.source.primary(),
             ));
-            rule = cause.rule;
+            for note in projected.source.notes() {
+                diagnostic.source.push_note(note.clone());
+            }
+            rule = projected.rule();
         }
         Ok(())
     }

@@ -344,3 +344,103 @@ fn stored_condition_edges_close_to_the_same_frozen_instance_as_native_call_bindi
         }
     }
 }
+
+#[test]
+fn uninvoked_const_definitions_reject_a_statically_false_forwarded_invocation_condition() {
+    let source = "func runtime(value: i32): i32 { value }\nconst func apply(action: func(i32): i32): i32 { action(42) }\nconst func impossible(): i32 { apply(runtime) }\nconst ANSWER: i32 = 42";
+    let (sources, tree) = input(source);
+    let syntax = bound(&sources, &tree);
+    let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+        SourceUnit::prepare(syntax)
+    else {
+        panic!(
+            "an authored const definition cannot hide a fixed runtime binding behind a const helper"
+        );
+    };
+    assert!(matches!(diagnostic.rule(), Rule::RuntimeCall(_)));
+}
+
+#[test]
+fn closed_invocation_obligations_cross_forwarding_and_recursion_without_closing_outer_inputs() {
+    let prefix = "func runtime(value: i32): i32 { value }\nconst func valid(value: i32): i32 { value }\nconst func apply(action: func(i32): i32): i32 { action(42) }\nconst func forward(action: func(i32): i32): i32 { apply(action) }\nconst func rotate(action: func(i32): i32, other: func(i32): i32, count: i32): i32 { if count == 0 { action(42) } else { rotate(other, action, count - 1) } }\n";
+    accepted(&format!(
+        "{prefix}func ordinary(): i32 {{ forward(runtime) }}\nconst ANSWER: i32 = forward(valid)"
+    ));
+    for call in ["forward(runtime)", "rotate(valid, runtime, 1)"] {
+        let source =
+            format!("{prefix}const func impossible(): i32 {{ {call} }}\nconst ANSWER: i32 = 42");
+        let (sources, tree) = input(&source);
+        let syntax = bound(&sources, &tree);
+        let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+            SourceUnit::prepare(syntax)
+        else {
+            panic!("closed invocation condition: {call}");
+        };
+        assert!(matches!(diagnostic.rule(), Rule::RuntimeCall(_)));
+        assert!(
+            diagnostic
+                .source()
+                .notes()
+                .iter()
+                .any(|note| syntax.text_at(note.origin().span().range()) == Some("runtime"))
+        );
+    }
+}
+
+#[test]
+fn an_indirectly_unavailable_closure_may_be_formed_and_dropped_but_not_invoked() {
+    let prefix = "func runtime(value: i32): i32 { value }\nconst func apply(action: func(i32): i32): i32 { action(42) }\n";
+    let unit = accepted(&format!(
+        "{prefix}const func calculate(): i32 {{ let action = (): i32 {{ apply(runtime) }}\ndrop action\n42 }}\nconst ANSWER: i32 = calculate()"
+    ));
+    let (&code, _) = unit.closures().iter().next().unwrap();
+    assert!(!unit.const_templates.permitted_template(code));
+    let source = format!(
+        "{prefix}const func calculate(): i32 {{ let action = (): i32 {{ apply(runtime) }}\naction() }}\nconst ANSWER: i32 = calculate()"
+    );
+    let (sources, tree) = input(&source);
+    let syntax = bound(&sources, &tree);
+    let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+        SourceUnit::prepare(syntax)
+    else {
+        panic!("inferred invocation is unavailable");
+    };
+    assert!(matches!(diagnostic.rule(), Rule::CapturedCall(_)));
+    for cause in ["runtime", "apply(runtime)", "action(42)"] {
+        assert!(
+            diagnostic
+                .source()
+                .notes()
+                .iter()
+                .any(|note| syntax.text_at(note.origin().span().range()) == Some(cause)),
+            "{cause}"
+        );
+    }
+}
+
+#[test]
+fn mutual_conditional_recursion_keeps_outer_inputs_symbolic_and_exposes_fixed_false_bindings() {
+    let prefix = "func runtime(value: i32): i32 { value }\nconst func first(action: func(i32): i32): i32 { second(action) }\nconst func second(action: func(i32): i32): i32 { if false { first(action) } else { action(42) } }\n";
+    accepted(&format!("{prefix}const ANSWER: i32 = 42"));
+    let source = format!(
+        "{prefix}const func impossible(): i32 {{ first(runtime) }}\nconst ANSWER: i32 = 42"
+    );
+    let (sources, tree) = input(&source);
+    let syntax = bound(&sources, &tree);
+    let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+        SourceUnit::prepare(syntax)
+    else {
+        panic!("fixed false binding in a recursive conditional component");
+    };
+    assert!(matches!(diagnostic.rule(), Rule::RuntimeCall(_)));
+    for cause in ["runtime", "first(runtime)", "second(action)"] {
+        assert!(
+            diagnostic
+                .source()
+                .notes()
+                .iter()
+                .any(|note| syntax.text_at(note.origin().span().range()) == Some(cause)),
+            "{cause}"
+        );
+    }
+}

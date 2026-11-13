@@ -926,10 +926,23 @@ receipts and never searches other callbacks for a favorable capability.
 Each internal edge reference borrows its matched checked body and rejects a different caller code.
 This is symbolic edge metadata, not a solved const condition or an executable-callee proof.
 
-These products currently express direct body-wide conjunctions, including every authored possible
-invocation. General symbolic composition, value/resource-state guarded discharge and module
-publication remain integration work; the products alone grant no exported unconditional const
-guarantee or evaluator implementation.
+`constant::Invocations` derives a finite symbolic conjunction of invocation requirements from
+those same clauses and retained edges. A worklist substitutes callee witness positions into the
+caller, including recursive components, without unrolling concrete combinations. Outer parameters
+remain symbolic. An already satisfied authored named-capability atom is pruned while the callee's
+own requirements still propagate. Missing producer/view facts and outside captures are not
+invented substitutions. A closed false invocation condition is rejected in an uninvoked authored
+const definition; ordinary runtime callers remain valid. Captured availability consumes the same
+requirements, so an indirectly unavailable body can be formed and discarded, but not invoked.
+Causal nodes refer only to earlier nodes in one arena. Definition failures project the original
+operation, supplying argument chain and call path through verified body receipts without a
+recursive cause graph or source retyping.
+
+This finite invocation product detects closed false facts; absence of a failure is not a complete
+eligibility certificate. Input representation and actual cleanup remain their own body clauses.
+General symbolic composition, value/resource-state guarded discharge and module publication
+remain integration work; the products alone grant no exported unconditional const guarantee or
+evaluator implementation.
 
 Explicit unsupported drops fail even in dead source. Implicit disposal and edit-input replacement
 consume the actual sparse resource transitions; ending a partial container does not destroy its

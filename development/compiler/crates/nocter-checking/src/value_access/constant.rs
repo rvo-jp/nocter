@@ -9,6 +9,7 @@ use nocter_model::{
 };
 
 mod catalog;
+mod invocations;
 mod requirements;
 mod traversal;
 pub use requirements::Requirements;
@@ -84,10 +85,7 @@ fn operation_rule(
             // The template selected an input witness, not a fixed source operation. Its
             // invocation obligation is inactive when frozen preparation cannot commit a call.
             // Receiver/environment operations retain their independent data/cleanup clauses.
-            if *kind == CallKind::Value
-                && matches!(target, ValueFunctionOrigin::Parameter(_))
-                && !super::instances::completed(arguments)
-            {
+            if uncommitted_parameter_call(*kind, *target, arguments) {
                 return Ok(None);
             }
             let target = if let Some(instance) = instance {
@@ -106,20 +104,7 @@ fn operation_rule(
             } else {
                 *target
             };
-            match (kind, target) {
-                (_, ValueFunctionOrigin::Declaration(target)) => {
-                    let callable = program.codes().get(target).ok_or(INVALID)?;
-                    (callable.compile_time() != CompileTimeGuarantee::Evaluatable)
-                        .then_some(Rule::RuntimeCall(target))
-                }
-                (CallKind::Value, ValueFunctionOrigin::Closure(code)) => {
-                    (!available(code)).then_some(Rule::CapturedCall(code))
-                }
-                // This is a conditional template obligation, never a closed invocation fact.
-                (CallKind::Value, ValueFunctionOrigin::Parameter(_)) if instance.is_none() => None,
-                (CallKind::Value, _) => Some(Rule::ValueInvocation),
-                (CallKind::Direct, _) => return Err(INVALID),
-            }
+            invocation_rule(program, *kind, target, available)?
         }
         ExpressionKind::Closure { .. }
         | ExpressionKind::Function(_)
@@ -143,6 +128,36 @@ fn operation_rule(
         | ExpressionKind::Unary { .. }
         | ExpressionKind::Binary { .. }
         | ExpressionKind::If { .. } => None,
+    })
+}
+
+fn uncommitted_parameter_call(
+    kind: CallKind,
+    target: ValueFunctionOrigin,
+    arguments: &[super::Argument],
+) -> bool {
+    kind == CallKind::Value
+        && matches!(target, ValueFunctionOrigin::Parameter(_))
+        && !super::instances::completed(arguments)
+}
+fn invocation_rule(
+    program: &Program,
+    kind: CallKind,
+    target: ValueFunctionOrigin,
+    available: &dyn Fn(nocter_model::ValueClosure) -> bool,
+) -> Result<Option<Rule>, flow::IntegrityError> {
+    Ok(match (kind, target) {
+        (_, ValueFunctionOrigin::Declaration(target)) => {
+            let callable = program.codes().get(target).ok_or(INVALID)?;
+            (callable.compile_time() != CompileTimeGuarantee::Evaluatable)
+                .then_some(Rule::RuntimeCall(target))
+        }
+        (CallKind::Value, ValueFunctionOrigin::Closure(code)) => {
+            (!available(code)).then_some(Rule::CapturedCall(code))
+        }
+        (CallKind::Value, ValueFunctionOrigin::Parameter(_)) => None,
+        (CallKind::Value, _) => Some(Rule::ValueInvocation),
+        (CallKind::Direct, _) => return Err(INVALID),
     })
 }
 

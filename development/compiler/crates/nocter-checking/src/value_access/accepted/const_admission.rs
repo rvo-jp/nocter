@@ -98,6 +98,7 @@ pub(super) fn check_const_bodies(
     let availability =
         constant::Catalog::prepare(bodies.values().chain(closures.values()).cloned())
             .map_err(Failure::Integrity)?;
+    let mut const_roots = Vec::new();
     for (&root, query) in bodies {
         let callable = root.source_owner();
         let evaluatable = match root {
@@ -113,6 +114,9 @@ pub(super) fn check_const_bodies(
             }
             nocter_model::ValueCodeRoot::Expression(_) => true,
         };
+        if evaluatable {
+            const_roots.push(root);
+        }
         if evaluatable
             && let Some(violation) = availability
                 .get(root.code())
@@ -131,6 +135,16 @@ pub(super) fn check_const_bodies(
             availability
                 .annotate(diagnostic.rule(), &mut diagnostic, verified)
                 .map_err(|failure| Failure::Body { callable, failure })?;
+            return Err(Failure::Const {
+                callable,
+                diagnostic: Box::new(diagnostic),
+            });
+        }
+    }
+    for root in const_roots {
+        if let Some((callable, diagnostic)) =
+            availability.closed_violation(root.code(), verified)?
+        {
             return Err(Failure::Const {
                 callable,
                 diagnostic: Box::new(diagnostic),
