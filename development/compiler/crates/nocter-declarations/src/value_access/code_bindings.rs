@@ -177,14 +177,7 @@ impl Program {
     ) -> Result<ConcreteWitness, CodeBindingError> {
         if let ValueFunctionOrigin::Parameter(parameter) = selected.origin {
             let actual = lookup(parameter).ok_or(CodeBindingError::InvalidWitness)?;
-            self.validate_concrete(actual)?;
-            if !actual.invocation().can_supply(selected.invocation) {
-                return Err(CodeBindingError::Contract(FunctionMismatch::Invocation {
-                    actual: actual.invocation(),
-                    expected: selected.invocation,
-                }));
-            }
-            return Ok(actual.clone().with_invocation(selected.invocation));
+            return self.adapt_witness(actual, selected.invocation);
         }
         if let ValueFunctionOrigin::Closure(code) = selected.origin {
             let contracts = self.environment_contracts(code)?;
@@ -198,6 +191,25 @@ impl Program {
             return self.bind_callable_environment(selected, captures);
         }
         self.concrete_witness(selected)
+    }
+
+    /// Select a permitted invocation view without discarding captured callable context.
+    /// This grants neither body capability nor ownership/representation evidence.
+    /// # Errors
+    /// Rejects a foreign/invalid witness or an upgrade from a weaker supplied invocation.
+    pub fn adapt_witness(
+        &self,
+        witness: &ConcreteWitness,
+        invocation: ValueInvocation,
+    ) -> Result<ConcreteWitness, CodeBindingError> {
+        self.validate_concrete(witness)?;
+        if !witness.invocation().can_supply(invocation) {
+            return Err(CodeBindingError::Contract(FunctionMismatch::Invocation {
+                actual: witness.invocation(),
+                expected: invocation,
+            }));
+        }
+        Ok(witness.clone().with_invocation(invocation))
     }
 
     /// Validate a concrete static witness in this authority. This grants no code-body capability.

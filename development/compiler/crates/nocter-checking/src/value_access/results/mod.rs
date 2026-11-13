@@ -1,5 +1,8 @@
 //! One closure of callable result producers, followed by identity-only body projection.
 mod applications;
+mod instantiation;
+pub use instantiation::InstantiationFailure;
+pub(super) use instantiation::call as instantiate_invocation;
 mod producers;
 mod projection;
 mod relations;

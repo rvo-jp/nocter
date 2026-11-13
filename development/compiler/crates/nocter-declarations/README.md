@@ -364,6 +364,11 @@ its original declaration authority. A key is not a source/revision reuse certifi
 scoped to their checked program and body guards. Contextual carrier projection and executable
 formal-environment admission remain integration work.
 
+`Program::adapt_witness` is the shared concrete invocation-view operation. It validates the full
+witness, preserves captured substitutions and rejects an upgrade from a weaker supplied view.
+Formal resolution and producer-frame realization use this same operation; adaptation adds no
+ownership, body capability or representation evidence.
+
 `DataInstanceKey` pairs an unchanged semantic TypeId with exactly its closed callable dependencies.
 `instantiate_data` uses the same binding normalization and frozen witness resolution as code
 frames; it discards irrelevant input bindings. `function_representation` explicitly selects the

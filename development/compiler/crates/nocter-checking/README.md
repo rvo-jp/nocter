@@ -443,6 +443,23 @@ receipt. These relations do not establish a concrete captured frame, runtime val
 callable target, const permission or ownership. Occurrence-sensitive contextual realization still
 requires its separate qualification before formal-capture admission can open.
 
+`Unit::instantiate_invocation` resolves a concrete metadata frame from those original recipes under
+a caller-supplied deterministic `WorkBudget`. One request-local worklist joins witness/frame facts
+to a fixed point, retaining captured contexts and actual creation frames across application/result
+edges. A matched result-code summary may close directly only when the declaration authority proves
+that concrete witness context-free; dependent environments cannot reuse the outer caller's binding
+merely because the source code agrees. Invocation adaptation delegates to
+`Program::adapt_witness`, preserving the complete capture context and rejecting view upgrades.
+
+Different concrete alternatives remain unresolved rather than selecting the first witness or
+enumerating a Cartesian set of joint frames. Empty facts supply no success receipt. Anchored
+recursive forwarding can close through the same positive fixed point without host-recursive
+resolution. Work failure drops the request-local draft and cannot publish partial state or poison
+a retry. Foreign owners and absent committed calls reject before resolution. The returned key is
+metadata only: it supplies no runtime value, initialized owner, const permission, body plan,
+representation or executable admission. Source formal-capture creation and occurrence-sensitive
+transport remain separately gated; logical context tests do not widen that source domain.
+
 After deferred identity equalities are proved, the declaration owner's
 [`resolve_body_types`](../nocter-declarations/README.md#future-value-declaration-boundary)
 normalizes result/application leaves and their containing structural shapes in the same type

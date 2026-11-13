@@ -174,6 +174,25 @@ impl Unit {
     ) -> Option<nocter_declarations::value_access::FunctionWitness> {
         self.result_evidence.producer(callable)
     }
+    /// Resolve one original call's concrete metadata frame without choosing a value alternative.
+    /// # Errors
+    /// Rejects a foreign owner, missing call, unresolved/ambiguous context or exhausted work.
+    /// No partial query state, executable target, const permission or ownership is published.
+    pub fn instantiate_invocation(
+        &self,
+        caller: &nocter_declarations::value_access::CodeInstanceKey,
+        site: nocter_model::ValueApplication,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<nocter_declarations::value_access::CodeInstanceKey, super::InstantiationFailure>
+    {
+        super::results::instantiate_invocation(
+            &self.program,
+            &self.result_evidence,
+            caller,
+            site,
+            work,
+        )
+    }
     /// Original bindings of a reached committed call, independently of its result data.
     /// The recipe belongs to this exact accepted Unit and grants no executable call/frame proof.
     #[must_use]

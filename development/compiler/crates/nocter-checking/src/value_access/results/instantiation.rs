@@ -1,0 +1,230 @@
+//! Request-local, budgeted fixed point for concrete invocation metadata, never executable admission.
+use super::{Evidence, ProducerRelation, ProducerTerm};
+use nocter_constant_evaluation::state::WorkBudget;
+use nocter_declarations::value_access::{
+    CodeInstanceKey, ConcreteWitness, FunctionWitness, Program,
+};
+use nocter_model::{ValueApplication, ValueCode, ValueFunctionOrigin as Origin, ValueInvocation};
+use std::collections::{BTreeMap, BTreeSet, btree_map::Entry as MapEntry};
+#[cfg(test)]
+mod tests;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum InstantiationFailure {
+    WrongOwner,
+    MissingCall,
+    Unresolved,
+    WorkLimit,
+}
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+enum Key {
+    Witness(CodeInstanceKey, FunctionWitness),
+    Result(CodeInstanceKey),
+    Call(CodeInstanceKey, ValueApplication),
+}
+#[derive(Clone, Debug, Eq, PartialEq, Default)]
+enum Fact {
+    #[default]
+    Empty,
+    Witness(ConcreteWitness),
+    Frame(CodeInstanceKey),
+    Unavailable,
+}
+impl Fact {
+    fn join(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Empty, fact) | (fact, Self::Empty) => fact,
+            (left, right) if left == right => left,
+            _ => Self::Unavailable,
+        }
+    }
+}
+#[derive(Default)]
+struct Entry {
+    fact: Fact,
+    dependents: BTreeSet<Key>,
+}
+struct Query<'a, 'work> {
+    program: &'a Program,
+    evidence: &'a Evidence,
+    work: &'work mut WorkBudget,
+    entries: BTreeMap<Key, Entry>,
+    pending: BTreeSet<Key>,
+}
+
+pub(in crate::value_access) fn call(
+    program: &Program,
+    evidence: &Evidence,
+    caller: &CodeInstanceKey,
+    site: ValueApplication,
+    work: &mut WorkBudget,
+) -> Result<CodeInstanceKey, InstantiationFailure> {
+    if caller.code() != site.owner {
+        return Err(InstantiationFailure::WrongOwner);
+    }
+    if evidence.invocation(site).is_none() {
+        return Err(InstantiationFailure::MissingCall);
+    }
+    let mut query = Query {
+        program,
+        evidence,
+        work,
+        entries: BTreeMap::new(),
+        pending: BTreeSet::new(),
+    };
+    let root = Key::Call(caller.clone(), site);
+    query.ensure(root.clone())?;
+    while let Some(key) = query.pending.pop_first() {
+        query.step()?;
+        let fact = query.evaluate(&key)?;
+        let entry = query
+            .entries
+            .get_mut(&key)
+            .ok_or(InstantiationFailure::Unresolved)?;
+        let joined = entry.fact.clone().join(fact);
+        if joined != entry.fact {
+            entry.fact = joined;
+            query.pending.extend(entry.dependents.iter().cloned());
+        }
+    }
+    match query.entries.remove(&root).map(|entry| entry.fact) {
+        Some(Fact::Frame(frame)) => Ok(frame),
+        _ => Err(InstantiationFailure::Unresolved),
+    }
+}
+impl Query<'_, '_> {
+    fn step(&mut self) -> Result<(), InstantiationFailure> {
+        self.work
+            .step()
+            .map_err(|_| InstantiationFailure::WorkLimit)
+    }
+    fn ensure(&mut self, key: Key) -> Result<&mut Entry, InstantiationFailure> {
+        match self.entries.entry(key) {
+            MapEntry::Occupied(entry) => Ok(entry.into_mut()),
+            MapEntry::Vacant(entry) => {
+                self.work
+                    .step()
+                    .map_err(|_| InstantiationFailure::WorkLimit)?;
+                self.pending.insert(entry.key().clone());
+                Ok(entry.insert(Entry::default()))
+            }
+        }
+    }
+    fn read(&mut self, owner: &Key, dependency: Key) -> Result<Fact, InstantiationFailure> {
+        self.step()?;
+        let entry = self.ensure(dependency)?;
+        entry.dependents.insert(owner.clone());
+        Ok(entry.fact.clone())
+    }
+    fn union(
+        &mut self,
+        owner: &Key,
+        frame: &CodeInstanceKey,
+        terms: &BTreeSet<FunctionWitness>,
+    ) -> Result<Fact, InstantiationFailure> {
+        let mut fact = Fact::Empty;
+        for &selected in terms {
+            fact = fact.join(self.read(owner, Key::Witness(frame.clone(), selected))?);
+        }
+        Ok(fact)
+    }
+    fn adapt(&self, fact: Fact, view: ValueInvocation) -> Fact {
+        match fact {
+            Fact::Witness(witness) => self
+                .program
+                .adapt_witness(&witness, view)
+                .map_or(Fact::Unavailable, Fact::Witness),
+            Fact::Empty | Fact::Unavailable => fact,
+            Fact::Frame(_) => Fact::Unavailable,
+        }
+    }
+    fn evaluate(&mut self, key: &Key) -> Result<Fact, InstantiationFailure> {
+        match key {
+            Key::Witness(frame, selected) => self.witness(key, frame, *selected),
+            Key::Result(frame) => {
+                match self
+                    .evidence
+                    .recipe(ProducerTerm::Result(frame.code()))
+                    .cloned()
+                {
+                    Some(ProducerRelation::Union(terms)) => self.union(key, frame, &terms),
+                    _ => Ok(Fact::Unavailable),
+                }
+            }
+            Key::Call(frame, site) => self.invocation(key, frame, *site),
+        }
+    }
+    fn witness(
+        &mut self,
+        owner: &Key,
+        frame: &CodeInstanceKey,
+        selected: FunctionWitness,
+    ) -> Result<Fact, InstantiationFailure> {
+        if !matches!(selected.origin, Origin::Result(_) | Origin::Application(_)) {
+            return Ok(frame
+                .resolve(self.program, selected)
+                .map_or(Fact::Unavailable, Fact::Witness));
+        }
+        if self.evidence.unproduced_origin(selected.origin) {
+            return Ok(Fact::Empty);
+        }
+        // A matched source summary plus a context-free concrete-witness proof needs no creation
+        // frame. This never reconstructs a dependent environment from a signature or code name.
+        if let Ok(summary) = self.evidence.witness(selected)
+            && let Ok(witness) = self.program.concrete_witness(summary)
+        {
+            return Ok(Fact::Witness(witness));
+        }
+        let fact = match selected.origin {
+            Origin::Application(site) if frame.code() == site.owner => {
+                match self.read(owner, Key::Call(frame.clone(), site))? {
+                    Fact::Frame(callee) => self.read(owner, Key::Result(callee))?,
+                    Fact::Empty => Fact::Empty,
+                    _ => Fact::Unavailable,
+                }
+            }
+            Origin::Result(code) if frame.code() == ValueCode::Declaration(code) => {
+                self.read(owner, Key::Result(frame.clone()))?
+            }
+            _ => Fact::Unavailable,
+        };
+        Ok(self.adapt(fact, selected.invocation))
+    }
+    fn invocation(
+        &mut self,
+        owner: &Key,
+        frame: &CodeInstanceKey,
+        site: ValueApplication,
+    ) -> Result<Fact, InstantiationFailure> {
+        if frame.code() != site.owner {
+            return Ok(Fact::Unavailable);
+        }
+        let Some(recipe) = self.evidence.invocations.get(&site).cloned() else {
+            return Ok(Fact::Unavailable);
+        };
+        let selected = self.union(owner, frame, &recipe.callees)?;
+        let mut bindings = Vec::new();
+        let mut pending = matches!(selected, Fact::Empty);
+        let mut unavailable = matches!(selected, Fact::Unavailable | Fact::Frame(_));
+        for (&parameter, terms) in &recipe.inputs {
+            match self.union(owner, frame, terms)? {
+                Fact::Witness(witness) => bindings.push((parameter, witness)),
+                Fact::Empty => pending = true,
+                _ => unavailable = true,
+            }
+        }
+        if unavailable {
+            return Ok(Fact::Unavailable);
+        }
+        if pending {
+            return Ok(Fact::Empty);
+        }
+        let Fact::Witness(selected) = selected else {
+            return Ok(Fact::Unavailable);
+        };
+        Ok(self
+            .program
+            .bind_instance(&selected, bindings)
+            .map_or(Fact::Unavailable, Fact::Frame))
+    }
+}
