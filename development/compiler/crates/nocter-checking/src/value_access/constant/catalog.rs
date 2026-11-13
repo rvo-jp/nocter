@@ -10,13 +10,13 @@ use std::{
 #[derive(Clone, Copy, Debug)]
 enum Cause {
     Local(Violation),
-    Conditional(super::invocations::ViolationProof),
+    Conditional(super::conditions::ViolationProof),
 }
 #[derive(Debug)]
 pub(in crate::value_access) struct Catalog {
     requirements: BTreeMap<ValueCode, Requirements>,
     states: BTreeMap<ValueClosure, Option<Cause>>,
-    invocations: super::invocations::Invocations,
+    conditions: super::conditions::Conditions,
 }
 impl Catalog {
     pub(in crate::value_access) fn prepare(
@@ -29,16 +29,16 @@ impl Catalog {
                 return Err(INVALID);
             }
         }
-        let invocations = super::invocations::Invocations::prepare(&requirements)?;
+        let conditions = super::conditions::Conditions::prepare(&requirements)?;
         let mut states = BTreeMap::new();
-        let dependents = invocations.captured_dependents();
+        let dependents = conditions.captured_dependents();
         for (&source, item) in &requirements {
             let ValueCode::Closure(code) = source else {
                 continue;
             };
             let mut violation = item.check(&|_| true, None)?.map(Cause::Local);
             if violation.is_none() {
-                violation = invocations
+                violation = conditions
                     .violation(item, &|target| {
                         requirements.contains_key(&ValueCode::Closure(target))
                     })?
@@ -62,7 +62,7 @@ impl Catalog {
         Ok(Self {
             requirements,
             states,
-            invocations,
+            conditions,
         })
     }
     pub(in crate::value_access) fn closed_violation(
@@ -78,14 +78,14 @@ impl Catalog {
             .get(&code)
             .ok_or(crate::value_access::accepted::Failure::Integrity(INVALID))?;
         let Some(proof) = self
-            .invocations
+            .conditions
             .violation(item, &|code| self.permitted_template(code))
             .map_err(crate::value_access::accepted::Failure::Integrity)?
         else {
             return Ok(None);
         };
         let (callable, mut diagnostic) = self
-            .invocations
+            .conditions
             .project(proof, &self.requirements, verified)
             .map_err(|failure| crate::value_access::accepted::Failure::Body {
                 callable: code.source_owner(),
@@ -135,7 +135,7 @@ impl Catalog {
                     violation.project(&bound)?
                 }
                 Cause::Conditional(proof) => {
-                    self.invocations
+                    self.conditions
                         .project(proof, &self.requirements, verified)?
                         .1
                 }

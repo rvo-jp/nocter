@@ -1,20 +1,51 @@
-//! Finite symbolic invocation obligations; closed false facts never become positive capability.
+//! Finite symbolic invocation and direct-data obligations over the matched checked bodies.
 use super::{Diagnostic, Failure, INVALID, Requirements, Rule, Site, Violation, flow};
 use crate::value_access::{CallTemplate, ExpressionKind, results, source_origin};
-use nocter_declarations::value_access::{CodeTemplateKey, FunctionWitness};
+use nocter_declarations::value_access::{CodeTemplateKey, FunctionWitness, PayloadSchema};
 use nocter_model::{AccessExpressionId, ValueCode, ValueFunctionOrigin};
 use std::collections::{BTreeMap, VecDeque};
 
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+enum Term {
+    Invocation(FunctionWitness),
+    Representation(FunctionWitness),
+    Cleanup(FunctionWitness),
+}
+impl Term {
+    fn witness(self) -> FunctionWitness {
+        match self {
+            Self::Invocation(witness) | Self::Representation(witness) | Self::Cleanup(witness) => {
+                witness
+            }
+        }
+    }
+    fn substitute(self, witness: FunctionWitness) -> Self {
+        match self {
+            Self::Invocation(_) => Self::Invocation(witness),
+            Self::Representation(_) => Self::Representation(witness),
+            Self::Cleanup(_) => Self::Cleanup(witness),
+        }
+    }
+}
 #[derive(Debug)]
 struct Cause {
     code: ValueCode,
-    expression: AccessExpressionId,
+    site: Site,
+    rule: Option<Rule>,
     parent: Option<usize>,
     parameter: Option<nocter_model::ValueParameter>,
 }
+impl Cause {
+    fn expression(&self) -> Result<AccessExpressionId, Failure> {
+        match self.site {
+            Site::Expression(id) => Ok(id),
+            _ => Err(Failure::InconsistentSyntax),
+        }
+    }
+}
 #[derive(Debug)]
-pub(super) struct Invocations {
-    terms: BTreeMap<ValueCode, BTreeMap<FunctionWitness, usize>>,
+pub(super) struct Conditions {
+    terms: BTreeMap<ValueCode, BTreeMap<Term, usize>>,
     causes: Vec<Cause>,
 }
 #[derive(Clone, Copy, Debug)]
@@ -22,7 +53,7 @@ pub(super) struct ViolationProof {
     pub(super) rule: Rule,
     cause: usize,
 }
-impl Invocations {
+impl Conditions {
     pub(super) fn prepare(
         requirements: &BTreeMap<ValueCode, Requirements>,
     ) -> Result<Self, flow::IntegrityError> {
@@ -46,12 +77,13 @@ impl Invocations {
                 }
             }
         }
-        while let Some((callee, witness)) = pending.pop_front() {
+        while let Some((callee, term)) = pending.pop_front() {
             let cause = *graph
                 .terms
                 .get(&callee)
-                .and_then(|terms| terms.get(&witness))
+                .and_then(|terms| terms.get(&term))
                 .ok_or(INVALID)?;
+            let witness = term.witness();
             for (code, expression, frame) in callers.get(&callee).into_iter().flatten() {
                 let parameter = match witness.origin {
                     ValueFunctionOrigin::Parameter(parameter) => Some(parameter),
@@ -85,15 +117,16 @@ impl Invocations {
                         .typed()
                         .program(),
                     *code,
-                    selected,
+                    term.substitute(selected),
                     Cause {
                         code: *code,
-                        expression: *expression,
+                        site: Site::Expression(*expression),
+                        rule: None,
                         parent: Some(cause),
                         parameter,
                     },
                 )? {
-                    pending.push_back((*code, selected));
+                    pending.push_back((*code, term.substitute(selected)));
                 }
             }
         }
@@ -102,7 +135,7 @@ impl Invocations {
     fn seed(
         &mut self,
         item: &Requirements,
-        pending: &mut VecDeque<(ValueCode, FunctionWitness)>,
+        pending: &mut VecDeque<(ValueCode, Term)>,
     ) -> Result<(), flow::IntegrityError> {
         let code = item.code();
         for entry in item.call_expressions() {
@@ -133,15 +166,54 @@ impl Invocations {
             if self.insert(
                 item.body().typed().program(),
                 code,
-                witness,
+                Term::Invocation(witness),
                 Cause {
                     code,
-                    expression: id,
+                    site: Site::Expression(id),
+                    rule: None,
                     parent: None,
                     parameter: None,
                 },
             )? {
-                pending.push_back((code, witness));
+                pending.push_back((code, Term::Invocation(witness)));
+            }
+        }
+        for violation in item.data_conditions() {
+            let (Rule::UnsupportedData(data) | Rule::UnsupportedCleanup(data)) = violation.rule()
+            else {
+                return Err(INVALID);
+            };
+            let Some(PayloadSchema::Function(witness)) =
+                item.body().typed().program().data_schema(data)
+            else {
+                continue;
+            };
+            if !matches!(
+                witness.origin,
+                ValueFunctionOrigin::Parameter(_)
+                    | ValueFunctionOrigin::Declaration(_)
+                    | ValueFunctionOrigin::Closure(_)
+            ) {
+                continue;
+            }
+            let term = match violation.rule() {
+                Rule::UnsupportedData(_) => Term::Representation(witness),
+                Rule::UnsupportedCleanup(_) => Term::Cleanup(witness),
+                _ => return Err(INVALID),
+            };
+            if self.insert(
+                item.body().typed().program(),
+                code,
+                term,
+                Cause {
+                    code,
+                    site: violation.site,
+                    rule: Some(violation.rule()),
+                    parent: None,
+                    parameter: None,
+                },
+            )? {
+                pending.push_back((code, term));
             }
         }
         Ok(())
@@ -150,12 +222,14 @@ impl Invocations {
         &mut self,
         program: &nocter_declarations::value_access::Program,
         code: ValueCode,
-        witness: FunctionWitness,
+        term: Term,
         cause: Cause,
     ) -> Result<bool, flow::IntegrityError> {
         // This is only the atomic authored-capability fact, never the callee's full eligibility.
         // Its own symbolic requirements still propagate independently through the stored edges.
-        if matches!(witness.origin, ValueFunctionOrigin::Declaration(_))
+        let witness = term.witness();
+        if matches!(term, Term::Invocation(_))
+            && matches!(witness.origin, ValueFunctionOrigin::Declaration(_))
             && super::invocation_rule(
                 program,
                 crate::value_access::CallKind::Value,
@@ -167,10 +241,10 @@ impl Invocations {
             return Ok(false);
         }
         let terms = self.terms.entry(code).or_default();
-        if terms.contains_key(&witness) {
+        if terms.contains_key(&term) {
             return Ok(false);
         }
-        terms.insert(witness, self.causes.len());
+        terms.insert(term, self.causes.len());
         self.causes.push(cause);
         Ok(true)
     }
@@ -180,13 +254,37 @@ impl Invocations {
         available: &dyn Fn(nocter_model::ValueClosure) -> bool,
     ) -> Result<Option<ViolationProof>, flow::IntegrityError> {
         let program = item.body().typed().program();
-        for (witness, &cause) in self.terms.get(&item.code()).into_iter().flatten() {
-            let rule = super::invocation_rule(
-                program,
-                crate::value_access::CallKind::Value,
-                witness.origin,
-                available,
-            )?;
+        let mut domain = crate::value_access::evaluation::Types::default();
+        for (&term, &cause) in self.terms.get(&item.code()).into_iter().flatten() {
+            let witness = term.witness();
+            let rule = match term {
+                Term::Invocation(_) => super::invocation_rule(
+                    program,
+                    crate::value_access::CallKind::Value,
+                    witness.origin,
+                    available,
+                )?,
+                Term::Representation(_) | Term::Cleanup(_)
+                    if matches!(witness.origin, ValueFunctionOrigin::Parameter(_)) =>
+                {
+                    None
+                }
+                Term::Representation(_) | Term::Cleanup(_) => {
+                    let data = program.function_data(witness).ok_or(INVALID)?;
+                    if domain.supports(program, data)? {
+                        None
+                    } else {
+                        let mut current = cause;
+                        loop {
+                            let node = self.causes.get(current).ok_or(INVALID)?;
+                            if let Some(rule) = node.rule {
+                                break Some(rule);
+                            }
+                            current = node.parent.ok_or(INVALID)?;
+                        }
+                    }
+                }
+            };
             if let Some(rule) = rule {
                 return Ok(Some(ViolationProof { rule, cause }));
             }
@@ -202,8 +300,12 @@ impl Invocations {
             let ValueCode::Closure(source) = code else {
                 continue;
             };
-            for (witness, &cause) in terms {
-                if let ValueFunctionOrigin::Closure(target) = witness.origin {
+            for (&term, &cause) in terms {
+                if let Term::Invocation(FunctionWitness {
+                    origin: ValueFunctionOrigin::Closure(target),
+                    ..
+                }) = term
+                {
                     dependents.entry(target).or_default().push((
                         source,
                         ViolationProof {
@@ -244,7 +346,7 @@ impl Invocations {
             .ok_or(Failure::InconsistentSyntax)?;
         let bound = item.body().bind_verified(verified)?;
         let mut diagnostic = Violation {
-            site: Site::Expression(leaf.expression),
+            site: leaf.site,
             rule: proof.rule,
         }
         .project(&bound)?;
@@ -259,7 +361,7 @@ impl Invocations {
                     .typed()
                     .body()
                     .expressions()
-                    .get(cause.expression)
+                    .get(cause.expression()?)
                     .ok_or(Failure::InconsistentSyntax)?
                     .kind
                 else {
@@ -288,10 +390,85 @@ impl Invocations {
             let bound = item.body().bind_verified(verified)?;
             let origin = bound
                 .typed()
-                .expression_origin(cause.expression)
+                .expression_origin(cause.expression()?)
                 .ok_or(Failure::InconsistentSyntax)?;
             diagnostic.note_call(source_origin(bound.typed().syntax(), origin)?);
         }
         Ok((leaf.code.source_owner(), diagnostic))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::value_access::{
+        accepted::SourceUnit,
+        tests::{bound, input},
+    };
+    use std::sync::Arc;
+
+    #[test]
+    fn unused_owned_callable_cleanup_composes_without_becoming_an_invocation_condition() {
+        let source = "const func discard(take action: once(i32): i32): void {}\nconst func inspect(action: func(i32): i32): void {}\nfunc run(take input: error): void { let action = (input^; value: i32): i32 { value }\ninspect(action)\ndiscard(action^) }";
+        let (sources, tree) = input(source);
+        let unit = SourceUnit::prepare(bound(&sources, &tree))
+            .unwrap()
+            .into_unit();
+        let mut requirements = BTreeMap::new();
+        for (_, body) in unit.bodies() {
+            let item = Requirements::prepare(Arc::new(body.clone())).unwrap();
+            requirements.insert(item.code(), item);
+        }
+        for body in unit.closures().values() {
+            let item = Requirements::prepare(body.clone()).unwrap();
+            requirements.insert(item.code(), item);
+        }
+        let graph = Conditions::prepare(&requirements).unwrap();
+        let program = unit.program();
+        let code = |name| {
+            ValueCode::Declaration(
+                program
+                    .resolve_code(program.symbols().get(name).unwrap())
+                    .unwrap(),
+            )
+        };
+        let discard = code("discard");
+        let ValueCode::Declaration(id) = discard else {
+            unreachable!();
+        };
+        let parameter = program.codes().get(id).unwrap().parameters()[0];
+        let data = program.parameters().get(parameter).unwrap().data();
+        let discard_terms = &graph.terms[&discard];
+        assert!(discard_terms.keys().any(|term| matches!(term, Term::Cleanup(FunctionWitness { origin: ValueFunctionOrigin::Parameter(found), .. }) if *found == parameter.into())));
+        assert!(
+            discard_terms
+                .keys()
+                .all(|term| matches!(term, Term::Cleanup(_)))
+        );
+        assert!(!graph.terms.contains_key(&code("inspect")));
+        let terms = &graph.terms[&code("run")];
+        let (&term, &cause) = terms
+            .iter()
+            .find(|(term, _)| {
+                matches!(
+                    term,
+                    Term::Cleanup(FunctionWitness {
+                        origin: ValueFunctionOrigin::Closure(_),
+                        invocation: nocter_model::ValueInvocation::Take
+                    })
+                )
+            })
+            .unwrap();
+        assert!(matches!(term, Term::Cleanup(_)));
+        let mut current = cause;
+        loop {
+            let node = &graph.causes[current];
+            if let Some(rule) = node.rule {
+                assert_eq!(rule, Rule::UnsupportedCleanup(data));
+                assert_eq!(node.code, discard);
+                break;
+            }
+            current = node.parent.unwrap();
+        }
     }
 }

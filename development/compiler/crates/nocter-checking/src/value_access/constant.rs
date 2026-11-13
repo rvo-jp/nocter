@@ -9,7 +9,7 @@ use nocter_model::{
 };
 
 mod catalog;
-mod invocations;
+mod conditions;
 mod requirements;
 mod traversal;
 pub use requirements::Requirements;

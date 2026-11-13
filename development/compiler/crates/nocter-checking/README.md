@@ -926,7 +926,8 @@ receipts and never searches other callbacks for a favorable capability.
 Each internal edge reference borrows its matched checked body and rejects a different caller code.
 This is symbolic edge metadata, not a solved const condition or an executable-callee proof.
 
-`constant::Invocations` derives a finite symbolic conjunction of invocation requirements from
+`constant::Conditions` derives a finite symbolic conjunction of invocation, direct callable-data
+representation and actual-cleanup requirements from
 those same clauses and retained edges. A worklist substitutes callee witness positions into the
 caller, including recursive components, without unrolling concrete combinations. Outer parameters
 remain symbolic. An already satisfied authored named-capability atom is pruned while the callee's
@@ -938,11 +939,17 @@ Causal nodes refer only to earlier nodes in one arena. Definition failures proje
 operation, supplying argument chain and call path through verified body receipts without a
 recursive cause graph or source retyping.
 
-This finite invocation product detects closed false facts; absence of a failure is not a complete
-eligibility certificate. Input representation and actual cleanup remain their own body clauses.
-General symbolic composition, value/resource-state guarded discharge and module publication
-remain integration work; the products alone grant no exported unconditional const guarantee or
-evaluator implementation.
+Callable representation and cleanup remain distinct predicates even where this private domain
+uses the same shape-admission check. Their original expression, explicit-drop or sparse-ledger
+sites remain distinct causes. An unused read input acquires no owned cleanup; an unused taking
+input retains its actual destruction condition through forwarding. None of these data predicates
+requires invocation availability or final serialization of the callable.
+
+This finite conjunctive product detects closed false facts; absence of a failure is not a complete
+eligibility certificate. Receiving-contract input conditions, compound dependent data,
+value/resource-state guards and general symbolic composition remain integration work. Ordinary
+exact required checks still apply. Module publication requires separate qualification; the products
+alone grant no exported unconditional const guarantee or evaluator implementation.
 
 Explicit unsupported drops fail even in dead source. Implicit disposal and edit-input replacement
 consume the actual sparse resource transitions; ending a partial container does not destroy its

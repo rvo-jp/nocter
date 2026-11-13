@@ -209,6 +209,12 @@ impl Requirements {
         }
         Ok(None)
     }
+    pub(super) fn data_conditions(&self) -> impl Iterator<Item = Violation> + '_ {
+        self.clauses.iter().filter_map(|clause| match clause {
+            Clause::Data(violation) => Some(*violation),
+            _ => None,
+        })
+    }
     pub(in crate::value_access) fn completed_calls(&self) -> impl Iterator<Item = CallEdge<'_>> {
         self.clauses.iter().filter_map(|clause| match clause {
             Clause::Invocation {
