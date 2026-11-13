@@ -18,12 +18,12 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Prepare required callable-input execution by sharing mechanical bound-code instance selection with
-native instances. Keep exact formal identity coverage and selected invocation views in one
-metadata authority, using frozen call bindings and existing witness substitution. Body availability,
-const admission, representation, lifecycle and ownership proofs remain with their consumers.
-Then extend required evaluation to per-instance binding contexts and conditional const availability;
-a known caller never grants unconditional capability to an unbound body. Keep dependent carriers,
+Extend required callable-input execution using declaration-owned `CodeInstanceKey` contexts.
+Separate conditional const requirements from evaluator representation/realization limits, following
+the adopted constant-evaluation contract. Preserve authored named-call promises, inferred closure
+availability, actual frozen witness bindings, cleanup and budget recovery. Translate already checked
+bodies per selected instance without source body retyping or a second semantic/type authority.
+A known caller never grants unconditional capability to an unbound body. Keep dependent carriers,
 deeper callable inputs, inferred captures, module/toolchain integration and retained-selection
 closure open.
 

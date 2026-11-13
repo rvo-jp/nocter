@@ -22,10 +22,12 @@ mod aggregate;
 pub use aggregate::{AggregateForm, AggregateSchema};
 mod data;
 mod functions;
+mod instances;
 pub use functions::{
     FunctionConstraint, FunctionDataPattern, FunctionDefinition, FunctionInput, FunctionMismatch,
     FunctionPattern, FunctionPatternMismatch, FunctionPosition, FunctionWitness, ValueDefinition,
 };
+pub use instances::{CodeInstanceKey, ConcreteWitness, InstanceBindingError};
 mod namespace;
 pub use namespace::{Namespace, QualifiedNameError, ScopeBindingError, ScopeId};
 mod publication;

@@ -14,43 +14,10 @@ use nocter_checking::value_access::{
 };
 use nocter_model::{
     AccessCodeId, AccessExpressionId, AccessInstanceId, AccessParameterId, Arena, TypeId,
-    ValueCode, ValueInvocation,
 };
 use std::{collections::BTreeMap, sync::Arc};
 
-/// A selected named or captured witness; this representation cannot contain an unresolved formal.
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub struct ConcreteWitness {
-    code: ValueCode,
-    invocation: ValueInvocation,
-}
-impl ConcreteWitness {
-    #[must_use]
-    pub const fn code(self) -> ValueCode {
-        self.code
-    }
-    #[must_use]
-    pub const fn invocation(self) -> ValueInvocation {
-        self.invocation
-    }
-}
-
-/// Construction is private: exact checked call bindings determine the specialization key.
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub struct InstanceKey {
-    code: ValueCode,
-    witnesses: BTreeMap<nocter_model::ValueParameter, ConcreteWitness>,
-}
-impl InstanceKey {
-    #[must_use]
-    pub const fn code(&self) -> ValueCode {
-        self.code
-    }
-    #[must_use]
-    pub const fn witnesses(&self) -> &BTreeMap<nocter_model::ValueParameter, ConcreteWitness> {
-        &self.witnesses
-    }
-}
+pub use nocter_declarations::value_access::{CodeInstanceKey as InstanceKey, ConcreteWitness};
 
 #[derive(Clone, Debug)]
 pub struct Instance {
@@ -115,6 +82,7 @@ impl InstanceProgram {
     /// Pair each instance with its original checked body. Selected operations remain unchanged.
     #[must_use]
     pub fn body(&self, instance: AccessInstanceId) -> Option<&flow::Query> {
-        self.unit.code_body(self.instances.get(instance)?.key.code)
+        self.unit
+            .code_body(self.instances.get(instance)?.key.code())
     }
 }

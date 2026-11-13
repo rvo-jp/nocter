@@ -34,24 +34,25 @@ fn anonymous_instances_keep_call_site_bindings_and_reject_wrong_owners_or_positi
         owner,
         position: position + 1,
     };
-    let mut key = selected.clone();
-    key.witnesses.clear();
-    assert_eq!(
-        projection::validate_key(unit.program(), &key),
-        Err(Failure::InvalidAcceptedUnit)
-    );
-    key.witnesses.insert(wrong, actual);
-    assert_eq!(
-        projection::validate_key(unit.program(), &key),
-        Err(Failure::InvalidAcceptedUnit)
+    assert!(unit.program().bind_code(selected.code(), []).is_err());
+    assert!(
+        unit.program()
+            .bind_code(selected.code(), [(wrong, actual.witness())])
+            .is_err()
     );
     let another = instances
         .iter()
         .find(|key| key.code() != selected.code())
         .unwrap();
-    key.witnesses = another.witnesses().clone();
-    assert_eq!(
-        projection::validate_key(unit.program(), &key),
-        Err(Failure::InvalidAcceptedUnit)
+    assert!(
+        unit.program()
+            .bind_code(
+                selected.code(),
+                another
+                    .witnesses()
+                    .iter()
+                    .map(|(&parameter, witness)| (parameter, witness.witness()))
+            )
+            .is_err()
     );
 }

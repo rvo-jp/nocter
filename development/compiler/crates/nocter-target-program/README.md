@@ -77,10 +77,13 @@ constant/static references; checking has already frozen their initializers. Stat
 retain their global identity and ordinary data projection without adding runtime code instances. Scalar/aggregate
 runtime inputs remain ordinary data rather than specialization arguments.
 This product grants no ABI, layout, executable cleanup or backend capability.
-Body-local required-expression code has no callable origin and explicitly rejects as a runtime
-instance key or invocation environment; a source owner cannot substitute for its code identity.
+Body-local required-expression code has no callable origin and cannot enter native root/callee
+selection. A declaration-owned metadata key alone supplies no runtime body; a source owner cannot
+substitute for the expression's code identity.
 
-`build` interns keys of one named/captured code identity and its concrete formal-witness bindings.
+`InstanceKey` and `ConcreteWitness` reexport declaration-owned metadata; this crate defines no
+competing binding key or constructor. `build` interns those keys for one named/captured code identity
+and its concrete formal-witness bindings.
 A concrete witness pairs code identity with the supplied invocation view; the code instance itself
 is shared across views. Runtime environment contents do not enter its key. The builder reserves
 before following recursive edges and freezes only after every reachable instance is defined.
@@ -89,13 +92,13 @@ or interrupted argument does not force a code instance. Construction indexes are
 immutable instance arena is the published authority.
 
 `projection` substitutes already selected named/captured/formal origins and invocation views through
-the declaration-owned `FunctionWitness::substitute`. `CallKind::invocation` decodes the frozen
+the declaration-owned `CodeInstanceKey::resolve`. `CallKind::invocation` decodes the frozen
 callable view separately from explicit input operations. An unbound or incompatible binding cannot
 become an executable target, and an underlying declaration cannot upgrade a restricted view.
 Callable results arrive with checking-closed code or caller-formal witnesses. The body's resolved
 result data enters the same projection table; no target-side result inference or second instance
-graph exists. Exact formal identity coverage is verified without repeating signature matching or
-target search. One table maps source data IDs to concrete payload obligations or checked unproduced
+graph exists. Key construction delegates exact formal coverage and contract/view validation to
+`Program::bind_code`, without target search or body retyping. One table maps source data IDs to concrete payload obligations or checked unproduced
 shapes in the existing program authority. The unproduced marker supplies neither a duplicate
 signature nor a payload or code instance; shape/contract lookup stays with Program. It also covers
 positive tuple/array shapes with a proved-unproduced callable component. Captured payloads include their ordinary environment-data obligations even when reached

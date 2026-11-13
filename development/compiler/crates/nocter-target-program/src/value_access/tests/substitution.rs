@@ -24,32 +24,38 @@ fn executable_selection_rejects_an_unbound_or_weaker_view_even_when_its_underlyi
             _ => None,
         })
         .unwrap();
-    let mut caller = InstanceKey {
-        code: ValueCode::Declaration(apply),
-        witnesses: BTreeMap::new(),
-    };
-    assert_eq!(
-        projection::callee(unit.program(), &caller, target, kind, arguments),
-        Err(Failure::InvalidAcceptedUnit)
+    assert!(
+        unit.program()
+            .bind_code(ValueCode::Declaration(apply), [])
+            .is_err()
     );
-    caller.witnesses.insert(
-        parameter,
-        ConcreteWitness {
-            code: ValueCode::Declaration(identity),
-            invocation: ValueInvocation::Edit,
-        },
+    assert!(
+        unit.program()
+            .bind_code(
+                ValueCode::Declaration(apply),
+                [(
+                    parameter,
+                    FunctionWitness {
+                        origin: ValueFunctionOrigin::Declaration(identity),
+                        invocation: ValueInvocation::Edit,
+                    }
+                )]
+            )
+            .is_err()
     );
-    assert!(projection::validate_key(unit.program(), &caller).is_ok());
-    assert_eq!(
-        projection::callee(unit.program(), &caller, target, kind, arguments),
-        Err(Failure::InvalidAcceptedUnit)
-    );
-    caller.witnesses.get_mut(&parameter).unwrap().invocation = ValueInvocation::Read;
+    let caller = unit
+        .program()
+        .bind_code(
+            ValueCode::Declaration(apply),
+            [(parameter, identity.into())],
+        )
+        .unwrap();
     let selected = projection::callee(unit.program(), &caller, target, kind, arguments).unwrap();
-    assert_eq!(selected.code, ValueCode::Declaration(identity));
-    assert!(selected.witnesses.is_empty());
+    assert_eq!(selected.code(), ValueCode::Declaration(identity));
+    assert!(selected.witnesses().is_empty());
     assert_eq!(
         projection::witness(
+            unit.program(),
             &caller,
             FunctionWitness {
                 origin: ValueFunctionOrigin::Parameter(parameter),
@@ -57,7 +63,7 @@ fn executable_selection_rejects_an_unbound_or_weaker_view_even_when_its_underlyi
             }
         )
         .unwrap()
-        .invocation,
+        .invocation(),
         ValueInvocation::Edit
     );
 }

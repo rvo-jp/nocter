@@ -37,7 +37,7 @@ impl Builder {
             .key
             .clone();
         let body = unit
-            .code_body(key.code)
+            .code_body(key.code())
             .ok_or(Failure::InvalidAcceptedUnit)?;
         let data = projection::data(unit, &key, body)?;
         let mut invocations = BTreeSet::new();
@@ -68,7 +68,7 @@ impl Builder {
                 return Err(Failure::InvalidAcceptedUnit);
             };
             let selected = projection::callee(unit.program(), &key, *target, *kind, arguments)?;
-            let code = selected.code;
+            let code = selected.code();
             let target = match code {
                 nocter_model::ValueCode::Declaration(id)
                     if unit.primitives().role(id).is_some() =>
@@ -120,10 +120,11 @@ pub(super) fn close(unit: Arc<Unit>, root: AccessCodeId) -> Result<InstanceProgr
         keys: BTreeMap::new(),
         pending: Vec::new(),
     };
-    let root = builder.intern(InstanceKey {
-        code: nocter_model::ValueCode::Declaration(root),
-        witnesses: BTreeMap::new(),
-    });
+    let root = builder.intern(
+        unit.program()
+            .bind_code(nocter_model::ValueCode::Declaration(root), [])
+            .map_err(|_| Failure::InvalidAcceptedUnit)?,
+    );
     while let Some(id) = builder.pending.pop() {
         builder.define(&unit, id)?;
     }
@@ -141,7 +142,7 @@ pub(super) fn close(unit: Arc<Unit>, root: AccessCodeId) -> Result<InstanceProgr
             };
             let callee = instances.get(target).ok_or(Failure::InvalidAcceptedUnit)?;
             let body = unit
-                .code_body(callee.key.code)
+                .code_body(callee.key.code())
                 .ok_or(Failure::InvalidAcceptedUnit)?
                 .typed();
             let result = body.result_data();

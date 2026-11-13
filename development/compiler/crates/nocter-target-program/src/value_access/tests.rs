@@ -4,7 +4,7 @@ use nocter_checking::value_access::{
     ArgumentAction, ExpressionKind, accepted::Unit, flow::resources::Disposal,
 };
 use nocter_declaration_lowering::access_declarations;
-use nocter_model::{ValueFunctionOrigin, ValueInvocation};
+use nocter_model::{ValueCode, ValueFunctionOrigin, ValueInvocation};
 use nocter_test_support::ValueSourceFixture;
 use std::fmt::Write as _;
 mod captured;
@@ -138,16 +138,20 @@ fn a_required_expression_cannot_substitute_its_source_owners_runtime_code() {
     assert_eq!(code.source_owner(), root);
     assert_eq!(code.origin(), None);
     assert!(unit.code_body(code).is_none());
-    assert!(matches!(
-        projection::validate_key(
-            unit.program(),
-            &InstanceKey {
-                code,
-                witnesses: BTreeMap::new()
-            }
-        ),
-        Err(Failure::InvalidAcceptedUnit)
-    ));
+    let key = unit.program().bind_code(code, []).unwrap();
+    let mut instances = nocter_model::ArenaBuilder::new();
+    let root = instances.insert(Instance {
+        key,
+        calls: BTreeMap::new(),
+        data: BTreeMap::new(),
+    });
+    let graph = InstanceProgram {
+        unit,
+        root,
+        instances: instances.finish(),
+    };
+    assert!(graph.body(root).is_none());
+    assert!(crate::value_access::lifecycle::Program::prepare(Arc::new(graph)).is_err());
 }
 fn close_case(name: &str) -> InstanceProgram {
     let unit = accepted(&ValueSourceFixture::corpus(name));
@@ -159,7 +163,7 @@ fn instance<'a>(graph: &'a InstanceProgram, name: &str) -> (AccessInstanceId, &'
     graph
         .instances()
         .iter()
-        .find(|(_, instance)| instance.key.code == ValueCode::Declaration(callable))
+        .find(|(_, instance)| instance.key.code() == ValueCode::Declaration(callable))
         .unwrap()
 }
 
@@ -170,13 +174,13 @@ fn forwarded_formals_close_to_one_named_dispatch_without_rechecking_bodies() {
     let increment = callable(graph.unit(), "increment");
     for name in ["forward", "apply"] {
         let (id, selected) = instance(&graph, name);
-        assert_eq!(selected.key.witnesses.len(), 1);
-        let witness = selected.key.witnesses.values().next().unwrap();
-        assert_eq!(witness.code, ValueCode::Declaration(increment));
-        assert_eq!(witness.invocation, ValueInvocation::Read);
+        assert_eq!(selected.key.witnesses().len(), 1);
+        let witness = selected.key.witnesses().values().next().unwrap();
+        assert_eq!(witness.code(), ValueCode::Declaration(increment));
+        assert_eq!(witness.invocation(), ValueInvocation::Read);
         assert!(std::ptr::eq(
             graph.body(id).unwrap(),
-            graph.unit().code_body(selected.key.code).unwrap()
+            graph.unit().code_body(selected.key.code()).unwrap()
         ));
     }
     let (increment_id, _) = instance(&graph, "increment");
@@ -218,7 +222,7 @@ fn equal_signatures_keep_distinct_positions_and_targets() {
                 .get(call.target().instance().unwrap())
                 .unwrap()
                 .key
-                .code
+                .code()
         })
         .collect::<Vec<_>>();
     targets.sort();
@@ -228,10 +232,10 @@ fn equal_signatures_keep_distinct_positions_and_targets() {
     ];
     expected.sort();
     assert_eq!(targets, expected);
-    assert_eq!(apply.key.witnesses.len(), 2);
+    assert_eq!(apply.key.witnesses().len(), 2);
     assert_ne!(
-        apply.key.witnesses.values().next(),
-        apply.key.witnesses.values().nth(1)
+        apply.key.witnesses().values().next(),
+        apply.key.witnesses().values().nth(1)
     );
 }
 
@@ -240,7 +244,7 @@ fn adapters_specialize_payload_obligations_without_changing_source_move_semantic
     let graph = close_case("a84-callback-forward-adapter.nct");
     let (apply_id, apply) = instance(&graph, "apply");
     assert_eq!(
-        apply.key.witnesses.values().next().unwrap().invocation,
+        apply.key.witnesses().values().next().unwrap().invocation(),
         ValueInvocation::Take
     );
     let body = graph.body(apply_id).unwrap();
@@ -251,7 +255,7 @@ fn adapters_specialize_payload_obligations_without_changing_source_move_semantic
         .iter()
         .find(|(_, p)| {
             p.owner()
-                == match apply.key.code {
+                == match apply.key.code() {
                     ValueCode::Declaration(id) => id,
                     ValueCode::Closure(_) | ValueCode::Expression(_) => panic!("named body"),
                 }
@@ -432,7 +436,7 @@ fn repeated_concrete_bindings_share_one_instance_and_distinct_bindings_do_not() 
         graph
             .instances()
             .iter()
-            .filter(|(_, i)| i.key.code == ValueCode::Declaration(apply))
+            .filter(|(_, i)| i.key.code() == ValueCode::Declaration(apply))
             .count(),
         2
     );
@@ -541,7 +545,7 @@ fn direct_and_value_invocations_keep_explicit_environment_shape() {
                     .unwrap(),
             )
             .unwrap();
-        assert_eq!(apply.key.witnesses.len(), 1);
+        assert_eq!(apply.key.witnesses().len(), 1);
     }
 }
 
@@ -584,7 +588,7 @@ func run(): i32 { bounce(increment, decrement, false) }",
     let instances = graph
         .instances()
         .iter()
-        .filter(|(_, i)| i.key.code == ValueCode::Declaration(bounce))
+        .filter(|(_, i)| i.key.code() == ValueCode::Declaration(bounce))
         .collect::<Vec<_>>();
     assert_eq!(instances.len(), 2);
     for (index, (id, instance)) in instances.iter().enumerate() {
@@ -618,7 +622,7 @@ fn callable_results_enter_the_same_instance_graph_with_resolved_payloads() {
             graph
                 .instances()
                 .iter()
-                .any(|(_, instance)| instance.key.code == ValueCode::Declaration(increment))
+                .any(|(_, instance)| instance.key.code() == ValueCode::Declaration(increment))
         );
         for (id, instance) in graph.instances().iter() {
             assert!(graph.body(id).unwrap().typed().results_closed());
@@ -681,8 +685,8 @@ fn separate_result_applications_close_to_their_own_factory_and_callback_instance
     let producers = graph
         .instances()
         .iter()
-        .filter(|(_, i)| i.key.code == ValueCode::Declaration(forward))
-        .map(|(_, i)| i.key.witnesses.values().next().unwrap().code)
+        .filter(|(_, i)| i.key.code() == ValueCode::Declaration(forward))
+        .map(|(_, i)| i.key.witnesses().values().next().unwrap().code())
         .collect::<std::collections::BTreeSet<_>>();
     assert_eq!(
         producers,

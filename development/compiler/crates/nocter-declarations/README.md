@@ -338,6 +338,17 @@ followed recursively. This operation creates no type, chooses no target and gran
 or payload proof. Consumers retain identity-domain and binding-coverage validation, with their own
 conservative-analysis or closed-execution admission boundary.
 
+`instances` owns canonical `CodeInstanceKey` metadata and concrete static witnesses. `bind_code`
+requires exact direct callable-formal coverage, rejects duplicates and foreign identities, and
+reuses `constrain_function` to validate signatures and select the declared invocation view. Stronger
+views therefore normalize to the same key. The key's immutable `resolve` delegates one-step witness
+substitution and validates the concrete code/view in this Program. It cannot publish symbolic or
+initializer values as concrete callable witnesses. Expression/initializer frame metadata grants no
+callable role or executable body. Neither a key nor a concrete witness proves const availability,
+representation, ownership, lifetime, primitive authority or native admission. Consumers retain
+those separate proofs and must use the key with its original declaration authority. A key is not a
+source/revision reuse certificate; caches remain scoped to their checked program and body guards.
+
 `body_types` owns the narrow body-type construction capability. Every selected call returning a
 callable interns its caller/call key and exactly the views permitted by its declared result. One
 immutable `Program::application_template` fact owns that result witness template; the call IR owns

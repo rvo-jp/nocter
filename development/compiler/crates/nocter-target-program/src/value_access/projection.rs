@@ -12,24 +12,12 @@ use std::collections::{BTreeMap, BTreeSet};
 mod requirements;
 
 pub(super) fn witness(
+    program: &Program,
     key: &InstanceKey,
     selected: FunctionWitness,
 ) -> Result<ConcreteWitness, Failure> {
-    let selected = selected
-        .substitute(|parameter| {
-            let supplied = key.witnesses.get(&parameter)?;
-            Some(FunctionWitness {
-                origin: supplied.code.origin()?,
-                invocation: supplied.invocation,
-            })
-        })
-        .map_err(|_| Failure::InvalidAcceptedUnit)?
-        .ok_or(Failure::InvalidAcceptedUnit)?;
-    let code = selected.origin.code().ok_or(Failure::InvalidAcceptedUnit)?;
-    Ok(ConcreteWitness {
-        code,
-        invocation: selected.invocation,
-    })
+    key.resolve(program, selected)
+        .map_err(|_| Failure::InvalidAcceptedUnit)
 }
 
 pub(super) fn callee(
@@ -40,6 +28,7 @@ pub(super) fn callee(
     arguments: &[Argument],
 ) -> Result<InstanceKey, Failure> {
     let selected = witness(
+        program,
         caller,
         FunctionWitness {
             origin: target,
@@ -48,61 +37,22 @@ pub(super) fn callee(
                 .ok_or(Failure::InvalidAcceptedUnit)?,
         },
     )?;
-    let code = selected.code;
+    let code = selected.code();
     let mut witnesses = BTreeMap::new();
     for argument in arguments {
         if let Some(binding) = &argument.binding {
-            let resolved = witness(caller, binding.witness)?;
-            if witnesses.insert(binding.parameter, resolved).is_some() {
+            let resolved = witness(program, caller, binding.witness)?;
+            if witnesses
+                .insert(binding.parameter, resolved.witness())
+                .is_some()
+            {
                 return Err(Failure::InvalidAcceptedUnit);
             }
         }
     }
-    let key = InstanceKey { code, witnesses };
-    validate_key(program, &key)?;
-    Ok(key)
-}
-
-/// Validate identity-domain coverage, without rechecking signatures or choosing a call candidate.
-pub(super) fn validate_key(program: &Program, key: &InstanceKey) -> Result<(), Failure> {
-    let mut expected = BTreeSet::new();
-    match key.code {
-        ValueCode::Expression(_) => return Err(Failure::InvalidAcceptedUnit),
-        ValueCode::Declaration(id) => {
-            let declaration = program
-                .codes()
-                .get(id)
-                .ok_or(Failure::InvalidAcceptedUnit)?;
-            for &id in declaration.parameters() {
-                let parameter = program
-                    .parameters()
-                    .get(id)
-                    .ok_or(Failure::InvalidAcceptedUnit)?;
-                if parameter.contract().is_some() {
-                    expected.insert(id.into());
-                }
-            }
-        }
-        ValueCode::Closure(id) => {
-            let closure = program.closure(id).ok_or(Failure::InvalidAcceptedUnit)?;
-            for input in &closure.contract().inputs {
-                if let Some(PayloadSchema::Function(FunctionWitness {
-                    origin: ValueFunctionOrigin::Parameter(parameter),
-                    ..
-                })) = program.data_schema(input.data)
-                {
-                    if program.parameter_owner(parameter) != Some(key.code) {
-                        return Err(Failure::InvalidAcceptedUnit);
-                    }
-                    expected.insert(parameter);
-                }
-            }
-        }
-    }
-    if expected != key.witnesses.keys().copied().collect() {
-        return Err(Failure::InvalidAcceptedUnit);
-    }
-    Ok(())
+    program
+        .bind_code(code, witnesses)
+        .map_err(|_| Failure::InvalidAcceptedUnit)
 }
 
 pub(super) fn data(
@@ -155,8 +105,8 @@ pub(super) fn data(
             .ok_or(Failure::InvalidAcceptedUnit)?
         {
             PayloadSchema::Function(selected) => {
-                let selected = witness(key, selected)?;
-                if let ValueCode::Closure(id) = selected.code {
+                let selected = witness(program, key, selected)?;
+                if let ValueCode::Closure(id) = selected.code() {
                     pending.insert(
                         program
                             .closure(id)
@@ -166,8 +116,11 @@ pub(super) fn data(
                 }
                 program
                     .function_data(FunctionWitness {
-                        origin: selected.code.origin().ok_or(Failure::InvalidAcceptedUnit)?,
-                        invocation: selected.invocation,
+                        origin: selected
+                            .code()
+                            .origin()
+                            .ok_or(Failure::InvalidAcceptedUnit)?,
+                        invocation: selected.invocation(),
                     })
                     .ok_or(Failure::InvalidAcceptedUnit)?
             }
