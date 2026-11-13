@@ -338,7 +338,7 @@ followed recursively. This operation creates no type, chooses no target and gran
 or payload proof. Consumers retain identity-domain and binding-coverage validation, with their own
 conservative-analysis or closed-execution admission boundary.
 
-`instances` owns canonical `CodeInstanceKey` metadata and concrete static witnesses. `bind_code`
+`code_bindings` owns canonical code-frame metadata and concrete static witnesses. `bind_code`
 requires exact direct callable-formal coverage, rejects duplicates and foreign identities, and
 reuses `constrain_function` to validate signatures and select the declared invocation view. Stronger
 views therefore normalize to the same key. The key's immutable `resolve` delegates one-step witness
@@ -348,6 +348,16 @@ callable role or executable body. Neither a key nor a concrete witness proves co
 representation, ownership, lifetime, primitive authority or native admission. Consumers retain
 those separate proofs and must use the key with its original declaration authority. A key is not a
 source/revision reuse certificate; caches remain scoped to their checked program and body guards.
+
+`CodeTemplateKey` retains concrete or validated outer-parameter witnesses for condition composition.
+`code_template` builds a code's identity parameter frame; `bind_template` uses the same exact
+coverage, signature and view-normalization routine as concrete `bind_code`. Its one-step `resolve`
+keeps an unresolved outer parameter rather than choosing a matching code. `close` substitutes a
+matched concrete outer frame and returns the same canonical `CodeInstanceKey` as direct binding.
+Result/application signature terms cannot become producer witnesses through this API. Symbolic
+keys grant no representation or body capability, and a restricted view cannot be upgraded when
+its outer value later becomes concrete. `CodeBindingError` describes either metadata domain;
+concrete executable consumers continue to require the stronger concrete-witness key.
 
 `body_types` owns the narrow body-type construction capability. Every selected call returning a
 callable interns its caller/call key and exactly the views permitted by its declared result. One

@@ -18,8 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Compose definition-owned conditional const requirements through selected `CodeInstanceKey` call
-edges, preserving the exact shared checked-body generation and declaration type authority.
+Compose definition-owned conditional const requirements into a guarded condition graph through
+stored `CodeTemplateKey` call edges and concrete `CodeInstanceKey` closure, preserving the exact
+shared checked-body generation and declaration type authority.
 Separate authored/inferred invocation capability, input representation and actual-resource cleanup
 conditions, following the adopted constant-evaluation contract. Extend direct body-wide clauses
 to symbolic and value/resource-state guarded discharge with deterministic budget/failure recovery.

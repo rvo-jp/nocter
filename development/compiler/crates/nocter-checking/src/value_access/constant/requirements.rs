@@ -1,7 +1,7 @@
 //! Derived condition references belong to one immutable ordinary checked body.
 use super::{INVALID, Rule, Site, Statement, Violation, flow, representation};
 use crate::value_access::{ExpressionKind, evaluation, instances};
-use nocter_declarations::value_access::CodeInstanceKey;
+use nocter_declarations::value_access::{CodeInstanceKey, CodeTemplateKey};
 use nocter_model::{AccessExpressionId, ValueClosure, ValueCode};
 use std::sync::Arc;
 
@@ -168,6 +168,39 @@ impl Requirements {
                         .kind,
                 ))
             })
+    }
+    /// Compose completed source call bindings without choosing a code for an unresolved parameter.
+    /// Each edge retains its original operation ID in this exact body product.
+    /// # Errors
+    /// Rejects a mismatched frame, invalid frozen view or incompatible binding metadata.
+    pub fn template_calls(
+        &self,
+        key: &CodeTemplateKey,
+    ) -> Result<Vec<(AccessExpressionId, crate::value_access::CallTemplate)>, flow::IntegrityError>
+    {
+        if key.code() != self.code() {
+            return Err(INVALID);
+        }
+        let program = self.body.typed().program();
+        let mut calls = Vec::new();
+        for item in self.call_expressions() {
+            let (id, expression) = item?;
+            let ExpressionKind::Call {
+                target,
+                kind,
+                arguments,
+            } = expression
+            else {
+                return Err(INVALID);
+            };
+            if !instances::completed(arguments) {
+                continue;
+            }
+            let selected =
+                instances::instantiate_template_call(program, key, *target, *kind, arguments)?;
+            calls.push((id, selected));
+        }
+        Ok(calls)
     }
     pub(in crate::value_access) fn bound_calls(
         &self,

@@ -878,6 +878,14 @@ Unit clones share both products and bodies. A changed body cannot reuse the old 
 Required checks apply concrete bindings to the stored clauses and call edges rather than walking
 source bodies or rebuilding resource obligations.
 
+`Requirements::template_calls` composes completed call edges through `CodeTemplateKey` frames.
+A `CallTemplate::Code` keeps the callee's formal positions bound to concrete or outer-parameter
+witnesses; `CallTemplate::Parameter` retains the selected unresolved witness and invocation view.
+The original operation ID and shared body retain the remaining call metadata. Named and lexical
+closure formals preserve their own identities across forwarding. Interrupted preparation creates
+no completed template frame. This is symbolic edge metadata, not a solved const condition or an
+executable-callee proof.
+
 These products currently express direct body-wide conjunctions, including every authored possible
 invocation. General symbolic composition, value/resource-state guarded discharge and module
 publication remain integration work; the products alone grant no exported unconditional const

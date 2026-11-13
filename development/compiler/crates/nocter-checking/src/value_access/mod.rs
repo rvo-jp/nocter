@@ -15,7 +15,7 @@ mod expressions;
 pub mod flow;
 mod inputs;
 mod instances;
-pub use instances::instantiate_call;
+pub use instances::{CallTemplate, instantiate_call};
 mod ir;
 mod paths;
 mod postfix;
