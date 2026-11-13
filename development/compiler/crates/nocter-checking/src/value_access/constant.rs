@@ -8,9 +8,11 @@ use nocter_model::{
     ValueFunctionOrigin,
 };
 
-mod captured;
+mod catalog;
+mod requirements;
+pub use requirements::Requirements;
 mod representation;
-pub(super) use captured::Availability;
+pub(super) use catalog::Catalog;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Rule {
@@ -45,13 +47,13 @@ impl Diagnostic {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum Site {
     Expression(AccessExpressionId),
     Statement(AccessStatementId),
     Cleanup(flow::Location),
 }
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub(super) struct Violation {
     site: Site,
     rule: Rule,
@@ -207,96 +209,10 @@ fn call_inputs(
     Ok(None)
 }
 
-pub(super) fn check(
-    query: &flow::Query,
-    available: &dyn Fn(nocter_model::ValueClosure) -> bool,
-    instance: Option<&CodeInstanceKey>,
-) -> Result<Option<Violation>, flow::IntegrityError> {
-    let program = query.typed().program();
-    let mut domain = super::evaluation::Types::default();
-    let mut projections = representation::Projections::default();
-    // Walk all typed expressions, not only reachable graph points. An unevaluated branch or
-    // interrupted input cannot hide an authored runtime-only call or an unsupported operation.
-    for (id, expression) in query.typed().body().expressions().iter() {
-        let rule = operation_rule(program, &expression.kind, available, instance)?;
-        if let Some(rule) = rule {
-            return Ok(Some(Violation {
-                site: Site::Expression(id),
-                rule,
-            }));
-        }
-    }
-    // An explicit drop has an operation-domain obligation even in an unevaluated branch.
-    for (id, statement) in query.typed().body().statements().iter() {
-        if let Statement::Drop(local) = statement {
-            let data = query
-                .typed()
-                .body()
-                .locals()
-                .get(*local)
-                .ok_or(INVALID)?
-                .data;
-            if !supports(program, data, &mut domain, instance)? {
-                return Ok(Some(Violation {
-                    site: Site::Statement(id),
-                    rule: Rule::UnsupportedCleanup(data),
-                }));
-            }
-        }
-    }
-    for (id, expression) in query.typed().body().expressions().iter() {
-        if let Some(violation) = call_inputs(program, &expression.kind, &mut domain, instance)? {
-            return Ok(Some(violation));
-        }
-        // A known interrupted result is not a produced resource. There is no value to classify
-        // here; operation checks above still apply independently of continuation.
-        if let Some(value) = expression.ty.normal()
-            && !supports(program, value.data(), &mut domain, instance)?
-            && !projections.uninhabited(query, id, &mut domain)?
-        {
-            return Ok(Some(Violation {
-                site: Site::Expression(id),
-                rule: Rule::UnsupportedData(value.data()),
-            }));
-        }
-    }
-    // Cleanup is an operation even when no source expression spells it. Consume actual sparse
-    // ledger obligations, not annotations of every local (read inputs own nothing to destroy).
-    for (point, block) in query.graph().points().iter() {
-        for action in 0..block.actions.len() {
-            let location = flow::Location { point, action };
-            for transition in query.access().resources().at(location) {
-                for step in transition.steps() {
-                    let payload = match step {
-                        flow::resources::Step::Dispose { payload, .. }
-                        | flow::resources::Step::DisposeArrayRemainder { payload, .. }
-                        | flow::resources::Step::DisposeArrayElements { payload, .. }
-                        | flow::resources::Step::ReplaceReferent { payload, .. } => *payload,
-                        flow::resources::Step::Capture { .. }
-                        | flow::resources::Step::AdaptFunction { .. }
-                        | flow::resources::Step::Assemble { .. }
-                        | flow::resources::Step::Construct { .. }
-                        | flow::resources::Step::Receive { .. }
-                        | flow::resources::Step::Move { .. }
-                        | flow::resources::Step::MoveArrayElement { .. }
-                        | flow::resources::Step::ConsolidateArrayPrefix { .. }
-                        | flow::resources::Step::ReleaseContainer { .. }
-                        | flow::resources::Step::Invoke { .. } => continue,
-                    };
-                    if !supports(program, payload.data(), &mut domain, instance)? {
-                        return Ok(Some(Violation {
-                            site: Site::Cleanup(location),
-                            rule: Rule::UnsupportedCleanup(payload.data()),
-                        }));
-                    }
-                }
-            }
-        }
-    }
-    Ok(None)
-}
-
 impl Violation {
+    pub(super) const fn rule(self) -> Rule {
+        self.rule
+    }
     pub(super) fn project(self, context: &flow::Context<'_, '_>) -> Result<Diagnostic, Failure> {
         let typed = context.typed();
         let origin = match self.site {

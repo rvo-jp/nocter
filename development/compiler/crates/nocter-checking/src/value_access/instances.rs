@@ -63,18 +63,31 @@ pub(super) fn calls(
     body.body()
         .expressions()
         .iter()
-        .filter_map(|(id, expression)| {
-            let super::ExpressionKind::Call {
-                target,
-                kind,
-                arguments,
-            } = &expression.kind
-            else {
-                return None;
-            };
-            completed(arguments).then(|| {
-                instantiate_call(program, caller, *target, *kind, arguments).map(|key| (id, key))
-            })
-        })
+        .filter_map(
+            |(id, expression)| match select_call(program, caller, &expression.kind) {
+                Ok(None) => None,
+                Ok(Some(key)) => Some(Ok((id, key))),
+                Err(error) => Some(Err(error)),
+            },
+        )
         .collect()
+}
+
+pub(super) fn select_call(
+    program: &Program,
+    caller: &CodeInstanceKey,
+    expression: &super::ExpressionKind,
+) -> Result<Option<CodeInstanceKey>, flow::IntegrityError> {
+    let super::ExpressionKind::Call {
+        target,
+        kind,
+        arguments,
+    } = expression
+    else {
+        return Ok(None);
+    };
+    if !completed(arguments) {
+        return Ok(None);
+    }
+    instantiate_call(program, caller, *target, *kind, arguments).map(Some)
 }

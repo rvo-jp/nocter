@@ -1,7 +1,7 @@
 //! Definition-template and exact-instance admission over the one ordinary checked-body product.
 use super::{Checked, DeclarationContext, Failure, Program, flow};
-use crate::value_access::{constant, instances, results, source_origin};
-use std::collections::BTreeMap;
+use crate::value_access::{constant, results, source_origin};
+use std::{collections::BTreeMap, sync::Arc};
 
 /// Close the direct callable-formal conditions over exact checked instance metadata before
 /// executing any plan. This consumes the ordinary bodies and never manufactures named const.
@@ -22,30 +22,23 @@ pub(in crate::value_access) fn check_required_const(
     let mut parents = BTreeMap::from([(root.clone(), None)]);
     let mut pending = vec![root];
     while let Some(key) = pending.pop() {
-        let query = checked.code(key.code()).ok_or(Failure::Integrity(
+        let requirements = availability.get(key.code()).ok_or(Failure::Integrity(
             flow::IntegrityError::InconsistentTypedBody,
         ))?;
+        let query = requirements.body();
         let callable = key.code().source_owner();
         let bound = query
             .bind_verified(&verified)
             .map_err(|failure| Failure::Body { callable, failure })?;
-        if let Some(violation) = constant::check(
-            query,
-            &|code| availability.permitted_template(code),
-            Some(&key),
-        )
-        .map_err(Failure::Integrity)?
+        if let Some(violation) = requirements
+            .check(&|code| availability.permitted_template(code), Some(&key))
+            .map_err(Failure::Integrity)?
         {
             let mut diagnostic = violation
                 .project(&bound)
                 .map_err(|failure| Failure::Body { callable, failure })?;
             availability
-                .annotate(
-                    diagnostic.rule(),
-                    &mut diagnostic,
-                    &checked.closures,
-                    &verified,
-                )
+                .annotate(diagnostic.rule(), &mut diagnostic, &verified)
                 .map_err(|failure| Failure::Body { callable, failure })?;
             let mut path = Vec::new();
             let mut current = &key;
@@ -61,9 +54,7 @@ pub(in crate::value_access) fn check_required_const(
                 diagnostic: Box::new(diagnostic),
             });
         }
-        for (id, selected) in
-            instances::calls(program, &key, query.typed()).map_err(Failure::Integrity)?
-        {
+        for (id, selected) in requirements.bound_calls(&key).map_err(Failure::Integrity)? {
             if parents.contains_key(&selected) {
                 continue;
             }
@@ -83,11 +74,13 @@ pub(in crate::value_access) fn check_required_const(
 }
 pub(super) fn check_const_bodies(
     program: &Program,
-    bodies: &BTreeMap<nocter_model::ValueCodeRoot, flow::Query>,
-    closures: &BTreeMap<nocter_model::ValueClosure, flow::Query>,
+    bodies: &BTreeMap<nocter_model::ValueCodeRoot, Arc<flow::Query>>,
+    closures: &BTreeMap<nocter_model::ValueClosure, Arc<flow::Query>>,
     verified: &results::Verified<'_, '_>,
-) -> Result<constant::Availability, Failure> {
-    let availability = constant::Availability::prepare(closures).map_err(Failure::Integrity)?;
+) -> Result<Arc<constant::Catalog>, Failure> {
+    let availability =
+        constant::Catalog::prepare(bodies.values().chain(closures.values()).cloned())
+            .map_err(Failure::Integrity)?;
     for (&root, query) in bodies {
         let callable = root.source_owner();
         let evaluatable = match root {
@@ -104,9 +97,13 @@ pub(super) fn check_const_bodies(
             nocter_model::ValueCodeRoot::Expression(_) => true,
         };
         if evaluatable
-            && let Some(violation) =
-                constant::check(query, &|code| availability.permitted_template(code), None)
-                    .map_err(Failure::Integrity)?
+            && let Some(violation) = availability
+                .get(root.code())
+                .ok_or(Failure::Integrity(
+                    flow::IntegrityError::InconsistentTypedBody,
+                ))?
+                .check(&|code| availability.permitted_template(code), None)
+                .map_err(Failure::Integrity)?
         {
             let bound = query
                 .bind_verified(verified)
@@ -115,7 +112,7 @@ pub(super) fn check_const_bodies(
                 .project(&bound)
                 .map_err(|failure| Failure::Body { callable, failure })?;
             availability
-                .annotate(diagnostic.rule(), &mut diagnostic, closures, verified)
+                .annotate(diagnostic.rule(), &mut diagnostic, verified)
                 .map_err(|failure| Failure::Body { callable, failure })?;
             return Err(Failure::Const {
                 callable,
@@ -123,5 +120,5 @@ pub(super) fn check_const_bodies(
             });
         }
     }
-    Ok(availability)
+    Ok(Arc::new(availability))
 }

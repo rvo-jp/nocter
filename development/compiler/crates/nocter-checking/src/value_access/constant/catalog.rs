@@ -1,29 +1,47 @@
 //! Definition-owned anonymous invocation availability, separate from environment transport.
-use super::{Diagnostic, Failure, INVALID, Rule, Site, Violation, flow};
+use super::{Diagnostic, Failure, INVALID, Requirements, Rule, Site, Violation, flow};
 use nocter_diagnostics::DiagnosticNote;
-use nocter_model::{ValueClosure, ValueFunctionOrigin};
-use std::collections::{BTreeMap, VecDeque};
+use nocter_model::{ValueClosure, ValueCode, ValueFunctionOrigin};
+use std::{
+    collections::{BTreeMap, VecDeque},
+    sync::Arc,
+};
 
-pub(in crate::value_access) struct Availability {
+#[derive(Debug)]
+pub(in crate::value_access) struct Catalog {
+    requirements: BTreeMap<ValueCode, Requirements>,
     states: BTreeMap<ValueClosure, Option<Violation>>,
 }
-impl Availability {
+impl Catalog {
     pub(in crate::value_access) fn prepare(
-        closures: &BTreeMap<ValueClosure, flow::Query>,
+        bodies: impl IntoIterator<Item = Arc<flow::Query>>,
     ) -> Result<Self, flow::IntegrityError> {
+        let mut requirements = BTreeMap::new();
+        for body in bodies {
+            let item = Requirements::prepare(body)?;
+            if requirements.insert(item.code(), item).is_some() {
+                return Err(INVALID);
+            }
+        }
         let mut states = BTreeMap::new();
         let mut dependents =
             BTreeMap::<ValueClosure, Vec<(ValueClosure, nocter_model::AccessExpressionId)>>::new();
-        for (&code, query) in closures {
-            let mut violation = super::check(query, &|_| true, None)?;
-            for (id, expression) in query.typed().body().expressions().iter() {
+        for (&source, item) in &requirements {
+            let ValueCode::Closure(code) = source else {
+                continue;
+            };
+            let mut violation = item.check(&|_| true, None)?;
+            for call in item.call_expressions() {
+                let (id, expression) = call?;
                 if let crate::value_access::ExpressionKind::Call {
                     target: ValueFunctionOrigin::Closure(target),
                     ..
-                } = expression.kind
+                } = *expression
                 {
                     dependents.entry(target).or_default().push((code, id));
-                    if !closures.contains_key(&target) && violation.is_none() {
+                    if !requirements.contains_key(&ValueCode::Closure(target))
+                        && violation.is_none()
+                    {
                         violation = Some(Violation {
                             site: Site::Expression(id),
                             rule: Rule::CapturedCall(target),
@@ -49,7 +67,13 @@ impl Availability {
                 }
             }
         }
-        Ok(Self { states })
+        Ok(Self {
+            requirements,
+            states,
+        })
+    }
+    pub(in crate::value_access) fn get(&self, code: ValueCode) -> Option<&Requirements> {
+        self.requirements.get(&code)
     }
     pub(in crate::value_access) fn permitted_template(&self, code: ValueClosure) -> bool {
         self.states.get(&code).is_some_and(Option::is_none)
@@ -58,7 +82,6 @@ impl Availability {
         &self,
         mut rule: Rule,
         diagnostic: &mut Diagnostic,
-        closures: &BTreeMap<ValueClosure, flow::Query>,
         verified: &crate::value_access::results::Verified<'_, '_>,
     ) -> Result<(), Failure> {
         // Every propagated cause points to an earlier unavailable fact, so cycles cannot choose
@@ -67,9 +90,11 @@ impl Availability {
             let Some(Some(cause)) = self.states.get(&code) else {
                 break;
             };
-            let bound = closures
-                .get(&code)
+            let bound = self
+                .requirements
+                .get(&ValueCode::Closure(code))
                 .ok_or(Failure::InconsistentSyntax)?
+                .body()
                 .bind_verified(verified)?;
             let projected = (*cause).project(&bound)?;
             diagnostic.source.push_note(DiagnosticNote::new(

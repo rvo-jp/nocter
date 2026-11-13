@@ -839,8 +839,9 @@ scoped views and edited ordinary inputs use the same executor and runtime body. 
 named values may be formed and destroyed, but every authored invocation still requires const evidence,
 including dead source. Callable-bearing tuples and nonempty arrays are temporary data without final
 constant-publication permission. Exact owned captured code derives invocation availability from its
-ordinary checked operations, input shapes and actual cleanup. `constant::captured` closes transitive
-captured-call facts and retains local failure causes; recursion supplies no missing fact. This does
+ordinary checked operations, input shapes and actual cleanup. `constant::Catalog` derives requirements
+once from each shared accepted body and closes transitive captured-call facts with local failure
+causes; recursion supplies no missing fact. This does
 not infer const for a named runtime helper. Formation/destruction of an eligible environment is
 independent of body availability: a dormant runtime-only body can be formed and discarded. A called
 unavailable body reports E0421 at its actual call, with causal locations in its own lexical code.
@@ -869,9 +870,18 @@ The shared source corpus covers read/edit/take calls, forwarding, recursion, ano
 inputs, per-instance mutable state and returned taking callbacks through required and native
 execution. General contextual captures, outside R/D/S dependencies, dependent callable carriers,
 deeper callable inputs and opaque error-data operations remain outside this evaluator domain.
-Definition-owned composable condition products and module publication remain integration work;
-the current bound pass checks every authored possible invocation. Value-state guarded discharge
-remains open, and these private checks do not advertise an exported unconditional const guarantee.
+`constant::Requirements` retains once-derived operation references and sparse cleanup obligations,
+sharing the exact immutable `flow::Query` with the unit's body catalog. Calls, input contracts and
+types remain owned by that body and its `Program`; the condition product adds no alternate target
+or type authority. `Unit::const_requirements` exposes the product for that exact code generation.
+Unit clones share both products and bodies. A changed body cannot reuse the old source receipt.
+Required checks apply concrete bindings to the stored clauses and call edges rather than walking
+source bodies or rebuilding resource obligations.
+
+These products currently express direct body-wide conjunctions, including every authored possible
+invocation. General symbolic composition, value/resource-state guarded discharge and module
+publication remain integration work; the products alone grant no exported unconditional const
+guarantee or evaluator implementation.
 
 Explicit unsupported drops fail even in dead source. Implicit disposal and edit-input replacement
 consume the actual sparse resource transitions; ending a partial container does not destroy its

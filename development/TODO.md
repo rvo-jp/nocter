@@ -18,17 +18,16 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Extend required callable-input execution using declaration-owned `CodeInstanceKey` contexts.
-Separate conditional const requirements from evaluator representation/realization limits, following
-the adopted constant-evaluation contract. Preserve authored named-call promises, inferred closure
-availability, actual frozen witness bindings, cleanup and budget recovery. Translate already checked
-bodies per selected instance without source body retyping or a second semantic/type authority.
-A known caller never grants unconditional capability to an unbound body. Close direct input
-execution, diagnostics and failure recovery first, then replace repeated bound operation-domain
-walks with definition-owned composable eligibility/representation requirements matched to the
-exact code/body generation. Qualify symbolic condition discharge and exported products separately
-from mechanical plan instantiation. Keep dependent carriers, deeper callable inputs, inferred
-captures, module/toolchain integration and retained-selection closure open.
+Compose definition-owned conditional const requirements through selected `CodeInstanceKey` call
+edges, preserving the exact shared checked-body generation and declaration type authority.
+Separate authored/inferred invocation capability, input representation and actual-resource cleanup
+conditions, following the adopted constant-evaluation contract. Extend direct body-wide clauses
+to symbolic and value/resource-state guarded discharge with deterministic budget/failure recovery.
+Qualify matched module publication independently of executable plan realization. Preserve local
+and caller causes, dormant/unused callable behavior, ordinary Copy/read/edit/take validity and
+named const promises. A known caller never grants unconditional capability to an unbound body.
+Keep dependent carriers, deeper callable inputs, inferred captures, module/toolchain integration
+and retained-selection closure open.
 
 ## Retained Selection Closure
 

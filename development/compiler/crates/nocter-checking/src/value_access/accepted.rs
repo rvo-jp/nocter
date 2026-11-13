@@ -56,12 +56,13 @@ impl DataEvidence {
 #[derive(Clone, Debug)]
 pub struct Unit {
     initializers: BTreeMap<AccessCodeId, Arc<nocter_model::FrozenData>>,
-    closures: BTreeMap<nocter_model::ValueClosure, flow::Query>,
+    closures: BTreeMap<nocter_model::ValueClosure, Arc<flow::Query>>,
     program: Arc<Program>,
     header: Arc<Program>,
     primitives: nocter_declaration_lowering::access_declarations::PrimitiveBindings,
-    bodies: BTreeMap<nocter_model::ValueCodeRoot, flow::Query>,
+    bodies: BTreeMap<nocter_model::ValueCodeRoot, Arc<flow::Query>>,
     result_evidence: Arc<super::results::Evidence>,
+    const_templates: Arc<super::constant::Catalog>,
 }
 impl Unit {
     /// Checks all definitions, including unreachable and mutually recursive callees.
@@ -133,7 +134,7 @@ impl Unit {
             bodies,
             closures,
             result_evidence,
-            const_templates: _,
+            const_templates,
         } = check_queries(context, queries)?;
         Ok(Self {
             initializers: evaluation
@@ -150,6 +151,7 @@ impl Unit {
             primitives: context.primitives().clone(),
             bodies,
             result_evidence,
+            const_templates,
         })
     }
     #[must_use]
@@ -192,28 +194,38 @@ impl Unit {
         }
         flow::resources::payload(self.program(), data).map(DataEvidence::Payload)
     }
+    /// Exact definition-owned conditions. This alone does not promise named const capability.
+    #[must_use]
+    pub fn const_requirements(
+        &self,
+        code: nocter_model::ValueCode,
+    ) -> Option<&super::constant::Requirements> {
+        self.const_templates.get(code)
+    }
     /// The exact checked body in this accepted unit's sole body catalog.
     #[must_use]
     pub fn body(&self, callable: AccessCodeId) -> Option<&flow::Query> {
-        self.bodies.get(&callable.into())
+        self.bodies.get(&callable.into()).map(Arc::as_ref)
     }
     /// Select the exact accepted named or captured body. Source ownership is not code identity.
     #[must_use]
     pub fn code_body(&self, code: nocter_model::ValueCode) -> Option<&flow::Query> {
         match code {
-            nocter_model::ValueCode::Declaration(id) => self.bodies.get(&id.into()),
+            nocter_model::ValueCode::Declaration(id) => {
+                self.bodies.get(&id.into()).map(Arc::as_ref)
+            }
             nocter_model::ValueCode::Expression(_) => None,
-            nocter_model::ValueCode::Closure(id) => self.closures.get(&id),
+            nocter_model::ValueCode::Closure(id) => self.closures.get(&id).map(Arc::as_ref),
         }
     }
     pub fn bodies(&self) -> impl Iterator<Item = (AccessCodeId, &flow::Query)> {
         self.bodies.iter().filter_map(|(&root, query)| match root {
-            nocter_model::ValueCodeRoot::Declaration(id) => Some((id, query)),
+            nocter_model::ValueCodeRoot::Declaration(id) => Some((id, query.as_ref())),
             nocter_model::ValueCodeRoot::Expression(_) => None,
         })
     }
     #[must_use]
-    pub fn closures(&self) -> &BTreeMap<nocter_model::ValueClosure, flow::Query> {
+    pub fn closures(&self) -> &BTreeMap<nocter_model::ValueClosure, Arc<flow::Query>> {
         &self.closures
     }
     /// Rebinds every accepted body before exposing any current-source projection.
@@ -239,18 +251,18 @@ impl Unit {
 }
 pub(super) struct Checked {
     pub(super) program: Arc<Program>,
-    pub(super) bodies: BTreeMap<nocter_model::ValueCodeRoot, flow::Query>,
-    closures: BTreeMap<nocter_model::ValueClosure, flow::Query>,
+    pub(super) bodies: BTreeMap<nocter_model::ValueCodeRoot, Arc<flow::Query>>,
+    closures: BTreeMap<nocter_model::ValueClosure, Arc<flow::Query>>,
     result_evidence: Arc<super::results::Evidence>,
-    const_templates: super::constant::Availability,
+    const_templates: Arc<super::constant::Catalog>,
 }
 impl Checked {
     /// Internal plan/diagnostic lookup includes required-expression bodies as well as callables.
     pub(super) fn code(&self, code: nocter_model::ValueCode) -> Option<&flow::Query> {
         match code {
-            nocter_model::ValueCode::Closure(id) => self.closures.get(&id),
+            nocter_model::ValueCode::Closure(id) => self.closures.get(&id).map(Arc::as_ref),
             nocter_model::ValueCode::Declaration(_) | nocter_model::ValueCode::Expression(_) => {
-                self.bodies.get(&code.root())
+                self.bodies.get(&code.root()).map(Arc::as_ref)
             }
         }
     }
@@ -330,7 +342,7 @@ pub(super) fn admit_resolved(
             };
             let checked = nested.clone().finish(&writes).map_err(Failure::Integrity)?;
             let checked = admit(checked, &verified)?;
-            if closures.insert(id, checked).is_some() {
+            if closures.insert(id, Arc::new(checked)).is_some() {
                 return Err(Failure::Integrity(
                     flow::IntegrityError::InconsistentTypedBody,
                 ));
@@ -339,7 +351,7 @@ pub(super) fn admit_resolved(
         if invoked.is_none_or(|set| set.contains(&root.code())) {
             let query = control.finish(&writes).map_err(Failure::Integrity)?;
             let query = admit(query, &verified)?;
-            bodies.insert(root, query);
+            bodies.insert(root, Arc::new(query));
         }
     }
     let const_templates =
