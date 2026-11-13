@@ -100,8 +100,9 @@ not a language restriction derived from the current realization boundary.
 
 - [ ] Replace remaining concrete-frame expansion in required const eligibility with guarded
   symbolic discharge. The definition-owned conjunction composes invocation and direct callable
-  representation/cleanup conditions, but is not a complete certificate for receiving inputs,
-  compound dependent data, value/resource-state guards or arbitrary caller contexts. Qualify those conditions through the same matched body/type products,
+  representation/cleanup conditions, but is not a complete certificate for parameter-selected receiving inputs,
+  compound dependent data, value/resource-state guards or arbitrary caller contexts. Qualify those
+  conditions through the same matched body/type products,
   preserving exact supplying-argument causes and source safety. Work quotas bound uncertainty
   without proving eligibility; module publication retains its independent qualification.
 - [ ] Complete nested callable data/witness support through header/data positions and the owning

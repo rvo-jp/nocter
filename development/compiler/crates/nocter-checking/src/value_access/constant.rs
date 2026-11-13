@@ -208,30 +208,16 @@ fn call_inputs(
         Some(key) => key.code().origin().ok_or(INVALID)?,
         None => *target,
     };
-    let parameters = match target {
-        ValueFunctionOrigin::Declaration(target) => program
-            .codes()
-            .get(target)
-            .ok_or(INVALID)?
-            .parameters()
-            .iter()
-            .map(|&id| Ok(program.parameters().get(id).ok_or(INVALID)?.data()))
-            .collect::<Result<Vec<_>, flow::IntegrityError>>()?,
-        ValueFunctionOrigin::Closure(code) => program
-            .closure(code)
-            .ok_or(INVALID)?
-            .contract()
-            .inputs
-            .iter()
-            .map(|input| input.data)
-            .collect(),
-        _ => return Ok(None),
+    let Some(contract) = input_contract(program, target, *kind, arguments)? else {
+        return Ok(None);
     };
+    let parameters = contract.inputs;
     let arguments = kind.explicit_arguments(arguments).ok_or(INVALID)?;
     if parameters.len() != arguments.len() {
         return Err(INVALID);
     }
-    for (data, argument) in parameters.into_iter().zip(arguments) {
+    for (input, argument) in parameters.into_iter().zip(arguments) {
+        let data = input.data;
         if !supports(program, data, domain, callee.as_ref())? {
             return Ok(Some(Violation {
                 site: Site::Expression(argument.value),
@@ -240,6 +226,27 @@ fn call_inputs(
         }
     }
     Ok(None)
+}
+
+fn input_contract(
+    program: &Program,
+    target: ValueFunctionOrigin,
+    kind: CallKind,
+    arguments: &[super::Argument],
+) -> Result<Option<nocter_declarations::value_access::FunctionConstraint>, flow::IntegrityError> {
+    if !matches!(
+        target,
+        ValueFunctionOrigin::Declaration(_) | ValueFunctionOrigin::Closure(_)
+    ) {
+        return Ok(None);
+    }
+    program
+        .function_contract(FunctionWitness {
+            origin: target,
+            invocation: kind.invocation(arguments).ok_or(INVALID)?,
+        })
+        .map(Some)
+        .ok_or(INVALID)
 }
 
 impl Violation {

@@ -945,8 +945,15 @@ sites remain distinct causes. An unused read input acquires no owned cleanup; an
 input retains its actual destruction condition through forwarding. None of these data predicates
 requires invocation availability or final serialization of the callable.
 
+Direct callable receiving-input conditions derive from the declaration authority's same
+`function_contract` used by ordinary const input checking. Each retains its receiving read/edit/take
+operation independently of the function value's invocation view. A completed known-code call
+substitutes the callee's formal data witness through its stored frame and keeps the actual argument
+as its cause. Interrupted preparation contributes no callee input or body-owned cleanup. Receiving
+an input does not require its invocation and does not invent Copy, an owner or a retirement.
+
 This finite conjunctive product detects closed false facts; absence of a failure is not a complete
-eligibility certificate. Receiving-contract input conditions, compound dependent data,
+eligibility certificate. Parameter-selected receiving inputs, compound dependent data,
 value/resource-state guards and general symbolic composition remain integration work. Ordinary
 exact required checks still apply. Module publication requires separate qualification; the products
 alone grant no exported unconditional const guarantee or evaluator implementation.

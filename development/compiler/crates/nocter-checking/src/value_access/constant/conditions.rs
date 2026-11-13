@@ -10,13 +10,18 @@ enum Term {
     Invocation(FunctionWitness),
     Representation(FunctionWitness),
     Cleanup(FunctionWitness),
+    Input {
+        operation: nocter_model::ValueInputOperation,
+        witness: FunctionWitness,
+    },
 }
 impl Term {
     fn witness(self) -> FunctionWitness {
         match self {
-            Self::Invocation(witness) | Self::Representation(witness) | Self::Cleanup(witness) => {
-                witness
-            }
+            Self::Invocation(witness)
+            | Self::Representation(witness)
+            | Self::Cleanup(witness)
+            | Self::Input { witness, .. } => witness,
         }
     }
     fn substitute(self, witness: FunctionWitness) -> Self {
@@ -24,6 +29,7 @@ impl Term {
             Self::Invocation(_) => Self::Invocation(witness),
             Self::Representation(_) => Self::Representation(witness),
             Self::Cleanup(_) => Self::Cleanup(witness),
+            Self::Input { operation, .. } => Self::Input { operation, witness },
         }
     }
 }
@@ -69,6 +75,7 @@ impl Conditions {
             for call in item.completed_calls() {
                 // Missing producer/view metadata supplies no positive or negative callee fact.
                 if let Ok(CallTemplate::Code(callee)) = call.template() {
+                    graph.seed_inputs(item, &call, callee, &mut pending)?;
                     callers.entry(callee.code()).or_default().push((
                         code,
                         call.expression(),
@@ -218,6 +225,75 @@ impl Conditions {
         }
         Ok(())
     }
+    fn seed_inputs(
+        &mut self,
+        item: &Requirements,
+        call: &super::requirements::CallEdge<'_>,
+        frame: &CodeTemplateKey,
+        pending: &mut VecDeque<(ValueCode, Term)>,
+    ) -> Result<(), flow::IntegrityError> {
+        let program = item.body().typed().program();
+        let ExpressionKind::Call {
+            kind, arguments, ..
+        } = &item
+            .body()
+            .typed()
+            .body()
+            .expressions()
+            .get(call.expression())
+            .ok_or(INVALID)?
+            .kind
+        else {
+            return Err(INVALID);
+        };
+        let contract = super::input_contract(
+            program,
+            frame.code().origin().ok_or(INVALID)?,
+            *kind,
+            arguments,
+        )?
+        .ok_or(INVALID)?;
+        let arguments = kind.explicit_arguments(arguments).ok_or(INVALID)?;
+        if contract.inputs.len() != arguments.len() {
+            return Err(INVALID);
+        }
+        for (input, argument) in contract.inputs.iter().zip(arguments) {
+            if input.operation != argument.operation {
+                return Err(INVALID);
+            }
+            let Some(PayloadSchema::Function(witness)) = program.data_schema(input.data) else {
+                continue;
+            };
+            let selected = match witness.origin {
+                ValueFunctionOrigin::Parameter(parameter)
+                    if frame.witnesses().contains_key(&parameter) =>
+                {
+                    frame.resolve(program, witness).map_err(|_| INVALID)?
+                }
+                ValueFunctionOrigin::Declaration(_) | ValueFunctionOrigin::Closure(_) => witness,
+                _ => continue,
+            };
+            let term = Term::Input {
+                operation: input.operation,
+                witness: selected,
+            };
+            if self.insert(
+                program,
+                item.code(),
+                term,
+                Cause {
+                    code: item.code(),
+                    site: Site::Expression(argument.value),
+                    rule: Some(Rule::UnsupportedInput(input.data)),
+                    parent: None,
+                    parameter: None,
+                },
+            )? {
+                pending.push_back((item.code(), term));
+            }
+        }
+        Ok(())
+    }
     fn insert(
         &mut self,
         program: &nocter_declarations::value_access::Program,
@@ -264,12 +340,12 @@ impl Conditions {
                     witness.origin,
                     available,
                 )?,
-                Term::Representation(_) | Term::Cleanup(_)
+                Term::Representation(_) | Term::Cleanup(_) | Term::Input { .. }
                     if matches!(witness.origin, ValueFunctionOrigin::Parameter(_)) =>
                 {
                     None
                 }
-                Term::Representation(_) | Term::Cleanup(_) => {
+                Term::Representation(_) | Term::Cleanup(_) | Term::Input { .. } => {
                     let data = program.function_data(witness).ok_or(INVALID)?;
                     if domain.supports(program, data)? {
                         None
@@ -409,7 +485,7 @@ mod tests {
 
     #[test]
     fn unused_owned_callable_cleanup_composes_without_becoming_an_invocation_condition() {
-        let source = "const func discard(take action: once(i32): i32): void {}\nconst func inspect(action: func(i32): i32): void {}\nfunc run(take input: error): void { let action = (input^; value: i32): i32 { value }\ninspect(action)\ndiscard(action^) }";
+        let source = "const func discard(take action: once(i32): i32): void {}\nconst func inspect(action: func(i32): i32): void {}\nconst func update(edit action: mut(i32): i32): void {}\nfunc run(take input: error, take editing: error): void { let action = (input^; value: i32): i32 { value }\nvar update_action: mut(i32): i32 = (editing^; value: i32): i32 { value }\ninspect(action)\nupdate(update_action)\ndiscard(action^) }";
         let (sources, tree) = input(source);
         let unit = SourceUnit::prepare(bound(&sources, &tree))
             .unwrap()
@@ -446,7 +522,21 @@ mod tests {
                 .all(|term| matches!(term, Term::Cleanup(_)))
         );
         assert!(!graph.terms.contains_key(&code("inspect")));
+        assert!(!graph.terms.contains_key(&code("update")));
         let terms = &graph.terms[&code("run")];
+        for operation in [
+            nocter_model::ValueInputOperation::Read,
+            nocter_model::ValueInputOperation::Edit,
+            nocter_model::ValueInputOperation::Take,
+        ] {
+            assert!(terms.keys().any(|term| matches!(term, Term::Input { operation: found, witness: FunctionWitness { origin: ValueFunctionOrigin::Closure(_), .. } } if *found == operation)));
+        }
+        assert!(
+            terms
+                .keys()
+                .all(|term| !matches!(term, Term::Invocation(_)))
+        );
+
         let (&term, &cause) = terms
             .iter()
             .find(|(term, _)| {
