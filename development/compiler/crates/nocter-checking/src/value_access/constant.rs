@@ -32,6 +32,13 @@ pub struct Diagnostic {
     source: SourceDiagnostic,
 }
 impl Diagnostic {
+    pub(super) fn note_witness(&mut self, origin: nocter_source_index::SourceOrigin) {
+        self.source
+            .push_note(nocter_diagnostics::DiagnosticNote::new(
+                "this argument supplies the callable witness required by this operation",
+                origin,
+            ));
+    }
     pub(super) fn note_call(&mut self, origin: nocter_source_index::SourceOrigin) {
         self.source
             .push_note(nocter_diagnostics::DiagnosticNote::new(
@@ -221,6 +228,61 @@ fn call_inputs(
 }
 
 impl Violation {
+    /// Preserve the ordinary witness position behind a bound condition failure.
+    pub(super) fn dependency(
+        self,
+        query: &flow::Query,
+        key: &CodeInstanceKey,
+    ) -> Result<Option<nocter_model::ValueParameter>, flow::IntegrityError> {
+        if query.typed().code() != key.code() {
+            return Err(INVALID);
+        }
+        let body = query.typed().body();
+        let data = match self.rule {
+            Rule::RuntimeCall(_) | Rule::CapturedCall(_) | Rule::ValueInvocation => {
+                let Site::Expression(id) = self.site else {
+                    return Err(INVALID);
+                };
+                let ExpressionKind::Call { target, .. } =
+                    body.expressions().get(id).ok_or(INVALID)?.kind
+                else {
+                    return Err(INVALID);
+                };
+                return match target {
+                    ValueFunctionOrigin::Parameter(parameter)
+                        if key.witnesses().contains_key(&parameter) =>
+                    {
+                        Ok(Some(parameter))
+                    }
+                    _ => Ok(None),
+                };
+            }
+            Rule::UnsupportedInput(_) => {
+                let Site::Expression(id) = self.site else {
+                    return Err(INVALID);
+                };
+                body.expressions()
+                    .get(id)
+                    .ok_or(INVALID)?
+                    .ty
+                    .access()
+                    .map(nocter_model::ValueAccess::data)
+            }
+            Rule::UnsupportedData(data) | Rule::UnsupportedCleanup(data) => Some(data),
+        };
+        let Some(data) = data else {
+            return Ok(None);
+        };
+        Ok(
+            match query.typed().program().data_schema(data).ok_or(INVALID)? {
+                PayloadSchema::Function(FunctionWitness {
+                    origin: ValueFunctionOrigin::Parameter(parameter),
+                    ..
+                }) if key.witnesses().contains_key(&parameter) => Some(parameter),
+                _ => None,
+            },
+        )
+    }
     pub(super) const fn rule(self) -> Rule {
         self.rule
     }

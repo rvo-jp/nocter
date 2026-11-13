@@ -484,3 +484,70 @@ fn independent_invocation_positions_factor_discovery_without_merging_const_condi
     };
     assert_eq!(diagnostic.rule(), Rule::ConditionWorkLimit);
 }
+
+#[test]
+fn conditional_failures_trace_only_the_argument_chain_supplying_the_failed_witness() {
+    let source = "func runtime(value: i32): i32 { value }\nconst func valid(value: i32): i32 { value }\nconst func apply(action: func(i32): i32): i32 { action(42) }\nconst func forward(unused: func(i32): i32, selected: func(i32): i32): i32 { apply(selected) }\nconst ANSWER: i32 = forward(valid, runtime)";
+    let (sources, tree) = input(source);
+    let syntax = bound(&sources, &tree);
+    let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+        accepted::SourceUnit::prepare(syntax)
+    else {
+        panic!("actual runtime callback");
+    };
+    assert_eq!(
+        syntax.text_at(diagnostic.source().primary().span().range()),
+        Some("action(42)")
+    );
+    let notes = diagnostic
+        .source()
+        .notes()
+        .iter()
+        .filter(|note| note.message().contains("supplies the callable witness"))
+        .map(|note| syntax.text_at(note.origin().span().range()).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(notes, ["selected", "runtime"]);
+}
+
+#[test]
+fn witness_causes_survive_recursive_swaps_explicit_transfers_and_lexical_formals() {
+    let prefix =
+        "func runtime(value: i32): i32 { value }\nconst func valid(value: i32): i32 { value }\n";
+    for (body, primary, expected) in [
+        (
+            "const func rotate(action: func(i32): i32, other: func(i32): i32, count: i32): i32 { if count == 0 { action(42) } else { rotate(other, action, count - 1) } }\nconst ANSWER: i32 = rotate(valid, runtime, 1)",
+            "action(42)",
+            vec!["other", "runtime"],
+        ),
+        (
+            "const func apply(take action: once(i32): i32): i32 { action^(42) }\nconst func forward(take selected: once(i32): i32): i32 { apply(selected^) }\nconst ANSWER: i32 = forward(runtime)",
+            "action^(42)",
+            vec!["selected^", "runtime"],
+        ),
+        (
+            "const func calculate(): i32 { let relay = (action: func(i32): i32): i32 { action(42) }\nrelay(runtime) }\nconst ANSWER: i32 = calculate()",
+            "action(42)",
+            vec!["runtime"],
+        ),
+    ] {
+        let (sources, tree) = input(&format!("{prefix}{body}"));
+        let syntax = bound(&sources, &tree);
+        let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+            accepted::SourceUnit::prepare(syntax)
+        else {
+            panic!("actual unavailable invocation: {body}");
+        };
+        assert_eq!(
+            syntax.text_at(diagnostic.source().primary().span().range()),
+            Some(primary)
+        );
+        let notes = diagnostic
+            .source()
+            .notes()
+            .iter()
+            .filter(|note| note.message().contains("supplies the callable witness"))
+            .map(|note| syntax.text_at(note.origin().span().range()).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(notes, expected);
+    }
+}

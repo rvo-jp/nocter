@@ -98,6 +98,13 @@ not a language restriction derived from the current realization boundary.
 
 ## Open Findings
 
+- [ ] Close statically known callee conditions in uninvoked const definitions and inferred
+  closure availability. Qualify `const func impossible(): i32 { apply(runtime) }` where
+  `apply` invokes its callable input and `runtime` lacks authored const. A direct callee's const
+  flag must not hide an already-false selected binding, including through forwarding/recursion.
+  Add the source reproducer before the fix; preserve unresolved outer inputs as conditions,
+  fixed-operation definition errors, matched body/cause receipts and dormant runtime values.
+
 - [ ] Compose witness-dependent const conditions symbolically instead of enumerating concrete
   witness-call closures. Permuting callbacks still expands condition frames when their code can
   be invoked. Fixed-target closures share conditions only after actual callable data qualification;

@@ -108,6 +108,11 @@ fn stored_callable_cleanup_conditions_survive_an_unused_consuming_input() {
     assert!(requirements.check(&|_| true, None).unwrap().is_none());
     let violation = requirements.check(&|_| true, Some(&key)).unwrap().unwrap();
     assert!(matches!(violation.rule(), Rule::UnsupportedCleanup(_)));
+    assert_eq!(
+        violation.dependency(requirements.body(), &key).unwrap(),
+        key.witnesses().keys().next().copied()
+    );
+    assert!(violation.dependency(run, &key).is_err());
 }
 
 #[test]

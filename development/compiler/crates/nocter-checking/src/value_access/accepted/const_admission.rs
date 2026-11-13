@@ -3,6 +3,9 @@ use super::{Checked, DeclarationContext, Failure, Program, flow};
 use crate::value_access::{constant, evaluation, results, source_origin};
 use std::{collections::BTreeMap, sync::Arc};
 
+mod provenance;
+use provenance::Parent;
+
 /// Close the direct callable-formal conditions over exact checked instance metadata before
 /// executing any plan. This consumes the ordinary bodies and never manufactures named const.
 pub(in crate::value_access) fn check_required_const(
@@ -21,7 +24,7 @@ pub(in crate::value_access) fn check_required_const(
         .bind_code(root.code(), [])
         .map_err(|_| Failure::Integrity(flow::IntegrityError::InconsistentTypedBody))?;
     let mut traversal = availability.traversal();
-    let mut parents = BTreeMap::from([(root.clone(), None)]);
+    let mut parents: BTreeMap<_, Option<Parent>> = BTreeMap::from([(root.clone(), None)]);
     let mut pending = vec![root];
     while let Some(key) = pending.pop() {
         if !traversal.visit(program, &key).map_err(Failure::Integrity)? {
@@ -45,15 +48,14 @@ pub(in crate::value_access) fn check_required_const(
             availability
                 .annotate(diagnostic.rule(), &mut diagnostic, &verified)
                 .map_err(|failure| Failure::Body { callable, failure })?;
-            let mut path = Vec::new();
-            let mut current = &key;
-            while let Some(Some((parent, origin))) = parents.get(current) {
-                path.push(*origin);
-                current = parent;
-            }
-            for origin in path.into_iter().rev() {
-                diagnostic.note_call(origin);
-            }
+            provenance::annotate(
+                availability,
+                &verified,
+                &parents,
+                &key,
+                violation,
+                &mut diagnostic,
+            )?;
             return Err(Failure::Const {
                 callable,
                 diagnostic: Box::new(diagnostic),
@@ -74,7 +76,14 @@ pub(in crate::value_access) fn check_required_const(
             if parents.contains_key(&selected) {
                 continue;
             }
-            parents.insert(selected.clone(), Some((key.clone(), origin)));
+            parents.insert(
+                selected.clone(),
+                Some(Parent {
+                    key: key.clone(),
+                    call: id,
+                    origin,
+                }),
+            );
             pending.push(selected);
         }
     }

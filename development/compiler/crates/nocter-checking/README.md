@@ -919,6 +919,10 @@ closure formals preserve their own identities across forwarding. Interrupted pre
 no completed template frame. Known-code edges compose by one-step outer substitution through
 the declaration authority. Required closure closes the same retained edges to concrete frames;
 parameter-selected edges retain their frozen argument metadata and the common call binder.
+A bound failure retains its original witness position. `accepted::const_admission::provenance`
+follows that position through each frozen argument binding, annotating only the argument chain
+that supplied the failed witness, alongside the ordinary call path. It uses verified body/source
+receipts and never searches other callbacks for a favorable capability.
 Each internal edge reference borrows its matched checked body and rejects a different caller code.
 This is symbolic edge metadata, not a solved const condition or an executable-callee proof.
 
