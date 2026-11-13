@@ -36,7 +36,7 @@ impl Catalog {
             let ValueCode::Closure(code) = source else {
                 continue;
             };
-            let mut violation = item.check(&|_| true, None)?.map(Cause::Local);
+            let mut violation = item.check(&|_| true)?.map(Cause::Local);
             if violation.is_none() {
                 violation = conditions
                     .violation(item, &|target| {

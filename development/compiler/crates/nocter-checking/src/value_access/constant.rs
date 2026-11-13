@@ -13,6 +13,7 @@ mod conditions;
 mod requirements;
 mod traversal;
 pub use requirements::Requirements;
+pub(in crate::value_access) use requirements::{BoundCheck, BoundCheckFailure};
 mod representation;
 pub(super) use catalog::Catalog;
 use traversal::Traversal;
@@ -74,7 +75,7 @@ fn operation_rule(
     program: &Program,
     kind: &ExpressionKind,
     available: &dyn Fn(nocter_model::ValueClosure) -> bool,
-    instance: Option<&CodeInstanceKey>,
+    callee: Option<&CodeInstanceKey>,
 ) -> Result<Option<Rule>, flow::IntegrityError> {
     Ok(match kind {
         ExpressionKind::Call {
@@ -88,21 +89,9 @@ fn operation_rule(
             if uncommitted_parameter_call(*kind, *target, arguments) {
                 return Ok(None);
             }
-            let target = if let Some(instance) = instance {
-                instance
-                    .resolve(
-                        program,
-                        FunctionWitness {
-                            origin: *target,
-                            invocation: kind.invocation(arguments).ok_or(INVALID)?,
-                        },
-                    )
-                    .map_err(|_| INVALID)?
-                    .code()
-                    .origin()
-                    .ok_or(INVALID)?
-            } else {
-                *target
+            let target = match callee {
+                Some(callee) => callee.code().origin().ok_or(INVALID)?,
+                None => *target,
             };
             invocation_rule(program, *kind, target, available)?
         }
@@ -187,7 +176,7 @@ fn call_inputs(
     program: &Program,
     expression: &ExpressionKind,
     domain: &mut super::evaluation::Types,
-    instance: Option<&CodeInstanceKey>,
+    callee: Option<&CodeInstanceKey>,
 ) -> Result<Option<Violation>, flow::IntegrityError> {
     let ExpressionKind::Call {
         target,
@@ -201,10 +190,7 @@ fn call_inputs(
     if !super::instances::completed(arguments) {
         return Ok(None);
     }
-    let callee = instance
-        .map(|caller| super::instantiate_call(program, caller, *target, *kind, arguments))
-        .transpose()?;
-    let target = match &callee {
+    let target = match callee {
         Some(key) => key.code().origin().ok_or(INVALID)?,
         None => *target,
     };
@@ -218,7 +204,7 @@ fn call_inputs(
     }
     for (input, argument) in parameters.into_iter().zip(arguments) {
         let data = input.data;
-        if !supports(program, data, domain, callee.as_ref())? {
+        if !supports(program, data, domain, callee)? {
             return Ok(Some(Violation {
                 site: Site::Expression(argument.value),
                 rule: Rule::UnsupportedInput(data),

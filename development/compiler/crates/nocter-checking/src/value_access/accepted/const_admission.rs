@@ -41,29 +41,32 @@ pub(in crate::value_access) fn check_required_const(
         let bound = query
             .bind_verified(&verified)
             .map_err(|failure| Failure::Body { callable, failure })?;
-        if let Some(violation) = requirements
-            .check(&|code| availability.permitted_template(code), Some(&key))
-            .map_err(Failure::Integrity)?
+        let calls = match requirements
+            .check_bound(&|code| availability.permitted_template(code), &key, work)
+            .map_err(|error| bound_failure(error, &bound, callable))?
         {
-            let mut diagnostic = violation
-                .project(&bound)
-                .map_err(|failure| Failure::Body { callable, failure })?;
-            availability
-                .annotate(diagnostic.rule(), &mut diagnostic, &verified)
-                .map_err(|failure| Failure::Body { callable, failure })?;
-            provenance::annotate(
-                availability,
-                &verified,
-                &parents,
-                &key,
-                violation,
-                &mut diagnostic,
-            )?;
-            return Err(Failure::Const {
-                callable,
-                diagnostic: Box::new(diagnostic),
-            });
-        }
+            constant::BoundCheck::Calls(calls) => calls,
+            constant::BoundCheck::Violation(violation) => {
+                let mut diagnostic = violation
+                    .project(&bound)
+                    .map_err(|failure| Failure::Body { callable, failure })?;
+                availability
+                    .annotate(diagnostic.rule(), &mut diagnostic, &verified)
+                    .map_err(|failure| Failure::Body { callable, failure })?;
+                provenance::annotate(
+                    availability,
+                    &verified,
+                    &parents,
+                    &key,
+                    violation,
+                    &mut diagnostic,
+                )?;
+                return Err(Failure::Const {
+                    callable,
+                    diagnostic: Box::new(diagnostic),
+                });
+            }
+        };
         for call in requirements.completed_calls() {
             let id = call.expression();
             let origin = bound
@@ -74,8 +77,9 @@ pub(in crate::value_access) fn check_required_const(
                 ))?;
             let origin = source_origin(bound.typed().syntax(), origin)
                 .map_err(|failure| Failure::Body { callable, failure })?;
-            evaluation::condition_step(work, callable, origin)?;
-            let selected = call.close(&key).map_err(Failure::Integrity)?;
+            let selected = calls.get(&id).cloned().ok_or(Failure::Integrity(
+                flow::IntegrityError::InconsistentTypedBody,
+            ))?;
             if parents.contains_key(&selected) {
                 continue;
             }
@@ -126,7 +130,7 @@ pub(super) fn check_const_bodies(
                 .ok_or(Failure::Integrity(
                     flow::IntegrityError::InconsistentTypedBody,
                 ))?
-                .check(&|code| availability.permitted_template(code), None)
+                .check(&|code| availability.permitted_template(code))
                 .map_err(Failure::Integrity)?
         {
             let bound = query
@@ -155,4 +159,26 @@ pub(super) fn check_const_bodies(
         }
     }
     Ok(Arc::new(availability))
+}
+
+fn bound_failure(
+    error: constant::BoundCheckFailure,
+    bound: &flow::Context<'_, '_>,
+    callable: nocter_model::AccessCodeId,
+) -> Failure {
+    match error {
+        constant::BoundCheckFailure::Integrity(error) => Failure::Integrity(error),
+        constant::BoundCheckFailure::Invocation {
+            expression,
+            failure,
+        } => {
+            let Some(origin) = bound.typed().expression_origin(expression) else {
+                return Failure::Integrity(flow::IntegrityError::InconsistentTypedBody);
+            };
+            match source_origin(bound.typed().syntax(), origin) {
+                Ok(origin) => evaluation::condition_failure(failure, callable, origin),
+                Err(failure) => Failure::Body { callable, failure },
+            }
+        }
+    }
 }

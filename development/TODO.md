@@ -31,13 +31,13 @@ alone does not complete capture support. Preserve current rejection until execut
 
 Resolve value-occurrence creation context through the retained source-flow producer equations
 and ordinary value transport, then close source closure creation before admitting formal callable
-captures. Use original-recipe frame selection in required eligibility checks and receiving-data
-validation. Keep dormant definition-contract hypotheses separate from strict committed calls;
-preserve factored symbolic conditions, exact creator frames and the condition-work failure class.
-Then complete value/component transport and representation from retained closure-creation
-snapshots and structural producer facts. Do not substitute outer bindings when occurrences or
-creation snapshots are missing. Preserve the separate plan-work failure class, pre-commit
-preparation behavior, exact creation contexts,
+captures. Complete value/component transport and representation from retained closure-creation
+snapshots and structural producer facts. Replace per-frame leaf-TypeId assumptions where distinct
+values share a source type but retain different captured substitutions. Keep one declaration-owned
+normalization authority and qualify evaluator/native receiving, storage and cleanup together.
+Do not substitute outer bindings when occurrences or creation snapshots are missing. Preserve
+dormant definition-contract checks, factored symbolic conditions, condition/plan-work failures,
+pre-commit preparation behavior, exact creation contexts,
 anchored recursion, alternative handling and failure/retry behavior; source formal-capture
 creation and per-value/component representation still require integration.
 Follow the occurrence-sensitive finding below and the canonical instance obligations. Keep semantic

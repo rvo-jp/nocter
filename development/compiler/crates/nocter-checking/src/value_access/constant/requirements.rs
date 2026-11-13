@@ -19,7 +19,6 @@ enum Clause {
 
 /// One completed edge borrowed from its matched definition-owned body product.
 pub(in crate::value_access) struct CallEdge<'a> {
-    body: &'a flow::Query,
     expression: AccessExpressionId,
     template: &'a Result<CallTemplate, flow::IntegrityError>,
 }
@@ -30,30 +29,11 @@ impl CallEdge<'_> {
     pub(in crate::value_access) fn expression(&self) -> AccessExpressionId {
         self.expression
     }
-    pub(in crate::value_access) fn close(
-        &self,
-        caller: &CodeInstanceKey,
-    ) -> Result<CodeInstanceKey, flow::IntegrityError> {
-        if caller.code() != self.body.typed().code() {
-            return Err(INVALID);
-        }
-        let program = self.body.typed().program();
-        match self.template.as_ref().map_err(|error| *error)? {
-            CallTemplate::Code(key) => key.close(program, caller).map_err(|_| INVALID),
-            CallTemplate::Parameter(_) => {
-                let expression = &self
-                    .body
-                    .typed()
-                    .body()
-                    .expressions()
-                    .get(self.expression)
-                    .ok_or(INVALID)?
-                    .kind;
-                instances::select_call(program, caller, expression)?.ok_or(INVALID)
-            }
-        }
-    }
 }
+
+mod bound;
+use bound::BoundCalls;
+pub(in crate::value_access) use bound::{BoundCheck, BoundCheckFailure};
 
 /// Definition-owned operation requirements, with the exact shared checked-body generation.
 /// This product alone grants neither authored const capability nor executable representation.
@@ -168,37 +148,60 @@ impl Requirements {
     pub(in crate::value_access) fn check(
         &self,
         available: &dyn Fn(ValueClosure) -> bool,
-        instance: Option<&CodeInstanceKey>,
     ) -> Result<Option<Violation>, flow::IntegrityError> {
+        self.check_clauses(available, None, None)
+            .map_err(|error| match error {
+                BoundCheckFailure::Integrity(error) => error,
+                BoundCheckFailure::Invocation { .. } => INVALID,
+            })
+    }
+    fn check_clauses(
+        &self,
+        available: &dyn Fn(ValueClosure) -> bool,
+        instance: Option<&CodeInstanceKey>,
+        mut calls: Option<&mut BoundCalls<'_, '_>>,
+    ) -> Result<Option<Violation>, BoundCheckFailure> {
         if instance.is_some_and(|key| key.code() != self.code()) {
-            return Err(INVALID);
+            return Err(INVALID.into());
         }
         let program = self.body.typed().program();
         let expressions = self.body.typed().body().expressions();
         let mut domain = evaluation::Types::default();
         for clause in &self.clauses {
             let violation = match clause {
-                Clause::Invocation { expression: id, .. } => super::operation_rule(
-                    program,
-                    &expressions.get(*id).ok_or(INVALID)?.kind,
-                    available,
-                    instance,
-                )?
-                .map(|rule| Violation {
-                    site: Site::Expression(*id),
-                    rule,
-                }),
-                Clause::Inputs(id) => super::call_inputs(
-                    program,
-                    &expressions.get(*id).ok_or(INVALID)?.kind,
-                    &mut domain,
-                    instance,
-                )?,
+                Clause::Invocation { expression: id, .. } => {
+                    let callee = match calls.as_deref_mut() {
+                        Some(calls) => calls.resolve(*id)?,
+                        None => None,
+                    };
+                    super::operation_rule(
+                        program,
+                        &expressions.get(*id).ok_or(INVALID)?.kind,
+                        available,
+                        callee,
+                    )?
+                    .map(|rule| Violation {
+                        site: Site::Expression(*id),
+                        rule,
+                    })
+                }
+                Clause::Inputs(id) => {
+                    let callee = match calls.as_deref_mut() {
+                        Some(calls) => calls.resolve(*id)?,
+                        None => None,
+                    };
+                    super::call_inputs(
+                        program,
+                        &expressions.get(*id).ok_or(INVALID)?.kind,
+                        &mut domain,
+                        callee,
+                    )?
+                }
                 Clause::Data(violation) => {
                     let (Rule::UnsupportedData(data) | Rule::UnsupportedCleanup(data)) =
                         violation.rule()
                     else {
-                        return Err(INVALID);
+                        return Err(INVALID.into());
                     };
                     (!super::supports(program, data, &mut domain, instance)?).then_some(*violation)
                 }
@@ -380,7 +383,6 @@ impl Requirements {
                 expression,
                 template: Some(template),
             } => Some(CallEdge {
-                body: &self.body,
                 expression: *expression,
                 template,
             }),

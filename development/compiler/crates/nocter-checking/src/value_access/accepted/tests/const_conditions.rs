@@ -44,20 +44,17 @@ fn const_requirements_share_the_exact_body_and_keep_capability_conditional() {
     let apply_key = bind(apply);
     let ignore_key = bind(ignore);
     let requirements = unit.const_requirements(apply).unwrap();
-    assert!(requirements.check(&|_| true, None).unwrap().is_none());
+    assert!(requirements.check(&|_| true).unwrap().is_none());
     assert_eq!(
-        requirements
-            .check(&|_| true, Some(&apply_key))
+        bound_check(requirements, &apply_key)
             .unwrap()
             .unwrap()
             .rule(),
         Rule::RuntimeCall(runtime)
     );
-    assert!(requirements.check(&|_| true, Some(&ignore_key)).is_err());
+    assert!(bound_check(requirements, &ignore_key).is_err());
     assert!(
-        unit.const_requirements(ignore)
-            .unwrap()
-            .check(&|_| true, Some(&ignore_key))
+        bound_check(unit.const_requirements(ignore).unwrap(), &ignore_key)
             .unwrap()
             .is_none()
     );
@@ -81,32 +78,36 @@ fn const_requirements_share_the_exact_body_and_keep_capability_conditional() {
 
 #[test]
 fn stored_callable_cleanup_conditions_survive_an_unused_consuming_input() {
-    use crate::value_access::{ExpressionKind, instantiate_call};
+    use crate::value_access::ExpressionKind;
     let unit = accepted(
         "const func discard(take action: once(i32): i32): void {}\nfunc run(take input: error): void { let action = (input^; value: i32): i32 { let moved = input^\nvalue }\ndiscard(action^) }",
     );
     let program = unit.program();
     let run = named(&unit, "run");
     let caller = program.bind_code(run.typed().code(), []).unwrap();
-    let (_, expression) = run
+    let (call, _) = run
         .typed()
         .body()
         .expressions()
         .iter()
         .find(|(_, expression)| matches!(expression.kind, ExpressionKind::Call { .. }))
         .unwrap();
-    let ExpressionKind::Call {
-        target,
-        kind,
-        arguments,
-    } = &expression.kind
-    else {
-        unreachable!();
-    };
-    let key = instantiate_call(program, &caller, *target, *kind, arguments).unwrap();
+    let mut work = nocter_constant_evaluation::state::WorkBudget::new(
+        nocter_constant_evaluation::state::Limits::default().steps(),
+    );
+    let key = unit
+        .instantiate_invocation(
+            &caller,
+            nocter_model::ValueApplication {
+                owner: caller.code(),
+                call,
+            },
+            &mut work,
+        )
+        .unwrap();
     let requirements = unit.const_requirements(key.code()).unwrap();
-    assert!(requirements.check(&|_| true, None).unwrap().is_none());
-    let violation = requirements.check(&|_| true, Some(&key)).unwrap().unwrap();
+    assert!(requirements.check(&|_| true).unwrap().is_none());
+    let violation = bound_check(requirements, &key).unwrap().unwrap();
     assert!(matches!(violation.rule(), Rule::UnsupportedCleanup(_)));
     assert_eq!(
         violation.dependency(requirements.body(), &key).unwrap(),
@@ -302,9 +303,11 @@ fn recursive_condition_edges_form_a_finite_permutation_without_chasing_root_vari
 }
 
 #[test]
-fn stored_condition_edges_close_to_the_same_frozen_instance_as_native_call_binding() {
-    use crate::value_access::instantiate_call;
+fn bound_condition_calls_reuse_original_frames_across_clauses() {
+    use crate::value_access::constant::BoundCheck;
+    use nocter_constant_evaluation::state::WorkBudget;
     use nocter_declarations::value_access::FunctionWitness;
+    use std::num::NonZeroU64;
     let unit = accepted(FORWARDING);
     let program = unit.program();
     let identity = program
@@ -320,28 +323,52 @@ fn stored_condition_edges_close_to_the_same_frozen_instance_as_native_call_bindi
         let caller = program
             .bind_code(code, [(formal.into(), FunctionWitness::from(identity))])
             .unwrap();
-        for call in unit.const_requirements(code).unwrap().completed_calls() {
-            let crate::value_access::ExpressionKind::Call {
-                target,
-                kind,
-                arguments,
-            } = &body
-                .typed()
-                .body()
-                .expressions()
-                .get(call.expression())
-                .unwrap()
-                .kind
-            else {
-                unreachable!();
-            };
-            assert_eq!(
-                call.close(&caller).unwrap(),
-                instantiate_call(program, &caller, *target, *kind, arguments).unwrap()
-            );
-            let wrong = program.bind_code(identity.into(), []).unwrap();
-            assert!(call.close(&wrong).is_err());
-        }
+        let requirements = unit.const_requirements(code).unwrap();
+        let call = requirements.completed_calls().next().unwrap();
+        assert_eq!(requirements.completed_calls().count(), 1);
+        let id = call.expression();
+        let needed = (1..=10_000)
+            .find(|&units| {
+                let mut work = WorkBudget::new(NonZeroU64::new(units).unwrap());
+                crate::value_access::instances::condition_call(body.typed(), &caller, id, &mut work)
+                    .is_ok()
+            })
+            .unwrap();
+        let mut limited = WorkBudget::new(NonZeroU64::new(needed).unwrap());
+        limited.step().unwrap();
+        assert!(
+            matches!(requirements.check_bound(&|_| true, &caller, &mut limited),
+            Err(crate::value_access::constant::BoundCheckFailure::Invocation { expression, failure: crate::value_access::InstantiationFailure::WorkLimit }) if expression == id)
+        );
+        let mut work = WorkBudget::new(NonZeroU64::new(needed).unwrap());
+        let BoundCheck::Calls(calls) = requirements
+            .check_bound(&|_| true, &caller, &mut work)
+            .unwrap()
+        else {
+            panic!("the bound clauses are eligible");
+        };
+        let expected = unit
+            .instantiate_invocation(
+                &caller,
+                nocter_model::ValueApplication {
+                    owner: code,
+                    call: id,
+                },
+                &mut WorkBudget::new(NonZeroU64::new(10_000).unwrap()),
+            )
+            .unwrap();
+        assert_eq!(calls[&id], expected);
+        assert_eq!(
+            calls.len(),
+            1,
+            "invocation and receiving checks share the same resolved call"
+        );
+        let wrong = program.bind_code(identity.into(), []).unwrap();
+        assert!(
+            requirements
+                .check_bound(&|_| true, &wrong, &mut work)
+                .is_err()
+        );
     }
 }
 
@@ -520,4 +547,22 @@ fn covered_conditions_share_closed_calls_and_preserve_unresolved_environment_fal
             work.charge(4).unwrap();
         }
     }
+}
+
+fn bound_check(
+    requirements: &crate::value_access::constant::Requirements,
+    key: &nocter_declarations::value_access::CodeInstanceKey,
+) -> Result<
+    Option<crate::value_access::constant::Violation>,
+    crate::value_access::constant::BoundCheckFailure,
+> {
+    let mut work = nocter_constant_evaluation::state::WorkBudget::new(
+        nocter_constant_evaluation::state::Limits::default().steps(),
+    );
+    requirements
+        .check_bound(&|_| true, key, &mut work)
+        .map(|check| match check {
+            crate::value_access::constant::BoundCheck::Violation(violation) => Some(violation),
+            crate::value_access::constant::BoundCheck::Calls(_) => None,
+        })
 }

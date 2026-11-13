@@ -1,4 +1,4 @@
-//! Metadata-only instantiation of a frozen typed call; never lookup, body typing or const proof.
+//! Occurrence-aware condition selection and separate frozen definition-contract metadata.
 use super::{Argument, CallKind, flow};
 use nocter_declarations::value_access::{
     CodeInstanceKey, CodeTemplateKey, FunctionWitness, Program,
@@ -42,13 +42,14 @@ pub(super) fn condition_call(
         )
         .map(Some);
     }
-    select_call(query.program(), caller, &expression.kind).map_err(|_| Failure::Unresolved)
+    select_contract_call(query.program(), caller, &expression.kind).map_err(|_| Failure::Unresolved)
 }
 
-/// Bind the selected code and exact callable arguments through the caller's concrete witnesses.
+/// Close a dormant definition contract without claiming occurrence or creation evidence.
+/// Reached calls use the original-recipe resolver instead.
 /// # Errors
 /// Rejects symbolic/missing witnesses, incompatible selected views or incomplete formal coverage.
-pub fn instantiate_call(
+fn instantiate_contract_call(
     program: &Program,
     caller: &CodeInstanceKey,
     target: ValueFunctionOrigin,
@@ -87,7 +88,7 @@ pub(super) fn is_completed_call(expression: &super::ExpressionKind) -> bool {
     matches!(expression, super::ExpressionKind::Call { arguments, .. } if completed(arguments))
 }
 
-pub(super) fn select_call(
+fn select_contract_call(
     program: &Program,
     caller: &CodeInstanceKey,
     expression: &super::ExpressionKind,
@@ -103,7 +104,7 @@ pub(super) fn select_call(
     if !completed(arguments) {
         return Ok(None);
     }
-    instantiate_call(program, caller, *target, *kind, arguments).map(Some)
+    instantiate_contract_call(program, caller, *target, *kind, arguments).map(Some)
 }
 
 /// A selected condition edge; a parameter is unresolved and grants no executable/capability fact.

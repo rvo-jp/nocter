@@ -951,6 +951,13 @@ transfers and cleanup keep their own clauses. Fixed forbidden source calls remai
 errors even when their preparation cannot complete. The dependency coordinator discovers actual
 formal-call targets after ordinary result closure and requests their existing checked drafts without
 source body retyping.
+Exact required-condition checks use `constant::requirements::bound` to resolve each call lazily
+once for one caller frame. Invocation eligibility, receiving-input eligibility and subsequent body
+traversal consume those same derived keys. Clause order remains intact; a violation discards the
+request-local draft. Resolution failure retains the original operation ID for condition-work
+diagnostics. Definition checks have a separate template-only entry point, and frozen dormant
+contract binding remains private to condition selection. This memo supplies no final value,
+authored capability, runtime owner or executable plan.
 `instances::condition_call` uses original source recipes for committed calls during body discovery.
 An absent commit can supply only a frozen definition-contract hypothesis: const declarations still
 check dormant source operations, but that hypothesis creates no executable call or value receipt.

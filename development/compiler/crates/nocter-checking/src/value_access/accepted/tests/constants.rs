@@ -346,7 +346,7 @@ fn captured_shape_evidence_is_independent_of_source_const_and_final_admission() 
 
 #[test]
 fn bound_callable_shapes_keep_the_template_unavailable_and_actual_environments_distinct() {
-    use crate::value_access::{ExpressionKind, instantiate_call};
+    use crate::value_access::ExpressionKind;
     use nocter_declarations::value_access::PayloadSchema;
     let unit = accepted(
         "func identity(value: i32): i32 { value }\nfunc apply(take callback: once(i32): i32): i32 { callback^(1) }\nfunc run(): i32 { let seed = 41\nlet left = (seed; value: i32): i32 { seed + value }\nlet flag = true\nlet right = (flag; value: i32): i32 { if flag { value } else { 0 } }\nlet _ = apply(left^)\nlet _ = apply(right^)\napply(identity) }",
@@ -365,16 +365,23 @@ fn bound_callable_shapes_keep_the_template_unavailable_and_actual_environments_d
     assert!(types.get_in(program, &caller, data).is_err());
     let mut projected = std::collections::BTreeSet::new();
     let mut closure_codes = std::collections::BTreeSet::new();
-    for (_, expression) in run.typed().body().expressions().iter() {
-        let ExpressionKind::Call {
-            target,
-            kind,
-            arguments,
-        } = &expression.kind
-        else {
+    let mut work = nocter_constant_evaluation::state::WorkBudget::new(
+        nocter_constant_evaluation::state::Limits::default().steps(),
+    );
+    for (call, expression) in run.typed().body().expressions().iter() {
+        if !matches!(expression.kind, ExpressionKind::Call { .. }) {
             continue;
-        };
-        let key = instantiate_call(program, &caller, *target, *kind, arguments).unwrap();
+        }
+        let key = unit
+            .instantiate_invocation(
+                &caller,
+                nocter_model::ValueApplication {
+                    owner: caller.code(),
+                    call,
+                },
+                &mut work,
+            )
+            .unwrap();
         let index = types.get_in(program, &key, data).unwrap();
         assert!(projected.insert(index));
         assert_eq!(types.get_in(program, &key, data).unwrap(), index);
