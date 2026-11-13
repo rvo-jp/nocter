@@ -46,26 +46,8 @@ pub(super) fn completed(arguments: &[Argument]) -> bool {
     })
 }
 
-/// Selected instance edges in an existing typed body, shared by discovery and required admission.
-pub(super) fn calls(
-    program: &Program,
-    caller: &CodeInstanceKey,
-    body: &super::Query,
-) -> Result<Vec<(nocter_model::AccessExpressionId, CodeInstanceKey)>, flow::IntegrityError> {
-    if caller.code() != body.code() || !std::ptr::eq(program, body.program()) {
-        return Err(flow::IntegrityError::InconsistentTypedBody);
-    }
-    body.body()
-        .expressions()
-        .iter()
-        .filter_map(
-            |(id, expression)| match select_call(program, caller, &expression.kind) {
-                Ok(None) => None,
-                Ok(Some(key)) => Some(Ok((id, key))),
-                Err(error) => Some(Err(error)),
-            },
-        )
-        .collect()
+pub(super) fn is_completed_call(expression: &super::ExpressionKind) -> bool {
+    matches!(expression, super::ExpressionKind::Call { arguments, .. } if completed(arguments))
 }
 
 pub(super) fn select_call(

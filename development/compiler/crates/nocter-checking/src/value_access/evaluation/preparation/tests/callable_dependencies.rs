@@ -258,3 +258,53 @@ fn bound_callback_failures_keep_actual_sites_and_recover_the_same_request_coordi
         assert_eq!(preparation.budget.storage_used(), 0);
     }
 }
+
+#[test]
+fn condition_expansion_exhaustion_is_distinct_and_the_same_request_can_recover() {
+    let source = "func first(): void {}\nfunc second(): void {}\nfunc third(): void {}\nfunc fourth(): void {}\nconst func permute(a: func(): void, b: func(): void, c: func(): void, d: func(): void, count: i32): i32 { if count == 0 { 42 } else { let _ = permute(b, a, c, d, count - 1)\nlet _ = permute(a, c, b, d, count - 1)\npermute(a, b, d, c, count - 1) } }\nconst ANSWER: i32 = permute(first, second, third, fourth, 0)";
+    let (sources, tree) = input(source);
+    let syntax = bound(&sources, &tree);
+    let headers = declarations::Query::prepare(syntax).unwrap();
+    let context = headers.bind(syntax).unwrap();
+    let program = context.program();
+    let answer = program
+        .resolve_constant(program.symbols().get("ANSWER").unwrap())
+        .unwrap();
+    let limits = nocter_constant_evaluation::CompileTimeEvaluationLimits::new(
+        std::num::NonZeroU64::new(256).unwrap(),
+        std::num::NonZeroU32::new(8).unwrap(),
+    );
+    let mut preparation = Preparation::new(context, Headers::Closed, limits.into());
+    preparation.condition_work = state::WorkBudget::new(std::num::NonZeroU64::new(8).unwrap());
+    let mut requests = Dependencies::default();
+    let Err(QueryError::Computation(SourceFailure::Checking(Failure::Evaluation {
+        diagnostic,
+        ..
+    }))) = requests.resolve_steps(&mut preparation, Request::Value(answer.into()))
+    else {
+        panic!("bounded analysis of all witness permutations");
+    };
+    assert_eq!(diagnostic.rule(), Rule::ConditionWorkLimit);
+    assert_eq!(diagnostic.source().code(), "E0322");
+    assert!(
+        syntax
+            .text_at(diagnostic.source().primary().span().range())
+            .unwrap()
+            .starts_with("permute(")
+    );
+    assert_eq!(requests.active_depth(), 0);
+    assert_eq!(requests.active_keys().len(), 0);
+    assert!(dependencies::value(&requests, answer).is_none());
+    assert_eq!(preparation.budget.storage_used(), 0);
+    // Retain the execution quota: spending more condition work must not spend source operations.
+    preparation.condition_work = state::WorkBudget::new(std::num::NonZeroU64::new(1000).unwrap());
+    requests
+        .resolve_steps(&mut preparation, Request::Value(answer.into()))
+        .unwrap();
+    assert_eq!(
+        dependencies::value(&requests, answer).unwrap().frozen,
+        state::Value::integer(42).freeze()
+    );
+    drop(requests);
+    assert_eq!(preparation.budget.storage_used(), 0);
+}

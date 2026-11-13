@@ -22,6 +22,7 @@ pub enum Rule {
     Execution(state::Rule),
     DependencyCycle,
     FinalValue,
+    ConditionWorkLimit,
 }
 impl Rule {
     fn diagnostic(self) -> Result<(DiagnosticCode, &'static str), BodyFailure> {
@@ -53,6 +54,10 @@ impl Rule {
             Self::Execution(state::Rule::InvalidPlan | state::Rule::ReachedUnreachable) => {
                 return Err(BodyFailure::InconsistentSyntax);
             }
+            Self::ConditionWorkLimit => (
+                DiagnosticCode::E0322,
+                "required constant analysis exhausted its condition-work budget",
+            ),
             Self::DependencyCycle => (
                 DiagnosticCode::E0324,
                 "required constant evaluation contains an initializer dependency cycle",
@@ -178,6 +183,30 @@ fn failure_at(
     rule: Rule,
     origin: nocter_syntax::SyntaxOrigin,
 ) -> Failure {
+    let primary = match source_origin(context, origin) {
+        Ok(primary) => primary,
+        Err(failure) => {
+            return Failure::Body {
+                callable: code,
+                failure,
+            };
+        }
+    };
+    failure_at_source(code, rule, primary)
+}
+pub(super) fn condition_step(
+    work: &mut state::WorkBudget,
+    code: AccessCodeId,
+    primary: nocter_source_index::SourceOrigin,
+) -> Result<(), Failure> {
+    work.step()
+        .map_err(|_| failure_at_source(code, Rule::ConditionWorkLimit, primary))
+}
+fn failure_at_source(
+    code: AccessCodeId,
+    rule: Rule,
+    primary: nocter_source_index::SourceOrigin,
+) -> Failure {
     let (diagnostic_code, message) = match rule.diagnostic() {
         Ok(details) => details,
         Err(failure) => {
@@ -187,15 +216,7 @@ fn failure_at(
             };
         }
     };
-    let source = match source_origin(context, origin) {
-        Ok(primary) => SourceDiagnostic::new(diagnostic_code, message, primary, [], None::<&str>),
-        Err(failure) => {
-            return Failure::Body {
-                callable: code,
-                failure,
-            };
-        }
-    };
+    let source = SourceDiagnostic::new(diagnostic_code, message, primary, [], None::<&str>);
     Failure::Evaluation {
         callable: code,
         diagnostic: Box::new(Diagnostic { rule, source }),

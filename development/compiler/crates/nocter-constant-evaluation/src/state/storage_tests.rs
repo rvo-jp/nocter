@@ -440,3 +440,25 @@ fn text_import_charges_utf8_bytes_and_shares_a_retained_value_without_losing_its
     }
     assert_eq!(Value::from_frozen(&source.freeze()).unwrap(), source);
 }
+
+#[test]
+fn independent_work_quotas_share_policy_without_spending_execution_or_forgetting_storage() {
+    let mut execution = budget(16);
+    let retained = integer(&execution.storage, 42);
+    let stored = execution.storage_used();
+    let mut analysis = WorkBudget::new(NonZeroU64::new(3).unwrap());
+    analysis.charge(2).unwrap();
+    analysis.step().unwrap();
+    assert_eq!(analysis.step(), Err(Rule::StepLimit));
+    execution.step().unwrap();
+    assert_eq!(execution.storage_used(), stored);
+    analysis.restart();
+    assert_eq!(analysis.charge(u64::MAX), Err(Rule::StepLimit));
+    assert_eq!(analysis.step(), Err(Rule::StepLimit));
+    analysis.restart();
+    analysis.charge(3).unwrap();
+    execution.restart_work();
+    assert_eq!(execution.storage_used(), stored);
+    drop(retained);
+    assert_eq!(execution.storage_used(), 0);
+}

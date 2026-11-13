@@ -181,7 +181,11 @@ are resolved before a plan executes. Callable recursion remains ordinary graph e
 
 `state::Budget` owns one remaining-work counter across dependency preparation and nested closed
 executions. Actions, resource effects and control transitions consume it without resetting for a
-callee. The dependency query exposes its own active depth, rather than asking checking to maintain
+callee. `state::WorkBudget` owns the shared deterministic charging/reset policy, independently
+of frames and storage. Checking uses another quota with that policy for condition-call expansion;
+spending condition work cannot consume execution steps, reset retained value charges or create an
+execution call frame. An oversized failed charge exhausts only its own quota.
+The dependency query exposes its own active depth, rather than asking checking to maintain
 a second stack count; the executor combines suspended depth with invocation frames. Arithmetic,
 work, live-storage and call-depth failures retain code/action identities and the call path. A failed
 execution clears its frames and cannot return a partly initialized value. No ordinary call or

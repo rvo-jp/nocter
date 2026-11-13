@@ -231,9 +231,10 @@ fn early_value_success_does_not_skip_unused_definitions_or_execution_limits() {
             )
         ));
     }
-    let (sources, tree) = input(prefix);
+    // Keep condition preparation comfortably bounded and exhaust actual loop execution.
+    let (sources, tree) = input(&prefix.replace("{ 42 }", "{ loop {} }"));
     let limits = nocter_constant_evaluation::CompileTimeEvaluationLimits::new(
-        std::num::NonZeroU64::new(1).unwrap(),
+        std::num::NonZeroU64::new(128).unwrap(),
         std::num::NonZeroU32::new(16).unwrap(),
     );
     let Err(SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })) =

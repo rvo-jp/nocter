@@ -1,4 +1,4 @@
-//! Deterministic live evaluator storage, independent of target layout and host allocator sizes.
+//! Deterministic work quotas and live evaluator storage, independent of target/host layout.
 use super::Rule;
 use crate::CompileTimeEvaluationLimits;
 use std::{
@@ -46,10 +46,44 @@ impl Default for Limits {
         CompileTimeEvaluationLimits::default().into()
     }
 }
+/// A deterministic work quota, independent of evaluator frames, call depth and live values.
+/// Separate compilation activities may share the policy without spending execution operations.
+pub struct WorkBudget {
+    limit: NonZeroU64,
+    remaining: u64,
+}
+impl WorkBudget {
+    #[must_use]
+    pub const fn new(limit: NonZeroU64) -> Self {
+        Self {
+            limit,
+            remaining: limit.get(),
+        }
+    }
+    pub fn restart(&mut self) {
+        self.remaining = self.limit.get();
+    }
+    /// # Errors
+    /// Reports exhausted deterministic work. A failed charge exhausts the quota.
+    pub fn charge(&mut self, units: u64) -> Result<(), Rule> {
+        let Some(remaining) = self.remaining.checked_sub(units) else {
+            self.remaining = 0;
+            return Err(Rule::StepLimit);
+        };
+        self.remaining = remaining;
+        Ok(())
+    }
+    /// # Errors
+    /// Reports exhausted work without replenishing the quota.
+    pub fn step(&mut self) -> Result<(), Rule> {
+        self.charge(1)
+    }
+}
+
 /// Work resets only at an outer request; storage remains shared while any result is retained.
 pub struct Budget {
     limits: Limits,
-    remaining: u64,
+    work: WorkBudget,
     pub(super) storage: Storage,
 }
 impl Budget {
@@ -58,7 +92,7 @@ impl Budget {
         let limits = limits.into();
         Self {
             limits,
-            remaining: limits.steps().get(),
+            work: WorkBudget::new(limits.steps()),
             storage: Storage(Arc::new(Meter {
                 limit: limits.storage().get(),
                 used: AtomicU64::new(0),
@@ -71,13 +105,12 @@ impl Budget {
     }
     /// Start an outer request without forgetting storage held by completed dependencies.
     pub fn restart_work(&mut self) {
-        self.remaining = self.limits.steps().get();
+        self.work.restart();
     }
     /// # Errors
     /// Reports exhausted deterministic work without replenishing a nested request's budget.
     pub fn step(&mut self) -> Result<(), Rule> {
-        self.remaining = self.remaining.checked_sub(1).ok_or(Rule::StepLimit)?;
-        Ok(())
+        self.work.step()
     }
     #[must_use]
     pub fn storage_used(&self) -> u64 {

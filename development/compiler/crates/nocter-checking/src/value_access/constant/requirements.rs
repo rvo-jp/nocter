@@ -145,7 +145,7 @@ impl Requirements {
         }
         Ok(None)
     }
-    pub(super) fn call_expressions(
+    pub(in crate::value_access) fn call_expressions(
         &self,
     ) -> impl Iterator<Item = Result<(AccessExpressionId, &ExpressionKind), flow::IntegrityError>>
     {
@@ -199,23 +199,6 @@ impl Requirements {
             let selected =
                 instances::instantiate_template_call(program, key, *target, *kind, arguments)?;
             calls.push((id, selected));
-        }
-        Ok(calls)
-    }
-    pub(in crate::value_access) fn bound_calls(
-        &self,
-        key: &CodeInstanceKey,
-    ) -> Result<Vec<(AccessExpressionId, CodeInstanceKey)>, flow::IntegrityError> {
-        if key.code() != self.code() {
-            return Err(INVALID);
-        }
-        let program = self.body.typed().program();
-        let mut calls = Vec::new();
-        for item in self.call_expressions() {
-            let (id, expression) = item?;
-            if let Some(key) = instances::select_call(program, key, expression)? {
-                calls.push((id, key));
-            }
         }
         Ok(calls)
     }

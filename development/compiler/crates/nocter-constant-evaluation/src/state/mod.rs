@@ -4,7 +4,7 @@ mod execution;
 mod memory;
 mod validation;
 mod value;
-pub use budget::{Budget, Limits};
+pub use budget::{Budget, Limits, WorkBudget};
 pub use execution::{Error, Executor, Rule};
 use nocter_model::{AccessCodeId, AccessFlowPointId, Arena, ValueCode};
 use std::{collections::BTreeMap, sync::Arc};

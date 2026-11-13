@@ -1018,6 +1018,17 @@ outer requests restart work without resetting storage. Its accounting contract b
 work/depth/storage exhaustion and unsupported final publication retain
 distinct local diagnostics. `prepare_with_limits` supplies explicit deterministic limits.
 
+Concrete call-frame discovery and required condition closure share a separate condition-work
+quota, with the configured work limit, across one outer request and its nested dependencies.
+Each completed instance-call edge spends a unit before selecting its binding frame. Cache-driven
+reanalysis therefore spends analysis work rather than source execution operations. The quota
+resets with outer work; it neither adds source call depth nor resets live storage. Exhaustion
+reports E0322 with `ConditionWorkLimit` at the matched source call, distinct from evaluator
+`StepLimit` and from a failed const capability. It publishes no value or false eligibility fact.
+A failed request can retry through the same dependency coordinator with a replenished quota;
+unused callback values still do not demand invocation bodies. This bounds the expanding direct
+witness closure, not all compiler process memory or general symbolic solving.
+
 Final publication admits bool, the intrinsic integer catalog, unit, program-extent text, eligible
 fallible success data and finite closed optional/record/tuple/fixed-array
 compositions under the shared final-data policy. Publication uses an explicit final-data policy over the shared schema traversal, independently of temporary

@@ -25,6 +25,7 @@ struct Preparation<'a, 'source> {
     context: Context<'source>,
     headers: Headers<'a, 'source>,
     budget: state::Budget,
+    condition_work: state::WorkBudget,
     expressions: BTreeMap<ValueExpression, crate::value_access::RequiredExpression>,
     causes: HashMap<Request, (Request, DependencyCause)>,
 }
@@ -158,9 +159,14 @@ impl<'a, 'source> Preparation<'a, 'source> {
             context,
             headers,
             budget: state::Budget::new(limits),
+            condition_work: state::WorkBudget::new(limits.steps()),
             expressions: BTreeMap::new(),
             causes: HashMap::new(),
         }
+    }
+    fn restart_work(&mut self) {
+        self.budget.restart_work();
+        self.condition_work.restart();
     }
     fn all(
         &mut self,
@@ -181,7 +187,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
                     return Err(INVALID.into());
                 }
             } else if kind.is_initializer() {
-                self.budget.restart_work();
+                self.restart_work();
                 let fact = requests
                     .resolve_steps(self, Request::Value(id.into()))
                     .map_err(|failure| match failure {
@@ -339,7 +345,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
         origin: SyntaxOrigin,
     ) -> Result<DependencyStep<Request, Fact>, SourceFailure> {
         if dependencies::value_depth(requests) == 0 {
-            self.budget.restart_work();
+            self.restart_work();
         }
         self.budget.step().map_err(|rule| {
             super::failure_at(
@@ -483,7 +489,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
     /// Discover only actual invocation dependencies after ordinary result closure. Metadata
     /// bindings do not demand the bodies of unused callback values or retype a source body.
     fn bound_requirements(
-        &self,
+        &mut self,
         resolved: &accepted::Resolved,
         root: ValueCodeRoot,
     ) -> Result<Vec<(ValueCode, Demand, CallOrigin)>, Failure> {
@@ -503,9 +509,26 @@ impl<'a, 'source> Preparation<'a, 'source> {
                 callable: query.code().source_owner(),
                 failure,
             })?;
-            for (id, selected) in crate::value_access::instances::calls(program, &key, query)
-                .map_err(Failure::Integrity)?
-            {
+            for (id, expression) in query.body().expressions().iter() {
+                if !crate::value_access::instances::is_completed_call(&expression.kind) {
+                    continue;
+                }
+                let site = bound.expression_origin(id).ok_or(INVALID)?;
+                let primary = crate::value_access::source_origin(bound.syntax(), site).map_err(
+                    |failure| Failure::Body {
+                        callable: key.code().source_owner(),
+                        failure,
+                    },
+                )?;
+                super::condition_step(
+                    &mut self.condition_work,
+                    key.code().source_owner(),
+                    primary,
+                )?;
+                let selected =
+                    crate::value_access::instances::select_call(program, &key, &expression.kind)
+                        .map_err(Failure::Integrity)?
+                        .ok_or(INVALID)?;
                 // The caller's bound domain check reports a missing authored capability. A
                 // runtime-only actual value does not create an evaluator body dependency.
                 if let ValueCode::Declaration(code) = selected.code()
@@ -514,7 +537,6 @@ impl<'a, 'source> Preparation<'a, 'source> {
                 {
                     continue;
                 }
-                let site = bound.expression_origin(id).ok_or(INVALID)?;
                 dependencies.push((
                     selected.code(),
                     Demand::Invoke,
@@ -529,7 +551,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
         Ok(dependencies)
     }
     fn graph(
-        &self,
+        &mut self,
         requests: &Dependencies,
         root: ValueCodeRoot,
     ) -> Result<GraphProgress, SourceFailure> {
@@ -666,7 +688,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
         // source checker or evaluator. Only established frozen data crosses into final Unit typing.
         let checked =
             accepted::admit_resolved(&self.context, ready.resolved, Some(&ready.invoked))?;
-        accepted::check_required_const(&self.context, &checked, id)?;
+        accepted::check_required_const(&self.context, &checked, id, &mut self.condition_work)?;
         if !super::super::constant::supports_final(&checked.program, result_data)
             .map_err(Failure::Integrity)?
         {
@@ -849,7 +871,7 @@ impl DependencyProgress<Request, Fact, SourceFailure> for Preparation<'_, '_> {
             )),
             HeaderProgress::RequireValues(values) => {
                 if dependencies::value_depth(requests) == 0 {
-                    self.budget.restart_work();
+                    self.restart_work();
                 }
                 Ok(DependencyStep::Require(
                     values

@@ -98,6 +98,12 @@ not a language restriction derived from the current realization boundary.
 
 ## Open Findings
 
+- [ ] Remove eager enumeration of concrete witness-call closures when symbolic conditions or the
+  evaluated path can avoid it. Permuting callback arguments can create a combinatorial set of
+  frames even when the required call returns immediately. The condition-work quota bounds this
+  expansion and preserves recovery, but does not solve its cause. Keep fixed forbidden-operation
+  checks, matched body/condition/plan products and ordinary source safety while making condition
+  composition and plan realization demand-driven.
 - [ ] Complete nested callable data/witness support through header/data positions and the owning
   type authority. Qualify concrete representation, substitution and callable input/result evidence;
   one recognized type tree and a matching signature do not erase code/environment identity.
