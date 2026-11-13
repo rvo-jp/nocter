@@ -195,7 +195,9 @@ source identities; contextual carriers and closure environments receive local `R
 identities. Function leaves use the canonical selected function representation, so a supplied value
 and the receiving formal reuse one physical identity without relabelling their surrounding carrier.
 
-The iterative graph walk projects every positive child through the same declaration-owned context.
+The iterative graph walk selects every positive child by its declaration-validated field through
+the same contextual instance authority. Function environments use their explicit environment edge,
+not a source tuple field. Intrinsic representation primitives are independently closed roots.
 Optional and fallible payloads request canonical tag/comparison primitives; fallible shapes also
 request the built-in error identity. Aggregate representations retain exact logical component keys.
 Machine owns size, alignment and member offsets. Unproduced contracts add no stored type, and empty

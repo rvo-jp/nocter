@@ -373,7 +373,10 @@ ownership, body capability or representation evidence.
 `instantiate_data` uses the same binding normalization and frozen witness resolution as code
 frames; it discards irrelevant input bindings. `function_representation` explicitly selects the
 actual callable leaf's code/environment key while leaving its containing carrier unchanged. `InstanceSchema` exposes the canonical carrier
-schema and complete concrete function witnesses. Child projection filters dependencies, while
+schema and complete concrete function witnesses. `component` selects a declaration-validated field
+and filters its dependencies; a bare child TypeId is insufficient to identify that selection.
+`instantiate_closed_data` constructs an independent context-free root through the same normalization.
+Invalid fields and empty-array elements reject even when their type would otherwise be closed, while
 closure-environment projection uses the selected value's own captures rather than the receiving
 function's inputs. Two occurrences of one lexical code can therefore retain different nested
 contexts. Empty carriers retain element identity without a positive element-payload proof;

@@ -1,7 +1,7 @@
 //! Native materialization of the declaration-owned contextual data graph.
 use super::{Failure, Prepared};
 use nocter_declarations::value_access::{DataInstanceKey, InstanceSchema, Program};
-use nocter_model::BuiltinType;
+use nocter_model::{BuiltinType, ValueField};
 use nocter_runtime_contract::{
     RuntimeAbiIdentity, RuntimeDataId, RuntimeEnvironment, RuntimePrimitive, RuntimeType,
     RuntimeTypeRepresentation, RuntimeTypeRepresentationTable, RuntimeTypeTableBuilder,
@@ -51,14 +51,14 @@ impl<'a> Builder<'a> {
         self.pending.push((id, key));
         Ok(id)
     }
-    fn child(
+    fn component(
         &mut self,
         key: &DataInstanceKey,
-        data: nocter_model::TypeId,
+        field: ValueField,
     ) -> Result<RuntimeDataId, Failure> {
         let child = key
-            .project(self.program, data)
-            .map_err(|_| Failure::InvalidPayload(data))?;
+            .component(self.program, field)
+            .map_err(|_| Failure::InvalidPayload(key.data()))?;
         self.intern(child)
     }
     fn builtin(
@@ -70,7 +70,11 @@ impl<'a> Builder<'a> {
             .program
             .data_type(builtin)
             .ok_or(Failure::InvalidPayload(key.data()))?;
-        self.child(key, data)
+        let closed = self
+            .program
+            .instantiate_closed_data(data)
+            .map_err(|_| Failure::InvalidPayload(data))?;
+        self.intern(closed)
     }
     pub(super) fn finish(mut self, abi: RuntimeAbiIdentity) -> Result<Prepared, Failure> {
         while let Some((id, key)) = self.pending.pop() {
@@ -96,7 +100,7 @@ impl<'a> Builder<'a> {
                 element: RuntimeDataId::Source(array.element()),
             },
             InstanceSchema::Array(array) => {
-                let element = self.child(key, array.element())?;
+                let element = self.component(key, ValueField::Array(0))?;
                 for builtin in [BuiltinType::Usize, BuiltinType::Bool] {
                     self.builtin(key, builtin)?;
                 }
@@ -105,15 +109,15 @@ impl<'a> Builder<'a> {
                     length: array.length(),
                 }
             }
-            InstanceSchema::Optional(payload) => {
-                let payload = self.child(key, payload)?;
+            InstanceSchema::Optional(_) => {
+                let payload = self.component(key, ValueField::Variant(true))?;
                 for builtin in [BuiltinType::Bool, BuiltinType::U8] {
                     self.builtin(key, builtin)?;
                 }
                 RuntimeType::Optional(payload)
             }
-            InstanceSchema::Fallible(payload) => {
-                let payload = self.child(key, payload)?;
+            InstanceSchema::Fallible(_) => {
+                let payload = self.component(key, ValueField::Variant(true))?;
                 for builtin in [BuiltinType::Error, BuiltinType::Bool, BuiltinType::U8] {
                     self.builtin(key, builtin)?;
                 }
@@ -126,7 +130,7 @@ impl<'a> Builder<'a> {
                     .map(|component| {
                         Ok(RuntimeValueFieldRepresentation::new(
                             component.field,
-                            self.child(key, component.data)?,
+                            self.component(key, component.field)?,
                         ))
                     })
                     .collect::<Result<_, Failure>>()?;

@@ -284,7 +284,7 @@ fn contextual_projection_does_not_flatten_two_occurrences_of_the_same_lexical_co
         panic!("two components");
     };
     for (position, component) in schema.components().enumerate() {
-        let child = environment.project(program, component.data).unwrap();
+        let child = environment.component(program, component.field).unwrap();
         let received = child.environment(program).unwrap().unwrap();
         let InstanceSchema::Function(actual) = received.schema(program).unwrap() else {
             panic!("captured callback");
@@ -306,7 +306,11 @@ fn empty_carrier_metadata_does_not_manufacture_a_positive_child_or_pending_produ
         panic!("empty array");
     };
     assert!(array.is_empty());
-    assert!(empty.project(program, array.element()).is_err());
+    assert!(
+        empty
+            .component(program, nocter_model::ValueField::Array(0))
+            .is_err()
+    );
     let factory = program
         .resolve_code(program.symbols().get("factory").unwrap())
         .unwrap();
@@ -315,4 +319,91 @@ fn empty_carrier_metadata_does_not_manufacture_a_positive_child_or_pending_produ
         program.instantiate_data(pending, &root),
         Err(CodeBindingError::InvalidWitness)
     );
+}
+
+#[test]
+fn data_components_require_a_real_source_field_and_do_not_expose_function_backing() {
+    use crate::value_access::InstanceSchema;
+    use nocter_model::ValueField;
+    let fixture = fixture();
+    let program = &fixture.program;
+    let frame = program
+        .bind_code(
+            fixture.creator.into(),
+            [(fixture.formal, fixture.callbacks[0])],
+        )
+        .unwrap();
+    let data = program.function_data(fixture.captured).unwrap();
+    let function = program.instantiate_data(data, &frame).unwrap();
+    assert!(function.environment(program).unwrap().is_some());
+    for field in [
+        ValueField::Tuple(0),
+        ValueField::Variant(true),
+        ValueField::Array(0),
+    ] {
+        assert_eq!(
+            function.component(program, field),
+            Err(CodeBindingError::InvalidWitness),
+            "function backing is not a source field"
+        );
+    }
+    let holder = program.concrete_witness(fixture.holder).unwrap();
+    let values = fixture.callbacks.map(|callback| {
+        program
+            .bind_code(fixture.creator.into(), [(fixture.formal, callback)])
+            .unwrap()
+            .resolve(program, fixture.captured)
+            .unwrap()
+    });
+    let frame = program
+        .bind_instance(&holder, fixture.inputs.into_iter().zip(values))
+        .unwrap();
+    let branching = program
+        .instantiate_data(program.function_data(fixture.branching).unwrap(), &frame)
+        .unwrap();
+    let environment = branching.environment(program).unwrap().unwrap();
+    let InstanceSchema::Aggregate(schema) = environment.schema(program).unwrap() else {
+        panic!("aggregate environment");
+    };
+    for component in schema.components() {
+        assert_eq!(
+            environment
+                .component(program, component.field)
+                .unwrap()
+                .data(),
+            component.data
+        );
+    }
+    assert_eq!(
+        environment.component(program, ValueField::Tuple(schema.len())),
+        Err(CodeBindingError::InvalidWitness)
+    );
+}
+
+#[test]
+fn closed_data_construction_does_not_borrow_bindings_or_manufacture_empty_elements() {
+    use nocter_model::ValueField;
+    let fixture = fixture();
+    let program = &fixture.program;
+    let function = program.function_data(fixture.captured).unwrap();
+    assert_eq!(
+        program.instantiate_closed_data(function),
+        Err(CodeBindingError::InvalidWitness)
+    );
+    let empty = program.instantiate_closed_data(fixture.empty).unwrap();
+    assert!(empty.is_context_free());
+    assert_eq!(
+        empty.component(program, ValueField::Array(0)),
+        Err(CodeBindingError::InvalidWitness)
+    );
+    let integer = program.data_type(BuiltinType::I32).unwrap();
+    assert_eq!(
+        program.instantiate_closed_data(integer).unwrap().data(),
+        integer
+    );
+    let plain = program
+        .instantiate_closed_data(program.function_data(fixture.callbacks[0]).unwrap())
+        .unwrap();
+    assert!(plain.is_context_free());
+    assert!(plain.environment(program).unwrap().is_none());
 }

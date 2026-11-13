@@ -78,11 +78,20 @@ impl DataInstanceKey {
     ) -> Result<ConcreteWitness, CodeBindingError> {
         program.resolve_bindings(witness, |parameter| self.witnesses.get(&parameter))
     }
-    /// Retain only the selected child's dependencies. This is metadata, not a place-access proof.
+    /// Select one declaration-validated component and retain only its dependencies.
+    /// This is metadata, not a place-access or numeric-bounds proof.
     /// Empty array element identity does not require a positively instantiated element payload.
     /// # Errors
     /// Rejects missing bindings or pending producer terms in a requested positive child.
-    pub fn project(&self, program: &Program, data: TypeId) -> Result<Self, CodeBindingError> {
+    pub fn component(
+        &self,
+        program: &Program,
+        field: nocter_model::ValueField,
+    ) -> Result<Self, CodeBindingError> {
+        let data = program
+            .component(self.data, field)
+            .ok_or(CodeBindingError::InvalidWitness)?
+            .data;
         program.bind_payload_with(data, |witness| self.resolve(program, witness))
     }
     /// Project an actual selected closure's own captured context, independent of invocation inputs.
@@ -107,6 +116,16 @@ impl DataInstanceKey {
     }
 }
 impl Program {
+    /// Instantiate a context-free descriptor, independently of a containing value or code frame.
+    /// This supplies no payload, source admission, ownership or target-layout proof.
+    /// # Errors
+    /// Rejects unresolved producer terms, formal dependencies and invalid descriptors.
+    pub fn instantiate_closed_data(
+        &self,
+        data: TypeId,
+    ) -> Result<DataInstanceKey, CodeBindingError> {
+        self.bind_payload_with(data, |witness| self.concrete_witness(witness))
+    }
     /// Bind a canonical payload descriptor through the already selected concrete code frame.
     /// This supplies no source receipt, payload, eligibility, ownership or target-layout proof.
     /// # Errors

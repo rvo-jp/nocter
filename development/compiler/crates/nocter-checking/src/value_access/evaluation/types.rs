@@ -2,7 +2,7 @@
 use super::super::flow;
 use nocter_constant_evaluation::state::Type;
 use nocter_declarations::value_access::{CodeInstanceKey, DataInstanceKey, PayloadSchema, Program};
-use nocter_model::TypeId;
+use nocter_model::{TypeId, ValueField};
 use std::collections::{BTreeMap, BTreeSet};
 #[cfg(test)]
 mod tests;
@@ -31,12 +31,28 @@ impl ShapeKey {
             Self::Instance(instance) => instance.data(),
         }
     }
-    fn child(&self, program: &Program, data: TypeId) -> Result<Self> {
+    fn component(&self, program: &Program, field: ValueField) -> Result<Self> {
         match self {
-            Self::Raw(_) => Ok(Self::Raw(data)),
+            Self::Raw(data) => Ok(Self::Raw(
+                program.component(*data, field).ok_or(INVALID)?.data,
+            )),
             Self::Instance(instance) => Self::instantiated(
                 program,
-                instance.project(program, data).map_err(|_| INVALID)?,
+                instance.component(program, field).map_err(|_| INVALID)?,
+            ),
+        }
+    }
+    fn environment(&self, program: &Program, code: nocter_model::ValueClosure) -> Result<Self> {
+        match self {
+            Self::Raw(_) => Ok(Self::Raw(
+                program.closure(code).ok_or(INVALID)?.environment(),
+            )),
+            Self::Instance(instance) => Self::instantiated(
+                program,
+                instance
+                    .environment(program)
+                    .map_err(|_| INVALID)?
+                    .ok_or(INVALID)?,
             ),
         }
     }
@@ -146,65 +162,58 @@ impl Types {
                 self.insert(data, Type::Unavailable, false);
                 continue;
             };
-            let children: Vec<_> =
-                match schema {
-                    PayloadSchema::Builtin(builtin) => {
-                        let ty = Type::builtin(builtin);
-                        let supported = ty.is_some();
-                        self.insert(data, ty.unwrap_or(Type::Unavailable), supported);
+            let children: Vec<_> = match schema {
+                PayloadSchema::Builtin(builtin) => {
+                    let ty = Type::builtin(builtin);
+                    let supported = ty.is_some();
+                    self.insert(data, ty.unwrap_or(Type::Unavailable), supported);
+                    continue;
+                }
+                PayloadSchema::Fallible(_) => vec![
+                    data.component(program, ValueField::Variant(true))?,
+                    data.component(program, ValueField::Variant(false))?,
+                ],
+                PayloadSchema::Function(witness) => match witness.origin {
+                    nocter_model::ValueFunctionOrigin::Closure(code) => {
+                        vec![data.environment(program, code)?]
+                    }
+                    origin => {
+                        let ty = match origin {
+                            nocter_model::ValueFunctionOrigin::Declaration(code) => {
+                                Type::NamedFunction(code)
+                            }
+                            _ => Type::Unavailable,
+                        };
+                        let supported = !matches!(ty, Type::Unavailable);
+                        let id = self.insert(data, ty, supported);
+                        self.shapes[id].serializable = false;
                         continue;
                     }
-                    PayloadSchema::Fallible(payload) => vec![
-                        data.child(program, payload)?,
-                        data.child(
-                            program,
-                            program
-                                .data_type(nocter_model::BuiltinType::Error)
-                                .ok_or(INVALID)?,
-                        )?,
-                    ],
-                    PayloadSchema::Function(witness) => match witness.origin {
-                        nocter_model::ValueFunctionOrigin::Closure(code) => {
-                            vec![data.child(
-                                program,
-                                program.closure(code).ok_or(INVALID)?.environment(),
-                            )?]
-                        }
-                        origin => {
-                            let ty = match origin {
-                                nocter_model::ValueFunctionOrigin::Declaration(code) => {
-                                    Type::NamedFunction(code)
-                                }
-                                _ => Type::Unavailable,
-                            };
-                            let supported = !matches!(ty, Type::Unavailable);
-                            let id = self.insert(data, ty, supported);
-                            self.shapes[id].serializable = false;
-                            continue;
-                        }
-                    },
-                    PayloadSchema::Array(array) if array.is_empty() => {
-                        // A private self-edge is a valid zero containment shape even before linking.
-                        // Nothing observes this draft table until all element identities are linked.
-                        let id = self.insert(
-                            data,
-                            Type::Array {
-                                element: self.shapes.len(),
-                                length: 0,
-                            },
-                            true,
-                        );
-                        empty.push((id, ShapeKey::Raw(array.element())));
-                        roots.push((ShapeKey::Raw(array.element()), true));
-                        continue;
-                    }
-                    PayloadSchema::Aggregate(aggregate) => aggregate
-                        .components()
-                        .map(|component| data.child(program, component.data))
-                        .collect::<Result<Vec<_>>>()?,
-                    PayloadSchema::Array(array) => vec![data.child(program, array.element())?],
-                    PayloadSchema::Optional(payload) => vec![data.child(program, payload)?],
-                };
+                },
+                PayloadSchema::Array(array) if array.is_empty() => {
+                    // A private self-edge is a valid zero containment shape even before linking.
+                    // Nothing observes this draft table until all element identities are linked.
+                    let id = self.insert(
+                        data,
+                        Type::Array {
+                            element: self.shapes.len(),
+                            length: 0,
+                        },
+                        true,
+                    );
+                    empty.push((id, ShapeKey::Raw(array.element())));
+                    roots.push((ShapeKey::Raw(array.element()), true));
+                    continue;
+                }
+                PayloadSchema::Aggregate(aggregate) => aggregate
+                    .components()
+                    .map(|component| data.component(program, component.field))
+                    .collect::<Result<Vec<_>>>()?,
+                PayloadSchema::Array(_) => vec![data.component(program, ValueField::Array(0))?],
+                PayloadSchema::Optional(_) => {
+                    vec![data.component(program, ValueField::Variant(true))?]
+                }
+            };
             if !expanded {
                 if !active.insert(data.clone()) {
                     return Err(INVALID);

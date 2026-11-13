@@ -91,21 +91,21 @@ fn contextual_native_materialization_keeps_each_nested_environment_and_reuses_ac
     );
     let leaves = fixture.keys.each_ref().map(|key| {
         builder
-            .intern(key.project(program, fixture.captured).unwrap())
+            .intern(key.component(program, ValueField::Tuple(0)).unwrap())
             .unwrap()
     });
     let arrays = fixture.keys.each_ref().map(|key| {
         builder
-            .intern(key.project(program, fixture.array).unwrap())
+            .intern(key.component(program, ValueField::Tuple(1)).unwrap())
             .unwrap()
     });
     let environments = fixture.keys.each_ref().map(|key| {
-        let child = key.project(program, fixture.captured).unwrap();
+        let child = key.component(program, ValueField::Tuple(0)).unwrap();
         let environment = child.environment(program).unwrap().unwrap();
         builder.intern(environment).unwrap()
     });
     for (key, expected) in fixture.keys.iter().zip(leaves) {
-        let child = key.project(program, fixture.captured).unwrap();
+        let child = key.component(program, ValueField::Tuple(0)).unwrap();
         let actual = child.function_representation(program).unwrap().unwrap();
         assert_eq!(builder.intern(actual).unwrap(), expected);
     }
@@ -165,17 +165,18 @@ fn empty_contextual_array_keeps_only_source_element_metadata() {
     let fixture = fixture();
     let program = &fixture.program;
     let mut builder = Builder::new(program);
-    let ids = fixture.keys.each_ref().map(|key| {
-        builder
-            .intern(key.project(program, fixture.empty).unwrap())
-            .unwrap()
-    });
-    assert_eq!(ids[0], ids[1]);
+    let closed = program.instantiate_closed_data(fixture.empty).unwrap();
+    let id = builder.intern(closed.clone()).unwrap();
+    for frame in &fixture.frames {
+        let bound = program.instantiate_data(fixture.empty, frame).unwrap();
+        assert_eq!(bound, closed);
+        assert_eq!(builder.intern(bound).unwrap(), id);
+    }
     let prepared = builder.finish(RuntimeAbiIdentity::Arm64DarwinV1).unwrap();
     let runtime = prepared.environment();
     assert_eq!(runtime.types().iter().count(), 1);
     assert_eq!(
-        runtime.types().get(ids[0]),
+        runtime.types().get(id),
         Some(&RuntimeType::EmptyArray {
             element: RuntimeDataId::Source(fixture.captured)
         })
@@ -220,7 +221,7 @@ fn nested_occurrences_of_one_lexical_closure_materialize_as_a_finite_graph() {
     let parameter = *frame.witnesses().keys().next().unwrap();
     let mut selected = frame.witnesses()[&parameter].clone();
     let InstanceSchema::Function(wrapper) = fixture.keys[0]
-        .project(program, fixture.captured)
+        .component(program, ValueField::Tuple(0))
         .unwrap()
         .schema(program)
         .unwrap()
@@ -311,7 +312,7 @@ fn instantiated_payload_environment_uses_the_actual_captured_value_context() {
     let program = &fixture.program;
     let contract = resources::payload(program, fixture.captured).unwrap();
     let payloads = fixture.keys.each_ref().map(|key| {
-        let key = key.project(program, fixture.captured).unwrap();
+        let key = key.component(program, ValueField::Tuple(0)).unwrap();
         contract.instantiate(program, &key).unwrap()
     });
     assert_eq!(payloads[0].data(), payloads[1].data());
