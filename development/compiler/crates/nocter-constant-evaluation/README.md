@@ -81,8 +81,11 @@ boundary whose body is not yet realized; every supplied plan must match its boun
 and every call is still validated against a known boundary. `Program::extend` atomically appends
 validated types, contracts, plans and static data. It cannot replace an existing identity or
 reinterpret an old type index; a failed batch leaves the previous program intact. Immutable
-body plans are shared across extensions. This boundary grants neither const capability nor an
-implementation for absent code.
+body plans are shared across extensions. Whole-program and incremental construction use the
+same validation rules. An append checks only its new type suffix and new entries: every old
+reference was already linked, and its meaning cannot change. Collision preflight and rollback
+preserve all previous entries when any new type, static, contract or body fails validation.
+This boundary grants neither const capability nor an implementation for absent code.
 `Executor::with_source` retains a validated program and a `PlanSource` of frozen code batches.
 It requests a missing body only when entering that exact instance, then validates the batch
 atomically. Active frames retain their immutable plans while the table grows. Ordinary call/depth,

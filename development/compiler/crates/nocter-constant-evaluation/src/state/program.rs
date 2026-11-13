@@ -48,7 +48,7 @@ pub struct ProgramExtension {
 /// Validated immutable call boundaries, realized code bodies and established global data.
 #[derive(Clone, Debug)]
 pub struct Program {
-    pub(super) types: Box<[Type]>,
+    pub(super) types: Vec<Type>,
     pub(super) statics: BTreeMap<nocter_model::ValueStatic, Static>,
     pub(super) contracts: BTreeMap<CodeInstance, CallContract>,
     pub(super) plans: BTreeMap<CodeInstance, Arc<Plan>>,
@@ -79,7 +79,7 @@ impl Program {
         statics: BTreeMap<nocter_model::ValueStatic, Static>,
     ) -> Result<Self, Rule> {
         let program = Self {
-            types: types.into(),
+            types: Into::<Box<[Type]>>::into(types).into_vec(),
             contracts,
             statics,
             plans: plans
@@ -94,28 +94,46 @@ impl Program {
     /// # Errors
     /// Rejects duplicate identities, invalid references and any body/contract mismatch.
     pub fn extend(&mut self, extension: ProgramExtension) -> Result<(), Rule> {
-        let mut candidate = self.clone();
-        let mut types = candidate.types.into_vec();
-        types.extend(extension.types);
-        candidate.types = types.into();
-        for (key, contract) in extension.contracts {
-            if candidate.contracts.insert(key, contract).is_some() {
-                return Err(Rule::InvalidPlan);
+        let contracts = extension.contracts.keys().copied().collect::<Vec<_>>();
+        let plans = extension.plans.keys().copied().collect::<Vec<_>>();
+        let statics = extension.statics.keys().copied().collect::<Vec<_>>();
+        if contracts.iter().any(|key| self.contracts.contains_key(key))
+            || plans.iter().any(|key| self.plans.contains_key(key))
+            || statics.iter().any(|key| self.statics.contains_key(key))
+        {
+            return Err(Rule::InvalidPlan);
+        }
+        let first_type = self.types.len();
+        self.types.extend(extension.types);
+        self.contracts.extend(extension.contracts);
+        self.plans.extend(
+            extension
+                .plans
+                .into_iter()
+                .map(|(key, plan)| (key, Arc::new(plan))),
+        );
+        self.statics.extend(extension.statics);
+        let result = validation::validate_added(
+            self,
+            first_type,
+            contracts.iter().copied(),
+            plans.iter().copied(),
+            statics.iter().copied(),
+        );
+        if result.is_err() {
+            // Preflight excluded every collision, so rollback removes only this batch.
+            self.types.truncate(first_type);
+            for key in contracts {
+                self.contracts.remove(&key);
+            }
+            for key in plans {
+                self.plans.remove(&key);
+            }
+            for key in statics {
+                self.statics.remove(&key);
             }
         }
-        for (key, plan) in extension.plans {
-            if candidate.plans.insert(key, Arc::new(plan)).is_some() {
-                return Err(Rule::InvalidPlan);
-            }
-        }
-        for (key, value) in extension.statics {
-            if candidate.statics.insert(key, value).is_some() {
-                return Err(Rule::InvalidPlan);
-            }
-        }
-        validation::validate(&candidate)?;
-        *self = candidate;
-        Ok(())
+        result
     }
 }
 

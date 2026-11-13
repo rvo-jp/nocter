@@ -104,10 +104,6 @@ not a language restriction derived from the current realization boundary.
   evaluator bodies are realized on actual entry through fixed immediate call contracts. Preserve
   fixed forbidden-operation checks, matched body/condition/plan products, actual cleanup and
   ordinary source safety. Work quotas bound uncertainty without proving eligibility.
-- [ ] Validate append-only evaluator batches incrementally. `state::Program::extend` currently
-  clones the existing metadata and revalidates all known contracts, bodies and static data for
-  every loaded body. Preserve atomic rejection, immutable old identities and full cross-edge
-  checks while avoiding quadratic work as the realized code graph grows.
 - [ ] Complete nested callable data/witness support through header/data positions and the owning
   type authority. Qualify concrete representation, substitution and callable input/result evidence;
   one recognized type tree and a matching signature do not erase code/environment identity.

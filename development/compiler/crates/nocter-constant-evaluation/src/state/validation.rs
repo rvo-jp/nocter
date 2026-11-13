@@ -108,7 +108,16 @@ pub(super) fn value(program: &Program, data: usize, value: &Value) -> bool {
     true
 }
 pub(super) fn validate(program: &Program) -> Result<()> {
-    for (id, data) in program.types.iter().enumerate() {
+    validate_added(
+        program,
+        0,
+        program.contracts.keys().copied(),
+        program.plans.keys().copied(),
+        program.statics.keys().copied(),
+    )
+}
+fn validate_types(program: &Program, first: usize) -> Result<()> {
+    for (id, data) in program.types.iter().enumerate().skip(first) {
         if let Type::Integer(builtin) = data
             && crate::support::integer_spec(*builtin).is_none()
         {
@@ -137,12 +146,26 @@ pub(super) fn validate(program: &Program) -> Result<()> {
             return Err(INVALID);
         }
     }
-    for global in program.statics.values() {
+    Ok(())
+}
+/// Old identities and payloads cannot change across an append-only batch. Every old reference
+/// was already in range and linked; validate the new types and entries through the same rules.
+pub(super) fn validate_added(
+    program: &Program,
+    first_type: usize,
+    contracts: impl IntoIterator<Item = super::CodeInstance>,
+    plans: impl IntoIterator<Item = super::CodeInstance>,
+    statics: impl IntoIterator<Item = nocter_model::ValueStatic>,
+) -> Result<()> {
+    validate_types(program, first_type)?;
+    for id in statics {
+        let global = program.statics.get(&id).ok_or(INVALID)?;
         if !value(program, global.data, &global.value) {
             return Err(INVALID);
         }
     }
-    for (&code, contract) in &program.contracts {
+    for code in contracts {
+        let contract = program.contracts.get(&code).ok_or(INVALID)?;
         if contract.result >= program.types.len()
             || contract
                 .inputs
@@ -161,7 +184,8 @@ pub(super) fn validate(program: &Program) -> Result<()> {
             return Err(INVALID);
         }
     }
-    for (&code, plan) in &program.plans {
+    for code in plans {
+        let plan = program.plans.get(&code).ok_or(INVALID)?;
         if program.contracts.get(&code) != Some(&super::CallContract::from_plan(plan)?) {
             return Err(INVALID);
         }

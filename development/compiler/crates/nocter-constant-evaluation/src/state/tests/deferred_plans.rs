@@ -173,3 +173,70 @@ fn deferred_loading_preserves_exact_keys_caches_bodies_and_recovers_after_prepar
     assert!(source.pending.contains_key(&dormant));
     assert_eq!(budget.storage_used(), 0);
 }
+
+#[test]
+fn every_failed_append_phase_rolls_back_types_contracts_bodies_and_statics_before_retry() {
+    let (root, initializer) = code_ids();
+    let static_id = nocter_model::ValueStatic { initializer };
+    let batch = || ProgramExtension {
+        types: vec![Type::Bool],
+        contracts: BTreeMap::from([(root.into(), CallContract::from_plan(&literal()).unwrap())]),
+        plans: BTreeMap::from([(root.into(), literal())]),
+        statics: BTreeMap::from([(
+            static_id,
+            Static {
+                data: 0,
+                value: Value::integer(42),
+            },
+        )]),
+    };
+    let mut program = Program::new(
+        [Type::Integer(nocter_model::BuiltinType::I32)],
+        BTreeMap::new(),
+        BTreeMap::new(),
+    )
+    .unwrap();
+    for stage in 0..4 {
+        let mut invalid = batch();
+        match stage {
+            0 => invalid.types = vec![Type::Record(vec![1].into())],
+            1 => invalid.statics.get_mut(&static_id).unwrap().value = Value::boolean(false),
+            2 => invalid.contracts.get_mut(&root.into()).unwrap().result = 1,
+            3 => {
+                let body = invalid.plans.get_mut(&root.into()).unwrap();
+                body.points = body.points.map(|_, point| {
+                    let mut point = point.clone();
+                    point.actions[0].operation = Operation::Literal {
+                        destination: 0,
+                        value: Value::boolean(false),
+                    };
+                    point
+                });
+            }
+            _ => unreachable!(),
+        }
+        assert_eq!(
+            program.extend(invalid),
+            Err(Rule::InvalidPlan),
+            "phase {stage}"
+        );
+        assert_eq!(
+            program.types,
+            [Type::Integer(nocter_model::BuiltinType::I32)]
+        );
+        assert!(program.contracts.is_empty());
+        assert!(program.plans.is_empty());
+        assert!(program.statics.is_empty());
+    }
+    program.extend(batch()).unwrap();
+    validation::validate(&program).unwrap();
+    let mut budget = Budget::new(Limits::default());
+    assert_eq!(
+        Executor::new(&program, &mut budget, 0)
+            .evaluate_initializer(root)
+            .unwrap(),
+        Value::integer(42)
+    );
+    assert_eq!(program.statics[&static_id].value, Value::integer(42));
+    assert_eq!(budget.storage_used(), 0);
+}
