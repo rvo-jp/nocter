@@ -28,6 +28,11 @@ pub(super) fn solve(
     let mut referenced_applications = BTreeSet::new();
     for (&id, control) in &controls {
         let report = super::producers::analyze(control).map_err(accepted::Failure::Integrity)?;
+        for (closure, creation) in report.creations {
+            if evidence.creations.insert(closure, creation).is_some() {
+                return Err(INVALID);
+            }
+        }
         referenced_applications.extend(report.referenced_applications);
         if matches!(
             control

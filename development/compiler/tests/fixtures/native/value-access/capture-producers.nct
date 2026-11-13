@@ -1,0 +1,46 @@
+const func make(value: i32): func(): i32 { (value;): i32 { value } }
+const func captured_components(): i32 {
+    var current = make(42)
+    let saved = current
+    current = make(43)
+    var pair = (current, saved)
+    if true {
+        edit alias = pair
+        alias.0 = make(44)
+    }
+    let action = (pair;): i32 { pair.0() * 100 + pair.1() }
+    pair.0 = make(45)
+    action()
+}
+const func nested_creation(): i32 {
+    let value = 42
+    let outer = (value;): i32 {
+        let inner = (value;): i32 { value }
+        inner()
+    }
+    outer()
+}
+const func dormant_creation(): i32 {
+    let value = 42
+    if false {
+        let dormant = (value;): i32 { value }
+        dormant()
+    } else { 42 }
+}
+const func repeated_creation(): i32 {
+    var current = make(41)
+    var index = 0
+    while index < 2 {
+        let action = (current;): i32 { current() }
+        drop action
+        current = make(42)
+        index += 1
+    }
+    42
+}
+const func calculate(): i32 {
+    if captured_components() == 4442 && nested_creation() == 42
+        && dormant_creation() == 42 && repeated_creation() == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { if ANSWER == 42 && calculate() == 42 { 42 } else { 0 } }

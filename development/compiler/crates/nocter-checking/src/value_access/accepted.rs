@@ -209,6 +209,15 @@ impl Unit {
     pub fn producer_relation(&self, term: super::ProducerTerm) -> Option<&super::ProducerRelation> {
         self.result_evidence.recipe(term)
     }
+    /// Original environment schema and actual producer snapshot of a reached closure formation.
+    /// This exact-Unit metadata supplies no runtime environment, permission or executable proof.
+    #[must_use]
+    pub fn creation_recipe(
+        &self,
+        closure: nocter_model::ValueClosure,
+    ) -> Option<&super::CreationRecipe> {
+        self.result_evidence.creation(closure)
+    }
     #[must_use]
     pub fn program(&self) -> &Program {
         &self.program

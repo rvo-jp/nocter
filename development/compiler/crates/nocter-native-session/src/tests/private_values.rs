@@ -614,6 +614,16 @@ fn private_component_producer_occurrences_agree_in_required_and_native_execution
 }
 
 #[test]
+fn private_capture_creation_snapshots_preserve_original_component_values() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/capture-producers.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "capture-producers", 42);
+}
+
+#[test]
 fn private_const_named_values_use_the_same_runtime_body_and_embedded_answer() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

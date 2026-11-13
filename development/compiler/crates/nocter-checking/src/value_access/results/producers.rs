@@ -12,6 +12,7 @@ pub(super) struct Report {
     pub(super) returned: Vec<(FunctionWitness, AccessExpressionId)>,
     pub(super) applications: BTreeSet<ValueApplication>,
     pub(super) calls: BTreeMap<AccessExpressionId, super::relations::InvocationRecipe>,
+    pub(super) creations: BTreeMap<nocter_model::ValueClosure, CreationRecipe>,
     /// Received or transported leaves retain their original relation, never a signature-derived
     /// concrete anchor. An uncommitted origin can therefore remain genuinely empty.
     pub(super) referenced_applications: BTreeSet<ValueApplication>,
@@ -25,7 +26,10 @@ enum Key {
         index: usize,
     },
 }
+mod creations;
 mod facts;
+use creations::Creations;
+pub use creations::{CreationRecipe, ProducerShape};
 use facts::{Facts, Store};
 type State = BTreeMap<Key, Facts>;
 
@@ -39,29 +43,24 @@ pub(super) fn analyze(control: &flow::Control) -> Result<Report, flow::Integrity
     let mut returned = BTreeSet::new();
     let mut applications = BTreeSet::new();
     let mut calls = BTreeMap::new();
+    let mut creations = Creations::default();
     while let Some(point) = pending.pop_first() {
         let mut state = entries.get(&point).ok_or(INVALID)?.clone();
         let block = control.graph.points().get(point).ok_or(INVALID)?;
         for action in &block.actions {
             match action.operation {
                 flow::Operation::Evaluate(id) => {
-                    let producers = evaluate(query, id, &state, &mut facts, &aliases)?;
+                    let producers =
+                        evaluate(query, id, &state, &mut facts, &aliases, &mut creations)?;
                     state.insert(Key::Expression(id), producers);
                 }
                 flow::Operation::PrepareArgument {
                     call,
                     argument: index,
                 } => {
-                    let ExpressionKind::Call { arguments, .. } =
-                        &query.body.expressions.get(call).ok_or(INVALID)?.kind
-                    else {
-                        return Err(INVALID);
-                    };
-                    let argument = arguments.get(index).ok_or(INVALID)?;
-                    state.insert(
-                        Key::Argument { call, index },
-                        shape(query, argument.value, &state, false, &mut facts, &aliases)?,
-                    );
+                    let value =
+                        prepared_argument(query, call, index, &state, &mut facts, &aliases)?;
+                    state.insert(Key::Argument { call, index }, value);
                 }
                 flow::Operation::CommitCall(id) => {
                     commit(
@@ -130,8 +129,25 @@ pub(super) fn analyze(control: &flow::Control) -> Result<Report, flow::Integrity
         returned: returned.into_iter().collect(),
         applications,
         calls,
+        creations: creations.finish(query.code, facts),
         referenced_applications,
     })
+}
+fn prepared_argument(
+    query: &Query,
+    call: AccessExpressionId,
+    index: usize,
+    state: &State,
+    store: &mut Store,
+    aliases: &flow::Aliases,
+) -> Result<Facts, flow::IntegrityError> {
+    let ExpressionKind::Call { arguments, .. } =
+        &query.body.expressions.get(call).ok_or(INVALID)?.kind
+    else {
+        return Err(INVALID);
+    };
+    let argument = arguments.get(index).ok_or(INVALID)?;
+    shape(query, argument.value, state, false, store, aliases)
 }
 fn received_inputs(
     query: &Query,
@@ -471,10 +487,19 @@ fn evaluate(
     state: &State,
     store: &mut Store,
     aliases: &flow::Aliases,
+    creations: &mut Creations,
 ) -> Result<Facts, flow::IntegrityError> {
     let expression = query.body.expressions.get(id).ok_or(INVALID)?;
     match &expression.kind {
-        ExpressionKind::Closure { closure, .. } => {
+        ExpressionKind::Closure { closure, capture } => {
+            let captured = shape(query, *capture, state, false, store, aliases)?;
+            creations.record(
+                *closure,
+                id,
+                expression_data(query, *capture)?,
+                captured,
+                store,
+            )?;
             let invocation = query
                 .program()
                 .closure(*closure)

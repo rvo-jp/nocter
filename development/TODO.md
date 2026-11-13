@@ -31,8 +31,11 @@ alone does not complete capture support. Preserve current rejection until execut
 
 Resolve value-occurrence creation context through the retained source-flow producer equations
 and ordinary value transport, then close source closure creation before admitting formal callable
-captures. Retain source closure-creation snapshots from the shared structural producer facts,
-including lexical alias updates, before resolving captured environments. Evaluator and native
+captures. Resolve captured environments from the retained source closure-creation snapshots and
+shared structural producer facts, including lexical alias updates. Preserve exact creator-frame
+ownership, canonical environment contracts, budgeted fixed points and conservative alternatives;
+do not substitute outer bindings when producer occurrences or creation snapshots are missing.
+Evaluator and native
 committed calls use the shared original-recipe frame resolver;
 extend occurrence-sensitive realization while preserving the separate plan-work failure class
 and pre-commit preparation behavior. Preserve exact creation contexts,

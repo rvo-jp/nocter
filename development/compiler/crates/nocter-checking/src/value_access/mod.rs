@@ -22,7 +22,10 @@ mod postfix;
 mod qualified;
 mod required;
 mod results;
-pub use results::{InstantiationFailure, InvocationRecipe, ProducerRelation, ProducerTerm};
+pub use results::{
+    CreationRecipe, InstantiationFailure, InvocationRecipe, ProducerRelation, ProducerShape,
+    ProducerTerm,
+};
 mod selection;
 mod staged;
 mod statements;

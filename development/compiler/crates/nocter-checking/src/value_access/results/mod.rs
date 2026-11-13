@@ -4,6 +4,7 @@ mod instantiation;
 pub use instantiation::InstantiationFailure;
 pub(super) use instantiation::call as instantiate_invocation;
 mod producers;
+pub use producers::{CreationRecipe, ProducerShape};
 mod projection;
 mod relations;
 pub use relations::{InvocationRecipe, Relation as ProducerRelation, Term as ProducerTerm};
@@ -32,6 +33,7 @@ pub(super) struct Evidence {
     producers: BTreeMap<AccessCodeId, FunctionWitness>,
     recipes: relations::Relations,
     invocations: BTreeMap<ValueApplication, Arc<InvocationRecipe>>,
+    creations: BTreeMap<nocter_model::ValueClosure, CreationRecipe>,
     applications: BTreeMap<ValueApplication, ApplicationEvidence>,
     bodies: nocter_declaration_lowering::access_declarations::BodySources,
 }
@@ -46,6 +48,9 @@ pub(super) struct Verified<'a, 'source> {
     pub(super) context: &'a DeclarationContext<'source>,
 }
 impl Evidence {
+    pub(super) fn creation(&self, closure: nocter_model::ValueClosure) -> Option<&CreationRecipe> {
+        self.creations.get(&closure)
+    }
     pub(super) fn invocation(&self, site: ValueApplication) -> Option<&InvocationRecipe> {
         self.invocations.get(&site).map(Arc::as_ref)
     }

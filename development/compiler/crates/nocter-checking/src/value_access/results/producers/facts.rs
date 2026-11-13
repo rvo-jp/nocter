@@ -8,10 +8,10 @@ use std::collections::{BTreeMap, BTreeSet};
 mod tests;
 
 #[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
-pub(super) struct Facts(usize);
+pub(super) struct Facts(pub(super) usize);
 #[derive(Clone, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
-struct Node {
-    producers: Producers,
+pub(super) struct Node {
+    pub(super) producers: Producers,
     children: BTreeMap<ValueField, Facts>,
 }
 /// Analysis-local interning gives structural equality without walking expanded shared values.
@@ -36,7 +36,24 @@ fn field<I: Copy>(field: ValueProjection<I>) -> ValueField {
         ValueProjection::Variant(primary) => ValueField::Variant(primary),
     }
 }
+pub(super) fn select<I: Copy>(
+    nodes: &[Node],
+    mut facts: Facts,
+    fields: &[ValueProjection<I>],
+) -> Facts {
+    for &selected in fields {
+        facts = nodes[facts.0]
+            .children
+            .get(&field(selected))
+            .copied()
+            .unwrap_or_default();
+    }
+    facts
+}
 impl Store {
+    pub(super) fn freeze(self) -> std::sync::Arc<[Node]> {
+        self.nodes.into()
+    }
     fn intern(&mut self, mut node: Node) -> Facts {
         node.children.retain(|_, value| *value != Facts::default());
         if let Some(&id) = self.ids.get(&node) {
@@ -65,19 +82,8 @@ impl Store {
     pub(super) fn producers(&self, facts: Facts) -> Producers {
         self.nodes[facts.0].producers.clone()
     }
-    pub(super) fn selected<I: Copy>(
-        &self,
-        mut facts: Facts,
-        fields: &[ValueProjection<I>],
-    ) -> Facts {
-        for &selected in fields {
-            facts = self.nodes[facts.0]
-                .children
-                .get(&field(selected))
-                .copied()
-                .unwrap_or_default();
-        }
-        facts
+    pub(super) fn selected<I: Copy>(&self, facts: Facts, fields: &[ValueProjection<I>]) -> Facts {
+        select(&self.nodes, facts, fields)
     }
     pub(super) fn applications(&self, facts: Facts) -> BTreeSet<ValueApplication> {
         let mut pending = vec![facts];

@@ -289,6 +289,7 @@ fn literal_control_does_not_invent_normal_loop_exits() {
 
 mod callbacks;
 mod construction;
+mod creation_recipes;
 mod functions;
 mod instance_recipes;
 mod producer_recipes;

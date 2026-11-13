@@ -442,7 +442,18 @@ Lexical read/edit aliases use the existing `flow::aliases` provenance owner to r
 the current underlying local or bounded temporary's facts, rather than keeping an independent producer snapshot.
 Producer paths erase numeric selectors; array writes remain conservative summaries even when
 only one lexical path is found. This traversal grants no saved-address or bounds proof.
-`Unit::invocation_recipe` exposes these records
+
+Closure creation snapshots retain that same structural graph after its fixed point; the
+construction index is discarded and creations in one body share the immutable nodes.
+`Unit::creation_recipe` pairs each checking-reachable formation with its exact lexical code,
+expression and original environment schema. Later updates cannot rewrite an earlier snapshot;
+repeated formation joins possible inputs rather than selecting one iteration. Dead formation
+creates no record. The original schema remains in the same canonical type authority even when
+result projection normalizes the closure's environment. Component queries return producer sets,
+not path validity or bounds proofs. Complete-Unit rebinding verifies source bodies before exposing
+these records; equal header types do not permit reuse after changed capture effects. Concrete
+captured-frame realization and occurrence-sensitive executable data remain separate obligations.
+`Unit::invocation_recipe` exposes each committed-call record
 under their exact code/call identity. Callable application nodes share the same immutable record,
 so the equation graph and invocation catalog do not maintain separate binding copies. Interrupted
 or unreachable commits create no invocation record. The possible producer sets select neither
