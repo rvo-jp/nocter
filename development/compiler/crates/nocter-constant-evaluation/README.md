@@ -30,8 +30,8 @@ still owns contextual numeric type, sign, range, and checked arithmetic.
   publication. A closed plan retains the exact type of every parameter and its result, so execution
   does not rely on its caller to pair values with an external signature.
 - Closing a plan table validates each call edge's target, receiver/argument arity, input shapes,
-  and result shape against the target plan. An executor can never observe a partially linked plan
-  graph.
+  and result shape against the immutable target call contract. Every call boundary is linked
+  before execution; a boundary alone supplies no executable body.
 - A callable plan contains no syntax or source coordinate and cannot request a semantic decision.
 - One generic expression-tree operation representation serves both checked recipes and closed plans. Its exhaustive
   call-target mapping is the only recipe-to-plan operation transform, so specialization cannot
@@ -73,6 +73,16 @@ one exact builtin identity; the shared numeric profile owns their sign, width an
 boundary rejects noninteger builtin identities even when no value or operation uses that entry.
 Unsigned negation arrives as checked zero subtraction, while signed negation retains its unary
 operation. Pointer-size entries use the qualified target profile, independently of host size.
+
+`CallContract` owns each instance's invocation boundary independently of its body: ordered input
+data and operations, result data, initializer role and captured-environment adapter support.
+`Program::new` derives every boundary from its supplied plans. `Program::linked` can retain a
+boundary whose body is not yet realized; every supplied plan must match its boundary exactly,
+and every call is still validated against a known boundary. `Program::extend` atomically appends
+validated types, contracts, plans and static data. It cannot replace an existing identity or
+reinterpret an old type index; a failed batch leaves the previous program intact. Immutable
+body plans are shared across extensions. This boundary grants neither const capability nor an
+implementation for absent code.
 
 Plan tables and direct-call edges select a `CodeInstance`: the complete semantic `ValueCode`,
 including lexical captured code, plus a program-local instance number. Multiple lowered plans may

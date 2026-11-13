@@ -183,7 +183,15 @@ fn selected_instances_of_one_source_do_not_alias_or_fall_back() {
     let mut missing = program;
     missing.plans.remove(&beta);
     assert!(matches!(
-        Program::new(missing.types, missing.plans, missing.statics),
+        Program::new(
+            missing.types,
+            missing
+                .plans
+                .into_iter()
+                .map(|(key, plan)| (key, (*plan).clone()))
+                .collect(),
+            missing.statics
+        ),
         Err(Rule::InvalidPlan)
     ));
 }

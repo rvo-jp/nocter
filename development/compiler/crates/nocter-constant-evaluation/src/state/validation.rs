@@ -142,7 +142,29 @@ pub(super) fn validate(program: &Program) -> Result<()> {
             return Err(INVALID);
         }
     }
+    for (&code, contract) in &program.contracts {
+        if contract.result >= program.types.len()
+            || contract
+                .inputs
+                .iter()
+                .any(|input| input.data >= program.types.len())
+            || (contract.initializer && !contract.inputs.is_empty())
+            || (matches!(code.source, nocter_model::ValueCode::Expression(_))
+                && !contract.initializer)
+            || (matches!(code.source, nocter_model::ValueCode::Closure(_)) && contract.initializer)
+            || (contract.environment_backing
+                && (!matches!(code.source, nocter_model::ValueCode::Closure(_))
+                    || contract.inputs.first().is_none_or(|input| {
+                        input.operation == nocter_model::ValueInputOperation::Take
+                    })))
+        {
+            return Err(INVALID);
+        }
+    }
     for (&code, plan) in &program.plans {
+        if program.contracts.get(&code) != Some(&super::CallContract::from_plan(plan)?) {
+            return Err(INVALID);
+        }
         match code.source {
             nocter_model::ValueCode::Expression(_) if !plan.initializer => return Err(INVALID),
             nocter_model::ValueCode::Closure(_) if plan.initializer => return Err(INVALID),
@@ -568,14 +590,15 @@ fn call(
     target: super::CodeInstance,
     inputs: &[super::Input],
 ) -> Result<()> {
-    let callee = program.plans.get(&target).ok_or(INVALID)?;
+    let callee = program.contracts.get(&target).ok_or(INVALID)?;
     if callee.initializer
         || inputs.len() != callee.inputs.len()
         || ordinary_slot(plan, destination)?.data != callee.result
     {
         return Err(INVALID);
     }
-    for (index, (input, &(parameter, operation))) in inputs.iter().zip(&callee.inputs).enumerate() {
+    for (index, (input, parameter)) in inputs.iter().zip(&callee.inputs).enumerate() {
+        let operation = parameter.operation;
         let environment_adapter = index == 0
             && matches!(target.source, nocter_model::ValueCode::Closure(_))
             && match (input.operation(), operation) {
@@ -587,7 +610,7 @@ fn call(
                     nocter_model::ValueInputOperation::Take,
                     nocter_model::ValueInputOperation::Read
                     | nocter_model::ValueInputOperation::Edit,
-                ) => callee.environment_backing.is_some(),
+                ) => callee.environment_backing,
                 _ => false,
             };
         if (!environment_adapter && input.operation() != operation)
@@ -596,7 +619,7 @@ fn call(
                 super::Input::Read(source) | super::Input::Edit(source) => {
                     place(program, plan, source)?
                 }
-            } != callee.slots.get(parameter).ok_or(INVALID)?.data
+            } != parameter.data
         {
             return Err(INVALID);
         }

@@ -367,3 +367,5 @@ fn integer_descriptor_rejects_noninteger_builtins_even_without_values_or_plans()
 }
 
 mod variant_values;
+
+mod deferred_plans;

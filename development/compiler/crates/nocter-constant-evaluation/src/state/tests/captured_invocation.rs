@@ -314,13 +314,17 @@ fn weaker_handoffs_and_invalid_adapter_backing_reject_before_execution() {
     });
     for backing in [None, Some(0), Some(1), Some(2), Some(99)] {
         let mut valid = program(Op::Edit, Op::Take).unwrap();
-        valid
-            .plans
-            .get_mut(&code.into())
-            .unwrap()
-            .environment_backing = backing;
+        Arc::make_mut(valid.plans.get_mut(&code.into()).unwrap()).environment_backing = backing;
         assert!(matches!(
-            Program::new(valid.types, valid.plans, valid.statics),
+            Program::new(
+                valid.types,
+                valid
+                    .plans
+                    .into_iter()
+                    .map(|(key, plan)| (key, (*plan).clone()))
+                    .collect(),
+                valid.statics
+            ),
             Err(Rule::InvalidPlan)
         ));
     }

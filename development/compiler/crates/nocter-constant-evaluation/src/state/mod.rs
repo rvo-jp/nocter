@@ -321,30 +321,8 @@ pub struct Static {
     pub data: usize,
     pub value: Value,
 }
-/// Closed immutable table of plans and established immutable global data.
-#[derive(Clone, Debug)]
-pub struct Program {
-    types: Box<[Type]>,
-    statics: BTreeMap<nocter_model::ValueStatic, Static>,
-    plans: BTreeMap<CodeInstance, Plan>,
-}
-impl Program {
-    /// # Errors
-    /// Rejects invalid types, slots, control, call contracts or resource-plan references.
-    pub fn new(
-        types: impl Into<Box<[Type]>>,
-        plans: BTreeMap<CodeInstance, Plan>,
-        statics: BTreeMap<nocter_model::ValueStatic, Static>,
-    ) -> Result<Self, Rule> {
-        let program = Self {
-            types: types.into(),
-            statics,
-            plans,
-        };
-        validation::validate(&program)?;
-        Ok(program)
-    }
-}
+mod program;
+pub use program::{CallContract, InputContract, Program, ProgramExtension};
 
 #[cfg(test)]
 mod tests;
