@@ -31,6 +31,21 @@ impl ProducerShape {
         }
     }
     #[cfg(test)]
+    pub(in crate::value_access::results) fn test_components(
+        components: impl IntoIterator<Item = (nocter_model::ValueField, FunctionWitness)>,
+    ) -> Self {
+        let mut store = Store::default();
+        let children = components
+            .into_iter()
+            .map(|(field, witness)| (field, store.single(witness)))
+            .collect();
+        let root = store.aggregate(children);
+        Self {
+            nodes: store.freeze(),
+            root,
+        }
+    }
+    #[cfg(test)]
     pub(in crate::value_access::results) fn test_terms(
         terms: impl IntoIterator<Item = FunctionWitness>,
     ) -> Self {

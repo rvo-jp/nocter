@@ -1,63 +1,11 @@
-//! Creation-frame substitution through original structural snapshots, never outer-name guessing.
+//! Creation-frame substitution through component snapshots, never outer-name guessing.
 use super::{Fact, InstantiationFailure, Key, Query};
 use nocter_declarations::value_access::{
-    AggregateForm, CodeInstanceKey, ConcreteWitness, FunctionWitness, PayloadSchema, Program,
+    AggregateForm, CodeInstanceKey, FunctionWitness, PayloadSchema, Program,
 };
 use nocter_model::ValueFunctionOrigin as Origin;
-use nocter_model::{FieldPath, TypeId, ValueClosure, ValueField, ValueParameter};
-use std::collections::{BTreeMap, BTreeSet};
-
-#[derive(Default)]
-struct Bindings(BTreeMap<ValueParameter, ConcreteWitness>);
-impl Bindings {
-    /// Simultaneous occurrences may supply different views of the same context. This is not
-    /// an alternative join: the producer union at each occurrence must already be unique.
-    fn supply(
-        &mut self,
-        program: &Program,
-        parameter: ValueParameter,
-        supplied: ConcreteWitness,
-    ) -> Result<(), ()> {
-        let Some(previous) = self.0.get(&parameter) else {
-            self.0.insert(parameter, supplied);
-            return Ok(());
-        };
-        if previous.invocation().can_supply(supplied.invocation()) {
-            let previous = program
-                .adapt_witness(previous, supplied.invocation())
-                .map_err(|_| ())?;
-            return (previous == supplied).then_some(()).ok_or(());
-        }
-        let weaker = program
-            .adapt_witness(&supplied, previous.invocation())
-            .map_err(|_| ())?;
-        if &weaker != previous {
-            return Err(());
-        }
-        self.0.insert(parameter, supplied);
-        Ok(())
-    }
-    fn leaf(
-        &mut self,
-        program: &Program,
-        wanted: FunctionWitness,
-        actual: &ConcreteWitness,
-    ) -> Result<(), ()> {
-        let actual = program
-            .adapt_witness(actual, wanted.invocation)
-            .map_err(|_| ())?;
-        if let Origin::Parameter(parameter) = wanted.origin {
-            return self.supply(program, parameter, actual);
-        }
-        if actual.witness() != wanted {
-            return Err(());
-        }
-        for (&parameter, witness) in actual.captures() {
-            self.supply(program, parameter, witness.clone())?;
-        }
-        Ok(())
-    }
-}
+use nocter_model::{FieldPath, TypeId, ValueClosure, ValueField};
+use std::collections::BTreeMap;
 
 impl Query<'_, '_> {
     pub(super) fn creation(
@@ -79,48 +27,91 @@ impl Query<'_, '_> {
             origin: Origin::Closure(closure),
             invocation: schema.contract().invocation,
         };
+        let root = (
+            recipe.environment,
+            schema.environment(),
+            recipe.producers.identity(),
+        );
         let mut pending = vec![(
             recipe.environment,
             schema.environment(),
             recipe.producers.clone(),
+            false,
         )];
-        let mut seen = BTreeSet::new();
-        let mut bindings = Bindings::default();
-        let mut unresolved = false;
-        while let Some((source, target, producers)) = pending.pop() {
-            if !seen.insert((source, target, producers.identity())) {
+        let mut completed = BTreeMap::new();
+        while let Some((source, target, producers, expanded)) = pending.pop() {
+            let node = (source, target, producers.identity());
+            if completed.contains_key(&node) {
                 continue;
             }
-            self.step()?;
-            if let (Some(PayloadSchema::Function(_)), Some(PayloadSchema::Function(wanted))) = (
-                self.program.data_schema(source),
-                self.program.data_schema(target),
-            ) {
-                match self.union(owner, frame, producers.producers_at(&FieldPath::default()))? {
-                    Fact::Witness(actual) => {
-                        if bindings.leaf(self.program, wanted, &actual).is_err() {
-                            return Ok(Fact::Unavailable);
+            if !expanded {
+                self.step()?;
+                if let (Some(PayloadSchema::Function(_)), Some(PayloadSchema::Function(_))) = (
+                    self.program.data_schema(source),
+                    self.program.data_schema(target),
+                ) {
+                    let value = match self.union(
+                        owner,
+                        frame,
+                        producers.producers_at(&FieldPath::default()),
+                    )? {
+                        Fact::Witness(actual) => {
+                            match self.program.instantiate_function(target, &actual) {
+                                Ok(data) => Some(data),
+                                Err(_) => return Ok(Fact::Unavailable),
+                            }
                         }
-                    }
-                    Fact::Empty => unresolved = true,
-                    _ => return Ok(Fact::Unavailable),
+                        Fact::Empty => None,
+                        _ => return Ok(Fact::Unavailable),
+                    };
+                    completed.insert(node, value);
+                    continue;
                 }
-                continue;
             }
             let Some(children) = children(self.program, source, target) else {
                 return Ok(Fact::Unavailable);
             };
-            for (field, source, target) in children {
-                self.step()?;
-                pending.push((source, target, producers.component(field)));
+            if !expanded {
+                pending.push((source, target, producers.clone(), true));
+                for (field, source, target) in children {
+                    self.step()?;
+                    pending.push((source, target, producers.component(field), false));
+                }
+                continue;
             }
+            let mut values = Vec::new();
+            let mut unresolved = false;
+            for (field, source, target) in children {
+                match completed.get(&(source, target, producers.component(field).identity())) {
+                    Some(Some(value)) => values.push((field, value.clone())),
+                    Some(None) => unresolved = true,
+                    None => return Ok(Fact::Unavailable),
+                }
+            }
+            let value = if unresolved {
+                None
+            } else {
+                let value = if matches!(
+                    self.program.data_schema(target),
+                    Some(PayloadSchema::Builtin(_))
+                ) {
+                    self.program.instantiate_closed_data(target)
+                } else {
+                    self.program.instantiate_components(target, values)
+                };
+                match value {
+                    Ok(value) => Some(value),
+                    Err(_) => return Ok(Fact::Unavailable),
+                }
+            };
+            completed.insert(node, value);
         }
-        if unresolved {
+        let Some(Some(environment)) = completed.remove(&root) else {
             return Ok(Fact::Empty);
-        }
+        };
         Ok(self
             .program
-            .bind_callable_environment(selected, bindings.0)
+            .bind_callable_data(selected, &environment)
             .map_or(Fact::Unavailable, Fact::Witness))
     }
 }
@@ -153,9 +144,15 @@ fn children(
                     vec![(ValueField::Array(0), a.element(), b.element())]
                 }
             }
-            (PayloadSchema::Optional(a), PayloadSchema::Optional(b))
-            | (PayloadSchema::Fallible(a), PayloadSchema::Fallible(b)) => {
+            (PayloadSchema::Optional(a), PayloadSchema::Optional(b)) => {
                 vec![(ValueField::Variant(true), a, b)]
+            }
+            (PayloadSchema::Fallible(a), PayloadSchema::Fallible(b)) => {
+                let error = program.data_type(nocter_model::BuiltinType::Error)?;
+                vec![
+                    (ValueField::Variant(true), a, b),
+                    (ValueField::Variant(false), error, error),
+                ]
             }
             _ => return None,
         },

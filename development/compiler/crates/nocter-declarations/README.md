@@ -346,15 +346,24 @@ binds exactly those dependencies from the canonical environment descriptor; pend
 cannot supply a closed context. Distinct frozen views of one formal share the strongest required
 view without acquiring a stronger capability than the supplied witness.
 
-A `ConcreteWitness` retains its code, selected invocation view and immutable captured substitutions.
-Nested witnesses retain their own contexts. `bind_instance` receives those complete witnesses;
+A `ConcreteWitness` retains its code, selected invocation view and complete contextual environment
+as a `DataInstanceKey`; there is no competing flattened capture map. `bind_callable_data` retains
+an exactly typed environment, including different contexts at same-source-type component positions.
+Environment validation checks present edges and permits an omitted edge only when its declaration
+schema has no contextual dependency. Missing positive contexts and noncanonical stored closed
+edges reject; empty arrays still require no element context.
+`bind_callable_environment` is the exact free-parameter binding constructor and normalizes through
+that same environment authority. Nested witnesses retain their own contexts. `bind_instance` receives those complete witnesses;
 forwarding two values of the same lexical closure can therefore retain different captured callbacks
-in the same receiving frame. Direct input and environment bindings remain separate. `resolve`
-selects only frozen parameters/code, preserves nested contexts and applies the requested view
-without repeating lookup or body checking. Template closure preserves those contexts too.
+in the same receiving frame. Direct input bindings remain separate from the environment. `resolve`
+derives only requested free bindings from that environment; conflicting occurrences remain unresolved,
+while exact component selection retains each context. Own direct inputs do not require flattening
+unrelated captures. Selection preserves frozen views without repeating lookup or body checking.
+Closing a template over its own code frame retains that frame's environment directly.
 Structural context participates in key equality and ordering. Validation and comparison use
 iterative walks that visit shared contexts or context pairs once, including independently built
-equal graphs. Allocation identity only bounds those local walks; it is never the semantic order,
+equal graphs. Diagnostic formatting emits indexed graph nodes once instead of recursively expanding
+the same environment tree. Allocation identity only bounds those local walks; it is never the semantic order,
 an instance key or a reuse receipt.
 
 Expression/initializer frame metadata grants no callable role or executable body. Neither a key

@@ -10,6 +10,7 @@ struct Fixture {
     captured: TypeId,
     array: TypeId,
     empty: TypeId,
+    wrapper: FunctionWitness,
 }
 fn fixture() -> Fixture {
     let source = ValueSourceFixture::new(
@@ -55,6 +56,21 @@ fn fixture() -> Fixture {
     let array = body.array(captured, 2).unwrap();
     let tuple = body.tuple(&[captured, array]).unwrap();
     let empty = body.array(captured, 0).unwrap();
+    let wrapper = body.reserve_closure().unwrap();
+    body.closure(
+        wrapper,
+        tuple,
+        FunctionConstraint {
+            invocation: ValueInvocation::Read,
+            inputs: Box::new([]),
+            result,
+        },
+    )
+    .unwrap();
+    let wrapper = FunctionWitness {
+        origin: ValueFunctionOrigin::Closure(wrapper),
+        invocation: ValueInvocation::Read,
+    };
     let program = body.finish();
     let frames = callbacks.map(|callback| {
         program
@@ -71,6 +87,7 @@ fn fixture() -> Fixture {
         captured,
         array,
         empty,
+        wrapper,
     }
 }
 
@@ -399,5 +416,55 @@ fn mixed_component_contexts_keep_their_native_environment_and_cleanup_metadata()
     assert_eq!(
         program.data_kind(owned_error.data()),
         Some(BuiltinType::Error)
+    );
+}
+
+#[test]
+fn complete_callable_environment_keeps_mixed_contexts_through_storage_and_payload_projection() {
+    use nocter_checking::value_access::flow::resources;
+    let fixture = fixture();
+    let program = &fixture.program;
+    let environment = program
+        .instantiate_components(
+            fixture.keys[0].data(),
+            [
+                (
+                    ValueField::Tuple(0),
+                    fixture.keys[0]
+                        .component(program, ValueField::Tuple(0))
+                        .unwrap(),
+                ),
+                (
+                    ValueField::Tuple(1),
+                    fixture.keys[1]
+                        .component(program, ValueField::Tuple(1))
+                        .unwrap(),
+                ),
+            ],
+        )
+        .unwrap();
+    let witness = program
+        .bind_callable_data(fixture.wrapper, &environment)
+        .unwrap();
+    let key = program
+        .instantiate_function(program.function_data(fixture.wrapper).unwrap(), &witness)
+        .unwrap();
+    let mut builder = Builder::new(program);
+    let root = builder.intern(key.clone()).unwrap();
+    let expected = builder.intern(environment.clone()).unwrap();
+    let prepared = builder.finish(RuntimeAbiIdentity::Arm64DarwinV1).unwrap();
+    assert_eq!(
+        prepared.environment().types().get(root),
+        Some(&RuntimeType::StaticCallable {
+            environment: Some(expected)
+        })
+    );
+    let payload = resources::payload(program, key.data())
+        .unwrap()
+        .instantiate(program, &key)
+        .unwrap();
+    assert_eq!(
+        payload.environment(program).unwrap().unwrap().instance(),
+        &environment
     );
 }

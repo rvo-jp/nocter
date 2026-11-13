@@ -10,7 +10,7 @@ pub(super) struct Fixture {
     pub(super) root_formals: [ValueParameter; 2],
     pub(super) captured: FunctionWitness,
     pub(super) callbacks: [FunctionWitness; 2],
-    pub(super) sites: [AccessExpressionId; 2],
+    pub(super) sites: [AccessExpressionId; 3],
     pub(super) supporting: BTreeMap<ValueClosure, CreationRecipe>,
 }
 pub(super) fn fixture() -> Fixture {
@@ -80,7 +80,7 @@ pub(super) fn fixture_with_shape(depth: usize, mixed_views: bool) -> Fixture {
             invocation: ValueInvocation::Read,
         },
         callbacks,
-        sites: [expressions.insert(()), expressions.insert(())],
+        sites: std::array::from_fn(|_| expressions.insert(())),
         supporting,
     }
 }

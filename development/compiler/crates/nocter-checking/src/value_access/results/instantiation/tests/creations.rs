@@ -1,6 +1,7 @@
 //! Creation-snapshot substitution and conservative metadata failure.
 use super::*;
 use crate::value_access::results::ProducerShape;
+use nocter_model::ValueField;
 
 #[test]
 fn actual_capture_snapshot_overrides_an_outer_binding_and_missing_or_ambiguous_creation_rejects() {
@@ -186,4 +187,136 @@ fn shared_capture_shapes_spend_metadata_work_without_expanding_two_to_the_depth_
         call(program, &evidence, &frame, site, &mut budget()).unwrap(),
         expected
     );
+}
+
+#[test]
+fn one_creation_snapshot_keeps_two_calls_to_the_same_closure_with_different_contexts() {
+    let fixture = fixture_with_shape(1, false);
+    let program = &fixture.program;
+    let frame = program
+        .bind_code(
+            fixture.creator.into(),
+            [(fixture.formal, fixture.callbacks[0])],
+        )
+        .unwrap();
+    let Origin::Closure(outer) = fixture.captured.origin else {
+        unreachable!()
+    };
+    let (&wrapper, wrapper_recipe) = fixture.supporting.iter().next().unwrap();
+    let wrapper_witness = FunctionWitness {
+        origin: Origin::Closure(wrapper),
+        invocation: ValueInvocation::Read,
+    };
+    let sites = fixture.sites.map(|call| ValueApplication {
+        owner: frame.code(),
+        call,
+    });
+    let mut evidence = Evidence {
+        creations: fixture.supporting.clone(),
+        ..Evidence::default()
+    };
+    for (site, callback) in sites[..2].iter().zip(fixture.callbacks) {
+        evidence.invocations.insert(
+            *site,
+            Arc::new(InvocationRecipe {
+                callees: BTreeSet::from([fixture.creator.into()]),
+                inputs: BTreeMap::from([(fixture.formal, BTreeSet::from([callback]))]),
+            }),
+        );
+    }
+    evidence.recipes.insert(
+        ProducerTerm::Result(fixture.creator.into()),
+        ProducerRelation::Union(BTreeSet::from([wrapper_witness])),
+    );
+    let mut outer_recipe = creation(&fixture, []);
+    outer_recipe.producers =
+        ProducerShape::test_components(sites[..2].iter().enumerate().map(|(position, &site)| {
+            (
+                ValueField::Tuple(position),
+                FunctionWitness {
+                    origin: Origin::Application(site),
+                    invocation: ValueInvocation::Read,
+                },
+            )
+        }));
+    evidence.creations.insert(outer, outer_recipe);
+    evidence.invocations.insert(
+        sites[2],
+        Arc::new(InvocationRecipe {
+            callees: BTreeSet::from([fixture.captured]),
+            inputs: BTreeMap::new(),
+        }),
+    );
+    assert_eq!(wrapper_recipe.owner, frame.code());
+    let (environment, expected_leaves) = mixed_environment(&fixture, outer, wrapper_witness);
+    let expected = program
+        .bind_instance(
+            &program
+                .bind_callable_data(fixture.captured, &environment)
+                .unwrap(),
+            [],
+        )
+        .unwrap();
+    assert_eq!(
+        call(program, &evidence, &frame, sites[2], &mut budget()).unwrap(),
+        expected
+    );
+    assert_eq!(
+        call(
+            program,
+            &evidence,
+            &frame,
+            sites[2],
+            &mut WorkBudget::new(NonZeroU64::new(8).unwrap())
+        ),
+        Err(InstantiationFailure::WorkLimit)
+    );
+    assert_eq!(
+        call(program, &evidence, &frame, sites[2], &mut budget()).unwrap(),
+        expected
+    );
+    for (position, key) in expected_leaves.iter().enumerate() {
+        assert_eq!(
+            expected
+                .environment()
+                .unwrap()
+                .component(program, ValueField::Tuple(position))
+                .unwrap(),
+            *key
+        );
+    }
+    evidence.invocations.remove(&sites[1]);
+    assert_eq!(
+        call(program, &evidence, &frame, sites[2], &mut budget()),
+        Err(InstantiationFailure::Unresolved)
+    );
+}
+
+fn mixed_environment(
+    fixture: &Fixture,
+    outer: ValueClosure,
+    wrapper_witness: FunctionWitness,
+) -> (
+    nocter_declarations::value_access::DataInstanceKey,
+    [nocter_declarations::value_access::DataInstanceKey; 2],
+) {
+    let program = &fixture.program;
+    let expected_leaves = fixture.callbacks.map(|callback| {
+        let frame = program
+            .bind_code(fixture.creator.into(), [(fixture.formal, callback)])
+            .unwrap();
+        program
+            .instantiate_data(program.function_data(wrapper_witness).unwrap(), &frame)
+            .unwrap()
+    });
+    let environment = program
+        .instantiate_components(
+            program.closure(outer).unwrap().environment(),
+            expected_leaves
+                .iter()
+                .enumerate()
+                .map(|(position, key)| (ValueField::Tuple(position), key.clone())),
+        )
+        .unwrap();
+    (environment, expected_leaves)
 }

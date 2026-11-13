@@ -379,9 +379,10 @@ are checked before complete flow admission. Root cleanup consumes this order. Na
 identities and closure input roles remain distinct; a consumer cannot rediscover input order from
 local allocation order or an enclosing named header.
 
-Private instances use code identity plus concrete formal witnesses as their key. A witness retains
-its supplied invocation view, while a code instance is shared across views and runtime environment
-contents. Selected captured-code bindings use the same finite recursive interning as named code;
+Private instances use code identity, concrete direct formal witnesses and the canonical contextual
+environment as their key. A witness retains its supplied invocation view; a code instance can be
+shared across views of that same full context and across runtime environment contents. Distinct
+captured callable substitutions remain distinct contexts. Selected captured-code bindings use the same finite recursive interning as named code;
 no captured-code registry, second call graph or source rechecking enters target closure.
 Static instance sharing does not share runtime activations, environment contents or owner storage.
 

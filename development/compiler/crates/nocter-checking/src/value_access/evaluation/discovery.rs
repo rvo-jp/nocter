@@ -42,11 +42,11 @@ impl Discovery {
         program: &Program,
         key: CodeInstanceKey,
     ) -> Result<(), flow::IntegrityError> {
-        if !key.captures().is_empty()
+        if key.environment().is_some()
             || key
                 .witnesses()
                 .values()
-                .any(|witness| !witness.captures().is_empty())
+                .any(|witness| witness.environment().is_some())
         {
             if self.exact.insert(key.clone()) {
                 self.pending.push(key);

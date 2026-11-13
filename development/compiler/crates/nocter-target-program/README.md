@@ -201,6 +201,8 @@ not a source tuple field. Intrinsic representation primitives are independently 
 Mixed component contexts preserve distinct callable environment identities and their logical payload
 cleanup metadata even when the source callable type is shared. Constructing such a carrier is metadata
 qualification, not execution of a source-level formal capture or an owned error's destruction.
+Complete callable environments retain that same mixed carrier key through callable representation
+and payload-environment projection, without rebuilding captured substitutions from a frame-wide map.
 Optional and fallible payloads request canonical tag/comparison primitives; fallible shapes also
 request the built-in error identity. Aggregate representations retain exact logical component keys.
 Machine owns size, alignment and member offsets. Unproduced contracts add no stored type, and empty

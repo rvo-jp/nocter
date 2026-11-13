@@ -1,8 +1,10 @@
 //! Canonical metadata bindings for one code frame; no body, const, layout or ownership admission.
 use super::{FunctionConstraint, FunctionMismatch, FunctionWitness, PayloadSchema, Program};
 use nocter_model::{ValueCode, ValueFunctionOrigin, ValueInvocation, ValueParameter};
-use std::{collections::BTreeMap, sync::Arc};
+use std::collections::BTreeMap;
+mod context_debug;
 mod context_order;
+mod environments;
 #[cfg(test)]
 mod tests;
 
@@ -11,11 +13,11 @@ enum CallableCode {
     Declaration(nocter_model::AccessCodeId),
     Closure(nocter_model::ValueClosure),
 }
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ConcreteWitness {
     code: CallableCode,
     invocation: ValueInvocation,
-    captures: Arc<BTreeMap<ValueParameter, ConcreteWitness>>,
+    environment: Option<super::DataInstanceKey>,
 }
 impl ConcreteWitness {
     #[must_use]
@@ -40,8 +42,8 @@ impl ConcreteWitness {
         }
     }
     #[must_use]
-    pub fn captures(&self) -> &BTreeMap<ValueParameter, ConcreteWitness> {
-        &self.captures
+    pub const fn environment(&self) -> Option<&super::DataInstanceKey> {
+        self.environment.as_ref()
     }
     fn with_invocation(mut self, invocation: ValueInvocation) -> Self {
         self.invocation = invocation;
@@ -53,7 +55,7 @@ impl ConcreteWitness {
 pub struct CodeInstanceKey {
     code: ValueCode,
     witnesses: BTreeMap<ValueParameter, ConcreteWitness>,
-    captures: Arc<BTreeMap<ValueParameter, ConcreteWitness>>,
+    environment: Option<super::DataInstanceKey>,
 }
 impl CodeInstanceKey {
     #[must_use]
@@ -65,8 +67,8 @@ impl CodeInstanceKey {
         &self.witnesses
     }
     #[must_use]
-    pub fn captures(&self) -> &BTreeMap<ValueParameter, ConcreteWitness> {
-        &self.captures
+    pub const fn environment(&self) -> Option<&super::DataInstanceKey> {
+        self.environment.as_ref()
     }
     /// Substitute a selected view through this frame, without finding a different code candidate.
     /// # Errors
@@ -76,11 +78,7 @@ impl CodeInstanceKey {
         program: &Program,
         selected: FunctionWitness,
     ) -> Result<ConcreteWitness, CodeBindingError> {
-        program.resolve_bindings(selected, |parameter| {
-            self.witnesses
-                .get(&parameter)
-                .or_else(|| self.captures.get(&parameter))
-        })
+        program.resolve_frame(self, selected)
     }
 }
 
@@ -138,7 +136,9 @@ impl CodeTemplateKey {
             .iter()
             .map(|(&parameter, &witness)| Ok((parameter, outer.resolve(program, witness)?)))
             .collect::<Result<Vec<_>, CodeBindingError>>()?;
-        let captures = if let ValueCode::Closure(code) = self.code {
+        let environment = if self.code == outer.code {
+            outer.environment.clone()
+        } else if let ValueCode::Closure(code) = self.code {
             let invocation = program
                 .closure(code)
                 .ok_or(CodeBindingError::UnknownCode)?
@@ -152,11 +152,11 @@ impl CodeTemplateKey {
                         invocation,
                     },
                 )?
-                .captures
+                .environment
         } else {
-            Arc::default()
+            None
         };
-        program.bind_frame(self.code, bindings, captures)
+        program.bind_frame(self.code, bindings, environment)
     }
 }
 
@@ -236,7 +236,7 @@ impl Program {
         Ok(ConcreteWitness {
             code,
             invocation: witness.invocation,
-            captures: Arc::default(),
+            environment: None,
         })
     }
     /// Close exact direct callable-formal coverage and canonical invocation views for one frame.
@@ -263,7 +263,7 @@ impl Program {
         Ok(CodeInstanceKey {
             code,
             witnesses,
-            captures: Arc::default(),
+            environment: None,
         })
     }
     /// Build the identity condition frame for a code's own direct callable formals.
@@ -461,48 +461,13 @@ impl Program {
             ConcreteWitness::with_invocation,
             |witness| self.validate_concrete(witness),
         )?;
-        Ok(ConcreteWitness {
-            code: CallableCode::Closure(code),
-            invocation: selected.invocation,
-            captures: Arc::new(captures),
-        })
-    }
-    fn validate_concrete(&self, witness: &ConcreteWitness) -> Result<(), CodeBindingError> {
-        let mut pending = vec![witness];
-        let mut visited = std::collections::BTreeSet::new();
-        while let Some(witness) = pending.pop() {
-            // Allocation identity only bounds this local validation walk. Semantic instance
-            // equality and ordering continue to use the complete structural context.
-            if !visited.insert((
-                witness.code,
-                witness.invocation,
-                Arc::as_ptr(&witness.captures),
-            )) {
-                continue;
-            }
-            if self.function_data(witness.witness()).is_none() {
-                return Err(CodeBindingError::InvalidWitness);
-            }
-            let contracts = match witness.code {
-                CallableCode::Declaration(_) => BTreeMap::new(),
-                CallableCode::Closure(code) => self.environment_contracts(code)?,
-            };
-            self.normalize_bindings(
-                contracts
-                    .iter()
-                    .map(|(&parameter, contract)| (parameter, contract))
-                    .collect(),
-                witness
-                    .captures
-                    .iter()
-                    .map(|(&parameter, actual)| (parameter, actual.clone())),
-                ConcreteWitness::witness,
-                ConcreteWitness::with_invocation,
-                |_| Ok(()),
-            )?;
-            pending.extend(witness.captures.values());
-        }
-        Ok(())
+        let environment = self.bind_payload_with(
+            self.closure(code)
+                .ok_or(CodeBindingError::UnknownCode)?
+                .environment(),
+            |witness| self.resolve_bindings(witness, |parameter| captures.get(&parameter)),
+        )?;
+        self.bind_callable_data(selected, &environment)
     }
     /// Instantiate an already selected callable without dropping its captured substitutions.
     /// # Errors
@@ -513,13 +478,13 @@ impl Program {
         bindings: impl IntoIterator<Item = (ValueParameter, ConcreteWitness)>,
     ) -> Result<CodeInstanceKey, CodeBindingError> {
         self.validate_concrete(selected)?;
-        self.bind_frame(selected.code(), bindings, selected.captures.clone())
+        self.bind_frame(selected.code(), bindings, selected.environment.clone())
     }
     fn bind_frame(
         &self,
         code: ValueCode,
         bindings: impl IntoIterator<Item = (ValueParameter, ConcreteWitness)>,
-        captures: Arc<BTreeMap<ValueParameter, ConcreteWitness>>,
+        environment: Option<super::DataInstanceKey>,
     ) -> Result<CodeInstanceKey, CodeBindingError> {
         let witnesses = self.normalize_bindings(
             self.code_parameters(code)?,
@@ -531,7 +496,7 @@ impl Program {
         Ok(CodeInstanceKey {
             code,
             witnesses,
-            captures,
+            environment,
         })
     }
     fn code_parameters(

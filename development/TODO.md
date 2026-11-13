@@ -18,41 +18,33 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Complete [captured callable instance identity](design/compiler-realization.md#captured-callable-instances)
-through the declaration-owned witness/binding model before admitting formal callable values into
-owned environments. The same lexical closure with different captured callback substitutions must
-remain distinct when both values are forwarded together. Derive dependencies from the canonical
-environment schema; retain nested context, frozen invocation views and one normalization authority.
-Integrate the resulting frame and shared `DataInstanceKey` projection with ordinary ownership
-checking, conditional const admission, evaluator plans and native storage. Preserve captured
-context across return/application producers without reconstructing it from a signature or code name. Qualify safe/unsafe source cases,
-exact source/type reuse and deterministic failure recovery. A parser or metadata-only extension
-alone does not complete capture support. Preserve current rejection until executable consumers agree.
+Complete occurrence-sensitive value/capture transport under the
+[captured callable instance obligations](design/compiler-realization.md#captured-callable-instances).
+The declaration-owned frame/data model and original creation-recipe resolver are the existing
+metadata authorities; their component READMEs own implemented scope.
 
-Resolve value-occurrence creation context through the retained source-flow producer equations
-and ordinary value transport, then close source closure creation before admitting formal callable
-captures. Complete value/component transport and representation from retained closure-creation
-snapshots and structural producer facts. Replace per-frame leaf-TypeId assumptions where distinct
-values share a source type but retain different captured substitutions. Component consumers now use
-declaration-validated fields rather than bare child TypeIds; the canonical data key now retains
-component-specific contexts and accepts exactly typed carrier assembly. Complete occurrence-specific
-source transport and callable-environment/frame identity behind that boundary, rather than treating
-metadata carrier assembly as their proof. Keep one declaration-owned
-normalization authority and qualify evaluator/native receiving, storage and cleanup together.
-Use occurrence-resolved callable construction to retain actual contexts instead of rebinding their
-free parameter names in the receiving frame; it does not itself grant a matched source receipt.
-Do not substitute outer bindings when occurrences or creation snapshots are missing. Preserve
-dormant definition-contract checks, factored symbolic conditions, condition/plan-work failures,
-pre-commit preparation behavior, exact creation contexts,
-anchored recursion, alternative handling and failure/retry behavior; source formal-capture
-creation and per-value/component representation still require integration.
-Follow the occurrence-sensitive finding below and the canonical instance obligations. Keep semantic
-`TypeId` in source checking and declarations; contextual runtime IDs must never become fabricated
-semantic types. A representation key alone grants no payload, source admission or cleanup proof.
+Next preserve exact environment component provenance at received capture leaves in the shared
+original producer model. A received value must designate its actual environment component rather
+than becoming a fresh lexical closure term or an arbitrary outer free-parameter binding. Carry
+this evidence through local, argument, component and return transport without expanding shared
+schemas into all paths. Extend ordinary body data selection, receiving and cleanup to consume
+those exact value contexts instead of reconstructing them from a per-frame TypeId map.
+
+Qualify the same lexical closure with different captured callbacks before and after forwarding
+them together, including safe/unsafe ordinary source, conditional const admission, evaluator
+plans, native storage and actual cleanup. Keep formal-capture source admission closed until those
+consumers agree. A parser, metadata construction or emitted-only check cannot close that boundary.
+
+Preserve strict rejection of missing/foreign creation evidence, frozen views, anchored recursion,
+alternatives, deterministic work failure and healthy retry. Keep dormant definition-contract
+checks, factored symbolic conditions and condition/plan quotas distinct from actual committed
+calls and pre-commit preparation. Semantic TypeId remains the source/checking authority; contextual
+runtime IDs grant no fabricated semantic type, source receipt, payload, layout or cleanup proof.
+Follow the occurrence-sensitive finding below and keep one normalization authority.
 
 Continue symbolic value/resource-state guarded discharge and independent module publication after
-that instance boundary is coherent. General R/D/S, dependent carriers, deeper callable inputs,
-inferred captures, module/toolchain integration and retained-selection closure remain open.
+that boundary is coherent. General R/D/S, dependent carriers, deeper callable inputs, inferred
+captures, module/toolchain integration and retained-selection closure remain open.
 
 ## Retained Selection Closure
 

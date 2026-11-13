@@ -34,11 +34,11 @@ impl Traversal {
         program: &Program,
         key: &CodeInstanceKey,
     ) -> Result<bool, flow::IntegrityError> {
-        if !key.captures().is_empty()
+        if key.environment().is_some()
             || key
                 .witnesses()
                 .values()
-                .any(|witness| !witness.captures().is_empty())
+                .any(|witness| witness.environment().is_some())
         {
             return Ok(self.exact.insert(key.clone()));
         }

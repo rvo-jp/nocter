@@ -4,7 +4,7 @@ use crate::value_access::{
     CodeBindingError, ConcreteWitness, FunctionWitness, PayloadSchema, Program,
 };
 use nocter_model::{BuiltinType, TypeId, ValueField, ValueFunctionOrigin};
-use std::{cmp::Ordering, collections::BTreeSet};
+use std::collections::BTreeSet;
 use std::{collections::BTreeMap, sync::Arc};
 
 impl Program {
@@ -22,23 +22,7 @@ impl Program {
             return Err(CodeBindingError::InvalidWitness);
         };
         let actual = self.adapt_witness(actual, wanted.invocation)?;
-        match wanted.origin {
-            ValueFunctionOrigin::Parameter(parameter) => {
-                let mut contract = self
-                    .parameter_contract(parameter)
-                    .ok_or(CodeBindingError::InvalidWitness)?
-                    .clone();
-                contract.invocation = wanted.invocation;
-                let supplied = self
-                    .function_data(actual.witness())
-                    .ok_or(CodeBindingError::InvalidWitness)?;
-                self.constrain_function(supplied, &contract)
-                    .map_err(CodeBindingError::Contract)?;
-            }
-            ValueFunctionOrigin::Closure(_) | ValueFunctionOrigin::Declaration(_)
-                if actual.witness() == wanted => {}
-            _ => return Err(CodeBindingError::InvalidWitness),
-        }
+        self.constrain_instance_function(data, actual.witness())?;
         let context = if self.concrete_witness(wanted).as_ref() == Ok(&actual) {
             Context::Closed
         } else {
@@ -49,7 +33,40 @@ impl Program {
             context: Arc::new(context),
         })
     }
-    fn instance_fields(&self, data: TypeId) -> Result<Vec<(ValueField, TypeId)>, CodeBindingError> {
+    pub(in super::super) fn constrain_instance_function(
+        &self,
+        data: TypeId,
+        actual: FunctionWitness,
+    ) -> Result<(), CodeBindingError> {
+        let Some(PayloadSchema::Function(wanted)) = self.data_schema(data) else {
+            return Err(CodeBindingError::InvalidWitness);
+        };
+        if actual.invocation != wanted.invocation {
+            return Err(CodeBindingError::InvalidWitness);
+        }
+        match wanted.origin {
+            ValueFunctionOrigin::Parameter(parameter) => {
+                let mut contract = self
+                    .parameter_contract(parameter)
+                    .ok_or(CodeBindingError::InvalidWitness)?
+                    .clone();
+                contract.invocation = wanted.invocation;
+                let supplied = self
+                    .function_data(actual)
+                    .ok_or(CodeBindingError::InvalidWitness)?;
+                self.constrain_function(supplied, &contract)
+                    .map_err(CodeBindingError::Contract)?;
+            }
+            ValueFunctionOrigin::Closure(_) | ValueFunctionOrigin::Declaration(_)
+                if actual == wanted => {}
+            _ => return Err(CodeBindingError::InvalidWitness),
+        }
+        Ok(())
+    }
+    pub(in super::super) fn instance_fields(
+        &self,
+        data: TypeId,
+    ) -> Result<Vec<(ValueField, TypeId)>, CodeBindingError> {
         Ok(
             match self
                 .data_schema(data)
@@ -167,73 +184,3 @@ impl Program {
             .ok_or(CodeBindingError::InvalidWitness)
     }
 }
-
-enum Pending<'a> {
-    Key(&'a DataInstanceKey, &'a DataInstanceKey),
-    Children(
-        std::collections::btree_map::Iter<'a, ValueField, DataInstanceKey>,
-        std::collections::btree_map::Iter<'a, ValueField, DataInstanceKey>,
-    ),
-}
-impl Ord for DataInstanceKey {
-    fn cmp(&self, other: &Self) -> Ordering {
-        let mut pending = vec![Pending::Key(self, other)];
-        let mut visited = BTreeSet::new();
-        while let Some(next) = pending.pop() {
-            let order =
-                match next {
-                    Pending::Key(left, right) => {
-                        let order = left.data.cmp(&right.data);
-                        if !order.is_eq() {
-                            return order;
-                        }
-                        let pair = (Arc::as_ptr(&left.context), Arc::as_ptr(&right.context));
-                        if pair.0 == pair.1 || !visited.insert(pair) {
-                            continue;
-                        }
-                        match (&*left.context, &*right.context) {
-                            (Context::Closed, Context::Closed) => Ordering::Equal,
-                            (Context::Closed, _)
-                            | (Context::Function(_), Context::Components(_)) => Ordering::Less,
-                            (_, Context::Closed)
-                            | (Context::Components(_), Context::Function(_)) => Ordering::Greater,
-                            (Context::Function(left), Context::Function(right)) => left.cmp(right),
-                            (Context::Components(left), Context::Components(right)) => {
-                                pending.push(Pending::Children(left.iter(), right.iter()));
-                                Ordering::Equal
-                            }
-                        }
-                    }
-                    Pending::Children(mut left, mut right) => match (left.next(), right.next()) {
-                        (Some((lk, lv)), Some((rk, rv))) => {
-                            let order = lk.cmp(rk);
-                            if !order.is_eq() {
-                                return order;
-                            }
-                            pending.push(Pending::Children(left, right));
-                            pending.push(Pending::Key(lv, rv));
-                            Ordering::Equal
-                        }
-                        (None, None) => Ordering::Equal,
-                        (None, Some(_)) => Ordering::Less,
-                        (Some(_), None) => Ordering::Greater,
-                    },
-                };
-            if !order.is_eq() {
-                return order;
-            }
-        }
-        Ordering::Equal
-    }
-}
-impl PartialOrd for DataInstanceKey {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-impl PartialEq for DataInstanceKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.cmp(other).is_eq()
-    }
-}
-impl Eq for DataInstanceKey {}

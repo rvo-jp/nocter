@@ -126,7 +126,15 @@ fn returned_closure_uses_its_actual_creation_frame_instead_of_the_outer_frames_b
     let expected = captured(&fixture, fixture.callbacks[1]);
     assert_eq!(actual, program.bind_instance(&expected, []).unwrap());
     assert_ne!(
-        actual.captures()[&fixture.formal],
+        actual
+            .resolve(
+                program,
+                FunctionWitness {
+                    origin: Origin::Parameter(fixture.formal),
+                    invocation: ValueInvocation::Read
+                }
+            )
+            .unwrap(),
         outer.witnesses()[&fixture.formal]
     );
 }
@@ -143,7 +151,7 @@ fn adapting_a_concrete_witness_preserves_context_and_rejects_a_view_upgrade() {
         .adapt_witness(&edited, ValueInvocation::Take)
         .unwrap();
     assert_eq!(consumed.code(), original.code());
-    assert_eq!(consumed.captures(), original.captures());
+    assert_eq!(consumed.environment(), original.environment());
     assert!(
         program
             .adapt_witness(&consumed, ValueInvocation::Read)

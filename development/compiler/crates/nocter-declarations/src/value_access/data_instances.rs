@@ -7,13 +7,13 @@ use nocter_model::{BuiltinType, TypeId, ValueCode, ValueField};
 use std::{collections::BTreeMap, sync::Arc};
 mod graph;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct DataInstanceKey {
-    data: TypeId,
-    context: Arc<Context>,
+    pub(super) data: TypeId,
+    pub(super) context: Arc<Context>,
 }
 #[derive(Debug)]
-enum Context {
+pub(super) enum Context {
     Closed,
     Function(ConcreteWitness),
     Components(BTreeMap<ValueField, DataInstanceKey>),
@@ -52,11 +52,7 @@ impl DataInstanceKey {
         let data = program
             .function_data(selected.witness())
             .ok_or(CodeBindingError::InvalidWitness)?;
-        program
-            .bind_payload_with(data, |witness| {
-                program.resolve_bindings(witness, |parameter| selected.captures().get(&parameter))
-            })
-            .map(Some)
+        program.instantiate_function(data, &selected).map(Some)
     }
     /// Select the frozen shape without interning a new semantic type or granting representation.
     /// # Errors
@@ -122,10 +118,12 @@ impl DataInstanceKey {
             .closure(code)
             .ok_or(CodeBindingError::UnknownCode)?
             .environment();
-        program
-            .bind_payload_with(environment, |witness| {
-                program.resolve_bindings(witness, |parameter| selected.captures().get(&parameter))
-            })
+        selected
+            .environment()
+            .map_or_else(
+                || program.instantiate_closed_data(environment),
+                |environment| Ok(environment.clone()),
+            )
             .map(Some)
     }
 }
