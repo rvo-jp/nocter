@@ -444,3 +444,50 @@ fn mutual_conditional_recursion_keeps_outer_inputs_symbolic_and_exposes_fixed_fa
         );
     }
 }
+
+#[test]
+fn covered_fixed_conditions_prove_named_data_and_fall_back_for_captured_or_invoked_inputs() {
+    use nocter_constant_evaluation::state::WorkBudget;
+    for (source, root, expected) in [
+        (
+            "func runtime(value: i32): i32 { value }\nconst func ignore(action: func(i32): i32): i32 { 42 }\nconst func root(): i32 { ignore(runtime) }\nconst ANSWER: i32 = root()",
+            "root",
+            true,
+        ),
+        (
+            "const func ignore(action: func(i32): i32): i32 { 42 }\nconst func root(): i32 { let captured = 40\nlet action = (captured; value: i32): i32 { value + captured }\nignore(action) }\nconst ANSWER: i32 = root()",
+            "root",
+            false,
+        ),
+        (FORWARDING, "forward", false),
+    ] {
+        let (sources, tree) = input(source);
+        let syntax = bound(&sources, &tree);
+        let prepared = SourceUnit::prepare(syntax).unwrap();
+        let context = prepared.declarations().bind(syntax).unwrap();
+        let unit = prepared.unit();
+        let root = named(unit, root).typed().code();
+        let verified = unit.result_evidence.verify(&context).unwrap();
+        let mut work = WorkBudget::new(std::num::NonZeroU64::new(4).unwrap());
+        assert_eq!(
+            unit.const_templates
+                .prove_fixed_root(root, &verified, &mut work)
+                .unwrap(),
+            expected,
+            "{source}"
+        );
+        if expected {
+            let raw = declarations::Query::prepare(syntax).unwrap();
+            let raw_context = raw.bind(syntax).unwrap();
+            let unmatched = unit.result_evidence.verify(&raw_context).unwrap();
+            work.restart();
+            assert!(
+                unit.const_templates
+                    .prove_fixed_root(root, &unmatched, &mut work)
+                    .is_err()
+            );
+        } else {
+            work.charge(4).unwrap();
+        }
+    }
+}

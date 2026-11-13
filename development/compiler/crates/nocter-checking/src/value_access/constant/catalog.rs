@@ -98,6 +98,15 @@ impl Catalog {
             })?;
         Ok(Some((callable, diagnostic)))
     }
+    pub(in crate::value_access) fn prove_fixed_root(
+        &self,
+        root: ValueCode,
+        verified: &crate::value_access::results::Verified<'_, '_>,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<bool, crate::value_access::accepted::Failure> {
+        self.conditions
+            .prove_fixed_root(root, &self.requirements, verified, work)
+    }
     pub(in crate::value_access) fn traversal(&self) -> super::Traversal {
         let scope = self
             .requirements

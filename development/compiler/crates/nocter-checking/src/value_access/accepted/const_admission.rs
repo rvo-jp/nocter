@@ -23,6 +23,9 @@ pub(in crate::value_access) fn check_required_const(
     let root = program
         .bind_code(root.code(), [])
         .map_err(|_| Failure::Integrity(flow::IntegrityError::InconsistentTypedBody))?;
+    if availability.prove_fixed_root(root.code(), &verified, work)? {
+        return Ok(());
+    }
     let mut traversal = availability.traversal();
     let mut parents: BTreeMap<_, Option<Parent>> = BTreeMap::from([(root.clone(), None)]);
     let mut pending = vec![root];

@@ -98,13 +98,12 @@ not a language restriction derived from the current realization boundary.
 
 ## Open Findings
 
-- [ ] Replace remaining concrete-frame expansion in required const eligibility with guarded
-  symbolic discharge. The definition-owned conjunction composes invocation and direct callable
-  representation/cleanup conditions, but is not a complete certificate for parameter-selected receiving inputs,
-  compound dependent data, value/resource-state guards or arbitrary caller contexts. Qualify those
-  conditions through the same matched body/type products,
-  preserving exact supplying-argument causes and source safety. Work quotas bound uncertainty
-  without proving eligibility; module publication retains its independent qualification.
+- [ ] Extend symbolic discharge beyond covered fixed-target closures with root-closed named
+  function data. Parameter-selected calls, captured/unresolved terms, compound dependent data and
+  value/resource-state guards retain exact-frame checks. Preserve matched body/type receipts,
+  receiving operations, actual cleanup, exact supplying-argument causes and source safety.
+  Work quotas bound uncertainty without proving eligibility; module publication retains its
+  independent qualification.
 - [ ] Complete nested callable data/witness support through header/data positions and the owning
   type authority. Qualify concrete representation, substitution and callable input/result evidence;
   one recognized type tree and a matching signature do not erase code/environment identity.

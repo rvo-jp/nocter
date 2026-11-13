@@ -209,6 +209,109 @@ impl Requirements {
         }
         Ok(None)
     }
+    /// Coverage of the current conjunctive vocabulary, not eligibility or executable layout.
+    pub(super) fn fixed_coverage(&self) -> Result<bool, flow::IntegrityError> {
+        let program = self.body.typed().program();
+        let Ok(identity) = program.code_template(self.code()) else {
+            return Ok(false);
+        };
+        let mut domain = evaluation::Types::default();
+        for clause in &self.clauses {
+            match clause {
+                Clause::Invocation {
+                    expression,
+                    template,
+                } => {
+                    let ExpressionKind::Call {
+                        target,
+                        kind,
+                        arguments,
+                    } = &self
+                        .body
+                        .typed()
+                        .body()
+                        .expressions()
+                        .get(*expression)
+                        .ok_or(INVALID)?
+                        .kind
+                    else {
+                        return Err(INVALID);
+                    };
+                    if super::uncommitted_parameter_call(*kind, *target, arguments) {
+                        continue;
+                    }
+                    if target.code().is_none() {
+                        return Ok(false);
+                    }
+                    if instances::completed(arguments)
+                        && !matches!(template, Some(Ok(CallTemplate::Code(_))))
+                    {
+                        return Ok(false);
+                    }
+                }
+                Clause::Inputs(id) => {
+                    let ExpressionKind::Call {
+                        target,
+                        kind,
+                        arguments,
+                    } = &self
+                        .body
+                        .typed()
+                        .body()
+                        .expressions()
+                        .get(*id)
+                        .ok_or(INVALID)?
+                        .kind
+                    else {
+                        return Err(INVALID);
+                    };
+                    if !instances::completed(arguments) {
+                        continue;
+                    }
+                    let Some(contract) = super::input_contract(program, *target, *kind, arguments)?
+                    else {
+                        return Ok(false);
+                    };
+                    for input in &contract.inputs {
+                        match program.data_schema(input.data).ok_or(INVALID)? {
+                            nocter_declarations::value_access::PayloadSchema::Function(witness)
+                                if matches!(
+                                    witness.origin,
+                                    nocter_model::ValueFunctionOrigin::Parameter(_)
+                                        | nocter_model::ValueFunctionOrigin::Declaration(_)
+                                        | nocter_model::ValueFunctionOrigin::Closure(_)
+                                ) => {}
+                            nocter_declarations::value_access::PayloadSchema::Function(_) => {
+                                return Ok(false);
+                            }
+                            _ if domain.supports(program, input.data)? => {}
+                            _ => return Ok(false),
+                        }
+                    }
+                }
+                Clause::Data(violation) => {
+                    let (Rule::UnsupportedData(data) | Rule::UnsupportedCleanup(data)) =
+                        violation.rule()
+                    else {
+                        return Err(INVALID);
+                    };
+                    let Some(nocter_declarations::value_access::PayloadSchema::Function(witness)) =
+                        program.data_schema(data)
+                    else {
+                        return Ok(false);
+                    };
+                    let nocter_model::ValueFunctionOrigin::Parameter(parameter) = witness.origin
+                    else {
+                        return Ok(false);
+                    };
+                    if !identity.witnesses().contains_key(&parameter) {
+                        return Ok(false);
+                    }
+                }
+            }
+        }
+        Ok(true)
+    }
     pub(super) fn data_conditions(&self) -> impl Iterator<Item = Violation> + '_ {
         self.clauses.iter().filter_map(|clause| match clause {
             Clause::Data(violation) => Some(*violation),

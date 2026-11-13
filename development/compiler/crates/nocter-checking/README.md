@@ -952,7 +952,19 @@ substitutes the callee's formal data witness through its stored frame and keeps 
 as its cause. Interrupted preparation contributes no callee input or body-owned cleanup. Receiving
 an input does not require its invocation and does not invent Copy, an owner or a retirement.
 
-This finite conjunctive product detects closed false facts; absence of a failure is not a complete
+`Requirements::fixed_coverage` separately checks whether every current clause is represented
+for a fixed-target call closure. Unrepresented data, missing producer/view metadata, foreign
+captures and missing/uncovered callees prevent coverage; incompleteness propagates back to callers.
+Coverage alone supplies no eligibility. For root-closed named function data only,
+`Conditions::prove_fixed_root` additionally discharges the retained predicates, rebinds every
+reachable checked body through the matched source/type receipt, and charges condition work for
+its completed known-code edges. This avoids re-creating concrete binding frames for that scope.
+It relies on the current direct-leaf substitution and declaration-owned signature/view
+normalization; qualifying dependent carriers requires revisiting the proof. Captured/unresolved
+terms and parameter-selected invocations retain the exact-frame path. The proof neither executes
+nor memoizes source results, merges layouts, nor supplies a plan or final-publication exception.
+
+Outside this covered scope, absence of a failure in the finite conjunctive product is not a complete
 eligibility certificate. Parameter-selected receiving inputs, compound dependent data,
 value/resource-state guards and general symbolic composition remain integration work. Ordinary
 exact required checks still apply. Module publication requires separate qualification; the products

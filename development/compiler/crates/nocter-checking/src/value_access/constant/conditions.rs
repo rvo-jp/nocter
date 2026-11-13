@@ -3,7 +3,7 @@ use super::{Diagnostic, Failure, INVALID, Requirements, Rule, Site, Violation, f
 use crate::value_access::{CallTemplate, ExpressionKind, results, source_origin};
 use nocter_declarations::value_access::{CodeTemplateKey, FunctionWitness, PayloadSchema};
 use nocter_model::{AccessExpressionId, ValueCode, ValueFunctionOrigin};
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum Term {
@@ -53,6 +53,7 @@ impl Cause {
 pub(super) struct Conditions {
     terms: BTreeMap<ValueCode, BTreeMap<Term, usize>>,
     causes: Vec<Cause>,
+    covered: BTreeSet<ValueCode>,
 }
 #[derive(Clone, Copy, Debug)]
 pub(super) struct ViolationProof {
@@ -66,16 +67,22 @@ impl Conditions {
         let mut graph = Self {
             terms: BTreeMap::new(),
             causes: Vec::new(),
+            covered: BTreeSet::new(),
         };
         let mut callers =
             BTreeMap::<ValueCode, Vec<(ValueCode, AccessExpressionId, CodeTemplateKey)>>::new();
         let mut pending = VecDeque::new();
         for (&code, item) in requirements {
+            if item.fixed_coverage()? {
+                graph.covered.insert(code);
+            }
             graph.seed(item, &mut pending)?;
             for call in item.completed_calls() {
                 // Missing producer/view metadata supplies no positive or negative callee fact.
                 if let Ok(CallTemplate::Code(callee)) = call.template() {
-                    graph.seed_inputs(item, &call, callee, &mut pending)?;
+                    if !graph.seed_inputs(item, &call, callee, &mut pending)? {
+                        graph.covered.remove(&code);
+                    }
                     callers.entry(callee.code()).or_default().push((
                         code,
                         call.expression(),
@@ -99,6 +106,7 @@ impl Conditions {
                 if parameter.is_some_and(|parameter| !frame.witnesses().contains_key(&parameter)) {
                     // An outside capture is not a callee formal. Its unqualified substitution
                     // supplies no closed failure and cannot strengthen the ordinary body.
+                    graph.covered.remove(code);
                     continue;
                 }
                 let selected = if parameter.is_some() {
@@ -134,6 +142,25 @@ impl Conditions {
                     },
                 )? {
                     pending.push_back((*code, term.substitute(selected)));
+                }
+            }
+        }
+        // A missing or uncovered callee cannot supply a complete conjunction to any caller.
+        let mut uncovered: VecDeque<_> = requirements
+            .keys()
+            .filter(|code| !graph.covered.contains(code))
+            .copied()
+            .collect();
+        uncovered.extend(
+            callers
+                .keys()
+                .filter(|code| !requirements.contains_key(code))
+                .copied(),
+        );
+        while let Some(callee) = uncovered.pop_front() {
+            for (caller, _, _) in callers.get(&callee).into_iter().flatten() {
+                if graph.covered.remove(caller) {
+                    uncovered.push_back(*caller);
                 }
             }
         }
@@ -231,7 +258,7 @@ impl Conditions {
         call: &super::requirements::CallEdge<'_>,
         frame: &CodeTemplateKey,
         pending: &mut VecDeque<(ValueCode, Term)>,
-    ) -> Result<(), flow::IntegrityError> {
+    ) -> Result<bool, flow::IntegrityError> {
         let program = item.body().typed().program();
         let ExpressionKind::Call {
             kind, arguments, ..
@@ -257,11 +284,15 @@ impl Conditions {
         if contract.inputs.len() != arguments.len() {
             return Err(INVALID);
         }
+        let mut domain = crate::value_access::evaluation::Types::default();
         for (input, argument) in contract.inputs.iter().zip(arguments) {
             if input.operation != argument.operation {
                 return Err(INVALID);
             }
             let Some(PayloadSchema::Function(witness)) = program.data_schema(input.data) else {
+                if !domain.supports(program, input.data)? {
+                    return Ok(false);
+                }
                 continue;
             };
             let selected = match witness.origin {
@@ -271,8 +302,16 @@ impl Conditions {
                     frame.resolve(program, witness).map_err(|_| INVALID)?
                 }
                 ValueFunctionOrigin::Declaration(_) | ValueFunctionOrigin::Closure(_) => witness,
-                _ => continue,
+                _ => return Ok(false),
             };
+            if let ValueFunctionOrigin::Parameter(parameter) = selected.origin {
+                let Ok(identity) = program.code_template(item.code()) else {
+                    return Ok(false);
+                };
+                if !identity.witnesses().contains_key(&parameter) {
+                    return Ok(false);
+                }
+            }
             let term = Term::Input {
                 operation: input.operation,
                 witness: selected,
@@ -292,7 +331,7 @@ impl Conditions {
                 pending.push_back((item.code(), term));
             }
         }
-        Ok(())
+        Ok(true)
     }
     fn insert(
         &mut self,
@@ -366,6 +405,73 @@ impl Conditions {
             }
         }
         Ok(None)
+    }
+    /// Discharge a covered fixed-target conjunction over root-closed named data witnesses.
+    /// The proof concerns these exact clauses only; plans and final publication remain separate.
+    pub(super) fn prove_fixed_root(
+        &self,
+        root: ValueCode,
+        requirements: &BTreeMap<ValueCode, Requirements>,
+        verified: &results::Verified<'_, '_>,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<bool, crate::value_access::accepted::Failure> {
+        use crate::value_access::accepted::Failure as AcceptedFailure;
+        let invalid = || AcceptedFailure::Integrity(INVALID);
+        if !self.covered.contains(&root) {
+            return Ok(false);
+        }
+        if self
+            .terms
+            .get(&root)
+            .into_iter()
+            .flat_map(|terms| terms.keys())
+            .any(|term| !matches!(term.witness().origin, ValueFunctionOrigin::Declaration(_)))
+        {
+            return Ok(false);
+        }
+        let item = requirements.get(&root).ok_or_else(invalid)?;
+        if self
+            .violation(item, &|_| false)
+            .map_err(AcceptedFailure::Integrity)?
+            .is_some()
+        {
+            return Ok(false);
+        }
+        let mut pending = vec![root];
+        let mut visited = BTreeSet::new();
+        while let Some(code) = pending.pop() {
+            if !visited.insert(code) {
+                continue;
+            }
+            let item = requirements.get(&code).ok_or_else(invalid)?;
+            let bound =
+                item.body()
+                    .bind_verified(verified)
+                    .map_err(|failure| AcceptedFailure::Body {
+                        callable: code.source_owner(),
+                        failure,
+                    })?;
+            for call in item.completed_calls() {
+                let origin = bound
+                    .typed()
+                    .expression_origin(call.expression())
+                    .ok_or_else(invalid)?;
+                let origin = source_origin(bound.typed().syntax(), origin).map_err(|failure| {
+                    AcceptedFailure::Body {
+                        callable: code.source_owner(),
+                        failure,
+                    }
+                })?;
+                crate::value_access::evaluation::condition_step(work, code.source_owner(), origin)?;
+                let CallTemplate::Code(callee) =
+                    call.template().map_err(AcceptedFailure::Integrity)?
+                else {
+                    return Ok(false);
+                };
+                pending.push(callee.code());
+            }
+        }
+        Ok(true)
     }
     pub(super) fn captured_dependents(
         &self,
@@ -560,5 +666,45 @@ mod tests {
             }
             current = node.parent.unwrap();
         }
+    }
+}
+
+#[cfg(test)]
+mod coverage_tests {
+    use super::*;
+    use crate::value_access::{
+        accepted::SourceUnit,
+        tests::{bound, input},
+    };
+    use std::sync::Arc;
+
+    #[test]
+    fn missing_matched_callee_body_cannot_supply_covered_conditions() {
+        let (sources, tree) = input(
+            "const func leaf(): i32 { 42 }\nconst func caller(): i32 { leaf() }\nconst ANSWER: i32 = caller()",
+        );
+        let unit = SourceUnit::prepare(bound(&sources, &tree))
+            .unwrap()
+            .into_unit();
+        let program = unit.program();
+        let code = |name| {
+            ValueCode::Declaration(
+                program
+                    .resolve_code(program.symbols().get(name).unwrap())
+                    .unwrap(),
+            )
+        };
+        let mut requirements = unit
+            .bodies()
+            .map(|(_, body)| {
+                let item = Requirements::prepare(Arc::new(body.clone())).unwrap();
+                (item.code(), item)
+            })
+            .collect::<BTreeMap<_, _>>();
+        let graph = Conditions::prepare(&requirements).unwrap();
+        assert!(graph.covered.contains(&code("caller")));
+        requirements.remove(&code("leaf"));
+        let incomplete = Conditions::prepare(&requirements).unwrap();
+        assert!(!incomplete.covered.contains(&code("caller")));
     }
 }
