@@ -6,6 +6,7 @@ use nocter_declarations::value_access::{
 };
 use nocter_model::{ValueApplication, ValueCode, ValueFunctionOrigin as Origin, ValueInvocation};
 use std::collections::{BTreeMap, BTreeSet, btree_map::Entry as MapEntry};
+mod creations;
 #[cfg(test)]
 mod tests;
 
@@ -21,6 +22,7 @@ enum Key {
     Witness(CodeInstanceKey, FunctionWitness),
     Result(CodeInstanceKey),
     Call(CodeInstanceKey, ValueApplication),
+    Creation(CodeInstanceKey, nocter_model::ValueClosure),
 }
 #[derive(Clone, Debug, Eq, PartialEq, Default)]
 enum Fact {
@@ -152,6 +154,7 @@ impl Query<'_, '_> {
                 }
             }
             Key::Call(frame, site) => self.invocation(key, frame, *site),
+            Key::Creation(frame, closure) => self.creation(key, frame, *closure),
         }
     }
     fn witness(
@@ -160,6 +163,13 @@ impl Query<'_, '_> {
         frame: &CodeInstanceKey,
         selected: FunctionWitness,
     ) -> Result<Fact, InstantiationFailure> {
+        if let Origin::Closure(closure) = selected.origin {
+            if let Ok(witness) = self.program.concrete_witness(selected) {
+                return Ok(Fact::Witness(witness));
+            }
+            let created = self.read(owner, Key::Creation(frame.clone(), closure))?;
+            return Ok(self.adapt(created, selected.invocation));
+        }
         if !matches!(selected.origin, Origin::Result(_) | Origin::Application(_)) {
             return Ok(frame
                 .resolve(self.program, selected)

@@ -4,75 +4,15 @@ use crate::value_access::{
     results::{ApplicationEvidence, InvocationRecipe},
     tests::{bound, input},
 };
-use nocter_model::{AccessCodeId, AccessExpressionId, ArenaBuilder, BuiltinType, ValueParameter};
+use nocter_model::{
+    AccessCodeId, AccessExpressionId, ArenaBuilder, BuiltinType, TypeId, ValueClosure,
+    ValueParameter,
+};
 use std::{num::NonZeroU64, sync::Arc};
 
-struct Fixture {
-    program: Program,
-    creator: AccessCodeId,
-    root: AccessCodeId,
-    formal: ValueParameter,
-    root_formals: [ValueParameter; 2],
-    captured: FunctionWitness,
-    callbacks: [FunctionWitness; 2],
-    sites: [AccessExpressionId; 2],
-}
-fn fixture() -> Fixture {
-    let (sources, tree) = input(
-        "func first(): i32 { 41 }\nfunc second(): i32 { 42 }\nfunc creator(take action: func(): i32): func(): i32 { first }\nfunc root(left: func(): i32, right: func(): i32): i32 { 0 }",
-    );
-    let syntax = bound(&sources, &tree);
-    let query = nocter_declaration_lowering::access_declarations::Query::prepare(syntax).unwrap();
-    let context = query.bind(syntax).unwrap();
-    let header = context.program();
-    let code = |name| header.resolve(header.symbols().get(name).unwrap()).unwrap();
-    let creator = code("creator");
-    let root = code("root");
-    let callbacks = ["first", "second"].map(|name| code(name).into());
-    let parameter = header.codes().get(creator).unwrap().parameters()[0];
-    let formal = parameter.into();
-    let root_formals = std::array::from_fn(|position| {
-        header.codes().get(root).unwrap().parameters()[position].into()
-    });
-    let environment = header.parameters().get(parameter).unwrap().data();
-    let mut body = header.body_types(creator).unwrap();
-    let closure = body.reserve_closure().unwrap();
-    body.closure(
-        closure,
-        environment,
-        nocter_declarations::value_access::FunctionConstraint {
-            invocation: ValueInvocation::Read,
-            inputs: Box::new([]),
-            result: header.data_type(BuiltinType::I32).unwrap(),
-        },
-    )
-    .unwrap();
-    let mut expressions = ArenaBuilder::new();
-    Fixture {
-        program: body.finish(),
-        creator,
-        root,
-        formal,
-        root_formals,
-        captured: FunctionWitness {
-            origin: Origin::Closure(closure),
-            invocation: ValueInvocation::Read,
-        },
-        callbacks,
-        sites: [expressions.insert(()), expressions.insert(())],
-    }
-}
-fn budget() -> WorkBudget {
-    WorkBudget::new(NonZeroU64::new(10_000).unwrap())
-}
-fn captured(fixture: &Fixture, callback: FunctionWitness) -> ConcreteWitness {
-    fixture
-        .program
-        .bind_code(fixture.creator.into(), [(fixture.formal, callback)])
-        .unwrap()
-        .resolve(&fixture.program, fixture.captured)
-        .unwrap()
-}
+mod creations;
+mod fixture;
+use fixture::*;
 
 #[test]
 fn equal_lexical_code_with_different_captured_contexts_cannot_select_an_arbitrary_frame() {
@@ -148,6 +88,19 @@ fn returned_closure_uses_its_actual_creation_frame_instead_of_the_outer_frames_b
         .applications
         .insert(factory, ApplicationEvidence::Witness(fixture.captured));
     evidence.producers.insert(fixture.creator, fixture.captured);
+    let Origin::Closure(closure) = fixture.captured.origin else {
+        unreachable!()
+    };
+    evidence.creations.insert(
+        closure,
+        creation(
+            &fixture,
+            [FunctionWitness {
+                origin: Origin::Parameter(fixture.formal),
+                invocation: ValueInvocation::Read,
+            }],
+        ),
+    );
     evidence.recipes.insert(
         ProducerTerm::Result(fixture.creator.into()),
         ProducerRelation::Union(BTreeSet::from([fixture.captured])),

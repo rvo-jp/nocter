@@ -18,6 +18,45 @@ pub struct ProducerShape {
     root: Facts,
 }
 impl ProducerShape {
+    #[cfg(test)]
+    pub(in crate::value_access::results) fn test_schema(
+        program: &nocter_declarations::value_access::Program,
+        data: TypeId,
+    ) -> Self {
+        let mut store = Store::default();
+        let root = store.received(program, data, true).unwrap();
+        Self {
+            nodes: store.freeze(),
+            root,
+        }
+    }
+    #[cfg(test)]
+    pub(in crate::value_access::results) fn test_terms(
+        terms: impl IntoIterator<Item = FunctionWitness>,
+    ) -> Self {
+        let mut store = Store::default();
+        let mut root = Facts::default();
+        for witness in terms {
+            let term = store.single(witness);
+            root = store.join(root, term);
+        }
+        Self {
+            nodes: store.freeze(),
+            root,
+        }
+    }
+    pub(in crate::value_access::results) fn identity(&self) -> usize {
+        self.root.0
+    }
+    pub(in crate::value_access::results) fn component(
+        &self,
+        field: nocter_model::ValueField,
+    ) -> Self {
+        Self {
+            nodes: self.nodes.clone(),
+            root: facts::select(&self.nodes, self.root, &[field]),
+        }
+    }
     /// Query a structural component's possible producers. Arrays use an element summary;
     /// an empty set proves neither an invalid path nor an absent/initialized runtime payload.
     #[must_use]

@@ -473,6 +473,17 @@ that concrete witness context-free; dependent environments cannot reuse the oute
 merely because the source code agrees. Invocation adaptation delegates to
 `Program::adapt_witness`, preserving the complete capture context and rejecting view upgrades.
 
+A dependent direct closure term requires its retained creation record in that exact creator
+frame. The resolver pairs original and normalized environment schemas with the frozen producer
+shape, visiting shared schema/shape pairs once and charging traversed components to the same
+metadata quota. Actual function leaves provide their canonical formal binding or complete nested
+capture context. Simultaneous occurrences of one context can retain the strongest actually
+supplied view through `Program::adapt_witness`; an alternative producer set must independently
+resolve to one witness. Missing creation records, foreign creator frames, incompatible views and
+conflicting contexts remain unresolved rather than borrowing current outer formal names.
+This closes metadata substitution only; per-value/component executable representation and source
+formal-capture admission still require their separate qualification.
+
 Different concrete alternatives remain unresolved rather than selecting the first witness or
 enumerating a Cartesian set of joint frames. Empty facts supply no success receipt. Anchored
 recursive forwarding can close through the same positive fixed point without host-recursive

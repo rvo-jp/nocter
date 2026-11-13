@@ -31,11 +31,11 @@ alone does not complete capture support. Preserve current rejection until execut
 
 Resolve value-occurrence creation context through the retained source-flow producer equations
 and ordinary value transport, then close source closure creation before admitting formal callable
-captures. Resolve captured environments from the retained source closure-creation snapshots and
-shared structural producer facts, including lexical alias updates. Preserve exact creator-frame
-ownership, canonical environment contracts, budgeted fixed points and conservative alternatives;
-do not substitute outer bindings when producer occurrences or creation snapshots are missing.
-Evaluator and native
+captures. Use original-recipe frame selection in required condition checks and body discovery,
+preserving factored symbolic conditions, exact creator frames and the separate condition-work
+failure class. Then complete value/component transport and representation from the retained
+closure-creation snapshots and shared structural producer facts. Do not substitute outer bindings
+when producer occurrences or creation snapshots are missing. Evaluator and native
 committed calls use the shared original-recipe frame resolver;
 extend occurrence-sensitive realization while preserving the separate plan-work failure class
 and pre-commit preparation behavior. Preserve exact creation contexts,
@@ -132,7 +132,8 @@ not a language restriction derived from the current realization boundary.
   Work quotas bound uncertainty without proving eligibility; module publication retains its
   independent qualification.
 - [ ] Complete nested callable data/witness support through header/data positions and the owning
-  type authority. Qualify concrete representation, substitution and callable input/result evidence;
+  type authority. Keep valid formal structural descriptors separate from owned-payload admission.
+  Qualify concrete representation, substitution and callable input/result evidence;
   one recognized type tree and a matching signature do not erase code/environment identity.
   Any final callable-value extension must satisfy the separate constant/static serialization
   contract; callable environments cannot inherit final-value eligibility from grammar recognition.
