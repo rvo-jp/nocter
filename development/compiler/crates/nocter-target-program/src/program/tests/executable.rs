@@ -64,7 +64,7 @@ fn executable_items_retain_the_specialized_checked_execution_contract() {
     assert_eq!(execution("main"), ExecutableExecution::Immediate);
     assert!(executable.types().iter().any(|(ty, kind)| {
         matches!(kind, nocter_model::TypeKind::Future(output) if *output == i32_)
-            && executable.type_representations().get(ty).is_none()
+            && executable.type_representations().get(ty.into()).is_none()
     }));
 }
 
@@ -199,9 +199,19 @@ fn runtime_environment_excludes_unreachable_concrete_closure_types() {
         .find_map(|(ty, kind)| matches!(kind, nocter_model::TypeKind::Closure { .. }).then_some(ty))
         .expect("checked closure type must remain available to the semantic environment");
 
-    assert!(executable.type_representations().get(unreachable).is_none());
+    assert!(
+        executable
+            .type_representations()
+            .get(nocter_runtime_contract::RuntimeDataId::Source(unreachable))
+            .is_none()
+    );
     let runtime = executable.into_runtime_environment();
-    assert!(runtime.types().get(unreachable).is_none());
+    assert!(
+        runtime
+            .types()
+            .get(nocter_runtime_contract::RuntimeDataId::Source(unreachable))
+            .is_none()
+    );
 }
 
 #[test]
@@ -1252,7 +1262,8 @@ fn executable_type_representations_specialize_complete_nominal_storage() {
     let mut pair_seen = false;
     let mut choice_seen = false;
     for (ty, representation) in executable.type_representations().iter() {
-        let Some(nocter_model::TypeKind::Nominal { definition, .. }) = executable.types().get(ty)
+        let Some(nocter_model::TypeKind::Nominal { definition, .. }) =
+            executable.types().get(ty.source().unwrap())
         else {
             continue;
         };
@@ -1264,7 +1275,10 @@ fn executable_type_representations_specialize_complete_nominal_storage() {
         match (name, representation) {
             (Some("Pair"), RuntimeTypeRepresentation::Struct { fields }) => {
                 assert_eq!(
-                    fields.iter().map(|field| field.ty()).collect::<Vec<_>>(),
+                    fields
+                        .iter()
+                        .map(|field| field.ty().source().unwrap())
+                        .collect::<Vec<_>>(),
                     [i32_, u8_]
                 );
                 pair_seen = true;
@@ -1275,7 +1289,7 @@ fn executable_type_representations_specialize_complete_nominal_storage() {
                     variants[0]
                         .payload()
                         .iter()
-                        .map(|payload| payload.ty())
+                        .map(|payload| payload.ty().source().unwrap())
                         .collect::<Vec<_>>(),
                     [i32_]
                 );
@@ -1283,7 +1297,7 @@ fn executable_type_representations_specialize_complete_nominal_storage() {
                     variants[1]
                         .payload()
                         .iter()
-                        .map(|payload| payload.ty())
+                        .map(|payload| payload.ty().source().unwrap())
                         .collect::<Vec<_>>(),
                     [i32_, u8_]
                 );

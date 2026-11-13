@@ -7,11 +7,11 @@ use crate::{
     MachineFunctionKind, MachineLayoutKind, MachineOperationKind, MachineStackId,
     MachineStackObject, MachineStackPurpose, MachineTerminator,
 };
-use nocter_model::TypeId;
+use nocter_runtime_contract::RuntimeDataId;
 
 pub(crate) fn build(
     context: &Context<'_>,
-    data: TypeId,
+    data: RuntimeDataId,
     owner: MachineFunctionId,
 ) -> Result<MachineFunction, Failure> {
     let mut builder = Builder::new(context, owner);
@@ -86,7 +86,11 @@ pub(crate) fn build(
     let abi = crate::transport::address_signature(data, context.layouts).map_err(Failure::Abi)?;
     builder.finish(MachineFunctionKind::Callable(abi), MachineBlockId::new(0))
 }
-fn cleanup_field(builder: &mut Builder<'_>, data: TypeId, offset: u64) -> Result<(), Failure> {
+fn cleanup_field(
+    builder: &mut Builder<'_>,
+    data: RuntimeDataId,
+    offset: u64,
+) -> Result<(), Failure> {
     let Some(&target) = builder.context.cleanup.get(&data) else {
         return Ok(());
     };
@@ -122,7 +126,7 @@ fn cleanup_field(builder: &mut Builder<'_>, data: TypeId, offset: u64) -> Result
 impl Builder<'_> {
     pub(super) fn cleanup_array(
         &mut self,
-        data: TypeId,
+        data: RuntimeDataId,
         length: u64,
         stride: u64,
     ) -> Result<(), Failure> {
@@ -207,7 +211,7 @@ impl Builder<'_> {
     }
     fn cleanup_range(
         &mut self,
-        data: TypeId,
+        data: RuntimeDataId,
         pointer: crate::MachineValueId,
         start: crate::MachineValueId,
         end: crate::MachineValueId,

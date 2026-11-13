@@ -10,7 +10,7 @@ use crate::{
 };
 
 pub(super) fn lower_async_frame(
-    output: nocter_model::TypeId,
+    output: nocter_runtime_contract::RuntimeDataId,
     frame: &nocter_mir::MirAsyncFrame,
     context: ProgramLoweringContext<'_>,
     ids: &BodyIdentities,

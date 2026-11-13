@@ -116,7 +116,7 @@ pub(super) fn close_type_representations(
             return Err(ExecutableProgramError::DuplicateClosureLayout(layout.ty()));
         }
     }
-    Ok(RuntimeTypeRepresentationTable::new(entries))
+    Ok(RuntimeTypeRepresentationTable::from_source_entries(entries))
 }
 
 fn close_nominal(
@@ -205,7 +205,9 @@ fn close_opaque(
     )?;
     let witness = resolver.specialize_type(witness, &substitution)?;
     pending.insert(witness);
-    Ok(RuntimeTypeRepresentation::Opaque { witness })
+    Ok(RuntimeTypeRepresentation::Opaque {
+        witness: witness.into(),
+    })
 }
 
 fn owner_substitution(

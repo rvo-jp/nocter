@@ -6,7 +6,7 @@ use crate::{
     MachineLayoutKind, MachineOperationKind, MachineOutcomeKind, MachineTerminator, MachineValueId,
 };
 use nocter_mir::value_access::Place;
-use nocter_model::TypeId;
+use nocter_runtime_contract::RuntimeDataId;
 use nocter_runtime_contract::RuntimePrimitive;
 impl Builder<'_> {
     pub(super) fn outcome_tag(
@@ -19,7 +19,7 @@ impl Builder<'_> {
     fn stored_outcome_tag(
         &mut self,
         base: MachineAddressId,
-        ty: TypeId,
+        ty: RuntimeDataId,
     ) -> Result<(MachineAddressId, MachineOutcomeKind), Failure> {
         let Some(MachineLayoutKind::Outcome {
             kind, tag_offset, ..
@@ -58,7 +58,7 @@ impl Builder<'_> {
     pub(super) fn primary_condition(
         &mut self,
         base: MachineAddressId,
-        ty: TypeId,
+        ty: RuntimeDataId,
     ) -> Result<MachineValueId, Failure> {
         let (source, kind) = self.stored_outcome_tag(base, ty)?;
         let data = self.primitive(RuntimePrimitive::Unsigned(8))?;

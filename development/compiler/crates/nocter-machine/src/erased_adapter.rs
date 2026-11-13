@@ -1,7 +1,8 @@
+use nocter_runtime_contract::RuntimeDataId;
 use std::collections::BTreeMap;
 
 use nocter_mir::{MirBody, MirOperationKind, MirProgram};
-use nocter_model::{CallableCapability, ExecutableItemId, MirOperationId, TypeId};
+use nocter_model::{CallableCapability, ExecutableItemId, MirOperationId};
 
 use crate::identity::{MachineErasedAdapterId, MachineId, MachineTable};
 use crate::{
@@ -13,8 +14,8 @@ use crate::{
 #[derive(Clone, Debug)]
 pub(crate) struct MachineErasedAdapter {
     target: ExecutableItemId,
-    environment: TypeId,
-    target_environment: TypeId,
+    environment: RuntimeDataId,
+    target_environment: RuntimeDataId,
     source_capability: CallableCapability,
     destruction: Option<MachineDestructionId>,
     mapped_size: u64,
@@ -26,11 +27,11 @@ impl MachineErasedAdapter {
         self.target
     }
 
-    pub(crate) const fn environment(&self) -> TypeId {
+    pub(crate) const fn environment(&self) -> RuntimeDataId {
         self.environment
     }
 
-    pub(crate) const fn target_environment(&self) -> TypeId {
+    pub(crate) const fn target_environment(&self) -> RuntimeDataId {
         self.target_environment
     }
 
@@ -160,7 +161,9 @@ fn collect_body(
             .map(nocter_mir::MirLocal::ty)
             .ok_or(MachineProgramError::InvalidErasedAdapter(owner, operation))?;
         let environment_layout = layouts.get(erasure.environment_ty()).ok_or(
-            MachineProgramError::MissingStoredLayout(erasure.environment_ty()),
+            MachineProgramError::MissingStoredLayout(
+                nocter_runtime_contract::RuntimeDataId::Source(erasure.environment_ty()),
+            ),
         )?;
         let destruction = if erasure.source_capability() == CallableCapability::Owned {
             None
@@ -176,8 +179,8 @@ fn collect_body(
         };
         let adapter = MachineErasedAdapter {
             target: erasure.body(),
-            environment: erasure.environment_ty(),
-            target_environment,
+            environment: nocter_runtime_contract::RuntimeDataId::Source(erasure.environment_ty()),
+            target_environment: nocter_runtime_contract::RuntimeDataId::Source(target_environment),
             source_capability: erasure.source_capability(),
             destruction,
             mapped_size: environment_layout.size().max(1),

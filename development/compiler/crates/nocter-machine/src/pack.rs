@@ -1,6 +1,5 @@
-use nocter_model::TypeId;
-
 use crate::{MachineAddressId, MachineFunctionId, MachineResultAbi, MachineValueId};
+use nocter_runtime_contract::RuntimeDataId;
 
 /// How a successful spread item becomes one pack element.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -12,16 +11,16 @@ pub enum MachinePackContribution {
 /// The validated optional result representation produced by one spread iterator callback.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MachinePackNextOutcome {
-    result: TypeId,
-    item: TypeId,
+    result: RuntimeDataId,
+    item: RuntimeDataId,
     tag_offset: u64,
     payload_offset: u64,
 }
 
 impl MachinePackNextOutcome {
     pub(crate) const fn new(
-        result: TypeId,
-        item: TypeId,
+        result: RuntimeDataId,
+        item: RuntimeDataId,
         tag_offset: u64,
         payload_offset: u64,
     ) -> Self {
@@ -34,12 +33,12 @@ impl MachinePackNextOutcome {
     }
 
     #[must_use]
-    pub const fn result(self) -> TypeId {
+    pub const fn result(self) -> RuntimeDataId {
         self.result
     }
 
     #[must_use]
-    pub const fn item(self) -> TypeId {
+    pub const fn item(self) -> RuntimeDataId {
         self.item
     }
 
@@ -94,7 +93,7 @@ impl MachinePackNext {
     }
 
     #[must_use]
-    pub const fn item(&self) -> TypeId {
+    pub const fn item(&self) -> RuntimeDataId {
         self.outcome.item()
     }
 }
@@ -173,8 +172,8 @@ pub enum MachinePackSegment {
 /// One caller-owned literal descriptor transferred through the hidden pack pointer lane.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MachinePack {
-    element: TypeId,
-    next: TypeId,
+    element: RuntimeDataId,
+    next: RuntimeDataId,
     next_result: MachineResultAbi,
     length: MachineValueId,
     segments: Box<[MachinePackSegment]>,
@@ -182,8 +181,8 @@ pub struct MachinePack {
 
 impl MachinePack {
     pub(crate) fn new(
-        element: TypeId,
-        next: TypeId,
+        element: RuntimeDataId,
+        next: RuntimeDataId,
         next_result: MachineResultAbi,
         length: MachineValueId,
         segments: impl Into<Box<[MachinePackSegment]>>,
@@ -198,12 +197,12 @@ impl MachinePack {
     }
 
     #[must_use]
-    pub const fn element(&self) -> TypeId {
+    pub const fn element(&self) -> RuntimeDataId {
         self.element
     }
 
     #[must_use]
-    pub const fn next(&self) -> TypeId {
+    pub const fn next(&self) -> RuntimeDataId {
         self.next
     }
 

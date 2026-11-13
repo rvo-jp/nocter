@@ -175,7 +175,7 @@ impl MirValidationEnvironment for TestEnvironment {
     }
 
     fn type_representation(&self, ty: TypeId) -> Option<&RuntimeTypeRepresentation> {
-        self.representations.get(ty)
+        self.representations.get(ty.into())
     }
 
     fn runtime_type(&self, ty: TypeId) -> Option<&RuntimeType> {

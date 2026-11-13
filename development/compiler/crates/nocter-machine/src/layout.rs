@@ -2,9 +2,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use nocter_mir::{MirBody, MirCallTarget, MirOperationKind, MirProgram, MirRoot};
-use nocter_model::{CaptureId, FieldId, ParameterId, TypeId, ValueField, VariantId};
+use nocter_model::{CaptureId, FieldId, ParameterId, ValueField, VariantId};
 use nocter_runtime_contract::{
-    RuntimeAbiIdentity, RuntimeEnvironment, RuntimePrimitive, RuntimeType,
+    RuntimeAbiIdentity, RuntimeDataId, RuntimeEnvironment, RuntimePrimitive, RuntimeType,
     RuntimeTypeRepresentation, RuntimeTypeRepresentationTable, RuntimeTypeTable,
 };
 
@@ -38,19 +38,19 @@ impl MachineOutcomeKind {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MachineFieldLayout {
-    ty: TypeId,
+    ty: RuntimeDataId,
     offset: u64,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MachineTupleElementLayout {
-    ty: TypeId,
+    ty: RuntimeDataId,
     offset: u64,
 }
 
 impl MachineTupleElementLayout {
     #[must_use]
-    pub const fn ty(self) -> TypeId {
+    pub const fn ty(self) -> RuntimeDataId {
         self.ty
     }
 
@@ -62,7 +62,7 @@ impl MachineTupleElementLayout {
 
 impl MachineFieldLayout {
     #[must_use]
-    pub const fn ty(self) -> TypeId {
+    pub const fn ty(self) -> RuntimeDataId {
         self.ty
     }
 
@@ -74,13 +74,13 @@ impl MachineFieldLayout {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MachinePayloadLayout {
-    ty: TypeId,
+    ty: RuntimeDataId,
     offset: u64,
 }
 
 impl MachinePayloadLayout {
     #[must_use]
-    pub const fn ty(self) -> TypeId {
+    pub const fn ty(self) -> RuntimeDataId {
         self.ty
     }
 
@@ -110,13 +110,13 @@ impl MachineEnumVariantLayout {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MachineCaptureLayout {
-    ty: TypeId,
+    ty: RuntimeDataId,
     offset: u64,
 }
 
 impl MachineCaptureLayout {
     #[must_use]
-    pub const fn ty(self) -> TypeId {
+    pub const fn ty(self) -> RuntimeDataId {
         self.ty
     }
 
@@ -130,7 +130,7 @@ impl MachineCaptureLayout {
 pub enum MachineLayoutKind {
     Unit,
     StaticCallable {
-        environment: Option<TypeId>,
+        environment: Option<RuntimeDataId>,
     },
     Scalar(MachineScalar),
     Pointer,
@@ -155,7 +155,7 @@ pub enum MachineLayoutKind {
         variants: Box<[MachineEnumVariantLayout]>,
     },
     FixedArray {
-        element: TypeId,
+        element: RuntimeDataId,
         length: u64,
         stride: u64,
     },
@@ -177,11 +177,11 @@ pub enum MachineLayoutKind {
         kind: MachineOutcomeKind,
         tag_offset: u64,
         payload_offset: u64,
-        primary: Option<TypeId>,
-        alternate: Option<TypeId>,
+        primary: Option<RuntimeDataId>,
+        alternate: Option<RuntimeDataId>,
     },
     Opaque {
-        witness: TypeId,
+        witness: RuntimeDataId,
     },
 }
 
@@ -213,8 +213,8 @@ impl MachineLayout {
 #[derive(Debug)]
 pub struct MachineLayoutStore {
     target: MachineTarget,
-    layouts: BTreeMap<TypeId, MachineLayout>,
-    classes: BTreeMap<TypeId, crate::MachineValueClass>,
+    layouts: BTreeMap<RuntimeDataId, MachineLayout>,
+    classes: BTreeMap<RuntimeDataId, crate::MachineValueClass>,
 }
 
 /// Construction-time correspondence between validated semantic members and frozen layouts.
@@ -225,11 +225,11 @@ pub struct MachineLayoutStore {
 #[derive(Debug)]
 pub struct MachineLayoutPlan {
     store: MachineLayoutStore,
-    fields: BTreeMap<(TypeId, FieldId), MachineFieldLayout>,
-    value_fields: BTreeMap<(TypeId, ValueField), MachineFieldLayout>,
-    variants: BTreeMap<(TypeId, VariantId), MachineEnumVariantLayout>,
-    payloads: BTreeMap<(TypeId, VariantId, ParameterId), MachinePayloadLayout>,
-    captures: BTreeMap<(TypeId, CaptureId), MachineCaptureLayout>,
+    fields: BTreeMap<(RuntimeDataId, FieldId), MachineFieldLayout>,
+    value_fields: BTreeMap<(RuntimeDataId, ValueField), MachineFieldLayout>,
+    variants: BTreeMap<(RuntimeDataId, VariantId), MachineEnumVariantLayout>,
+    payloads: BTreeMap<(RuntimeDataId, VariantId, ParameterId), MachinePayloadLayout>,
+    captures: BTreeMap<(RuntimeDataId, CaptureId), MachineCaptureLayout>,
 }
 
 impl MachineLayoutStore {
@@ -249,18 +249,18 @@ impl MachineLayoutStore {
     }
 
     #[must_use]
-    pub fn get(&self, ty: TypeId) -> Option<&MachineLayout> {
-        self.layouts.get(&ty)
+    pub fn get(&self, ty: impl Into<RuntimeDataId>) -> Option<&MachineLayout> {
+        self.layouts.get(&ty.into())
     }
 
     /// Returns Machine's single completed transport classification for this stored type.
     #[must_use]
-    pub fn class(&self, ty: TypeId) -> Option<crate::MachineValueClass> {
-        self.classes.get(&ty).copied()
+    pub fn class(&self, ty: impl Into<RuntimeDataId>) -> Option<crate::MachineValueClass> {
+        self.classes.get(&ty.into()).copied()
     }
 
     #[must_use]
-    pub fn iter(&self) -> impl ExactSizeIterator<Item = (TypeId, &MachineLayout)> {
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = (RuntimeDataId, &MachineLayout)> {
         self.layouts.iter().map(|(ty, layout)| (*ty, layout))
     }
 }
@@ -283,11 +283,11 @@ impl MachineLayoutPlan {
             roots.insert(pointer);
         }
         for (_, function) in program.functions().iter() {
-            roots.insert(function.result());
+            roots.insert(function.result().into());
             collect_body_types(function.body(), program.types(), &mut roots);
         }
         for (_, value) in program.statics().iter() {
-            roots.insert(value.ty());
+            roots.insert(value.ty().into());
         }
         match program.root() {
             MirRoot::Process(root) => {
@@ -316,7 +316,7 @@ impl MachineLayoutPlan {
     /// Rejects unsized, symbolic, recursive-by-value or overflowing storage requests.
     pub fn from_runtime(
         environment: &RuntimeEnvironment,
-        roots: impl IntoIterator<Item = TypeId>,
+        roots: impl IntoIterator<Item = RuntimeDataId>,
     ) -> Result<Self, MachineLayoutError> {
         Self::compute(
             environment.types(),
@@ -330,7 +330,7 @@ impl MachineLayoutPlan {
         types: &RuntimeTypeTable,
         representations: &RuntimeTypeRepresentationTable,
         abi: RuntimeAbiIdentity,
-        roots: impl IntoIterator<Item = TypeId>,
+        roots: impl IntoIterator<Item = RuntimeDataId>,
     ) -> Result<Self, MachineLayoutError> {
         let target = MachineTarget::select(abi);
         let mut builder = LayoutBuilder {
@@ -366,7 +366,7 @@ impl MachineLayoutPlan {
 
     /// Resolves an exact value-model field before discarding construction correspondence.
     #[must_use]
-    pub fn value_field(&self, ty: TypeId, field: ValueField) -> Option<MachineFieldLayout> {
+    pub fn value_field(&self, ty: RuntimeDataId, field: ValueField) -> Option<MachineFieldLayout> {
         if let ValueField::Variant(primary) = field {
             let MachineLayoutKind::Outcome {
                 primary: first,
@@ -403,37 +403,45 @@ impl MachineLayoutPlan {
     }
 
     #[must_use]
-    pub fn get(&self, ty: TypeId) -> Option<&MachineLayout> {
+    pub fn get(&self, ty: impl Into<RuntimeDataId>) -> Option<&MachineLayout> {
         self.store.get(ty)
     }
 
     #[must_use]
-    pub(crate) fn field(&self, ty: TypeId, field: FieldId) -> Option<MachineFieldLayout> {
-        self.fields.get(&(ty, field)).copied()
+    pub(crate) fn field(
+        &self,
+        ty: impl Into<RuntimeDataId>,
+        field: FieldId,
+    ) -> Option<MachineFieldLayout> {
+        self.fields.get(&(ty.into(), field)).copied()
     }
 
     #[must_use]
     pub(crate) fn variant(
         &self,
-        ty: TypeId,
+        ty: impl Into<RuntimeDataId>,
         variant: VariantId,
     ) -> Option<&MachineEnumVariantLayout> {
-        self.variants.get(&(ty, variant))
+        self.variants.get(&(ty.into(), variant))
     }
 
     #[must_use]
     pub(crate) fn payload(
         &self,
-        ty: TypeId,
+        ty: impl Into<RuntimeDataId>,
         variant: VariantId,
         parameter: ParameterId,
     ) -> Option<MachinePayloadLayout> {
-        self.payloads.get(&(ty, variant, parameter)).copied()
+        self.payloads.get(&(ty.into(), variant, parameter)).copied()
     }
 
     #[must_use]
-    pub(crate) fn capture(&self, ty: TypeId, capture: CaptureId) -> Option<MachineCaptureLayout> {
-        self.captures.get(&(ty, capture)).copied()
+    pub(crate) fn capture(
+        &self,
+        ty: impl Into<RuntimeDataId>,
+        capture: CaptureId,
+    ) -> Option<MachineCaptureLayout> {
+        self.captures.get(&(ty.into(), capture)).copied()
     }
 
     /// Discards semantic member indexes after all physical projections have been materialized.
@@ -461,20 +469,20 @@ struct LayoutBuilder<'program> {
     representations: &'program RuntimeTypeRepresentationTable,
     abi: RuntimeAbiIdentity,
     target: MachineTarget,
-    layouts: BTreeMap<TypeId, MachineLayout>,
-    classes: BTreeMap<TypeId, crate::MachineValueClass>,
-    required: BTreeSet<TypeId>,
-    fields: BTreeMap<(TypeId, FieldId), MachineFieldLayout>,
-    value_fields: BTreeMap<(TypeId, ValueField), MachineFieldLayout>,
-    variants: BTreeMap<(TypeId, VariantId), MachineEnumVariantLayout>,
-    payloads: BTreeMap<(TypeId, VariantId, ParameterId), MachinePayloadLayout>,
-    captures: BTreeMap<(TypeId, CaptureId), MachineCaptureLayout>,
+    layouts: BTreeMap<RuntimeDataId, MachineLayout>,
+    classes: BTreeMap<RuntimeDataId, crate::MachineValueClass>,
+    required: BTreeSet<RuntimeDataId>,
+    fields: BTreeMap<(RuntimeDataId, FieldId), MachineFieldLayout>,
+    value_fields: BTreeMap<(RuntimeDataId, ValueField), MachineFieldLayout>,
+    variants: BTreeMap<(RuntimeDataId, VariantId), MachineEnumVariantLayout>,
+    payloads: BTreeMap<(RuntimeDataId, VariantId, ParameterId), MachinePayloadLayout>,
+    captures: BTreeMap<(RuntimeDataId, CaptureId), MachineCaptureLayout>,
 }
 
 impl LayoutBuilder<'_> {
     /// Compute from actual layout requests without recursive host calls or a second edge policy.
     /// Compute helpers request all positive children before publishing member correspondence.
-    fn prepare(&mut self, root: TypeId) -> Result<(), MachineLayoutError> {
+    fn prepare(&mut self, root: RuntimeDataId) -> Result<(), MachineLayoutError> {
         let mut pending = vec![(root, false)];
         let mut active = BTreeSet::new();
         while let Some((ty, retry)) = pending.pop() {
@@ -513,7 +521,7 @@ impl LayoutBuilder<'_> {
     }
     fn require_layouts(
         &mut self,
-        types: impl IntoIterator<Item = TypeId>,
+        types: impl IntoIterator<Item = RuntimeDataId>,
     ) -> Result<(), MachineLayoutError> {
         let mut missing = None;
         for ty in types {
@@ -532,7 +540,7 @@ impl LayoutBuilder<'_> {
             Ok(())
         }
     }
-    fn layout(&mut self, ty: TypeId) -> Result<&MachineLayout, MachineLayoutError> {
+    fn layout(&mut self, ty: RuntimeDataId) -> Result<&MachineLayout, MachineLayoutError> {
         self.require_layouts([ty])?;
         self.layouts
             .get(&ty)
@@ -542,7 +550,7 @@ impl LayoutBuilder<'_> {
     #[allow(clippy::too_many_lines)]
     fn compute(
         &mut self,
-        ty: TypeId,
+        ty: RuntimeDataId,
         kind: &RuntimeType,
     ) -> Result<MachineLayout, MachineLayoutError> {
         match kind {
@@ -699,7 +707,7 @@ impl LayoutBuilder<'_> {
 
     fn primitive(
         &self,
-        ty: TypeId,
+        ty: RuntimeDataId,
         primitive: RuntimePrimitive,
     ) -> Result<MachineLayout, MachineLayoutError> {
         if primitive == RuntimePrimitive::Text
@@ -751,7 +759,7 @@ impl LayoutBuilder<'_> {
         }
     }
 
-    fn nominal(&mut self, ty: TypeId) -> Result<MachineLayout, MachineLayoutError> {
+    fn nominal(&mut self, ty: RuntimeDataId) -> Result<MachineLayout, MachineLayoutError> {
         let representation = self
             .representations
             .get(ty)
@@ -779,8 +787,8 @@ impl LayoutBuilder<'_> {
 
     fn structure(
         &mut self,
-        ty: TypeId,
-        members: impl IntoIterator<Item = (Member, TypeId)>,
+        ty: RuntimeDataId,
+        members: impl IntoIterator<Item = (Member, RuntimeDataId)>,
     ) -> Result<MachineLayout, MachineLayoutError> {
         let members = members.into_iter().collect::<Vec<_>>();
         let (size, alignment, offsets) =
@@ -813,8 +821,8 @@ impl LayoutBuilder<'_> {
 
     fn tuple(
         &mut self,
-        ty: TypeId,
-        elements: &[TypeId],
+        ty: RuntimeDataId,
+        elements: &[RuntimeDataId],
     ) -> Result<MachineLayout, MachineLayoutError> {
         let (size, alignment, offsets) = self.member_offsets(ty, elements.iter().copied())?;
         let elements = elements
@@ -833,7 +841,7 @@ impl LayoutBuilder<'_> {
 
     fn enumeration(
         &mut self,
-        ty: TypeId,
+        ty: RuntimeDataId,
         variants: &[nocter_runtime_contract::RuntimeVariantRepresentation],
     ) -> Result<MachineLayout, MachineLayoutError> {
         if variants.is_empty() || variants.len() > 256 {
@@ -916,7 +924,7 @@ impl LayoutBuilder<'_> {
         })
     }
 
-    fn closure(&mut self, ty: TypeId) -> Result<MachineLayout, MachineLayoutError> {
+    fn closure(&mut self, ty: RuntimeDataId) -> Result<MachineLayout, MachineLayoutError> {
         let Some(RuntimeTypeRepresentation::Closure { captures }) = self.representations.get(ty)
         else {
             return Err(MachineLayoutError::MissingRepresentation(ty));
@@ -950,10 +958,10 @@ impl LayoutBuilder<'_> {
     }
 
     fn outcome(
-        ty: TypeId,
+        ty: RuntimeDataId,
         kind: MachineOutcomeKind,
-        primary: Option<(MachineLayout, TypeId)>,
-        alternate: Option<(MachineLayout, TypeId)>,
+        primary: Option<(MachineLayout, RuntimeDataId)>,
+        alternate: Option<(MachineLayout, RuntimeDataId)>,
     ) -> Result<MachineLayout, MachineLayoutError> {
         let alignment = primary
             .as_ref()
@@ -986,8 +994,8 @@ impl LayoutBuilder<'_> {
 
     fn member_offsets(
         &mut self,
-        owner: TypeId,
-        members: impl IntoIterator<Item = TypeId>,
+        owner: RuntimeDataId,
+        members: impl IntoIterator<Item = RuntimeDataId>,
     ) -> Result<(u64, u64, Vec<u64>), MachineLayoutError> {
         let members = members.into_iter().collect::<Vec<_>>();
         self.require_layouts(members.iter().copied())?;
@@ -1008,29 +1016,44 @@ impl LayoutBuilder<'_> {
     }
 }
 
-fn collect_body_types(body: &MirBody, store: &RuntimeTypeTable, types: &mut BTreeSet<TypeId>) {
+fn collect_body_types(
+    body: &MirBody,
+    store: &RuntimeTypeTable,
+    types: &mut BTreeSet<RuntimeDataId>,
+) {
     if let Some(pack) = body.pack() {
-        types.extend([pack.element(), pack.next()]);
+        types.extend([
+            RuntimeDataId::from(pack.element()),
+            RuntimeDataId::from(pack.next()),
+        ]);
     }
-    types.extend(body.locals().iter().map(|(_, local)| local.ty()));
+    types.extend(
+        body.locals()
+            .iter()
+            .map(|(_, local)| RuntimeDataId::from(local.ty())),
+    );
     types.extend(body.places().iter().filter_map(|(_, place)| {
         (!matches!(
-            store.get(place.ty()),
+            store.get(RuntimeDataId::from(place.ty())),
             Some(RuntimeType::Primitive(RuntimePrimitive::Text) | RuntimeType::Slice(_))
         ))
-        .then_some(place.ty())
+        .then_some(RuntimeDataId::from(place.ty()))
     }));
-    types.extend(body.values().iter().map(|(_, value)| value.ty()));
+    types.extend(
+        body.values()
+            .iter()
+            .map(|(_, value)| RuntimeDataId::from(value.ty())),
+    );
     for (_, operation) in body.operations().iter() {
         if let MirOperationKind::Call(call) = operation.kind()
             && let MirCallTarget::StandardPrimitive { type_arguments, .. } = call.target()
         {
-            types.extend(type_arguments.iter().copied());
+            types.extend(type_arguments.iter().copied().map(RuntimeDataId::from));
         }
     }
 }
 
-fn is_completion_type(types: &RuntimeTypeTable, ty: TypeId) -> bool {
+fn is_completion_type(types: &RuntimeTypeTable, ty: RuntimeDataId) -> bool {
     matches!(
         types.get(ty),
         Some(RuntimeType::Primitive(
@@ -1039,7 +1062,7 @@ fn is_completion_type(types: &RuntimeTypeTable, ty: TypeId) -> bool {
     )
 }
 
-fn is_void(types: &RuntimeTypeTable, ty: TypeId) -> bool {
+fn is_void(types: &RuntimeTypeTable, ty: RuntimeDataId) -> bool {
     matches!(
         types.get(ty),
         Some(RuntimeType::Primitive(RuntimePrimitive::Void))
@@ -1059,13 +1082,13 @@ fn integer(bits: u16, signed: bool) -> Result<(u64, u64, MachineLayoutKind), Mac
 fn primitive(
     types: &RuntimeTypeTable,
     primitive: RuntimePrimitive,
-) -> Result<TypeId, MachineLayoutError> {
+) -> Result<RuntimeDataId, MachineLayoutError> {
     types
         .primitive(primitive)
         .ok_or(MachineLayoutError::MissingPrimitive(primitive))
 }
 
-fn align_up(value: u64, alignment: u64, ty: TypeId) -> Result<u64, MachineLayoutError> {
+fn align_up(value: u64, alignment: u64, ty: RuntimeDataId) -> Result<u64, MachineLayoutError> {
     let mask = alignment
         .checked_sub(1)
         .ok_or(MachineLayoutError::InvalidAlignment { ty, alignment })?;
@@ -1080,16 +1103,16 @@ fn align_up(value: u64, alignment: u64, ty: TypeId) -> Result<u64, MachineLayout
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MachineLayoutError {
-    UnknownType(TypeId),
+    UnknownType(RuntimeDataId),
     MissingPrimitive(RuntimePrimitive),
     InvalidIntegerWidth(u16),
-    UnsizedOrSymbolicType(TypeId),
-    MissingRepresentation(TypeId),
-    InvalidRepresentation(TypeId),
-    RecursiveValue(TypeId),
-    LayoutOverflow(TypeId),
-    InvalidAlignment { ty: TypeId, alignment: u64 },
-    UnsupportedRuntimeStorage(TypeId),
+    UnsizedOrSymbolicType(RuntimeDataId),
+    MissingRepresentation(RuntimeDataId),
+    InvalidRepresentation(RuntimeDataId),
+    RecursiveValue(RuntimeDataId),
+    LayoutOverflow(RuntimeDataId),
+    InvalidAlignment { ty: RuntimeDataId, alignment: u64 },
+    UnsupportedRuntimeStorage(RuntimeDataId),
 }
 
 impl fmt::Display for MachineLayoutError {

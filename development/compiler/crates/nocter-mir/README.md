@@ -59,6 +59,10 @@ data/input authority. Its builder freezes the reachable control graph, interns d
 selected scalar operations and static calls, and integrates resource phases and committed call
 bindings. The result contains its runtime environment and closed bodies, with no checking/target
 storage reference. There is no separately pairable storage companion or released MirProgram adapter.
+Slots, places, static data and value signatures retain the
+[runtime storage identities](../nocter-runtime-contract/README.md#runtime-storage-identities).
+Component integrity and sparse cleanup paths use the closed runtime environment's shared type
+projection, independently of source checking and without a reverse semantic-type lookup.
 Static primitive edges retain their closed roles without adding a body or input locals. Validation
 checks their data and input operations against the runtime contract's sole value signature;
 unsupported roles and substituted signatures reject. Only body edges participate in body-graph

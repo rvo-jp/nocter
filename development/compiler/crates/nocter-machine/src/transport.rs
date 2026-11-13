@@ -1,12 +1,11 @@
+use nocter_runtime_contract::RuntimeDataId;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use nocter_mir::{
     MirBody, MirCallSignature, MirCallTarget, MirFunction, MirOperationKind, MirProgram, MirRoot,
 };
-use nocter_model::{
-    AccessLocalId, Arena, ArenaBuilder, ExecutableItemId, TypeId, ValueInputOperation,
-};
+use nocter_model::{AccessLocalId, Arena, ArenaBuilder, ExecutableItemId, ValueInputOperation};
 use nocter_runtime_contract::{
     RuntimePrimitive, RuntimeType, RuntimeTypeTable, RuntimeValueInput, RuntimeValueSignature,
 };
@@ -101,14 +100,14 @@ pub enum MachineArgumentLocation {
 /// One source-level argument after stored-value classification and left-to-right placement.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MachineArgumentAbi {
-    ty: TypeId,
+    ty: RuntimeDataId,
     class: MachineValueClass,
     location: Option<MachineArgumentLocation>,
 }
 
 impl MachineArgumentAbi {
     #[must_use]
-    pub const fn ty(self) -> TypeId {
+    pub const fn ty(self) -> RuntimeDataId {
         self.ty
     }
 
@@ -127,20 +126,20 @@ impl MachineArgumentAbi {
 /// The compiler-owned pointer lane used by an argument-pack body.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MachinePackAbi {
-    element: TypeId,
-    next: TypeId,
+    element: RuntimeDataId,
+    next: RuntimeDataId,
     next_result: MachineResultAbi,
     pointer: MachineRegisterSpan,
 }
 
 impl MachinePackAbi {
     #[must_use]
-    pub const fn element(self) -> TypeId {
+    pub const fn element(self) -> RuntimeDataId {
         self.element
     }
 
     #[must_use]
-    pub const fn next(self) -> TypeId {
+    pub const fn next(self) -> RuntimeDataId {
         self.next
     }
 
@@ -166,14 +165,14 @@ pub enum MachineResultLocation {
 /// One concrete stored return value and its ABI transport.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MachineReturnedValue {
-    ty: TypeId,
+    ty: RuntimeDataId,
     class: MachineValueClass,
     location: MachineResultLocation,
 }
 
 impl MachineReturnedValue {
     #[must_use]
-    pub const fn ty(self) -> TypeId {
+    pub const fn ty(self) -> RuntimeDataId {
         self.ty
     }
 
@@ -309,11 +308,14 @@ pub(crate) struct MachineAbiPlan {
 
 /// Machine-owned lookup from a borrowed MIR signature to the canonical runtime-call ABI identity.
 ///
-/// The two-level map permits lookup by `&[TypeId]` without requiring MIR signatures to implement
+/// The two-level map permits lookup by the source MIR's `&[nocter_model::TypeId]` without requiring its signatures to implement
 /// ordering or allocating a temporary owned key for repeated calls.
 #[derive(Debug, Default)]
 struct MachineRuntimeCallSignatureIndex {
-    by_parameters: BTreeMap<Box<[TypeId]>, BTreeMap<TypeId, MachineRuntimeCallAbiId>>,
+    by_parameters: BTreeMap<
+        Box<[nocter_model::TypeId]>,
+        BTreeMap<nocter_model::TypeId, MachineRuntimeCallAbiId>,
+    >,
 }
 
 /// Runtime targets and erased callables may have the same source signature but different physical
@@ -382,7 +384,7 @@ impl MachineRuntimeCallAbiTable {
 }
 
 pub(crate) fn address_signature(
-    data: TypeId,
+    data: RuntimeDataId,
     layouts: &MachineLayoutStore,
 ) -> Result<MachineCallableAbi, MachineAbiError> {
     place_signature(
@@ -493,9 +495,21 @@ pub(crate) fn plan_erased_signature(
         MachineAbiError::MissingRuntimePrimitive(RuntimePrimitive::Usize),
     )?;
     let parameters = std::iter::once(environment)
-        .chain(signature.parameters().iter().copied())
+        .chain(
+            signature
+                .parameters()
+                .iter()
+                .copied()
+                .map(RuntimeDataId::from),
+        )
         .collect::<Vec<_>>();
-    plan_signature(types, layouts, &parameters, signature.result(), None)
+    plan_signature(
+        types,
+        layouts,
+        &parameters,
+        nocter_runtime_contract::RuntimeDataId::Source(signature.result()),
+        None,
+    )
 }
 
 fn collect_runtime_call_abis(
@@ -524,15 +538,32 @@ fn collect_runtime_call_abis(
                 MachineAbiError::MissingRuntimePrimitive(RuntimePrimitive::Usize),
             )?;
             let parameters = std::iter::once(environment)
-                .chain(signature.parameters().iter().copied())
+                .chain(
+                    signature
+                        .parameters()
+                        .iter()
+                        .copied()
+                        .map(RuntimeDataId::from),
+                )
                 .collect::<Vec<_>>();
-            plan_signature(types, layouts, &parameters, signature.result(), None)?
+            plan_signature(
+                types,
+                layouts,
+                &parameters,
+                nocter_runtime_contract::RuntimeDataId::Source(signature.result()),
+                None,
+            )?
         } else {
             plan_signature(
                 types,
                 layouts,
-                signature.parameters(),
-                signature.result(),
+                &signature
+                    .parameters()
+                    .iter()
+                    .copied()
+                    .map(RuntimeDataId::from)
+                    .collect::<Vec<_>>(),
+                RuntimeDataId::Source(signature.result()),
                 None,
             )?
         };
@@ -556,21 +587,33 @@ fn plan_function(
                 .locals()
                 .get(local)
                 .copied()
-                .map(nocter_mir::MirLocal::ty)
+                .map(|local| RuntimeDataId::Source(local.ty()))
                 .ok_or(MachineAbiError::MissingParameterLocal(local))
         })
         .collect::<Result<Vec<_>, _>>()?;
     let pack = function.pack();
     if let Some(pack) = pack {
-        require_layout(types, layouts, pack.element())?;
-        require_layout(types, layouts, pack.next())?;
+        require_layout(
+            types,
+            layouts,
+            nocter_runtime_contract::RuntimeDataId::Source(pack.element()),
+        )?;
+        require_layout(
+            types,
+            layouts,
+            nocter_runtime_contract::RuntimeDataId::Source(pack.next()),
+        )?;
     }
     let pack = pack
         .map(|pack| {
             Ok(MachinePackAbi {
-                element: pack.element(),
-                next: pack.next(),
-                next_result: plan_result(types, layouts, pack.next())?,
+                element: nocter_runtime_contract::RuntimeDataId::Source(pack.element()),
+                next: nocter_runtime_contract::RuntimeDataId::Source(pack.next()),
+                next_result: plan_result(
+                    types,
+                    layouts,
+                    nocter_runtime_contract::RuntimeDataId::Source(pack.next()),
+                )?,
                 pointer: MachineRegisterSpan {
                     first: layouts.target().pack_pointer_register(),
                     words: 1,
@@ -578,14 +621,20 @@ fn plan_function(
             })
         })
         .transpose()?;
-    plan_signature(types, layouts, &parameters, function.result(), pack)
+    plan_signature(
+        types,
+        layouts,
+        &parameters,
+        nocter_runtime_contract::RuntimeDataId::Source(function.result()),
+        pack,
+    )
 }
 
 pub(crate) fn plan_signature(
     types: &RuntimeTypeTable,
     layouts: &MachineLayoutStore,
-    parameters: &[TypeId],
-    result: TypeId,
+    parameters: &[RuntimeDataId],
+    result: RuntimeDataId,
     pack: Option<MachinePackAbi>,
 ) -> Result<MachineCallableAbi, MachineAbiError> {
     let arguments = parameters.iter().copied().map(|ty| {
@@ -609,7 +658,7 @@ pub(crate) fn plan_signature(
 }
 
 struct ArgumentShape {
-    ty: TypeId,
+    ty: RuntimeDataId,
     class: MachineValueClass,
     alignment: u64,
 }
@@ -703,7 +752,7 @@ fn place_signature(
 pub(crate) fn plan_result(
     types: &RuntimeTypeTable,
     layouts: &MachineLayoutStore,
-    ty: TypeId,
+    ty: RuntimeDataId,
 ) -> Result<MachineResultAbi, MachineAbiError> {
     match types.get(ty) {
         Some(RuntimeType::Primitive(RuntimePrimitive::Void)) => Ok(MachineResultAbi::Completion),
@@ -718,7 +767,7 @@ pub(crate) fn plan_result(
 
 fn plan_stored_result(
     layouts: &MachineLayoutStore,
-    ty: TypeId,
+    ty: RuntimeDataId,
 ) -> Result<MachineResultAbi, MachineAbiError> {
     let target = layouts.target();
     let class = layouts
@@ -768,7 +817,7 @@ fn stack_transport(
 fn require_layout<'layout>(
     types: &RuntimeTypeTable,
     layouts: &'layout MachineLayoutStore,
-    ty: TypeId,
+    ty: RuntimeDataId,
 ) -> Result<&'layout MachineLayout, MachineAbiError> {
     if types.get(ty).is_none() {
         return Err(MachineAbiError::UnknownType(ty));
@@ -776,7 +825,7 @@ fn require_layout<'layout>(
     layouts.get(ty).ok_or(MachineAbiError::MissingLayout(ty))
 }
 
-fn is_completion_type(types: &RuntimeTypeTable, ty: TypeId) -> bool {
+fn is_completion_type(types: &RuntimeTypeTable, ty: RuntimeDataId) -> bool {
     matches!(
         types.get(ty),
         Some(RuntimeType::Primitive(
@@ -799,17 +848,17 @@ pub(crate) fn align_up(value: u64, alignment: u64) -> Result<u64, MachineAbiErro
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MachineAbiError {
     DuplicateValueInput(AccessLocalId),
-    UnknownType(TypeId),
+    UnknownType(RuntimeDataId),
     MissingRuntimePrimitive(RuntimePrimitive),
-    MissingLayout(TypeId),
+    MissingLayout(RuntimeDataId),
     MissingParameterLocal(nocter_model::MirLocalId),
-    CompletionArgument(TypeId),
+    CompletionArgument(RuntimeDataId),
     MismatchedFunctionIdentity {
         expected: ExecutableItemId,
         actual: ExecutableItemId,
     },
     InvalidDirectResult {
-        ty: TypeId,
+        ty: RuntimeDataId,
         words: u8,
     },
     ZeroValueHasLocation,

@@ -896,7 +896,9 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     return Err(invalid());
                 }
                 for ((field, value), expected) in fields.iter().zip(declared) {
-                    if *field != expected.field() || self.value_type(*value)? != expected.ty() {
+                    if *field != expected.field()
+                        || Some(self.value_type(*value)?) != expected.ty().source()
+                    {
                         return Err(invalid());
                     }
                 }
@@ -916,7 +918,7 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     .copied()
                     .zip(payload.iter().copied())
                 {
-                    if parameter.ty() != self.value_type(value)? {
+                    if parameter.ty().source() != Some(self.value_type(value)?) {
                         return Err(invalid());
                     }
                 }

@@ -49,7 +49,7 @@ fn lowers_deferred_functions_and_awaits_without_reclassifying_calls() {
                 block.terminator(),
                 MirTerminator::Suspend { computation, resume }
                     if matches!(
-                        program.types().get(function.values().get(*computation).unwrap().ty()),
+                        program.types().get(nocter_runtime_contract::RuntimeDataId::Source(function.values().get(*computation).unwrap().ty())),
                         Some(nocter_runtime_contract::RuntimeType::Future(_))
                     ) && resume.arguments().is_empty()
                         && function.blocks().get(resume.block()).unwrap().parameters().len() == 1
@@ -399,7 +399,7 @@ fn lowers_static_string_values_as_readonly_str_borrows() {
             .map(crate::MirValue::ty);
         text.as_ref() == "hello"
             && matches!(
-                ty.and_then(|ty| program.types().get(ty)),
+                ty.and_then(|ty| program.types().get(ty.into())),
                 Some(nocter_runtime_contract::RuntimeType::Borrow {
                     capability: nocter_model::BorrowCapability::Readonly,
                     referent,
@@ -836,8 +836,8 @@ fn sequence_using_retains_the_same_call_scoped_allocation_lane() {
             call.pack().is_some() && function.places().get(place).is_some_and(|place| {
                 matches!(
                     (
-                        program.types().get(place.ty()),
-                        program.type_representations().get(place.ty()),
+                        program.types().get(nocter_runtime_contract::RuntimeDataId::Source(place.ty())),
+                        program.type_representations().get(nocter_runtime_contract::RuntimeDataId::Source(place.ty())),
                     ),
                     (
                         Some(nocter_runtime_contract::RuntimeType::Aggregate),
@@ -946,8 +946,8 @@ fn typed_string_using_retains_an_explicit_call_scoped_allocation_place() {
                 && function.places().get(place).is_some_and(|place| {
                     matches!(
                         (
-                            program.types().get(place.ty()),
-                            program.type_representations().get(place.ty()),
+                            program.types().get(nocter_runtime_contract::RuntimeDataId::Source(place.ty())),
+                            program.type_representations().get(nocter_runtime_contract::RuntimeDataId::Source(place.ty())),
                         ),
                         (
                             Some(nocter_runtime_contract::RuntimeType::Aggregate),
@@ -1400,7 +1400,7 @@ fn lowers_void_fallible_success_without_fictional_payload_storage() {
         function
             .places()
             .iter()
-            .all(|(_, place)| place.ty() != void)
+            .all(|(_, place)| Some(place.ty()) != void.source())
     }));
 }
 

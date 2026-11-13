@@ -1,6 +1,5 @@
-use nocter_model::TypeId;
-
 use crate::MachineFunctionId;
+use nocter_runtime_contract::RuntimeDataId;
 use nocter_runtime_contract::RuntimeStorageRole;
 
 /// One field cleanup at its frozen byte offset.
@@ -165,7 +164,7 @@ pub enum MachineDestructionKind {
 /// One exact cleanup plan for bytes with a frozen stored layout.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct MachineDestructionPlan {
-    ty: TypeId,
+    ty: RuntimeDataId,
     size: u64,
     alignment: u64,
     kind: MachineDestructionKind,
@@ -173,7 +172,7 @@ pub struct MachineDestructionPlan {
 
 impl MachineDestructionPlan {
     pub(crate) const fn new(
-        ty: TypeId,
+        ty: RuntimeDataId,
         size: u64,
         alignment: u64,
         kind: MachineDestructionKind,
@@ -187,7 +186,7 @@ impl MachineDestructionPlan {
     }
 
     #[must_use]
-    pub const fn ty(&self) -> TypeId {
+    pub const fn ty(&self) -> RuntimeDataId {
         self.ty
     }
 
@@ -209,6 +208,6 @@ impl MachineDestructionPlan {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MachineDestructionError {
-    InvalidLayout(TypeId),
-    MissingMember(TypeId),
+    InvalidLayout(RuntimeDataId),
+    MissingMember(RuntimeDataId),
 }

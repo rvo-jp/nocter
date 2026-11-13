@@ -778,34 +778,38 @@ fn runtime_type_table(
         // A closure type can exist in the checked store without belonging to this executable
         // closure. Its layout is admitted only by the reachable executable item that owns the
         // matching representation; semantic existence alone is not runtime reachability.
-        if matches!(kind, TypeKind::Closure { .. }) && representations.get(ty).is_none() {
+        if matches!(kind, TypeKind::Closure { .. }) && representations.get(ty.into()).is_none() {
             continue;
         }
         let runtime = match kind {
             TypeKind::Builtin(builtin) => {
                 RuntimeType::Primitive(RuntimePrimitive::for_builtin(*builtin))
             }
-            TypeKind::Pointer(pointee) => RuntimeType::Pointer(*pointee),
+            TypeKind::Pointer(pointee) => RuntimeType::Pointer((*pointee).into()),
             TypeKind::Borrow {
                 capability,
                 referent,
             } => RuntimeType::Borrow {
                 capability: *capability,
-                referent: *referent,
+                referent: (*referent).into(),
             },
-            TypeKind::Slice(element) => RuntimeType::Slice(*element),
+            TypeKind::Slice(element) => RuntimeType::Slice((*element).into()),
             TypeKind::FixedArray { element, length } => RuntimeType::FixedArray {
-                element: *element,
+                element: (*element).into(),
                 length: length
                     .closed_value()
                     .ok_or(ExecutableProgramError::InvalidTypeRepresentation(ty))?,
             },
-            TypeKind::Tuple(elements) => {
-                RuntimeType::Tuple(elements.iter().collect::<Vec<_>>().into_boxed_slice())
-            }
+            TypeKind::Tuple(elements) => RuntimeType::Tuple(
+                elements
+                    .iter()
+                    .map(Into::into)
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice(),
+            ),
             TypeKind::PackEntry { key, value } => RuntimeType::PackEntry {
-                key: *key,
-                value: *value,
+                key: (*key).into(),
+                value: (*value).into(),
             },
             TypeKind::Nominal {
                 definition,
@@ -823,9 +827,9 @@ fn runtime_type_table(
             TypeKind::Closure { .. } => RuntimeType::Closure,
             TypeKind::Callable(callable) if callable.is_erased() => RuntimeType::ErasedCallable,
             TypeKind::Callable(_) => RuntimeType::Callable,
-            TypeKind::Optional(payload) => RuntimeType::Optional(*payload),
-            TypeKind::Fallible(payload) => RuntimeType::Fallible(*payload),
-            TypeKind::Future(output) => RuntimeType::Future(*output),
+            TypeKind::Optional(payload) => RuntimeType::Optional((*payload).into()),
+            TypeKind::Fallible(payload) => RuntimeType::Fallible((*payload).into()),
+            TypeKind::Future(output) => RuntimeType::Future((*output).into()),
             TypeKind::Opaque { .. } => RuntimeType::Opaque,
             TypeKind::ValueFunction { .. }
             | TypeKind::GenericParameter(_)

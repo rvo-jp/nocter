@@ -13,6 +13,26 @@ machine, and executable stages consume selected identities; they do not rediscov
 name or standard module path. Loader symbols in this crate are validated target-catalog values, not
 public source-level imports.
 
+## Runtime Storage Identities
+
+`RuntimeDataId` identifies data within one closed runtime environment. `Source(TypeId)` preserves
+an established direct source identity; `Instance` identifies a contextual representation in that
+environment's own namespace. A contextual index never becomes a new semantic type in declarations.
+Neither form is a source-generation, ownership, access or executable-admission certificate.
+
+Runtime type/representation tables and value signatures use this same identity domain. Stored
+references must close in that environment; primitive roles remain unique. Empty-array element
+identities retain their separate metadata-only contract below. Source semantic validation adapts
+only established direct source IDs, while Machine storage, layout, ABI and cleanup retain runtime
+identities throughout. There is no total conversion from a runtime identity to a semantic type.
+
+`RuntimeEnvironment::value_field` and `value_path` own value-model component-type projection from
+these closed tables. They preserve logical selectors and consume the caller's saved-index bound
+check without consulting declaration types. They supply no initialization, source-bounds, backing
+or access proof. Layout offsets and actual ownership transitions remain their consumers' separate
+responsibilities. Contextual shape materialization and formal-environment source admission still
+require qualification by their owning stages.
+
 ## Internal Responsibilities
 
 - primitive role identities

@@ -2,7 +2,7 @@ use nocter_mir::{
     MirCall, MirCallAllocation, MirCallSignature, MirCallTarget, MirPrimitiveDependency,
 };
 use nocter_model::MirOperationId;
-use nocter_runtime_contract::{PrimitiveRole, RuntimeType};
+use nocter_runtime_contract::{PrimitiveRole, RuntimeDataId, RuntimeType};
 
 use super::MachineProgramError;
 use super::body::BodyIdentities;
@@ -91,33 +91,15 @@ pub(super) fn lower_call_target(
                 .abi
                 .runtime_call_signature_id(signature)
                 .ok_or(MachineProgramError::MissingPrimitiveAbi(operation))?;
-            let dependency = match dependency {
-                MirPrimitiveDependency::None
-                    if matches!(
-                        role,
-                        PrimitiveRole::TaskJoin
-                            | PrimitiveRole::TaskRace
-                            | PrimitiveRole::TaskGroupReady
-                    ) =>
-                {
-                    MachinePrimitiveDependency::AsyncTuple(async_tuple_plan(
-                        operation, signature, context,
-                    )?)
-                }
-                MirPrimitiveDependency::None => MachinePrimitiveDependency::None,
-                MirPrimitiveDependency::Destruction { subject, plan } => {
-                    if plan.is_some() {
-                        return Err(MachineProgramError::MissingGeneratedDestruction(
-                            ids.owner(),
-                            operation,
-                        ));
-                    }
-                    MachinePrimitiveDependency::NoopDestruction { subject: *subject }
-                }
-            };
+            let dependency =
+                lower_primitive_dependency(operation, *role, dependency, signature, context, ids)?;
             Ok(MachineCallTarget::Primitive(MachinePrimitiveTarget::new(
                 *role,
-                type_arguments.clone(),
+                type_arguments
+                    .iter()
+                    .copied()
+                    .map(RuntimeDataId::from)
+                    .collect::<Vec<_>>(),
                 abi,
                 dependency,
             )))
@@ -159,12 +141,46 @@ pub(super) fn lower_call_target(
     }
 }
 
+fn lower_primitive_dependency(
+    operation: MirOperationId,
+    role: PrimitiveRole,
+    dependency: &MirPrimitiveDependency,
+    signature: &MirCallSignature,
+    context: ProgramLoweringContext<'_>,
+    ids: &BodyIdentities,
+) -> Result<MachinePrimitiveDependency, MachineProgramError> {
+    Ok(match dependency {
+        MirPrimitiveDependency::None
+            if matches!(
+                role,
+                PrimitiveRole::TaskJoin | PrimitiveRole::TaskRace | PrimitiveRole::TaskGroupReady
+            ) =>
+        {
+            MachinePrimitiveDependency::AsyncTuple(async_tuple_plan(operation, signature, context)?)
+        }
+        MirPrimitiveDependency::None => MachinePrimitiveDependency::None,
+        MirPrimitiveDependency::Destruction { subject, plan } => {
+            if plan.is_some() {
+                return Err(MachineProgramError::MissingGeneratedDestruction(
+                    ids.owner(),
+                    operation,
+                ));
+            }
+            MachinePrimitiveDependency::NoopDestruction {
+                subject: RuntimeDataId::Source(*subject),
+            }
+        }
+    })
+}
+
 fn async_tuple_plan(
     operation: MirOperationId,
     signature: &MirCallSignature,
     context: ProgramLoweringContext<'_>,
 ) -> Result<crate::MachineAsyncTuplePlan, MachineProgramError> {
-    let Some(RuntimeType::Future(output)) = context.types.get(signature.result()) else {
+    let Some(RuntimeType::Future(output)) =
+        context.types.get(RuntimeDataId::Source(signature.result()))
+    else {
         return Err(MachineProgramError::InvalidAsyncTupleResult(operation));
     };
     let Some(RuntimeType::Tuple(elements)) = context.types.get(*output) else {

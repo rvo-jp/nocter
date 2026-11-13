@@ -359,7 +359,7 @@ impl<'a> FunctionLowerer<'a> {
                     .collect::<Result<Vec<_>, MirLoweringError>>()?;
                 let Some(nocter_runtime_contract::RuntimeTypeRepresentation::Struct {
                     fields: representation,
-                }) = self.executable.type_representations().get(ty)
+                }) = self.executable.type_representations().get(ty.into())
                 else {
                     return Err(MirLoweringError::InvalidAggregate(ty));
                 };

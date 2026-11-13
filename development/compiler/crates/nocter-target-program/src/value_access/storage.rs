@@ -42,7 +42,7 @@ pub fn signature(
             .ok_or_else(invalid)?;
         Ok(RuntimeValueInput {
             local: input.local,
-            data: payload.data(),
+            data: payload.data().into(),
             operation: input.operation,
         })
     };
@@ -60,7 +60,11 @@ pub fn signature(
         .payload()
         .ok_or_else(invalid)?
         .data();
-    Ok(RuntimeValueSignature::new(environment, explicit, result))
+    Ok(RuntimeValueSignature::new(
+        environment,
+        explicit,
+        result.into(),
+    ))
 }
 
 /// Projects produced concrete data only. Code selection and access proof remain upstream.
@@ -91,7 +95,7 @@ pub fn prepare(
             PayloadSchema::Array(array) => {
                 if array.is_empty() {
                     RuntimeType::EmptyArray {
-                        element: array.element(),
+                        element: array.element().into(),
                     }
                 } else {
                     pending.insert(array.element());
@@ -100,7 +104,7 @@ pub fn prepare(
                         pending.insert(program.data_type(builtin).ok_or_else(invalid)?);
                     }
                     RuntimeType::FixedArray {
-                        element: array.element(),
+                        element: array.element().into(),
                         length: array.length(),
                     }
                 }
@@ -109,14 +113,14 @@ pub fn prepare(
                 pending.insert(payload);
                 pending.insert(program.data_type(BuiltinType::Bool).ok_or_else(invalid)?);
                 pending.insert(program.data_type(BuiltinType::U8).ok_or_else(invalid)?);
-                RuntimeType::Optional(payload)
+                RuntimeType::Optional(payload.into())
             }
             PayloadSchema::Fallible(payload) => {
                 pending.insert(payload);
                 for builtin in [BuiltinType::Error, BuiltinType::Bool, BuiltinType::U8] {
                     pending.insert(program.data_type(builtin).ok_or_else(invalid)?);
                 }
-                RuntimeType::Fallible(payload)
+                RuntimeType::Fallible(payload.into())
             }
             PayloadSchema::Builtin(builtin) => match builtin {
                 BuiltinType::Bool => RuntimeType::Primitive(RuntimePrimitive::Bool),
@@ -156,14 +160,16 @@ pub fn prepare(
                     | ValueFunctionOrigin::Application(_) => return Err(invalid()),
                 };
                 pending.extend(environment);
-                RuntimeType::StaticCallable { environment }
+                RuntimeType::StaticCallable {
+                    environment: environment.map(Into::into),
+                }
             }
         };
         types.insert(data, kind).map_err(Failure::Types)?;
     }
     RuntimeEnvironment::new(
         types.finish().map_err(Failure::Types)?,
-        RuntimeTypeRepresentationTable::new(representations),
+        RuntimeTypeRepresentationTable::from_source_entries(representations),
         abi,
     )
     .map_err(Failure::Environment)

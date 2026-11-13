@@ -1,7 +1,8 @@
+use nocter_runtime_contract::RuntimeDataId;
 use std::fmt;
 
 use nocter_mir::{MirBody, MirFunctionExecution, MirProgram, MirRoot};
-use nocter_model::{ExecutableItemId, MirOperationId, MirPlaceId, TestId, TypeId};
+use nocter_model::{ExecutableItemId, MirOperationId, MirPlaceId, TestId};
 
 use crate::destruction_table::MachineDestructionPlanTable;
 use crate::identity::{MachineId, MachineTable};
@@ -134,7 +135,7 @@ impl MachineProgram {
 struct FunctionSource<'program> {
     kind: MachineFunctionKind,
     body: &'program MirBody,
-    async_frame: Option<(TypeId, &'program nocter_mir::MirAsyncFrame)>,
+    async_frame: Option<(RuntimeDataId, &'program nocter_mir::MirAsyncFrame)>,
 }
 
 fn function_source<'program>(
@@ -155,7 +156,7 @@ fn function_source<'program>(
             let async_frame = match function.execution() {
                 MirFunctionExecution::Immediate => None,
                 MirFunctionExecution::Deferred { output } => Some((
-                    output,
+                    output.into(),
                     function
                         .async_frame()
                         .ok_or(MachineProgramError::MissingAsyncFrame(item))?,
@@ -300,7 +301,7 @@ pub enum MachineProgramError {
     InvalidAsyncTupleResult(MirOperationId),
     MissingAsyncDestruction(MachineLinkageId),
     DuplicateAsyncDestruction(MachineLinkageId),
-    MissingStoredLayout(TypeId),
+    MissingStoredLayout(RuntimeDataId),
     MissingStaticText(Box<str>),
     InvalidStaticData(nocter_model::ExecutableStaticId),
     MissingBodyIdentity {

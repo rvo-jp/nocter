@@ -1,10 +1,11 @@
 //! Data and input operations remain separate at the source-independent call boundary.
-use nocter_model::{AccessLocalId, TypeId, ValueInputOperation};
+use crate::RuntimeDataId;
+use nocter_model::{AccessLocalId, ValueInputOperation};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RuntimeValueInput {
     pub local: AccessLocalId,
-    pub data: TypeId,
+    pub data: RuntimeDataId,
     pub operation: ValueInputOperation,
 }
 
@@ -13,7 +14,7 @@ pub struct RuntimeValueInput {
 pub struct RuntimeValueSignature {
     environment: Option<RuntimeValueInput>,
     explicit: Box<[RuntimeValueInput]>,
-    result: TypeId,
+    result: RuntimeDataId,
 }
 
 impl RuntimeValueSignature {
@@ -21,7 +22,7 @@ impl RuntimeValueSignature {
     pub fn new(
         environment: Option<RuntimeValueInput>,
         explicit: impl Into<Box<[RuntimeValueInput]>>,
-        result: TypeId,
+        result: RuntimeDataId,
     ) -> Self {
         Self {
             environment,
@@ -41,7 +42,7 @@ impl RuntimeValueSignature {
     }
 
     #[must_use]
-    pub const fn result(&self) -> TypeId {
+    pub const fn result(&self) -> RuntimeDataId {
         self.result
     }
 

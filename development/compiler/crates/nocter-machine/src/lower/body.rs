@@ -23,7 +23,10 @@ use crate::{
 pub(super) fn lower_body(
     owner: MachineLinkageId,
     body: &MirBody,
-    async_frame: Option<(nocter_model::TypeId, &nocter_mir::MirAsyncFrame)>,
+    async_frame: Option<(
+        nocter_runtime_contract::RuntimeDataId,
+        &nocter_mir::MirAsyncFrame,
+    )>,
     context: ProgramLoweringContext<'_>,
 ) -> Result<(crate::MachineBody, crate::MachineFunctionExecution), MachineProgramError> {
     let ids = BodyIdentities::new(owner, body);
@@ -83,9 +86,12 @@ fn lower_stack(
     body.locals()
         .iter()
         .map(|(_, local)| {
-            let layout = layouts
-                .get(local.ty())
-                .ok_or(MachineProgramError::MissingStoredLayout(local.ty()))?;
+            let layout =
+                layouts
+                    .get(local.ty())
+                    .ok_or(MachineProgramError::MissingStoredLayout(
+                        nocter_runtime_contract::RuntimeDataId::Source(local.ty()),
+                    ))?;
             let purpose = match local.kind() {
                 MirLocalKind::Parameter { position } => MachineStackPurpose::Parameter { position },
                 MirLocalKind::User => MachineStackPurpose::User,
@@ -93,7 +99,7 @@ fn lower_stack(
                 MirLocalKind::Region => MachineStackPurpose::Region,
             };
             Ok(MachineStackObject::new(
-                local.ty(),
+                nocter_runtime_contract::RuntimeDataId::Source(local.ty()),
                 layout.size(),
                 layout.alignment(),
                 purpose,
@@ -111,7 +117,11 @@ fn lower_values(
     body.values()
         .iter()
         .map(|(_, value)| {
-            let representation = value_representation(value.ty(), types, layouts)?;
+            let representation = value_representation(
+                nocter_runtime_contract::RuntimeDataId::Source(value.ty()),
+                types,
+                layouts,
+            )?;
             let definition = match value.definition() {
                 MirValueDefinition::BlockParameter { block, position } => {
                     MachineValueDefinition::BlockParameter {
@@ -123,13 +133,17 @@ fn lower_values(
                     MachineValueDefinition::Operation(ids.operation(operation)?)
                 }
             };
-            Ok(MachineValue::new(value.ty(), representation, definition))
+            Ok(MachineValue::new(
+                nocter_runtime_contract::RuntimeDataId::Source(value.ty()),
+                representation,
+                definition,
+            ))
         })
         .collect()
 }
 
 pub(super) fn value_representation(
-    ty: nocter_model::TypeId,
+    ty: nocter_runtime_contract::RuntimeDataId,
     types: &RuntimeTypeTable,
     layouts: &MachineLayoutPlan,
 ) -> Result<MachineValueRepresentation, MachineProgramError> {

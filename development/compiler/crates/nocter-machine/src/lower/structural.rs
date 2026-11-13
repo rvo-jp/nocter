@@ -1,5 +1,6 @@
 use nocter_mir::MirStructuralCall;
-use nocter_model::{BorrowCapability, MirOperationId, TypeId};
+use nocter_model::{BorrowCapability, MirOperationId};
+use nocter_runtime_contract::RuntimeDataId;
 use nocter_runtime_contract::{RuntimePrimitive, RuntimeType, RuntimeTypeTable};
 
 use super::MachineProgramError;
@@ -26,15 +27,15 @@ pub(super) fn lower_structural(
     };
     match target {
         MirStructuralCall::Equality { subject, operand } => lower_comparison(
-            *subject,
-            *operand,
+            nocter_runtime_contract::RuntimeDataId::Source(*subject),
+            nocter_runtime_contract::RuntimeDataId::Source(*operand),
             arguments,
             MachineComparisonOperation::Equal,
             context,
         ),
         MirStructuralCall::Ordering { subject, operand } => lower_comparison(
-            *subject,
-            *operand,
+            nocter_runtime_contract::RuntimeDataId::Source(*subject),
+            nocter_runtime_contract::RuntimeDataId::Source(*operand),
             arguments,
             MachineComparisonOperation::Less,
             context,
@@ -47,16 +48,19 @@ pub(super) fn lower_structural(
             result,
         } => lower_index(
             *capability,
-            *container,
-            *receiver,
-            *index,
-            *result,
+            nocter_runtime_contract::RuntimeDataId::Source(*container),
+            nocter_runtime_contract::RuntimeDataId::Source(*receiver),
+            nocter_runtime_contract::RuntimeDataId::Source(*index),
+            nocter_runtime_contract::RuntimeDataId::Source(*result),
             arguments,
             context,
         ),
-        MirStructuralCall::BorrowWeakening { source, target } => {
-            lower_borrow_weakening(*source, *target, arguments, context)
-        }
+        MirStructuralCall::BorrowWeakening { source, target } => lower_borrow_weakening(
+            nocter_runtime_contract::RuntimeDataId::Source(*source),
+            nocter_runtime_contract::RuntimeDataId::Source(*target),
+            arguments,
+            context,
+        ),
     }
 }
 
@@ -79,8 +83,8 @@ impl StructuralContext<'_> {
 }
 
 fn lower_comparison(
-    subject: TypeId,
-    operand: TypeId,
+    subject: RuntimeDataId,
+    operand: RuntimeDataId,
     arguments: &[nocter_model::MirValueId],
     comparison: MachineComparisonOperation,
     context: StructuralContext<'_>,
@@ -135,10 +139,10 @@ fn lower_comparison(
 
 fn lower_index(
     capability: BorrowCapability,
-    container: TypeId,
-    receiver: TypeId,
-    index: TypeId,
-    result: TypeId,
+    container: RuntimeDataId,
+    receiver: RuntimeDataId,
+    index: RuntimeDataId,
+    result: RuntimeDataId,
     arguments: &[nocter_model::MirValueId],
     context: StructuralContext<'_>,
 ) -> Result<MachineOperationKind, MachineProgramError> {
@@ -181,11 +185,11 @@ fn lower_index(
 }
 
 fn index_domain(
-    container: TypeId,
-    receiver: TypeId,
+    container: RuntimeDataId,
+    receiver: RuntimeDataId,
     types: &RuntimeTypeTable,
     layouts: &MachineLayoutPlan,
-) -> Option<(TypeId, MachineIndexDomain)> {
+) -> Option<(RuntimeDataId, MachineIndexDomain)> {
     match types.get(container)? {
         RuntimeType::FixedArray { element, .. } => {
             if !matches!(layouts.get(receiver)?.kind(), MachineLayoutKind::Pointer) {
@@ -215,10 +219,10 @@ fn index_domain(
 }
 
 fn view_index_domain(
-    element: TypeId,
-    receiver: TypeId,
+    element: RuntimeDataId,
+    receiver: RuntimeDataId,
     layouts: &MachineLayoutPlan,
-) -> Option<(TypeId, MachineIndexDomain)> {
+) -> Option<(RuntimeDataId, MachineIndexDomain)> {
     let MachineLayoutKind::View {
         pointer_offset,
         length_offset,
@@ -238,8 +242,8 @@ fn view_index_domain(
 }
 
 fn lower_borrow_weakening(
-    source: TypeId,
-    target: TypeId,
+    source: RuntimeDataId,
+    target: RuntimeDataId,
     arguments: &[nocter_model::MirValueId],
     context: StructuralContext<'_>,
 ) -> Result<MachineOperationKind, MachineProgramError> {

@@ -32,7 +32,10 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
 
 ## Invariants
 
-- Layout is computed once and reused by every machine consumer.
+- Layout is computed once and reused by every machine consumer. Layout, ABI, stack/address data
+  and cleanup keys retain the [runtime storage identity](../nocter-runtime-contract/README.md#runtime-storage-identities).
+  Released semantic MIR identities are adapted at its boundary; a contextual identity is never
+  relabelled as a semantic type.
 - Layout construction accepts either MIR's selected roots or a closed runtime environment's
   explicit storage roots. Value-model field correspondence preserves its own identity domain;
   only the construction plan retains semantic member indexes. Private input planning consumes

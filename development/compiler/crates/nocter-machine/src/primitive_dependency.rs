@@ -1,5 +1,4 @@
-use nocter_model::TypeId;
-
+use nocter_runtime_contract::RuntimeDataId;
 /// Physical element placement for one two-element asynchronous tuple result.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MachineAsyncTuplePlan {
@@ -34,6 +33,6 @@ impl MachineAsyncTuplePlan {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MachinePrimitiveDependency {
     None,
-    NoopDestruction { subject: TypeId },
+    NoopDestruction { subject: RuntimeDataId },
     AsyncTuple(MachineAsyncTuplePlan),
 }

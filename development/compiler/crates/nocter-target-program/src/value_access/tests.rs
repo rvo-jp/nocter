@@ -796,7 +796,7 @@ fn empty_array_storage_has_identity_without_an_element_payload_edge() {
         assert!(runtime.types().get(element).is_none());
         assert!(runtime.type_representations().get(data).is_none());
         assert!(
-            matches!(graph.unit().program().data_schema(data), Some(nocter_declarations::value_access::PayloadSchema::Array(array)) if array.element() == element && array.is_empty())
+            matches!(graph.unit().program().data_schema(data.source().unwrap()), Some(nocter_declarations::value_access::PayloadSchema::Array(array)) if Some(array.element()) == element.source() && array.is_empty())
         );
     }
 }

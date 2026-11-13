@@ -1,4 +1,4 @@
-use nocter_model::TypeId;
+use nocter_runtime_contract::RuntimeDataId;
 use nocter_runtime_contract::{RuntimePrimitive, RuntimeType, RuntimeTypeTable};
 
 use crate::identity::MachineId;
@@ -55,8 +55,8 @@ struct DestructionBuilder<'a> {
     operations: Vec<MachineOperation>,
     blocks: Vec<BlockDraft>,
     current: MachineBlockId,
-    usize_: TypeId,
-    bool_: TypeId,
+    usize_: RuntimeDataId,
+    bool_: RuntimeDataId,
 }
 
 impl<'a> DestructionBuilder<'a> {
@@ -446,7 +446,7 @@ impl<'a> DestructionBuilder<'a> {
 
     fn append_value(
         &mut self,
-        ty: TypeId,
+        ty: RuntimeDataId,
         kind: MachineOperationKind,
     ) -> Result<MachineValueId, crate::MachineProgramError> {
         let operation = MachineOperationId::new(self.operations.len());
@@ -474,7 +474,7 @@ impl<'a> DestructionBuilder<'a> {
 
     fn create_block(
         &mut self,
-        parameters: impl IntoIterator<Item = TypeId>,
+        parameters: impl IntoIterator<Item = RuntimeDataId>,
     ) -> Result<MachineBlockId, crate::MachineProgramError> {
         let block = MachineBlockId::new(self.blocks.len());
         let mut values = Vec::new();
@@ -529,7 +529,7 @@ impl<'a> DestructionBuilder<'a> {
 
     fn value_representation(
         &self,
-        ty: TypeId,
+        ty: RuntimeDataId,
     ) -> Result<MachineValueRepresentation, crate::MachineProgramError> {
         match self.types.get(ty) {
             Some(RuntimeType::Primitive(RuntimePrimitive::Void)) => {
@@ -609,7 +609,7 @@ fn with_offset(steps: &[MachineAddressStep], offset: u64) -> Vec<MachineAddressS
 fn runtime_primitive(
     types: &RuntimeTypeTable,
     primitive: RuntimePrimitive,
-) -> Result<TypeId, crate::MachineProgramError> {
+) -> Result<RuntimeDataId, crate::MachineProgramError> {
     types
         .primitive(primitive)
         .ok_or(crate::MachineProgramError::MissingRuntimePrimitive(

@@ -1,5 +1,5 @@
-use nocter_model::TypeId;
 use nocter_runtime_contract::PrimitiveRole;
+use nocter_runtime_contract::RuntimeDataId;
 
 use crate::identity::MachineRuntimeCallAbiId;
 use crate::{
@@ -11,7 +11,7 @@ use crate::{
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MachinePrimitiveTarget {
     role: PrimitiveRole,
-    type_arguments: Box<[TypeId]>,
+    type_arguments: Box<[RuntimeDataId]>,
     abi: MachineRuntimeCallAbiId,
     dependency: MachinePrimitiveDependency,
 }
@@ -19,7 +19,7 @@ pub struct MachinePrimitiveTarget {
 impl MachinePrimitiveTarget {
     pub(crate) fn new(
         role: PrimitiveRole,
-        type_arguments: impl Into<Box<[TypeId]>>,
+        type_arguments: impl Into<Box<[RuntimeDataId]>>,
         abi: MachineRuntimeCallAbiId,
         dependency: MachinePrimitiveDependency,
     ) -> Self {
@@ -37,7 +37,7 @@ impl MachinePrimitiveTarget {
     }
 
     #[must_use]
-    pub const fn type_arguments(&self) -> &[TypeId] {
+    pub const fn type_arguments(&self) -> &[RuntimeDataId] {
         &self.type_arguments
     }
 

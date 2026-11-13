@@ -9,9 +9,10 @@ use std::collections::BTreeMap;
 
 use nocter_model::{
     AccessExpressionId, AccessFlowPointId, AccessInstanceId, AccessLocalId, Arena, MirLocalId,
-    TypeId,
 };
-use nocter_runtime_contract::{RuntimeAbiIdentity, RuntimeEnvironment, RuntimeValueSignature};
+use nocter_runtime_contract::{
+    RuntimeAbiIdentity, RuntimeDataId, RuntimeEnvironment, RuntimeValueSignature,
+};
 pub use nocter_target_program::value_access::CallTarget;
 use nocter_target_program::value_access::{lifecycle, storage};
 
@@ -52,7 +53,7 @@ pub enum Storage {
 pub struct Slot {
     pub key: SlotKey,
     pub storage: Storage,
-    pub representations: Box<[TypeId]>,
+    pub representations: Box<[RuntimeDataId]>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -65,9 +66,9 @@ pub enum Projection {
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Place {
     pub slot: MirLocalId,
-    pub root: TypeId,
+    pub root: RuntimeDataId,
     pub projections: Box<[Projection]>,
-    pub data: TypeId,
+    pub data: RuntimeDataId,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -301,7 +302,7 @@ pub enum Failure {
 /// One immutable global object with its exact closed runtime data.
 #[derive(Clone, Debug)]
 pub struct Static {
-    pub data: TypeId,
+    pub data: RuntimeDataId,
     pub value: nocter_model::FrozenData,
 }
 /// Closed private MIR bodies and global data, without a released-program adapter.

@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use nocter_model::TypeId;
+use crate::RuntimeDataId;
 
 use crate::{
     RuntimeAbiIdentity, RuntimeType, RuntimeTypeRepresentation, RuntimeTypeRepresentationTable,
@@ -52,6 +52,65 @@ impl RuntimeEnvironment {
     #[must_use]
     pub const fn type_representations(&self) -> &RuntimeTypeRepresentationTable {
         &self.type_representations
+    }
+
+    /// Select one stored value-model component. This grants no initialization or access proof.
+    #[must_use]
+    pub fn value_field(
+        &self,
+        data: RuntimeDataId,
+        field: nocter_model::ValueField,
+    ) -> Option<RuntimeDataId> {
+        match field {
+            nocter_model::ValueField::Variant(primary) => self.types.outcome_payload(data, primary),
+            nocter_model::ValueField::Array(index) => {
+                let (element, length) = self.types.get(data)?.array()?;
+                (index < length).then_some(element)
+            }
+            _ => {
+                let RuntimeTypeRepresentation::ValueAggregate { fields } =
+                    self.type_representations.get(data)?
+                else {
+                    return None;
+                };
+                fields
+                    .iter()
+                    .find(|component| component.field() == field)
+                    .map(|component| component.ty())
+            }
+        }
+    }
+    /// Project frozen value-model selectors through runtime identities, without semantic lookup.
+    /// The caller retains the source proof for each saved index and its bound disposition.
+    #[must_use]
+    pub fn value_path<I>(
+        &self,
+        mut data: RuntimeDataId,
+        path: &[nocter_model::ValueProjection<I>],
+        array_bound: impl Fn(&I, u64) -> bool,
+    ) -> Option<RuntimeDataId> {
+        use nocter_model::{ValueField, ValueProjection};
+        for projection in path {
+            data = match projection {
+                ValueProjection::Record(field) => {
+                    self.value_field(data, ValueField::Record(*field))?
+                }
+                ValueProjection::Tuple(index) => {
+                    self.value_field(data, ValueField::Tuple(*index))?
+                }
+                ValueProjection::Variant(primary) => {
+                    self.value_field(data, ValueField::Variant(*primary))?
+                }
+                ValueProjection::Array(index) => {
+                    let (element, length) = self.types.get(data)?.array()?;
+                    if !array_bound(index, length) {
+                        return None;
+                    }
+                    element
+                }
+            };
+        }
+        Some(data)
     }
 
     #[must_use]
@@ -116,7 +175,7 @@ fn validate_representations(
 
 fn validate_representation(
     types: &RuntimeTypeTable,
-    owner: TypeId,
+    owner: RuntimeDataId,
     representation: &RuntimeTypeRepresentation,
 ) -> Result<(), RuntimeEnvironmentError> {
     match representation {
@@ -182,8 +241,8 @@ fn validate_representation(
 
 fn require_member_type(
     types: &RuntimeTypeTable,
-    owner: TypeId,
-    member: TypeId,
+    owner: RuntimeDataId,
+    member: RuntimeDataId,
 ) -> Result<(), RuntimeEnvironmentError> {
     types
         .get(member)
@@ -193,17 +252,17 @@ fn require_member_type(
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RuntimeEnvironmentError {
-    MissingRepresentation(TypeId),
-    UnexpectedRepresentation(TypeId),
-    UnknownRepresentationOwner(TypeId),
-    RepresentationKindMismatch(TypeId),
+    MissingRepresentation(RuntimeDataId),
+    UnexpectedRepresentation(RuntimeDataId),
+    UnknownRepresentationOwner(RuntimeDataId),
+    RepresentationKindMismatch(RuntimeDataId),
     UnknownRepresentationType {
-        owner: TypeId,
-        member: TypeId,
+        owner: RuntimeDataId,
+        member: RuntimeDataId,
     },
-    DuplicateRepresentationMember(TypeId),
+    DuplicateRepresentationMember(RuntimeDataId),
     UnsupportedStorage {
-        ty: TypeId,
+        ty: RuntimeDataId,
         role: crate::RuntimeStorageRole,
     },
 }
@@ -231,7 +290,7 @@ mod tests {
     fn stored_text_representation_requires_the_exact_text_identity() {
         for primitive in [RuntimePrimitive::Text, RuntimePrimitive::Bool] {
             let semantic = TypeStore::new();
-            let ty = semantic.builtin(BuiltinType::Str);
+            let ty: crate::RuntimeDataId = semantic.builtin(BuiltinType::Str).into();
             let mut types = RuntimeTypeTableBuilder::new();
             types.insert(ty, RuntimeType::Primitive(primitive)).unwrap();
             let types = types.finish().unwrap();
@@ -266,7 +325,7 @@ mod tests {
     fn aggregate_runtime_types_require_one_representation() {
         let mut types = RuntimeTypeTableBuilder::new();
         let semantic = TypeStore::new();
-        let ty = semantic.builtin(BuiltinType::Bool);
+        let ty: crate::RuntimeDataId = semantic.builtin(BuiltinType::Bool).into();
         types.insert(ty, RuntimeType::Aggregate).unwrap();
 
         assert_eq!(
@@ -302,8 +361,8 @@ mod tests {
     #[test]
     fn value_record_members_validate_identity_and_closed_type_references() {
         let semantic = TypeStore::new();
-        let owner = semantic.builtin(BuiltinType::Bool);
-        let member = semantic.builtin(BuiltinType::I8);
+        let owner: crate::RuntimeDataId = semantic.builtin(BuiltinType::Bool).into();
+        let member: crate::RuntimeDataId = semantic.builtin(BuiltinType::I8).into();
         let mut ids = ArenaBuilder::<AccessFieldId, ()>::new();
         let field = ids.insert(());
         for (fields, expected) in [

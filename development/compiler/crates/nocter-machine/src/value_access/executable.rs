@@ -1,4 +1,5 @@
 //! Private MIR enters the ordinary Machine program, body optimizer and native consumers.
+use nocter_runtime_contract::RuntimeDataId;
 mod body;
 mod data;
 mod primitives;
@@ -9,7 +10,7 @@ use crate::{
     MachineValueCallableAbi,
 };
 use nocter_mir::value_access as mir;
-use nocter_model::{AccessInstanceId, TypeId};
+use nocter_model::AccessInstanceId;
 use nocter_runtime_contract::{RuntimePrimitive, RuntimeType, RuntimeTypeRepresentation};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -19,7 +20,7 @@ struct Context<'a> {
     data: &'a data::Data,
     functions: BTreeMap<AccessInstanceId, MachineFunctionId>,
     abis: BTreeMap<AccessInstanceId, MachineCallableAbi>,
-    cleanup: BTreeMap<TypeId, MachineFunctionId>,
+    cleanup: BTreeMap<RuntimeDataId, MachineFunctionId>,
     primitives: BTreeMap<nocter_runtime_contract::PrimitiveRole, crate::MachinePrimitiveTarget>,
 }
 
@@ -124,7 +125,9 @@ pub(super) fn program(program: &mir::Program) -> Result<MachineProgram, Failure>
     }))
 }
 
-fn cleanup_plan(program: &mir::Program) -> Result<BTreeMap<TypeId, MachineFunctionId>, Failure> {
+fn cleanup_plan(
+    program: &mir::Program,
+) -> Result<BTreeMap<RuntimeDataId, MachineFunctionId>, Failure> {
     let mut work = BTreeMap::new();
     for action in program
         .bodies()
@@ -182,8 +185,8 @@ fn cleanup_plan(program: &mir::Program) -> Result<BTreeMap<TypeId, MachineFuncti
 
 fn needs_cleanup(
     program: &mir::Program,
-    data: TypeId,
-    cache: &mut BTreeMap<TypeId, bool>,
+    data: RuntimeDataId,
+    cache: &mut BTreeMap<RuntimeDataId, bool>,
 ) -> Result<bool, Failure> {
     let mut pending = vec![(data, false)];
     let mut active = BTreeSet::new();

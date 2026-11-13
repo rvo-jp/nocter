@@ -1,7 +1,8 @@
 use nocter_checking::{check_prepared_program, prepare_program_checking};
 use nocter_declaration_lowering::lower_compile_unit_declarations;
 use nocter_mir::lower_executable;
-use nocter_model::{BorrowCapability, CompilationTarget, TypeId};
+use nocter_model::{BorrowCapability, CompilationTarget};
+use nocter_runtime_contract::RuntimeDataId;
 use nocter_runtime_contract::{
     PrimitiveRegistry, PrimitiveRole, RuntimePrimitive, RuntimeStorageRegistry, RuntimeType,
     RuntimeTypeTable, TargetServiceRegistry,
@@ -902,7 +903,7 @@ fn abi_classifies_indirect_arguments_and_all_return_forms_from_stored_layouts() 
 
 fn assert_return(
     abi: &MachineAbiPlan,
-    ty: TypeId,
+    ty: RuntimeDataId,
     class: MachineValueClass,
     location_matches: impl Fn(MachineResultLocation) -> bool,
 ) {
@@ -2436,7 +2437,7 @@ fn explicit_literal_context_does_not_make_the_caller_context_dependent() {
     );
 }
 
-fn named_nominal(program: &nocter_mir::MirProgram, expected: &str) -> TypeId {
+fn named_nominal(program: &nocter_mir::MirProgram, expected: &str) -> RuntimeDataId {
     program
         .type_representations()
         .iter()
@@ -2492,7 +2493,7 @@ fn fixture_representation_matches(
     }
 }
 
-fn borrow_type(types: &RuntimeTypeTable, referent: RuntimePrimitive) -> TypeId {
+fn borrow_type(types: &RuntimeTypeTable, referent: RuntimePrimitive) -> RuntimeDataId {
     let referent = runtime_primitive(types, referent);
     types
         .iter()
@@ -2509,13 +2510,13 @@ fn borrow_type(types: &RuntimeTypeTable, referent: RuntimePrimitive) -> TypeId {
         .unwrap()
 }
 
-fn runtime_primitive(types: &RuntimeTypeTable, primitive: RuntimePrimitive) -> TypeId {
+fn runtime_primitive(types: &RuntimeTypeTable, primitive: RuntimePrimitive) -> RuntimeDataId {
     types
         .primitive(primitive)
         .unwrap_or_else(|| panic!("missing runtime primitive {primitive:?}"))
 }
 
-fn tuple_type(types: &RuntimeTypeTable, expected: &[TypeId]) -> TypeId {
+fn tuple_type(types: &RuntimeTypeTable, expected: &[RuntimeDataId]) -> RuntimeDataId {
     types
         .iter()
         .find_map(|(ty, kind)| {

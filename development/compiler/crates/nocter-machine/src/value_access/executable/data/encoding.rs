@@ -1,15 +1,16 @@
 //! Iterative physical serialization. A repeated array adds one cursor, never N pending entries.
 use super::Failure;
 use crate::{MachineLayoutKind, MachineLayoutPlan, MachineTarget};
-use nocter_model::{FrozenData, FrozenNode, TypeId};
+use nocter_model::{FrozenData, FrozenNode};
+use nocter_runtime_contract::RuntimeDataId;
 use nocter_runtime_contract::{RuntimeEnvironment, RuntimeTypeRepresentation};
 
 enum Work<'a> {
-    Value(TypeId, usize, u64),
+    Value(RuntimeDataId, usize, u64),
     Array(Array<'a>),
 }
 struct Array<'a> {
-    element: TypeId,
+    element: RuntimeDataId,
     stride: u64,
     offset: u64,
     remaining: u64,
@@ -44,7 +45,7 @@ impl<'a> Array<'a> {
             replacements,
         })
     }
-    fn next(&mut self) -> Result<Option<(TypeId, usize, u64)>, Failure> {
+    fn next(&mut self) -> Result<Option<(RuntimeDataId, usize, u64)>, Failure> {
         let Some(index) = self.remaining.checked_sub(1) else {
             return Ok(None);
         };
@@ -76,7 +77,7 @@ impl<'a> Array<'a> {
 pub(super) fn write(
     runtime: &RuntimeEnvironment,
     layouts: &MachineLayoutPlan,
-    ty: TypeId,
+    ty: RuntimeDataId,
     value: &FrozenData,
     bytes: &mut [u8],
     mut text_pointer: impl FnMut(u64, &str) -> Result<(), Failure>,

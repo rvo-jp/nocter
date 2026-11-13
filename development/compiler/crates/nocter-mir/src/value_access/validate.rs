@@ -6,7 +6,8 @@ use super::{
 use crate::{
     MirArithmeticCheck as Check, MirBinaryOperation as Binary, MirUnaryOperation as Unary,
 };
-use nocter_model::{AccessInstanceId, TypeId, ValueInputOperation};
+use nocter_model::{AccessInstanceId, ValueInputOperation};
+use nocter_runtime_contract::RuntimeDataId;
 use nocter_runtime_contract::{RuntimePrimitive, RuntimeType, RuntimeTypeRepresentation};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -82,39 +83,11 @@ impl Context<'_> {
         let mut data = place.root;
         for projection in &place.projections {
             data = match projection {
-                Projection::Field(id) => {
-                    if let nocter_model::ValueField::Variant(primary) = id {
-                        data = self
-                            .program
-                            .runtime
-                            .types()
-                            .outcome_payload(data, *primary)
-                            .ok_or_else(|| self.invalid())?;
-                        continue;
-                    }
-                    if let (nocter_model::ValueField::Array(index), Some((element, length))) = (
-                        id,
-                        self.program
-                            .runtime
-                            .types()
-                            .get(data)
-                            .and_then(RuntimeType::array),
-                    ) {
-                        self.require(*index < length)?;
-                        data = element;
-                        continue;
-                    }
-                    let Some(RuntimeTypeRepresentation::ValueAggregate { fields }) =
-                        self.program.runtime.type_representations().get(data)
-                    else {
-                        return Err(self.invalid());
-                    };
-                    fields
-                        .iter()
-                        .find(|field| field.field() == *id)
-                        .ok_or_else(|| self.invalid())?
-                        .ty()
-                }
+                Projection::Field(id) => self
+                    .program
+                    .runtime
+                    .value_field(data, *id)
+                    .ok_or_else(|| self.invalid())?,
                 Projection::Index(id) => {
                     let (element, length) = self
                         .program
@@ -311,19 +284,19 @@ impl Context<'_> {
             }
         }
     }
-    fn primitive(&self, data: TypeId, role: RuntimePrimitive) -> bool {
+    fn primitive(&self, data: RuntimeDataId, role: RuntimePrimitive) -> bool {
         self.program.runtime.types().get(data) == Some(&RuntimeType::Primitive(role))
     }
-    fn integer_type(&self, data: TypeId) -> Option<nocter_model::BuiltinNumericType> {
+    fn integer_type(&self, data: RuntimeDataId) -> Option<nocter_model::BuiltinNumericType> {
         match self.program.runtime.types().get(data)? {
             RuntimeType::Primitive(primitive) => primitive.integer(),
             _ => None,
         }
     }
-    fn integer(&self, data: TypeId) -> bool {
+    fn integer(&self, data: RuntimeDataId) -> bool {
         self.integer_type(data).is_some()
     }
-    fn integer_literal(&self, data: TypeId, value: i128) -> bool {
+    fn integer_literal(&self, data: RuntimeDataId, value: i128) -> bool {
         self.integer_type(data)
             .and_then(nocter_model::BuiltinNumericType::integer_bounds)
             .is_some_and(|(minimum, maximum)| value >= minimum && value <= maximum)
@@ -713,7 +686,7 @@ fn validate_control(context: &Context<'_>) -> Result<(), Failure> {
 impl Context<'_> {
     fn frozen(
         &self,
-        data: nocter_model::TypeId,
+        data: nocter_runtime_contract::RuntimeDataId,
         value: &nocter_model::FrozenData,
     ) -> Result<(), Failure> {
         use nocter_model::{ConstantValue, FrozenNode};

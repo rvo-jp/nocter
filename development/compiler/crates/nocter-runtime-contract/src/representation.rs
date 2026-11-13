@@ -1,18 +1,22 @@
+use crate::RuntimeDataId;
 use std::collections::BTreeMap;
 
-use nocter_model::{CaptureId, FieldId, ParameterId, TypeId, ValueField, VariantId};
+use nocter_model::{CaptureId, FieldId, ParameterId, ValueField, VariantId};
 
 /// A value-model aggregate component, preserving its logical selector independently of layout.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RuntimeValueFieldRepresentation {
     field: ValueField,
-    ty: TypeId,
+    ty: RuntimeDataId,
 }
 
 impl RuntimeValueFieldRepresentation {
     #[must_use]
-    pub const fn new(field: ValueField, ty: TypeId) -> Self {
-        Self { field, ty }
+    pub fn new(field: ValueField, ty: impl Into<RuntimeDataId>) -> Self {
+        Self {
+            field,
+            ty: ty.into(),
+        }
     }
 
     #[must_use]
@@ -21,7 +25,7 @@ impl RuntimeValueFieldRepresentation {
     }
 
     #[must_use]
-    pub const fn ty(self) -> TypeId {
+    pub const fn ty(self) -> RuntimeDataId {
         self.ty
     }
 }
@@ -29,13 +33,16 @@ impl RuntimeValueFieldRepresentation {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RuntimeCaptureRepresentation {
     capture: CaptureId,
-    ty: TypeId,
+    ty: RuntimeDataId,
 }
 
 impl RuntimeCaptureRepresentation {
     #[must_use]
-    pub const fn new(capture: CaptureId, ty: TypeId) -> Self {
-        Self { capture, ty }
+    pub fn new(capture: CaptureId, ty: impl Into<RuntimeDataId>) -> Self {
+        Self {
+            capture,
+            ty: ty.into(),
+        }
     }
 
     #[must_use]
@@ -44,7 +51,7 @@ impl RuntimeCaptureRepresentation {
     }
 
     #[must_use]
-    pub const fn ty(self) -> TypeId {
+    pub const fn ty(self) -> RuntimeDataId {
         self.ty
     }
 }
@@ -52,13 +59,16 @@ impl RuntimeCaptureRepresentation {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RuntimeFieldRepresentation {
     field: FieldId,
-    ty: TypeId,
+    ty: RuntimeDataId,
 }
 
 impl RuntimeFieldRepresentation {
     #[must_use]
-    pub const fn new(field: FieldId, ty: TypeId) -> Self {
-        Self { field, ty }
+    pub fn new(field: FieldId, ty: impl Into<RuntimeDataId>) -> Self {
+        Self {
+            field,
+            ty: ty.into(),
+        }
     }
 
     #[must_use]
@@ -67,7 +77,7 @@ impl RuntimeFieldRepresentation {
     }
 
     #[must_use]
-    pub const fn ty(self) -> TypeId {
+    pub const fn ty(self) -> RuntimeDataId {
         self.ty
     }
 }
@@ -75,13 +85,16 @@ impl RuntimeFieldRepresentation {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RuntimePayloadRepresentation {
     parameter: ParameterId,
-    ty: TypeId,
+    ty: RuntimeDataId,
 }
 
 impl RuntimePayloadRepresentation {
     #[must_use]
-    pub const fn new(parameter: ParameterId, ty: TypeId) -> Self {
-        Self { parameter, ty }
+    pub fn new(parameter: ParameterId, ty: impl Into<RuntimeDataId>) -> Self {
+        Self {
+            parameter,
+            ty: ty.into(),
+        }
     }
 
     #[must_use]
@@ -90,7 +103,7 @@ impl RuntimePayloadRepresentation {
     }
 
     #[must_use]
-    pub const fn ty(self) -> TypeId {
+    pub const fn ty(self) -> RuntimeDataId {
         self.ty
     }
 }
@@ -138,7 +151,7 @@ pub enum RuntimeTypeRepresentation {
         variants: Box<[RuntimeVariantRepresentation]>,
     },
     Opaque {
-        witness: TypeId,
+        witness: RuntimeDataId,
     },
     Closure {
         captures: Box<[RuntimeCaptureRepresentation]>,
@@ -148,22 +161,37 @@ pub enum RuntimeTypeRepresentation {
 /// Complete specialized runtime members and opaque witnesses, keyed by concrete type.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct RuntimeTypeRepresentationTable {
-    entries: BTreeMap<TypeId, RuntimeTypeRepresentation>,
+    entries: BTreeMap<RuntimeDataId, RuntimeTypeRepresentation>,
 }
 
 impl RuntimeTypeRepresentationTable {
     #[must_use]
-    pub fn new(entries: BTreeMap<TypeId, RuntimeTypeRepresentation>) -> Self {
+    pub fn new(entries: BTreeMap<RuntimeDataId, RuntimeTypeRepresentation>) -> Self {
         Self { entries }
     }
 
+    /// Adapt an established source-identity map at the semantic-to-runtime boundary.
     #[must_use]
-    pub fn get(&self, ty: TypeId) -> Option<&RuntimeTypeRepresentation> {
+    pub fn from_source_entries(
+        entries: BTreeMap<nocter_model::TypeId, RuntimeTypeRepresentation>,
+    ) -> Self {
+        Self::new(
+            entries
+                .into_iter()
+                .map(|(source, representation)| (source.into(), representation))
+                .collect(),
+        )
+    }
+
+    #[must_use]
+    pub fn get(&self, ty: RuntimeDataId) -> Option<&RuntimeTypeRepresentation> {
         self.entries.get(&ty)
     }
 
     #[must_use]
-    pub fn iter(&self) -> impl ExactSizeIterator<Item = (TypeId, &RuntimeTypeRepresentation)> {
+    pub fn iter(
+        &self,
+    ) -> impl ExactSizeIterator<Item = (RuntimeDataId, &RuntimeTypeRepresentation)> {
         self.entries
             .iter()
             .map(|(ty, representation)| (*ty, representation))

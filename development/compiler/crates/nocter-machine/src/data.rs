@@ -1,7 +1,8 @@
+use nocter_runtime_contract::RuntimeDataId;
 use std::collections::{BTreeMap, BTreeSet};
 
 use nocter_mir::{MirBody, MirConstant, MirOperationKind, MirProgram, MirRoot};
-use nocter_model::{ConstantValue, ExecutableStaticId, FrozenValue, TypeId};
+use nocter_model::{ConstantValue, ExecutableStaticId, FrozenValue};
 use nocter_runtime_contract::{RuntimePrimitive, RuntimeType};
 
 use crate::identity::{MachineId, MachineTable};
@@ -196,9 +197,12 @@ impl PendingDataTable {
         let target = MachineTarget::select(program.runtime_abi());
         let mut static_keys = BTreeMap::new();
         for (id, value) in program.statics().iter() {
-            let layout = layouts
-                .get(value.ty())
-                .ok_or(MachineProgramError::MissingStoredLayout(value.ty()))?;
+            let layout =
+                layouts
+                    .get(value.ty())
+                    .ok_or(MachineProgramError::MissingStoredLayout(
+                        nocter_runtime_contract::RuntimeDataId::Source(value.ty()),
+                    ))?;
             let size = usize::try_from(layout.size())
                 .map_err(|_| MachineProgramError::InvalidStaticData(id))?;
             let mut bytes = vec![0; size];
@@ -207,7 +211,7 @@ impl PendingDataTable {
                 program,
                 layouts,
                 target,
-                value.ty(),
+                nocter_runtime_contract::RuntimeDataId::Source(value.ty()),
                 value.value(),
                 0,
                 &mut bytes,
@@ -321,7 +325,7 @@ fn encode_frozen(
     program: &MirProgram,
     layouts: &MachineLayoutPlan,
     target: MachineTarget,
-    ty: TypeId,
+    ty: RuntimeDataId,
     value: &FrozenValue,
     offset: u64,
     bytes: &mut [u8],
@@ -394,7 +398,7 @@ fn encode_frozen_array(
     program: &MirProgram,
     layouts: &MachineLayoutPlan,
     target: MachineTarget,
-    element: TypeId,
+    element: RuntimeDataId,
     stride: u64,
     values: &[FrozenValue],
     offset: u64,

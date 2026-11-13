@@ -2,6 +2,29 @@ use std::collections::BTreeMap;
 
 use nocter_model::{BorrowCapability, TypeId};
 
+/// Source-independent data identity within one frozen runtime environment.
+/// Direct source shapes preserve their semantic ID; contextual shapes use a local representation
+/// index and never manufacture another semantic type in the declaration authority.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum RuntimeDataId {
+    Source(TypeId),
+    Instance(u32),
+}
+impl RuntimeDataId {
+    #[must_use]
+    pub const fn source(self) -> Option<TypeId> {
+        match self {
+            Self::Source(data) => Some(data),
+            Self::Instance(_) => None,
+        }
+    }
+}
+impl From<TypeId> for RuntimeDataId {
+    fn from(data: TypeId) -> Self {
+        Self::Source(data)
+    }
+}
+
 /// Closed primitive identities retained past semantic lowering.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum RuntimePrimitive {
@@ -77,37 +100,37 @@ pub enum RuntimeType {
     Unit,
     /// The code witness is selected statically; only the optional environment occupies storage.
     StaticCallable {
-        environment: Option<TypeId>,
+        environment: Option<RuntimeDataId>,
     },
-    Pointer(TypeId),
+    Pointer(RuntimeDataId),
     Borrow {
         capability: BorrowCapability,
-        referent: TypeId,
+        referent: RuntimeDataId,
     },
-    Slice(TypeId),
+    Slice(RuntimeDataId),
     FixedArray {
-        element: TypeId,
+        element: RuntimeDataId,
         length: u64,
     },
     /// A v2 zero-count array. The established element identity is metadata, not a stored-payload
     /// dependency; no runtime entry or geometry for that element is required by this shape.
     EmptyArray {
-        element: TypeId,
+        element: RuntimeDataId,
     },
-    Tuple(Box<[TypeId]>),
+    Tuple(Box<[RuntimeDataId]>),
     PackEntry {
-        key: TypeId,
-        value: TypeId,
+        key: RuntimeDataId,
+        value: RuntimeDataId,
     },
     Aggregate,
     Closure,
     /// Owning erased callable: environment, invoke entry, destroy entry, and mapped byte count.
     ErasedCallable,
     Callable,
-    Optional(TypeId),
-    Fallible(TypeId),
+    Optional(RuntimeDataId),
+    Fallible(RuntimeDataId),
     /// One owning, type-erased deferred computation whose eventual output has this type.
-    Future(TypeId),
+    Future(RuntimeDataId),
     /// One compiler-owned, source-opaque storage representation.
     Storage(super::RuntimeStorageRole),
     Opaque,
@@ -116,7 +139,7 @@ pub enum RuntimeType {
 impl RuntimeType {
     /// Homogeneous source component identity and logical count, independent of empty geometry.
     #[must_use]
-    pub const fn array(&self) -> Option<(TypeId, u64)> {
+    pub const fn array(&self) -> Option<(RuntimeDataId, u64)> {
         match self {
             Self::FixedArray { element, length } => Some((*element, *length)),
             Self::EmptyArray { element } => Some((*element, 0)),
@@ -128,24 +151,24 @@ impl RuntimeType {
 /// Closed semantic IDs paired only with concrete runtime shapes.
 #[derive(Clone, Debug, Default)]
 pub struct RuntimeTypeTable {
-    entries: BTreeMap<TypeId, RuntimeType>,
-    primitives: BTreeMap<RuntimePrimitive, TypeId>,
+    entries: BTreeMap<RuntimeDataId, RuntimeType>,
+    primitives: BTreeMap<RuntimePrimitive, RuntimeDataId>,
 }
 
 impl RuntimeTypeTable {
     #[must_use]
-    pub fn get(&self, ty: TypeId) -> Option<&RuntimeType> {
+    pub fn get(&self, ty: RuntimeDataId) -> Option<&RuntimeType> {
         self.entries.get(&ty)
     }
 
     #[must_use]
-    pub fn primitive(&self, primitive: RuntimePrimitive) -> Option<TypeId> {
+    pub fn primitive(&self, primitive: RuntimePrimitive) -> Option<RuntimeDataId> {
         self.primitives.get(&primitive).copied()
     }
 
     /// The semantic primary/alternate payload of a builtin outcome, independently of tag bytes.
     #[must_use]
-    pub fn outcome_payload(&self, data: TypeId, primary: bool) -> Option<TypeId> {
+    pub fn outcome_payload(&self, data: RuntimeDataId, primary: bool) -> Option<RuntimeDataId> {
         match self.get(data)? {
             RuntimeType::Optional(payload) if primary => Some(*payload),
             RuntimeType::Fallible(payload) if primary => Some(*payload),
@@ -155,15 +178,15 @@ impl RuntimeTypeTable {
     }
 
     #[must_use]
-    pub fn iter(&self) -> impl ExactSizeIterator<Item = (TypeId, &RuntimeType)> {
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = (RuntimeDataId, &RuntimeType)> {
         self.entries.iter().map(|(ty, kind)| (*ty, kind))
     }
 }
 
 #[derive(Debug, Default)]
 pub struct RuntimeTypeTableBuilder {
-    entries: BTreeMap<TypeId, RuntimeType>,
-    primitives: BTreeMap<RuntimePrimitive, TypeId>,
+    entries: BTreeMap<RuntimeDataId, RuntimeType>,
+    primitives: BTreeMap<RuntimePrimitive, RuntimeDataId>,
 }
 
 impl RuntimeTypeTableBuilder {
@@ -179,9 +202,10 @@ impl RuntimeTypeTableBuilder {
     /// Rejects a repeated semantic type identity or primitive role.
     pub fn insert(
         &mut self,
-        ty: TypeId,
+        ty: impl Into<RuntimeDataId>,
         kind: RuntimeType,
     ) -> Result<(), RuntimeTypeTableBuildError> {
+        let ty = ty.into();
         if self.entries.contains_key(&ty) {
             return Err(RuntimeTypeTableBuildError::DuplicateType(ty));
         }
@@ -268,10 +292,16 @@ impl RuntimeTypeTableBuilder {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RuntimeTypeTableBuildError {
-    DuplicateType(TypeId),
+    DuplicateType(RuntimeDataId),
     DuplicatePrimitive(RuntimePrimitive),
-    InvalidTupleArity { owner: TypeId, actual: usize },
-    UnknownReference { owner: TypeId, referenced: TypeId },
+    InvalidTupleArity {
+        owner: RuntimeDataId,
+        actual: usize,
+    },
+    UnknownReference {
+        owner: RuntimeDataId,
+        referenced: RuntimeDataId,
+    },
 }
 
 impl std::fmt::Display for RuntimeTypeTableBuildError {
@@ -291,11 +321,49 @@ mod tests {
     };
 
     #[test]
+    fn contextual_callable_shapes_have_independent_closed_storage_identities() {
+        use crate::RuntimeDataId;
+        let source = TypeStore::new();
+        let boolean = RuntimeDataId::from(source.builtin(BuiltinType::Bool));
+        let captured = RuntimeDataId::Instance(0);
+        let empty = RuntimeDataId::Instance(1);
+        let mut builder = RuntimeTypeTableBuilder::new();
+        builder
+            .insert(boolean, RuntimeType::Primitive(RuntimePrimitive::Bool))
+            .unwrap();
+        builder
+            .insert(
+                captured,
+                RuntimeType::StaticCallable {
+                    environment: Some(boolean),
+                },
+            )
+            .unwrap();
+        builder
+            .insert(empty, RuntimeType::StaticCallable { environment: None })
+            .unwrap();
+        let table = builder.finish().unwrap();
+        assert_eq!(
+            table.get(captured),
+            Some(&RuntimeType::StaticCallable {
+                environment: Some(boolean)
+            })
+        );
+        assert_eq!(
+            table.get(empty),
+            Some(&RuntimeType::StaticCallable { environment: None })
+        );
+        assert_eq!(boolean.source(), Some(source.builtin(BuiltinType::Bool)));
+        assert!(captured.source().is_none());
+        assert_eq!(table.primitive(RuntimePrimitive::Bool), Some(boolean));
+    }
+
+    #[test]
     fn builder_rejects_duplicate_primitive_authority() {
         let mut builder = RuntimeTypeTableBuilder::new();
         let semantic = TypeStore::new();
-        let first = semantic.builtin(BuiltinType::Bool);
-        let second = semantic.builtin(BuiltinType::I8);
+        let first: crate::RuntimeDataId = semantic.builtin(BuiltinType::Bool).into();
+        let second: crate::RuntimeDataId = semantic.builtin(BuiltinType::I8).into();
         builder
             .insert(first, RuntimeType::Primitive(RuntimePrimitive::Bool))
             .unwrap();
@@ -312,8 +380,8 @@ mod tests {
     fn finish_rejects_dangling_concrete_type_references() {
         let mut builder = RuntimeTypeTableBuilder::new();
         let semantic = TypeStore::new();
-        let owner = semantic.builtin(BuiltinType::Bool);
-        let referenced = semantic.builtin(BuiltinType::I8);
+        let owner: crate::RuntimeDataId = semantic.builtin(BuiltinType::Bool).into();
+        let referenced: crate::RuntimeDataId = semantic.builtin(BuiltinType::I8).into();
         builder
             .insert(owner, RuntimeType::Pointer(referenced))
             .unwrap();
@@ -327,8 +395,8 @@ mod tests {
     #[test]
     fn empty_array_identity_is_not_a_stored_payload_reference() {
         let semantic = TypeStore::new();
-        let owner = semantic.builtin(BuiltinType::Bool);
-        let element = semantic.builtin(BuiltinType::I32);
+        let owner: crate::RuntimeDataId = semantic.builtin(BuiltinType::Bool).into();
+        let element: crate::RuntimeDataId = semantic.builtin(BuiltinType::I32).into();
         let mut builder = RuntimeTypeTableBuilder::new();
         builder
             .insert(owner, RuntimeType::EmptyArray { element })
@@ -352,8 +420,8 @@ mod tests {
     #[test]
     fn static_callable_environment_requires_a_closed_type_reference() {
         let semantic = TypeStore::new();
-        let owner = semantic.builtin(BuiltinType::Bool);
-        let referenced = semantic.builtin(BuiltinType::I8);
+        let owner: crate::RuntimeDataId = semantic.builtin(BuiltinType::Bool).into();
+        let referenced: crate::RuntimeDataId = semantic.builtin(BuiltinType::I8).into();
         let mut builder = RuntimeTypeTableBuilder::new();
         builder
             .insert(
@@ -373,7 +441,7 @@ mod tests {
     fn finish_rejects_a_tuple_shape_outside_the_language_arity() {
         let mut builder = RuntimeTypeTableBuilder::new();
         let semantic = TypeStore::new();
-        let owner = semantic.builtin(BuiltinType::Bool);
+        let owner: crate::RuntimeDataId = semantic.builtin(BuiltinType::Bool).into();
         builder
             .insert(owner, RuntimeType::Tuple(Box::new([])))
             .unwrap();

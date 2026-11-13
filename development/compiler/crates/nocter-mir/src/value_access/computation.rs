@@ -31,7 +31,7 @@ impl Builder<'_> {
     pub(super) fn referent(
         &mut self,
         source: Referent,
-        data: nocter_model::TypeId,
+        data: nocter_runtime_contract::RuntimeDataId,
     ) -> Result<Place, Failure> {
         match source {
             Referent::Place(place) => self.selected(place, data),
@@ -50,7 +50,11 @@ impl Builder<'_> {
     fn result(&mut self, id: AccessExpressionId) -> Result<Place, Failure> {
         self.root(Holder::Expression(id), self.expression(id)?, false)
     }
-    fn snapshot(&mut self, key: SlotKey, data: nocter_model::TypeId) -> Result<Place, Failure> {
+    fn snapshot(
+        &mut self,
+        key: SlotKey,
+        data: nocter_runtime_contract::RuntimeDataId,
+    ) -> Result<Place, Failure> {
         let slot = self.slot(key, data, Storage::Payload)?;
         Ok(Place {
             slot,
@@ -259,7 +263,7 @@ impl Builder<'_> {
         &mut self,
         source: AccessExpressionId,
         fields: &nocter_model::FieldPath,
-        data: nocter_model::TypeId,
+        data: nocter_runtime_contract::RuntimeDataId,
     ) -> Result<Place, Failure> {
         let mut source = self.value(source)?;
         let mut projections = source.projections.to_vec();
@@ -285,7 +289,7 @@ impl Builder<'_> {
         {
             let mut source = self.argument(id, argument)?;
             source.projections = Box::new([Projection::Environment]);
-            source.data = payload.data();
+            source.data = payload.data().into();
             inputs.push(CallInput {
                 source,
                 operation: input.operation,
@@ -297,7 +301,7 @@ impl Builder<'_> {
                 operation: binding.operation,
             });
         }
-        let data = selected.result().data();
+        let data = selected.result().data().into();
         let answer = self.snapshot(SlotKey::Answer(id), data)?;
         Ok(Call {
             target: selected.target(),

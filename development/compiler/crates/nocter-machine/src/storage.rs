@@ -1,6 +1,5 @@
-use nocter_model::TypeId;
-
 use crate::{MachineDataId, MachineStackId, MachineValueId};
+use nocter_runtime_contract::RuntimeDataId;
 
 /// Why one abstract stack object exists before physical frame placement.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -15,7 +14,7 @@ pub enum MachineStackPurpose {
 /// An address object stores a pointer while `ty` names its referent data.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MachineStackObject {
-    ty: TypeId,
+    ty: RuntimeDataId,
     carrier: crate::MachineValueCarrier,
     size: u64,
     alignment: u64,
@@ -95,7 +94,7 @@ pub enum MachineAddressStep {
 /// One interned checked path to stored bytes.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MachineAddress {
-    ty: TypeId,
+    ty: RuntimeDataId,
     extent: MachineAddressExtent,
     root: MachineAddressRoot,
     steps: Box<[MachineAddressStep]>,
@@ -109,7 +108,7 @@ pub enum MachineAddressExtent {
 
 impl MachineAddress {
     pub(crate) fn new(
-        ty: TypeId,
+        ty: RuntimeDataId,
         size: u64,
         alignment: u64,
         root: MachineAddressRoot,
@@ -124,7 +123,7 @@ impl MachineAddress {
     }
 
     pub(crate) fn new_view(
-        ty: TypeId,
+        ty: RuntimeDataId,
         root: MachineAddressRoot,
         steps: impl Into<Box<[MachineAddressStep]>>,
     ) -> Self {
@@ -137,7 +136,7 @@ impl MachineAddress {
     }
 
     #[must_use]
-    pub const fn ty(&self) -> TypeId {
+    pub const fn ty(&self) -> RuntimeDataId {
         self.ty
     }
 
@@ -175,7 +174,7 @@ impl MachineAddress {
 
 impl MachineStackObject {
     pub(crate) const fn new(
-        ty: TypeId,
+        ty: RuntimeDataId,
         size: u64,
         alignment: u64,
         purpose: MachineStackPurpose,
@@ -190,7 +189,7 @@ impl MachineStackObject {
     }
 
     pub(crate) const fn address(
-        referent: TypeId,
+        referent: RuntimeDataId,
         target: crate::MachineTarget,
         purpose: MachineStackPurpose,
     ) -> Self {
@@ -209,7 +208,7 @@ impl MachineStackObject {
     }
 
     #[must_use]
-    pub const fn ty(self) -> TypeId {
+    pub const fn ty(self) -> RuntimeDataId {
         self.ty
     }
 

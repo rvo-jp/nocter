@@ -1,9 +1,8 @@
-use nocter_model::TypeId;
-
 use crate::{
     MachineAddressId, MachineCall, MachineDataId, MachineDropFlagId, MachineFunctionId,
     MachineValueId,
 };
+use nocter_runtime_contract::RuntimeDataId;
 
 /// A fully materialized constant. Text refers to the program's canonical static-data table.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -298,7 +297,7 @@ impl MachineOperation {
 /// For an address carrier, `ty` names the referent; transport comes from the pointer ABI.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MachineValue {
-    ty: TypeId,
+    ty: RuntimeDataId,
     carrier: MachineValueCarrier,
     representation: MachineValueRepresentation,
     definition: MachineValueDefinition,
@@ -307,7 +306,7 @@ pub struct MachineValue {
 
 impl MachineValue {
     pub(crate) const fn new(
-        ty: TypeId,
+        ty: RuntimeDataId,
         representation: MachineValueRepresentation,
         definition: MachineValueDefinition,
     ) -> Self {
@@ -321,7 +320,7 @@ impl MachineValue {
     }
 
     pub(crate) const fn address(
-        referent: TypeId,
+        referent: RuntimeDataId,
         target: crate::MachineTarget,
         definition: MachineValueDefinition,
     ) -> Self {
@@ -352,7 +351,7 @@ impl MachineValue {
     }
 
     #[must_use]
-    pub const fn ty(self) -> TypeId {
+    pub const fn ty(self) -> RuntimeDataId {
         self.ty
     }
 

@@ -217,5 +217,8 @@ fn expected_status_type(
         ProcessSuccessType::I32 => nocter_runtime_contract::RuntimePrimitive::Signed(32),
         ProcessSuccessType::Usize => nocter_runtime_contract::RuntimePrimitive::Usize,
     };
-    program.types().primitive(primitive)
+    program
+        .types()
+        .primitive(primitive)
+        .and_then(nocter_runtime_contract::RuntimeDataId::source)
 }

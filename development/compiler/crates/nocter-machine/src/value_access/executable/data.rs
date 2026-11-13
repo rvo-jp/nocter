@@ -4,7 +4,8 @@ use crate::identity::MachineId;
 use crate::{
     MachineData, MachineDataId, MachineDataRelocation, MachineDataTable, MachineLayoutPlan,
 };
-use nocter_model::{FrozenData, TypeId};
+use nocter_model::FrozenData;
+use nocter_runtime_contract::RuntimeDataId;
 use nocter_runtime_contract::RuntimeEnvironment;
 use std::collections::{BTreeMap, HashMap};
 mod encoding;
@@ -12,7 +13,7 @@ mod encoding;
 pub(super) struct Data {
     values: Vec<MachineData>,
     statics: BTreeMap<nocter_model::ValueStatic, MachineDataId>,
-    ids: HashMap<(TypeId, FrozenData), MachineDataId>,
+    ids: HashMap<(RuntimeDataId, FrozenData), MachineDataId>,
     texts: BTreeMap<Box<str>, MachineDataId>,
     remaining: usize,
 }
@@ -49,7 +50,7 @@ impl Data {
         &mut self,
         runtime: &RuntimeEnvironment,
         layouts: &MachineLayoutPlan,
-        ty: TypeId,
+        ty: RuntimeDataId,
         value: &FrozenData,
     ) -> Result<(), Failure> {
         let key = (ty, value.clone());
@@ -69,7 +70,7 @@ impl Data {
         &mut self,
         runtime: &RuntimeEnvironment,
         layouts: &MachineLayoutPlan,
-        ty: TypeId,
+        ty: RuntimeDataId,
         value: &FrozenData,
     ) -> Result<MachineDataId, Failure> {
         let layout = layouts.get(ty).ok_or(Failure::InvalidRoot)?;
@@ -99,7 +100,7 @@ impl Data {
         ));
         Ok(id)
     }
-    fn text(&mut self, owner: TypeId, text: &str) -> Result<MachineDataId, Failure> {
+    fn text(&mut self, owner: RuntimeDataId, text: &str) -> Result<MachineDataId, Failure> {
         if let Some(&id) = self.texts.get(text) {
             return Ok(id);
         }
@@ -125,7 +126,7 @@ impl Data {
     pub fn global(&self, id: nocter_model::ValueStatic) -> Option<MachineDataId> {
         self.statics.get(&id).copied()
     }
-    pub fn get(&self, ty: TypeId, value: &FrozenData) -> Option<MachineDataId> {
+    pub fn get(&self, ty: RuntimeDataId, value: &FrozenData) -> Option<MachineDataId> {
         self.ids.get(&(ty, value.clone())).copied()
     }
     pub fn finish(self) -> MachineDataTable {

@@ -163,7 +163,7 @@ fn lower_callable_erasure(
     Ok(MachineOperationKind::EraseCallable(
         crate::MachineErasedCallable::new(
             ids.value(erasure.environment())?,
-            erasure.environment_ty(),
+            nocter_runtime_contract::RuntimeDataId::Source(erasure.environment_ty()),
             invoke,
             destroy,
         ),
@@ -221,7 +221,7 @@ fn lower_aggregate_operation(
     lower_aggregate(
         operation,
         aggregate,
-        ty,
+        nocter_runtime_contract::RuntimeDataId::Source(ty),
         context.program.layouts,
         context.ids,
     )

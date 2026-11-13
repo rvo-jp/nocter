@@ -29,6 +29,13 @@ context across return/application producers without reconstructing it from a sig
 exact source/type reuse and deterministic failure recovery. A parser or metadata-only extension
 alone does not complete capture support. Preserve current rejection until executable consumers agree.
 
+Materialize shared `DataInstanceKey` shapes into the native `RuntimeDataId` identity table.
+The runtime contract, private MIR and common Machine now retain physical data identities separately
+from semantic types; contextual table construction and its consumers still require integration.
+Keep semantic `TypeId` in source checking
+and declarations; never turn a contextual runtime ID into a fabricated semantic type. Qualify
+source capture creation, call/return producers and runtime cleanup before opening admission.
+
 Continue symbolic value/resource-state guarded discharge and independent module publication after
 that instance boundary is coherent. General R/D/S, dependent carriers, deeper callable inputs,
 inferred captures, module/toolchain integration and retained-selection closure remain open.

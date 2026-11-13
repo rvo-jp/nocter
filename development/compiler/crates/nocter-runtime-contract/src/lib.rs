@@ -104,7 +104,7 @@ pub use target_service::{
     TargetServiceValueAbi,
 };
 pub use types::{
-    RuntimePrimitive, RuntimeType, RuntimeTypeTable, RuntimeTypeTableBuildError,
+    RuntimeDataId, RuntimePrimitive, RuntimeType, RuntimeTypeTable, RuntimeTypeTableBuildError,
     RuntimeTypeTableBuilder,
 };
 pub use value_input::{RuntimeValueInput, RuntimeValueSignature};

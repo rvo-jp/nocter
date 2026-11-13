@@ -12,6 +12,7 @@ use nocter_checking::value_access::{
 };
 use nocter_model::{AccessExpressionId, AccessInstanceId, MirLocalId, TypeId};
 use nocter_model::{ArenaBuilder, ValueAccessMode, ValueInputOperation};
+use nocter_runtime_contract::RuntimeDataId;
 use nocter_target_program::value_access::{Instance, InstanceProgram, lifecycle::EnvironmentPart};
 use nocter_target_program::value_access::{lifecycle, storage};
 use std::collections::BTreeMap;
@@ -28,7 +29,7 @@ pub(super) struct Builder<'a> {
 impl Builder<'_> {
     fn control(
         &mut self,
-        result: TypeId,
+        result: RuntimeDataId,
     ) -> Result<BTreeMap<nocter_model::AccessFlowPointId, super::Terminator>, Failure> {
         let checked = self.checked;
         let mut terminators = BTreeMap::new();
@@ -68,15 +69,15 @@ impl Builder<'_> {
     pub(super) fn invalid(&self) -> Failure {
         Failure::InvalidBody(self.id)
     }
-    pub(super) fn data(&self, source: TypeId) -> Result<TypeId, Failure> {
+    pub(super) fn data(&self, source: TypeId) -> Result<RuntimeDataId, Failure> {
         self.instance
             .data()
             .get(&source)
             .and_then(DataEvidence::payload)
-            .map(Payload::data)
+            .map(|payload| payload.data().into())
             .ok_or_else(|| self.invalid())
     }
-    fn index_data(&self) -> Result<TypeId, Failure> {
+    fn index_data(&self) -> Result<RuntimeDataId, Failure> {
         let source = self
             .checked
             .typed()
@@ -85,7 +86,7 @@ impl Builder<'_> {
             .ok_or_else(|| self.invalid())?;
         self.data(source)
     }
-    pub(super) fn expression(&self, id: AccessExpressionId) -> Result<TypeId, Failure> {
+    pub(super) fn expression(&self, id: AccessExpressionId) -> Result<RuntimeDataId, Failure> {
         let access = self
             .checked
             .typed()
@@ -115,7 +116,7 @@ impl Builder<'_> {
     pub(super) fn slot(
         &mut self,
         key: SlotKey,
-        data: TypeId,
+        data: RuntimeDataId,
         storage: Storage,
     ) -> Result<MirLocalId, Failure> {
         if let Some(&id) = self.keys.get(&key) {
@@ -143,7 +144,7 @@ impl Builder<'_> {
     pub(super) fn root(
         &mut self,
         holder: Holder,
-        selected: TypeId,
+        selected: RuntimeDataId,
         partial: bool,
     ) -> Result<Place, Failure> {
         let (key, root, storage) = match holder {
@@ -236,7 +237,11 @@ impl Builder<'_> {
             projections: Box::new([]),
         })
     }
-    fn place(&mut self, source: &flow::resources::Place, data: TypeId) -> Result<Place, Failure> {
+    fn place(
+        &mut self,
+        source: &flow::resources::Place,
+        data: RuntimeDataId,
+    ) -> Result<Place, Failure> {
         let mut place = self.root(source.holder(), data, !source.fields().is_root())?;
         place.projections = source
             .fields()
@@ -272,7 +277,7 @@ impl Builder<'_> {
     pub(super) fn selected(
         &mut self,
         id: nocter_model::AccessPlaceId,
-        data: TypeId,
+        data: RuntimeDataId,
     ) -> Result<Place, Failure> {
         let source = self
             .checked
@@ -341,7 +346,7 @@ impl Builder<'_> {
                     let mut source = self.argument(call, *argument)?;
                     if *part == EnvironmentPart::Capture {
                         source.projections = Box::new([Projection::Environment]);
-                        source.data = payload.data();
+                        source.data = payload.data().into();
                     }
                     output.push(Effect::Dispose {
                         source,
@@ -355,10 +360,11 @@ impl Builder<'_> {
                         environment,
                         payload,
                     } => {
-                        let source = self.place(source, environment.data())?;
-                        let mut destination = self.root(*destination, payload.data(), false)?;
+                        let source = self.place(source, environment.data().into())?;
+                        let mut destination =
+                            self.root(*destination, payload.data().into(), false)?;
                         destination.projections = Box::new([Projection::Environment]);
-                        destination.data = environment.data();
+                        destination.data = environment.data().into();
                         output.push(Effect::Transfer {
                             source,
                             destination,
@@ -370,8 +376,8 @@ impl Builder<'_> {
                         from,
                         payload,
                     } => {
-                        let source = self.place(source, from.data())?;
-                        let destination = self.root(*destination, payload.data(), false)?;
+                        let source = self.place(source, from.data().into())?;
+                        let destination = self.root(*destination, payload.data().into(), false)?;
                         output.push(Effect::Reinterpret {
                             source,
                             destination,
@@ -382,7 +388,7 @@ impl Builder<'_> {
                         payload,
                         fields,
                     } => {
-                        let destination = self.root(*destination, payload.data(), false)?;
+                        let destination = self.root(*destination, payload.data().into(), false)?;
                         for (field, source) in fields {
                             let data = self
                                 .instances
@@ -421,7 +427,7 @@ impl Builder<'_> {
                         destination,
                         payload,
                     } => {
-                        let destination = self.root(*destination, payload.data(), false)?;
+                        let destination = self.root(*destination, payload.data().into(), false)?;
                         output.push(Effect::Initialize(destination));
                     }
                     Step::Receive {
@@ -429,7 +435,7 @@ impl Builder<'_> {
                         destination,
                         payload,
                     } => {
-                        let data = payload.data();
+                        let data = payload.data().into();
                         let slot = self.slot(SlotKey::Answer(*call), data, Storage::Payload)?;
                         let source = Place {
                             slot,
@@ -448,8 +454,8 @@ impl Builder<'_> {
                         destination,
                         payload,
                     } => {
-                        let source = self.place(source, payload.data())?;
-                        let destination = self.place(destination, payload.data())?;
+                        let source = self.place(source, payload.data().into())?;
+                        let destination = self.place(destination, payload.data().into())?;
                         output.push(Effect::Transfer {
                             source,
                             destination,
@@ -479,14 +485,14 @@ impl Builder<'_> {
                     } => {
                         let data = self.index_data()?;
                         output.push(Effect::ConsolidateArrayPrefix {
-                            source: self.place(array, payload.data())?,
+                            source: self.place(array, payload.data().into())?,
                             endpoint: self
                                 .root(Holder::ArrayFrontier(*frontier), data, false)?
                                 .slot,
                         });
                     }
                     Step::Dispose { source, payload } => {
-                        let source = self.place(source, payload.data())?;
+                        let source = self.place(source, payload.data().into())?;
                         output.push(Effect::Dispose {
                             source,
                             disposal: self.disposal(*payload)?,
@@ -498,7 +504,7 @@ impl Builder<'_> {
                         range,
                     } => {
                         output.push(Effect::DisposeArrayElements {
-                            source: self.place(source, payload.data())?,
+                            source: self.place(source, payload.data().into())?,
                             range: range.try_map_index(|index| {
                                 let data = self.index_data()?;
                                 Ok(self.root(index.holder(), data, false)?.slot)
@@ -510,7 +516,7 @@ impl Builder<'_> {
                         payload,
                         missing,
                     } => {
-                        let array = self.place(source, payload.data())?;
+                        let array = self.place(source, payload.data().into())?;
                         let missing = missing
                             .iter()
                             .map(|hole| {
@@ -520,8 +526,18 @@ impl Builder<'_> {
                                         (array, Some(*frontier))
                                     }
                                 };
-                                let data = path
-                                    .data(self.instances.unit().program(), array.root)
+                                let data = self
+                                    .runtime
+                                    .value_path(array.root, path.fields(), |index, length| {
+                                        match *index {
+                                            flow::resources::Index::Constant(index) => {
+                                                index < length
+                                            }
+                                            flow::resources::Index::Retained(snapshot) => {
+                                                snapshot.bound() <= length
+                                            }
+                                        }
+                                    })
                                     .ok_or_else(|| self.invalid())?;
                                 let place =
                                     self.place(&source.clone().with_fields(path.clone()), data)?;
@@ -544,7 +560,7 @@ impl Builder<'_> {
                         });
                     }
                     Step::ReleaseContainer { source, payload } => {
-                        output.push(Effect::End(self.place(source, payload.data())?));
+                        output.push(Effect::End(self.place(source, payload.data().into())?));
                     }
                     Step::Invoke {
                         source,
@@ -552,7 +568,7 @@ impl Builder<'_> {
                         index,
                         payload,
                     } => {
-                        let source = self.place(source, payload.data())?;
+                        let source = self.place(source, payload.data().into())?;
                         let destination = self.argument(*call, *index)?;
                         output.push(Effect::Transfer {
                             source,
@@ -564,12 +580,12 @@ impl Builder<'_> {
                         source,
                         payload,
                     } => {
-                        let destination = self.place(destination, payload.data())?;
+                        let destination = self.place(destination, payload.data().into())?;
                         output.push(Effect::Dispose {
                             source: destination.clone(),
                             disposal: self.disposal(*payload)?,
                         });
-                        let source = self.place(source, payload.data())?;
+                        let source = self.place(source, payload.data().into())?;
                         output.push(Effect::Transfer {
                             source,
                             destination,

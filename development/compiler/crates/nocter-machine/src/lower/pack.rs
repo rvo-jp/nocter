@@ -125,8 +125,8 @@ fn lower_pack(
         })
         .collect::<Result<Vec<_>, MachineProgramError>>()?;
     Ok(MachinePack::new(
-        pack.element(),
-        pack.next(),
+        nocter_runtime_contract::RuntimeDataId::Source(pack.element()),
+        nocter_runtime_contract::RuntimeDataId::Source(pack.next()),
         pack_result_abi(operation, call, pack, context, ids)?,
         ids.value(pack.length())?,
         segments,
@@ -152,7 +152,9 @@ fn pack_result_abi(
         .get(*target)
         .ok_or(MachineProgramError::MissingCallableAbi(*target))?;
     let target_pack = abi.pack().ok_or_else(invalid)?;
-    if target_pack.element() != pack.element() || target_pack.next() != pack.next() {
+    if target_pack.element() != nocter_runtime_contract::RuntimeDataId::Source(pack.element())
+        || target_pack.next() != nocter_runtime_contract::RuntimeDataId::Source(pack.next())
+    {
         return Err(invalid());
     }
     Ok(target_pack.next_result())
@@ -193,7 +195,11 @@ fn prepare_next(
     let Some(RuntimeType::Borrow {
         capability: BorrowCapability::ReadWrite,
         referent,
-    }) = context.types.get(receiver.ty())
+    }) = context
+        .types
+        .get(nocter_runtime_contract::RuntimeDataId::Source(
+            receiver.ty(),
+        ))
     else {
         return Err(invalid());
     };
@@ -209,9 +215,9 @@ fn prepare_next(
     }
     let outcome = validate_next_contract(
         abi,
-        receiver.ty(),
-        spread.next_result(),
-        spread.item(),
+        nocter_runtime_contract::RuntimeDataId::Source(receiver.ty()),
+        nocter_runtime_contract::RuntimeDataId::Source(spread.next_result()),
+        nocter_runtime_contract::RuntimeDataId::Source(spread.item()),
         context,
     )
     .map_err(|()| invalid())?;
@@ -231,9 +237,9 @@ fn prepare_next(
 
 fn validate_next_contract(
     abi: &crate::MachineCallableAbi,
-    receiver: nocter_model::TypeId,
-    result: nocter_model::TypeId,
-    item: nocter_model::TypeId,
+    receiver: nocter_runtime_contract::RuntimeDataId,
+    result: nocter_runtime_contract::RuntimeDataId,
+    item: nocter_runtime_contract::RuntimeDataId,
     context: ProgramLoweringContext<'_>,
 ) -> Result<MachinePackNextOutcome, ()> {
     let [argument] = abi.arguments() else {

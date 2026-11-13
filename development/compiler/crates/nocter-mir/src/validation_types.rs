@@ -52,6 +52,7 @@ pub(crate) fn field_type(
         .copied()
         .find(|candidate| candidate.field() == field)
         .map(nocter_runtime_contract::RuntimeFieldRepresentation::ty)
+        .and_then(nocter_runtime_contract::RuntimeDataId::source)
 }
 
 pub(crate) fn capture_type(
@@ -68,6 +69,7 @@ pub(crate) fn capture_type(
         .copied()
         .find(|candidate| candidate.capture() == capture)
         .map(nocter_runtime_contract::RuntimeCaptureRepresentation::ty)
+        .and_then(nocter_runtime_contract::RuntimeDataId::source)
 }
 
 pub(crate) fn variant_representation(
@@ -96,6 +98,7 @@ pub(crate) fn payload_type(
         .copied()
         .find(|candidate| candidate.parameter() == parameter)
         .map(nocter_runtime_contract::RuntimePayloadRepresentation::ty)
+        .and_then(nocter_runtime_contract::RuntimeDataId::source)
 }
 
 pub(crate) fn matches_opaque_witness(
@@ -107,7 +110,7 @@ pub(crate) fn matches_opaque_witness(
     matches!(types.get(opaque), Some(TypeKind::Opaque { .. }))
         && matches!(
             environment.type_representation(opaque),
-            Some(RuntimeTypeRepresentation::Opaque { witness: expected }) if *expected == witness
+            Some(RuntimeTypeRepresentation::Opaque { witness: expected }) if *expected == witness.into()
         )
 }
 

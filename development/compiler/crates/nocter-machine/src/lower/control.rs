@@ -102,7 +102,9 @@ fn lower_tag_switch(
         .ty();
     let layout = layouts
         .get(ty)
-        .ok_or(MachineProgramError::MissingStoredLayout(ty))?;
+        .ok_or(MachineProgramError::MissingStoredLayout(
+            nocter_runtime_contract::RuntimeDataId::Source(ty),
+        ))?;
     let (tag_offset, cases) = match layout.kind() {
         MachineLayoutKind::Enum { tag_offset, .. } => (
             *tag_offset,

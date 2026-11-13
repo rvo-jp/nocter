@@ -1,12 +1,11 @@
-use nocter_model::TypeId;
-
 use crate::{MachineFunctionId, MachineValueId};
+use nocter_runtime_contract::RuntimeDataId;
 
 /// Closed construction data for one owning erased callable value.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MachineErasedCallable {
     environment: MachineValueId,
-    environment_ty: TypeId,
+    environment_ty: RuntimeDataId,
     invoke: MachineFunctionId,
     destroy: Option<MachineFunctionId>,
 }
@@ -14,7 +13,7 @@ pub struct MachineErasedCallable {
 impl MachineErasedCallable {
     pub(crate) const fn new(
         environment: MachineValueId,
-        environment_ty: TypeId,
+        environment_ty: RuntimeDataId,
         invoke: MachineFunctionId,
         destroy: Option<MachineFunctionId>,
     ) -> Self {
@@ -32,7 +31,7 @@ impl MachineErasedCallable {
     }
 
     #[must_use]
-    pub const fn environment_ty(self) -> TypeId {
+    pub const fn environment_ty(self) -> RuntimeDataId {
         self.environment_ty
     }
 

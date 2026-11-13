@@ -598,7 +598,7 @@ fn insert_value(
 fn require_value(
     body: &crate::MachineBody,
     value: MachineValueId,
-) -> Result<nocter_model::TypeId, MachineDataflowError> {
+) -> Result<nocter_runtime_contract::RuntimeDataId, MachineDataflowError> {
     body.value(value)
         .map(crate::MachineValue::ty)
         .ok_or(MachineDataflowError::UnknownValue(value))

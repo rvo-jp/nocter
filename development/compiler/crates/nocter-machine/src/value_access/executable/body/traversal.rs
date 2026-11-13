@@ -5,7 +5,7 @@ use crate::{
     MachineArithmeticCheck, MachineBinaryOperation, MachineBlockId, MachineBranchTarget,
     MachineConstant, MachineOperationKind, MachineTerminator, MachineValueId,
 };
-use nocter_model::TypeId;
+use nocter_runtime_contract::RuntimeDataId;
 use nocter_runtime_contract::RuntimePrimitive;
 
 pub(super) struct Traversal {
@@ -14,7 +14,7 @@ pub(super) struct Traversal {
     exit: MachineBlockId,
 }
 impl Builder<'_> {
-    pub(super) fn primitive(&self, role: RuntimePrimitive) -> Result<TypeId, Failure> {
+    pub(super) fn primitive(&self, role: RuntimePrimitive) -> Result<RuntimeDataId, Failure> {
         self.context
             .program
             .runtime()
@@ -96,7 +96,7 @@ impl Builder<'_> {
     }
     pub(super) fn array_address(
         &mut self,
-        data: TypeId,
+        data: RuntimeDataId,
         pointer: MachineValueId,
         index: MachineValueId,
         stride: u64,

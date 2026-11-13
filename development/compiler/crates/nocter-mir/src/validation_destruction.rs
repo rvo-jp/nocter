@@ -127,7 +127,7 @@ fn validate_struct(
         else {
             return Err(MirValidationError::InvalidDestruction(plan.ty()));
         };
-        if declared[position].ty() != field.plan().ty() {
+        if declared[position].ty().source() != Some(field.plan().ty()) {
             return Err(MirValidationError::InvalidDestruction(plan.ty()));
         }
         previous = position;
@@ -158,7 +158,7 @@ fn validate_closure(
         else {
             return Err(MirValidationError::InvalidDestruction(plan.ty()));
         };
-        if declared[position].ty() != capture.plan().ty() {
+        if declared[position].ty().source() != Some(capture.plan().ty()) {
             return Err(MirValidationError::InvalidDestruction(plan.ty()));
         }
         previous = position;
@@ -201,7 +201,7 @@ fn validate_enum(
             else {
                 return Err(MirValidationError::InvalidDestruction(plan.ty()));
             };
-            if declaration.payload()[position].ty() != payload.plan().ty() {
+            if declaration.payload()[position].ty().source() != Some(payload.plan().ty()) {
                 return Err(MirValidationError::InvalidDestruction(plan.ty()));
             }
             previous_payload = position;

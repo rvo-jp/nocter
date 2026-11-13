@@ -5,7 +5,8 @@ use crate::{
     MachineBinaryOperation, MachineBranchTarget, MachineCall, MachineCallAllocation,
     MachineCallTarget, MachineLayoutKind, MachineOperationKind, MachineTerminator, MachineValueId,
 };
-use nocter_model::{MirLocalId, TypeId, ValueField};
+use nocter_model::{MirLocalId, ValueField};
+use nocter_runtime_contract::RuntimeDataId;
 use nocter_runtime_contract::{RuntimePrimitive, RuntimeTypeRepresentation};
 
 #[derive(Clone)]
@@ -57,7 +58,7 @@ impl Builder<'_> {
 
     fn cleanup_remaining(
         &mut self,
-        data: TypeId,
+        data: RuntimeDataId,
         pointer: MachineValueId,
         exclusions: &[Exclusion],
     ) -> Result<(), Failure> {
@@ -117,7 +118,7 @@ impl Builder<'_> {
 
     fn cleanup_partial_shape(
         &mut self,
-        data: TypeId,
+        data: RuntimeDataId,
         pointer: MachineValueId,
         partial: &[Exclusion],
     ) -> Result<(), Failure> {
@@ -188,7 +189,7 @@ impl Builder<'_> {
 
     fn cleanup_partial_array(
         &mut self,
-        element: TypeId,
+        element: RuntimeDataId,
         length: u64,
         stride: u64,
         pointer: MachineValueId,

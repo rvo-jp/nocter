@@ -45,6 +45,129 @@ fn record(instances: &InstanceProgram, name: &str) -> TypeId {
 }
 
 #[test]
+fn contextual_runtime_shapes_keep_independent_layouts_and_value_paths() {
+    use nocter_model::{AccessFieldId, ArenaBuilder, ValueField, ValueProjection};
+    use nocter_runtime_contract::{
+        RuntimeDataId, RuntimePrimitive, RuntimeTypeRepresentation, RuntimeTypeRepresentationTable,
+        RuntimeTypeTableBuilder, RuntimeValueFieldRepresentation,
+    };
+    let semantic = nocter_model::TypeStore::new();
+    let error = RuntimeDataId::Source(semantic.builtin(BuiltinType::Error));
+    let integer = RuntimeDataId::Source(semantic.builtin(BuiltinType::I32));
+    let array = RuntimeDataId::Instance(0);
+    let environment = RuntimeDataId::Instance(1);
+    let empty = RuntimeDataId::Instance(2);
+    let captured = RuntimeDataId::Instance(3);
+    let field = ArenaBuilder::<AccessFieldId, ()>::new().insert(());
+    let mut types = RuntimeTypeTableBuilder::new();
+    types
+        .insert(error, RuntimeType::Primitive(RuntimePrimitive::Error))
+        .unwrap();
+    types
+        .insert(
+            integer,
+            RuntimeType::Primitive(RuntimePrimitive::Signed(32)),
+        )
+        .unwrap();
+    types
+        .insert(
+            array,
+            RuntimeType::FixedArray {
+                element: error,
+                length: 2,
+            },
+        )
+        .unwrap();
+    types.insert(environment, RuntimeType::Aggregate).unwrap();
+    types
+        .insert(empty, RuntimeType::StaticCallable { environment: None })
+        .unwrap();
+    types
+        .insert(
+            captured,
+            RuntimeType::StaticCallable {
+                environment: Some(environment),
+            },
+        )
+        .unwrap();
+    let runtime = RuntimeEnvironment::new(
+        types.finish().unwrap(),
+        RuntimeTypeRepresentationTable::new(std::collections::BTreeMap::from([(
+            environment,
+            RuntimeTypeRepresentation::ValueAggregate {
+                fields: vec![RuntimeValueFieldRepresentation::new(field.into(), array)].into(),
+            },
+        )])),
+        RuntimeAbiIdentity::Arm64DarwinV1,
+    )
+    .unwrap();
+    let layouts = MachineLayoutPlan::from_runtime(&runtime, [empty, captured, integer]).unwrap();
+    assert_eq!(layouts.get(empty).unwrap().size(), 0);
+    assert_eq!(
+        layouts.get(captured).unwrap().size(),
+        layouts.get(environment).unwrap().size()
+    );
+    assert!(layouts.get(captured).unwrap().size() > 0);
+    assert_eq!(
+        layouts
+            .value_field(environment, ValueField::Record(field))
+            .unwrap()
+            .ty(),
+        array
+    );
+    let path = [
+        ValueProjection::Record(field),
+        ValueProjection::Array(1_u64),
+    ];
+    assert_eq!(
+        runtime.value_path(environment, &path, |index, length| *index < length),
+        Some(error)
+    );
+    let past_end = [
+        ValueProjection::Record(field),
+        ValueProjection::Array(2_u64),
+    ];
+    assert!(
+        runtime
+            .value_path(environment, &past_end, |index, length| *index < length)
+            .is_none()
+    );
+    assert_contextual_value_abi(&layouts, empty, captured, integer);
+}
+
+fn assert_contextual_value_abi(
+    layouts: &MachineLayoutPlan,
+    empty: nocter_runtime_contract::RuntimeDataId,
+    captured: nocter_runtime_contract::RuntimeDataId,
+    integer: nocter_runtime_contract::RuntimeDataId,
+) {
+    use nocter_model::{AccessLocalId, ArenaBuilder};
+    use nocter_runtime_contract::RuntimeValueInput;
+    let mut locals = ArenaBuilder::<AccessLocalId, ()>::new();
+    let signature = RuntimeValueSignature::new(
+        None,
+        [
+            RuntimeValueInput {
+                local: locals.insert(()),
+                data: empty,
+                operation: ValueInputOperation::Take,
+            },
+            RuntimeValueInput {
+                local: locals.insert(()),
+                data: captured,
+                operation: ValueInputOperation::Take,
+            },
+        ],
+        integer,
+    );
+    let abi = MachineValueCallableAbi::build(signature, layouts).unwrap();
+    assert_eq!(abi.transport().arguments()[0].ty(), empty);
+    assert!(abi.transport().arguments()[0].location().is_none());
+    assert_eq!(abi.transport().arguments()[1].ty(), captured);
+    assert!(abi.transport().arguments()[1].location().is_some());
+}
+
+#[test]
 fn records_preserve_alignment_padding_and_zero_byte_member_identity() {
     let instances = close(&ValueSourceFixture::new(
         "struct Empty {}\nstruct Data { flag: bool\nfirst: void\nnumber: i32\nlast: void\nempty: Empty\nfailure: error }\nfunc run(take input: Data): void {}",
@@ -62,13 +185,33 @@ fn records_preserve_alignment_padding_and_zero_byte_member_identity() {
         .fields();
     let offsets: Vec<_> = fields
         .iter()
-        .map(|&field| layouts.value_field(data, field.into()).unwrap().offset())
+        .map(|&field| {
+            layouts
+                .value_field(
+                    nocter_runtime_contract::RuntimeDataId::Source(data),
+                    field.into(),
+                )
+                .unwrap()
+                .offset()
+        })
         .collect();
     assert_eq!(offsets, [0, 1, 4, 8, 8, 8]);
     assert_ne!(fields[3], fields[4]);
     assert_ne!(
-        layouts.value_field(data, fields[3].into()).unwrap().ty(),
-        layouts.value_field(data, fields[4].into()).unwrap().ty()
+        layouts
+            .value_field(
+                nocter_runtime_contract::RuntimeDataId::Source(data),
+                fields[3].into()
+            )
+            .unwrap()
+            .ty(),
+        layouts
+            .value_field(
+                nocter_runtime_contract::RuntimeDataId::Source(data),
+                fields[4].into()
+            )
+            .unwrap()
+            .ty()
     );
     assert_eq!(
         (
@@ -87,10 +230,22 @@ fn records_preserve_alignment_padding_and_zero_byte_member_identity() {
     );
     assert_eq!(layouts.class(empty), Some(MachineValueClass::Zero));
     let unit = program.data_type(BuiltinType::Void).unwrap();
-    assert_eq!(environment.types().get(unit), Some(&RuntimeType::Unit));
+    assert_eq!(
+        environment
+            .types()
+            .get(nocter_runtime_contract::RuntimeDataId::Source(unit)),
+        Some(&RuntimeType::Unit)
+    );
     assert_eq!(layouts.get(unit).unwrap().kind(), &MachineLayoutKind::Unit);
     // A field from another record never acquires meaning just because its offset would fit.
-    assert!(layouts.value_field(empty, fields[0].into()).is_none());
+    assert!(
+        layouts
+            .value_field(
+                nocter_runtime_contract::RuntimeDataId::Source(empty),
+                fields[0].into()
+            )
+            .is_none()
+    );
 }
 
 #[test]
@@ -165,7 +320,10 @@ fn access_operations_do_not_change_data_layout_or_create_borrow_types() {
                 .local
         );
         assert_eq!(input.operation, call.inputs()[0].operation);
-        assert_eq!(transport.ty(), data);
+        assert_eq!(
+            transport.ty(),
+            nocter_runtime_contract::RuntimeDataId::Source(data)
+        );
         assert!(
             matches!(abi.transport().result(), MachineResultAbi::Value(result) if result.class() == MachineValueClass::Zero)
         );
@@ -194,7 +352,12 @@ fn interrupted_unproduced_callable_shapes_do_not_request_symbolic_storage() {
     for (_, instance) in instances.instances().iter() {
         for (&data, evidence) in instance.data() {
             if evidence.payload().is_none() {
-                assert!(environment.types().get(data).is_none());
+                assert!(
+                    environment
+                        .types()
+                        .get(nocter_runtime_contract::RuntimeDataId::Source(data))
+                        .is_none()
+                );
                 assert!(layouts.get(data).is_none());
             }
         }
@@ -245,7 +408,10 @@ fn dependent_and_captured_source_witnesses_reach_closed_layouts() {
                 {
                     assert_eq!(input.local, body.inputs().explicit()[index].local);
                     assert_eq!(input.operation, binding.operation);
-                    assert_eq!(input.data, binding.payload.data());
+                    assert_eq!(
+                        input.data,
+                        nocter_runtime_contract::RuntimeDataId::Source(binding.payload.data())
+                    );
                 }
                 assert_eq!(call.inputs().len(), signature.explicit().len());
                 match call.environment() {
@@ -256,10 +422,16 @@ fn dependent_and_captured_source_witnesses_reach_closed_layouts() {
                         let environment = signature.environment().unwrap();
                         assert_eq!(environment.local, input.local);
                         assert_eq!(environment.operation, input.operation);
-                        assert_eq!(environment.data, payload.data());
+                        assert_eq!(
+                            environment.data,
+                            nocter_runtime_contract::RuntimeDataId::Source(payload.data())
+                        );
                     }
                 }
-                assert_eq!(signature.result(), call.result().data());
+                assert_eq!(
+                    signature.result(),
+                    nocter_runtime_contract::RuntimeDataId::Source(call.result().data())
+                );
                 MachineValueCallableAbi::build(signature, &layouts).unwrap();
             }
         }
@@ -425,10 +597,21 @@ fn empty_value_array_geometry_preserves_the_released_fixed_array_policy() {
         )
         .unwrap();
     types
-        .insert(empty, RuntimeType::EmptyArray { element })
+        .insert(
+            empty,
+            RuntimeType::EmptyArray {
+                element: nocter_runtime_contract::RuntimeDataId::Source(element),
+            },
+        )
         .unwrap();
     types
-        .insert(fixed, RuntimeType::FixedArray { element, length: 0 })
+        .insert(
+            fixed,
+            RuntimeType::FixedArray {
+                element: nocter_runtime_contract::RuntimeDataId::Source(element),
+                length: 0,
+            },
+        )
         .unwrap();
     let runtime = RuntimeEnvironment::new(
         types.finish().unwrap(),
@@ -461,14 +644,21 @@ fn iterative_layout_dependencies_reject_positive_cycles_and_preserve_empty_cuts(
     let next = semantic.builtin(BuiltinType::Bool);
     for cut in [false, true] {
         let mut types = RuntimeTypeTableBuilder::new();
-        types.insert(first, RuntimeType::Optional(next)).unwrap();
+        types
+            .insert(
+                first,
+                RuntimeType::Optional(nocter_runtime_contract::RuntimeDataId::Source(next)),
+            )
+            .unwrap();
         types
             .insert(
                 next,
                 if cut {
-                    RuntimeType::EmptyArray { element: first }
+                    RuntimeType::EmptyArray {
+                        element: nocter_runtime_contract::RuntimeDataId::Source(first),
+                    }
                 } else {
-                    RuntimeType::Optional(first)
+                    RuntimeType::Optional(nocter_runtime_contract::RuntimeDataId::Source(first))
                 },
             )
             .unwrap();
@@ -478,11 +668,16 @@ fn iterative_layout_dependencies_reject_positive_cycles_and_preserve_empty_cuts(
             RuntimeAbiIdentity::Arm64DarwinV1,
         )
         .unwrap();
-        let result = MachineLayoutPlan::from_runtime(&runtime, [first]);
+        let result = MachineLayoutPlan::from_runtime(
+            &runtime,
+            [nocter_runtime_contract::RuntimeDataId::Source(first)],
+        );
         if cut {
             assert_eq!(result.unwrap().get(first).unwrap().size(), 1);
         } else {
-            assert!(matches!(result, Err(MachineLayoutError::RecursiveValue(id)) if id == first));
+            assert!(
+                matches!(result, Err(MachineLayoutError::RecursiveValue(id)) if id == nocter_runtime_contract::RuntimeDataId::Source(first))
+            );
         }
     }
 }

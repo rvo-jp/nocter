@@ -11,7 +11,8 @@ use crate::{
     MachineValueRepresentation,
 };
 use nocter_mir::value_access as mir;
-use nocter_model::{AccessInstanceId, MirLocalId, TypeId, ValueInputOperation};
+use nocter_model::{AccessInstanceId, MirLocalId, ValueInputOperation};
+use nocter_runtime_contract::RuntimeDataId;
 use nocter_runtime_contract::RuntimeType;
 use std::collections::{BTreeMap, BTreeSet};
 mod arrays;
@@ -101,7 +102,7 @@ impl<'a> Builder<'a> {
     }
     fn value(
         &mut self,
-        data: TypeId,
+        data: RuntimeDataId,
         address: bool,
         kind: MachineOperationKind,
     ) -> Result<MachineValueId, Failure> {
@@ -119,7 +120,7 @@ impl<'a> Builder<'a> {
     }
     fn stored_value(
         &self,
-        data: TypeId,
+        data: RuntimeDataId,
         definition: MachineValueDefinition,
     ) -> Result<MachineValue, Failure> {
         let layout = self.context.layouts.get(data).ok_or_else(Self::invalid)?;
@@ -136,7 +137,7 @@ impl<'a> Builder<'a> {
     fn parameter(
         &mut self,
         block: MachineBlockId,
-        data: TypeId,
+        data: RuntimeDataId,
     ) -> Result<MachineValueId, Failure> {
         let position = self.blocks[block.index()].parameters.len();
         let value = self.stored_value(
@@ -797,7 +798,7 @@ pub(super) fn process(
     context: &Context<'_>,
     owner: MachineFunctionId,
     entry: MachineFunctionId,
-    data: TypeId,
+    data: RuntimeDataId,
 ) -> Result<MachineFunction, Failure> {
     let mut builder = Builder::new(context, owner);
     let value = builder.value(

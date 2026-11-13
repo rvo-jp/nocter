@@ -53,7 +53,7 @@ impl ExecutableProgram {
 
     #[must_use]
     pub fn type_representation(&self, ty: TypeId) -> Option<&RuntimeTypeRepresentation> {
-        self.runtime.type_representations().get(ty)
+        self.runtime.type_representations().get(ty.into())
     }
 
     /// Returns the closed runtime classification selected for one semantic type.
@@ -62,7 +62,7 @@ impl ExecutableProgram {
     /// such as compiler-owned storage whose source declaration intentionally has no fields.
     #[must_use]
     pub fn runtime_type(&self, ty: TypeId) -> Option<&RuntimeType> {
-        self.runtime.types().get(ty)
+        self.runtime.types().get(ty.into())
     }
 
     #[must_use]

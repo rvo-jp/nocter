@@ -1,5 +1,6 @@
 use nocter_mir::{MirDestructionKind, MirDestructionPlan};
 use nocter_model::{ExecutableItemId, MirOperationId};
+use nocter_runtime_contract::RuntimeDataId;
 
 use super::MachineProgramError;
 use crate::{
@@ -78,13 +79,14 @@ fn lower_plan(
     plan: &MirDestructionPlan,
     context: DestructionContext<'_>,
 ) -> Result<MachineDestructionPlan, MachineProgramError> {
-    let layout = context
-        .layouts
-        .get(plan.ty())
-        .ok_or_else(|| context.error(MachineDestructionError::InvalidLayout(plan.ty())))?;
+    let layout = context.layouts.get(plan.ty()).ok_or_else(|| {
+        context.error(MachineDestructionError::InvalidLayout(
+            RuntimeDataId::Source(plan.ty()),
+        ))
+    })?;
     let kind = lower_kind(plan, layout.kind(), context)?;
     Ok(MachineDestructionPlan::new(
-        plan.ty(),
+        RuntimeDataId::Source(plan.ty()),
         layout.size(),
         layout.alignment(),
         kind,
@@ -96,6 +98,7 @@ fn lower_kind(
     layout: &MachineLayoutKind,
     context: DestructionContext<'_>,
 ) -> Result<MachineDestructionKind, MachineProgramError> {
+    let data = RuntimeDataId::Source(plan.ty());
     match (plan.kind(), layout) {
         (
             MirDestructionKind::RuntimeStorage { role, drop },
@@ -105,12 +108,12 @@ fn lower_kind(
             drop: lower_drop(*drop, context)?,
         }),
         (MirDestructionKind::Struct { drop, fields }, MachineLayoutKind::Struct { .. }) => {
-            lower_struct(plan.ty(), *drop, fields, context)
+            lower_struct(data, *drop, fields, context)
         }
         (
             MirDestructionKind::Enum { drop, variants },
             MachineLayoutKind::Enum { tag_offset, .. },
-        ) => lower_enum(plan.ty(), *drop, *tag_offset, variants, context),
+        ) => lower_enum(data, *drop, *tag_offset, variants, context),
         (
             MirDestructionKind::FixedArray { length, element },
             MachineLayoutKind::FixedArray {
@@ -118,7 +121,7 @@ fn lower_kind(
                 length: actual_length,
                 stride,
             },
-        ) if element.ty() == *actual && *length == *actual_length => {
+        ) if RuntimeDataId::Source(element.ty()) == *actual && *length == *actual_length => {
             Ok(MachineDestructionKind::FixedArray {
                 length: *length,
                 stride: *stride,
@@ -126,7 +129,7 @@ fn lower_kind(
             })
         }
         (MirDestructionKind::Tuple(elements), MachineLayoutKind::Tuple { elements: layouts }) => {
-            lower_tuple(plan.ty(), elements, layouts, context)
+            lower_tuple(data, elements, layouts, context)
         }
         (
             MirDestructionKind::Optional(payload),
@@ -137,12 +140,14 @@ fn lower_kind(
                 primary: Some(primary),
                 ..
             },
-        ) if payload.ty() == *primary => Ok(MachineDestructionKind::Outcome {
-            tag_offset: *tag_offset,
-            payload_offset: *payload_offset,
-            active_tag: MachineOutcomeKind::Optional.primary_tag(),
-            payload: Box::new(lower_plan(payload, context)?),
-        }),
+        ) if RuntimeDataId::Source(payload.ty()) == *primary => {
+            Ok(MachineDestructionKind::Outcome {
+                tag_offset: *tag_offset,
+                payload_offset: *payload_offset,
+                active_tag: MachineOutcomeKind::Optional.primary_tag(),
+                payload: Box::new(lower_plan(payload, context)?),
+            })
+        }
         (
             MirDestructionKind::Fallible { success, failure },
             MachineLayoutKind::Outcome {
@@ -154,7 +159,7 @@ fn lower_kind(
             },
         ) if success
             .as_deref()
-            .is_none_or(|payload| *primary == Some(payload.ty())) =>
+            .is_none_or(|payload| *primary == Some(RuntimeDataId::Source(payload.ty()))) =>
         {
             Ok(MachineDestructionKind::Fallible {
                 tag_offset: *tag_offset,
@@ -176,21 +181,21 @@ fn lower_kind(
             Ok(MachineDestructionKind::ErasedCallable)
         }
         (MirDestructionKind::Closure(captures), MachineLayoutKind::Closure { .. }) => {
-            lower_closure(plan.ty(), captures, context)
+            lower_closure(data, captures, context)
         }
         (MirDestructionKind::Opaque { plan: inner, .. }, MachineLayoutKind::Opaque { witness })
-            if inner.ty() == *witness =>
+            if RuntimeDataId::Source(inner.ty()) == *witness =>
         {
             Ok(MachineDestructionKind::Opaque(Box::new(lower_plan(
                 inner, context,
             )?)))
         }
-        _ => Err(context.error(MachineDestructionError::InvalidLayout(plan.ty()))),
+        _ => Err(context.error(MachineDestructionError::InvalidLayout(data))),
     }
 }
 
 fn lower_tuple(
-    ty: nocter_model::TypeId,
+    ty: nocter_runtime_contract::RuntimeDataId,
     elements: &[nocter_mir::MirTupleElementDestruction],
     layouts: &[crate::MachineTupleElementLayout],
     context: DestructionContext<'_>,
@@ -200,7 +205,7 @@ fn lower_tuple(
         .map(|element| {
             let offset = layouts
                 .get(element.index())
-                .filter(|layout| layout.ty() == element.plan().ty())
+                .filter(|layout| layout.ty() == RuntimeDataId::Source(element.plan().ty()))
                 .map(|layout| layout.offset())
                 .ok_or_else(|| context.error(MachineDestructionError::MissingMember(ty)))?;
             Ok(crate::MachineDestructionElement::new(
@@ -213,7 +218,7 @@ fn lower_tuple(
 }
 
 fn lower_struct(
-    ty: nocter_model::TypeId,
+    ty: nocter_runtime_contract::RuntimeDataId,
     drop: Option<ExecutableItemId>,
     fields: &[nocter_mir::MirFieldDestruction],
     context: DestructionContext<'_>,
@@ -239,7 +244,7 @@ fn lower_struct(
 }
 
 fn lower_enum(
-    ty: nocter_model::TypeId,
+    ty: nocter_runtime_contract::RuntimeDataId,
     drop: Option<ExecutableItemId>,
     tag_offset: u64,
     variants: &[nocter_mir::MirVariantDestruction],
@@ -278,7 +283,7 @@ fn lower_enum(
 }
 
 fn lower_closure(
-    ty: nocter_model::TypeId,
+    ty: nocter_runtime_contract::RuntimeDataId,
     captures: &[nocter_mir::MirCaptureDestruction],
     context: DestructionContext<'_>,
 ) -> Result<MachineDestructionKind, MachineProgramError> {

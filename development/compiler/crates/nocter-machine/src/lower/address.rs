@@ -1,5 +1,6 @@
 use nocter_mir::{MirBody, MirPlace, MirPlaceRoot, MirProjectionKind, MirStatic};
-use nocter_model::{Arena, ExecutableStaticId, MirPlaceId, TypeId};
+use nocter_model::{Arena, ExecutableStaticId, MirPlaceId};
+use nocter_runtime_contract::RuntimeDataId;
 use nocter_runtime_contract::{RuntimePrimitive, RuntimeType, RuntimeTypeTable};
 
 use super::body::BodyIdentities;
@@ -59,11 +60,11 @@ fn lower_address(
     };
     for projection in value.projections().iter().copied() {
         lower_projection(context, &mut state, current, projection.kind())?;
-        current = projection.ty();
+        current = nocter_runtime_contract::RuntimeDataId::Source(projection.ty());
     }
     current_view = state.current_view;
     let steps = state.steps;
-    if current != value.ty() {
+    if current != nocter_runtime_contract::RuntimeDataId::Source(value.ty()) {
         return Err(address_error(
             lowering.ids,
             place,
@@ -72,7 +73,9 @@ fn lower_address(
     }
     if current_view {
         if !matches!(
-            lowering.types.get(value.ty()),
+            lowering
+                .types
+                .get(nocter_runtime_contract::RuntimeDataId::Source(value.ty())),
             Some(RuntimeType::Primitive(RuntimePrimitive::Text) | RuntimeType::Slice(_))
         ) {
             return Err(address_error(
@@ -81,14 +84,21 @@ fn lower_address(
                 MachineAddressError::InvalidProjection,
             ));
         }
-        return Ok(MachineAddress::new_view(value.ty(), root, steps));
+        return Ok(MachineAddress::new_view(
+            nocter_runtime_contract::RuntimeDataId::Source(value.ty()),
+            root,
+            steps,
+        ));
     }
-    let layout = lowering
-        .layouts
-        .get(value.ty())
-        .ok_or(MachineProgramError::MissingStoredLayout(value.ty()))?;
+    let layout =
+        lowering
+            .layouts
+            .get(value.ty())
+            .ok_or(MachineProgramError::MissingStoredLayout(
+                nocter_runtime_contract::RuntimeDataId::Source(value.ty()),
+            ))?;
     Ok(MachineAddress::new(
-        value.ty(),
+        nocter_runtime_contract::RuntimeDataId::Source(value.ty()),
         layout.size(),
         layout.alignment(),
         root,
@@ -100,7 +110,7 @@ fn lower_root(
     place: MirPlaceId,
     root: MirPlaceRoot,
     context: AddressLoweringContext<'_>,
-) -> Result<(MachineAddressRoot, TypeId, bool), MachineProgramError> {
+) -> Result<(MachineAddressRoot, RuntimeDataId, bool), MachineProgramError> {
     match root {
         MirPlaceRoot::Local(local) => {
             let source = local;
@@ -109,7 +119,7 @@ fn lower_root(
             })?;
             Ok((
                 MachineAddressRoot::Stack(context.ids.stack(source)?),
-                local.ty(),
+                nocter_runtime_contract::RuntimeDataId::Source(local.ty()),
                 false,
             ))
         }
@@ -120,23 +130,31 @@ fn lower_root(
             let ty = context.statics.get(id).map(MirStatic::ty).ok_or_else(|| {
                 address_error(context.ids, place, MachineAddressError::InvalidRoot)
             })?;
-            Ok((MachineAddressRoot::Data(definition), ty, false))
+            Ok((
+                MachineAddressRoot::Data(definition),
+                nocter_runtime_contract::RuntimeDataId::Source(ty),
+                false,
+            ))
         }
         MirPlaceRoot::Dereference { value, .. } => {
             let source = context.body.values().get(value).copied().ok_or_else(|| {
                 address_error(context.ids, place, MachineAddressError::InvalidRoot)
             })?;
-            let Some(RuntimeType::Borrow { referent, .. }) = context.types.get(source.ty()) else {
+            let Some(RuntimeType::Borrow { referent, .. }) = context
+                .types
+                .get(nocter_runtime_contract::RuntimeDataId::Source(source.ty()))
+            else {
                 return Err(address_error(
                     context.ids,
                     place,
                     MachineAddressError::InvalidRoot,
                 ));
             };
-            let layout = context
-                .layouts
-                .get(source.ty())
-                .ok_or(MachineProgramError::MissingStoredLayout(source.ty()))?;
+            let layout = context.layouts.get(source.ty()).ok_or(
+                MachineProgramError::MissingStoredLayout(
+                    nocter_runtime_contract::RuntimeDataId::Source(source.ty()),
+                ),
+            )?;
             match layout.kind() {
                 MachineLayoutKind::Pointer => Ok((
                     MachineAddressRoot::Pointer {
@@ -183,7 +201,7 @@ struct AddressState {
 fn lower_projection(
     context: ProjectionContext<'_>,
     state: &mut AddressState,
-    source: TypeId,
+    source: RuntimeDataId,
     projection: MirProjectionKind,
 ) -> Result<(), MachineProgramError> {
     if state.current_view
@@ -272,7 +290,7 @@ fn lower_projection(
 
 fn static_projection_offset(
     context: ProjectionContext<'_>,
-    source: TypeId,
+    source: RuntimeDataId,
     projection: MirProjectionKind,
 ) -> Result<u64, MachineProgramError> {
     let offset = match (projection, layout_kind(context.layouts, source)?) {
@@ -308,7 +326,7 @@ fn static_projection_offset(
 
 fn lower_dereference(
     place: MirPlaceId,
-    source: TypeId,
+    source: RuntimeDataId,
     layouts: &MachineLayoutPlan,
     ids: &BodyIdentities,
     steps: &mut Vec<MachineAddressStep>,
@@ -337,7 +355,7 @@ fn lower_dereference(
 fn lower_index(
     context: ProjectionContext<'_>,
     state: &mut AddressState,
-    source: TypeId,
+    source: RuntimeDataId,
     index: MachineIndex,
     check: crate::MachineIndexCheck,
 ) -> Result<(), MachineProgramError> {
@@ -384,7 +402,7 @@ fn lower_index(
 
 fn push_outcome_offset(
     place: MirPlaceId,
-    source: TypeId,
+    source: RuntimeDataId,
     expected: MachineOutcomeKind,
     layouts: &MachineLayoutPlan,
     ids: &BodyIdentities,
@@ -406,7 +424,7 @@ fn push_outcome_offset(
 
 fn layout_kind(
     layouts: &MachineLayoutPlan,
-    ty: TypeId,
+    ty: RuntimeDataId,
 ) -> Result<&MachineLayoutKind, MachineProgramError> {
     layouts
         .get(ty)

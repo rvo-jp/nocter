@@ -1,4 +1,5 @@
-use nocter_model::{CallableCapability, TypeId};
+use nocter_model::CallableCapability;
+use nocter_runtime_contract::RuntimeDataId;
 use nocter_runtime_contract::{RuntimePrimitive, RuntimeType, RuntimeTypeTable};
 
 use crate::identity::MachineId;
@@ -70,7 +71,7 @@ struct AdapterBuilder<'a> {
     addresses: Vec<MachineAddress>,
     values: Vec<MachineValue>,
     operations: Vec<MachineOperation>,
-    usize_: TypeId,
+    usize_: RuntimeDataId,
 }
 
 impl<'a> AdapterBuilder<'a> {
@@ -128,8 +129,8 @@ impl<'a> AdapterBuilder<'a> {
     fn environment_argument(
         &mut self,
         pointer: MachineValueId,
-        environment: TypeId,
-        target_environment: TypeId,
+        environment: RuntimeDataId,
+        target_environment: RuntimeDataId,
         capability: CallableCapability,
     ) -> Result<MachineValueId, crate::MachineProgramError> {
         let layout = self
@@ -212,7 +213,7 @@ impl<'a> AdapterBuilder<'a> {
 
     fn append_value(
         &mut self,
-        ty: TypeId,
+        ty: RuntimeDataId,
         kind: MachineOperationKind,
     ) -> Result<MachineValueId, crate::MachineProgramError> {
         let operation = MachineOperationId::new(self.operations.len());
@@ -229,7 +230,7 @@ impl<'a> AdapterBuilder<'a> {
 
     fn value_representation(
         &self,
-        ty: TypeId,
+        ty: RuntimeDataId,
     ) -> Result<MachineValueRepresentation, crate::MachineProgramError> {
         match self.types.get(ty) {
             Some(RuntimeType::Primitive(RuntimePrimitive::Void)) => {

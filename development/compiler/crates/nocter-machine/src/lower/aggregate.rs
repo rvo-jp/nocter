@@ -1,5 +1,6 @@
 use nocter_mir::{MirAggregate, MirClosureCapture};
-use nocter_model::{FieldId, MirOperationId, MirValueId, TypeId, VariantId};
+use nocter_model::{FieldId, MirOperationId, MirValueId, VariantId};
+use nocter_runtime_contract::RuntimeDataId;
 
 use super::body::BodyIdentities;
 use super::{MachineAggregateError, MachineProgramError};
@@ -11,7 +12,7 @@ use crate::{
 pub(super) fn lower_aggregate(
     operation: MirOperationId,
     aggregate: &MirAggregate,
-    ty: TypeId,
+    ty: RuntimeDataId,
     layouts: &MachineLayoutPlan,
     ids: &BodyIdentities,
 ) -> Result<MachineAggregate, MachineProgramError> {
@@ -116,7 +117,7 @@ pub(super) fn lower_aggregate(
 #[derive(Clone, Copy)]
 struct AggregateContext<'a> {
     operation: MirOperationId,
-    ty: TypeId,
+    ty: RuntimeDataId,
     ids: &'a BodyIdentities,
     layouts: &'a MachineLayoutPlan,
 }
