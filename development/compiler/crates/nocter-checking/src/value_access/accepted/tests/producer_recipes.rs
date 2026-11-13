@@ -75,6 +75,62 @@ fn distinct_applications_keep_inputs_even_when_their_result_types_project_to_one
 const FORWARDED: &str = "func first(): i32 { 42 }\nfunc make(): func(): i32 { first }\nfunc forward(take action: func(): i32): func(): i32 { action^ }\nfunc run(): i32 { let action = forward(make())\naction() }";
 
 #[test]
+fn equal_typed_tuple_fields_keep_their_own_producer_occurrences_after_reassignment() {
+    let unit = accepted(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/component-producers.nct"
+    )));
+    for (owner, expected) in [
+        ("snapshot", [vec![1], vec![0]]),
+        ("replace_component", [vec![2], vec![0]]),
+        ("choose_component", [vec![1, 2], vec![0, 3]]),
+        ("repeated_components", [vec![1], vec![0]]),
+        ("summarized_elements", [vec![0, 1], vec![0, 1]]),
+    ] {
+        assert_component_producers(&unit, owner, &expected);
+    }
+    let answer = unit
+        .program()
+        .resolve_constant(unit.program().symbols().get("ANSWER").unwrap())
+        .unwrap();
+    assert_eq!(
+        unit.constant_value(answer),
+        Some(&nocter_constant_evaluation::state::Value::integer(42).freeze())
+    );
+}
+
+fn assert_component_producers(unit: &Unit, name: &str, expected: &[Vec<usize>]) {
+    let owner = code(unit, name).into();
+    let maker = Origin::Declaration(code(unit, "make"));
+    let body = named(unit, name).typed().body();
+    let mut creations = Vec::new();
+    let mut uses = Vec::new();
+    for (call, expression) in body.expressions().iter() {
+        if let ExpressionKind::Call { target, kind, .. } = &expression.kind {
+            if *target == maker {
+                creations.push(ValueApplication { owner, call });
+            } else if *kind == crate::value_access::CallKind::Value {
+                uses.push(ValueApplication { owner, call });
+            }
+        }
+    }
+    assert_eq!(uses.len(), expected.len(), "{name}");
+    for (site, alternatives) in uses.into_iter().zip(expected) {
+        assert_eq!(
+            unit.invocation_recipe(site).unwrap().callees,
+            alternatives
+                .iter()
+                .map(|&index| FunctionWitness {
+                    origin: Origin::Application(creations[index]),
+                    invocation: nocter_model::ValueInvocation::Read,
+                })
+                .collect::<BTreeSet<_>>(),
+            "{name}",
+        );
+    }
+}
+
+#[test]
 fn forwarded_application_keeps_its_original_producer_term_after_selected_code_projection() {
     let unit = accepted(FORWARDED);
     let inner = call(&unit, "run", "make");

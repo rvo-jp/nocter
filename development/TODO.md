@@ -31,7 +31,8 @@ alone does not complete capture support. Preserve current rejection until execut
 
 Resolve value-occurrence creation context through the retained source-flow producer equations
 and ordinary value transport, then close source closure creation before admitting formal callable
-captures. Evaluator and native committed calls use the shared original-recipe frame resolver;
+captures. Reconcile lexical alias reads/writes with the shared structural producer facts before
+retaining creation snapshots. Evaluator and native committed calls use the shared original-recipe frame resolver;
 extend occurrence-sensitive realization while preserving the separate plan-work failure class
 and pre-commit preparation behavior. Preserve exact creation contexts,
 anchored recursion, alternative handling and failure/retry behavior; source formal-capture
@@ -111,6 +112,12 @@ not a language restriction derived from the current realization boundary.
   publication is not implied by qualification.
 
 ## Open Findings
+
+- [ ] Propagate producer changes through lexical read/edit aliases. Producer flow snapshots an
+  alias into a separate local, so a later write through it does not update the underlying root's
+  facts, and later alias reads can retain stale snapshots. Reuse the existing lexical alias
+  provenance owner and structural facts; do not create a competing alias registry or treat a
+  frozen evaluated selector as numeric equality. Qualify source cases before contextual admission.
 
 - [ ] Preserve value-occurrence producer and creation-frame context when one caller receives the
   same lexical closure with different captured callback substitutions. A per-frame `TypeId` map

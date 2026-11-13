@@ -431,6 +431,13 @@ callee alternatives and formal-to-producer alternatives, including nested applic
 independently of whether its result is callable. Value-call receivers use the prepared value's
 source-flow producers, including reassignment and control alternatives, adapted to the frozen
 invocation view; the type's original witness does not replace those facts.
+Producer flow retains aggregate field paths in one analysis-local, structurally interned fact
+graph. Equal callable leaf types do not merge different tuple/record component occurrences.
+Direct field replacement updates that component; control joins preserve alternatives at each
+component, and evaluated writes remain conservative. Arrays retain one element-summary shape,
+including its aggregate fields, independently of element count. Shared subshapes and iterative
+traversal avoid expanding the logical value tree. These facts describe possible producer terms,
+not numeric-index equality, path correlation, access permission or initialized storage.
 `Unit::invocation_recipe` exposes these records
 under their exact code/call identity. Callable application nodes share the same immutable record,
 so the equation graph and invocation catalog do not maintain separate binding copies. Interrupted

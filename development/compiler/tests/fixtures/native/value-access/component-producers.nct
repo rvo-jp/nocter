@@ -1,0 +1,45 @@
+const func make(value: i32): func(): i32 { (value;): i32 { value } }
+const func snapshot(): i32 {
+    var current = make(42)
+    let saved = current
+    current = make(43)
+    let pair = (current, saved)
+    pair.0() + pair.1()
+}
+const func replace_component(): i32 {
+    var current = make(42)
+    let saved = current
+    current = make(43)
+    var pair = (current, saved)
+    pair.0 = make(44)
+    pair.0() + pair.1()
+}
+const func choose_component(flag: bool): i32 {
+    var current = make(42)
+    let saved = current
+    current = make(43)
+    var pair = (current, saved)
+    if flag { pair.0 = make(44) } else { pair.1 = make(45) }
+    pair.0() + pair.1()
+}
+const func repeated_components(): i32 {
+    var current = make(42)
+    let saved = current
+    current = make(43)
+    let pairs = [(current, saved); 2]
+    pairs[0].0() + pairs[1].1()
+}
+const func summarized_elements(): i32 {
+    var current = make(42)
+    let saved = current
+    current = make(43)
+    let actions = [current, saved]
+    actions[0]() + actions[1]()
+}
+const func calculate(): i32 {
+    if snapshot() == 85 && replace_component() == 86
+        && choose_component(true) == 86 && choose_component(false) == 88
+        && repeated_components() == 85 && summarized_elements() == 85 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { if ANSWER == 42 && calculate() == 42 { 42 } else { 0 } }
