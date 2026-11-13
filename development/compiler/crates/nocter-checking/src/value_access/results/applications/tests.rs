@@ -4,7 +4,7 @@ use crate::value_access::{
     tests::{bound, input},
 };
 use nocter_declaration_lowering::access_declarations;
-use nocter_model::{ValueAccess, ValueAccessMode};
+use nocter_model::{ValueAccess, ValueAccessMode, ValueInvocation};
 use std::sync::Arc;
 
 #[test]

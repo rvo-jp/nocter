@@ -10,7 +10,7 @@ use super::{Control, IntegrityError, Operation, aliases::Aliases};
 use crate::value_access::{ExpressionKind, Query as TypedQuery, Referent};
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::Program;
-use nocter_model::{AccessExpressionId, ValueCode, ValueFunctionOrigin};
+use nocter_model::{AccessExpressionId, ValueCode};
 use requests::Request;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -134,12 +134,5 @@ impl Catalog {
         }
         result.sources = self.sources.select(typed.code(), dependencies);
         Ok(result)
-    }
-}
-fn target_code(target: ValueFunctionOrigin) -> Option<ValueCode> {
-    match target {
-        ValueFunctionOrigin::Declaration(code) => Some(ValueCode::Declaration(code)),
-        ValueFunctionOrigin::Closure(code) => Some(ValueCode::Closure(code)),
-        _ => None,
     }
 }

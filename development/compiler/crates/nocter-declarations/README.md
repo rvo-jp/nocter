@@ -322,6 +322,14 @@ producer or its payload properties. Distinct formals retain distinct witness
 identities even with equal structural signatures. Released
 declaration validation rejects all private witness keys.
 
+`FunctionWitness::substitute` owns mechanical one-step substitution through frozen formal bindings.
+It preserves the requested invocation view and rejects a weaker supplied view, even when its
+underlying declaration supports a stronger operation. Direct code origins need no lookup; missing
+bindings and direct result/application terms return no selection. Bound symbolic terms are not
+followed recursively. This operation creates no type, chooses no target and grants no executable
+or payload proof. Consumers retain identity-domain and binding-coverage validation, with their own
+conservative-analysis or closed-execution admission boundary.
+
 `body_types` owns the narrow body-type construction capability. A selected factory call interns
 its caller/operation/callee key and all permitted views over its immutable ready-header prefix. A
 construction-only reservation forbids selecting two callees for one operation within the same lexical

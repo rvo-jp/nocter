@@ -54,7 +54,9 @@ impl Builder {
         let mut calls = BTreeMap::new();
         for call in invocations {
             let ExpressionKind::Call {
-                target, arguments, ..
+                target,
+                arguments,
+                kind,
             } = &body
                 .typed()
                 .body()
@@ -65,7 +67,7 @@ impl Builder {
             else {
                 return Err(Failure::InvalidAcceptedUnit);
             };
-            let selected = projection::callee(unit.program(), &key, *target, arguments)?;
+            let selected = projection::callee(unit.program(), &key, *target, *kind, arguments)?;
             let code = selected.code;
             let target = match code {
                 nocter_model::ValueCode::Declaration(id)

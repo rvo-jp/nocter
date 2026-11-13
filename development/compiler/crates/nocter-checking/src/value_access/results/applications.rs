@@ -1,9 +1,7 @@
 //! Distinguish a newly reserved factory application from transport of a selected result descriptor.
-use crate::value_access::{CallKind, ExpressionKind, Query, flow};
+use crate::value_access::{ExpressionKind, Query, flow};
 use nocter_declarations::value_access::{FunctionWitness, PayloadSchema};
-use nocter_model::{
-    AccessExpressionId, TypeId, ValueApplication, ValueFunctionOrigin, ValueInvocation,
-};
+use nocter_model::{AccessExpressionId, TypeId, ValueApplication, ValueFunctionOrigin};
 #[cfg(test)]
 mod tests;
 
@@ -30,9 +28,10 @@ pub(super) fn call_result(
         return Ok(None);
     };
     let data = access.data();
+    let invocation = kind.invocation(arguments).ok_or(INVALID)?;
     if let Some(PayloadSchema::Function(FunctionWitness {
         origin: ValueFunctionOrigin::Application(application),
-        invocation,
+        invocation: result_invocation,
     })) = query.program().data_schema(data)
         && application.owner == query.code()
         && application.call == id
@@ -43,7 +42,7 @@ pub(super) fn call_result(
                 .codes()
                 .get(application.callee)
                 .and_then(nocter_declarations::value_access::Code::result_contract)
-                .is_none_or(|contract| contract.invocation != invocation)
+                .is_none_or(|contract| contract.invocation != result_invocation)
         {
             return Err(INVALID);
         }
@@ -52,14 +51,6 @@ pub(super) fn call_result(
             created: Some(application),
         }));
     }
-    let invocation = match kind {
-        CallKind::Direct => ValueInvocation::Read,
-        CallKind::Value => match arguments.first().ok_or(INVALID)?.operation {
-            nocter_model::ValueInputOperation::Read => ValueInvocation::Read,
-            nocter_model::ValueInputOperation::Edit => ValueInvocation::Edit,
-            nocter_model::ValueInputOperation::Take => ValueInvocation::Take,
-        },
-    };
     let contract = query
         .program()
         .function_contract(FunctionWitness {

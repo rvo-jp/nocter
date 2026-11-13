@@ -2,7 +2,7 @@
 use super::{INVALID, IntegrityError, TypedQuery};
 use crate::value_access::ExpressionKind;
 use nocter_declarations::value_access::FunctionWitness;
-use nocter_model::{AccessExpressionId, AccessParameterId, ValueCode, ValueFunctionOrigin};
+use nocter_model::{AccessExpressionId, AccessParameterId, ValueCode};
 use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -23,18 +23,21 @@ impl Request {
         call: AccessExpressionId,
     ) -> Result<Option<Self>, IntegrityError> {
         let ExpressionKind::Call {
-            target, arguments, ..
+            target,
+            arguments,
+            kind,
         } = &typed.body().expressions().get(call).ok_or(INVALID)?.kind
         else {
             return Err(INVALID);
         };
-        let origin = match *target {
-            ValueFunctionOrigin::Parameter(parameter) => {
-                self.bindings.get(&parameter).map(|witness| witness.origin)
-            }
-            origin => Some(origin),
+        let selected = FunctionWitness {
+            origin: *target,
+            invocation: kind.invocation(arguments).ok_or(INVALID)?,
         };
-        let Some(code) = origin.and_then(super::target_code) else {
+        let Some(code) = self
+            .resolve(selected)?
+            .and_then(|witness| witness.origin.code())
+        else {
             return Ok(None);
         };
         let mut bindings = BTreeMap::new();
@@ -52,21 +55,8 @@ impl Request {
         &self,
         witness: FunctionWitness,
     ) -> Result<Option<FunctionWitness>, IntegrityError> {
-        Ok(match witness.origin {
-            ValueFunctionOrigin::Declaration(_) | ValueFunctionOrigin::Closure(_) => Some(witness),
-            ValueFunctionOrigin::Parameter(parameter) => {
-                let Some(actual) = self.bindings.get(&parameter) else {
-                    return Ok(None);
-                };
-                if !actual.invocation.can_supply(witness.invocation) {
-                    return Err(INVALID);
-                }
-                Some(FunctionWitness {
-                    origin: actual.origin,
-                    invocation: witness.invocation,
-                })
-            }
-            ValueFunctionOrigin::Result(_) | ValueFunctionOrigin::Application(_) => None,
-        })
+        witness
+            .substitute(|parameter| self.bindings.get(&parameter).copied())
+            .map_err(|_| INVALID)
     }
 }

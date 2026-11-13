@@ -1,7 +1,7 @@
 //! Mechanical witness/data substitution, consuming checked binding edges rather than lookup inputs.
 use super::{ConcreteWitness, Failure, InstanceKey};
 use nocter_checking::value_access::{
-    Argument,
+    Argument, CallKind,
     accepted::{DataEvidence, Unit},
     flow,
     flow::resources::payload,
@@ -15,20 +15,17 @@ pub(super) fn witness(
     key: &InstanceKey,
     selected: FunctionWitness,
 ) -> Result<ConcreteWitness, Failure> {
-    let code = match selected.origin {
-        ValueFunctionOrigin::Closure(id) => ValueCode::Closure(id),
-        ValueFunctionOrigin::Declaration(id) => ValueCode::Declaration(id),
-        ValueFunctionOrigin::Result(_) | nocter_model::ValueFunctionOrigin::Application(_) => {
-            return Err(Failure::InvalidAcceptedUnit);
-        }
-        ValueFunctionOrigin::Parameter(id) => {
-            let supplied = key.witnesses.get(&id).ok_or(Failure::InvalidAcceptedUnit)?;
-            if !supplied.invocation.can_supply(selected.invocation) {
-                return Err(Failure::InvalidAcceptedUnit);
-            }
-            supplied.code
-        }
-    };
+    let selected = selected
+        .substitute(|parameter| {
+            let supplied = key.witnesses.get(&parameter)?;
+            Some(FunctionWitness {
+                origin: supplied.code.origin()?,
+                invocation: supplied.invocation,
+            })
+        })
+        .map_err(|_| Failure::InvalidAcceptedUnit)?
+        .ok_or(Failure::InvalidAcceptedUnit)?;
+    let code = selected.origin.code().ok_or(Failure::InvalidAcceptedUnit)?;
     Ok(ConcreteWitness {
         code,
         invocation: selected.invocation,
@@ -39,22 +36,19 @@ pub(super) fn callee(
     program: &Program,
     caller: &InstanceKey,
     target: ValueFunctionOrigin,
+    kind: CallKind,
     arguments: &[Argument],
 ) -> Result<InstanceKey, Failure> {
-    let code = match target {
-        ValueFunctionOrigin::Closure(id) => ValueCode::Closure(id),
-        ValueFunctionOrigin::Declaration(id) => ValueCode::Declaration(id),
-        ValueFunctionOrigin::Result(_) | nocter_model::ValueFunctionOrigin::Application(_) => {
-            return Err(Failure::InvalidAcceptedUnit);
-        }
-        ValueFunctionOrigin::Parameter(id) => {
-            caller
-                .witnesses
-                .get(&id)
-                .ok_or(Failure::InvalidAcceptedUnit)?
-                .code
-        }
-    };
+    let selected = witness(
+        caller,
+        FunctionWitness {
+            origin: target,
+            invocation: kind
+                .invocation(arguments)
+                .ok_or(Failure::InvalidAcceptedUnit)?,
+        },
+    )?;
+    let code = selected.code;
     let mut witnesses = BTreeMap::new();
     for argument in arguments {
         if let Some(binding) = &argument.binding {

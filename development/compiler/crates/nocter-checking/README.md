@@ -1258,8 +1258,13 @@ with ordinary body writes, so a wrapper that edits an input still invalidates th
 Reuse retains the original header authority and checked role bindings alongside the existing body
 dependency graph; an equal separately prepared program cannot substitute its roles or bodies.
 
-`call_writes::requests` substitutes the already frozen actual callable bindings into effect-only
-requests keyed by lexical code and known witness/view bindings. Runtime environment contents do not
+`call_writes::requests` uses the declaration-owned `FunctionWitness::substitute` for already frozen
+actual bindings, preserving the selected invocation view. Missing bindings leave effect targets
+unknown; an incompatible supplied view is an inconsistent product. Executable instance selection
+uses the same substitution rule with its stronger closed-target boundary. `CallKind::invocation`
+decodes the callable environment operation from the explicit direct/value role, independently of
+ordinary argument operations or count. Effect requests are keyed by lexical code and known
+witness/view bindings. Runtime environment contents do not
 enter those keys. The existing checked body supplies every operation; no body is retyped and no
 new callable type or capability is inferred. The finite monotone solver discovers reached requests,
 including recursive forwarding, and resolves formal invocation and cleanup only when those actual

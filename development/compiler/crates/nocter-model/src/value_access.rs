@@ -97,6 +97,17 @@ pub enum ValueFunctionOrigin {
     /// One statically selected call application, independent of source coordinates and type IDs.
     Application(ValueApplication),
 }
+impl ValueFunctionOrigin {
+    /// Extract a stored code key, without validating its declaration/body domain or availability.
+    #[must_use]
+    pub const fn code(self) -> Option<ValueCode> {
+        match self {
+            Self::Declaration(id) => Some(ValueCode::Declaration(id)),
+            Self::Closure(id) => Some(ValueCode::Closure(id)),
+            Self::Parameter(_) | Self::Result(_) | Self::Application(_) => None,
+        }
+    }
+}
 
 /// A required expression within one complete source body, independent of sibling bodies.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -218,6 +229,30 @@ impl ValueInvocation {
 mod tests {
     use super::*;
     use crate::{AccessCodeId, ArenaBuilder, TypeAuthority, TypeKind};
+    #[test]
+    fn code_projection_does_not_treat_formals_results_or_applications_as_code() {
+        let code = ArenaBuilder::<AccessCodeId, ()>::new().insert(());
+        let closure = ValueClosure {
+            owner: code.into(),
+            slot: 0,
+        };
+        for selected in [ValueCode::Declaration(code), ValueCode::Closure(closure)] {
+            assert_eq!(selected.origin().unwrap().code(), Some(selected));
+        }
+        let parameter = ArenaBuilder::<crate::AccessParameterId, ()>::new().insert(());
+        let call = ArenaBuilder::<crate::AccessExpressionId, ()>::new().insert(());
+        for symbolic in [
+            ValueFunctionOrigin::Parameter(parameter),
+            ValueFunctionOrigin::Result(code),
+            ValueFunctionOrigin::Application(ValueApplication {
+                owner: ValueCode::Declaration(code),
+                call,
+                callee: code,
+            }),
+        ] {
+            assert_eq!(symbolic.code(), None);
+        }
+    }
     #[test]
     fn named_witness_projection_preserves_identity_and_invocation_view() {
         let mut declarations = ArenaBuilder::<AccessCodeId, ()>::new();

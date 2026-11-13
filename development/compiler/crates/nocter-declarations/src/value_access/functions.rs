@@ -5,6 +5,7 @@ use nocter_model::{
     ValueInvocation,
 };
 mod patterns;
+mod substitution;
 pub use patterns::{
     FunctionDataPattern, FunctionPattern, FunctionPatternMismatch, FunctionPosition,
 };

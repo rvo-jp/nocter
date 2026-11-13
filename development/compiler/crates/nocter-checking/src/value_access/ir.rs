@@ -289,6 +289,19 @@ pub enum CallKind {
     Value,
 }
 impl CallKind {
+    /// Decode the frozen callable view from the explicit call role, never from argument count.
+    #[must_use]
+    pub fn invocation(self, arguments: &[Argument]) -> Option<nocter_model::ValueInvocation> {
+        use nocter_model::ValueInvocation;
+        match self {
+            Self::Direct => Some(ValueInvocation::Read),
+            Self::Value => Some(match self.environment_argument(arguments)?.operation {
+                ValueInputOperation::Read => ValueInvocation::Read,
+                ValueInputOperation::Edit => ValueInvocation::Edit,
+                ValueInputOperation::Take => ValueInvocation::Take,
+            }),
+        }
+    }
     #[must_use]
     pub fn environment_argument(self, arguments: &[Argument]) -> Option<&Argument> {
         match self {

@@ -86,7 +86,10 @@ Only checking-reachable invocation commits create call edges. A value reference,
 or interrupted argument does not force a code instance. Construction indexes are discarded; one
 immutable instance arena is the published authority.
 
-`projection` substitutes already selected named/captured/formal origins and invocation views.
+`projection` substitutes already selected named/captured/formal origins and invocation views through
+the declaration-owned `FunctionWitness::substitute`. `CallKind::invocation` decodes the frozen
+callable view separately from explicit input operations. An unbound or incompatible binding cannot
+become an executable target, and an underlying declaration cannot upgrade a restricted view.
 Callable results arrive with checking-closed code or caller-formal witnesses. The body's resolved
 result data enters the same projection table; no target-side result inference or second instance
 graph exists. Exact formal identity coverage is verified without repeating signature matching or

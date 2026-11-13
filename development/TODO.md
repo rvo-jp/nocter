@@ -18,16 +18,13 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Centralize frozen callable-view substitution and call-environment decoding shared by effect
-analysis and native instance selection. Preserve one-step formal binding, selected invocation
-restrictions, explicit direct/value call roles, conservative unknown effects for unbound witnesses
-and rejection of unbound executable instances. Reuse declaration/model facts rather than another
-binding authority, target search or body retyping. Qualify the shared source/instance paths and
-failure guards before extending general anonymous formal-input or evaluator substitution scopes.
-Keep module discovery, the remaining toolchain role families and ordinary compiler/editor integration
-open until their contracts and production paths are qualified. Keep the retained-selection work
-below open; bounded module/native execution does not close general hole relations or externally
-dependent callback effects.
+Qualify owner-scoped formal callable inputs for anonymous functions. Publish their input signatures
+through the existing declaration/body type authority before checking the body, without inventing
+header parameter slots or treating structural signatures as runtime witness identities. Preserve
+frozen witness binding, selected invocation views and conservative unbound effects through canonical
+type replay, required execution and native instances. Keep unsupported deeper callable data local
+until representation and substitution are qualified. Keep module discovery, remaining toolchain role
+families, ordinary compiler/editor integration and retained-selection closure open.
 
 ## Retained Selection Closure
 

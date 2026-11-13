@@ -9,6 +9,7 @@ use nocter_test_support::ValueSourceFixture;
 use std::fmt::Write as _;
 mod captured;
 mod primitives;
+mod substitution;
 
 #[test]
 fn zero_capture_metadata_does_not_require_a_binding_for_a_trapping_element_projection() {

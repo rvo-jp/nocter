@@ -43,7 +43,9 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
   closure keys retain that complete root. `ValueCode` selects a root or captured
   body, independently of its source owner. Applications retain that actual lexical `ValueCode`,
   so equal expression IDs in a root and its closures remain distinct. A body-local expression has no function origin;
-  declaration roles and callable witnesses remain declaration-owned facts
+  declaration roles and callable witnesses remain declaration-owned facts. `ValueFunctionOrigin::code`
+  extracts only stored declaration/closure keys; symbolic formal/result/application terms are not
+  code, and the projection grants no domain or invocation admission
 - body-owned closure code keys independent of runtime environments; data/schema owners, rather
   than the key or invocation view, establish capture Copy and destruction properties
 - one structural path algebra over record fields, tuple positions and parameterized array indices;
