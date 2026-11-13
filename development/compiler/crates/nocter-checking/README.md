@@ -863,6 +863,12 @@ transitive operation causes. A callback that is received but never invoked needs
 representation, not a body or invocation capability. Interrupted preparation creates no completed
 callee instance. The dependency coordinator discovers actual formal-call targets after ordinary
 result closure and requests their existing checked drafts without source body retyping.
+`evaluation::call_support` computes which completed-call closures name only fixed code, propagating
+uncertainty from parameter-selected or missing callees through a worklist. Fixed-code recursive
+components need no unrolling. Body discovery can visit such a component once across differing
+witness bindings; every representative still has complete validated metadata. This projection
+never merges condition checks, payload representations, cleanup or evaluator/native instances.
+Witness-dependent and incomplete closures retain full binding-sensitive discovery.
 
 Direct callable data leaves select their actual named or captured representation without mutating
 the unbound template's type identity; distinct environments and returned callbacks remain distinct.

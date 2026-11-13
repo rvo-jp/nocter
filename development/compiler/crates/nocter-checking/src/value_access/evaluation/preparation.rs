@@ -496,10 +496,12 @@ impl<'a, 'source> Preparation<'a, 'source> {
         let program = resolved.program();
         let scope = resolved.scope().map_err(Failure::Integrity)?;
         let mut pending = vec![program.bind_code(root.code(), []).map_err(|_| INVALID)?];
+        let independent = super::call_support::witness_independent(&scope);
+        let mut plain = BTreeSet::new();
         let mut visited = BTreeSet::new();
         let mut dependencies = Vec::new();
         while let Some(key) = pending.pop() {
-            if !visited.insert(key.clone()) {
+            if !super::call_support::visit(&independent, &mut plain, &mut visited, &key) {
                 continue;
             }
             let Some(query) = scope.get(&key.code()) else {
