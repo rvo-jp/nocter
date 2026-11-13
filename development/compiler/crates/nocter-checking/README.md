@@ -861,8 +861,11 @@ plan executes, using the same frozen-call instantiation routine as native instan
 callbacks still need their authored const capability; captured actuals retain their own local and
 transitive operation causes. A callback that is received but never invoked needs its temporary
 representation, not a body or invocation capability. Interrupted preparation creates no completed
-callee instance. The dependency coordinator discovers actual formal-call targets after ordinary
-result closure and requests their existing checked drafts without source body retyping.
+callee instance. A parameter-selected invocation whose frozen argument preparation cannot
+complete retains no invocation-capability obligation. Environment formation, receiver preparation,
+transfers and cleanup keep their own clauses. Fixed forbidden source calls remain definition
+errors even when their preparation cannot complete. The dependency coordinator discovers actual
+formal-call targets after ordinary result closure and requests their existing checked drafts without source body retyping.
 `evaluation::call_support` computes which completed-call closures name only fixed code, propagating
 uncertainty from parameter-selected or missing callees through a worklist. Fixed-code recursive
 components need no unrolling. Body discovery can visit such a component once across differing

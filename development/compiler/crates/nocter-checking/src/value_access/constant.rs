@@ -72,6 +72,15 @@ fn operation_rule(
             target,
             arguments,
         } => {
+            // The template selected an input witness, not a fixed source operation. Its
+            // invocation obligation is inactive when frozen preparation cannot commit a call.
+            // Receiver/environment operations retain their independent data/cleanup clauses.
+            if *kind == CallKind::Value
+                && matches!(target, ValueFunctionOrigin::Parameter(_))
+                && !super::instances::completed(arguments)
+            {
+                return Ok(None);
+            }
             let target = if let Some(instance) = instance {
                 instance
                     .resolve(
@@ -325,5 +334,38 @@ mod tests {
                 assert!(supports_final(&program, data).unwrap());
             }
         }
+    }
+    #[test]
+    fn an_incomplete_symbolic_invocation_does_not_turn_a_direct_parameter_call_into_valid_ir() {
+        use crate::value_access::{
+            accepted::SourceUnit,
+            tests::{bound, input},
+        };
+        let (sources, tree) = input(
+            "const func f(action: func(i32): i32): i32 { action(if true { return 42 } else { return 0 }) }",
+        );
+        let unit = SourceUnit::prepare(bound(&sources, &tree))
+            .unwrap()
+            .into_unit();
+        let (_, body) = unit.bodies().next().unwrap();
+        let (_, expression) = body
+            .typed()
+            .body()
+            .expressions()
+            .iter()
+            .find(|(_, expression)| matches!(expression.kind, ExpressionKind::Call { .. }))
+            .unwrap();
+        let ExpressionKind::Call {
+            target, arguments, ..
+        } = &expression.kind
+        else {
+            unreachable!();
+        };
+        let malformed = ExpressionKind::Call {
+            target: *target,
+            kind: CallKind::Direct,
+            arguments: arguments.clone(),
+        };
+        assert!(operation_rule(unit.program(), &malformed, &|_| true, None).is_err());
     }
 }

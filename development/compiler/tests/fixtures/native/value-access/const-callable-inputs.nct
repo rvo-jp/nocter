@@ -36,8 +36,33 @@ const func anonymous(): i32 {
     let pass = (action: func(i32): i32, value: i32): i32 { forward(action, value) }
     pass(increment, 41)
 }
+func runtime_trap(value: i32): i32 { value / 0 }
+const func stop_read(action: func(i32): i32): i32 {
+    action(if true { return 42 } else { return 0 })
+}
+const func stop_take(take action: once(i32): i32): i32 {
+    action^(if true { return 42 } else { return 0 })
+}
+const func stop_edit(edit action: mut(i32): i32): i32 {
+    action(if true { return 42 } else { return 0 })
+}
+const func interrupted(): i32 {
+    let payload = 40
+    let read_callback = (payload; value: i32): i32 { runtime_trap(value) + payload }
+    var named_update: mut(i32): i32 = runtime_trap
+    var edit_callback = (payload; value: i32): i32 {
+        payload += runtime_trap(value)
+        payload
+    }
+    let held_item = Item { value: payload }
+    let take_callback = (held_item^; value: i32): i32 { runtime_trap(value) + held_item.value }
+    if stop_read(runtime_trap) == 42 && stop_take(runtime_trap) == 42
+       && stop_read(read_callback) == 42 && stop_take(take_callback^) == 42
+       && stop_edit(named_update) == 42 && stop_edit(named_update) == 42
+       && stop_edit(edit_callback) == 42 && stop_edit(edit_callback) == 42 { 42 } else { 0 }
+}
 const func calculate(): i32 {
-    if reading() == 42 && editing() == 42 && taking() == 42 && anonymous() == 42 { 42 } else { 0 }
+    if reading() == 42 && editing() == 42 && taking() == 42 && anonymous() == 42 && interrupted() == 42 { 42 } else { 0 }
 }
 const ANSWER: i32 = calculate()
 func run(): i32 { if ANSWER == 42 && calculate() == 42 { 42 } else { 0 } }

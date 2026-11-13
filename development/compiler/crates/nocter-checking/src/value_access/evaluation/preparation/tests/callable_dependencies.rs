@@ -98,7 +98,14 @@ fn conditional_const_callable_inputs_execute_through_exact_instances() {
         "/../../tests/fixtures/native/value-access/const-callable-inputs.nct"
     ));
     let mut failures = Vec::new();
-    for function in ["reading", "editing", "taking", "anonymous", "calculate"] {
+    for function in [
+        "reading",
+        "editing",
+        "taking",
+        "anonymous",
+        "interrupted",
+        "calculate",
+    ] {
         let source = source.replace(
             "const ANSWER: i32 = calculate()",
             &format!("const ANSWER: i32 = {function}()"),
@@ -349,4 +356,20 @@ fn unused_callback_permutations_share_body_discovery_without_sharing_const_or_pl
         panic!("dependency projection is not a shared eligibility proof");
     };
     assert_eq!(diagnostic.rule(), Rule::ConditionWorkLimit);
+}
+
+#[test]
+fn interrupted_parameter_invocation_needs_environment_operations_but_no_invocation_capability() {
+    for (parameter, callable, receiver, move_argument) in [
+        ("", "func", "action", ""),
+        ("take ", "once", "action^", "^"),
+    ] {
+        let prefix = format!(
+            "func runtime(value: i32): i32 {{ value + 1 }}\nconst func stop({parameter}action: {callable}(i32): i32): i32 {{ {receiver}(if true {{ return 42 }} else {{ return 0 }}) }}\n"
+        );
+        assert_answer_42(&format!("{prefix}const ANSWER: i32 = stop(runtime)"));
+        assert_answer_42(&format!(
+            "{prefix}const func calculate(): i32 {{ let payload = 40\nlet action = (payload; value: i32): i32 {{ runtime(value) + payload }}\nstop(action{move_argument}) }}\nconst ANSWER: i32 = calculate()"
+        ));
+    }
 }
