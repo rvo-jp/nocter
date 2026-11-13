@@ -1,6 +1,7 @@
 //! Dependency-scheduled ordinary checking and required closed-plan execution.
 pub(in crate::value_access) mod call_support;
 mod dependencies;
+mod discovery;
 mod preparation;
 mod projection;
 mod types;

@@ -45,21 +45,6 @@ pub(in crate::value_access) fn witness_independent(
         .collect()
 }
 
-/// The projection's identity is private to body discovery; never use it for a concrete plan or
-/// condition proof. The representative frame still retains all validated binding metadata.
-pub(super) fn visit(
-    independent: &BTreeSet<ValueCode>,
-    plain: &mut BTreeSet<ValueCode>,
-    bound: &mut BTreeSet<nocter_declarations::value_access::CodeInstanceKey>,
-    key: &nocter_declarations::value_access::CodeInstanceKey,
-) -> bool {
-    if independent.contains(&key.code()) {
-        plain.insert(key.code())
-    } else {
-        bound.insert(key.clone())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -432,3 +432,55 @@ fn shared_conditions_do_not_bypass_plan_expansion_budget_or_failed_request_recov
     drop(requests);
     assert_eq!(preparation.budget.storage_used(), 0);
 }
+
+#[test]
+fn independent_invocation_positions_factor_discovery_without_merging_const_conditions() {
+    let source = invoked_callback_permutations();
+    let (sources, tree) = input(&source);
+    let syntax = bound(&sources, &tree);
+    let headers = declarations::Query::prepare(syntax).unwrap();
+    let context = headers.bind(syntax).unwrap();
+    let named = |name| {
+        context
+            .program()
+            .resolve_code(context.program().symbols().get(name).unwrap())
+            .unwrap()
+    };
+    let answer = context
+        .program()
+        .resolve_constant(context.program().symbols().get("ANSWER").unwrap())
+        .unwrap();
+    let bodies = [
+        answer,
+        named("permute"),
+        named("first"),
+        named("second"),
+        named("third"),
+        named("fourth"),
+    ];
+    let mut preparation = Preparation::new(context, Headers::Closed, state::Limits::default());
+    let mut requests = Dependencies::default();
+    for code in bodies {
+        preparation.body(&mut requests, code).unwrap();
+    }
+    preparation.condition_work = state::WorkBudget::new(std::num::NonZeroU64::new(128).unwrap());
+    let GraphProgress::Ready(ready) = preparation.graph(&requests, answer.into()).unwrap() else {
+        panic!(
+            "independent witnesses discover the six bodies without enumerating joint permutations"
+        );
+    };
+    assert_eq!(ready.invoked.len(), 6);
+    let checked =
+        accepted::admit_resolved(&preparation.context, ready.resolved, Some(&ready.invoked))
+            .unwrap();
+    preparation.condition_work = state::WorkBudget::new(std::num::NonZeroU64::new(64).unwrap());
+    let Err(Failure::Evaluation { diagnostic, .. }) = accepted::check_required_const(
+        &preparation.context,
+        &checked,
+        answer.into(),
+        &mut preparation.condition_work,
+    ) else {
+        panic!("discovery projection grants no shared condition proof");
+    };
+    assert_eq!(diagnostic.rule(), Rule::ConditionWorkLimit);
+}

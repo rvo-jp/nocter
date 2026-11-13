@@ -872,7 +872,15 @@ uncertainty from parameter-selected or missing callees through a worklist. Fixed
 components need no unrolling. Body discovery can visit such a component once across differing
 witness bindings; every representative still has complete validated metadata. This projection
 never merges condition checks, payload representations, cleanup or evaluator/native instances.
-Witness-dependent and incomplete closures retain full binding-sensitive discovery.
+`evaluation::discovery` separately factors body discovery when every completed parameter-selected
+call receives no callable witnesses. In that domain, fixed callees forward independent witness
+positions and selected callees have no callable-argument correlation to preserve. The worklist
+propagates each new witness at one formal position through a complete declaration-validated
+representative frame, instead of enumerating joint permutations. Existing fixed-target components
+still need only one visit. A selected target receiving another callable, or a target outside the
+recognized terms, retains exact joint contexts. Discovery is recomputed when required bodies
+arrive; a missing body's unknown operations never establish condition or plan equivalence.
+This projection executes no value operation and merges no source owner or captured environment.
 
 `constant::Traversal` separately qualifies condition-only sharing for a fixed-target call closure.
 It checks every actual direct callable witness through the evaluator's type authority. When all

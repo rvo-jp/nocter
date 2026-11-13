@@ -498,15 +498,15 @@ impl<'a, 'source> Preparation<'a, 'source> {
     ) -> Result<Vec<(ValueCode, Demand, CallOrigin)>, Failure> {
         let program = resolved.program();
         let scope = resolved.scope().map_err(Failure::Integrity)?;
-        let mut pending = vec![program.bind_code(root.code(), []).map_err(|_| INVALID)?];
-        let independent = super::call_support::witness_independent(&scope);
-        let mut plain = BTreeSet::new();
-        let mut visited = BTreeSet::new();
+        let mut discovery = super::discovery::Discovery::new(&scope);
+        discovery
+            .insert(
+                program,
+                program.bind_code(root.code(), []).map_err(|_| INVALID)?,
+            )
+            .map_err(Failure::Integrity)?;
         let mut dependencies = Vec::new();
-        while let Some(key) = pending.pop() {
-            if !super::call_support::visit(&independent, &mut plain, &mut visited, &key) {
-                continue;
-            }
+        while let Some(key) = discovery.next() {
             let Some(query) = scope.get(&key.code()) else {
                 continue;
             };
@@ -550,7 +550,9 @@ impl<'a, 'source> Preparation<'a, 'source> {
                         site,
                     },
                 ));
-                pending.push(selected);
+                discovery
+                    .insert(program, selected)
+                    .map_err(Failure::Integrity)?;
             }
         }
         Ok(dependencies)
