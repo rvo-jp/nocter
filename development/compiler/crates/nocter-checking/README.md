@@ -959,16 +959,20 @@ boundary has supported noncallable data and no callable argument bindings. Unrep
 missing producer/view metadata, foreign captures and missing/uncovered fixed callees prevent
 coverage; incompleteness propagates back to callers. Coverage alone supplies no eligibility.
 
-For root-closed named function witnesses, `Conditions::prove_closed_root` discharges the retained
-predicates and recursively preflights each selected body's complete conjunction. Selected bodies
+For root-closed named functions and closures with supported owned environments,
+`Conditions::prove_closed_root` discharges the retained predicates and recursively preflights each
+selected body's complete conjunction. Selected bodies
 must have no callable formals requiring a further concrete frame. Unknown or uncovered obligations
 return to exact checks before consuming condition work. A successful proof rebinds every reachable
 checked body through the matched source/type receipt and charges its completed source edges,
 including parameter-selected edges. This avoids enumerating joint witness permutations without
 using the body-discovery projection as eligibility evidence. It relies on current direct-leaf
 substitution and declaration-owned signature/view normalization; qualifying dependent carriers
-requires revisiting the proof. Captured/unresolved witnesses and callable receiving dependencies
-retain the exact-frame path. The proof neither executes nor memoizes source results, merges layouts,
+requires revisiting the proof. Closure invocation uses the catalog's existing conditional
+availability, separately from environment representation and the selected body's complete
+conjunction. An unused supported closure needs no invocation capability. Unresolved/free callable
+captures, unsupported environments and callable receiving dependencies retain the exact-frame path.
+The proof neither executes nor memoizes source results, merges layouts,
 nor supplies a plan or final-publication exception.
 
 Outside this covered scope, absence of a failure in the finite conjunctive product is not a complete

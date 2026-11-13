@@ -446,7 +446,7 @@ fn mutual_conditional_recursion_keeps_outer_inputs_symbolic_and_exposes_fixed_fa
 }
 
 #[test]
-fn covered_conditions_share_named_calls_and_preserve_unresolved_or_captured_fallbacks() {
+fn covered_conditions_share_closed_calls_and_preserve_unresolved_environment_fallbacks() {
     use nocter_constant_evaluation::state::WorkBudget;
     for (source, root, expected) in [
         (
@@ -457,10 +457,35 @@ fn covered_conditions_share_named_calls_and_preserve_unresolved_or_captured_fall
         (
             "const func ignore(action: func(i32): i32): i32 { 42 }\nconst func root(): i32 { let captured = 40\nlet action = (captured; value: i32): i32 { value + captured }\nignore(action) }\nconst ANSWER: i32 = root()",
             "root",
-            false,
+            true,
         ),
         (
             "const func identity(value: i32): i32 { value }\nconst func apply(action: func(i32): i32, value: i32): i32 { action(value) }\nconst func root(): i32 { apply(identity, 42) }\nconst ANSWER: i32 = root()",
+            "root",
+            true,
+        ),
+        (
+            "const func apply(action: func(i32): i32): i32 { action(2) }\nconst func root(): i32 { let captured = 40\nlet action = (captured; value: i32): i32 { value + captured }\napply(action) }\nconst ANSWER: i32 = root()",
+            "root",
+            true,
+        ),
+        (
+            "const func apply(edit action: mut(i32): i32): i32 { action(2) }\nconst func root(): i32 { let captured = 40\nvar action = (captured; value: i32): i32 { captured += value\ncaptured }\napply(action) }\nconst ANSWER: i32 = root()",
+            "root",
+            true,
+        ),
+        (
+            "const func apply(take action: once(i32): i32): i32 { action^(2) }\nconst func root(): i32 { let captured = 40\nlet action = (captured; value: i32): i32 { value + captured }\napply(action^) }\nconst ANSWER: i32 = root()",
+            "root",
+            true,
+        ),
+        (
+            "const func ignore(action: func(i32): i32): i32 { 42 }\nfunc root(take input: error): i32 { let callback = (input^; value: i32): i32 { value }\nignore(callback) }",
+            "root",
+            false,
+        ),
+        (
+            "func runtime(value: i32): i32 { value }\nconst func ignore(action: func(i32): i32): i32 { 42 }\nconst func root(): i32 { let captured = 40\nlet action = (captured; value: i32): i32 { runtime(value) + captured }\nignore(action) }\nconst ANSWER: i32 = root()",
             "root",
             true,
         ),

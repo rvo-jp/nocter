@@ -431,61 +431,21 @@ impl Conditions {
         }
         Ok(None)
     }
-    /// Discharge root-closed named witnesses using complete matched conjunctions.
+    /// Discharge root-closed witnesses using complete matched conjunctions and environment shapes.
     /// Selected bodies remain distinct obligations from authored invocation capability.
     pub(super) fn prove_closed_root(
         &self,
         root: ValueCode,
         requirements: &BTreeMap<ValueCode, Requirements>,
+        available: &dyn Fn(nocter_model::ValueClosure) -> bool,
         verified: &results::Verified<'_, '_>,
         work: &mut nocter_constant_evaluation::state::WorkBudget,
     ) -> Result<bool, crate::value_access::accepted::Failure> {
         use crate::value_access::accepted::Failure as AcceptedFailure;
         let invalid = || AcceptedFailure::Integrity(INVALID);
-        let mut roots = vec![root];
-        let mut discharged = BTreeSet::new();
-        let mut pending = Vec::new();
-        // Complete the eligibility preflight before consuming work. An unknown selected body
-        // falls back without charging both this proof and the exact-frame traversal.
-        while let Some(root) = roots.pop() {
-            if !discharged.insert(root) {
-                continue;
-            }
-            if !self.covered.contains(&root) {
-                return Ok(false);
-            }
-            let Some(item) = requirements.get(&root) else {
-                return Ok(false);
-            };
-            let program = item.body().typed().program();
-            for term in self
-                .terms
-                .get(&root)
-                .into_iter()
-                .flat_map(|terms| terms.keys())
-            {
-                let ValueFunctionOrigin::Declaration(code) = term.witness().origin else {
-                    return Ok(false);
-                };
-                if matches!(term, Term::Body(_)) {
-                    let code = ValueCode::Declaration(code);
-                    // Selected calls with callable receiving formals need their actual frame;
-                    // a matching invocation capability never supplies those bindings.
-                    if program.bind_code(code, []).is_err() {
-                        return Ok(false);
-                    }
-                    roots.push(code);
-                }
-            }
-            if self
-                .violation(item, &|_| false)
-                .map_err(AcceptedFailure::Integrity)?
-                .is_some()
-            {
-                return Ok(false);
-            }
-            pending.push(root);
-        }
+        let Some(mut pending) = self.closed_roots(root, requirements, available)? else {
+            return Ok(false);
+        };
         let mut visited = BTreeSet::new();
         while let Some(code) = pending.pop() {
             if !visited.insert(code) {
@@ -513,13 +473,83 @@ impl Conditions {
                 crate::value_access::evaluation::condition_step(work, code.source_owner(), origin)?;
                 match call.template().map_err(AcceptedFailure::Integrity)? {
                     CallTemplate::Code(callee) => pending.push(callee.code()),
-                    // Its actual named body was preflighted as a root obligation. The formal
+                    // Its actual body was preflighted as a root obligation. The formal
                     // source edge is still charged, without inventing a concrete binding frame.
                     CallTemplate::Parameter(_) => {}
                 }
             }
         }
         Ok(true)
+    }
+    /// Eligibility only: all selected-body obligations must close before metered receipt checks.
+    fn closed_roots(
+        &self,
+        root: ValueCode,
+        requirements: &BTreeMap<ValueCode, Requirements>,
+        available: &dyn Fn(nocter_model::ValueClosure) -> bool,
+    ) -> Result<Option<Vec<ValueCode>>, crate::value_access::accepted::Failure> {
+        use crate::value_access::accepted::Failure as AcceptedFailure;
+        let invalid = || AcceptedFailure::Integrity(INVALID);
+        let mut roots = vec![root];
+        let mut discharged = BTreeSet::new();
+        let mut pending = Vec::new();
+        // Complete the eligibility preflight before consuming work. An unknown selected body
+        // falls back without charging both this proof and the exact-frame traversal.
+        while let Some(root) = roots.pop() {
+            if !discharged.insert(root) {
+                continue;
+            }
+            if !self.covered.contains(&root) {
+                return Ok(None);
+            }
+            let Some(item) = requirements.get(&root) else {
+                return Ok(None);
+            };
+            let program = item.body().typed().program();
+            let mut domain = crate::value_access::evaluation::Types::default();
+            for term in self
+                .terms
+                .get(&root)
+                .into_iter()
+                .flat_map(|terms| terms.keys())
+            {
+                let witness = term.witness();
+                let code = match witness.origin {
+                    ValueFunctionOrigin::Declaration(code) => ValueCode::Declaration(code),
+                    ValueFunctionOrigin::Closure(code) => {
+                        // A closed owned environment is qualified by the same shape authority as
+                        // exact checks. A free callable capture is unavailable in that authority;
+                        // no outer binding is guessed from a matching signature.
+                        let data = program.function_data(witness).ok_or_else(invalid)?;
+                        if !domain
+                            .supports(program, data)
+                            .map_err(AcceptedFailure::Integrity)?
+                        {
+                            return Ok(None);
+                        }
+                        ValueCode::Closure(code)
+                    }
+                    _ => return Ok(None),
+                };
+                if matches!(term, Term::Body(_)) {
+                    // Selected calls with callable receiving formals need their actual frame;
+                    // a matching invocation capability never supplies those bindings.
+                    if program.bind_code(code, []).is_err() {
+                        return Ok(None);
+                    }
+                    roots.push(code);
+                }
+            }
+            if self
+                .violation(item, available)
+                .map_err(AcceptedFailure::Integrity)?
+                .is_some()
+            {
+                return Ok(None);
+            }
+            pending.push(root);
+        }
+        Ok(Some(pending))
     }
     pub(super) fn captured_dependents(
         &self,
@@ -727,57 +757,68 @@ mod coverage_tests {
     use std::sync::Arc;
 
     #[test]
-    fn missing_selected_body_cannot_be_replaced_by_its_authored_const_flag() {
+    fn missing_selected_body_cannot_be_replaced_by_invocation_capability() {
         use nocter_constant_evaluation::state::WorkBudget;
-        let (sources, tree) = input(
+        for source in [
             "const func leaf(): i32 { 42 }\nconst func apply(action: func(): i32): i32 { action() }\nconst func root(): i32 { apply(leaf) }\nconst ANSWER: i32 = root()",
-        );
-        let syntax = bound(&sources, &tree);
-        let prepared = SourceUnit::prepare(syntax).unwrap();
-        let context = prepared.declarations().bind(syntax).unwrap();
-        let unit = prepared.unit();
-        let program = unit.program();
-        let code = |name| {
-            ValueCode::Declaration(
-                program
-                    .resolve_code(program.symbols().get(name).unwrap())
-                    .unwrap(),
-            )
-        };
-        let mut requirements = unit
-            .bodies()
-            .map(|(_, body)| {
-                let item = Requirements::prepare(Arc::new(body.clone())).unwrap();
-                (item.code(), item)
-            })
-            .collect::<BTreeMap<_, _>>();
-        let evidence = requirements[&code("root")]
-            .body()
-            .typed()
-            .result_evidence
-            .as_ref()
-            .unwrap()
-            .clone();
-        let verified = evidence.verify(&context).unwrap();
-        let mut work = WorkBudget::new(std::num::NonZeroU64::new(8).unwrap());
-        let graph = Conditions::prepare(&requirements).unwrap();
-        assert!(
-            graph
-                .prove_closed_root(code("root"), &requirements, &verified, &mut work)
+            "const func apply(action: func(): i32): i32 { action() }\nconst func root(): i32 { let captured = 42\nlet action = (captured;): i32 { captured }\napply(action) }\nconst ANSWER: i32 = root()",
+        ] {
+            let (sources, tree) = input(source);
+            let syntax = bound(&sources, &tree);
+            let prepared = SourceUnit::prepare(syntax).unwrap();
+            let context = prepared.declarations().bind(syntax).unwrap();
+            let unit = prepared.unit();
+            let program = unit.program();
+            let code = |name| {
+                ValueCode::Declaration(
+                    program
+                        .resolve_code(program.symbols().get(name).unwrap())
+                        .unwrap(),
+                )
+            };
+            let selected = unit
+                .closures()
+                .keys()
+                .next()
+                .copied()
+                .map_or_else(|| code("leaf"), ValueCode::Closure);
+            let mut requirements = unit
+                .bodies()
+                .map(|(_, body)| Arc::new(body.clone()))
+                .chain(unit.closures().values().cloned())
+                .map(|body| {
+                    let item = Requirements::prepare(body).unwrap();
+                    (item.code(), item)
+                })
+                .collect::<BTreeMap<_, _>>();
+            let evidence = requirements[&code("root")]
+                .body()
+                .typed()
+                .result_evidence
+                .as_ref()
                 .unwrap()
-        );
-        requirements.remove(&code("leaf"));
-        let incomplete = Conditions::prepare(&requirements).unwrap();
-        // The fixed-edge conjunction is still covered; the selected body is an independent
-        // completeness requirement, not a missing fixed-edge shortcut.
-        assert!(incomplete.covered.contains(&code("root")));
-        work.restart();
-        assert!(
-            !incomplete
-                .prove_closed_root(code("root"), &requirements, &verified, &mut work)
-                .unwrap()
-        );
-        work.charge(8).unwrap();
+                .clone();
+            let verified = evidence.verify(&context).unwrap();
+            let mut work = WorkBudget::new(std::num::NonZeroU64::new(8).unwrap());
+            let graph = Conditions::prepare(&requirements).unwrap();
+            assert!(
+                graph
+                    .prove_closed_root(code("root"), &requirements, &|_| true, &verified, &mut work)
+                    .unwrap()
+            );
+            requirements.remove(&selected);
+            let incomplete = Conditions::prepare(&requirements).unwrap();
+            // The fixed-edge conjunction is still covered; the selected body is an independent
+            // completeness requirement, not a missing fixed-edge shortcut.
+            assert!(incomplete.covered.contains(&code("root")));
+            work.restart();
+            assert!(
+                !incomplete
+                    .prove_closed_root(code("root"), &requirements, &|_| true, &verified, &mut work)
+                    .unwrap()
+            );
+            work.charge(8).unwrap();
+        }
     }
 
     #[test]
