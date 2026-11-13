@@ -1,7 +1,7 @@
 //! Metadata-only instantiation of a frozen typed call; never lookup, body typing or const proof.
 use super::{Argument, CallKind, flow};
 use nocter_declarations::value_access::{
-    CodeInstanceKey, CodeTemplateKey, ConcreteWitness, FunctionWitness, Program,
+    CodeInstanceKey, CodeTemplateKey, FunctionWitness, Program,
 };
 use nocter_model::ValueFunctionOrigin;
 
@@ -26,13 +26,10 @@ pub fn instantiate_call(
         )
         .map_err(|_| invalid)?;
     let bindings = call_bindings(arguments, |witness| {
-        caller
-            .resolve(program, witness)
-            .map(ConcreteWitness::witness)
-            .map_err(|_| invalid)
+        caller.resolve(program, witness).map_err(|_| invalid)
     })?;
     program
-        .bind_code(selected.code(), bindings)
+        .bind_instance(&selected, bindings)
         .map_err(|_| invalid)
 }
 
@@ -107,10 +104,10 @@ pub(super) fn instantiate_template_call(
         .map_err(|_| invalid)
 }
 
-fn call_bindings(
+fn call_bindings<W>(
     arguments: &[Argument],
-    resolve: impl Fn(FunctionWitness) -> Result<FunctionWitness, flow::IntegrityError>,
-) -> Result<Vec<(nocter_model::ValueParameter, FunctionWitness)>, flow::IntegrityError> {
+    resolve: impl Fn(FunctionWitness) -> Result<W, flow::IntegrityError>,
+) -> Result<Vec<(nocter_model::ValueParameter, W)>, flow::IntegrityError> {
     arguments
         .iter()
         .filter_map(|argument| argument.binding.as_ref())

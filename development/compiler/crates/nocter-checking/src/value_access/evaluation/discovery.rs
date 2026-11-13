@@ -43,6 +43,17 @@ impl Discovery {
         program: &Program,
         key: CodeInstanceKey,
     ) -> Result<(), flow::IntegrityError> {
+        if !key.captures().is_empty()
+            || key
+                .witnesses()
+                .values()
+                .any(|witness| !witness.captures().is_empty())
+        {
+            if self.exact.insert(key.clone()) {
+                self.pending.push(key);
+            }
+            return Ok(());
+        }
         if self.independent.contains(&key.code()) {
             if self.plain.insert(key.code()) {
                 self.pending.push(key);
@@ -62,7 +73,7 @@ impl Discovery {
                     witnesses: key
                         .witnesses()
                         .iter()
-                        .map(|(&parameter, &witness)| (parameter, BTreeSet::from([witness])))
+                        .map(|(&parameter, witness)| (parameter, BTreeSet::from([witness.clone()])))
                         .collect(),
                     representative: key.clone(),
                 },
@@ -73,12 +84,12 @@ impl Discovery {
         if frame.witnesses.len() != key.witnesses().len() {
             return Err(INVALID);
         }
-        for (&parameter, &witness) in key.witnesses() {
+        for (&parameter, witness) in key.witnesses() {
             if !frame
                 .witnesses
                 .get_mut(&parameter)
                 .ok_or(INVALID)?
-                .insert(witness)
+                .insert(witness.clone())
             {
                 continue;
             }
@@ -91,7 +102,7 @@ impl Discovery {
                         .representative
                         .witnesses()
                         .iter()
-                        .map(|(&formal, &original)| {
+                        .map(|(&formal, original)| {
                             (
                                 formal,
                                 if formal == parameter {

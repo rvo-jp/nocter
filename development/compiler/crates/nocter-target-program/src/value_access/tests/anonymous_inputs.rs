@@ -25,7 +25,7 @@ fn anonymous_instances_keep_call_site_bindings_and_reject_wrong_owners_or_positi
             .any(|second| first.code() == second.code() && first.witnesses() != second.witnesses())
     }));
     let selected = instances[0];
-    let (&formal, &actual) = selected.witnesses().first_key_value().unwrap();
+    let (&formal, actual) = selected.witnesses().first_key_value().unwrap();
     let ValueParameter::Closure { owner, position } = formal else {
         panic!("anonymous input")
     };

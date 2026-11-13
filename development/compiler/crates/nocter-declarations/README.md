@@ -340,14 +340,29 @@ conservative-analysis or closed-execution admission boundary.
 
 `code_bindings` owns canonical code-frame metadata and concrete static witnesses. `bind_code`
 requires exact direct callable-formal coverage, rejects duplicates and foreign identities, and
-reuses `constrain_function` to validate signatures and select the declared invocation view. Stronger
-views therefore normalize to the same key. The key's immutable `resolve` delegates one-step witness
-substitution and validates the concrete code/view in this Program. It cannot publish symbolic or
-initializer values as concrete callable witnesses. Expression/initializer frame metadata grants no
-callable role or executable body. Neither a key nor a concrete witness proves const availability,
-representation, ownership, lifetime, primitive authority or native admission. Consumers retain
-those separate proofs and must use the key with its original declaration authority. A key is not a
-source/revision reuse certificate; caches remain scoped to their checked program and body guards.
+reuses the common signature/view normalization authority. Bare code witnesses cannot stand in for
+closures whose environments require captured callable substitutions. `bind_callable_environment`
+binds exactly those dependencies from the canonical environment descriptor; pending producers
+cannot supply a closed context. Distinct frozen views of one formal share the strongest required
+view without acquiring a stronger capability than the supplied witness.
+
+A `ConcreteWitness` retains its code, selected invocation view and immutable captured substitutions.
+Nested witnesses retain their own contexts. `bind_instance` receives those complete witnesses;
+forwarding two values of the same lexical closure can therefore retain different captured callbacks
+in the same receiving frame. Direct input and environment bindings remain separate. `resolve`
+selects only frozen parameters/code, preserves nested contexts and applies the requested view
+without repeating lookup or body checking. Template closure preserves those contexts too.
+Structural context participates in key equality and ordering. Validation and comparison use
+iterative walks that visit shared contexts or context pairs once, including independently built
+equal graphs. Allocation identity only bounds those local walks; it is never the semantic order,
+an instance key or a reuse receipt.
+
+Expression/initializer frame metadata grants no callable role or executable body. Neither a key
+nor a concrete witness proves const availability, representation, ownership, lifetime, primitive
+authority or native admission. Consumers retain those separate proofs and must use the key with
+its original declaration authority. A key is not a source/revision reuse certificate; caches remain
+scoped to their checked program and body guards. Contextual carrier projection and executable
+formal-environment admission remain integration work.
 
 `CodeTemplateKey` retains concrete or validated outer-parameter witnesses for condition composition.
 `code_template` builds a code's identity parameter frame; `bind_template` uses the same exact

@@ -34,6 +34,14 @@ impl Traversal {
         program: &Program,
         key: &CodeInstanceKey,
     ) -> Result<bool, flow::IntegrityError> {
+        if !key.captures().is_empty()
+            || key
+                .witnesses()
+                .values()
+                .any(|witness| !witness.captures().is_empty())
+        {
+            return Ok(self.exact.insert(key.clone()));
+        }
         if self.fixed.contains(&key.code()) {
             let mut supported = true;
             for witness in key.witnesses().values() {
