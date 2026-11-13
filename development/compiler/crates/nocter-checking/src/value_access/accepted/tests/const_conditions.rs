@@ -295,3 +295,47 @@ fn recursive_condition_edges_form_a_finite_permutation_without_chasing_root_vari
         Some(&nocter_constant_evaluation::state::Value::integer(42).freeze())
     );
 }
+
+#[test]
+fn stored_condition_edges_close_to_the_same_frozen_instance_as_native_call_binding() {
+    use crate::value_access::instantiate_call;
+    use nocter_declarations::value_access::FunctionWitness;
+    let unit = accepted(FORWARDING);
+    let program = unit.program();
+    let identity = program
+        .resolve_code(program.symbols().get("identity").unwrap())
+        .unwrap();
+    for name in ["apply", "forward"] {
+        let body = named(&unit, name);
+        let code = body.typed().code();
+        let nocter_model::ValueCode::Declaration(id) = code else {
+            unreachable!();
+        };
+        let formal = program.codes().get(id).unwrap().parameters()[0];
+        let caller = program
+            .bind_code(code, [(formal.into(), FunctionWitness::from(identity))])
+            .unwrap();
+        for call in unit.const_requirements(code).unwrap().completed_calls() {
+            let crate::value_access::ExpressionKind::Call {
+                target,
+                kind,
+                arguments,
+            } = &body
+                .typed()
+                .body()
+                .expressions()
+                .get(call.expression())
+                .unwrap()
+                .kind
+            else {
+                unreachable!();
+            };
+            assert_eq!(
+                call.close(&caller).unwrap(),
+                instantiate_call(program, &caller, *target, *kind, arguments).unwrap()
+            );
+            let wrong = program.bind_code(identity.into(), []).unwrap();
+            assert!(call.close(&wrong).is_err());
+        }
+    }
+}

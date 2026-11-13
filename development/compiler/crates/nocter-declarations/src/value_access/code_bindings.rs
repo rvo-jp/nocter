@@ -99,6 +99,17 @@ impl CodeTemplateKey {
             .ok_or(CodeBindingError::InvalidWitness)?;
         program.template_witness(selected)
     }
+    /// Compose free witness values through an outer symbolic frame in one substitution step.
+    /// # Errors
+    /// Rejects missing/nonproducer terms and incompatible substituted views or contracts.
+    pub fn compose(&self, program: &Program, outer: &Self) -> Result<Self, CodeBindingError> {
+        let bindings = self
+            .witnesses
+            .iter()
+            .map(|(&parameter, &witness)| Ok((parameter, outer.resolve(program, witness)?)))
+            .collect::<Result<Vec<_>, CodeBindingError>>()?;
+        program.bind_template(self.code, bindings)
+    }
     /// Close free witness values through the matched outer frame, without granting body capability.
     /// # Errors
     /// Rejects unbound terms and incompatible substituted views or contracts.

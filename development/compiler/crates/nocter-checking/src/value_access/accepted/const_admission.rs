@@ -1,6 +1,6 @@
 //! Definition-template and exact-instance admission over the one ordinary checked-body product.
 use super::{Checked, DeclarationContext, Failure, Program, flow};
-use crate::value_access::{constant, evaluation, instances, results, source_origin};
+use crate::value_access::{constant, evaluation, results, source_origin};
 use std::{collections::BTreeMap, sync::Arc};
 
 /// Close the direct callable-formal conditions over exact checked instance metadata before
@@ -59,11 +59,8 @@ pub(in crate::value_access) fn check_required_const(
                 diagnostic: Box::new(diagnostic),
             });
         }
-        for item in requirements.call_expressions() {
-            let (id, expression) = item.map_err(Failure::Integrity)?;
-            if !instances::is_completed_call(expression) {
-                continue;
-            }
+        for call in requirements.completed_calls() {
+            let id = call.expression();
             let origin = bound
                 .typed()
                 .expression_origin(id)
@@ -73,11 +70,7 @@ pub(in crate::value_access) fn check_required_const(
             let origin = source_origin(bound.typed().syntax(), origin)
                 .map_err(|failure| Failure::Body { callable, failure })?;
             evaluation::condition_step(work, callable, origin)?;
-            let selected = instances::select_call(program, &key, expression)
-                .map_err(Failure::Integrity)?
-                .ok_or(Failure::Integrity(
-                    flow::IntegrityError::InconsistentTypedBody,
-                ))?;
+            let selected = call.close(&key).map_err(Failure::Integrity)?;
             if parents.contains_key(&selected) {
                 continue;
             }

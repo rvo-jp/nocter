@@ -1,15 +1,55 @@
 //! Derived condition references belong to one immutable ordinary checked body.
 use super::{INVALID, Rule, Site, Statement, Violation, flow, representation};
-use crate::value_access::{ExpressionKind, evaluation, instances};
+use crate::value_access::{CallTemplate, ExpressionKind, evaluation, instances};
 use nocter_declarations::value_access::{CodeInstanceKey, CodeTemplateKey};
 use nocter_model::{AccessExpressionId, ValueClosure, ValueCode};
 use std::sync::Arc;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 enum Clause {
-    Invocation(AccessExpressionId),
+    Invocation {
+        expression: AccessExpressionId,
+        // An interrupted call has no callee edge. Unresolved producer/view metadata is retained
+        // as unavailable edge metadata, never permission to strengthen an ordinary runtime body.
+        template: Option<Result<CallTemplate, flow::IntegrityError>>,
+    },
     Inputs(AccessExpressionId),
     Data(Violation),
+}
+
+/// One completed edge borrowed from its matched definition-owned body product.
+pub(in crate::value_access) struct CallEdge<'a> {
+    body: &'a flow::Query,
+    expression: AccessExpressionId,
+    template: &'a Result<CallTemplate, flow::IntegrityError>,
+}
+impl CallEdge<'_> {
+    pub(in crate::value_access) fn expression(&self) -> AccessExpressionId {
+        self.expression
+    }
+    pub(in crate::value_access) fn close(
+        &self,
+        caller: &CodeInstanceKey,
+    ) -> Result<CodeInstanceKey, flow::IntegrityError> {
+        if caller.code() != self.body.typed().code() {
+            return Err(INVALID);
+        }
+        let program = self.body.typed().program();
+        match self.template.as_ref().map_err(|error| *error)? {
+            CallTemplate::Code(key) => key.close(program, caller).map_err(|_| INVALID),
+            CallTemplate::Parameter(_) => {
+                let expression = &self
+                    .body
+                    .typed()
+                    .body()
+                    .expressions()
+                    .get(self.expression)
+                    .ok_or(INVALID)?
+                    .kind;
+                instances::select_call(program, caller, expression)?.ok_or(INVALID)
+            }
+        }
+    }
 }
 
 /// Definition-owned operation requirements, with the exact shared checked-body generation.
@@ -33,10 +73,31 @@ impl Requirements {
         let mut domain = evaluation::Types::default();
         let mut projections = representation::Projections::default();
         let mut clauses = Vec::new();
+        let identity = program
+            .code_template(body.typed().code())
+            .map_err(|_| INVALID);
         // Preserve the diagnostic ordering and fixed forbidden-operation checks in dormant source.
         for (id, expression) in typed.expressions().iter() {
-            if matches!(expression.kind, ExpressionKind::Call { .. }) {
-                clauses.push(Clause::Invocation(id));
+            if let ExpressionKind::Call {
+                target,
+                kind,
+                arguments,
+            } = &expression.kind
+            {
+                let template = instances::completed(arguments).then(|| {
+                    identity
+                        .as_ref()
+                        .map_err(|error| *error)
+                        .and_then(|identity| {
+                            instances::instantiate_template_call(
+                                program, identity, *target, *kind, arguments,
+                            )
+                        })
+                });
+                clauses.push(Clause::Invocation {
+                    expression: id,
+                    template,
+                });
             }
         }
         for (id, statement) in typed.statements().iter() {
@@ -113,20 +174,20 @@ impl Requirements {
         let expressions = self.body.typed().body().expressions();
         let mut domain = evaluation::Types::default();
         for clause in &self.clauses {
-            let violation = match *clause {
-                Clause::Invocation(id) => super::operation_rule(
+            let violation = match clause {
+                Clause::Invocation { expression: id, .. } => super::operation_rule(
                     program,
-                    &expressions.get(id).ok_or(INVALID)?.kind,
+                    &expressions.get(*id).ok_or(INVALID)?.kind,
                     available,
                     instance,
                 )?
                 .map(|rule| Violation {
-                    site: Site::Expression(id),
+                    site: Site::Expression(*id),
                     rule,
                 }),
                 Clause::Inputs(id) => super::call_inputs(
                     program,
-                    &expressions.get(id).ok_or(INVALID)?.kind,
+                    &expressions.get(*id).ok_or(INVALID)?.kind,
                     &mut domain,
                     instance,
                 )?,
@@ -136,7 +197,7 @@ impl Requirements {
                     else {
                         return Err(INVALID);
                     };
-                    (!super::supports(program, data, &mut domain, instance)?).then_some(violation)
+                    (!super::supports(program, data, &mut domain, instance)?).then_some(*violation)
                 }
             };
             if violation.is_some() {
@@ -145,6 +206,19 @@ impl Requirements {
         }
         Ok(None)
     }
+    pub(in crate::value_access) fn completed_calls(&self) -> impl Iterator<Item = CallEdge<'_>> {
+        self.clauses.iter().filter_map(|clause| match clause {
+            Clause::Invocation {
+                expression,
+                template: Some(template),
+            } => Some(CallEdge {
+                body: &self.body,
+                expression: *expression,
+                template,
+            }),
+            _ => None,
+        })
+    }
     pub(in crate::value_access) fn call_expressions(
         &self,
     ) -> impl Iterator<Item = Result<(AccessExpressionId, &ExpressionKind), flow::IntegrityError>>
@@ -152,7 +226,7 @@ impl Requirements {
         self.clauses
             .iter()
             .filter_map(|clause| match clause {
-                Clause::Invocation(id) => Some(*id),
+                Clause::Invocation { expression, .. } => Some(*expression),
                 _ => None,
             })
             .map(|id| {
@@ -183,22 +257,38 @@ impl Requirements {
         }
         let program = self.body.typed().program();
         let mut calls = Vec::new();
-        for item in self.call_expressions() {
-            let (id, expression) = item?;
-            let ExpressionKind::Call {
-                target,
-                kind,
-                arguments,
-            } = expression
+        for clause in &self.clauses {
+            let Clause::Invocation {
+                expression: id,
+                template: Some(template),
+            } = clause
             else {
-                return Err(INVALID);
-            };
-            if !instances::completed(arguments) {
                 continue;
-            }
-            let selected =
-                instances::instantiate_template_call(program, key, *target, *kind, arguments)?;
-            calls.push((id, selected));
+            };
+            let selected = match template.as_ref().map_err(|error| *error)? {
+                CallTemplate::Code(callee) => {
+                    CallTemplate::Code(callee.compose(program, key).map_err(|_| INVALID)?)
+                }
+                CallTemplate::Parameter(_) => {
+                    let ExpressionKind::Call {
+                        target,
+                        kind,
+                        arguments,
+                    } = &self
+                        .body
+                        .typed()
+                        .body()
+                        .expressions()
+                        .get(*id)
+                        .ok_or(INVALID)?
+                        .kind
+                    else {
+                        return Err(INVALID);
+                    };
+                    instances::instantiate_template_call(program, key, *target, *kind, arguments)?
+                }
+            };
+            calls.push((*id, selected));
         }
         Ok(calls)
     }
