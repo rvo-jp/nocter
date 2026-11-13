@@ -152,3 +152,45 @@ fn the_same_lexical_code_with_nested_owned_contexts_has_a_finite_shape_walk() {
     let canonical = types.get_in(program, &frame, fixture.formal).unwrap();
     assert_eq!(canonical, index);
 }
+
+#[test]
+fn evaluator_carriers_keep_mixed_component_contexts_without_strengthening_raw_types() {
+    let fixture = fixture();
+    let program = &fixture.program;
+    let frames = fixture.callbacks.map(|callback| {
+        program
+            .bind_code(fixture.creator.into(), [(fixture.parameter, callback)])
+            .unwrap()
+    });
+    let first = program
+        .instantiate_data(fixture.captured, &frames[0])
+        .unwrap();
+    let uniform = program.instantiate_data(fixture.tuple, &frames[1]).unwrap();
+    let array = uniform.component(program, ValueField::Tuple(1)).unwrap();
+    let mixed = program
+        .instantiate_components(
+            fixture.tuple,
+            [(ValueField::Tuple(0), first), (ValueField::Tuple(1), array)],
+        )
+        .unwrap();
+    let mut types = Types::default();
+    let id = types
+        .get_key(program, &ShapeKey::instantiated(program, mixed).unwrap())
+        .unwrap();
+    let actual = frames
+        .each_ref()
+        .map(|frame| types.get_in(program, frame, fixture.captured).unwrap());
+    let Type::Record(fields) = &types.shapes[id].ty else {
+        panic!("record");
+    };
+    assert_eq!(fields[0], actual[0]);
+    let Type::Array { element, length } = types.shapes[fields[1]].ty else {
+        panic!("array");
+    };
+    assert_eq!(length, 2);
+    assert_eq!(element, actual[1]);
+    assert_ne!(actual[0], actual[1]);
+    assert!(types.shapes[id].supported);
+    assert!(!types.shapes[id].serializable);
+    assert!(!types.supports(program, fixture.tuple).unwrap());
+}

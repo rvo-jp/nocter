@@ -12,8 +12,13 @@ struct Fixture {
     inputs: [ValueParameter; 2],
     callbacks: [FunctionWitness; 2],
     empty: nocter_model::TypeId,
+    pair: nocter_model::TypeId,
+    large: nocter_model::TypeId,
 }
 fn fixture() -> Fixture {
+    fixture_with_depth(0)
+}
+fn fixture_with_depth(depth: usize) -> Fixture {
     let (headers, [creator, _, plain, _, _]) = headers();
     let formal = headers.codes().get(creator).unwrap().parameters()[0].into();
     let data = headers
@@ -32,6 +37,11 @@ fn fixture() -> Fixture {
     let captured = body.reserve_closure().unwrap();
     let captured_data = body.closure(captured, data, contract.clone()).unwrap();
     let empty = body.array(captured_data, 0).unwrap();
+    let mut pair = body.tuple(&[captured_data, captured_data]).unwrap();
+    for _ in 0..depth {
+        pair = body.tuple(&[pair, pair]).unwrap();
+    }
+    let large = body.array(pair, u64::MAX).unwrap();
     let holder = body.reserve_closure().unwrap();
     let inputs = [0, 1].map(|position| ValueParameter::Closure {
         owner: holder,
@@ -93,6 +103,8 @@ fn fixture() -> Fixture {
         inputs,
         callbacks: [plain.into(), witness(second)],
         empty,
+        pair,
+        large,
     }
 }
 
@@ -406,4 +418,121 @@ fn closed_data_construction_does_not_borrow_bindings_or_manufacture_empty_elemen
         .unwrap();
     assert!(plain.is_context_free());
     assert!(plain.environment(program).unwrap().is_none());
+}
+
+#[test]
+fn component_instances_preserve_two_contexts_of_the_identical_source_type() {
+    use nocter_model::ValueField;
+    let fixture = fixture();
+    let program = &fixture.program;
+    let frames = fixture.callbacks.map(|callback| {
+        program
+            .bind_code(fixture.creator.into(), [(fixture.formal, callback)])
+            .unwrap()
+    });
+    let data = program.function_data(fixture.captured).unwrap();
+    let leaves = frames
+        .each_ref()
+        .map(|frame| program.instantiate_data(data, frame).unwrap());
+    assert_eq!(leaves[0].data(), leaves[1].data());
+    assert_ne!(leaves[0], leaves[1]);
+    let mixed = program
+        .instantiate_components(
+            fixture.pair,
+            [
+                (ValueField::Tuple(0), leaves[0].clone()),
+                (ValueField::Tuple(1), leaves[1].clone()),
+            ],
+        )
+        .unwrap();
+    for (position, expected) in leaves.iter().enumerate() {
+        assert_eq!(
+            mixed
+                .component(program, ValueField::Tuple(position))
+                .unwrap(),
+            *expected
+        );
+    }
+    let uniform = program
+        .instantiate_components(
+            fixture.pair,
+            [
+                (ValueField::Tuple(1), leaves[0].clone()),
+                (ValueField::Tuple(0), leaves[0].clone()),
+            ],
+        )
+        .unwrap();
+    assert_eq!(
+        uniform,
+        program.instantiate_data(fixture.pair, &frames[0]).unwrap()
+    );
+    assert_ne!(mixed, uniform);
+    assert!(
+        program
+            .instantiate_components(fixture.pair, [(ValueField::Tuple(0), leaves[0].clone())])
+            .is_err()
+    );
+    assert!(
+        program
+            .instantiate_components(
+                fixture.pair,
+                [
+                    (ValueField::Tuple(0), leaves[0].clone()),
+                    (ValueField::Tuple(0), leaves[1].clone()),
+                ]
+            )
+            .is_err()
+    );
+    assert!(
+        program
+            .instantiate_components(fixture.empty, [(ValueField::Array(0), leaves[0].clone())])
+            .is_err()
+    );
+    assert!(program.instantiate_components(data, []).is_err());
+    assert!(
+        program
+            .instantiate_components(
+                fixture.pair,
+                [
+                    (
+                        ValueField::Tuple(0),
+                        program
+                            .instantiate_closed_data(program.data_type(BuiltinType::Void).unwrap())
+                            .unwrap()
+                    ),
+                    (ValueField::Tuple(1), leaves[1].clone()),
+                ]
+            )
+            .is_err()
+    );
+}
+
+#[test]
+fn component_contexts_share_schema_dags_and_compare_without_expanding_cardinality() {
+    use nocter_model::ValueField;
+    let fixture = fixture_with_depth(64);
+    let array = fixture.large;
+    let program = fixture.program;
+    let frames = fixture.callbacks.map(|callback| {
+        program
+            .bind_code(fixture.creator.into(), [(fixture.formal, callback)])
+            .unwrap()
+    });
+    let left = program.instantiate_data(array, &frames[0]).unwrap();
+    let equal = program.instantiate_data(array, &frames[0]).unwrap();
+    let right = program.instantiate_data(array, &frames[1]).unwrap();
+    assert_eq!(left, equal);
+    assert_ne!(left, right);
+    assert_eq!(left.cmp(&right), right.cmp(&left).reverse());
+    let element = left
+        .component(&program, ValueField::Array(u64::MAX - 1))
+        .unwrap();
+    let assembled = program
+        .instantiate_components(array, [(ValueField::Array(0), element)])
+        .unwrap();
+    assert_eq!(left, assembled);
+    assert!(
+        left.component(&program, ValueField::Array(u64::MAX))
+            .is_err()
+    );
 }

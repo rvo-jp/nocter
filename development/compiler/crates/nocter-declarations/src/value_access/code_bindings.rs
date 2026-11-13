@@ -431,7 +431,9 @@ impl Program {
             ConcreteWitness::with_invocation,
             |witness| self.validate_concrete(witness),
         )?;
-        Ok(super::DataInstanceKey { data, witnesses })
+        self.build_data_instance(data, |selected| {
+            self.resolve_bindings(selected, |parameter| witnesses.get(&parameter))
+        })
     }
     /// Bind exactly the free callable dependencies of one frozen owned environment.
     /// This metadata retains nested contexts and grants no payload, body or const admission.

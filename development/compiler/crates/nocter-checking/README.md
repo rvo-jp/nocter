@@ -1228,6 +1228,9 @@ It retains the matched checked-body products, shared type projector and complete
 The type projector selects contextual components by validated source fields and follows callable
 environments through their separate environment edge. An empty array retains raw element metadata
 without constructing a positive element instance or granting an element access.
+Component-context qualification includes a mixed carrier whose same-source callable leaves retain
+different environments. Its evaluator shape remains distinct from both uniform carriers, and this
+metadata construction does not strengthen the raw body's support or final-publication eligibility.
 Each realized body links its immediate call boundaries without recursively realizing their bodies;
 no lookup, type checking or const-capability inference happens in the executor. The evaluator
 validates each append-only batch against those boundaries before executing it. Actual callable

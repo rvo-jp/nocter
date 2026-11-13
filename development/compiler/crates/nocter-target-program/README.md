@@ -198,6 +198,9 @@ and the receiving formal reuse one physical identity without relabelling their s
 The iterative graph walk selects every positive child by its declaration-validated field through
 the same contextual instance authority. Function environments use their explicit environment edge,
 not a source tuple field. Intrinsic representation primitives are independently closed roots.
+Mixed component contexts preserve distinct callable environment identities and their logical payload
+cleanup metadata even when the source callable type is shared. Constructing such a carrier is metadata
+qualification, not execution of a source-level formal capture or an owned error's destruction.
 Optional and fallible payloads request canonical tag/comparison primitives; fallible shapes also
 request the built-in error identity. Aggregate representations retain exact logical component keys.
 Machine owns size, alignment and member offsets. Unproduced contracts add no stored type, and empty

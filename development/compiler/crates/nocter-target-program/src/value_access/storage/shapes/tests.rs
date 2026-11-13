@@ -329,3 +329,75 @@ fn instantiated_payload_environment_uses_the_actual_captured_value_context() {
     assert_eq!(nested.disposal(), Disposal::OwnedError);
     assert_eq!(program.data_kind(nested.data()), Some(BuiltinType::Error));
 }
+
+#[test]
+fn mixed_component_contexts_keep_their_native_environment_and_cleanup_metadata() {
+    use nocter_checking::value_access::flow::resources;
+    let fixture = fixture();
+    let program = &fixture.program;
+    let first = fixture.keys[0]
+        .component(program, ValueField::Tuple(0))
+        .unwrap();
+    let second = fixture.keys[1]
+        .component(program, ValueField::Tuple(1))
+        .unwrap();
+    let mixed = program
+        .instantiate_components(
+            fixture.keys[0].data(),
+            [
+                (ValueField::Tuple(0), first.clone()),
+                (ValueField::Tuple(1), second.clone()),
+            ],
+        )
+        .unwrap();
+    assert!(fixture.keys.iter().all(|key| key != &mixed));
+    let mut builder = Builder::new(program);
+    let root = builder.intern(mixed.clone()).unwrap();
+    let first_id = builder.intern(first.clone()).unwrap();
+    let array_id = builder.intern(second.clone()).unwrap();
+    let second_leaf = second.component(program, ValueField::Array(1)).unwrap();
+    let second_id = builder.intern(second_leaf.clone()).unwrap();
+    assert_ne!(first_id, second_id);
+    let prepared = builder.finish(RuntimeAbiIdentity::Arm64DarwinV1).unwrap();
+    let runtime = prepared.environment();
+    assert_eq!(
+        runtime.types().get(array_id),
+        Some(&RuntimeType::FixedArray {
+            element: second_id,
+            length: 2
+        })
+    );
+    let Some(RuntimeTypeRepresentation::ValueAggregate { fields }) =
+        runtime.type_representations().get(root)
+    else {
+        panic!("aggregate");
+    };
+    assert_eq!(fields[0].ty(), first_id);
+    assert_eq!(fields[1].ty(), array_id);
+    let payload = resources::payload(program, mixed.data())
+        .unwrap()
+        .instantiate(program, &mixed)
+        .unwrap();
+    assert_eq!(payload.instance(), &mixed);
+    let left = resources::payload(program, first.data())
+        .unwrap()
+        .instantiate(program, &first)
+        .unwrap()
+        .environment(program)
+        .unwrap()
+        .unwrap();
+    let right = resources::payload(program, second_leaf.data())
+        .unwrap()
+        .instantiate(program, &second_leaf)
+        .unwrap()
+        .environment(program)
+        .unwrap()
+        .unwrap();
+    assert_ne!(left, right);
+    assert!(left.environment(program).unwrap().is_none());
+    let owned_error = right.environment(program).unwrap().unwrap();
+    assert_eq!(
+        program.data_kind(owned_error.data()),
+        Some(BuiltinType::Error)
+    );
+}

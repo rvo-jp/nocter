@@ -1,15 +1,22 @@
 //! Contextual shape selection preserves semantic type identity and complete callable witnesses.
 use super::{
     AggregateSchema, ArraySchema, CodeBindingError, CodeInstanceKey, ConcreteWitness,
-    FunctionWitness, PayloadSchema, Program,
+    PayloadSchema, Program,
 };
-use nocter_model::{BuiltinType, TypeId, ValueCode, ValueParameter};
-use std::collections::BTreeMap;
+use nocter_model::{BuiltinType, TypeId, ValueCode, ValueField};
+use std::{collections::BTreeMap, sync::Arc};
+mod graph;
 
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug)]
 pub struct DataInstanceKey {
-    pub(super) data: TypeId,
-    pub(super) witnesses: BTreeMap<ValueParameter, ConcreteWitness>,
+    data: TypeId,
+    context: Arc<Context>,
+}
+#[derive(Debug)]
+enum Context {
+    Closed,
+    Function(ConcreteWitness),
+    Components(BTreeMap<ValueField, DataInstanceKey>),
 }
 /// One canonical schema with a resolved callable value; carrier children retain semantic `TypeId`s.
 #[derive(Clone, Debug)]
@@ -29,7 +36,7 @@ impl DataInstanceKey {
     /// Whether representation selection needs any captured/formal substitution.
     #[must_use]
     pub fn is_context_free(&self) -> bool {
-        self.witnesses.is_empty()
+        matches!(&*self.context, Context::Closed)
     }
     /// Select the actual function leaf's representation key without relabelling its carrier.
     /// The original instance retains its semantic identity; only the selected callable changes.
@@ -66,17 +73,14 @@ impl DataInstanceKey {
                 PayloadSchema::Optional(data) => InstanceSchema::Optional(data),
                 PayloadSchema::Fallible(data) => InstanceSchema::Fallible(data),
                 PayloadSchema::Function(witness) => {
-                    InstanceSchema::Function(self.resolve(program, witness)?)
+                    InstanceSchema::Function(match &*self.context {
+                        Context::Closed => program.concrete_witness(witness)?,
+                        Context::Function(selected) => selected.clone(),
+                        Context::Components(_) => return Err(CodeBindingError::InvalidWitness),
+                    })
                 }
             },
         )
-    }
-    fn resolve(
-        &self,
-        program: &Program,
-        witness: FunctionWitness,
-    ) -> Result<ConcreteWitness, CodeBindingError> {
-        program.resolve_bindings(witness, |parameter| self.witnesses.get(&parameter))
     }
     /// Select one declaration-validated component and retain only its dependencies.
     /// This is metadata, not a place-access or numeric-bounds proof.
@@ -86,13 +90,23 @@ impl DataInstanceKey {
     pub fn component(
         &self,
         program: &Program,
-        field: nocter_model::ValueField,
+        field: ValueField,
     ) -> Result<Self, CodeBindingError> {
         let data = program
             .component(self.data, field)
             .ok_or(CodeBindingError::InvalidWitness)?
             .data;
-        program.bind_payload_with(data, |witness| self.resolve(program, witness))
+        let slot = if matches!(field, ValueField::Array(_)) {
+            ValueField::Array(0)
+        } else {
+            field
+        };
+        if let Context::Components(children) = &*self.context
+            && let Some(child) = children.get(&slot)
+        {
+            return Ok(child.clone());
+        }
+        program.instantiate_closed_data(data)
     }
     /// Project an actual selected closure's own captured context, independent of invocation inputs.
     /// # Errors

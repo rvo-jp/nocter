@@ -369,13 +369,20 @@ witness, preserves captured substitutions and rejects an upgrade from a weaker s
 Formal resolution and producer-frame realization use this same operation; adaptation adds no
 ownership, body capability or representation evidence.
 
-`DataInstanceKey` pairs an unchanged semantic TypeId with exactly its closed callable dependencies.
+`DataInstanceKey` pairs an unchanged semantic TypeId with a canonical shared component-context DAG.
+Function leaves retain complete selected witnesses; carriers retain only contextual child edges,
+so two fields of the identical source type can keep different captured substitutions. Context-free
+children are omitted canonically. Equality and ordering walk shared graphs iteratively rather than
+expanding repeated subtrees or array cardinality.
 `instantiate_data` uses the same binding normalization and frozen witness resolution as code
 frames; it discards irrelevant input bindings. `function_representation` explicitly selects the
 actual callable leaf's code/environment key while leaving its containing carrier unchanged. `InstanceSchema` exposes the canonical carrier
 schema and complete concrete function witnesses. `component` selects a declaration-validated field
 and filters its dependencies; a bare child TypeId is insufficient to identify that selection.
 `instantiate_closed_data` constructs an independent context-free root through the same normalization.
+`instantiate_components` assembles a carrier from complete, exactly typed component instances and
+normalizes to the same identity as frame-based construction. Arrays supply one homogeneous element
+schema at `Array(0)`; this does not describe distinct element values or prove a dynamic index.
 Invalid fields and empty-array elements reject even when their type would otherwise be closed, while
 closure-environment projection uses the selected value's own captures rather than the receiving
 function's inputs. Two occurrences of one lexical code can therefore retain different nested

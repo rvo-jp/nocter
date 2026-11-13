@@ -34,8 +34,10 @@ and ordinary value transport, then close source closure creation before admittin
 captures. Complete value/component transport and representation from retained closure-creation
 snapshots and structural producer facts. Replace per-frame leaf-TypeId assumptions where distinct
 values share a source type but retain different captured substitutions. Component consumers now use
-declaration-validated fields rather than bare child TypeIds; complete occurrence-specific context
-transport behind that boundary, rather than treating field selection alone as its proof. Keep one declaration-owned
+declaration-validated fields rather than bare child TypeIds; the canonical data key now retains
+component-specific contexts and accepts exactly typed carrier assembly. Complete occurrence-specific
+source transport and callable-environment/frame identity behind that boundary, rather than treating
+metadata carrier assembly as their proof. Keep one declaration-owned
 normalization authority and qualify evaluator/native receiving, storage and cleanup together.
 Do not substitute outer bindings when occurrences or creation snapshots are missing. Preserve
 dormant definition-contract checks, factored symbolic conditions, condition/plan-work failures,
