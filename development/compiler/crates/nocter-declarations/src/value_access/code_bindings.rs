@@ -76,37 +76,11 @@ impl CodeInstanceKey {
         program: &Program,
         selected: FunctionWitness,
     ) -> Result<ConcreteWitness, CodeBindingError> {
-        if let ValueFunctionOrigin::Parameter(parameter) = selected.origin {
-            let actual = self
-                .witnesses
+        program.resolve_bindings(selected, |parameter| {
+            self.witnesses
                 .get(&parameter)
                 .or_else(|| self.captures.get(&parameter))
-                .ok_or(CodeBindingError::InvalidWitness)?;
-            program.validate_concrete(actual)?;
-            if !actual.invocation().can_supply(selected.invocation) {
-                return Err(CodeBindingError::Contract(FunctionMismatch::Invocation {
-                    actual: actual.invocation(),
-                    expected: selected.invocation,
-                }));
-            }
-            return Ok(actual.clone().with_invocation(selected.invocation));
-        }
-        if let ValueFunctionOrigin::Closure(code) = selected.origin {
-            let contracts = program.environment_contracts(code)?;
-            let captures = contracts
-                .keys()
-                .map(|&parameter| {
-                    let actual = self
-                        .witnesses
-                        .get(&parameter)
-                        .or_else(|| self.captures.get(&parameter))
-                        .ok_or(CodeBindingError::Missing(parameter))?;
-                    Ok((parameter, actual.clone()))
-                })
-                .collect::<Result<Vec<_>, CodeBindingError>>()?;
-            return program.bind_callable_environment(selected, captures);
-        }
-        program.concrete_witness(selected)
+        })
     }
 }
 
@@ -196,6 +170,36 @@ pub enum CodeBindingError {
     Contract(FunctionMismatch),
 }
 impl Program {
+    pub(super) fn resolve_bindings<'a>(
+        &self,
+        selected: FunctionWitness,
+        lookup: impl Fn(ValueParameter) -> Option<&'a ConcreteWitness>,
+    ) -> Result<ConcreteWitness, CodeBindingError> {
+        if let ValueFunctionOrigin::Parameter(parameter) = selected.origin {
+            let actual = lookup(parameter).ok_or(CodeBindingError::InvalidWitness)?;
+            self.validate_concrete(actual)?;
+            if !actual.invocation().can_supply(selected.invocation) {
+                return Err(CodeBindingError::Contract(FunctionMismatch::Invocation {
+                    actual: actual.invocation(),
+                    expected: selected.invocation,
+                }));
+            }
+            return Ok(actual.clone().with_invocation(selected.invocation));
+        }
+        if let ValueFunctionOrigin::Closure(code) = selected.origin {
+            let contracts = self.environment_contracts(code)?;
+            let captures = contracts
+                .keys()
+                .map(|&parameter| {
+                    let actual = lookup(parameter).ok_or(CodeBindingError::Missing(parameter))?;
+                    Ok((parameter, actual.clone()))
+                })
+                .collect::<Result<Vec<_>, CodeBindingError>>()?;
+            return self.bind_callable_environment(selected, captures);
+        }
+        self.concrete_witness(selected)
+    }
+
     /// Validate a concrete static witness in this authority. This grants no code-body capability.
     /// # Errors
     /// Rejects symbolic terms, initializers and code/views outside this declaration program.
@@ -352,8 +356,20 @@ impl Program {
         code: nocter_model::ValueClosure,
     ) -> Result<BTreeMap<ValueParameter, FunctionConstraint>, CodeBindingError> {
         let schema = self.closure(code).ok_or(CodeBindingError::UnknownCode)?;
+        let contracts = self.payload_contracts(schema.environment())?;
+        for &parameter in contracts.keys() {
+            if self.parameter_owner(parameter) == Some(ValueCode::Closure(code)) {
+                return Err(CodeBindingError::Unexpected(parameter));
+            }
+        }
+        Ok(contracts)
+    }
+    fn payload_contracts(
+        &self,
+        data: nocter_model::TypeId,
+    ) -> Result<BTreeMap<ValueParameter, FunctionConstraint>, CodeBindingError> {
         let dependencies = self
-            .payload_dependencies(schema.environment())
+            .payload_dependencies(data)
             .ok_or(CodeBindingError::InvalidWitness)?;
         if dependencies.has_pending_producers() {
             return Err(CodeBindingError::InvalidWitness);
@@ -363,9 +379,6 @@ impl Program {
             let ValueFunctionOrigin::Parameter(parameter) = witness.origin else {
                 return Err(CodeBindingError::InvalidWitness);
             };
-            if self.parameter_owner(parameter) == Some(ValueCode::Closure(code)) {
-                return Err(CodeBindingError::Unexpected(parameter));
-            }
             let mut contract = self
                 .parameter_contract(parameter)
                 .ok_or(CodeBindingError::InvalidWitness)?
@@ -379,6 +392,34 @@ impl Program {
             contracts.insert(parameter, contract);
         }
         Ok(contracts)
+    }
+    pub(super) fn bind_payload_with(
+        &self,
+        data: nocter_model::TypeId,
+        resolve: impl Fn(FunctionWitness) -> Result<ConcreteWitness, CodeBindingError>,
+    ) -> Result<super::DataInstanceKey, CodeBindingError> {
+        let contracts = self.payload_contracts(data)?;
+        let bindings = contracts
+            .iter()
+            .map(|(&parameter, contract)| {
+                let selected = resolve(FunctionWitness {
+                    origin: ValueFunctionOrigin::Parameter(parameter),
+                    invocation: contract.invocation,
+                })?;
+                Ok((parameter, selected))
+            })
+            .collect::<Result<Vec<_>, CodeBindingError>>()?;
+        let witnesses = self.normalize_bindings(
+            contracts
+                .iter()
+                .map(|(&parameter, contract)| (parameter, contract))
+                .collect(),
+            bindings,
+            ConcreteWitness::witness,
+            ConcreteWitness::with_invocation,
+            |witness| self.validate_concrete(witness),
+        )?;
+        Ok(super::DataInstanceKey { data, witnesses })
     }
     /// Bind exactly the free callable dependencies of one frozen owned environment.
     /// This metadata retains nested contexts and grants no payload, body or const admission.

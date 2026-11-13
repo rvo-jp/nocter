@@ -23,6 +23,8 @@ mod aggregate;
 pub use aggregate::{AggregateForm, AggregateSchema};
 mod code_bindings;
 mod data;
+mod data_instances;
+pub use data_instances::{DataInstanceKey, InstanceSchema};
 mod functions;
 pub use code_bindings::{CodeBindingError, CodeInstanceKey, CodeTemplateKey, ConcreteWitness};
 pub use functions::{

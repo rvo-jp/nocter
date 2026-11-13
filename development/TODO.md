@@ -23,8 +23,9 @@ through the declaration-owned witness/binding model before admitting formal call
 owned environments. The same lexical closure with different captured callback substitutions must
 remain distinct when both values are forwarded together. Derive dependencies from the canonical
 environment schema; retain nested context, frozen invocation views and one normalization authority.
-Integrate the resulting frame with ordinary ownership checking, contextual data realization,
-conditional const admission, evaluator plans and native storage. Qualify safe/unsafe source cases,
+Integrate the resulting frame and shared `DataInstanceKey` projection with ordinary ownership
+checking, conditional const admission, evaluator plans and native storage. Preserve captured
+context across return/application producers without reconstructing it from a signature or code name. Qualify safe/unsafe source cases,
 exact source/type reuse and deterministic failure recovery. A parser or metadata-only extension
 alone does not complete capture support. Preserve current rejection until executable consumers agree.
 

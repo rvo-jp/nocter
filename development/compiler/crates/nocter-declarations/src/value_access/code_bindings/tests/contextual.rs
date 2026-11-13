@@ -11,6 +11,7 @@ struct Fixture {
     branching: FunctionWitness,
     inputs: [ValueParameter; 2],
     callbacks: [FunctionWitness; 2],
+    empty: nocter_model::TypeId,
 }
 fn fixture() -> Fixture {
     let (headers, [creator, _, plain, _, _]) = headers();
@@ -29,7 +30,8 @@ fn fixture() -> Fixture {
     };
     let mut body = headers.body_types(creator).unwrap();
     let captured = body.reserve_closure().unwrap();
-    body.closure(captured, data, contract.clone()).unwrap();
+    let captured_data = body.closure(captured, data, contract.clone()).unwrap();
+    let empty = body.array(captured_data, 0).unwrap();
     let holder = body.reserve_closure().unwrap();
     let inputs = [0, 1].map(|position| ValueParameter::Closure {
         owner: holder,
@@ -90,6 +92,7 @@ fn fixture() -> Fixture {
         branching: witness(branching),
         inputs,
         callbacks: [plain.into(), witness(second)],
+        empty,
     }
 }
 
@@ -216,4 +219,100 @@ fn shared_contexts_compare_structurally_without_expanding_independent_equal_dags
     assert_eq!(first.cmp(&equal), std::cmp::Ordering::Equal);
     assert_eq!(first.cmp(&different), std::cmp::Ordering::Less);
     assert_eq!(different.cmp(&first), std::cmp::Ordering::Greater);
+}
+
+#[test]
+fn contextual_data_preserves_semantic_identity_and_each_captured_environment() {
+    use crate::value_access::InstanceSchema;
+    let fixture = fixture();
+    let program = &fixture.program;
+    let data = program.function_data(fixture.captured).unwrap();
+    let frames = fixture.callbacks.map(|callback| {
+        program
+            .bind_code(fixture.creator.into(), [(fixture.formal, callback)])
+            .unwrap()
+    });
+    let instances = frames
+        .each_ref()
+        .map(|frame| program.instantiate_data(data, frame).unwrap());
+    assert_eq!(instances[0].data(), data);
+    assert_eq!(instances[1].data(), data);
+    assert_ne!(instances[0], instances[1]);
+    for (position, instance) in instances.iter().enumerate() {
+        let InstanceSchema::Function(selected) = instance.schema(program).unwrap() else {
+            panic!("function instance");
+        };
+        assert_eq!(
+            selected,
+            frames[position].resolve(program, fixture.captured).unwrap()
+        );
+        let environment = instance.environment(program).unwrap().unwrap();
+        let InstanceSchema::Function(actual) = environment.schema(program).unwrap() else {
+            panic!("captured input");
+        };
+        assert_eq!(actual.witness(), fixture.callbacks[position]);
+    }
+    let void = program.data_type(BuiltinType::Void).unwrap();
+    assert_eq!(
+        program.instantiate_data(void, &frames[0]),
+        program.instantiate_data(void, &frames[1])
+    );
+}
+
+#[test]
+fn contextual_projection_does_not_flatten_two_occurrences_of_the_same_lexical_code() {
+    use crate::value_access::InstanceSchema;
+    let fixture = fixture();
+    let program = &fixture.program;
+    let contexts = fixture.callbacks.map(|callback| {
+        let root = program
+            .bind_code(fixture.creator.into(), [(fixture.formal, callback)])
+            .unwrap();
+        root.resolve(program, fixture.captured).unwrap()
+    });
+    let holder = program.concrete_witness(fixture.holder).unwrap();
+    let frame = program
+        .bind_instance(
+            &holder,
+            fixture.inputs.into_iter().zip(contexts.iter().cloned()),
+        )
+        .unwrap();
+    let data = program.function_data(fixture.branching).unwrap();
+    let instance = program.instantiate_data(data, &frame).unwrap();
+    let environment = instance.environment(program).unwrap().unwrap();
+    let InstanceSchema::Aggregate(schema) = environment.schema(program).unwrap() else {
+        panic!("two components");
+    };
+    for (position, component) in schema.components().enumerate() {
+        let child = environment.project(program, component.data).unwrap();
+        let received = child.environment(program).unwrap().unwrap();
+        let InstanceSchema::Function(actual) = received.schema(program).unwrap() else {
+            panic!("captured callback");
+        };
+        assert_eq!(actual, contexts[position]);
+    }
+}
+
+#[test]
+fn empty_carrier_metadata_does_not_manufacture_a_positive_child_or_pending_producer() {
+    use crate::value_access::InstanceSchema;
+    let fixture = fixture();
+    let program = &fixture.program;
+    let root = program
+        .bind_code(fixture.callbacks[0].origin.code().unwrap(), [])
+        .unwrap();
+    let empty = program.instantiate_data(fixture.empty, &root).unwrap();
+    let InstanceSchema::Array(array) = empty.schema(program).unwrap() else {
+        panic!("empty array");
+    };
+    assert!(array.is_empty());
+    assert!(empty.project(program, array.element()).is_err());
+    let factory = program
+        .resolve_code(program.symbols().get("factory").unwrap())
+        .unwrap();
+    let pending = program.codes().get(factory).unwrap().result();
+    assert_eq!(
+        program.instantiate_data(pending, &root),
+        Err(CodeBindingError::InvalidWitness)
+    );
 }

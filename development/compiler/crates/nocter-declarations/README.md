@@ -364,6 +364,18 @@ its original declaration authority. A key is not a source/revision reuse certifi
 scoped to their checked program and body guards. Contextual carrier projection and executable
 formal-environment admission remain integration work.
 
+`DataInstanceKey` pairs an unchanged semantic TypeId with exactly its closed callable dependencies.
+`instantiate_data` uses the same binding normalization and frozen witness resolution as code
+frames; it discards irrelevant input bindings. `InstanceSchema` exposes the canonical carrier
+schema and complete concrete function witnesses. Child projection filters dependencies, while
+closure-environment projection uses the selected value's own captures rather than the receiving
+function's inputs. Two occurrences of one lexical code can therefore retain different nested
+contexts. Empty carriers retain element identity without a positive element-payload proof;
+pending producers and missing dependencies cannot be closed from their signatures. The key and
+schema grant no payload, storage layout, access, const eligibility or source-generation receipt.
+Evaluator and native consumers must qualify their contextual representations through this common
+projection before formal environments enter executable source.
+
 `CodeTemplateKey` retains concrete or validated outer-parameter witnesses for condition composition.
 `code_template` builds a code's identity parameter frame; `bind_template` uses the same exact
 coverage, signature and view-normalization routine as concrete `bind_code`. Its one-step `resolve`
