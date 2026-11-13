@@ -20,8 +20,18 @@ use nocter_model::{
 pub(super) use source::Source;
 use source::{Instances, initializer};
 use std::collections::BTreeMap;
-const INVALID: flow::IntegrityError = flow::IntegrityError::InconsistentTypedBody;
-type Result<T> = std::result::Result<T, flow::IntegrityError>;
+#[derive(Clone, Copy, Debug)]
+enum Failure {
+    Integrity,
+    WorkLimit,
+}
+impl From<flow::IntegrityError> for Failure {
+    fn from(_: flow::IntegrityError) -> Self {
+        Self::Integrity
+    }
+}
+const INVALID: Failure = Failure::Integrity;
+type Result<T> = std::result::Result<T, Failure>;
 use super::Types;
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum Key {
@@ -31,6 +41,8 @@ enum Key {
     Predicate(AccessExpressionId),
 }
 struct Builder<'a, 'b> {
+    checked: &'a super::super::accepted::Checked,
+    work: &'b mut plan::WorkBudget,
     query: &'a flow::Query,
     program: &'a Program,
     types: &'b mut Types,
@@ -466,6 +478,8 @@ impl Builder<'_, '_> {
             },
         )
     }
+    // Preparation needs the frozen receiver shape even if later arguments interrupt the call.
+    // This lookup does not intern a callee or replace committed-call recipe realization.
     fn selected_call(&self, id: AccessExpressionId) -> Result<ConcreteWitness> {
         let ExpressionKind::Call {
             target,
@@ -518,25 +532,32 @@ impl Builder<'_, '_> {
         Ok(arguments.len() - kind.explicit_arguments(arguments).ok_or(INVALID)?.len())
     }
     fn call(&mut self, id: AccessExpressionId) -> Result<plan::Operation> {
-        let ExpressionKind::Call {
-            target: origin,
-            arguments,
-            kind,
-        } = &self
+        let key = self
+            .checked
+            .instantiate_invocation(
+                self.instance,
+                nocter_model::ValueApplication {
+                    owner: self.instance.code(),
+                    call: id,
+                },
+                self.work,
+            )
+            .map_err(|failure| match failure {
+                super::super::InstantiationFailure::WorkLimit => Failure::WorkLimit,
+                _ => INVALID,
+            })?;
+        let target = key.code();
+        let captured = matches!(target, nocter_model::ValueCode::Closure(_));
+        let arguments = self
             .query
             .typed()
             .body()
             .expressions()
             .get(id)
-            .ok_or(INVALID)?
-            .kind
-        else {
+            .ok_or(INVALID)?;
+        let ExpressionKind::Call { arguments, .. } = &arguments.kind else {
             return Err(INVALID);
         };
-        let target = self.selected_call(id)?.code();
-        let captured = matches!(target, nocter_model::ValueCode::Closure(_));
-        let key =
-            super::super::instantiate_call(self.program, self.instance, *origin, *kind, arguments)?;
         let target_instance = self.instances.intern(key)?;
         let arguments = arguments.clone();
         let mut inputs = Vec::new();

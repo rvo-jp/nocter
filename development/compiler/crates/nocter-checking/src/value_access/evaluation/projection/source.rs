@@ -1,5 +1,8 @@
 //! Demand-driven realization of frozen checked bodies, separate from call-boundary linking.
-use super::{Builder, INVALID, Result, Types};
+use super::{Builder, Types};
+use crate::value_access::flow;
+const INVALID: flow::IntegrityError = flow::IntegrityError::InconsistentTypedBody;
+type Result<T> = std::result::Result<T, flow::IntegrityError>;
 use nocter_constant_evaluation::state as plan;
 use nocter_declarations::value_access::{CodeInstanceKey, Program};
 use nocter_model::{AccessCodeId, ValueInputOperation};
@@ -117,11 +120,13 @@ impl<'a, 'work, F: Fn(AccessCodeId) -> Option<plan::Value>> Source<'a, 'work, F>
         self.published_types = self.types.len();
         Ok(())
     }
-    fn realize(&mut self, id: plan::CodeInstance) -> Result<plan::ProgramExtension> {
+    fn realize(&mut self, id: plan::CodeInstance) -> super::Result<plan::ProgramExtension> {
         let key = self.instances.keys.get(&id).ok_or(INVALID)?.clone();
         let query = self.checked.code(key.code()).ok_or(INVALID)?;
         let program = &self.checked.program;
         let body = Builder {
+            checked: self.checked,
+            work: self.work,
             query,
             program,
             instance: &key,
@@ -157,6 +162,9 @@ impl<F: Fn(AccessCodeId) -> Option<plan::Value>> plan::PlanSource for Source<'_,
         code: plan::CodeInstance,
     ) -> std::result::Result<plan::ProgramExtension, plan::Rule> {
         self.work.step().map_err(|_| plan::Rule::PlanWorkLimit)?;
-        self.realize(code).map_err(|_| plan::Rule::InvalidPlan)
+        self.realize(code).map_err(|failure| match failure {
+            super::Failure::WorkLimit => plan::Rule::PlanWorkLimit,
+            super::Failure::Integrity => plan::Rule::InvalidPlan,
+        })
     }
 }

@@ -31,9 +31,9 @@ alone does not complete capture support. Preserve current rejection until execut
 
 Resolve value-occurrence creation context through the retained source-flow producer equations
 and ordinary value transport, then close source closure creation before admitting formal callable
-captures. Connect the evaluator call boundary to the same original-recipe frame realization
-used by native instances, preserving the separate plan-work failure class and pre-commit
-preparation behavior. Preserve exact creation contexts,
+captures. Evaluator and native committed calls use the shared original-recipe frame resolver;
+extend occurrence-sensitive realization while preserving the separate plan-work failure class
+and pre-commit preparation behavior. Preserve exact creation contexts,
 anchored recursion, alternative handling and failure/retry behavior; source formal-capture
 creation and per-value/component representation still require integration.
 Follow the occurrence-sensitive finding below and the canonical instance obligations. Keep semantic

@@ -292,6 +292,21 @@ pub(super) struct Checked {
     const_templates: Arc<super::constant::Catalog>,
 }
 impl Checked {
+    pub(super) fn instantiate_invocation(
+        &self,
+        caller: &nocter_declarations::value_access::CodeInstanceKey,
+        site: nocter_model::ValueApplication,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<nocter_declarations::value_access::CodeInstanceKey, super::InstantiationFailure>
+    {
+        super::results::instantiate_invocation(
+            &self.program,
+            &self.result_evidence,
+            caller,
+            site,
+            work,
+        )
+    }
     /// Internal plan/diagnostic lookup includes required-expression bodies as well as callables.
     pub(super) fn code(&self, code: nocter_model::ValueCode) -> Option<&flow::Query> {
         match code {
