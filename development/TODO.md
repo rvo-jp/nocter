@@ -18,17 +18,19 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Compose definition-owned conditional const requirements into a guarded condition graph through
-stored `CodeTemplateKey` call edges and concrete `CodeInstanceKey` closure, preserving the exact
-shared checked-body generation and declaration type authority.
-Separate authored/inferred invocation capability, input representation and actual-resource cleanup
-conditions, following the adopted constant-evaluation contract. Extend direct body-wide clauses
-to symbolic and value/resource-state guarded discharge with deterministic budget/failure recovery.
-Qualify matched module publication independently of executable plan realization. Preserve local
-and caller causes, dormant/unused callable behavior, ordinary Copy/read/edit/take validity and
-named const promises. A known caller never grants unconditional capability to an unbound body.
-Keep dependent carriers, deeper callable inputs, inferred captures, module/toolchain integration
-and retained-selection closure open.
+Complete [captured callable instance identity](design/compiler-realization.md#captured-callable-instances)
+through the declaration-owned witness/binding model before admitting formal callable values into
+owned environments. The same lexical closure with different captured callback substitutions must
+remain distinct when both values are forwarded together. Derive dependencies from the canonical
+environment schema; retain nested context, frozen invocation views and one normalization authority.
+Integrate the resulting frame with ordinary ownership checking, contextual data realization,
+conditional const admission, evaluator plans and native storage. Qualify safe/unsafe source cases,
+exact source/type reuse and deterministic failure recovery. A parser or metadata-only extension
+alone does not complete capture support. Preserve current rejection until executable consumers agree.
+
+Continue symbolic value/resource-state guarded discharge and independent module publication after
+that instance boundary is coherent. General R/D/S, dependent carriers, deeper callable inputs,
+inferred captures, module/toolchain integration and retained-selection closure remain open.
 
 ## Retained Selection Closure
 

@@ -27,6 +27,34 @@ pub enum PayloadReadiness {
     Unsupported,
 }
 
+/// Descriptor dependencies over one canonical payload schema, without storage or access evidence.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PayloadDependencies {
+    parameters: std::collections::BTreeSet<super::FunctionWitness>,
+    pending_producers: bool,
+}
+impl PayloadDependencies {
+    /// Keep each frozen view: one formal can appear at more than one invocation view.
+    #[must_use]
+    pub const fn parameters(&self) -> &std::collections::BTreeSet<super::FunctionWitness> {
+        &self.parameters
+    }
+    #[must_use]
+    pub const fn has_pending_producers(&self) -> bool {
+        self.pending_producers
+    }
+    #[must_use]
+    pub fn readiness(&self) -> PayloadReadiness {
+        if !self.parameters.is_empty() {
+            PayloadReadiness::Unsupported
+        } else if self.pending_producers {
+            PayloadReadiness::Pending
+        } else {
+            PayloadReadiness::Closed
+        }
+    }
+}
+
 /// The sole construction capability for one body's closed type extension, with shared header facts.
 #[derive(Clone, Debug)]
 pub struct BodyTypes {
@@ -167,8 +195,8 @@ impl BodyTypes {
             .map_err(|_| BodyTypeError::InvalidExtension)?;
         Ok(data)
     }
-    /// Publish an owned environment descriptor; result identities may still need closure.
-    /// It has no inferred external R/D/S and grants no pending payload or Copy evidence.
+    /// Publish an owned environment descriptor; formal and result dependencies may remain.
+    /// It has no inferred external R/D/S and grants no dependent payload or Copy evidence.
     /// # Errors
     /// Rejects a foreign/duplicate code identity, unsupported environment or input/result descriptor.
     pub fn closure(
@@ -180,7 +208,7 @@ impl BodyTypes {
         let ordinary = |data| ordinary_data(&self.program, data);
         if id.owner != self.owner
             || self.program.closures.contains_key(&id)
-            || self.program.payload_readiness(environment) == PayloadReadiness::Unsupported
+            || self.program.payload_dependencies(environment).is_none()
             || !(ordinary(contract.result)
                 || matches!(
                     self.program.data_schema(contract.result),
@@ -301,47 +329,58 @@ impl Program {
     pub fn owned_payload_supported(&self, data: TypeId) -> bool {
         self.payload_readiness(data) == PayloadReadiness::Closed
     }
-    /// Inspect each represented shape once; a pending descriptor grants no storage or Copy proof.
+    /// Inspect each represented shape once; a dependent descriptor grants no storage or Copy proof.
     #[must_use]
     pub fn payload_readiness(&self, data: TypeId) -> PayloadReadiness {
+        self.payload_dependencies(data)
+            .map_or(PayloadReadiness::Unsupported, |dependencies| {
+                dependencies.readiness()
+            })
+    }
+    /// Derive formal and producer dependencies from the canonical schema, without another registry.
+    /// Unsupported descriptors return `None`; valid formal descriptors remain unavailable payloads.
+    #[must_use]
+    pub fn payload_dependencies(&self, data: TypeId) -> Option<PayloadDependencies> {
         use super::PayloadSchema;
         let mut pending = vec![data];
         let mut seen = std::collections::BTreeSet::new();
-        let mut readiness = PayloadReadiness::Closed;
+        let mut dependencies = PayloadDependencies {
+            parameters: std::collections::BTreeSet::new(),
+            pending_producers: false,
+        };
         while let Some(data) = pending.pop() {
             if !seen.insert(data) {
                 continue;
             }
-            match self.data_schema(data) {
-                Some(PayloadSchema::Builtin(_)) => {}
-                Some(PayloadSchema::Aggregate(schema)) => {
+            match self.data_schema(data)? {
+                PayloadSchema::Builtin(_) => {}
+                PayloadSchema::Aggregate(schema) => {
                     pending.extend(schema.components().map(|component| component.data));
                 }
-                Some(PayloadSchema::Optional(payload) | PayloadSchema::Fallible(payload)) => {
+                PayloadSchema::Optional(payload) | PayloadSchema::Fallible(payload) => {
                     pending.push(payload);
                 }
-                Some(PayloadSchema::Array(array)) => {
+                PayloadSchema::Array(array) => {
                     if !array.is_empty() {
                         pending.push(array.element());
                     }
                 }
-                Some(PayloadSchema::Function(witness)) => match witness.origin {
+                PayloadSchema::Function(witness) => match witness.origin {
                     ValueFunctionOrigin::Declaration(_) => {}
                     ValueFunctionOrigin::Closure(id) => {
-                        let Some(schema) = self.closure(id) else {
-                            return PayloadReadiness::Unsupported;
-                        };
-                        pending.push(schema.environment());
+                        pending.push(self.closure(id)?.environment());
                     }
                     ValueFunctionOrigin::Result(_) | ValueFunctionOrigin::Application(_) => {
-                        readiness = PayloadReadiness::Pending;
+                        dependencies.pending_producers = true;
                     }
-                    ValueFunctionOrigin::Parameter(_) => return PayloadReadiness::Unsupported,
+                    ValueFunctionOrigin::Parameter(parameter) => {
+                        self.parameter_contract(parameter)?;
+                        dependencies.parameters.insert(witness);
+                    }
                 },
-                None => return PayloadReadiness::Unsupported,
             }
         }
-        readiness
+        Some(dependencies)
     }
     pub(super) fn has_type_root(&self, root: ValueCodeRoot) -> bool {
         match root {

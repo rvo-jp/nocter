@@ -387,9 +387,14 @@ proof; ordinary body/result closure still establishes those obligations. Callabl
 introduction remains separate. Environment, input/result data and inferred invocation are distinct
 schema components. `owned_payload_supported` owns the common closed payload domain for environments, tuples and arrays:
 closed builtin/record/tuple/array data and exact named/captured callable payloads. Formal and
-unresolved result/application witnesses supply no such payload evidence. A valid pending result
-may occur in an environment descriptor, but source admission must establish its closed payload
-before execution. Copy and recursive cleanup
+unresolved result/application witnesses supply no such payload evidence. Environment descriptors
+may retain valid formal and producer dependencies. `payload_dependencies` derives each formal's
+frozen invocation view and pending-producer flag from the same canonical schema traversal used by
+`payload_readiness`; it adds no capture registry. Shared subtrees are visited once, while empty
+arrays introduce no payload dependency on their element. A formal remains an unsupported owned
+payload even when the descriptor also has a pending producer. Descriptor publication preserves
+those independent facts through canonical replay; source admission must establish the closed
+payload and its contextual instance before execution. Copy and recursive cleanup
 follow the actual environment schema, independently of invocation. All permitted views belong to the same body-owned key.
 Tuples and closed fixed-array descriptors use that same body construction authority, including
 within a capture body. Its array constructor takes an established element TypeId and closed

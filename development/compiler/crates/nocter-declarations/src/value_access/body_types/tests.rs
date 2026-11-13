@@ -6,6 +6,7 @@ mod arrays;
 mod callable_results;
 mod containment;
 mod expression_roots;
+mod payload_dependencies;
 
 #[test]
 fn result_substitution_replays_nested_shapes_without_publishing_provisional_payloads() {

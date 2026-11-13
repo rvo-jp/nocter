@@ -129,6 +129,36 @@ nontrivial cleanup enter evaluation. Symbolic generic/witness/resource-existence
 exported products use the same checked program; no new source annotations or parallel instance/type
 authority can substitute for those proofs. Final callable serialization remains a separate boundary.
 
+### Captured Callable Instances
+
+A callable's selected source code and invocation view do not identify the substitutions captured
+when its environment was created. Two values of the same lexical closure may retain different
+callable inputs. Preserve that distinction in the declaration-owned instance model before
+admitting formal callable values into owned environments. A global map from an outer formal to
+one code cannot represent both values in a later call receiving them together.
+
+Derive captured witness positions from the closure's canonical environment schema, including
+structural components, rather than maintaining a second capture inventory. A concrete callable
+witness must retain the relevant closed substitutions with its code and selected view. Nested
+callable environments retain their own substitutions; copying or forwarding a witness cannot
+strip that context. Keep this metadata separate from runtime payloads and their owners. An
+instance key grants no representation, const capability, source receipt or executable plan.
+
+Normalize direct callable formals and captured substitutions through the existing declaration
+contract authority. Preserve exact coverage and reject missing, foreign or incompatible bindings.
+Resolve frozen calls and data projections from that complete instance without reopening lookup,
+operation selection or body typing. Symbolic conditions may retain free dependencies, but cannot
+close them by equating signatures or by assigning every use of a lexical closure one environment.
+
+Dependent carrier shapes must use one contextual realization shared by evaluator eligibility,
+plan projection and native storage. Preserve nominal identities, component paths, invocation
+adapters and sparse cleanup; a substituted callable leaf cannot relabel its surrounding raw type
+or transfer ownership twice. Pair instance use with the existing matched body/type generation.
+Qualify the same closure created with distinct named callbacks, nested captured callbacks,
+read/edit/take calls, forwarding and failed-request recovery through ordinary source and native
+execution. Until those consumers agree, retain the explicit source rejection of unsupported
+formal environments rather than accepting a body that has no realizable instance.
+
 ### Structural Type Request Closure
 
 The [source header path](../compiler/crates/nocter-declaration-lowering/README.md#exact-source-evidence)
