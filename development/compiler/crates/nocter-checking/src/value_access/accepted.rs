@@ -174,6 +174,13 @@ impl Unit {
     ) -> Option<nocter_declarations::value_access::FunctionWitness> {
         self.result_evidence.producer(callable)
     }
+    /// Original source-flow producer equations, retained before code/type result projection.
+    /// This is metadata in this exact accepted Unit; it grants no concrete creation frame,
+    /// runtime value, representation, callable target or independently reusable source receipt.
+    #[must_use]
+    pub fn producer_relation(&self, term: super::ProducerTerm) -> Option<&super::ProducerRelation> {
+        self.result_evidence.recipe(term)
+    }
     #[must_use]
     pub fn program(&self) -> &Program {
         &self.program

@@ -3,6 +3,7 @@ mod applications;
 mod producers;
 mod projection;
 mod relations;
+pub use relations::{Relation as ProducerRelation, Term as ProducerTerm};
 mod solve;
 mod typing;
 pub(super) use typing::deferred_equalities;
@@ -26,6 +27,7 @@ pub(super) struct Equality {
 #[derive(Clone, Debug, Default)]
 pub(super) struct Evidence {
     producers: BTreeMap<AccessCodeId, FunctionWitness>,
+    recipes: relations::Relations,
     applications: BTreeMap<ValueApplication, ApplicationEvidence>,
     bodies: nocter_declaration_lowering::access_declarations::BodySources,
 }
@@ -40,6 +42,9 @@ pub(super) struct Verified<'a, 'source> {
     pub(super) context: &'a DeclarationContext<'source>,
 }
 impl Evidence {
+    pub(super) fn recipe(&self, term: ProducerTerm) -> Option<&ProducerRelation> {
+        self.recipes.get(&term)
+    }
     pub(super) fn producer(&self, callable: AccessCodeId) -> Option<FunctionWitness> {
         self.producers.get(&callable).copied()
     }

@@ -424,6 +424,17 @@ without a reachable commit closes as explicit Unproduced evidence, preserving th
 contract under the existing application identity. A reachable application still requires a witness.
 Prepared value flow establishes return anchors; declared argument types alone cannot do so.
 
+The exact accepted Unit retains the original reachable source-flow equations as `ProducerTerm`
+and `ProducerRelation`, before code/type projection reduces their selected witnesses. Application
+nodes keep their actual callee and formal-to-producer sets, including nested application terms;
+return nodes keep their original unions. The selected code summary remains a separate result of
+that graph, not a replacement creation recipe. `Unit::producer_relation` exposes only immutable
+metadata from that Unit. Rebinding the complete Unit verifies every accepted body before exposing
+current-source views; a detached typed-body rebind does not expose this graph as a new source
+receipt. These relations do not establish a concrete captured frame, runtime value, layout,
+callable target, const permission or ownership. Occurrence-sensitive contextual realization still
+requires its separate qualification before formal-capture admission can open.
+
 After deferred identity equalities are proved, the declaration owner's
 [`resolve_body_types`](../nocter-declarations/README.md#future-value-declaration-boundary)
 normalizes result/application leaves and their containing structural shapes in the same type

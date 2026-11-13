@@ -290,6 +290,7 @@ fn literal_control_does_not_invent_normal_loop_exits() {
 mod callbacks;
 mod construction;
 mod functions;
+mod producer_recipes;
 mod records;
 mod result_captures;
 mod results;

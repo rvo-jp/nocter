@@ -5,11 +5,12 @@ use nocter_model::{ValueApplication, ValueCode, ValueFunctionOrigin as Origin, V
 use std::collections::BTreeMap;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub(super) enum Term {
+pub enum Term {
     Result(ValueCode),
     Application(ValueApplication),
 }
-pub(super) enum Relation {
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Relation {
     Union(Producers),
     Apply {
         callee: FunctionWitness,

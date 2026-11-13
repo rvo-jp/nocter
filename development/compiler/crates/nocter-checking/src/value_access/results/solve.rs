@@ -95,6 +95,9 @@ pub(super) fn solve(
         evidence.producers.insert(id, witness);
     }
     close_applications(context, &controls, &committed, &solved, &mut evidence)?;
+    // Keep the original source-flow equations, rather than rebuilding provenance from the
+    // selected code summary after result/type projection. The accepted Unit retains their bodies.
+    evidence.recipes = equations;
     Ok(evidence)
 }
 fn single(producers: &Producers) -> Option<FunctionWitness> {

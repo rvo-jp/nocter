@@ -22,6 +22,7 @@ mod postfix;
 mod qualified;
 mod required;
 mod results;
+pub use results::{ProducerRelation, ProducerTerm};
 mod selection;
 mod staged;
 mod statements;

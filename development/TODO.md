@@ -29,8 +29,9 @@ context across return/application producers without reconstructing it from a sig
 exact source/type reuse and deterministic failure recovery. A parser or metadata-only extension
 alone does not complete capture support. Preserve current rejection until executable consumers agree.
 
-Preserve value-occurrence creation context through call/return producer evidence and ordinary
-value transport, then close source closure creation before admitting formal callable captures.
+Resolve value-occurrence creation context through the retained source-flow producer equations
+and ordinary value transport, then close source closure creation before admitting formal callable
+captures. Preserve original callable argument bindings for calls whose result is not callable, too.
 Follow the occurrence-sensitive finding below and the canonical instance obligations. Keep semantic
 `TypeId` in source checking and declarations; contextual runtime IDs must never become fabricated
 semantic types. A representation key alone grants no payload, source admission or cleanup proof.
