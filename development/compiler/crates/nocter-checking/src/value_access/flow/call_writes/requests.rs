@@ -2,13 +2,13 @@
 use super::{INVALID, IntegrityError, TypedQuery};
 use crate::value_access::ExpressionKind;
 use nocter_declarations::value_access::FunctionWitness;
-use nocter_model::{AccessExpressionId, AccessParameterId, ValueCode};
+use nocter_model::{AccessExpressionId, ValueCode};
 use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(super) struct Request {
     pub code: ValueCode,
-    pub bindings: BTreeMap<AccessParameterId, FunctionWitness>,
+    pub bindings: BTreeMap<nocter_model::ValueParameter, FunctionWitness>,
 }
 impl Request {
     pub fn unbound(code: ValueCode) -> Self {

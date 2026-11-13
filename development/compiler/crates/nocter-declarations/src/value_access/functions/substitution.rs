@@ -12,7 +12,7 @@ impl FunctionWitness {
     /// Rejects a supplied view that cannot provide the already selected invocation.
     pub fn substitute(
         self,
-        binding: impl FnOnce(nocter_model::AccessParameterId) -> Option<Self>,
+        binding: impl FnOnce(nocter_model::ValueParameter) -> Option<Self>,
     ) -> Result<Option<Self>, FunctionMismatch> {
         match self.origin {
             ValueFunctionOrigin::Declaration(_) | ValueFunctionOrigin::Closure(_) => Ok(Some(self)),

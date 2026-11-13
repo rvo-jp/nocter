@@ -64,12 +64,8 @@ fn nested_callable_patterns_preserve_required_results_and_runtime_witness_bindin
         .find_map(|argument| argument.binding.as_ref())
         .unwrap();
     assert_eq!(
-        unit.program()
-            .parameters()
-            .get(binding.parameter)
-            .unwrap()
-            .owner(),
-        apply
+        unit.program().parameter_owner(binding.parameter),
+        Some(nocter_model::ValueCode::Declaration(apply))
     );
     assert!(matches!(binding.witness.origin, Origin::Declaration(_)));
 }
@@ -107,7 +103,10 @@ fn source_calls_bind_exact_named_and_formal_witnesses_without_erasure() {
         ArgumentAction::ReserveRead(_)
     ));
     assert!(apply[0].1[0].binding.is_none());
-    let formal = unit.program().parameters().get(binding.parameter).unwrap();
+    let nocter_model::ValueParameter::Declaration(parameter) = binding.parameter else {
+        panic!("named input")
+    };
+    let formal = unit.program().parameters().get(parameter).unwrap();
     assert_eq!(unit.program().data_copyable(formal.data()), Some(false));
 }
 

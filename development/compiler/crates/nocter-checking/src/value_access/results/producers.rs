@@ -2,13 +2,11 @@
 //! A conditional's provisional type is not evidence that its named branch can execute.
 use crate::value_access::{ExpressionKind, Query, flow};
 use nocter_declarations::value_access::{FunctionWitness, PayloadSchema};
-use nocter_model::{
-    AccessExpressionId, AccessLocalId, AccessParameterId, ValueApplication, ValueFunctionOrigin,
-};
+use nocter_model::{AccessExpressionId, AccessLocalId, ValueApplication, ValueFunctionOrigin};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) type Producers = BTreeSet<FunctionWitness>;
-pub(super) type Inputs = BTreeMap<AccessParameterId, Producers>;
+pub(super) type Inputs = BTreeMap<nocter_model::ValueParameter, Producers>;
 #[derive(Default)]
 pub(super) struct Report {
     pub(super) returned: Vec<(FunctionWitness, AccessExpressionId)>,

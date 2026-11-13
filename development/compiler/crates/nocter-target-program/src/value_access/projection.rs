@@ -79,12 +79,24 @@ pub(super) fn validate_key(program: &Program, key: &InstanceKey) -> Result<(), F
                     .get(id)
                     .ok_or(Failure::InvalidAcceptedUnit)?;
                 if parameter.contract().is_some() {
-                    expected.insert(id);
+                    expected.insert(id.into());
                 }
             }
         }
         ValueCode::Closure(id) => {
-            program.closure(id).ok_or(Failure::InvalidAcceptedUnit)?;
+            let closure = program.closure(id).ok_or(Failure::InvalidAcceptedUnit)?;
+            for input in &closure.contract().inputs {
+                if let Some(PayloadSchema::Function(FunctionWitness {
+                    origin: ValueFunctionOrigin::Parameter(parameter),
+                    ..
+                })) = program.data_schema(input.data)
+                {
+                    if program.parameter_owner(parameter) != Some(key.code) {
+                        return Err(Failure::InvalidAcceptedUnit);
+                    }
+                    expected.insert(parameter);
+                }
+            }
         }
     }
     if expected != key.witnesses.keys().copied().collect() {

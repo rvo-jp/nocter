@@ -102,6 +102,7 @@ fn validate_payload(
         // reachable-use validator proves that fact over the original control graph.
         return Ok(());
     }
+    validate_call_result(context, query, id, expression)?;
     if matches!(
         expression.kind,
         ExpressionKind::Aggregate { .. } | ExpressionKind::Repeat { .. }
@@ -146,6 +147,56 @@ fn validate_payload(
         } else {
             SelectionAction::MovePayload
         };
+    }
+    Ok(())
+}
+
+fn validate_call_result(
+    context: &DeclarationContext<'_>,
+    query: &Query,
+    id: nocter_model::AccessExpressionId,
+    expression: &crate::value_access::ir::Expression,
+) -> Result<(), Failure> {
+    use nocter_declarations::value_access::PayloadSchema;
+    let Some(access) = expression.ty.access() else {
+        return Ok(());
+    };
+    if expression.ty.may_complete()
+        && matches!(
+            query.program().data_schema(access.data()),
+            Some(PayloadSchema::Function(_))
+        )
+        && let ExpressionKind::Call {
+            target: nocter_model::ValueFunctionOrigin::Closure(owner),
+            kind,
+            arguments,
+        } = &expression.kind
+    {
+        let invocation = kind
+            .invocation(arguments)
+            .ok_or(Failure::InconsistentSyntax)?;
+        let result = query.program().function_result(
+            nocter_declarations::value_access::FunctionWitness {
+                origin: nocter_model::ValueFunctionOrigin::Closure(*owner),
+                invocation,
+            },
+            |parameter| {
+                arguments
+                    .iter()
+                    .filter_map(|argument| argument.binding.as_ref())
+                    .find(|binding| binding.parameter == parameter)
+                    .map(|binding| binding.witness)
+            },
+        );
+        if result != Some(access.data()) {
+            return Err(crate::value_access::diagnostics::query_rejection(
+                context,
+                query,
+                Some(id),
+                crate::value_access::Rule::UnsupportedData,
+                "this dependent anonymous callable result needs call application substitution that is not qualified yet",
+            ));
+        }
     }
     Ok(())
 }

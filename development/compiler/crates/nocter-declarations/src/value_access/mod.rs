@@ -236,6 +236,7 @@ pub struct Program {
     namespace: std::sync::Arc<namespace::Names>,
     records: records::Schemas,
     closures: BTreeMap<nocter_model::ValueClosure, Closure>,
+    closure_parameters: BTreeMap<nocter_model::ValueParameter, FunctionConstraint>,
 }
 
 impl Program {

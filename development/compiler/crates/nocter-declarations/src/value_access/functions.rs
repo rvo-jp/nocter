@@ -99,7 +99,94 @@ impl ValueDefinition {
         }
     }
 }
+/// Intern the declared view and exactly its permitted adapters. Witness keys are type leaves;
+/// signature, identity-domain and representation validation remain with the publishing owner.
+pub(super) fn intern_views(
+    types: &mut nocter_model::TypeTransaction,
+    origin: ValueFunctionOrigin,
+    declared: ValueInvocation,
+) -> TypeId {
+    let mut selected = None;
+    for invocation in [
+        ValueInvocation::Read,
+        ValueInvocation::Edit,
+        ValueInvocation::Take,
+    ] {
+        if declared.can_supply(invocation) {
+            let data = types
+                .intern(TypeKind::ValueFunction { origin, invocation })
+                .expect("a witness key is a type leaf");
+            if invocation == declared {
+                selected = Some(data);
+            }
+        }
+    }
+    selected.expect("the declared invocation supplies itself")
+}
+
 impl Program {
+    /// Project an anonymous result through this call's frozen bindings. Named result families keep
+    /// their separate application relation. No callee body or concrete environment is inspected.
+    #[must_use]
+    pub fn function_result(
+        &self,
+        witness: FunctionWitness,
+        binding: impl FnOnce(nocter_model::ValueParameter) -> Option<FunctionWitness>,
+    ) -> Option<TypeId> {
+        let result = self.function_contract(witness)?.result;
+        if let (ValueFunctionOrigin::Closure(owner), Some(PayloadSchema::Function(selected))) =
+            (witness.origin, self.data_schema(result))
+            && let ValueFunctionOrigin::Parameter(parameter) = selected.origin
+        {
+            if self.parameter_owner(parameter) != Some(nocter_model::ValueCode::Closure(owner)) {
+                return None;
+            }
+            return self.function_data(selected.substitute(binding).ok()??);
+        }
+        Some(result)
+    }
+    #[must_use]
+    pub fn parameter_owner(
+        &self,
+        parameter: nocter_model::ValueParameter,
+    ) -> Option<nocter_model::ValueCode> {
+        self.parameter_contract(parameter)?;
+        Some(match parameter {
+            nocter_model::ValueParameter::Declaration(id) => {
+                nocter_model::ValueCode::Declaration(self.parameters.get(id)?.owner())
+            }
+            nocter_model::ValueParameter::Closure { owner, .. } => {
+                nocter_model::ValueCode::Closure(owner)
+            }
+        })
+    }
+    #[must_use]
+    pub fn parameter_label(&self, parameter: nocter_model::ValueParameter) -> Option<String> {
+        self.parameter_contract(parameter)?;
+        match parameter {
+            nocter_model::ValueParameter::Declaration(id) => self
+                .symbols
+                .spelling(self.parameters.get(id)?.name())
+                .map(str::to_owned),
+            nocter_model::ValueParameter::Closure { owner, position } => Some(format!(
+                "input {} of closure {} in {}",
+                position.checked_add(1)?,
+                owner.slot,
+                self.root_label(owner.owner)?
+            )),
+        }
+    }
+    /// One structural signature for an already selected formal input; no payload evidence follows.
+    #[must_use]
+    pub fn parameter_contract(
+        &self,
+        parameter: nocter_model::ValueParameter,
+    ) -> Option<&FunctionConstraint> {
+        match parameter {
+            nocter_model::ValueParameter::Declaration(id) => self.parameters.get(id)?.contract(),
+            nocter_model::ValueParameter::Closure { .. } => self.closure_parameters.get(&parameter),
+        }
+    }
     /// The contract of an already selected concrete or formal witness. No candidate search occurs.
     #[must_use]
     pub fn function_contract(&self, witness: FunctionWitness) -> Option<FunctionConstraint> {
@@ -127,7 +214,7 @@ impl Program {
                     result: callable.result(),
                 }
             }
-            ValueFunctionOrigin::Parameter(id) => self.parameters.get(id)?.contract()?.clone(),
+            ValueFunctionOrigin::Parameter(id) => self.parameter_contract(id)?.clone(),
             ValueFunctionOrigin::Result(id) => self.codes.get(id)?.result_contract()?.clone(),
             ValueFunctionOrigin::Application(application) => self
                 .codes
@@ -165,7 +252,7 @@ impl Program {
                 }
             }
             ValueFunctionOrigin::Parameter(id) => {
-                self.parameters.get(id)?.contract()?;
+                self.parameter_contract(id)?;
             }
             ValueFunctionOrigin::Result(id) => {
                 self.codes.get(id)?.result_contract()?;

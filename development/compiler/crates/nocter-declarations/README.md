@@ -313,6 +313,14 @@ path independently of source coordinates. Normalized contextual contracts retain
 identities rather than expanding those identities into anonymous structural signatures.
 Named witnesses are capture-free Copy values with trivial cleanup and no outside D/S
 under their exact schema. This is not evidence about arbitrary structural callback contracts.
+Anonymous callable inputs use `ValueParameter::Closure` with the lexical closure and input position;
+header inputs use `ValueParameter::Declaration` with their actual reserved parameter slot.
+`BodyTypes::closure_parameter` publishes each anonymous formal's structural signature once, before
+body checking. The completed closure signature refers to that formal descriptor. Older snapshots
+cannot acquire the new signature, and canonical replay rejects a formal without a completed owner
+or the matching input position. Formal signature publication supplies no owned environment.
+Only ordinary input/result data within these anonymous input signatures is currently qualified.
+
 Formal and unresolved result witnesses deliberately have no Copy evidence. Their environment
 cleanup remains symbolic; a formal cannot inherit payload properties from one currently known caller. `function_contract`
 projects the selected named, formal or result contract without searching for an implementation.

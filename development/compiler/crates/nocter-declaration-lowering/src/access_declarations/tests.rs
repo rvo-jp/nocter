@@ -118,7 +118,7 @@ fn field_and_formal_input_reservations_are_independent_of_source_definition_orde
     assert_eq!(
         program.data_schema(parameter.data()),
         Some(PayloadSchema::Function(FunctionWitness {
-            origin: ValueFunctionOrigin::Parameter(parameter_id),
+            origin: ValueFunctionOrigin::Parameter(parameter_id.into()),
             invocation: ValueInvocation::Read,
         }))
     );
@@ -240,7 +240,7 @@ fn callback_contracts_freeze_formal_identity_before_body_use_and_rebind_exactly(
     else {
         panic!("formal schema");
     };
-    assert_eq!(witness.origin, ValueFunctionOrigin::Parameter(id));
+    assert_eq!(witness.origin, ValueFunctionOrigin::Parameter(id.into()));
     assert_eq!(
         parameter.contract().unwrap().inputs[0].operation,
         ValueInputOperation::Edit

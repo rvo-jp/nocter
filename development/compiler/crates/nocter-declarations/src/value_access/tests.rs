@@ -193,7 +193,7 @@ fn publication_keeps_reserved_slots_and_formal_witnesses_after_reversed_definiti
     };
     assert_eq!(
         witness.origin,
-        nocter_model::ValueFunctionOrigin::Parameter(inputs[0])
+        nocter_model::ValueFunctionOrigin::Parameter(inputs[0].into())
     );
 }
 

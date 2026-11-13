@@ -285,8 +285,10 @@ and ordinary formal bindings, and report the mismatching input/result path at th
 Only the outer invocation can adapt; a nested signature cannot alter the operation or invocation
 contract declared by the selected function. Scoped aliases retain the ordinary adapter restriction.
 An anonymous implementation receives available data and result constraints directly; nested
-callable results close from the checked returned values. A nested input signature alone still
-does not introduce a formal witness identity. Callable data in unsupported carrier/header positions still rejects
+callable results close from the checked returned values. Anonymous callable inputs with ordinary
+signature data publish their own lexical formal identities before body checking. Explicit and
+contextual signatures share this path; they never inherit another declaration's formal identity.
+Deeper callable positions within those input signatures still reject locally. Callable data in unsupported carrier/header positions still rejects
 through the local/header diagnostic owner. Parsing a constant/static callable annotation does not
 grant final serialization or runtime initialization.
 
@@ -1133,10 +1135,22 @@ the body. Explicit callable result annotations and expected nested callable resu
 before checking each inner body, without selecting concrete returned code from the signature.
 Each explicit or block-final return passes ordinary value supply and any permitted invocation
 adapter. Only established result data replaces the construction-only constraint before publication.
-Known data results keep their existing contextual checking; general anonymous formal input witness
-introduction remains unqualified. Later uses do not repair missing context. Named declaration
+Known data results keep their existing contextual checking. Later uses do not repair missing context. Named declaration
 operations remain their own contracts. Environment invocation is inferred separately from reached capture operations; an
 expected view cannot grant a stronger invocation capability.
+
+Anonymous callable inputs with ordinary signature data use declaration-owned formal publication
+before the body is checked. Input operations remain explicit or contextual; body use cannot turn a
+read input into take. The input's lexical closure and ordinal identify its witness, independently
+of another closure with the same signature. Ordinary call preparation freezes formal-to-actual
+bindings, including forwarding between named and anonymous bodies. A taking anonymous input may
+return its environment. `Program::function_result` projects that result through the current call's
+frozen bindings; typing and result transport consume the same projection without retyping a body.
+After deferred result closure, a normal call must still agree with that projection. A dependency
+revealed only by a factory result currently rejects at that call rather than publishing the callee's
+unbound formal to its caller; its caller-owned application relation is not qualified yet.
+General callable carriers, deeper callable signatures within those inputs, inferred capture
+footprints and evaluator formal substitution remain unqualified.
 
 The shared contextual-closure source qualifies annotation/call/result completion, nested conditional
 result positions, edited caller state, taking non-Copy inputs and mut/once adapters through required
@@ -1153,7 +1167,7 @@ supply and cleanup. The shared inferred-callable-result source covers these path
 native execution. The shared anonymous-result-contract source additionally checks explicit/expected
 nested results, contextual take inputs, early returns and mut/once result adapters. Returning an
 existing higher-order named function retains its already declared formal inputs; the annotation
-does not introduce anonymous input witnesses. Distinct result
+does not turn a result constraint into an anonymous input witness. Distinct result
 applications with matching structure retain obligations in the existing witnessed-result solver;
 only proof of the actual common code can close them. Normally supplied results select the
 inferred identity before interrupted expressions. Known interrupted shapes still undergo contract

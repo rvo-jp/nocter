@@ -49,7 +49,7 @@ fn zero_capture_metadata_does_not_require_a_binding_for_a_trapping_element_proje
             .iter()
             .any(|(_, instance)| instance.key().code()
                 == nocter_model::ValueCode::Declaration(make)
-                && instance.key().witnesses().contains_key(&callback))
+                && instance.key().witnesses().contains_key(&callback.into()))
     );
     assert_eq!(
         graph
@@ -282,7 +282,7 @@ fn adapters_specialize_payload_obligations_without_changing_source_move_semantic
                 target: ValueFunctionOrigin::Parameter(id),
                 arguments,
                 ..
-            } if *id == formal => Some(arguments),
+            } if *id == formal.into() => Some(arguments),
             _ => None,
         })
         .unwrap();
@@ -831,3 +831,5 @@ fn nonempty_array_storage_keeps_one_homogeneous_element_and_count() {
     );
     assert!(runtime.type_representations().get(id).is_none());
 }
+
+mod anonymous_inputs;

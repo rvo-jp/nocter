@@ -51,14 +51,23 @@ pub(super) fn call_result(
             created: Some(application),
         }));
     }
-    let contract = query
+    let result = query
         .program()
-        .function_contract(FunctionWitness {
-            origin: *target,
-            invocation,
-        })
+        .function_result(
+            FunctionWitness {
+                origin: *target,
+                invocation,
+            },
+            |parameter| {
+                arguments
+                    .iter()
+                    .filter_map(|argument| argument.binding.as_ref())
+                    .find(|binding| binding.parameter == parameter)
+                    .map(|binding| binding.witness)
+            },
+        )
         .ok_or(INVALID)?;
-    if contract.result != data {
+    if result != data {
         return Err(INVALID);
     }
     Ok(Some(CallResult {

@@ -353,8 +353,8 @@ parameter counts.
 A body-owned closure schema pairs lexical code identity, ordinary environment data and the exact
 invocation/input/result contract. Its typed body shares the parent's canonical program authority
 and source-reuse guard. Body-local input slots identify access roots for named parameters,
-anonymous parameters and capture environments alike; declaration parameter IDs remain formal
-callable witness identities. Source projection never recovers that relationship by name lookup.
+anonymous parameters and capture environments alike. Formal callable identities use their actual
+header parameter or lexical anonymous owner/input position; neither identity is a body-local slot. Source projection never recovers that relationship by name lookup.
 
 Checking prepares each closure's control graph once, selects environment invocation demand from
 reached operations, freezes its input authority, and runs the same initialization/access/resource

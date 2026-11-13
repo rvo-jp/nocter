@@ -233,28 +233,66 @@ impl Checker<'_, '_> {
         &self,
         expected: Option<&FunctionPattern>,
         index: usize,
-        parameter: NodeId,
-    ) -> Result<Option<FunctionInput>, Failure> {
-        let Some(input) = expected.map(|contract| &contract.inputs[index]) else {
-            return Ok(None);
+    ) -> Result<Option<(ValueInputOperation, Annotation)>, Failure> {
+        expected
+            .map(|contract| {
+                let input = &contract.inputs[index];
+                let annotation = match &input.data {
+                    FunctionDataPattern::Data(data) => self.contextual_type(*data)?,
+                    FunctionDataPattern::Function(pattern) => {
+                        Annotation::Function((**pattern).clone())
+                    }
+                };
+                Ok((input.operation, annotation))
+            })
+            .transpose()
+    }
+    fn closure_input_data(
+        &mut self,
+        annotation: Annotation,
+        position: usize,
+        syntax: NodeId,
+    ) -> Result<nocter_model::TypeId, Failure> {
+        let Annotation::Function(pattern) = annotation else {
+            return annotation.data().ok_or(Failure::InconsistentSyntax);
         };
-        let FunctionDataPattern::Data(data) = &input.data else {
-            return self.reject_message(Rule::UnknownType, parameter,
-                "a nested callable input signature needs a formal witness identity; this anonymous input scope cannot invent one".into(), Vec::new());
+        let unsupported = |checker: &Self| {
+            checker.reject_message(Rule::UnknownType, syntax,
+            "this anonymous callable input needs established ordinary signature data; deeper callable input/result witnesses are not qualified yet".into(), Vec::new())
         };
-        if matches!(
-            self.program().data_schema(*data),
-            Some(nocter_declarations::value_access::PayloadSchema::Function(
-                _
-            ))
-        ) {
-            return self.reject_message(Rule::UnknownType, parameter,
-                "this anonymous callable input needs formal witness publication beyond the current input model".into(), Vec::new());
+        let result = match pattern.result {
+            FunctionDataPattern::Data(data) => data,
+            FunctionDataPattern::Function(_) => return unsupported(self),
+        };
+        let inputs = pattern
+            .inputs
+            .into_iter()
+            .map(|input| match input.data {
+                FunctionDataPattern::Data(data) => Ok(FunctionInput {
+                    data,
+                    operation: input.operation,
+                }),
+                FunctionDataPattern::Function(_) => Err(()),
+            })
+            .collect::<Result<Box<[_]>, _>>();
+        let Ok(inputs) = inputs else {
+            return unsupported(self);
+        };
+        let nocter_model::ValueCode::Closure(owner) = self.code else {
+            return Err(Failure::InconsistentSyntax);
+        };
+        let contract = FunctionConstraint {
+            invocation: pattern.invocation,
+            inputs,
+            result,
+        };
+        match self.types.closure_parameter(owner, position, contract) {
+            Ok(data) => Ok(data),
+            Err(nocter_declarations::value_access::BodyTypeError::UnsupportedCallableSignature) => {
+                unsupported(self)
+            }
+            Err(_) => Err(Failure::InconsistentSyntax),
         }
-        Ok(Some(FunctionInput {
-            data: *data,
-            operation: input.operation,
-        }))
     }
     fn closure_inputs(
         &mut self,
@@ -272,17 +310,18 @@ impl Checker<'_, '_> {
             );
         }
         for (index, parameter) in parameters_syntax.into_iter().enumerate() {
-            let selected = self.selected_closure_input(expected, index, parameter)?;
+            let selected = self.selected_closure_input(expected, index)?;
             let token = self.token(parameter)?;
             let name = self.text(token)?.to_owned();
             if self.shadows_name(&name, token)? {
                 return self.reject(Rule::ShadowedName, token);
             }
-            let data = if let Ok(ty) = self.direct(parameter, NodeKind::Type) {
-                let Annotation::Data(data) = self.annotation(ty)? else {
-                    return self.reject(Rule::UnknownType, ty);
-                };
-                if selected.is_some_and(|input| input.data != data) {
+            let annotation = if let Ok(ty) = self.direct(parameter, NodeKind::Type) {
+                let annotation = self.annotation(ty)?;
+                if selected
+                    .as_ref()
+                    .is_some_and(|(_, expected)| *expected != annotation)
+                {
                     return self.reject_message(
                         Rule::TypeMismatch,
                         ty,
@@ -291,12 +330,13 @@ impl Checker<'_, '_> {
                         Vec::new(),
                     );
                 }
-                data
-            } else if let Some(input) = selected {
-                input.data
+                annotation
+            } else if let Some((_, annotation)) = &selected {
+                annotation.clone()
             } else {
                 return self.reject_message(Rule::UnknownType, parameter, "this private closure scope needs parameter data from an expected contract or explicit annotation".into(), Vec::new());
             };
+            let data = self.closure_input_data(annotation, index, parameter)?;
             let operation = if let Ok(operation) = self.direct(parameter, NodeKind::InputOperation)
             {
                 let explicit =
@@ -305,12 +345,17 @@ impl Checker<'_, '_> {
                         Some(ContextualSpelling::Take) => ValueInputOperation::Take,
                         _ => return Err(Failure::InconsistentSyntax),
                     };
-                if selected.is_some_and(|input| input.operation != explicit) {
+                if selected
+                    .as_ref()
+                    .is_some_and(|(operation, _)| *operation != explicit)
+                {
                     return self.reject_message(Rule::TypeMismatch, operation, "the explicit parameter operation does not match the selected callable contract".into(), Vec::new());
                 }
                 explicit
             } else {
-                selected.map_or(ValueInputOperation::Read, |input| input.operation)
+                selected
+                    .as_ref()
+                    .map_or(ValueInputOperation::Read, |(operation, _)| *operation)
             };
             let local = self.locals.insert(Local {
                 data,

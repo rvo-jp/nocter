@@ -87,11 +87,8 @@ pub(super) fn solve(
             return Err(reject(context, query, None, &message));
         };
         if let Origin::Parameter(parameter) = witness.origin
-            && query
-                .program()
-                .parameters()
-                .get(parameter)
-                .is_none_or(|p| p.owner() != id)
+            && query.program().parameter_owner(parameter)
+                != Some(nocter_model::ValueCode::Declaration(id))
         {
             return Err(INVALID);
         }
@@ -162,9 +159,7 @@ fn close_applications(
         let witness = single(&producers).ok_or_else(|| reject(context, query, Some(application.call),
             "this callable result application has no single established witness; an unknown-shaped input cannot supply a dependent result witness"))?;
         if let Origin::Parameter(parameter) = witness.origin
-            && query.program().parameters().get(parameter).is_none_or(|p| {
-                nocter_model::ValueCode::Declaration(p.owner()) != application.owner
-            })
+            && query.program().parameter_owner(parameter) != Some(application.owner)
         {
             return Err(INVALID);
         }
@@ -237,10 +232,7 @@ fn describe_witness(
         Origin::Declaration(id) => Ok(format!("code `{}`", program.code_label(id).ok_or(INVALID)?)),
         Origin::Parameter(id) => Ok(format!(
             "input `{}`",
-            program
-                .symbols()
-                .spelling(program.parameters().get(id).ok_or(INVALID)?.name())
-                .ok_or(INVALID)?
+            program.parameter_label(id).ok_or(INVALID)?
         )),
         _ => Err(INVALID),
     }

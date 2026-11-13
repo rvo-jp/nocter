@@ -430,12 +430,8 @@ impl<'a, 's> Checker<'a, 's> {
                         self.program().code_label(id),
                     nocter_model::ValueFunctionOrigin::Application(application) =>
                         self.program().code_label(application.callee),
-                    nocter_model::ValueFunctionOrigin::Parameter(id) => self
-                        .program()
-                        .parameters()
-                        .get(id)
-                        .and_then(|parameter| self.program().symbols().spelling(parameter.name()))
-                        .map(str::to_owned),
+                    nocter_model::ValueFunctionOrigin::Parameter(id) =>
+                        self.program().parameter_label(id),
                 }
                 .expect("closed witness source")
             ),

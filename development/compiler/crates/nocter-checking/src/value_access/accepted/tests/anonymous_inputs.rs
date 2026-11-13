@@ -1,0 +1,104 @@
+//! Anonymous formals retain lexical identities and share named-call argument preparation.
+use super::*;
+use nocter_declarations::value_access::PayloadSchema;
+use nocter_model::{ValueCode, ValueFunctionOrigin, ValueParameter};
+
+#[test]
+fn anonymous_inputs_use_their_own_witnesses_and_frozen_call_site_bindings() {
+    let unit = accepted(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/anonymous-callable-inputs.nct"
+    )));
+    let mut formals = std::collections::BTreeSet::new();
+    for (&owner, query) in unit.closures() {
+        for (position, input) in unit
+            .program()
+            .closure(owner)
+            .unwrap()
+            .contract()
+            .inputs
+            .iter()
+            .enumerate()
+        {
+            if let Some(PayloadSchema::Function(witness)) = unit.program().data_schema(input.data) {
+                let formal = ValueParameter::Closure { owner, position };
+                assert_eq!(witness.origin, ValueFunctionOrigin::Parameter(formal));
+                assert_eq!(
+                    unit.program().parameter_owner(formal),
+                    Some(ValueCode::Closure(owner))
+                );
+                assert_eq!(unit.program().data_copyable(input.data), Some(false));
+                assert!(formals.insert(formal));
+            }
+        }
+        assert_eq!(query.typed().code(), ValueCode::Closure(owner));
+    }
+    assert_eq!(formals.len(), 7);
+}
+
+#[test]
+fn anonymous_input_signatures_do_not_grant_ownership_or_repair_conflicts_from_body_use() {
+    use crate::value_access::Rule;
+    for (body, rule) in [
+        (
+            "let apply = (action: func(i32): i32) { action }",
+            Rule::MissingTransfer,
+        ),
+        (
+            "let apply = (action: once(i32): i32) { action^(42) }",
+            Rule::MissingTransfer,
+        ),
+        (
+            "let apply: func(func(i32): i32): i32 = (action: mut(i32): i32) { 42 }",
+            Rule::TypeMismatch,
+        ),
+        (
+            "let apply: func(edit mut(i32): i32): i32 = (take action: mut(i32): i32) { 42 }",
+            Rule::TypeMismatch,
+        ),
+        (
+            "let apply = (action: func(func(i32): i32): i32) { 42 }",
+            Rule::UnknownType,
+        ),
+        (
+            "let apply = (action: func(): func(i32): i32) { 42 }",
+            Rule::UnknownType,
+        ),
+    ] {
+        let source = format!("func run(): void {{ {body} }}");
+        let (sources, tree) = input(&source);
+        let result = SourceUnit::prepare(bound(&sources, &tree));
+        assert!(
+            matches!(&result, Err(SourceFailure::Checking(Failure::Body { failure: BodyFailure::Rejected(diagnostic), .. })) if diagnostic.rule() == rule),
+            "{source}: {result:?}"
+        );
+    }
+}
+
+#[test]
+fn dependent_anonymous_result_carriers_do_not_escape_with_an_unbound_callee_formal() {
+    let source = "func identity(value: i32): i32 { value }\nfunc relay(take action: func(i32): i32): func(i32): i32 { action^ }\nfunc run(): i32 { let pair = (take action: func(i32): i32) { (relay(action^), 42) }\nlet bundle = pair(identity)\nbundle.0(42) }";
+    let (sources, tree) = input(source);
+    match SourceUnit::prepare(bound(&sources, &tree)) {
+        Err(SourceFailure::Checking(Failure::Body {
+            failure: BodyFailure::Rejected(diagnostic),
+            ..
+        })) if diagnostic.rule() == crate::value_access::Rule::UnsupportedData => {}
+        Ok(_) => panic!("an unsupported dependent carrier escaped anonymous call checking"),
+        Err(error) => panic!("a source-local rejection is required: {error:?}"),
+    }
+}
+
+#[test]
+fn pending_anonymous_result_bindings_reject_locally_until_application_substitution_closes() {
+    let source = "func identity(value: i32): i32 { value }\nfunc relay(take action: func(i32): i32): func(i32): i32 { action^ }\nfunc run(): i32 { let pass = (take action: func(i32): i32) { relay(action^) }\nlet selected = pass(identity)\nselected(42) }";
+    let (sources, tree) = input(source);
+    match SourceUnit::prepare(bound(&sources, &tree)) {
+        Err(SourceFailure::Checking(Failure::Body {
+            failure: BodyFailure::Rejected(diagnostic),
+            ..
+        })) if diagnostic.rule() == crate::value_access::Rule::UnsupportedData => {}
+        Ok(_) => panic!("an unbound anonymous result reached whole-source acceptance"),
+        Err(error) => panic!("a source-local rejection is required: {error:?}"),
+    }
+}

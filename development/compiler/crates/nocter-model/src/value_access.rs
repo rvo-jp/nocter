@@ -91,11 +91,27 @@ impl ValueBindingKind {
 pub enum ValueFunctionOrigin {
     Declaration(crate::AccessCodeId),
     Closure(ValueClosure),
-    Parameter(crate::AccessParameterId),
+    Parameter(ValueParameter),
     /// A declared callable result, closed by checking its reachable return producers.
     Result(crate::AccessCodeId),
     /// One statically selected call application, independent of source coordinates and type IDs.
     Application(ValueApplication),
+}
+
+/// A formal callable input belongs to a header declaration or one lexical anonymous body.
+/// Its position is not a runtime field, a source coordinate or a header-arena allocation.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum ValueParameter {
+    Declaration(crate::AccessParameterId),
+    Closure {
+        owner: ValueClosure,
+        position: usize,
+    },
+}
+impl From<crate::AccessParameterId> for ValueParameter {
+    fn from(parameter: crate::AccessParameterId) -> Self {
+        Self::Declaration(parameter)
+    }
 }
 impl ValueFunctionOrigin {
     /// Extract a stored code key, without validating its declaration/body domain or availability.
@@ -242,7 +258,7 @@ mod tests {
         let parameter = ArenaBuilder::<crate::AccessParameterId, ()>::new().insert(());
         let call = ArenaBuilder::<crate::AccessExpressionId, ()>::new().insert(());
         for symbolic in [
-            ValueFunctionOrigin::Parameter(parameter),
+            ValueFunctionOrigin::Parameter(parameter.into()),
             ValueFunctionOrigin::Result(code),
             ValueFunctionOrigin::Application(ValueApplication {
                 owner: ValueCode::Declaration(code),
@@ -300,7 +316,7 @@ mod formal_tests {
         for parameter in [first, second] {
             let data = types
                 .intern(TypeKind::ValueFunction {
-                    origin: ValueFunctionOrigin::Parameter(parameter),
+                    origin: ValueFunctionOrigin::Parameter(parameter.into()),
                     invocation: ValueInvocation::Read,
                 })
                 .unwrap();

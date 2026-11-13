@@ -17,6 +17,8 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
 - define-once sparse arenas over reserved domains, with persistent immutable views and exact
   single-writer ancestry; absent slots contain no provisional semantic value
 - source-independent compile-time expression identities
+- `ValueParameter` formal keys for real declaration inputs and lexical anonymous owner/position
+  pairs; these keys grant no signature, concrete code, environment or runtime layout
 - `ValueStatic` place keys linked to initializer declarations; the declaration authority validates
   the role before granting a global place, independently of code/function use
 - immutable `FrozenData` literal DAGs for the closed value-access path, with topological ordered aggregate-component

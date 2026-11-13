@@ -224,7 +224,7 @@ pub enum ArgumentAction {
 /// A selected formal-to-actual edge for later substitution, never runtime-erased dispatch.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WitnessBinding {
-    pub parameter: AccessParameterId,
+    pub parameter: nocter_model::ValueParameter,
     pub witness: nocter_declarations::value_access::FunctionWitness,
 }
 

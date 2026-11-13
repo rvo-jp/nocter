@@ -9,7 +9,7 @@ use nocter_dependency_query::{
 };
 use nocter_model::{
     AccessCodeId, AccessParameterId, NominalTypeId, SparseArenaBuilder, Symbol, TypeAuthority,
-    TypeKind, ValueFunctionOrigin, ValueInvocation,
+    ValueFunctionOrigin,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -275,7 +275,7 @@ impl HeaderPublication {
                 let parameter = &definition.parameters[slot.position];
                 let (data, contract) = publish_value(
                     &mut types,
-                    ValueFunctionOrigin::Parameter(id),
+                    ValueFunctionOrigin::Parameter(id.into()),
                     &parameter.data,
                 );
                 (
@@ -322,6 +322,7 @@ impl HeaderPublication {
     pub fn snapshot(&self) -> Program {
         Program {
             closures: BTreeMap::new(),
+            closure_parameters: BTreeMap::new(),
             symbols: self.definitions.symbols.clone(),
             types: self.types.clone(),
             header_prefix: self.types.store().clone(),
@@ -391,21 +392,6 @@ fn publish_value(
             .collect(),
         result: resolved_data(types, &definition.result),
     };
-    let mut selected = None;
-    for invocation in [
-        ValueInvocation::Read,
-        ValueInvocation::Edit,
-        ValueInvocation::Take,
-    ] {
-        if !contract.invocation.can_supply(invocation) {
-            continue;
-        }
-        let data = types
-            .intern(TypeKind::ValueFunction { origin, invocation })
-            .expect("witness is a leaf");
-        if invocation == contract.invocation {
-            selected = Some(data);
-        }
-    }
-    (selected.expect("declared invocation view"), Some(contract))
+    let selected = super::functions::intern_views(types, origin, contract.invocation);
+    (selected, Some(contract))
 }

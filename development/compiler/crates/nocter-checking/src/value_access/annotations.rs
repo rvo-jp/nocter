@@ -15,7 +15,7 @@ pub(super) fn invocation_label(invocation: ValueInvocation) -> &'static str {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) enum Annotation {
     Data(TypeId),
     Function(FunctionPattern),

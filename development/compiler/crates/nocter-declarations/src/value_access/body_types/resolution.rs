@@ -116,6 +116,12 @@ impl Program {
                 input.data = project(input.data)?;
             }
         }
+        for contract in program.closure_parameters.values_mut() {
+            contract.result = project(contract.result)?;
+            for input in &mut contract.inputs {
+                input.data = project(input.data)?;
+            }
+        }
         program.types = types
             .commit(&self.types)
             .map_err(|_| BodyTypeError::InvalidExtension)?;

@@ -993,3 +993,18 @@ fn logical_module_primitives_execute_owned_error_graphs_through_qualified_functi
         42,
     );
 }
+
+#[test]
+fn private_anonymous_callable_inputs_bind_named_captured_and_forwarded_environments() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/anonymous-callable-inputs.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "anonymous-callable-inputs",
+        42,
+    );
+}

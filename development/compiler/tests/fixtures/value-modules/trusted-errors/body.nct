@@ -18,10 +18,17 @@ func run(): i32 {
     let make_returner = (owned^;): once(): error { (owned^;) { owned^ } }
     let returner = make_returner^()
     let fourth = returner^()
+    let call = (take action: once(): error) { action^() }
+    let pass = (take action: once(): error) { action^ }
+    let returned = pass((fourth^;) { fourth^ })
+    let fifth = call(returned^)
+    let dispose = (take action: once(): error) { () }
+    let abandoned = errors.operation("abandoned", "anonymous input cleanup")
+    dispose((abandoned^;) { abandoned^ })
     let wrapped = contexts.operation(original^, "module context")
     drop wrapped
     drop second
     drop third
-    drop fourth
+    drop fifth
     42
 }

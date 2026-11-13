@@ -73,7 +73,10 @@ fn generic_returned_environments_keep_transfer_and_symbolic_cleanup() {
         panic!("formal result")
     };
     assert_eq!(
-        unit.program().parameters().get(parameter).unwrap().owner(),
+        match unit.program().parameter_owner(parameter).unwrap() {
+            nocter_model::ValueCode::Declaration(id) => id,
+            _ => panic!("named input"),
+        },
         relay.typed().source_owner()
     );
     assert_eq!(
@@ -115,6 +118,9 @@ fn mutual_result_relations_substitute_the_selected_formal_positions() {
         let witness = unit.result_witness(body.typed().source_owner()).unwrap();
         let Origin::Parameter(id) = witness.origin else {
             panic!("formal result")
+        };
+        let nocter_model::ValueParameter::Declaration(id) = id else {
+            panic!("named input")
         };
         let declaration = unit.program().parameters().get(id).unwrap();
         assert_eq!(declaration.owner(), body.typed().source_owner());

@@ -14,7 +14,7 @@ fn partial_effect_selection_keeps_unbound_targets_unknown_and_rejects_a_weaker_b
         .find(|control| control.typed.code() == ValueCode::Declaration(apply))
         .unwrap()
         .typed;
-    let parameter = typed.program().codes().get(apply).unwrap().parameters()[0];
+    let parameter = typed.program().codes().get(apply).unwrap().parameters()[0].into();
     let call = typed
         .body()
         .expressions()

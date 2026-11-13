@@ -155,9 +155,9 @@ fn nested_annotation_adapts_only_the_outer_view_and_keeps_alias_and_identity_rul
 }
 
 #[test]
-fn a_nested_signature_does_not_invent_an_anonymous_input_witness() {
+fn deeper_callable_signatures_do_not_invent_unqualified_anonymous_formal_trees() {
     reject(
-        "func run(): void { let invoke: func(func(i32): i32): i32 = (action) { action(42) } }",
+        "func run(): void { let invoke: func(func(func(i32): i32): i32): i32 = (action) { 42 } }",
         Rule::UnknownType,
     );
 }

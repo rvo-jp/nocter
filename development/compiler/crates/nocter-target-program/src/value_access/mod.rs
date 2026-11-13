@@ -39,7 +39,7 @@ impl ConcreteWitness {
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct InstanceKey {
     code: ValueCode,
-    witnesses: BTreeMap<AccessParameterId, ConcreteWitness>,
+    witnesses: BTreeMap<nocter_model::ValueParameter, ConcreteWitness>,
 }
 impl InstanceKey {
     #[must_use]
@@ -47,7 +47,7 @@ impl InstanceKey {
         self.code
     }
     #[must_use]
-    pub const fn witnesses(&self) -> &BTreeMap<AccessParameterId, ConcreteWitness> {
+    pub const fn witnesses(&self) -> &BTreeMap<nocter_model::ValueParameter, ConcreteWitness> {
         &self.witnesses
     }
 }

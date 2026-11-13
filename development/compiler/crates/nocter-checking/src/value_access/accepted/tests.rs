@@ -345,3 +345,5 @@ mod namespaces;
 mod optional_values;
 mod primitives;
 mod text_values;
+
+mod anonymous_inputs;

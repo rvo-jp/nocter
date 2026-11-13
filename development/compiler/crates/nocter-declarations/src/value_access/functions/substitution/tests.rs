@@ -19,11 +19,11 @@ fn substitution_keeps_the_requested_view_without_upgrading_a_restricted_binding(
     ] {
         let mut looked_up = 0;
         let selected = FunctionWitness {
-            origin: ValueFunctionOrigin::Parameter(parameter),
+            origin: ValueFunctionOrigin::Parameter(parameter.into()),
             invocation: requested,
         };
         let result = selected.substitute(|id| {
-            assert_eq!(id, parameter);
+            assert_eq!(id, parameter.into());
             looked_up += 1;
             Some(FunctionWitness {
                 origin: ValueFunctionOrigin::Declaration(code),
@@ -66,17 +66,17 @@ fn substitution_never_searches_for_unbound_or_unclosed_terms_or_recurses_through
         Ok(Some(named))
     );
     let formal = FunctionWitness {
-        origin: ValueFunctionOrigin::Parameter(first),
+        origin: ValueFunctionOrigin::Parameter(first.into()),
         ..named
     };
     assert_eq!(formal.substitute(|_| None), Ok(None));
     let symbolic = FunctionWitness {
-        origin: ValueFunctionOrigin::Parameter(second),
+        origin: ValueFunctionOrigin::Parameter(second.into()),
         ..named
     };
     assert_eq!(
         formal.substitute(|id| {
-            assert_eq!(id, first);
+            assert_eq!(id, first.into());
             Some(symbolic)
         }),
         Ok(Some(symbolic))

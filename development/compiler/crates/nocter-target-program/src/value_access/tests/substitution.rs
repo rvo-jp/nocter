@@ -10,7 +10,7 @@ fn executable_selection_rejects_an_unbound_or_weaker_view_even_when_its_underlyi
     let unit = accepted(&fixture);
     let apply = callable(&unit, "apply");
     let identity = callable(&unit, "identity");
-    let parameter = unit.program().codes().get(apply).unwrap().parameters()[0];
+    let parameter = unit.program().codes().get(apply).unwrap().parameters()[0].into();
     let body = unit.body(apply).unwrap().typed().body();
     let (target, kind, arguments) = body
         .expressions()

@@ -1,0 +1,31 @@
+struct Item { value: i32 }
+func identity(value: i32): i32 { value }
+func increment(value: i32): i32 { value + 1 }
+func forward(action: func(i32): i32, value: i32): i32 { action(value) }
+func choose(take action: func(i32): i32): func(i32): i32 {
+    let relay = (take forwarded: func(i32): i32) { forwarded^ }
+    relay(action^)
+}
+func nested(): i32 {
+    let outer = () {
+        let inner = (action: func(i32): i32, value: i32) { action(value) }
+        inner(identity, 42)
+    }
+    outer()
+}
+func run(): i32 {
+    let relay = (take action: func(i32): i32) { action^ }
+    let selected = relay(identity)
+    let selected_again = relay(increment)
+    let chosen = choose(identity)
+    let apply = (action: func(i32): i32, value: i32) { action(value) }
+    let contextual: func(func(i32): i32, i32): i32 = (action, value) { forward(action, value) }
+    let consume = (take action: once(i32): i32, value: i32) { action^(value) }
+    let update = (edit action: mut(i32): i32, value: i32) { action(value) }
+    let saved = 0
+    var counter = (saved; value: i32) { saved += value
+saved }
+    let item = Item { value: 40 }
+    let owned = (item^; value: i32) { item.value + value }
+    if selected(42) == 42 && selected_again(41) == 42 && chosen(42) == 42 && apply(identity, 42) == 42 && apply(increment, 41) == 42 && contextual(identity, 42) == 42 && consume(owned^, 2) == 42 && update(counter, 40) == 40 && update(counter, 2) == 42 && nested() == 42 { 42 } else { 0 }
+}

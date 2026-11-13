@@ -300,7 +300,17 @@ impl Checker<'_, '_> {
                     .application(self.code, self.expressions.next_id(), callee)
                     .map_err(|_| Failure::InconsistentSyntax)?
             }
-            _ => contract.result,
+            _ => self
+                .program()
+                .function_result(selected.witness, |parameter| {
+                    plans
+                        .iter()
+                        .filter_map(|argument| argument.binding.as_ref())
+                        .find(|binding| binding.parameter == parameter)
+                        .map(|binding| binding.witness)
+                })
+                .or_else(|| (!continues).then_some(contract.result))
+                .ok_or(Failure::InconsistentSyntax)?,
         };
         self.emit(
             node,
