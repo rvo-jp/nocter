@@ -26,6 +26,7 @@ struct Preparation<'a, 'source> {
     headers: Headers<'a, 'source>,
     budget: state::Budget,
     condition_work: state::WorkBudget,
+    plan_work: state::WorkBudget,
     expressions: BTreeMap<ValueExpression, crate::value_access::RequiredExpression>,
     causes: HashMap<Request, (Request, DependencyCause)>,
 }
@@ -160,6 +161,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
             headers,
             budget: state::Budget::new(limits),
             condition_work: state::WorkBudget::new(limits.steps()),
+            plan_work: state::WorkBudget::new(limits.steps()),
             expressions: BTreeMap::new(),
             causes: HashMap::new(),
         }
@@ -167,6 +169,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
     fn restart_work(&mut self) {
         self.budget.restart_work();
         self.condition_work.restart();
+        self.plan_work.restart();
     }
     fn all(
         &mut self,
@@ -707,10 +710,31 @@ impl<'a, 'source> Preparation<'a, 'source> {
                 diagnostic: Box::new(diagnostic),
             });
         }
-        let program = projection::prepare(&checked, id, |id| {
-            dependencies::value(requests, id).map(|value| value.execution.clone())
-        })
-        .map_err(Failure::Integrity)?;
+        let program = match projection::prepare(
+            &checked,
+            id,
+            |id| dependencies::value(requests, id).map(|value| value.execution.clone()),
+            &mut self.plan_work,
+        ) {
+            Ok(program) => program,
+            Err(projection::PreparationError::Integrity(error)) => {
+                return Err(Failure::Integrity(error));
+            }
+            Err(projection::PreparationError::WorkLimit) => {
+                let primary = self
+                    .source(id)
+                    .and_then(|source| super::source_origin(&self.context, source.origin()))
+                    .map_err(|failure| Failure::Body {
+                        callable: id.source_owner(),
+                        failure,
+                    })?;
+                return Err(super::failure_at_source(
+                    id.source_owner(),
+                    Rule::PlanWorkLimit,
+                    primary,
+                ));
+            }
+        };
         let mut executor = state::Executor::new(
             &program,
             &mut self.budget,

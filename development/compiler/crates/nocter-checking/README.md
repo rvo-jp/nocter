@@ -865,13 +865,25 @@ callee instance. A parameter-selected invocation whose frozen argument preparati
 complete retains no invocation-capability obligation. Environment formation, receiver preparation,
 transfers and cleanup keep their own clauses. Fixed forbidden source calls remain definition
 errors even when their preparation cannot complete. The dependency coordinator discovers actual
-formal-call targets after ordinary result closure and requests their existing checked drafts without source body retyping.
+formal-call targets after ordinary result closure and requests their existing checked drafts without
+source body retyping.
 `evaluation::call_support` computes which completed-call closures name only fixed code, propagating
 uncertainty from parameter-selected or missing callees through a worklist. Fixed-code recursive
 components need no unrolling. Body discovery can visit such a component once across differing
 witness bindings; every representative still has complete validated metadata. This projection
 never merges condition checks, payload representations, cleanup or evaluator/native instances.
 Witness-dependent and incomplete closures retain full binding-sensitive discovery.
+
+`constant::Traversal` separately qualifies condition-only sharing for a fixed-target call closure.
+It checks every actual direct callable witness through the evaluator's type authority. When all
+those temporary representations are supported, the present condition clauses can observe neither
+which callable code was passed nor its environment layout: invocation targets are fixed, and bound
+data/cleanup clauses ask only whether that data is supported. One complete representative can
+therefore discharge that code's conditions and outgoing edges. An unsupported actual retains its
+exact frame and local failure; parameter-invoking and incomplete call closures retain exact frames.
+This invariant includes transitive fixed-code recursion and forwarding through normalized views.
+It grants no shared evaluator/native plan, representation, serialization or body-generation receipt.
+Extending the condition vocabulary requires rechecking this equivalence proof.
 
 Direct callable data leaves select their actual named or captured representation without mutating
 the unbound template's type identity; distinct environments and returned callbacks remain distinct.
@@ -1037,6 +1049,12 @@ reports E0322 with `ConditionWorkLimit` at the matched source call, distinct fro
 A failed request can retry through the same dependency coordinator with a replenished quota;
 unused callback values still do not demand invocation bodies. This bounds the expanding direct
 witness closure, not all compiler process memory or general symbolic solving.
+
+Concrete evaluator plans remain separate. Their construction charges an independent plan-work
+quota before each instance is built, configured from the same request work limit. Exhaustion
+reports E0322 as plan preparation, without spending source execution steps, publishing a partial
+value or manufacturing a const-ineligibility fact. Nested dependencies share the quota, and a
+new outer request resets it alongside condition and execution work.
 
 Final publication admits bool, the intrinsic integer catalog, unit, program-extent text, eligible
 fallible success data and finite closed optional/record/tuple/fixed-array

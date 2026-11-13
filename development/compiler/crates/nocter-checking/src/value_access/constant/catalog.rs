@@ -72,6 +72,14 @@ impl Catalog {
             states,
         })
     }
+    pub(in crate::value_access) fn traversal(&self) -> super::Traversal {
+        let scope = self
+            .requirements
+            .iter()
+            .map(|(&code, item)| (code, item.body().typed()))
+            .collect();
+        super::Traversal::new(&scope)
+    }
     pub(in crate::value_access) fn get(&self, code: ValueCode) -> Option<&Requirements> {
         self.requirements.get(&code)
     }

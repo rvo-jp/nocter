@@ -931,17 +931,28 @@ impl Instances {
         Ok(id)
     }
 }
+pub(super) enum PreparationError {
+    Integrity(flow::IntegrityError),
+    WorkLimit,
+}
+impl From<flow::IntegrityError> for PreparationError {
+    fn from(error: flow::IntegrityError) -> Self {
+        Self::Integrity(error)
+    }
+}
 pub(super) fn prepare(
     checked: &super::super::accepted::Checked,
     root: nocter_model::ValueCodeRoot,
     values: impl Fn(AccessCodeId) -> Option<plan::Value>,
-) -> Result<plan::Program> {
+    work: &mut plan::WorkBudget,
+) -> std::result::Result<plan::Program, PreparationError> {
     let program = &checked.program;
     let mut instances = Instances::default();
     instances.intern(program.bind_code(root.code(), []).map_err(|_| INVALID)?)?;
     let mut types = Types::default();
     let mut plans = BTreeMap::new();
     while let Some(key) = instances.pending.pop() {
+        work.step().map_err(|_| PreparationError::WorkLimit)?;
         let id = *instances.ids.get(&key).ok_or(INVALID)?;
         let query = checked.code(key.code()).ok_or(INVALID)?;
         let plan = Builder {
@@ -955,7 +966,7 @@ pub(super) fn prepare(
         }
         .build()?;
         if plans.insert(id, plan).is_some() {
-            return Err(INVALID);
+            return Err(INVALID.into());
         }
     }
     let mut statics = BTreeMap::new();
@@ -975,5 +986,5 @@ pub(super) fn prepare(
             );
         }
     }
-    plan::Program::new(types.finish(), plans, statics).map_err(|_| INVALID)
+    plan::Program::new(types.finish(), plans, statics).map_err(|_| INVALID.into())
 }

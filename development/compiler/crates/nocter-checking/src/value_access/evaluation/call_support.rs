@@ -1,4 +1,4 @@
-//! A dependency-discovery projection, never const, layout, ownership or execution equivalence.
+//! Fixed-target closure analysis; target independence alone proves no condition or plan equivalence.
 use super::super::{ExpressionKind, Query, instances};
 use nocter_model::ValueCode;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -6,7 +6,9 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 /// Only code whose entire completed-call closure names fixed code can ignore witness bindings
 /// while discovering bodies. Unknown bodies/targets conservatively prevent this projection.
 /// Recursive fixed-code components require no finite unrolling or arbitrary iteration cutoff.
-pub(super) fn witness_independent(scope: &BTreeMap<ValueCode, &Query>) -> BTreeSet<ValueCode> {
+pub(in crate::value_access) fn witness_independent(
+    scope: &BTreeMap<ValueCode, &Query>,
+) -> BTreeSet<ValueCode> {
     let mut dependent = BTreeSet::new();
     let mut callers = BTreeMap::<ValueCode, BTreeSet<ValueCode>>::new();
     for (&code, query) in scope {

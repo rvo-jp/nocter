@@ -101,7 +101,10 @@ not a language restriction derived from the current realization boundary.
 - [ ] Remove eager enumeration of concrete witness-call closures when symbolic conditions or the
   evaluated path can avoid it. Permuting callback arguments can create a combinatorial set of
   frames even when the required call returns immediately. The condition-work quota bounds this
-  expansion and preserves recovery, but does not solve its cause. Keep fixed forbidden-operation
+  expansion and preserves recovery. Condition traversal now shares fixed-target closures only
+  after all actual callable data is qualified; witness-dependent conditions and executable-plan
+  realization still enumerate exact frames. Plan generation has its own deterministic work quota;
+  bounding the work does not replace demand-driven realization. Keep fixed forbidden-operation
   checks, matched body/condition/plan products and ordinary source safety while making condition
   composition and plan realization demand-driven.
 - [ ] Complete nested callable data/witness support through header/data positions and the owning

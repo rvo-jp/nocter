@@ -10,9 +10,11 @@ use nocter_model::{
 
 mod catalog;
 mod requirements;
+mod traversal;
 pub use requirements::Requirements;
 mod representation;
 pub(super) use catalog::Catalog;
+use traversal::Traversal;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Rule {

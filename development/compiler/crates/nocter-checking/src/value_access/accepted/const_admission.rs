@@ -20,9 +20,13 @@ pub(in crate::value_access) fn check_required_const(
     let root = program
         .bind_code(root.code(), [])
         .map_err(|_| Failure::Integrity(flow::IntegrityError::InconsistentTypedBody))?;
+    let mut traversal = availability.traversal();
     let mut parents = BTreeMap::from([(root.clone(), None)]);
     let mut pending = vec![root];
     while let Some(key) = pending.pop() {
+        if !traversal.visit(program, &key).map_err(Failure::Integrity)? {
+            continue;
+        }
         let requirements = availability.get(key.code()).ok_or(Failure::Integrity(
             flow::IntegrityError::InconsistentTypedBody,
         ))?;

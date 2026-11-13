@@ -1,5 +1,5 @@
 //! Dependency-scheduled ordinary checking and required closed-plan execution.
-mod call_support;
+pub(in crate::value_access) mod call_support;
 mod dependencies;
 mod preparation;
 mod projection;
@@ -24,6 +24,7 @@ pub enum Rule {
     DependencyCycle,
     FinalValue,
     ConditionWorkLimit,
+    PlanWorkLimit,
 }
 impl Rule {
     fn diagnostic(self) -> Result<(DiagnosticCode, &'static str), BodyFailure> {
@@ -55,6 +56,10 @@ impl Rule {
             Self::Execution(state::Rule::InvalidPlan | state::Rule::ReachedUnreachable) => {
                 return Err(BodyFailure::InconsistentSyntax);
             }
+            Self::PlanWorkLimit => (
+                DiagnosticCode::E0322,
+                "required constant preparation exhausted its plan-work budget",
+            ),
             Self::ConditionWorkLimit => (
                 DiagnosticCode::E0322,
                 "required constant analysis exhausted its condition-work budget",

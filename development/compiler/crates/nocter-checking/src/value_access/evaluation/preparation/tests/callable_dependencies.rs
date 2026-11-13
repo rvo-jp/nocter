@@ -268,8 +268,8 @@ fn bound_callback_failures_keep_actual_sites_and_recover_the_same_request_coordi
 
 #[test]
 fn condition_expansion_exhaustion_is_distinct_and_the_same_request_can_recover() {
-    let source = UNUSED_CALLBACK_PERMUTATIONS;
-    let (sources, tree) = input(source);
+    let source = invoked_callback_permutations();
+    let (sources, tree) = input(&source);
     let syntax = bound(&sources, &tree);
     let headers = declarations::Query::prepare(syntax).unwrap();
     let context = headers.bind(syntax).unwrap();
@@ -319,7 +319,7 @@ fn condition_expansion_exhaustion_is_distinct_and_the_same_request_can_recover()
 const UNUSED_CALLBACK_PERMUTATIONS: &str = "func first(): void {}\nfunc second(): void {}\nfunc third(): void {}\nfunc fourth(): void {}\nconst func permute(a: func(): void, b: func(): void, c: func(): void, d: func(): void, count: i32): i32 { if count == 0 { 42 } else { let _ = permute(b, a, c, d, count - 1)\nlet _ = permute(a, c, b, d, count - 1)\npermute(a, b, d, c, count - 1) } }\nconst ANSWER: i32 = permute(first, second, third, fourth, 0)";
 
 #[test]
-fn unused_callback_permutations_share_body_discovery_without_sharing_const_or_plan_proofs() {
+fn unused_callback_permutations_share_condition_checks_only_after_data_qualification() {
     let (sources, tree) = input(UNUSED_CALLBACK_PERMUTATIONS);
     let syntax = bound(&sources, &tree);
     let headers = declarations::Query::prepare(syntax).unwrap();
@@ -343,19 +343,19 @@ fn unused_callback_permutations_share_body_discovery_without_sharing_const_or_pl
     assert!(ready.invoked.contains(&answer.into()));
     assert!(ready.invoked.contains(&permute.into()));
     assert!(dependencies::value(&requests, answer).is_none());
-    // Input representation/cleanup still gets its full concrete-instance check afterwards.
+    // A separate proof checks all actual callable data before sharing condition traversal.
+    // Body discovery alone grants no such permission or executable-plan equivalence.
+    preparation.condition_work = state::WorkBudget::new(std::num::NonZeroU64::new(4).unwrap());
     let checked =
         accepted::admit_resolved(&preparation.context, ready.resolved, Some(&ready.invoked))
             .unwrap();
-    let Err(Failure::Evaluation { diagnostic, .. }) = accepted::check_required_const(
+    accepted::check_required_const(
         &preparation.context,
         &checked,
         answer.into(),
         &mut preparation.condition_work,
-    ) else {
-        panic!("dependency projection is not a shared eligibility proof");
-    };
-    assert_eq!(diagnostic.rule(), Rule::ConditionWorkLimit);
+    )
+    .unwrap();
 }
 
 #[test]
@@ -372,4 +372,59 @@ fn interrupted_parameter_invocation_needs_environment_operations_but_no_invocati
             "{prefix}const func calculate(): i32 {{ let payload = 40\nlet action = (payload; value: i32): i32 {{ runtime(value) + payload }}\nstop(action{move_argument}) }}\nconst ANSWER: i32 = calculate()"
         ));
     }
+}
+
+fn invoked_callback_permutations() -> String {
+    UNUSED_CALLBACK_PERMUTATIONS
+        .replace("func first", "const func first")
+        .replace("func second", "const func second")
+        .replace("func third", "const func third")
+        .replace("func fourth", "const func fourth")
+        .replace("else { let _", "else { a()\nlet _")
+}
+
+#[test]
+fn shared_conditions_do_not_bypass_plan_expansion_budget_or_failed_request_recovery() {
+    let (sources, tree) = input(UNUSED_CALLBACK_PERMUTATIONS);
+    let syntax = bound(&sources, &tree);
+    let headers = declarations::Query::prepare(syntax).unwrap();
+    let context = headers.bind(syntax).unwrap();
+    let answer = context
+        .program()
+        .resolve_constant(context.program().symbols().get("ANSWER").unwrap())
+        .unwrap();
+    let mut preparation = Preparation::new(context, Headers::Closed, state::Limits::default());
+    preparation.condition_work = state::WorkBudget::new(std::num::NonZeroU64::new(8).unwrap());
+    preparation.plan_work = state::WorkBudget::new(std::num::NonZeroU64::new(4).unwrap());
+    let mut requests = Dependencies::default();
+    let Err(QueryError::Computation(SourceFailure::Checking(Failure::Evaluation {
+        diagnostic,
+        ..
+    }))) = requests.resolve_steps(&mut preparation, Request::Value(answer.into()))
+    else {
+        panic!("condition equivalence cannot erase concrete plan work");
+    };
+    assert_eq!(diagnostic.rule(), Rule::PlanWorkLimit);
+    assert_eq!(diagnostic.source().code(), "E0322");
+    assert!(
+        syntax
+            .text_at(diagnostic.source().primary().span().range())
+            .unwrap()
+            .contains("ANSWER")
+    );
+    assert_eq!(requests.active_depth(), 0);
+    assert_eq!(requests.active_keys().len(), 0);
+    assert!(dependencies::value(&requests, answer).is_none());
+    assert_eq!(preparation.budget.storage_used(), 0);
+    preparation.condition_work.restart();
+    preparation.plan_work = state::WorkBudget::new(std::num::NonZeroU64::new(32).unwrap());
+    requests
+        .resolve_steps(&mut preparation, Request::Value(answer.into()))
+        .unwrap();
+    assert_eq!(
+        dependencies::value(&requests, answer).unwrap().frozen,
+        state::Value::integer(42).freeze()
+    );
+    drop(requests);
+    assert_eq!(preparation.budget.storage_used(), 0);
 }
