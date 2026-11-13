@@ -3,13 +3,16 @@ use super::{
     ApplicationEvidence, Evidence,
     producers::Producers,
     reject,
-    relations::{self, Relation, Relations, Solutions, Term},
+    relations::{self, InvocationRecipe, Relation, Relations, Solutions, Term},
 };
 use crate::value_access::{ExpressionKind, accepted, flow};
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::{FunctionWitness, PayloadSchema};
 use nocter_model::ValueFunctionOrigin as Origin;
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 const INVALID: accepted::Failure =
     accepted::Failure::Integrity(flow::IntegrityError::InconsistentTypedBody);
@@ -42,16 +45,19 @@ pub(super) fn solve(
                 Relation::Union(report.returned.into_iter().map(|(w, _)| w).collect()),
             );
         }
-        for (application, inputs) in report.applications {
+        for (call, invocation) in report.calls {
+            let site = nocter_model::ValueApplication { owner: id, call };
+            let invocation = Arc::new(invocation);
+            evidence.invocations.insert(site, invocation);
+        }
+        for application in report.applications {
             committed.insert(application);
-            equations.insert(
-                Term::Application(application),
-                Relation::Apply {
-                    callee: super::applications::callee(&control.typed, application.call)
-                        .map_err(accepted::Failure::Integrity)?,
-                    inputs,
-                },
-            );
+            let invocation = evidence
+                .invocations
+                .get(&application)
+                .ok_or(INVALID)?
+                .clone();
+            equations.insert(Term::Application(application), Relation::Apply(invocation));
         }
     }
     // A received capture or transported result carries this exact family. A committed factory adds
@@ -142,11 +148,11 @@ fn close_applications(
                 .collect();
             equations.insert(
                 Term::Application(application),
-                Relation::Apply {
-                    callee: super::applications::callee(query, id)
-                        .map_err(accepted::Failure::Integrity)?,
+                Relation::Apply(Arc::new(InvocationRecipe {
+                    callees: BTreeSet::from([super::applications::callee(query, id)
+                        .map_err(accepted::Failure::Integrity)?]),
                     inputs,
-                },
+                })),
             );
         }
     }

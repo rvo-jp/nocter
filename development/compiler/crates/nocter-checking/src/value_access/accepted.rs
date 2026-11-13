@@ -174,6 +174,15 @@ impl Unit {
     ) -> Option<nocter_declarations::value_access::FunctionWitness> {
         self.result_evidence.producer(callable)
     }
+    /// Original bindings of a reached committed call, independently of its result data.
+    /// The recipe belongs to this exact accepted Unit and grants no executable call/frame proof.
+    #[must_use]
+    pub fn invocation_recipe(
+        &self,
+        site: nocter_model::ValueApplication,
+    ) -> Option<&super::InvocationRecipe> {
+        self.result_evidence.invocation(site)
+    }
     /// Original source-flow producer equations, retained before code/type result projection.
     /// This is metadata in this exact accepted Unit; it grants no concrete creation frame,
     /// runtime value, representation, callable target or independently reusable source receipt.

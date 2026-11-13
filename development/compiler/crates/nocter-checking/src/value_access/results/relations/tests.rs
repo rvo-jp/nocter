@@ -47,22 +47,22 @@ fn returned_callees_and_input_results_use_real_return_summaries_without_signatur
         ),
         (
             Term::Application(make),
-            Relation::Apply {
-                callee: maker.into(),
+            Relation::Apply(Arc::new(InvocationRecipe {
+                callees: Producers::from([maker.into()]),
                 inputs: Inputs::new(),
-            },
+            })),
         ),
     ]);
     for (application, actual) in [(first, identity), (second, other)] {
         equations.insert(
             Term::Application(application),
-            Relation::Apply {
-                callee: FunctionWitness {
+            Relation::Apply(Arc::new(InvocationRecipe {
+                callees: Producers::from([FunctionWitness {
                     origin: Origin::Application(make),
                     invocation: ValueInvocation::Read,
-                },
+                }]),
                 inputs: Inputs::from([(parameter, Producers::from([actual.into()]))]),
-            },
+            })),
         );
     }
     let empty = solve(&equations).unwrap();

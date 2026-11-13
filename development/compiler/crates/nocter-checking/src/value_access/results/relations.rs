@@ -2,20 +2,24 @@
 use super::producers::{Inputs, Producers};
 use nocter_declarations::value_access::FunctionWitness;
 use nocter_model::{ValueApplication, ValueCode, ValueFunctionOrigin as Origin, ValueInvocation};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Term {
     Result(ValueCode),
     Application(ValueApplication),
 }
+/// One reached source call's original callee and formal-to-producer alternatives.
+/// These sets select neither a correlated joint frame nor a concrete runtime value.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct InvocationRecipe {
+    pub callees: Producers,
+    pub inputs: Inputs,
+}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Relation {
     Union(Producers),
-    Apply {
-        callee: FunctionWitness,
-        inputs: Inputs,
-    },
+    Apply(Arc<InvocationRecipe>),
 }
 pub(super) type Relations = BTreeMap<Term, Relation>;
 pub(super) type Solutions = BTreeMap<Term, Producers>;
@@ -39,7 +43,10 @@ fn values(term: FunctionWitness, known: &Solutions) -> Result<Producers, ()> {
         .map(|source| adapt(source, term.invocation))
         .collect()
 }
-fn adapt(source: FunctionWitness, invocation: ValueInvocation) -> Result<FunctionWitness, ()> {
+pub(super) fn adapt(
+    source: FunctionWitness,
+    invocation: ValueInvocation,
+) -> Result<FunctionWitness, ()> {
     if !source.invocation.can_supply(invocation) {
         return Err(());
     }
@@ -63,22 +70,25 @@ pub(super) fn solve(relations: &Relations) -> Result<Solutions, ()> {
                         next.extend(values(term, &known)?);
                     }
                 }
-                Relation::Apply { callee, inputs } => {
-                    for selected in values(*callee, &known)? {
-                        let Some(code) = selected.origin.code() else {
-                            continue;
-                        };
-                        for &result in known.get(&Term::Result(code)).ok_or(())? {
-                            if let Origin::Parameter(parameter) = result.origin {
-                                if let Some(actuals) = inputs.get(&parameter) {
-                                    for &actual in actuals {
-                                        for witness in values(actual, &known)? {
-                                            next.insert(adapt(witness, result.invocation)?);
+                Relation::Apply(invocation) => {
+                    let InvocationRecipe { callees, inputs } = invocation.as_ref();
+                    for callee in callees {
+                        for selected in values(*callee, &known)? {
+                            let Some(code) = selected.origin.code() else {
+                                continue;
+                            };
+                            for &result in known.get(&Term::Result(code)).ok_or(())? {
+                                if let Origin::Parameter(parameter) = result.origin {
+                                    if let Some(actuals) = inputs.get(&parameter) {
+                                        for &actual in actuals {
+                                            for witness in values(actual, &known)? {
+                                                next.insert(adapt(witness, result.invocation)?);
+                                            }
                                         }
                                     }
+                                } else {
+                                    next.insert(result);
                                 }
-                            } else {
-                                next.insert(result);
                             }
                         }
                     }

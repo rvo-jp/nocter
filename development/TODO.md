@@ -31,7 +31,9 @@ alone does not complete capture support. Preserve current rejection until execut
 
 Resolve value-occurrence creation context through the retained source-flow producer equations
 and ordinary value transport, then close source closure creation before admitting formal callable
-captures. Preserve original callable argument bindings for calls whose result is not callable, too.
+captures. Resolve concrete call frames from the original invocation/producer recipes with a
+shared deterministic work quota, without selecting one of several captured contexts or treating
+missing producer evidence as success. Qualify anchored recursion and failure/retry behavior.
 Follow the occurrence-sensitive finding below and the canonical instance obligations. Keep semantic
 `TypeId` in source checking and declarations; contextual runtime IDs must never become fabricated
 semantic types. A representation key alone grants no payload, source admission or cleanup proof.

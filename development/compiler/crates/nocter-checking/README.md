@@ -425,9 +425,17 @@ contract under the existing application identity. A reachable application still 
 Prepared value flow establishes return anchors; declared argument types alone cannot do so.
 
 The exact accepted Unit retains the original reachable source-flow equations as `ProducerTerm`
-and `ProducerRelation`, before code/type projection reduces their selected witnesses. Application
-nodes keep their actual callee and formal-to-producer sets, including nested application terms;
-return nodes keep their original unions. The selected code summary remains a separate result of
+and `ProducerRelation`, before code/type projection reduces their selected witnesses. Return nodes
+keep their original unions. `InvocationRecipe` owns each reached committed call's original
+callee alternatives and formal-to-producer alternatives, including nested application terms,
+independently of whether its result is callable. Value-call receivers use the prepared value's
+source-flow producers, including reassignment and control alternatives, adapted to the frozen
+invocation view; the type's original witness does not replace those facts.
+`Unit::invocation_recipe` exposes these records
+under their exact code/call identity. Callable application nodes share the same immutable record,
+so the equation graph and invocation catalog do not maintain separate binding copies. Interrupted
+or unreachable commits create no invocation record. The possible producer sets select neither
+path correlations nor a joint concrete frame. The selected code summary remains a separate result of
 that graph, not a replacement creation recipe. `Unit::producer_relation` exposes only immutable
 metadata from that Unit. Rebinding the complete Unit verifies every accepted body before exposing
 current-source views; a detached typed-body rebind does not expose this graph as a new source

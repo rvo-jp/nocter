@@ -1,6 +1,6 @@
 //! Static producer flow over the selected control graph, independent of owner availability.
 //! A conditional's provisional type is not evidence that its named branch can execute.
-use crate::value_access::{ExpressionKind, Query, flow};
+use crate::value_access::{CallKind, ExpressionKind, Query, flow};
 use nocter_declarations::value_access::{FunctionWitness, PayloadSchema};
 use nocter_model::{AccessExpressionId, AccessLocalId, ValueApplication, ValueFunctionOrigin};
 use std::collections::{BTreeMap, BTreeSet};
@@ -10,7 +10,8 @@ pub(super) type Inputs = BTreeMap<nocter_model::ValueParameter, Producers>;
 #[derive(Default)]
 pub(super) struct Report {
     pub(super) returned: Vec<(FunctionWitness, AccessExpressionId)>,
-    pub(super) applications: BTreeMap<ValueApplication, Inputs>,
+    pub(super) applications: BTreeSet<ValueApplication>,
+    pub(super) calls: BTreeMap<AccessExpressionId, super::relations::InvocationRecipe>,
     /// Received or transported leaves retain their original relation, never a signature-derived
     /// concrete anchor. An uncommitted origin can therefore remain genuinely empty.
     pub(super) referenced_applications: BTreeSet<ValueApplication>,
@@ -46,7 +47,8 @@ pub(super) fn analyze(control: &flow::Control) -> Result<Report, flow::Integrity
     let mut entries = BTreeMap::from([(control.graph.entry(), initial)]);
     let mut pending = BTreeSet::from([control.graph.entry()]);
     let mut returned = BTreeSet::new();
-    let mut applications = BTreeMap::<ValueApplication, Inputs>::new();
+    let mut applications = BTreeSet::new();
+    let mut calls = BTreeMap::new();
     while let Some(point) = pending.pop_first() {
         let mut state = entries.get(&point).ok_or(INVALID)?.clone();
         let block = control.graph.points().get(point).ok_or(INVALID)?;
@@ -77,6 +79,7 @@ pub(super) fn analyze(control: &flow::Control) -> Result<Report, flow::Integrity
                         id,
                         &mut state,
                         &mut applications,
+                        &mut calls,
                         &mut referenced_applications,
                     )?;
                 }
@@ -126,6 +129,7 @@ pub(super) fn analyze(control: &flow::Control) -> Result<Report, flow::Integrity
     Ok(Report {
         returned: returned.into_iter().collect(),
         applications,
+        calls,
         referenced_applications,
     })
 }
@@ -173,23 +177,41 @@ fn commit(
     query: &Query,
     id: AccessExpressionId,
     state: &mut State,
-    applications: &mut BTreeMap<ValueApplication, Inputs>,
+    applications: &mut BTreeSet<ValueApplication>,
+    calls: &mut BTreeMap<AccessExpressionId, super::relations::InvocationRecipe>,
     references: &mut BTreeSet<ValueApplication>,
 ) -> Result<(), flow::IntegrityError> {
-    let Some(result) = super::applications::call_result(query, id)? else {
-        return Ok(());
-    };
-    let Some(application) = result.created else {
-        let facts = Facts::received(query.program(), result.data, true)?;
-        references.extend(facts.applications());
-        state.insert(Key::Expression(id), facts);
-        return Ok(());
-    };
     let expression = query.body.expressions.get(id).ok_or(INVALID)?;
-    let ExpressionKind::Call { arguments, .. } = &expression.kind else {
+    let ExpressionKind::Call {
+        arguments, kind, ..
+    } = &expression.kind
+    else {
         return Err(INVALID);
     };
-    let inputs = applications.entry(application).or_default();
+    let selected = super::applications::callee(query, id)?;
+    let callees = match kind {
+        CallKind::Direct => Producers::from([selected]),
+        CallKind::Value => {
+            let receiver = arguments.first().ok_or(INVALID)?;
+            state
+                .get(&Key::Argument { call: id, index: 0 })
+                .ok_or(INVALID)?
+                .producers(expression_data(query, receiver.value)?)
+                .into_iter()
+                .map(|witness| {
+                    super::relations::adapt(witness, selected.invocation).map_err(|()| INVALID)
+                })
+                .collect::<Result<Producers, _>>()?
+        }
+    };
+    let invocation = calls
+        .entry(id)
+        .or_insert_with(|| super::relations::InvocationRecipe {
+            callees: Producers::new(),
+            inputs: Inputs::new(),
+        });
+    invocation.callees.extend(callees);
+    let inputs = &mut invocation.inputs;
     for (index, argument) in arguments.iter().enumerate() {
         if let Some(binding) = &argument.binding {
             inputs.entry(binding.parameter).or_default().extend(
@@ -200,6 +222,16 @@ fn commit(
             );
         }
     }
+    let Some(result) = super::applications::call_result(query, id)? else {
+        return Ok(());
+    };
+    let Some(application) = result.created else {
+        let facts = Facts::received(query.program(), result.data, true)?;
+        references.extend(facts.applications());
+        state.insert(Key::Expression(id), facts);
+        return Ok(());
+    };
+    applications.insert(application);
     let Some(PayloadSchema::Function(witness)) = query.program().data_schema(result.data) else {
         return Err(INVALID);
     };
