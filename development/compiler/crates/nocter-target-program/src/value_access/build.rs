@@ -2,7 +2,8 @@
 use super::{CallTarget, Failure, Instance, InstanceKey, InstanceProgram, invocation, projection};
 #[cfg(test)]
 mod tests;
-use nocter_checking::value_access::{ExpressionKind, accepted::Unit, flow::Operation};
+use nocter_checking::value_access::{accepted::Unit, flow::Operation};
+use nocter_constant_evaluation::state::WorkBudget;
 use nocter_model::{AccessCodeId, AccessInstanceId, ArenaBuilder};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -31,7 +32,12 @@ impl Builder {
         self.pending.push(id);
         id
     }
-    fn define(&mut self, unit: &Unit, id: AccessInstanceId) -> Result<(), Failure> {
+    fn define(
+        &mut self,
+        unit: &Unit,
+        id: AccessInstanceId,
+        work: &mut WorkBudget,
+    ) -> Result<(), Failure> {
         let key = self
             .instances
             .get(id)
@@ -55,21 +61,13 @@ impl Builder {
         }
         let mut calls = BTreeMap::new();
         for call in invocations {
-            let ExpressionKind::Call {
-                target,
-                arguments,
-                kind,
-            } = &body
-                .typed()
-                .body()
-                .expressions()
-                .get(call)
-                .ok_or(Failure::InvalidAcceptedUnit)?
-                .kind
-            else {
-                return Err(Failure::InvalidAcceptedUnit);
+            let site = nocter_model::ValueApplication {
+                owner: key.code(),
+                call,
             };
-            let selected = projection::callee(unit.program(), &key, *target, *kind, arguments)?;
+            let selected = unit
+                .instantiate_invocation(&key, site, work)
+                .map_err(|failure| Failure::Invocation { site, failure })?;
             let code = selected.code();
             let target = match code {
                 nocter_model::ValueCode::Declaration(id)
@@ -93,7 +91,11 @@ impl Builder {
         Ok(())
     }
 }
-pub(super) fn close(unit: Arc<Unit>, root: AccessCodeId) -> Result<InstanceProgram, Failure> {
+pub(super) fn close(
+    unit: Arc<Unit>,
+    root: AccessCodeId,
+    work: &mut WorkBudget,
+) -> Result<InstanceProgram, Failure> {
     let declaration = unit
         .program()
         .codes()
@@ -128,7 +130,7 @@ pub(super) fn close(unit: Arc<Unit>, root: AccessCodeId) -> Result<InstanceProgr
             .map_err(|_| Failure::InvalidAcceptedUnit)?,
     );
     while let Some(id) = builder.pending.pop() {
-        builder.define(&unit, id)?;
+        builder.define(&unit, id, work)?;
     }
     let instances = builder.instances.finish().try_map(|_, reservation| {
         reservation

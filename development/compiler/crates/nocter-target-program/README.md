@@ -91,14 +91,18 @@ Only checking-reachable invocation commits create call edges. A value reference,
 or interrupted argument does not force a code instance. Construction indexes are discarded; one
 immutable instance arena is the published authority.
 
-`projection` substitutes already selected named/captured/formal origins and invocation views through
-the declaration-owned `CodeInstanceKey::resolve`. `CallKind::invocation` decodes the frozen
-callable view separately from explicit input operations. An unbound or incompatible binding cannot
-become an executable target, and an underlying declaration cannot upgrade a restricted view.
-Callable results arrive with checking-closed code or caller-formal witnesses. The body's resolved
-result data enters the same projection table; no target-side result inference or second instance
-graph exists. Key construction delegates exact formal coverage and contract/view validation to
-`Program::bind_instance`, without target search or body retyping. One table maps the body's
+Reached call frames come from the exact accepted Unit's original invocation/producer recipes and
+its [budgeted fixed-point resolver](../nocter-checking/README.md#shared-flow-access-and-resource-validation).
+`build` consumes checked invocation commits and never reconstructs a creation context from the
+projected call signature or code name. `prepare_with_budget` shares one deterministic metadata-work
+quota across all reached calls; default preparation uses the shared compiler work policy. Failure
+retains the requesting code/call site, publishes no partial instance graph and leaves the Unit
+reusable. Runtime execution work and call-depth limits are not spent or inferred here.
+
+The declaration-owned `Program::bind_instance` still owns complete formal/capture coverage,
+contract matching and view validation. Source permissions, original body invocation and explicit
+input operations stay frozen. `projection` now owns data substitution rather than a competing
+callee substitution path. One table maps the body's
 source data IDs to checking-owned [instantiated payload obligations](../nocter-checking/README.md#shared-flow-access-and-resource-validation)
 or checked unproduced shapes. Each positive entry retains its complete `DataInstanceKey`, not just
 the selected code's raw semantic ID. The unproduced marker supplies neither a duplicate

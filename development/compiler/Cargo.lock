@@ -2227,6 +2227,7 @@ version = "0.0.0"
 dependencies = [
  "nocter-checking",
  "nocter-compile-input",
+ "nocter-constant-evaluation",
  "nocter-declaration-lowering",
  "nocter-declarations",
  "nocter-model",

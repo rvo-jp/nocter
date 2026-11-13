@@ -48,6 +48,10 @@ pub enum Failure {
     InitializerRoot(AccessCodeId),
     BodylessRoot(AccessCodeId),
     UnboundRoot(AccessParameterId),
+    Invocation {
+        site: nocter_model::ValueApplication,
+        failure: nocter_checking::value_access::InstantiationFailure,
+    },
     InvalidAcceptedUnit,
 }
 
@@ -63,9 +67,23 @@ impl InstanceProgram {
     /// Substitute already selected witness edges without source access or body rechecking.
     /// # Errors
     /// A root must exist and need no externally supplied callback witness. Invalid checked edges
-    /// are integrity errors; no partially closed graph is published.
+    /// and metadata-work exhaustion reject; no partially closed graph is published.
     pub fn prepare(unit: Arc<Unit>, root: AccessCodeId) -> Result<Self, Failure> {
-        build::close(unit, root)
+        let mut work = nocter_constant_evaluation::state::WorkBudget::new(
+            nocter_constant_evaluation::CompileTimeEvaluationLimits::default().steps(),
+        );
+        Self::prepare_with_budget(unit, root, &mut work)
+    }
+    /// Close reached invocations under one shared deterministic metadata-work quota.
+    /// # Errors
+    /// Preserves root/integrity failures and reports the exact failing invocation. No partial
+    /// instance graph is published, and the accepted Unit remains reusable after failure.
+    pub fn prepare_with_budget(
+        unit: Arc<Unit>,
+        root: AccessCodeId,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<Self, Failure> {
+        build::close(unit, root, work)
     }
     #[must_use]
     pub fn unit(&self) -> &Unit {

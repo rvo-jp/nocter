@@ -1,25 +1,12 @@
 //! Mechanical witness/data substitution, consuming checked binding edges rather than lookup inputs.
 use super::{DataEvidence, Failure, InstanceKey};
 use nocter_checking::value_access::{
-    Argument, CallKind,
     accepted::{DataEvidence as CheckedDataEvidence, Unit},
     flow,
 };
-use nocter_declarations::value_access::Program;
-use nocter_model::{TypeId, ValueFunctionOrigin};
+use nocter_model::TypeId;
 use std::collections::{BTreeMap, BTreeSet};
 mod requirements;
-
-pub(super) fn callee(
-    program: &Program,
-    caller: &InstanceKey,
-    target: ValueFunctionOrigin,
-    kind: CallKind,
-    arguments: &[Argument],
-) -> Result<InstanceKey, Failure> {
-    nocter_checking::value_access::instantiate_call(program, caller, target, kind, arguments)
-        .map_err(|_| Failure::InvalidAcceptedUnit)
-}
 
 pub(super) fn data(
     unit: &Unit,

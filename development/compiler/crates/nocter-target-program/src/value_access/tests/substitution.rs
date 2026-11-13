@@ -12,16 +12,11 @@ fn executable_selection_rejects_an_unbound_or_weaker_view_even_when_its_underlyi
     let identity = callable(&unit, "identity");
     let parameter = unit.program().codes().get(apply).unwrap().parameters()[0].into();
     let body = unit.body(apply).unwrap().typed().body();
-    let (target, kind, arguments) = body
+    let call = body
         .expressions()
         .iter()
-        .find_map(|(_, expression)| match &expression.kind {
-            ExpressionKind::Call {
-                target,
-                kind,
-                arguments,
-            } => Some((*target, *kind, arguments.as_ref())),
-            _ => None,
+        .find_map(|(id, expression)| {
+            matches!(&expression.kind, ExpressionKind::Call { .. }).then_some(id)
         })
         .unwrap();
     assert!(
@@ -50,7 +45,19 @@ fn executable_selection_rejects_an_unbound_or_weaker_view_even_when_its_underlyi
             [(parameter, identity.into())],
         )
         .unwrap();
-    let selected = projection::callee(unit.program(), &caller, target, kind, arguments).unwrap();
+    let mut work = nocter_constant_evaluation::state::WorkBudget::new(
+        std::num::NonZeroU64::new(10_000).unwrap(),
+    );
+    let selected = unit
+        .instantiate_invocation(
+            &caller,
+            nocter_model::ValueApplication {
+                owner: caller.code(),
+                call,
+            },
+            &mut work,
+        )
+        .unwrap();
     assert_eq!(selected.code(), ValueCode::Declaration(identity));
     assert!(selected.witnesses().is_empty());
     assert_eq!(
@@ -100,4 +107,66 @@ fn explicit_edit_inputs_cannot_reclassify_a_direct_call_as_an_editable_environme
         CallKind::Direct.invocation(&[]),
         Some(ValueInvocation::Read)
     );
+}
+
+#[test]
+fn reached_invocations_share_one_work_quota_and_failure_does_not_publish_a_partial_graph() {
+    use nocter_checking::value_access::InstantiationFailure;
+    use nocter_constant_evaluation::state::WorkBudget;
+    use std::num::NonZeroU64;
+    let unit = accepted(&ValueSourceFixture::new(
+        "func leaf(): void {}\nfunc run(): void { leaf()\nleaf() }",
+    ));
+    let root = callable(&unit, "run");
+    let caller = unit.program().bind_code(root.into(), []).unwrap();
+    let calls = unit
+        .body(root)
+        .unwrap()
+        .typed()
+        .body()
+        .expressions()
+        .iter()
+        .filter_map(|(id, expression)| {
+            matches!(&expression.kind, ExpressionKind::Call { .. }).then_some(id)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(calls.len(), 2);
+    let first = nocter_model::ValueApplication {
+        owner: caller.code(),
+        call: calls[0],
+    };
+    // Discover the public query's minimum cost instead of pinning this test to internal steps.
+    let minimum = (1..=1_024)
+        .find(|&units| {
+            let mut work = WorkBudget::new(NonZeroU64::new(units).unwrap());
+            unit.instantiate_invocation(&caller, first, &mut work)
+                .is_ok()
+        })
+        .expect("the small call has a bounded metadata query");
+    let mut work = WorkBudget::new(NonZeroU64::new(minimum).unwrap());
+    let failure = InstanceProgram::prepare_with_budget(unit.clone(), root, &mut work).unwrap_err();
+    assert_eq!(
+        failure,
+        Failure::Invocation {
+            site: nocter_model::ValueApplication {
+                owner: caller.code(),
+                call: calls[1]
+            },
+            failure: InstantiationFailure::WorkLimit,
+        }
+    );
+    let graph = InstanceProgram::prepare(unit.clone(), root).unwrap();
+    assert_eq!(graph.instances().len(), 2);
+    assert_eq!(
+        graph.instances().get(graph.root()).unwrap().calls().len(),
+        2
+    );
+    let mut exhausted = WorkBudget::new(NonZeroU64::new(1).unwrap());
+    assert!(matches!(
+        InstanceProgram::prepare_with_budget(unit, root, &mut exhausted),
+        Err(Failure::Invocation {
+            failure: InstantiationFailure::WorkLimit,
+            ..
+        })
+    ));
 }
