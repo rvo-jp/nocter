@@ -23,11 +23,10 @@ pub(super) struct Discovery {
 impl Discovery {
     pub(super) fn new(scope: &BTreeMap<ValueCode, &Query>) -> Self {
         let separable = scope.values().all(|query| {
-            query
-                .body()
-                .expressions()
-                .iter()
-                .all(|(_, expression)| separable_call(&expression.kind))
+            query.body().expressions().iter().all(|(id, expression)| {
+                separable_call(&expression.kind)
+                    && occurrence_separable(query, id, &expression.kind)
+            })
         });
         Self {
             separable,
@@ -138,6 +137,31 @@ fn separable_call(expression: &ExpressionKind) -> bool {
         || (matches!(target, ValueFunctionOrigin::Parameter(_))
             && arguments.iter().all(|argument| argument.binding.is_none()))
 }
+fn occurrence_separable(
+    query: &Query,
+    id: nocter_model::AccessExpressionId,
+    expression: &ExpressionKind,
+) -> bool {
+    if !super::super::instances::is_completed_call(expression) {
+        return true;
+    }
+    let Some(recipe) = super::call_support::source_recipe(query, id) else {
+        return query.result_evidence.is_some(); // A dormant definition contract, not an actual commit.
+    };
+    let unary = |witness: nocter_declarations::value_access::FunctionWitness| {
+        matches!(witness.origin, ValueFunctionOrigin::Parameter(_))
+            || query.program().concrete_witness(witness).is_ok()
+    };
+    let Some(&callee) = recipe.callees.first().filter(|_| recipe.callees.len() == 1) else {
+        return false;
+    };
+    unary(callee)
+        && (!matches!(callee.origin, ValueFunctionOrigin::Parameter(_)) || recipe.inputs.is_empty())
+        && recipe
+            .inputs
+            .values()
+            .all(|terms| terms.len() == 1 && terms.first().is_some_and(|&witness| unary(witness)))
+}
 
 #[cfg(test)]
 mod tests {
@@ -178,5 +202,69 @@ mod tests {
         // a selected target receiving real callable-binding metadata cannot lose correlations.
         *target = ValueFunctionOrigin::Parameter(formal.into());
         assert!(!separable_call(&call));
+    }
+
+    #[test]
+    fn independent_source_positions_cover_joint_inputs_without_enumerating_joint_frames() {
+        let source = "func first(): void {}\nfunc second(): void {}\nfunc third(): void {}\nfunc fourth(): void {}\nfunc apply(a: func(): void, b: func(): void, c: func(): void, d: func(): void): void { a()\nb()\nc()\nd() }";
+        let (sources, tree) = input(source);
+        let unit = SourceUnit::prepare(bound(&sources, &tree))
+            .unwrap()
+            .into_unit();
+        let program = unit.program();
+        let code = |name| {
+            program
+                .resolve_code(program.symbols().get(name).unwrap())
+                .unwrap()
+        };
+        let apply = code("apply");
+        let callbacks = ["first", "second", "third", "fourth"].map(code);
+        let parameters = program.codes().get(apply).unwrap().parameters();
+        let scope = unit
+            .bodies()
+            .map(|(_, body)| (body.typed().code(), body.typed()))
+            .collect();
+        let mut discovery = Discovery::new(&scope);
+        assert!(discovery.separable);
+        for _ in 0..2 {
+            for a in callbacks {
+                for b in callbacks {
+                    for c in callbacks {
+                        for d in callbacks {
+                            let frame = program
+                                .bind_code(
+                                    apply.into(),
+                                    parameters.iter().copied().zip([a, b, c, d]).map(
+                                        |(parameter, callback)| (parameter.into(), callback.into()),
+                                    ),
+                                )
+                                .unwrap();
+                            discovery.insert(program, frame).unwrap();
+                        }
+                    }
+                }
+            }
+        }
+        let frames = std::iter::from_fn(|| discovery.next()).collect::<Vec<_>>();
+        assert_eq!(
+            frames.len(),
+            1 + parameters.len() * (callbacks.len() - 1),
+            "only independent substitutions, rather than 4^4 joint frames"
+        );
+        for &parameter in parameters {
+            let covered = frames
+                .iter()
+                .map(|frame| frame.witnesses()[&parameter.into()].code())
+                .collect::<BTreeSet<_>>();
+            assert_eq!(
+                covered,
+                callbacks.into_iter().map(ValueCode::from).collect()
+            );
+            assert!(
+                frames
+                    .iter()
+                    .all(|frame| frame.witnesses().len() == parameters.len())
+            );
+        }
     }
 }

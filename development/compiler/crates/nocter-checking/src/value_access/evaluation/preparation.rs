@@ -525,15 +525,16 @@ impl<'a, 'source> Preparation<'a, 'source> {
                         failure,
                     },
                 )?;
-                super::condition_step(
+                let selected = crate::value_access::instances::condition_call(
+                    query,
+                    &key,
+                    id,
                     &mut self.condition_work,
-                    key.code().source_owner(),
-                    primary,
-                )?;
-                let selected =
-                    crate::value_access::instances::select_call(program, &key, &expression.kind)
-                        .map_err(Failure::Integrity)?
-                        .ok_or(INVALID)?;
+                )
+                .map_err(|failure| {
+                    super::condition_failure(failure, key.code().source_owner(), primary)
+                })?
+                .ok_or(INVALID)?;
                 // The caller's bound domain check reports a missing authored capability. A
                 // runtime-only actual value does not create an evaluator body dependency.
                 if let ValueCode::Declaration(code) = selected.code()

@@ -3,6 +3,19 @@ use super::super::{ExpressionKind, Query, instances};
 use nocter_model::ValueCode;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+pub(super) fn source_recipe(
+    query: &Query,
+    call: nocter_model::AccessExpressionId,
+) -> Option<&crate::value_access::InvocationRecipe> {
+    query
+        .result_evidence
+        .as_ref()?
+        .invocation(nocter_model::ValueApplication {
+            owner: query.code(),
+            call,
+        })
+}
+
 /// Only code whose entire completed-call closure names fixed code can ignore witness bindings
 /// while discovering bodies. Unknown bodies/targets conservatively prevent this projection.
 /// Recursive fixed-code components require no finite unrolling or arbitrary iteration cutoff.
@@ -12,14 +25,26 @@ pub(in crate::value_access) fn witness_independent(
     let mut dependent = BTreeSet::new();
     let mut callers = BTreeMap::<ValueCode, BTreeSet<ValueCode>>::new();
     for (&code, query) in scope {
-        for (_, expression) in query.body().expressions().iter() {
+        for (id, expression) in query.body().expressions().iter() {
             if !instances::is_completed_call(&expression.kind) {
                 continue;
             }
             let ExpressionKind::Call { target, .. } = expression.kind else {
                 continue;
             };
-            if let Some(target) = target.code() {
+            let target = if let Some(recipe) = source_recipe(query, id) {
+                recipe
+                    .callees
+                    .first()
+                    .filter(|_| recipe.callees.len() == 1)
+                    .and_then(|witness| query.program().concrete_witness(*witness).ok())
+                    .map(|witness| witness.code())
+            } else if query.result_evidence.is_some() {
+                target.code()
+            } else {
+                None
+            };
+            if let Some(target) = target {
                 if scope.contains_key(&target) {
                     callers.entry(target).or_default().insert(code);
                 } else {

@@ -305,7 +305,7 @@ fn condition_expansion_exhaustion_is_distinct_and_the_same_request_can_recover()
     assert!(dependencies::value(&requests, answer).is_none());
     assert_eq!(preparation.budget.storage_used(), 0);
     // Retain the execution quota: spending more condition work must not spend source operations.
-    preparation.condition_work = state::WorkBudget::new(std::num::NonZeroU64::new(1000).unwrap());
+    preparation.condition_work = state::WorkBudget::new(state::Limits::default().steps());
     requests
         .resolve_steps(&mut preparation, Request::Value(answer.into()))
         .unwrap();
@@ -336,7 +336,7 @@ fn unused_callback_permutations_share_condition_checks_only_after_data_qualifica
     let mut requests = Dependencies::default();
     preparation.body(&mut requests, answer).unwrap();
     preparation.body(&mut requests, permute).unwrap();
-    preparation.condition_work = state::WorkBudget::new(std::num::NonZeroU64::new(8).unwrap());
+    preparation.condition_work = state::WorkBudget::new(state::Limits::default().steps());
     let GraphProgress::Ready(ready) = preparation.graph(&requests, answer.into()).unwrap() else {
         panic!("existing ordinary drafts close body discovery");
     };
@@ -395,7 +395,7 @@ fn shared_conditions_do_not_bypass_plan_expansion_budget_or_failed_request_recov
         .resolve_constant(context.program().symbols().get("ANSWER").unwrap())
         .unwrap();
     let mut preparation = Preparation::new(context, Headers::Closed, state::Limits::default());
-    preparation.condition_work = state::WorkBudget::new(std::num::NonZeroU64::new(8).unwrap());
+    preparation.condition_work = state::WorkBudget::new(state::Limits::default().steps());
     let mut requests = Dependencies::default();
     // This fixture enters only two bodies, but frame resolution shares their work quota.
     // Exhaustion must report preparation work, never an inconsistent executable plan.
@@ -468,11 +468,9 @@ fn independent_invocation_positions_share_only_fully_covered_named_conditions() 
     for code in bodies {
         preparation.body(&mut requests, code).unwrap();
     }
-    preparation.condition_work = state::WorkBudget::new(std::num::NonZeroU64::new(128).unwrap());
+    preparation.condition_work = state::WorkBudget::new(state::Limits::default().steps());
     let GraphProgress::Ready(ready) = preparation.graph(&requests, answer.into()).unwrap() else {
-        panic!(
-            "independent witnesses discover the six bodies without enumerating joint permutations"
-        );
+        panic!("preloaded ordinary bodies close original-recipe discovery");
     };
     assert_eq!(ready.invoked.len(), 6);
     let checked =
@@ -553,4 +551,59 @@ fn witness_causes_survive_recursive_swaps_explicit_transfers_and_lexical_formals
             .collect::<Vec<_>>();
         assert_eq!(notes, expected);
     }
+}
+
+#[test]
+fn dormant_definition_contracts_do_not_manufacture_committed_calls_or_excuse_runtime_operations() {
+    let source = "const func skipped(): i32 { 1 / 0 }\nconst func calculate(): i32 { if false { skipped() } else { 42 } }\nconst ANSWER: i32 = calculate()";
+    let (sources, tree) = input(source);
+    let unit = accepted::SourceUnit::prepare(bound(&sources, &tree))
+        .unwrap()
+        .into_unit();
+    let program = unit.program();
+    let calculate = program
+        .resolve_code(program.symbols().get("calculate").unwrap())
+        .unwrap();
+    let skipped = program
+        .resolve_code(program.symbols().get("skipped").unwrap())
+        .unwrap();
+    let query = unit.body(calculate).unwrap().typed();
+    let call = query.body().expressions().iter().find_map(|(id, expression)| {
+        matches!(&expression.kind, ExpressionKind::Call { target: nocter_model::ValueFunctionOrigin::Declaration(target), .. } if *target == skipped).then_some(id)
+    }).unwrap();
+    let site = nocter_model::ValueApplication {
+        owner: calculate.into(),
+        call,
+    };
+    let frame = program.bind_code(calculate.into(), []).unwrap();
+    let mut work = state::WorkBudget::new(std::num::NonZeroU64::new(64).unwrap());
+    let hypothesis = crate::value_access::instances::condition_call(query, &frame, call, &mut work)
+        .unwrap()
+        .unwrap();
+    assert_eq!(hypothesis.code(), skipped.into());
+    assert!(unit.invocation_recipe(site).is_none());
+    assert_eq!(
+        unit.instantiate_invocation(&frame, site, &mut work),
+        Err(crate::value_access::InstantiationFailure::MissingCall)
+    );
+    let answer = program
+        .resolve_constant(program.symbols().get("ANSWER").unwrap())
+        .unwrap();
+    assert_eq!(
+        unit.constant_value(answer),
+        Some(&state::Value::integer(42).freeze())
+    );
+
+    let (sources, tree) = input(
+        "func runtime(): i32 { 42 }\nconst func calculate(): i32 { if false { runtime() } else { 42 } }\nconst ANSWER: i32 = calculate()",
+    );
+    let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+        accepted::SourceUnit::prepare(bound(&sources, &tree))
+    else {
+        panic!("dormant source cannot manufacture an authored const capability");
+    };
+    assert!(matches!(
+        diagnostic.rule(),
+        crate::value_access::constant::Rule::RuntimeCall(_)
+    ));
 }

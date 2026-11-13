@@ -951,8 +951,13 @@ transfers and cleanup keep their own clauses. Fixed forbidden source calls remai
 errors even when their preparation cannot complete. The dependency coordinator discovers actual
 formal-call targets after ordinary result closure and requests their existing checked drafts without
 source body retyping.
+`instances::condition_call` uses original source recipes for committed calls during body discovery.
+An absent commit can supply only a frozen definition-contract hypothesis: const declarations still
+check dormant source operations, but that hypothesis creates no executable call or value receipt.
+The strict Unit invocation resolver continues to reject the same absent commit.
 `evaluation::call_support` computes which completed-call closures name only fixed code, propagating
-uncertainty from parameter-selected or missing callees through a worklist. Fixed-code recursive
+uncertainty from parameter-selected or missing callees through a worklist. Reached source recipes
+must establish one closed target; missing source evidence cannot establish independence. Fixed-code recursive
 components need no unrolling. Body discovery can visit such a component once across differing
 witness bindings; every representative still has complete validated metadata. This projection
 never merges condition checks, payload representations, cleanup or evaluator/native instances.
@@ -960,7 +965,9 @@ never merges condition checks, payload representations, cleanup or evaluator/nat
 call receives no callable witnesses. In that domain, fixed callees forward independent witness
 positions and selected callees have no callable-argument correlation to preserve. The worklist
 propagates each new witness at one formal position through a complete declaration-validated
-representative frame, instead of enumerating joint permutations. Frames or received witnesses with
+representative frame, instead of enumerating joint permutations. Actual source recipes must also
+have singleton unary producers: unresolved application/result terms and alternative inputs retain
+exact discovery. Frames or received witnesses with
 captured substitutions retain exact discovery until contextual data is qualified. Existing fixed-target components
 still need only one visit. A selected target receiving another callable, or a target outside the
 recognized terms, retains exact joint contexts. Discovery is recomputed when required bodies
@@ -1198,7 +1205,8 @@ distinct local diagnostics. `prepare_with_limits` supplies explicit deterministi
 
 Concrete call-frame discovery and required condition closure share a separate condition-work
 quota, with the configured work limit, across one outer request and its nested dependencies.
-Each completed instance-call edge spends a unit before selecting its binding frame. Cache-driven
+Each completed instance-call edge spends a unit before selecting its binding frame. Body discovery
+also charges original-recipe fixed-point resolution to that quota. Cache-driven
 reanalysis therefore spends analysis work rather than source execution operations. The quota
 resets with outer work; it neither adds source call depth nor resets live storage. Exhaustion
 reports E0322 with `ConditionWorkLimit` at the matched source call, distinct from evaluator

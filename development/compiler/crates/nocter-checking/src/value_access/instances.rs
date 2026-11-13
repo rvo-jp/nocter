@@ -5,6 +5,46 @@ use nocter_declarations::value_access::{
 };
 use nocter_model::ValueFunctionOrigin;
 
+/// Condition checking also inspects dormant source contracts. A reached commit must use the
+/// retained source recipe; only an absent commit may use a definition-contract hypothesis.
+/// Neither branch grants an executable call, value, body or const-capability receipt.
+pub(super) fn condition_call(
+    query: &super::Query,
+    caller: &CodeInstanceKey,
+    id: nocter_model::AccessExpressionId,
+    work: &mut nocter_constant_evaluation::state::WorkBudget,
+) -> Result<Option<CodeInstanceKey>, super::InstantiationFailure> {
+    use super::InstantiationFailure as Failure;
+    if caller.code() != query.code() {
+        return Err(Failure::WrongOwner);
+    }
+    let expression = query
+        .body()
+        .expressions()
+        .get(id)
+        .ok_or(Failure::MissingCall)?;
+    if !is_completed_call(&expression.kind) {
+        return Ok(None);
+    }
+    work.step().map_err(|_| Failure::WorkLimit)?;
+    let evidence = query.result_evidence.as_ref().ok_or(Failure::Unresolved)?;
+    let site = nocter_model::ValueApplication {
+        owner: caller.code(),
+        call: id,
+    };
+    if evidence.invocation(site).is_some() {
+        return super::results::instantiate_invocation(
+            query.program(),
+            evidence,
+            caller,
+            site,
+            work,
+        )
+        .map(Some);
+    }
+    select_call(query.program(), caller, &expression.kind).map_err(|_| Failure::Unresolved)
+}
+
 /// Bind the selected code and exact callable arguments through the caller's concrete witnesses.
 /// # Errors
 /// Rejects symbolic/missing witnesses, incompatible selected views or incomplete formal coverage.

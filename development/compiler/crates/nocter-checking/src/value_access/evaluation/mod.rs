@@ -212,6 +212,18 @@ pub(super) fn condition_step(
     work.step()
         .map_err(|_| failure_at_source(code, Rule::ConditionWorkLimit, primary))
 }
+pub(super) fn condition_failure(
+    failure: super::InstantiationFailure,
+    code: AccessCodeId,
+    primary: nocter_source_index::SourceOrigin,
+) -> Failure {
+    match failure {
+        super::InstantiationFailure::WorkLimit => {
+            failure_at_source(code, Rule::ConditionWorkLimit, primary)
+        }
+        _ => Failure::Integrity(flow::IntegrityError::InconsistentTypedBody),
+    }
+}
 fn failure_at_source(
     code: AccessCodeId,
     rule: Rule,
