@@ -179,14 +179,26 @@ product grants no released ExecutableProgram conversion, payload layout, ABI or 
 
 ## Private Storage Projection
 
-`value_access::storage` projects produced concrete payload IDs into a closed RuntimeEnvironment
-for an explicitly selected runtime ABI. Optional and fallible payloads project to their common
-runtime shapes with canonical tag/comparison primitive roles; the fallible shape also requests
-the built-in error identity. It emits shared record/tuple aggregate shapes and exact logical component keys, leaving
-all size/alignment/member-offset computation to Machine. Unproduced contracts add no stored type.
-The same module projects each body's frozen environment/explicit input slots and concrete result
-into a RuntimeValueSignature. Data substitution uses the existing instance table; it never
-reclassifies Copy, access, dispatch or cleanup. No released executable adapter is introduced.
+`value_access::storage` materializes declaration-owned `DataInstanceKey` graphs for an explicitly
+selected runtime ABI. Its `Prepared` product keeps the closed RuntimeEnvironment and the matching
+contextual interner together until MIR finishes consuming them. Context-free shapes retain direct
+source identities; contextual carriers and closure environments receive local `RuntimeDataId`
+identities. Function leaves use the canonical selected function representation, so a supplied value
+and the receiving formal reuse one physical identity without relabelling their surrounding carrier.
+
+The iterative graph walk projects every positive child through the same declaration-owned context.
+Optional and fallible payloads request canonical tag/comparison primitives; fallible shapes also
+request the built-in error identity. Aggregate representations retain exact logical component keys.
+Machine owns size, alignment and member offsets. Unproduced contracts add no stored type, and empty
+arrays retain only their source element metadata without binding or materializing a positive element.
+Body signatures and MIR payload slots resolve through the prepared interner rather than inventing
+independent substitutions. Checked payload/access/cleanup evidence remains a separate prerequisite.
+No released executable adapter is introduced.
+
+This materializer and its nested-context tests do not complete formal-environment source support.
+The instance/lifecycle products and producer/closure-creation paths still need to retain contextual
+payload evidence before that source admission can open. A representation key supplies neither a
+checked payload nor a new destruction or callable-publication rule.
 
 The [private stored-representation contract](../../../architecture/pipeline/value-access-declarations.md#private-stored-representation)
 owns the representation policy and remaining realization obligations.

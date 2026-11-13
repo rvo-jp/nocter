@@ -19,6 +19,7 @@ use std::collections::BTreeMap;
 
 pub(super) struct Builder<'a> {
     pub(super) runtime: &'a nocter_runtime_contract::RuntimeEnvironment,
+    storage: &'a storage::Prepared,
     pub(super) id: AccessInstanceId,
     pub(super) instances: &'a InstanceProgram,
     pub(super) instance: &'a Instance,
@@ -74,8 +75,23 @@ impl Builder<'_> {
             .data()
             .get(&source)
             .and_then(DataEvidence::payload)
-            .map(|payload| payload.data().into())
-            .ok_or_else(|| self.invalid())
+            .ok_or_else(|| self.invalid())?;
+        self.payload_data(source)
+    }
+    fn payload_data(&self, source: TypeId) -> Result<RuntimeDataId, Failure> {
+        self.storage
+            .data(self.instances.unit().program(), self.instance.key(), source)
+            .map_err(Failure::Storage)
+    }
+
+    pub(super) fn capture_data(&self, data: RuntimeDataId) -> Result<RuntimeDataId, Failure> {
+        let Some(nocter_runtime_contract::RuntimeType::StaticCallable {
+            environment: Some(environment),
+        }) = self.runtime.types().get(data)
+        else {
+            return Err(self.invalid());
+        };
+        Ok(*environment)
     }
     fn index_data(&self) -> Result<RuntimeDataId, Failure> {
         let source = self
@@ -346,7 +362,7 @@ impl Builder<'_> {
                     let mut source = self.argument(call, *argument)?;
                     if *part == EnvironmentPart::Capture {
                         source.projections = Box::new([Projection::Environment]);
-                        source.data = payload.data().into();
+                        source.data = self.capture_data(source.data)?;
                     }
                     output.push(Effect::Dispose {
                         source,
@@ -357,14 +373,15 @@ impl Builder<'_> {
                     Step::Capture {
                         source,
                         destination,
-                        environment,
                         payload,
+                        ..
                     } => {
-                        let source = self.place(source, environment.data().into())?;
                         let mut destination =
-                            self.root(*destination, payload.data().into(), false)?;
+                            self.root(*destination, self.payload_data(payload.data())?, false)?;
+                        let environment = self.capture_data(destination.data)?;
+                        let source = self.place(source, environment)?;
                         destination.projections = Box::new([Projection::Environment]);
-                        destination.data = environment.data().into();
+                        destination.data = environment;
                         output.push(Effect::Transfer {
                             source,
                             destination,
@@ -376,8 +393,9 @@ impl Builder<'_> {
                         from,
                         payload,
                     } => {
-                        let source = self.place(source, from.data().into())?;
-                        let destination = self.root(*destination, payload.data().into(), false)?;
+                        let source = self.place(source, self.payload_data(from.data())?)?;
+                        let destination =
+                            self.root(*destination, self.payload_data(payload.data())?, false)?;
                         output.push(Effect::Reinterpret {
                             source,
                             destination,
@@ -388,16 +406,14 @@ impl Builder<'_> {
                         payload,
                         fields,
                     } => {
-                        let destination = self.root(*destination, payload.data().into(), false)?;
+                        let destination =
+                            self.root(*destination, self.payload_data(payload.data())?, false)?;
                         for (field, source) in fields {
                             let data = self
-                                .instances
-                                .unit()
-                                .program()
-                                .component(payload.data(), *field)
-                                .ok_or_else(|| self.invalid())?
-                                .data;
-                            let source = self.place(source, self.data(data)?)?;
+                                .runtime
+                                .value_field(destination.data, *field)
+                                .ok_or_else(|| self.invalid())?;
+                            let source = self.place(source, data)?;
                             let mut selection = destination.clone();
                             selection.projections = Box::new([Projection::Field(*field)]);
                             selection.data = source.data;
@@ -427,7 +443,8 @@ impl Builder<'_> {
                         destination,
                         payload,
                     } => {
-                        let destination = self.root(*destination, payload.data().into(), false)?;
+                        let destination =
+                            self.root(*destination, self.payload_data(payload.data())?, false)?;
                         output.push(Effect::Initialize(destination));
                     }
                     Step::Receive {
@@ -435,7 +452,7 @@ impl Builder<'_> {
                         destination,
                         payload,
                     } => {
-                        let data = payload.data().into();
+                        let data = self.payload_data(payload.data())?;
                         let slot = self.slot(SlotKey::Answer(*call), data, Storage::Payload)?;
                         let source = Place {
                             slot,
@@ -454,8 +471,9 @@ impl Builder<'_> {
                         destination,
                         payload,
                     } => {
-                        let source = self.place(source, payload.data().into())?;
-                        let destination = self.place(destination, payload.data().into())?;
+                        let source = self.place(source, self.payload_data(payload.data())?)?;
+                        let destination =
+                            self.place(destination, self.payload_data(payload.data())?)?;
                         output.push(Effect::Transfer {
                             source,
                             destination,
@@ -485,14 +503,14 @@ impl Builder<'_> {
                     } => {
                         let data = self.index_data()?;
                         output.push(Effect::ConsolidateArrayPrefix {
-                            source: self.place(array, payload.data().into())?,
+                            source: self.place(array, self.payload_data(payload.data())?)?,
                             endpoint: self
                                 .root(Holder::ArrayFrontier(*frontier), data, false)?
                                 .slot,
                         });
                     }
                     Step::Dispose { source, payload } => {
-                        let source = self.place(source, payload.data().into())?;
+                        let source = self.place(source, self.payload_data(payload.data())?)?;
                         output.push(Effect::Dispose {
                             source,
                             disposal: self.disposal(*payload)?,
@@ -504,7 +522,7 @@ impl Builder<'_> {
                         range,
                     } => {
                         output.push(Effect::DisposeArrayElements {
-                            source: self.place(source, payload.data().into())?,
+                            source: self.place(source, self.payload_data(payload.data())?)?,
                             range: range.try_map_index(|index| {
                                 let data = self.index_data()?;
                                 Ok(self.root(index.holder(), data, false)?.slot)
@@ -516,7 +534,7 @@ impl Builder<'_> {
                         payload,
                         missing,
                     } => {
-                        let array = self.place(source, payload.data().into())?;
+                        let array = self.place(source, self.payload_data(payload.data())?)?;
                         let missing = missing
                             .iter()
                             .map(|hole| {
@@ -560,7 +578,9 @@ impl Builder<'_> {
                         });
                     }
                     Step::ReleaseContainer { source, payload } => {
-                        output.push(Effect::End(self.place(source, payload.data().into())?));
+                        output.push(Effect::End(
+                            self.place(source, self.payload_data(payload.data())?)?,
+                        ));
                     }
                     Step::Invoke {
                         source,
@@ -568,7 +588,7 @@ impl Builder<'_> {
                         index,
                         payload,
                     } => {
-                        let source = self.place(source, payload.data().into())?;
+                        let source = self.place(source, self.payload_data(payload.data())?)?;
                         let destination = self.argument(*call, *index)?;
                         output.push(Effect::Transfer {
                             source,
@@ -580,12 +600,13 @@ impl Builder<'_> {
                         source,
                         payload,
                     } => {
-                        let destination = self.place(destination, payload.data().into())?;
+                        let destination =
+                            self.place(destination, self.payload_data(payload.data())?)?;
                         output.push(Effect::Dispose {
                             source: destination.clone(),
                             disposal: self.disposal(*payload)?,
                         });
-                        let source = self.place(source, payload.data().into())?;
+                        let source = self.place(source, self.payload_data(payload.data())?)?;
                         output.push(Effect::Transfer {
                             source,
                             destination,
@@ -704,16 +725,17 @@ fn bits(values: &[lifecycle::flags::BitValue]) -> Box<[BitValue]> {
 
 pub(super) fn body(
     instances: &InstanceProgram,
-    runtime: &nocter_runtime_contract::RuntimeEnvironment,
+    storage: &storage::Prepared,
     id: AccessInstanceId,
     lifecycle: &lifecycle::Body,
 ) -> Result<Body, Failure> {
     let invalid = Failure::InvalidBody(id);
     let instance = instances.instances().get(id).ok_or(invalid)?;
     let checked = instances.body(id).ok_or(invalid)?;
-    let signature = storage::signature(instances, id).map_err(Failure::Storage)?;
+    let signature = storage::signature(instances, storage, id).map_err(Failure::Storage)?;
     let mut builder = Builder {
-        runtime,
+        runtime: storage.environment(),
+        storage,
         id,
         instances,
         instance,

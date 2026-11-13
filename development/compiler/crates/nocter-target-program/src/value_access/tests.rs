@@ -776,11 +776,12 @@ fn empty_array_storage_has_identity_without_an_element_payload_edge() {
         let root = callable(&unit, "run");
         let graph = Arc::new(InstanceProgram::prepare(unit, root).unwrap());
         super::lifecycle::Program::prepare(graph.clone()).unwrap();
-        let runtime = storage::prepare(
+        let prepared = storage::prepare(
             &graph,
             nocter_runtime_contract::RuntimeAbiIdentity::Arm64DarwinV1,
         )
         .unwrap();
+        let runtime = prepared.environment();
         let arrays: Vec<_> = runtime
             .types()
             .iter()
@@ -809,11 +810,12 @@ fn nonempty_array_storage_keeps_one_homogeneous_element_and_count() {
     let unit = accepted(&fixture);
     let root = callable(&unit, "run");
     let graph = InstanceProgram::prepare(unit, root).unwrap();
-    let runtime = storage::prepare(
+    let prepared = storage::prepare(
         &graph,
         nocter_runtime_contract::RuntimeAbiIdentity::Arm64DarwinV1,
     )
     .unwrap();
+    let runtime = prepared.environment();
     let arrays: Vec<_> = runtime
         .types()
         .iter()

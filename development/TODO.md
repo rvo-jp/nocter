@@ -29,9 +29,12 @@ context across return/application producers without reconstructing it from a sig
 exact source/type reuse and deterministic failure recovery. A parser or metadata-only extension
 alone does not complete capture support. Preserve current rejection until executable consumers agree.
 
-Materialize shared `DataInstanceKey` shapes into the native `RuntimeDataId` identity table.
-The runtime contract, private MIR and common Machine now retain physical data identities separately
-from semantic types; contextual table construction and its consumers still require integration.
+Retain contextual payload evidence through the instance and lifecycle products instead of reducing
+an owned capture to a bare source `Payload` identity. The shared native `DataInstanceKey` materializer
+and its prepared identity interner now supply signatures, MIR payload slots and runtime component
+projections; materialization alone does not establish source capture admission.
+The runtime contract, private MIR and common Machine retain physical identities separately
+from semantic types; source closure creation and producer paths still need integration.
 Keep semantic `TypeId` in source checking
 and declarations; never turn a contextual runtime ID into a fabricated semantic type. Qualify
 source capture creation, call/return producers and runtime cleanup before opening admission.

@@ -30,8 +30,8 @@ identities throughout. There is no total conversion from a runtime identity to a
 these closed tables. They preserve logical selectors and consume the caller's saved-index bound
 check without consulting declaration types. They supply no initialization, source-bounds, backing
 or access proof. Layout offsets and actual ownership transitions remain their consumers' separate
-responsibilities. Contextual shape materialization and formal-environment source admission still
-require qualification by their owning stages.
+responsibilities. The [private native materializer](../nocter-target-program/README.md#private-storage-projection)
+owns contextual graph construction and its current source-admission boundary.
 
 ## Internal Responsibilities
 

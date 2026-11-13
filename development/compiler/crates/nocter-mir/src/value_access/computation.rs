@@ -281,15 +281,12 @@ impl Builder<'_> {
             .ok_or_else(|| self.invalid())?;
         let mut inputs = Vec::new();
         if let Environment::Capture {
-            argument,
-            input,
-            payload,
-            ..
+            argument, input, ..
         } = selected.environment()
         {
             let mut source = self.argument(id, argument)?;
             source.projections = Box::new([Projection::Environment]);
-            source.data = payload.data().into();
+            source.data = self.capture_data(source.data)?;
             inputs.push(CallInput {
                 source,
                 operation: input.operation,
@@ -301,7 +298,7 @@ impl Builder<'_> {
                 operation: binding.operation,
             });
         }
-        let data = selected.result().data().into();
+        let data = self.expression(id)?;
         let answer = self.snapshot(SlotKey::Answer(id), data)?;
         Ok(Call {
             target: selected.target(),

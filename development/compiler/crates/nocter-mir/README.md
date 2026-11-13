@@ -61,6 +61,8 @@ bindings. The result contains its runtime environment and closed bodies, with no
 storage reference. There is no separately pairable storage companion or released MirProgram adapter.
 Slots, places, static data and value signatures retain the
 [runtime storage identities](../nocter-runtime-contract/README.md#runtime-storage-identities).
+During construction, signatures and payload slots use the same prepared contextual interner.
+The finished product retains only its closed runtime environment and bodies.
 Component integrity and sparse cleanup paths use the closed runtime environment's shared type
 projection, independently of source checking and without a reverse semantic-type lookup.
 Static primitive edges retain their closed roles without adding a body or input locals. Validation
