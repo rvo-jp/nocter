@@ -9,7 +9,9 @@ use nocter_constant_evaluation::{
     CompileTimeBinaryOperation as B, CompileTimeComparisonOperation as C,
     CompileTimeUnaryOperation as U, state as plan,
 };
-use nocter_declarations::value_access::Program;
+use nocter_declarations::value_access::{
+    CodeInstanceKey, ConcreteWitness, FunctionWitness, Program,
+};
 use nocter_model::{
     AccessCodeId, AccessExpressionId, AccessFlowPointId, AccessPlaceId, FieldPath, TypeId,
     ValueAccessMode, ValueInputOperation,
@@ -29,6 +31,8 @@ struct Builder<'a, 'b> {
     query: &'a flow::Query,
     program: &'a Program,
     types: &'b mut Types,
+    instance: &'a CodeInstanceKey,
+    instances: &'b mut Instances,
     slots: Vec<plan::Slot>,
     keys: BTreeMap<Key, usize>,
 }
@@ -47,7 +51,7 @@ impl Builder<'_, '_> {
         Ok(self.expression(id)?.access().ok_or(INVALID)?.data())
     }
     fn slot(&mut self, key: Key, data: TypeId, storage: plan::Storage) -> Result<usize> {
-        let data = self.types.get(self.program, data)?;
+        let data = self.types.get_in(self.program, self.instance, data)?;
         if let Some(&slot) = self.keys.get(&key) {
             if self.slots.get(slot) != Some(&plan::Slot { data, storage }) {
                 return Err(INVALID);
@@ -459,8 +463,12 @@ impl Builder<'_, '_> {
             },
         )
     }
-    fn captured_call(&self, id: AccessExpressionId) -> Result<bool> {
-        let ExpressionKind::Call { target, kind, .. } = &self
+    fn selected_call(&self, id: AccessExpressionId) -> Result<ConcreteWitness> {
+        let ExpressionKind::Call {
+            target,
+            kind,
+            arguments,
+        } = &self
             .query
             .typed()
             .body()
@@ -471,17 +479,29 @@ impl Builder<'_, '_> {
         else {
             return Err(INVALID);
         };
-        Ok(
-            matches!(target, nocter_model::ValueFunctionOrigin::Closure(_))
-                && *kind == super::super::CallKind::Value,
-        )
+        self.instance
+            .resolve(
+                self.program,
+                FunctionWitness {
+                    origin: *target,
+                    invocation: kind.invocation(arguments).ok_or(INVALID)?,
+                },
+            )
+            .map_err(|_| INVALID)
+    }
+    fn captured_call(&self, id: AccessExpressionId) -> Result<bool> {
+        Ok(matches!(
+            self.selected_call(id)?.code(),
+            nocter_model::ValueCode::Closure(_)
+        ))
     }
     fn call_input_offset(&self, call: AccessExpressionId) -> Result<usize> {
+        if self.captured_call(call)? {
+            return Ok(0);
+        }
         let ExpressionKind::Call {
-            kind,
-            target,
-            ref arguments,
-        } = self
+            kind, arguments, ..
+        } = &self
             .query
             .typed()
             .body()
@@ -492,21 +512,11 @@ impl Builder<'_, '_> {
         else {
             return Err(INVALID);
         };
-        match target {
-            nocter_model::ValueFunctionOrigin::Closure(_)
-                if kind == super::super::CallKind::Value =>
-            {
-                Ok(0)
-            }
-            nocter_model::ValueFunctionOrigin::Declaration(_) => {
-                Ok(arguments.len() - kind.explicit_arguments(arguments).ok_or(INVALID)?.len())
-            }
-            _ => Err(INVALID),
-        }
+        Ok(arguments.len() - kind.explicit_arguments(arguments).ok_or(INVALID)?.len())
     }
     fn call(&mut self, id: AccessExpressionId) -> Result<plan::Operation> {
         let ExpressionKind::Call {
-            target,
+            target: origin,
             arguments,
             kind,
         } = &self
@@ -520,17 +530,11 @@ impl Builder<'_, '_> {
         else {
             return Err(INVALID);
         };
-        let (target, captured) = match *target {
-            nocter_model::ValueFunctionOrigin::Declaration(code) => {
-                (nocter_model::ValueCode::Declaration(code), false)
-            }
-            nocter_model::ValueFunctionOrigin::Closure(code)
-                if *kind == super::super::CallKind::Value =>
-            {
-                (nocter_model::ValueCode::Closure(code), true)
-            }
-            _ => return Err(INVALID),
-        };
+        let target = self.selected_call(id)?.code();
+        let captured = matches!(target, nocter_model::ValueCode::Closure(_));
+        let key =
+            super::super::instantiate_call(self.program, self.instance, *origin, *kind, arguments)?;
+        let target_instance = self.instances.intern(key)?;
         let arguments = arguments.clone();
         let mut inputs = Vec::new();
         let offset = self.call_input_offset(id)?;
@@ -544,7 +548,11 @@ impl Builder<'_, '_> {
                 } else {
                     self.data(argument.value)?
                 };
-                inputs.push(plan::Input::Take(self.types.get(self.program, data)?));
+                inputs.push(plan::Input::Take(self.types.get_in(
+                    self.program,
+                    self.instance,
+                    data,
+                )?));
                 continue;
             }
             let mut place = match &argument.action {
@@ -577,7 +585,7 @@ impl Builder<'_, '_> {
         }
         Ok(plan::Operation::Call {
             destination: self.holder(Holder::Expression(id))?,
-            target: target.into(),
+            target: target_instance,
             inputs: inputs.into(),
         })
     }
@@ -902,36 +910,51 @@ fn binary(
         right,
     })
 }
+#[derive(Default)]
+struct Instances {
+    ids: BTreeMap<CodeInstanceKey, plan::CodeInstance>,
+    pending: Vec<CodeInstanceKey>,
+}
+impl Instances {
+    fn intern(&mut self, key: CodeInstanceKey) -> Result<plan::CodeInstance> {
+        if let Some(&id) = self.ids.get(&key) {
+            return Ok(id);
+        }
+        let id = plan::CodeInstance {
+            source: key.code(),
+            instance: u32::try_from(self.ids.len()).map_err(|_| INVALID)?,
+        };
+        self.pending.push(key.clone());
+        self.ids.insert(key, id);
+        Ok(id)
+    }
+}
 pub(super) fn prepare(
     checked: &super::super::accepted::Checked,
     root: nocter_model::ValueCodeRoot,
     values: impl Fn(AccessCodeId) -> Option<plan::Value>,
 ) -> Result<plan::Program> {
     let program = &checked.program;
-    let mut pending = vec![root.code()];
+    let mut instances = Instances::default();
+    instances.intern(program.bind_code(root.code(), []).map_err(|_| INVALID)?)?;
     let mut types = Types::default();
     let mut plans = BTreeMap::new();
-    while let Some(id) = pending.pop() {
-        if plans.contains_key(&id.into()) {
-            continue;
-        }
-        let query = checked.code(id).ok_or(INVALID)?;
+    while let Some(key) = instances.pending.pop() {
+        let id = *instances.ids.get(&key).ok_or(INVALID)?;
+        let query = checked.code(key.code()).ok_or(INVALID)?;
         let plan = Builder {
             query,
             program,
+            instance: &key,
+            instances: &mut instances,
             types: &mut types,
             slots: Vec::new(),
             keys: BTreeMap::new(),
         }
         .build()?;
-        for (_, point) in plan.points.iter() {
-            for action in &point.actions {
-                if let plan::Operation::Call { target, .. } = action.operation {
-                    pending.push(target.source);
-                }
-            }
+        if plans.insert(id, plan).is_some() {
+            return Err(INVALID);
         }
-        plans.insert(id.into(), plan);
     }
     let mut statics = BTreeMap::new();
     for plan in plans.values() {

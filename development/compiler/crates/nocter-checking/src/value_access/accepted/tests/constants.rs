@@ -347,3 +347,53 @@ fn captured_shape_evidence_is_independent_of_source_const_and_final_admission() 
         }
     }
 }
+
+#[test]
+fn bound_callable_shapes_keep_the_template_unavailable_and_actual_environments_distinct() {
+    use crate::value_access::{ExpressionKind, instantiate_call};
+    use nocter_declarations::value_access::PayloadSchema;
+    let unit = accepted(
+        "func identity(value: i32): i32 { value }\nfunc apply(take callback: once(i32): i32): i32 { callback^(1) }\nfunc run(): i32 { let seed = 41\nlet left = (seed; value: i32): i32 { seed + value }\nlet flag = true\nlet right = (flag; value: i32): i32 { if flag { value } else { 0 } }\nlet _ = apply(left^)\nlet _ = apply(right^)\napply(identity) }",
+    );
+    let program = unit.program();
+    let apply = named(&unit, "apply").typed().code();
+    let nocter_model::ValueCode::Declaration(apply) = apply else {
+        panic!("named code");
+    };
+    let formal = program.codes().get(apply).unwrap().parameters()[0];
+    let data = program.parameters().get(formal).unwrap().data();
+    let run = named(&unit, "run");
+    let caller = program.bind_code(run.typed().code(), []).unwrap();
+    let mut types = crate::value_access::evaluation::Types::default();
+    assert!(!types.supports(program, data).unwrap());
+    assert!(types.get_in(program, &caller, data).is_err());
+    let mut projected = std::collections::BTreeSet::new();
+    let mut closure_codes = std::collections::BTreeSet::new();
+    for (_, expression) in run.typed().body().expressions().iter() {
+        let ExpressionKind::Call {
+            target,
+            kind,
+            arguments,
+        } = &expression.kind
+        else {
+            continue;
+        };
+        let key = instantiate_call(program, &caller, *target, *kind, arguments).unwrap();
+        let index = types.get_in(program, &key, data).unwrap();
+        assert!(projected.insert(index));
+        assert_eq!(types.get_in(program, &key, data).unwrap(), index);
+        let actual = key.witnesses().get(&formal.into()).unwrap().witness();
+        let actual_data = program.function_data(actual).unwrap();
+        assert!(matches!(
+            program.data_schema(actual_data),
+            Some(PayloadSchema::Function(_))
+        ));
+        assert!(types.supports(program, actual_data).unwrap());
+        assert!(!types.supports_final(program, actual_data).unwrap());
+        assert_eq!(types.get_in(program, &key, actual_data).unwrap(), index);
+        closure_codes.insert(actual.origin);
+    }
+    assert_eq!(projected.len(), 3);
+    assert_eq!(closure_codes.len(), 3);
+    assert!(!types.supports(program, data).unwrap());
+}

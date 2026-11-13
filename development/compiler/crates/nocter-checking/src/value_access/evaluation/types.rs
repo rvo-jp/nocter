@@ -1,7 +1,7 @@
 //! One evaluator shape authority for domain checks, publication and plan projection.
 use super::super::flow;
 use nocter_constant_evaluation::state::Type;
-use nocter_declarations::value_access::{PayloadSchema, Program};
+use nocter_declarations::value_access::{CodeInstanceKey, PayloadSchema, Program};
 use nocter_model::TypeId;
 use std::collections::{BTreeMap, BTreeSet};
 const INVALID: flow::IntegrityError = flow::IntegrityError::InconsistentTypedBody;
@@ -19,6 +19,27 @@ pub(in crate::value_access) struct Types {
     ids: BTreeMap<TypeId, usize>,
 }
 impl Types {
+    /// Select only an already frozen direct callable leaf. Compound payload qualification remains
+    /// independent: this does not invent a substituted nominal carrier or another type store.
+    pub(in crate::value_access) fn get_in(
+        &mut self,
+        program: &Program,
+        instance: &CodeInstanceKey,
+        data: TypeId,
+    ) -> Result<usize> {
+        let data = match program.data_schema(data).ok_or(INVALID)? {
+            PayloadSchema::Function(witness) => program
+                .function_data(
+                    instance
+                        .resolve(program, witness)
+                        .map_err(|_| INVALID)?
+                        .witness(),
+                )
+                .ok_or(INVALID)?,
+            _ => data,
+        };
+        self.get(program, data)
+    }
     pub(super) fn finish(self) -> Vec<Type> {
         self.shapes.into_iter().map(|shape| shape.ty).collect()
     }

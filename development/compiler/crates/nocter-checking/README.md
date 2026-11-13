@@ -853,7 +853,11 @@ answers with ordinary execution. Arithmetic, bounds, work and call-depth failure
 captured-body locations. Captured calls can also supply local/header array counts; supplier body
 changes invalidate header reuse while unrelated body edits do not. General contextual captures,
 outside R/D/S dependencies, formal callable substitution and opaque error-data operations remain
-outside this evaluator domain. A named actual argument cannot stand in for an unclosed
+outside this evaluator domain. Mechanical plan projection now consumes declaration-owned
+`CodeInstanceKey` contexts and the same frozen-call instantiation routine as native instances.
+Direct callable data leaves select their actual named or captured representation without mutating
+the unbound template's type identity; distinct environments remain distinct. This closes metadata
+projection, not conditional const admission. A named actual argument cannot stand in for an unclosed
 formal input representation, even when unused. Domain checking reports the actual input before
 projection; interrupted preparation never fabricates a completed call.
 

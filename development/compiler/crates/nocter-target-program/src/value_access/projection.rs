@@ -27,31 +27,7 @@ pub(super) fn callee(
     kind: CallKind,
     arguments: &[Argument],
 ) -> Result<InstanceKey, Failure> {
-    let selected = witness(
-        program,
-        caller,
-        FunctionWitness {
-            origin: target,
-            invocation: kind
-                .invocation(arguments)
-                .ok_or(Failure::InvalidAcceptedUnit)?,
-        },
-    )?;
-    let code = selected.code();
-    let mut witnesses = BTreeMap::new();
-    for argument in arguments {
-        if let Some(binding) = &argument.binding {
-            let resolved = witness(program, caller, binding.witness)?;
-            if witnesses
-                .insert(binding.parameter, resolved.witness())
-                .is_some()
-            {
-                return Err(Failure::InvalidAcceptedUnit);
-            }
-        }
-    }
-    program
-        .bind_code(code, witnesses)
+    nocter_checking::value_access::instantiate_call(program, caller, target, kind, arguments)
         .map_err(|_| Failure::InvalidAcceptedUnit)
 }
 

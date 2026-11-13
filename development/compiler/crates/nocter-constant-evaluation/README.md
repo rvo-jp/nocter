@@ -76,8 +76,10 @@ operation. Pointer-size entries use the qualified target profile, independently 
 
 Plan tables and direct-call edges select a `CodeInstance`: the complete semantic `ValueCode`,
 including lexical captured code, plus a program-local instance number. Multiple lowered plans may
-share one checked source identity without aliasing their dispatch keys. Zero is the default instance
-used by the current source projection; this key alone grants no callable binding or const capability.
+share one checked source identity without aliasing their dispatch keys. Zero selects the requested
+initializer. Checking interns other plans by declaration-owned concrete code/witness contexts before
+lowering, so recursion is a graph edge rather than repeated source checking. The numeric key alone
+grants no callable binding or const capability.
 Execution sites and callable environment types retain the original semantic code. A required failure
 separately retains its requested initializer `ValueCodeRoot`.
 Sibling closures and their root can reuse local point/action IDs without sharing a plan or a

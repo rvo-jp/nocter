@@ -14,6 +14,8 @@ pub mod evaluation;
 mod expressions;
 pub mod flow;
 mod inputs;
+mod instances;
+pub use instances::instantiate_call;
 mod ir;
 mod paths;
 mod postfix;
