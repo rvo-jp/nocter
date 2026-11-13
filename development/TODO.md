@@ -98,8 +98,8 @@ not a language restriction derived from the current realization boundary.
 
 ## Open Findings
 
-- [ ] Extend symbolic discharge beyond covered fixed-target closures with root-closed named
-  function data. Parameter-selected calls, captured/unresolved terms, compound dependent data and
+- [ ] Extend symbolic discharge beyond covered root-closed named witnesses and parameter-selected
+  calls without callable receiving dependencies. Captured/unresolved terms, compound dependent data and
   value/resource-state guards retain exact-frame checks. Preserve matched body/type receipts,
   receiving operations, actual cleanup, exact supplying-argument causes and source safety.
   Work quotas bound uncertainty without proving eligibility; module publication retains its

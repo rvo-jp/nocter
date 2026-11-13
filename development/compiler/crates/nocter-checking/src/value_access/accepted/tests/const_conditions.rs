@@ -446,7 +446,7 @@ fn mutual_conditional_recursion_keeps_outer_inputs_symbolic_and_exposes_fixed_fa
 }
 
 #[test]
-fn covered_fixed_conditions_prove_named_data_and_fall_back_for_captured_or_invoked_inputs() {
+fn covered_conditions_share_named_calls_and_preserve_unresolved_or_captured_fallbacks() {
     use nocter_constant_evaluation::state::WorkBudget;
     for (source, root, expected) in [
         (
@@ -458,6 +458,11 @@ fn covered_fixed_conditions_prove_named_data_and_fall_back_for_captured_or_invok
             "const func ignore(action: func(i32): i32): i32 { 42 }\nconst func root(): i32 { let captured = 40\nlet action = (captured; value: i32): i32 { value + captured }\nignore(action) }\nconst ANSWER: i32 = root()",
             "root",
             false,
+        ),
+        (
+            "const func identity(value: i32): i32 { value }\nconst func apply(action: func(i32): i32, value: i32): i32 { action(value) }\nconst func root(): i32 { apply(identity, 42) }\nconst ANSWER: i32 = root()",
+            "root",
+            true,
         ),
         (FORWARDING, "forward", false),
     ] {
@@ -471,7 +476,7 @@ fn covered_fixed_conditions_prove_named_data_and_fall_back_for_captured_or_invok
         let mut work = WorkBudget::new(std::num::NonZeroU64::new(4).unwrap());
         assert_eq!(
             unit.const_templates
-                .prove_fixed_root(root, &verified, &mut work)
+                .prove_closed_root(root, &verified, &mut work)
                 .unwrap(),
             expected,
             "{source}"
@@ -483,7 +488,7 @@ fn covered_fixed_conditions_prove_named_data_and_fall_back_for_captured_or_invok
             work.restart();
             assert!(
                 unit.const_templates
-                    .prove_fixed_root(root, &unmatched, &mut work)
+                    .prove_closed_root(root, &unmatched, &mut work)
                     .is_err()
             );
         } else {

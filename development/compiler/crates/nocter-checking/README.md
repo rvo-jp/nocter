@@ -952,23 +952,30 @@ substitutes the callee's formal data witness through its stored frame and keeps 
 as its cause. Interrupted preparation contributes no callee input or body-owned cleanup. Receiving
 an input does not require its invocation and does not invent Copy, an owner or a retirement.
 
-`Requirements::fixed_coverage` separately checks whether every current clause is represented
-for a fixed-target call closure. Unrepresented data, missing producer/view metadata, foreign
-captures and missing/uncovered callees prevent coverage; incompleteness propagates back to callers.
-Coverage alone supplies no eligibility. For root-closed named function data only,
-`Conditions::prove_fixed_root` additionally discharges the retained predicates, rebinds every
-reachable checked body through the matched source/type receipt, and charges condition work for
-its completed known-code edges. This avoids re-creating concrete binding frames for that scope.
-It relies on the current direct-leaf substitution and declaration-owned signature/view
-normalization; qualifying dependent carriers requires revisiting the proof. Captured/unresolved
-terms and parameter-selected invocations retain the exact-frame path. The proof neither executes
-nor memoizes source results, merges layouts, nor supplies a plan or final-publication exception.
+`Requirements::clause_coverage` separately checks whether every current clause is represented
+in the finite conjunction. A parameter-selected call additionally retains a selected-body
+obligation, distinct from its authored invocation capability. Its currently covered receiving
+boundary has supported noncallable data and no callable argument bindings. Unrepresented data,
+missing producer/view metadata, foreign captures and missing/uncovered fixed callees prevent
+coverage; incompleteness propagates back to callers. Coverage alone supplies no eligibility.
+
+For root-closed named function witnesses, `Conditions::prove_closed_root` discharges the retained
+predicates and recursively preflights each selected body's complete conjunction. Selected bodies
+must have no callable formals requiring a further concrete frame. Unknown or uncovered obligations
+return to exact checks before consuming condition work. A successful proof rebinds every reachable
+checked body through the matched source/type receipt and charges its completed source edges,
+including parameter-selected edges. This avoids enumerating joint witness permutations without
+using the body-discovery projection as eligibility evidence. It relies on current direct-leaf
+substitution and declaration-owned signature/view normalization; qualifying dependent carriers
+requires revisiting the proof. Captured/unresolved witnesses and callable receiving dependencies
+retain the exact-frame path. The proof neither executes nor memoizes source results, merges layouts,
+nor supplies a plan or final-publication exception.
 
 Outside this covered scope, absence of a failure in the finite conjunctive product is not a complete
-eligibility certificate. Parameter-selected receiving inputs, compound dependent data,
-value/resource-state guards and general symbolic composition remain integration work. Ordinary
-exact required checks still apply. Module publication requires separate qualification; the products
-alone grant no exported unconditional const guarantee or evaluator implementation.
+eligibility certificate. Compound dependent data, value/resource-state guards and general symbolic
+composition remain integration work. Ordinary exact required checks still apply. Module publication
+requires separate qualification; the products alone grant no exported unconditional const guarantee
+or evaluator implementation.
 
 Explicit unsupported drops fail even in dead source. Implicit disposal and edit-input replacement
 consume the actual sparse resource transitions; ending a partial container does not destroy its

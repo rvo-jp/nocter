@@ -210,7 +210,7 @@ impl Requirements {
         Ok(None)
     }
     /// Coverage of the current conjunctive vocabulary, not eligibility or executable layout.
-    pub(super) fn fixed_coverage(&self) -> Result<bool, flow::IntegrityError> {
+    pub(super) fn clause_coverage(&self) -> Result<bool, flow::IntegrityError> {
         let program = self.body.typed().program();
         let Ok(identity) = program.code_template(self.code()) else {
             return Ok(false);
@@ -241,52 +241,25 @@ impl Requirements {
                         continue;
                     }
                     if target.code().is_none() {
-                        return Ok(false);
+                        let nocter_model::ValueFunctionOrigin::Parameter(parameter) = target else {
+                            return Ok(false);
+                        };
+                        if !identity.witnesses().contains_key(parameter)
+                            || !matches!(template, Some(Ok(CallTemplate::Parameter(_))))
+                        {
+                            return Ok(false);
+                        }
                     }
-                    if instances::completed(arguments)
+                    if target.code().is_some()
+                        && instances::completed(arguments)
                         && !matches!(template, Some(Ok(CallTemplate::Code(_))))
                     {
                         return Ok(false);
                     }
                 }
                 Clause::Inputs(id) => {
-                    let ExpressionKind::Call {
-                        target,
-                        kind,
-                        arguments,
-                    } = &self
-                        .body
-                        .typed()
-                        .body()
-                        .expressions()
-                        .get(*id)
-                        .ok_or(INVALID)?
-                        .kind
-                    else {
-                        return Err(INVALID);
-                    };
-                    if !instances::completed(arguments) {
-                        continue;
-                    }
-                    let Some(contract) = super::input_contract(program, *target, *kind, arguments)?
-                    else {
+                    if !self.inputs_covered(*id, &mut domain)? {
                         return Ok(false);
-                    };
-                    for input in &contract.inputs {
-                        match program.data_schema(input.data).ok_or(INVALID)? {
-                            nocter_declarations::value_access::PayloadSchema::Function(witness)
-                                if matches!(
-                                    witness.origin,
-                                    nocter_model::ValueFunctionOrigin::Parameter(_)
-                                        | nocter_model::ValueFunctionOrigin::Declaration(_)
-                                        | nocter_model::ValueFunctionOrigin::Closure(_)
-                                ) => {}
-                            nocter_declarations::value_access::PayloadSchema::Function(_) => {
-                                return Ok(false);
-                            }
-                            _ if domain.supports(program, input.data)? => {}
-                            _ => return Ok(false),
-                        }
                     }
                 }
                 Clause::Data(violation) => {
@@ -308,6 +281,89 @@ impl Requirements {
                         return Ok(false);
                     }
                 }
+            }
+        }
+        Ok(true)
+    }
+    /// The receiving boundary of a parameter-selected call must be independent of a further
+    /// callable binding frame. Its selected body is covered separately by `Term::Body`.
+    fn inputs_covered(
+        &self,
+        id: AccessExpressionId,
+        domain: &mut evaluation::Types,
+    ) -> Result<bool, flow::IntegrityError> {
+        let program = self.body.typed().program();
+        let ExpressionKind::Call {
+            target,
+            kind,
+            arguments,
+        } = &self
+            .body
+            .typed()
+            .body()
+            .expressions()
+            .get(id)
+            .ok_or(INVALID)?
+            .kind
+        else {
+            return Err(INVALID);
+        };
+        if !instances::completed(arguments) {
+            return Ok(true);
+        }
+        let contract = if matches!(target, nocter_model::ValueFunctionOrigin::Parameter(_)) {
+            // A parameter-selected body is a separate retained obligation. For now its
+            // receiving boundary must be witness-independent: no callable arguments.
+            if arguments.iter().any(|argument| argument.binding.is_some()) {
+                return Ok(false);
+            }
+            let Some(contract) =
+                program.function_contract(nocter_declarations::value_access::FunctionWitness {
+                    origin: *target,
+                    invocation: kind.invocation(arguments).ok_or(INVALID)?,
+                })
+            else {
+                return Ok(false);
+            };
+            let explicit = kind.explicit_arguments(arguments).ok_or(INVALID)?;
+            if explicit.len() != contract.inputs.len() {
+                return Err(INVALID);
+            }
+            for (argument, input) in explicit.iter().zip(&contract.inputs) {
+                if argument.operation != input.operation {
+                    return Err(INVALID);
+                }
+                if matches!(
+                    program.data_schema(input.data),
+                    Some(nocter_declarations::value_access::PayloadSchema::Function(
+                        _
+                    ))
+                ) || !domain.supports(program, input.data)?
+                {
+                    return Ok(false);
+                }
+            }
+            return Ok(true);
+        } else {
+            let Some(contract) = super::input_contract(program, *target, *kind, arguments)? else {
+                return Ok(false);
+            };
+            contract
+        };
+        for input in &contract.inputs {
+            match program.data_schema(input.data).ok_or(INVALID)? {
+                nocter_declarations::value_access::PayloadSchema::Function(witness)
+                    if matches!(
+                        witness.origin,
+                        nocter_model::ValueFunctionOrigin::Parameter(_)
+                            | nocter_model::ValueFunctionOrigin::Declaration(_)
+                            | nocter_model::ValueFunctionOrigin::Closure(_)
+                    ) => {}
+                nocter_declarations::value_access::PayloadSchema::Function(_) => {
+                    return Ok(false);
+                }
+                _ if domain.supports(program, input.data)? => {}
+                _ => return Ok(false),
             }
         }
         Ok(true)

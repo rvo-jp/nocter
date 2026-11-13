@@ -434,7 +434,7 @@ fn shared_conditions_do_not_bypass_plan_expansion_budget_or_failed_request_recov
 }
 
 #[test]
-fn independent_invocation_positions_factor_discovery_without_merging_const_conditions() {
+fn independent_invocation_positions_share_only_fully_covered_named_conditions() {
     let source = invoked_callback_permutations();
     let (sources, tree) = input(&source);
     let syntax = bound(&sources, &tree);
@@ -474,15 +474,13 @@ fn independent_invocation_positions_factor_discovery_without_merging_const_condi
         accepted::admit_resolved(&preparation.context, ready.resolved, Some(&ready.invoked))
             .unwrap();
     preparation.condition_work = state::WorkBudget::new(std::num::NonZeroU64::new(64).unwrap());
-    let Err(Failure::Evaluation { diagnostic, .. }) = accepted::check_required_const(
+    accepted::check_required_const(
         &preparation.context,
         &checked,
         answer.into(),
         &mut preparation.condition_work,
-    ) else {
-        panic!("discovery projection grants no shared condition proof");
-    };
-    assert_eq!(diagnostic.rule(), Rule::ConditionWorkLimit);
+    )
+    .expect("matched closed body obligations prove the conditions independently of discovery");
 }
 
 #[test]

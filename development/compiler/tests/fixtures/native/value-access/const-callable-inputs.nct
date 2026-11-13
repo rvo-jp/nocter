@@ -76,6 +76,7 @@ const func permuting(): i32 { permute_unused(unused_alpha, unused_beta, unused_g
 const func calculate(): i32 {
     if reading() == 42 && editing() == 42 && taking() == 42 && anonymous() == 42 && interrupted() == 42 && permuting() == 42 { 42 } else { 0 }
 }
+const NAMED_APPLIED: i32 = forward(increment, 41)
 const PERMUTED: i32 = permuting()
 const ANSWER: i32 = calculate()
-func run(): i32 { if ANSWER == 42 && PERMUTED == 42 && calculate() == 42 { 42 } else { 0 } }
+func run(): i32 { if ANSWER == 42 && PERMUTED == 42 && NAMED_APPLIED == 42 && calculate() == 42 { 42 } else { 0 } }

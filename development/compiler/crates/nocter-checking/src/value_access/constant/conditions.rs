@@ -8,6 +8,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum Term {
     Invocation(FunctionWitness),
+    Body(FunctionWitness),
     Representation(FunctionWitness),
     Cleanup(FunctionWitness),
     Input {
@@ -19,6 +20,7 @@ impl Term {
     fn witness(self) -> FunctionWitness {
         match self {
             Self::Invocation(witness)
+            | Self::Body(witness)
             | Self::Representation(witness)
             | Self::Cleanup(witness)
             | Self::Input { witness, .. } => witness,
@@ -27,6 +29,7 @@ impl Term {
     fn substitute(self, witness: FunctionWitness) -> Self {
         match self {
             Self::Invocation(_) => Self::Invocation(witness),
+            Self::Body(_) => Self::Body(witness),
             Self::Representation(_) => Self::Representation(witness),
             Self::Cleanup(_) => Self::Cleanup(witness),
             Self::Input { operation, .. } => Self::Input { operation, witness },
@@ -73,7 +76,7 @@ impl Conditions {
             BTreeMap::<ValueCode, Vec<(ValueCode, AccessExpressionId, CodeTemplateKey)>>::new();
         let mut pending = VecDeque::new();
         for (&code, item) in requirements {
-            if item.fixed_coverage()? {
+            if item.clause_coverage()? {
                 graph.covered.insert(code);
             }
             graph.seed(item, &mut pending)?;
@@ -210,6 +213,25 @@ impl Conditions {
                 },
             )? {
                 pending.push_back((code, Term::Invocation(witness)));
+            }
+        }
+        for call in item.completed_calls() {
+            if let Ok(CallTemplate::Parameter(witness)) = call.template() {
+                let term = Term::Body(*witness);
+                if self.insert(
+                    item.body().typed().program(),
+                    code,
+                    term,
+                    Cause {
+                        code,
+                        site: Site::Expression(call.expression()),
+                        rule: None,
+                        parent: None,
+                        parameter: None,
+                    },
+                )? {
+                    pending.push_back((code, term));
+                }
             }
         }
         for violation in item.data_conditions() {
@@ -373,6 +395,9 @@ impl Conditions {
         for (&term, &cause) in self.terms.get(&item.code()).into_iter().flatten() {
             let witness = term.witness();
             let rule = match term {
+                // Body eligibility requires the separately matched callee conjunction. Merely
+                // observing no atomic violation here supplies no positive body fact.
+                Term::Body(_) => None,
                 Term::Invocation(_) => super::invocation_rule(
                     program,
                     crate::value_access::CallKind::Value,
@@ -406,9 +431,9 @@ impl Conditions {
         }
         Ok(None)
     }
-    /// Discharge a covered fixed-target conjunction over root-closed named data witnesses.
-    /// The proof concerns these exact clauses only; plans and final publication remain separate.
-    pub(super) fn prove_fixed_root(
+    /// Discharge root-closed named witnesses using complete matched conjunctions.
+    /// Selected bodies remain distinct obligations from authored invocation capability.
+    pub(super) fn prove_closed_root(
         &self,
         root: ValueCode,
         requirements: &BTreeMap<ValueCode, Requirements>,
@@ -417,27 +442,50 @@ impl Conditions {
     ) -> Result<bool, crate::value_access::accepted::Failure> {
         use crate::value_access::accepted::Failure as AcceptedFailure;
         let invalid = || AcceptedFailure::Integrity(INVALID);
-        if !self.covered.contains(&root) {
-            return Ok(false);
+        let mut roots = vec![root];
+        let mut discharged = BTreeSet::new();
+        let mut pending = Vec::new();
+        // Complete the eligibility preflight before consuming work. An unknown selected body
+        // falls back without charging both this proof and the exact-frame traversal.
+        while let Some(root) = roots.pop() {
+            if !discharged.insert(root) {
+                continue;
+            }
+            if !self.covered.contains(&root) {
+                return Ok(false);
+            }
+            let Some(item) = requirements.get(&root) else {
+                return Ok(false);
+            };
+            let program = item.body().typed().program();
+            for term in self
+                .terms
+                .get(&root)
+                .into_iter()
+                .flat_map(|terms| terms.keys())
+            {
+                let ValueFunctionOrigin::Declaration(code) = term.witness().origin else {
+                    return Ok(false);
+                };
+                if matches!(term, Term::Body(_)) {
+                    let code = ValueCode::Declaration(code);
+                    // Selected calls with callable receiving formals need their actual frame;
+                    // a matching invocation capability never supplies those bindings.
+                    if program.bind_code(code, []).is_err() {
+                        return Ok(false);
+                    }
+                    roots.push(code);
+                }
+            }
+            if self
+                .violation(item, &|_| false)
+                .map_err(AcceptedFailure::Integrity)?
+                .is_some()
+            {
+                return Ok(false);
+            }
+            pending.push(root);
         }
-        if self
-            .terms
-            .get(&root)
-            .into_iter()
-            .flat_map(|terms| terms.keys())
-            .any(|term| !matches!(term.witness().origin, ValueFunctionOrigin::Declaration(_)))
-        {
-            return Ok(false);
-        }
-        let item = requirements.get(&root).ok_or_else(invalid)?;
-        if self
-            .violation(item, &|_| false)
-            .map_err(AcceptedFailure::Integrity)?
-            .is_some()
-        {
-            return Ok(false);
-        }
-        let mut pending = vec![root];
         let mut visited = BTreeSet::new();
         while let Some(code) = pending.pop() {
             if !visited.insert(code) {
@@ -463,12 +511,12 @@ impl Conditions {
                     }
                 })?;
                 crate::value_access::evaluation::condition_step(work, code.source_owner(), origin)?;
-                let CallTemplate::Code(callee) =
-                    call.template().map_err(AcceptedFailure::Integrity)?
-                else {
-                    return Ok(false);
-                };
-                pending.push(callee.code());
+                match call.template().map_err(AcceptedFailure::Integrity)? {
+                    CallTemplate::Code(callee) => pending.push(callee.code()),
+                    // Its actual named body was preflighted as a root obligation. The formal
+                    // source edge is still charged, without inventing a concrete binding frame.
+                    CallTemplate::Parameter(_) => {}
+                }
             }
         }
         Ok(true)
@@ -677,6 +725,60 @@ mod coverage_tests {
         tests::{bound, input},
     };
     use std::sync::Arc;
+
+    #[test]
+    fn missing_selected_body_cannot_be_replaced_by_its_authored_const_flag() {
+        use nocter_constant_evaluation::state::WorkBudget;
+        let (sources, tree) = input(
+            "const func leaf(): i32 { 42 }\nconst func apply(action: func(): i32): i32 { action() }\nconst func root(): i32 { apply(leaf) }\nconst ANSWER: i32 = root()",
+        );
+        let syntax = bound(&sources, &tree);
+        let prepared = SourceUnit::prepare(syntax).unwrap();
+        let context = prepared.declarations().bind(syntax).unwrap();
+        let unit = prepared.unit();
+        let program = unit.program();
+        let code = |name| {
+            ValueCode::Declaration(
+                program
+                    .resolve_code(program.symbols().get(name).unwrap())
+                    .unwrap(),
+            )
+        };
+        let mut requirements = unit
+            .bodies()
+            .map(|(_, body)| {
+                let item = Requirements::prepare(Arc::new(body.clone())).unwrap();
+                (item.code(), item)
+            })
+            .collect::<BTreeMap<_, _>>();
+        let evidence = requirements[&code("root")]
+            .body()
+            .typed()
+            .result_evidence
+            .as_ref()
+            .unwrap()
+            .clone();
+        let verified = evidence.verify(&context).unwrap();
+        let mut work = WorkBudget::new(std::num::NonZeroU64::new(8).unwrap());
+        let graph = Conditions::prepare(&requirements).unwrap();
+        assert!(
+            graph
+                .prove_closed_root(code("root"), &requirements, &verified, &mut work)
+                .unwrap()
+        );
+        requirements.remove(&code("leaf"));
+        let incomplete = Conditions::prepare(&requirements).unwrap();
+        // The fixed-edge conjunction is still covered; the selected body is an independent
+        // completeness requirement, not a missing fixed-edge shortcut.
+        assert!(incomplete.covered.contains(&code("root")));
+        work.restart();
+        assert!(
+            !incomplete
+                .prove_closed_root(code("root"), &requirements, &verified, &mut work)
+                .unwrap()
+        );
+        work.charge(8).unwrap();
+    }
 
     #[test]
     fn missing_matched_callee_body_cannot_supply_covered_conditions() {
