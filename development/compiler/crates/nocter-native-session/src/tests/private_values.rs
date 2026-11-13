@@ -1023,3 +1023,13 @@ fn private_anonymous_callable_applications_close_deferred_and_returned_callee_bi
         42,
     );
 }
+
+#[test]
+fn private_conditional_const_callable_inputs_match_runtime_state_and_results() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/const-callable-inputs.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "const-callable-inputs", 42);
+}

@@ -15,7 +15,7 @@ impl Availability {
         let mut dependents =
             BTreeMap::<ValueClosure, Vec<(ValueClosure, nocter_model::AccessExpressionId)>>::new();
         for (&code, query) in closures {
-            let mut violation = super::check(query, &|_| true)?;
+            let mut violation = super::check(query, &|_| true, None)?;
             for (id, expression) in query.typed().body().expressions().iter() {
                 if let crate::value_access::ExpressionKind::Call {
                     target: ValueFunctionOrigin::Closure(target),
@@ -51,7 +51,7 @@ impl Availability {
         }
         Ok(Self { states })
     }
-    pub(in crate::value_access) fn available(&self, code: ValueClosure) -> bool {
+    pub(in crate::value_access) fn permitted_template(&self, code: ValueClosure) -> bool {
         self.states.get(&code).is_some_and(Option::is_none)
     }
     pub(in crate::value_access) fn annotate(

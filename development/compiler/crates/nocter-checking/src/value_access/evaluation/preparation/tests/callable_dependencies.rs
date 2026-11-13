@@ -90,3 +90,171 @@ fn resolved_count_supplier_bodies_guard_header_reuse_without_unrelated_bodies() 
         );
     }
 }
+
+#[test]
+fn conditional_const_callable_inputs_execute_through_exact_instances() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/const-callable-inputs.nct"
+    ));
+    let mut failures = Vec::new();
+    for function in ["reading", "editing", "taking", "anonymous", "calculate"] {
+        let source = source.replace(
+            "const ANSWER: i32 = calculate()",
+            &format!("const ANSWER: i32 = {function}()"),
+        );
+        let (sources, tree) = input(&source);
+        match accepted::SourceUnit::prepare(bound(&sources, &tree)) {
+            Ok(unit) => {
+                let unit = unit.into_unit();
+                let id = unit
+                    .program()
+                    .resolve_constant(unit.program().symbols().get("ANSWER").unwrap())
+                    .unwrap();
+                assert_eq!(
+                    unit.constant_value(id),
+                    Some(&state::Value::integer(42).freeze()),
+                    "{function}"
+                );
+            }
+            Err(failure) => failures.push(format!("{function}: {failure:?}")),
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+#[test]
+fn a_bound_runtime_only_callback_keeps_the_generic_operation_and_caller_cause() {
+    let source = "func runtime(value: i32): i32 { value }\nconst func apply(action: func(i32): i32): i32 { action(42) }\nconst ANSWER: i32 = apply(runtime)";
+    let (sources, tree) = input(source);
+    let syntax = bound(&sources, &tree);
+    let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+        accepted::SourceUnit::prepare(syntax)
+    else {
+        panic!("missing authored capability");
+    };
+    assert!(matches!(
+        diagnostic.rule(),
+        crate::value_access::constant::Rule::RuntimeCall(_)
+    ));
+    assert_eq!(
+        syntax.text_at(diagnostic.source().primary().span().range()),
+        Some("action(42)")
+    );
+    assert!(
+        diagnostic
+            .source()
+            .notes()
+            .iter()
+            .any(|note| syntax.text_at(note.origin().span().range()) == Some("apply(runtime)"))
+    );
+}
+
+#[test]
+fn an_unavailable_bound_closure_retains_its_local_fixed_operation_cause() {
+    let source = "func runtime(): i32 { 42 }\nconst func apply(action: func(): i32): i32 { action() }\nconst func calculate(): i32 { let value = 0\nlet action = (value;): i32 { if false { runtime() } else { 42 } }\napply(action) }\nconst ANSWER: i32 = calculate()";
+    let (sources, tree) = input(source);
+    let syntax = bound(&sources, &tree);
+    let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+        accepted::SourceUnit::prepare(syntax)
+    else {
+        panic!("fixed runtime source operation");
+    };
+    assert!(matches!(
+        diagnostic.rule(),
+        crate::value_access::constant::Rule::CapturedCall(_)
+    ));
+    assert_eq!(
+        syntax.text_at(diagnostic.source().primary().span().range()),
+        Some("action()")
+    );
+    assert!(
+        diagnostic
+            .source()
+            .notes()
+            .iter()
+            .any(|note| syntax.text_at(note.origin().span().range()) == Some("runtime()"))
+    );
+    assert!(
+        diagnostic
+            .source()
+            .notes()
+            .iter()
+            .any(|note| syntax.text_at(note.origin().span().range()) == Some("apply(action)"))
+    );
+}
+
+#[test]
+fn an_unused_runtime_callback_body_does_not_create_a_required_value_cycle() {
+    assert_answer_42(
+        "func deferred(value: i32): i32 { let _ = ANSWER\nvalue }\nconst func ignore(action: func(i32): i32): i32 { 42 }\nconst ANSWER: i32 = ignore(deferred)",
+    );
+}
+
+#[test]
+fn bound_callback_failures_keep_actual_sites_and_recover_the_same_request_coordinator() {
+    for (body, expected, failure_site) in [
+        ("value / 0", state::Rule::ArithmeticFailure, "value / 0"),
+        // Repeated entry into this empty block consumes the operation budget.
+        ("loop {}", state::Rule::StepLimit, "{}"),
+    ] {
+        let source = format!(
+            "const func target(value: i32): i32 {{ {body} }}\nconst func apply(action: func(i32): i32): i32 {{ action(42) }}\nconst ANSWER: i32 = apply(target)\nconst RECOVERY: i32 = 42"
+        );
+        let (sources, tree) = input(&source);
+        let syntax = bound(&sources, &tree);
+        let headers = declarations::Query::prepare(syntax).unwrap();
+        let context = headers.bind(syntax).unwrap();
+        let program = context.program();
+        let answer = program
+            .resolve_constant(program.symbols().get("ANSWER").unwrap())
+            .unwrap();
+        let recovery = program
+            .resolve_constant(program.symbols().get("RECOVERY").unwrap())
+            .unwrap();
+        let limits = nocter_constant_evaluation::CompileTimeEvaluationLimits::new(
+            std::num::NonZeroU64::new(128).unwrap(),
+            std::num::NonZeroU32::new(8).unwrap(),
+        );
+        let mut preparation = Preparation::new(context, Headers::Closed, limits.into());
+        let mut requests = Dependencies::default();
+        let Err(QueryError::Computation(SourceFailure::Checking(Failure::Evaluation {
+            diagnostic,
+            ..
+        }))) = requests.resolve_steps(&mut preparation, Request::Value(answer.into()))
+        else {
+            panic!("actual callback failure: {body}");
+        };
+        assert_eq!(diagnostic.rule(), Rule::Execution(expected));
+        assert_eq!(
+            syntax.text_at(diagnostic.source().primary().span().range()),
+            Some(failure_site)
+        );
+        for call in ["action(42)", "apply(target)"] {
+            assert!(
+                diagnostic
+                    .source()
+                    .notes()
+                    .iter()
+                    .any(|note| syntax.text_at(note.origin().span().range()) == Some(call)),
+                "{call}"
+            );
+        }
+        assert_eq!(requests.active_depth(), 0);
+        assert_eq!(requests.active_keys().len(), 0);
+        assert!(dependencies::value(&requests, answer).is_none());
+        assert_eq!(preparation.budget.storage_used(), 0);
+        preparation.budget.restart_work();
+        requests
+            .resolve_steps(&mut preparation, Request::Value(recovery.into()))
+            .unwrap();
+        assert_eq!(
+            dependencies::value(&requests, recovery).unwrap().frozen,
+            state::Value::integer(42).freeze()
+        );
+        // A completed cached value retains its own metered payload until the cache is dropped.
+        assert!(preparation.budget.storage_used() > 0);
+        drop(requests);
+        assert_eq!(preparation.budget.storage_used(), 0);
+    }
+}

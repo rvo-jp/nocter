@@ -841,9 +841,11 @@ impl Builder<'_, '_> {
             statics,
             inputs,
             slots: self.slots.into(),
-            result: self
-                .types
-                .get(self.program, self.query.typed().result_data())?,
+            result: self.types.get_in(
+                self.program,
+                self.instance,
+                self.query.typed().result_data(),
+            )?,
             initializer: match self.query.typed().code() {
                 nocter_model::ValueCode::Declaration(id) => self
                     .program

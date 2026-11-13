@@ -40,3 +40,41 @@ pub fn instantiate_call(
         .bind_code(selected.code(), bindings)
         .map_err(|_| invalid)
 }
+
+/// A completed call is distinct from values prepared before an interrupted later argument.
+pub(super) fn completed(arguments: &[Argument]) -> bool {
+    !arguments.iter().any(|argument| {
+        matches!(
+            argument.action,
+            super::ArgumentAction::Interrupted | super::ArgumentAction::Unproduced
+        )
+    })
+}
+
+/// Selected instance edges in an existing typed body, shared by discovery and required admission.
+pub(super) fn calls(
+    program: &Program,
+    caller: &CodeInstanceKey,
+    body: &super::Query,
+) -> Result<Vec<(nocter_model::AccessExpressionId, CodeInstanceKey)>, flow::IntegrityError> {
+    if caller.code() != body.code() || !std::ptr::eq(program, body.program()) {
+        return Err(flow::IntegrityError::InconsistentTypedBody);
+    }
+    body.body()
+        .expressions()
+        .iter()
+        .filter_map(|(id, expression)| {
+            let super::ExpressionKind::Call {
+                target,
+                kind,
+                arguments,
+            } = &expression.kind
+            else {
+                return None;
+            };
+            completed(arguments).then(|| {
+                instantiate_call(program, caller, *target, *kind, arguments).map(|key| (id, key))
+            })
+        })
+        .collect()
+}

@@ -851,15 +851,27 @@ read/edit/consuming bodies, weaker read/edit/once views, independent Copy snapsh
 inputs, factory-only results and per-instance state. The shared native source compares embedded
 answers with ordinary execution. Arithmetic, bounds, work and call-depth failures retain actual
 captured-body locations. Captured calls can also supply local/header array counts; supplier body
-changes invalidate header reuse while unrelated body edits do not. General contextual captures,
-outside R/D/S dependencies, formal callable substitution and opaque error-data operations remain
-outside this evaluator domain. Mechanical plan projection now consumes declaration-owned
-`CodeInstanceKey` contexts and the same frozen-call instantiation routine as native instances.
+changes invalidate header reuse while unrelated body edits do not.
+
+Flat direct callable inputs in named and anonymous code retain conditional invocation, data and
+cleanup obligations. The template check does not grant an unbound callback unconditional const
+capability. Required evaluation closes the already selected `CodeInstanceKey` contexts before any
+plan executes, using the same frozen-call instantiation routine as native instances. Named actual
+callbacks still need their authored const capability; captured actuals retain their own local and
+transitive operation causes. A callback that is received but never invoked needs its temporary
+representation, not a body or invocation capability. Interrupted preparation creates no completed
+callee instance. The dependency coordinator discovers actual formal-call targets after ordinary
+result closure and requests their existing checked drafts without source body retyping.
+
 Direct callable data leaves select their actual named or captured representation without mutating
-the unbound template's type identity; distinct environments remain distinct. This closes metadata
-projection, not conditional const admission. A named actual argument cannot stand in for an unclosed
-formal input representation, even when unused. Domain checking reports the actual input before
-projection; interrupted preparation never fabricates a completed call.
+the unbound template's type identity; distinct environments and returned callbacks remain distinct.
+The shared source corpus covers read/edit/take calls, forwarding, recursion, anonymous formal
+inputs, per-instance mutable state and returned taking callbacks through required and native
+execution. General contextual captures, outside R/D/S dependencies, dependent callable carriers,
+deeper callable inputs and opaque error-data operations remain outside this evaluator domain.
+Definition-owned composable condition products and module publication remain integration work;
+the current bound pass checks every authored possible invocation. Value-state guarded discharge
+remains open, and these private checks do not advertise an exported unconditional const guarantee.
 
 Explicit unsupported drops fail even in dead source. Implicit disposal and edit-input replacement
 consume the actual sparse resource transitions; ending a partial container does not destroy its

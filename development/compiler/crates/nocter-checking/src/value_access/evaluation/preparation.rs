@@ -480,6 +480,54 @@ impl<'a, 'source> Preparation<'a, 'source> {
         }
         Ok(dependencies)
     }
+    /// Discover only actual invocation dependencies after ordinary result closure. Metadata
+    /// bindings do not demand the bodies of unused callback values or retype a source body.
+    fn bound_requirements(
+        &self,
+        resolved: &accepted::Resolved,
+        root: ValueCodeRoot,
+    ) -> Result<Vec<(ValueCode, Demand, CallOrigin)>, Failure> {
+        let program = resolved.program();
+        let scope = resolved.scope().map_err(Failure::Integrity)?;
+        let mut pending = vec![program.bind_code(root.code(), []).map_err(|_| INVALID)?];
+        let mut visited = BTreeSet::new();
+        let mut dependencies = Vec::new();
+        while let Some(key) = pending.pop() {
+            if !visited.insert(key.clone()) {
+                continue;
+            }
+            let Some(query) = scope.get(&key.code()) else {
+                continue;
+            };
+            let bound = query.bind(&self.context).map_err(|failure| Failure::Body {
+                callable: query.code().source_owner(),
+                failure,
+            })?;
+            for (id, selected) in crate::value_access::instances::calls(program, &key, query)
+                .map_err(Failure::Integrity)?
+            {
+                // The caller's bound domain check reports a missing authored capability. A
+                // runtime-only actual value does not create an evaluator body dependency.
+                if let ValueCode::Declaration(code) = selected.code()
+                    && program.codes().get(code).ok_or(INVALID)?.compile_time()
+                        != nocter_model::CompileTimeGuarantee::Evaluatable
+                {
+                    continue;
+                }
+                let site = bound.expression_origin(id).ok_or(INVALID)?;
+                dependencies.push((
+                    selected.code(),
+                    Demand::Invoke,
+                    CallOrigin {
+                        parent: key.code(),
+                        site,
+                    },
+                ));
+                pending.push(selected);
+            }
+        }
+        Ok(dependencies)
+    }
     fn graph(
         &self,
         requests: &Dependencies,
@@ -549,6 +597,16 @@ impl<'a, 'source> Preparation<'a, 'source> {
                 }
             }
             if pending.is_empty() {
+                for (target, demand, origin) in self.bound_requirements(&resolved, root)? {
+                    if selected
+                        .get(&target)
+                        .is_none_or(|needed| needed.demand < demand)
+                    {
+                        pending.push((target, demand, Some(origin)));
+                    }
+                }
+            }
+            if pending.is_empty() {
                 let invoked = selected
                     .into_iter()
                     .filter_map(|(code, needed)| (needed.demand == Demand::Invoke).then_some(code))
@@ -608,6 +666,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
         // source checker or evaluator. Only established frozen data crosses into final Unit typing.
         let checked =
             accepted::admit_resolved(&self.context, ready.resolved, Some(&ready.invoked))?;
+        accepted::check_required_const(&self.context, &checked, id)?;
         if !super::super::constant::supports_final(&checked.program, result_data)
             .map_err(Failure::Integrity)?
         {

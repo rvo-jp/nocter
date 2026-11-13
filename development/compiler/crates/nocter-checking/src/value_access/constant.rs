@@ -1,7 +1,7 @@
 //! Definition-time operation-domain checks over the ordinary accepted body and resource ledger.
 //! This is neither an evaluator nor evidence that a required constant has executed successfully.
 use super::{CallKind, ExpressionKind, Failure, Statement, flow, source_origin};
-use nocter_declarations::value_access::Program;
+use nocter_declarations::value_access::{CodeInstanceKey, FunctionWitness, PayloadSchema, Program};
 use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic};
 use nocter_model::{
     AccessCodeId, AccessExpressionId, AccessStatementId, CompileTimeGuarantee, TypeId,
@@ -28,6 +28,13 @@ pub struct Diagnostic {
     source: SourceDiagnostic,
 }
 impl Diagnostic {
+    pub(super) fn note_call(&mut self, origin: nocter_source_index::SourceOrigin) {
+        self.source
+            .push_note(nocter_diagnostics::DiagnosticNote::new(
+                "required constant invocation depends on this call",
+                origin,
+            ));
+    }
     #[must_use]
     pub const fn rule(&self) -> Rule {
         self.rule
@@ -55,20 +62,45 @@ fn operation_rule(
     program: &Program,
     kind: &ExpressionKind,
     available: &dyn Fn(nocter_model::ValueClosure) -> bool,
+    instance: Option<&CodeInstanceKey>,
 ) -> Result<Option<Rule>, flow::IntegrityError> {
     Ok(match kind {
-        ExpressionKind::Call { kind, target, .. } => match (kind, target) {
-            (_, ValueFunctionOrigin::Declaration(target)) => {
-                let callable = program.codes().get(*target).ok_or(INVALID)?;
-                (callable.compile_time() != CompileTimeGuarantee::Evaluatable)
-                    .then_some(Rule::RuntimeCall(*target))
+        ExpressionKind::Call {
+            kind,
+            target,
+            arguments,
+        } => {
+            let target = if let Some(instance) = instance {
+                instance
+                    .resolve(
+                        program,
+                        FunctionWitness {
+                            origin: *target,
+                            invocation: kind.invocation(arguments).ok_or(INVALID)?,
+                        },
+                    )
+                    .map_err(|_| INVALID)?
+                    .code()
+                    .origin()
+                    .ok_or(INVALID)?
+            } else {
+                *target
+            };
+            match (kind, target) {
+                (_, ValueFunctionOrigin::Declaration(target)) => {
+                    let callable = program.codes().get(target).ok_or(INVALID)?;
+                    (callable.compile_time() != CompileTimeGuarantee::Evaluatable)
+                        .then_some(Rule::RuntimeCall(target))
+                }
+                (CallKind::Value, ValueFunctionOrigin::Closure(code)) => {
+                    (!available(code)).then_some(Rule::CapturedCall(code))
+                }
+                // This is a conditional template obligation, never a closed invocation fact.
+                (CallKind::Value, ValueFunctionOrigin::Parameter(_)) if instance.is_none() => None,
+                (CallKind::Value, _) => Some(Rule::ValueInvocation),
+                (CallKind::Direct, _) => return Err(INVALID),
             }
-            (CallKind::Value, ValueFunctionOrigin::Closure(code)) => {
-                (!available(*code)).then_some(Rule::CapturedCall(*code))
-            }
-            (CallKind::Value, _) => Some(Rule::ValueInvocation),
-            (CallKind::Direct, _) => return Err(INVALID),
-        },
+        }
         ExpressionKind::Closure { .. }
         | ExpressionKind::Function(_)
         | ExpressionKind::AdaptFunction { .. }
@@ -94,10 +126,33 @@ fn operation_rule(
     })
 }
 
+fn supports(
+    program: &Program,
+    data: TypeId,
+    domain: &mut super::evaluation::Types,
+    instance: Option<&CodeInstanceKey>,
+) -> Result<bool, flow::IntegrityError> {
+    match instance {
+        Some(instance) => domain.supports_in(program, instance, data),
+        None if matches!(
+            program.data_schema(data),
+            Some(PayloadSchema::Function(FunctionWitness {
+                origin: ValueFunctionOrigin::Parameter(_),
+                ..
+            }))
+        ) =>
+        {
+            Ok(true)
+        }
+        None => domain.supports(program, data),
+    }
+}
+
 fn call_inputs(
     program: &Program,
     expression: &ExpressionKind,
     domain: &mut super::evaluation::Types,
+    instance: Option<&CodeInstanceKey>,
 ) -> Result<Option<Violation>, flow::IntegrityError> {
     let ExpressionKind::Call {
         target,
@@ -107,17 +162,18 @@ fn call_inputs(
     else {
         return Ok(None);
     };
-    // Interrupted preparation performs no call. Concrete caller data cannot stand in for an
-    // unclosed callee input shape, even when the callee never uses that parameter.
-    if arguments.iter().any(|argument| {
-        matches!(
-            argument.action,
-            super::ArgumentAction::Interrupted | super::ArgumentAction::Unproduced
-        )
-    }) {
+    // Interrupted preparation performs no call and requires no completed callee instance.
+    if !super::instances::completed(arguments) {
         return Ok(None);
     }
-    let parameters = match *target {
+    let callee = instance
+        .map(|caller| super::instantiate_call(program, caller, *target, *kind, arguments))
+        .transpose()?;
+    let target = match &callee {
+        Some(key) => key.code().origin().ok_or(INVALID)?,
+        None => *target,
+    };
+    let parameters = match target {
         ValueFunctionOrigin::Declaration(target) => program
             .codes()
             .get(target)
@@ -141,7 +197,7 @@ fn call_inputs(
         return Err(INVALID);
     }
     for (data, argument) in parameters.into_iter().zip(arguments) {
-        if !domain.supports(program, data)? {
+        if !supports(program, data, domain, callee.as_ref())? {
             return Ok(Some(Violation {
                 site: Site::Expression(argument.value),
                 rule: Rule::UnsupportedInput(data),
@@ -154,6 +210,7 @@ fn call_inputs(
 pub(super) fn check(
     query: &flow::Query,
     available: &dyn Fn(nocter_model::ValueClosure) -> bool,
+    instance: Option<&CodeInstanceKey>,
 ) -> Result<Option<Violation>, flow::IntegrityError> {
     let program = query.typed().program();
     let mut domain = super::evaluation::Types::default();
@@ -161,7 +218,7 @@ pub(super) fn check(
     // Walk all typed expressions, not only reachable graph points. An unevaluated branch or
     // interrupted input cannot hide an authored runtime-only call or an unsupported operation.
     for (id, expression) in query.typed().body().expressions().iter() {
-        let rule = operation_rule(program, &expression.kind, available)?;
+        let rule = operation_rule(program, &expression.kind, available, instance)?;
         if let Some(rule) = rule {
             return Ok(Some(Violation {
                 site: Site::Expression(id),
@@ -179,7 +236,7 @@ pub(super) fn check(
                 .get(*local)
                 .ok_or(INVALID)?
                 .data;
-            if !domain.supports(program, data)? {
+            if !supports(program, data, &mut domain, instance)? {
                 return Ok(Some(Violation {
                     site: Site::Statement(id),
                     rule: Rule::UnsupportedCleanup(data),
@@ -188,13 +245,13 @@ pub(super) fn check(
         }
     }
     for (id, expression) in query.typed().body().expressions().iter() {
-        if let Some(violation) = call_inputs(program, &expression.kind, &mut domain)? {
+        if let Some(violation) = call_inputs(program, &expression.kind, &mut domain, instance)? {
             return Ok(Some(violation));
         }
         // A known interrupted result is not a produced resource. There is no value to classify
         // here; operation checks above still apply independently of continuation.
         if let Some(value) = expression.ty.normal()
-            && !domain.supports(program, value.data())?
+            && !supports(program, value.data(), &mut domain, instance)?
             && !projections.uninhabited(query, id, &mut domain)?
         {
             return Ok(Some(Violation {
@@ -226,7 +283,7 @@ pub(super) fn check(
                         | flow::resources::Step::ReleaseContainer { .. }
                         | flow::resources::Step::Invoke { .. } => continue,
                     };
-                    if !domain.supports(program, payload.data())? {
+                    if !supports(program, payload.data(), &mut domain, instance)? {
                         return Ok(Some(Violation {
                             site: Site::Cleanup(location),
                             rule: Rule::UnsupportedCleanup(payload.data()),

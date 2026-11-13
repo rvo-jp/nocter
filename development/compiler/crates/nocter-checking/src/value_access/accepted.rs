@@ -1,6 +1,8 @@
 //! Closed front-end acceptance of every definition in one private first-fragment unit.
 pub use super::staged::{ModuleSourceUnit, SourceFailure, SourceUnit};
+mod const_admission;
 use super::{Failure as BodyFailure, Query as TypedQuery, flow};
+pub(super) use const_admission::check_required_const;
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::Program;
 use nocter_diagnostics::SourceDiagnostic;
@@ -131,6 +133,7 @@ impl Unit {
             bodies,
             closures,
             result_evidence,
+            const_templates: _,
         } = check_queries(context, queries)?;
         Ok(Self {
             initializers: evaluation
@@ -239,6 +242,7 @@ pub(super) struct Checked {
     pub(super) bodies: BTreeMap<nocter_model::ValueCodeRoot, flow::Query>,
     closures: BTreeMap<nocter_model::ValueClosure, flow::Query>,
     result_evidence: Arc<super::results::Evidence>,
+    const_templates: super::constant::Availability,
 }
 impl Checked {
     /// Internal plan/diagnostic lookup includes required-expression bodies as well as callables.
@@ -259,6 +263,9 @@ pub(super) struct Resolved {
     result_evidence: Arc<super::results::Evidence>,
 }
 impl Resolved {
+    pub(super) fn program(&self) -> &Program {
+        &self.program
+    }
     pub(super) fn scope(
         &self,
     ) -> Result<BTreeMap<nocter_model::ValueCode, &TypedQuery>, flow::IntegrityError> {
@@ -335,59 +342,17 @@ pub(super) fn admit_resolved(
             bodies.insert(root, query);
         }
     }
-    check_const_bodies(&program, &bodies, &closures, &verified)?;
+    let const_templates =
+        const_admission::check_const_bodies(&program, &bodies, &closures, &verified)?;
     Ok(Checked {
         program,
         bodies,
         closures,
         result_evidence,
+        const_templates,
     })
 }
-fn check_const_bodies(
-    program: &Program,
-    bodies: &BTreeMap<nocter_model::ValueCodeRoot, flow::Query>,
-    closures: &BTreeMap<nocter_model::ValueClosure, flow::Query>,
-    verified: &super::results::Verified<'_, '_>,
-) -> Result<(), Failure> {
-    let availability =
-        super::constant::Availability::prepare(closures).map_err(Failure::Integrity)?;
-    for (&root, query) in bodies {
-        let callable = root.source_owner();
-        let evaluatable = match root {
-            nocter_model::ValueCodeRoot::Declaration(id) => {
-                program
-                    .codes()
-                    .get(id)
-                    .ok_or(Failure::Integrity(
-                        flow::IntegrityError::InconsistentTypedBody,
-                    ))?
-                    .compile_time()
-                    == nocter_model::CompileTimeGuarantee::Evaluatable
-            }
-            nocter_model::ValueCodeRoot::Expression(_) => true,
-        };
-        if evaluatable
-            && let Some(violation) =
-                super::constant::check(query, &|code| availability.available(code))
-                    .map_err(Failure::Integrity)?
-        {
-            let bound = query
-                .bind_verified(verified)
-                .map_err(|failure| Failure::Body { callable, failure })?;
-            let mut diagnostic = violation
-                .project(&bound)
-                .map_err(|failure| Failure::Body { callable, failure })?;
-            availability
-                .annotate(diagnostic.rule(), &mut diagnostic, closures, verified)
-                .map_err(|failure| Failure::Body { callable, failure })?;
-            return Err(Failure::Const {
-                callable,
-                diagnostic: Box::new(diagnostic),
-            });
-        }
-    }
-    Ok(())
-}
+
 fn admit(
     query: flow::Query,
     verified: &super::results::Verified<'_, '_>,

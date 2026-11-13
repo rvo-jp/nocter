@@ -40,6 +40,15 @@ impl Types {
         };
         self.get(program, data)
     }
+    pub(in crate::value_access) fn supports_in(
+        &mut self,
+        program: &Program,
+        instance: &CodeInstanceKey,
+        data: TypeId,
+    ) -> Result<bool> {
+        let id = self.get_in(program, instance, data)?;
+        Ok(self.shapes[id].supported)
+    }
     pub(super) fn finish(self) -> Vec<Type> {
         self.shapes.into_iter().map(|shape| shape.ty).collect()
     }

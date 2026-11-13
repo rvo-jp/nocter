@@ -1,0 +1,43 @@
+struct Item { value: i32 }
+const func identity(value: i32): i32 { value }
+const func increment(value: i32): i32 { value + 1 }
+const func apply(action: func(i32): i32, value: i32): i32 { action(value) }
+const func forward(action: func(i32): i32, value: i32): i32 { apply(action, value) }
+const func edit_twice(edit action: mut(i32): i32, value: i32): i32 {
+    let _ = action(value)
+    action(value)
+}
+const func consume(take action: once(i32): i32, value: i32): i32 { action^(value) }
+const func relay(take action: once(i32): i32): once(i32): i32 { action^ }
+const func descend(action: func(i32): i32, count: i32): i32 {
+    if count == 0 { action(41) } else { descend(action, count - 1) }
+}
+const func reading(): i32 {
+    let first = 40
+    let left = (first; value: i32): i32 { first + value }
+    let second = 41
+    let right = (second; value: i32): i32 { second + value }
+    if forward(identity, 42) == 42 && forward(left, 2) == 42 && forward(right, 1) == 42
+       && descend(increment, 4) == 42 { 42 } else { 0 }
+}
+const func editing(): i32 {
+    let total = 40
+    var action = (total; value: i32): i32 { total += value
+                                          total }
+    if edit_twice(action, 1) == 42 && total == 40 { 42 } else { 0 }
+}
+const func taking(): i32 {
+    let item = Item { value: 41 }
+    let action = (item^; value: i32): i32 { let taken = item^
+                                          taken.value + value }
+    consume(relay(action^), 1)
+}
+const func anonymous(): i32 {
+    let pass = (action: func(i32): i32, value: i32): i32 { forward(action, value) }
+    pass(increment, 41)
+}
+const func calculate(): i32 {
+    if reading() == 42 && editing() == 42 && taking() == 42 && anonymous() == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { if ANSWER == 42 && calculate() == 42 { 42 } else { 0 } }

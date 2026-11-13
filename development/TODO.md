@@ -23,9 +23,12 @@ Separate conditional const requirements from evaluator representation/realizatio
 the adopted constant-evaluation contract. Preserve authored named-call promises, inferred closure
 availability, actual frozen witness bindings, cleanup and budget recovery. Translate already checked
 bodies per selected instance without source body retyping or a second semantic/type authority.
-A known caller never grants unconditional capability to an unbound body. Keep dependent carriers,
-deeper callable inputs, inferred captures, module/toolchain integration and retained-selection
-closure open.
+A known caller never grants unconditional capability to an unbound body. Close direct input
+execution, diagnostics and failure recovery first, then replace repeated bound operation-domain
+walks with definition-owned composable eligibility/representation requirements matched to the
+exact code/body generation. Qualify symbolic condition discharge and exported products separately
+from mechanical plan instantiation. Keep dependent carriers, deeper callable inputs, inferred
+captures, module/toolchain integration and retained-selection closure open.
 
 ## Retained Selection Closure
 

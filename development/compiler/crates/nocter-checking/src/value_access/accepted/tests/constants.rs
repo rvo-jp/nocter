@@ -106,11 +106,8 @@ fn explicit_and_implicit_resource_cleanup_need_domain_evidence() {
 }
 
 #[test]
-fn formal_function_invocation_needs_a_closed_witness() {
-    rejected(
-        "const func f(action: func(i32): i32): i32 { action(1) }",
-        |d| assert_eq!(d.rule(), Rule::ValueInvocation),
-    );
+fn formal_function_invocation_retains_a_condition_in_the_definition() {
+    accepted("const func f(action: func(i32): i32): i32 { action(1) }");
 }
 
 #[test]
@@ -297,13 +294,12 @@ fn named_witnesses_and_their_containers_have_temporary_but_no_final_data_evidenc
 }
 
 #[test]
-fn passing_a_named_value_cannot_fabricate_an_evaluator_formal_callable_representation() {
-    let source = "const func identity(value: i32): i32 { value }\nconst func ignore(callback: func(i32): i32): i32 { 42 }\nconst func calculate(): i32 { ignore(identity) }";
-    for suffix in ["", "\nconst ANSWER: i32 = calculate()"] {
-        rejected(&format!("{source}{suffix}"), |d| {
-            assert!(matches!(d.rule(), Rule::UnsupportedInput(_)));
-        });
-    }
+fn unused_callable_inputs_need_a_representation_but_not_invocation_capability() {
+    let source = "func identity(value: i32): i32 { value }\nconst func ignore(callback: func(i32): i32): i32 { 42 }\nconst func calculate(): i32 { ignore(identity) }\nconst ANSWER: i32 = calculate()";
+    assert_eq!(
+        super::initializers::answer(source, "ANSWER"),
+        nocter_constant_evaluation::state::Value::integer(42)
+    );
 }
 
 #[test]
