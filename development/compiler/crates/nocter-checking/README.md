@@ -438,6 +438,10 @@ component, and evaluated writes remain conservative. Arrays retain one element-s
 including its aggregate fields, independently of element count. Shared subshapes and iterative
 traversal avoid expanding the logical value tree. These facts describe possible producer terms,
 not numeric-index equality, path correlation, access permission or initialized storage.
+Lexical read/edit aliases use the existing `flow::aliases` provenance owner to read and update
+the current underlying local or bounded temporary's facts, rather than keeping an independent producer snapshot.
+Producer paths erase numeric selectors; array writes remain conservative summaries even when
+only one lexical path is found. This traversal grants no saved-address or bounds proof.
 `Unit::invocation_recipe` exposes these records
 under their exact code/call identity. Callable application nodes share the same immutable record,
 so the equation graph and invocation catalog do not maintain separate binding copies. Interrupted

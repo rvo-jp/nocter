@@ -32,6 +32,7 @@ type State = BTreeMap<Key, Facts>;
 pub(super) fn analyze(control: &flow::Control) -> Result<Report, flow::IntegrityError> {
     let query = &control.typed;
     let mut facts = Store::default();
+    let aliases = flow::Aliases::prepare(query)?;
     let (initial, mut referenced_applications) = received_inputs(query, &mut facts)?;
     let mut entries = BTreeMap::from([(control.graph.entry(), initial)]);
     let mut pending = BTreeSet::from([control.graph.entry()]);
@@ -44,7 +45,7 @@ pub(super) fn analyze(control: &flow::Control) -> Result<Report, flow::Integrity
         for action in &block.actions {
             match action.operation {
                 flow::Operation::Evaluate(id) => {
-                    let producers = evaluate(query, id, &state, &mut facts)?;
+                    let producers = evaluate(query, id, &state, &mut facts, &aliases)?;
                     state.insert(Key::Expression(id), producers);
                 }
                 flow::Operation::PrepareArgument {
@@ -59,7 +60,7 @@ pub(super) fn analyze(control: &flow::Control) -> Result<Report, flow::Integrity
                     let argument = arguments.get(index).ok_or(INVALID)?;
                     state.insert(
                         Key::Argument { call, index },
-                        shape(query, argument.value, &state, false, &mut facts)?,
+                        shape(query, argument.value, &state, false, &mut facts, &aliases)?,
                     );
                 }
                 flow::Operation::CommitCall(id) => {
@@ -80,6 +81,7 @@ pub(super) fn analyze(control: &flow::Control) -> Result<Report, flow::Integrity
                         expression_data(query, result)?,
                         &state,
                         &mut facts,
+                        &aliases,
                     )?;
                     state.insert(Key::Expression(result), value);
                 }
@@ -93,15 +95,16 @@ pub(super) fn analyze(control: &flow::Control) -> Result<Report, flow::Integrity
                         query.body.locals.get(local).ok_or(INVALID)?.data,
                         &state,
                         &mut facts,
+                        &aliases,
                     )?;
                     state.insert(Key::Local(local), value);
                 }
                 flow::Operation::Assign { target, value } => {
-                    assign(query, target, value, &mut state, &mut facts)?;
+                    assign(query, target, value, &mut state, &mut facts, &aliases)?;
                 }
                 flow::Operation::StageReturn(id) => {
                     returned.extend(
-                        value(query, id, &state, &mut facts)?
+                        value(query, id, &state, &mut facts, &aliases)?
                             .into_iter()
                             .map(|witness| (witness, id)),
                     );
@@ -155,23 +158,37 @@ fn assign(
     source: AccessExpressionId,
     state: &mut State,
     store: &mut Store,
+    aliases: &flow::Aliases,
 ) -> Result<(), flow::IntegrityError> {
-    let projections = target
-        .projections(
-            |id| query.body.expressions.get(id),
-            |id| query.body.blocks.get(id),
-            crate::value_access::paths::ProjectionRoots::All,
-            |_| 0_u64,
-            |_, _| Some(0_u64),
-        )
-        .ok_or(INVALID)?;
     let facts = forward(
         query,
         source,
         query.body.referent_data(target).ok_or(INVALID)?,
         state,
         store,
+        aliases,
     )?;
+    if let Some(paths) = aliases.producer_paths(query, target) {
+        let weak = paths.len() != 1;
+        for (root, path) in paths {
+            let (key, root) = producer_root(query, root)?;
+            // This projects a possible element's data shape, never a numeric access receipt.
+            let data = query
+                .program()
+                .project_data_by(root, &path, |(), _| true)
+                .ok_or(INVALID)?;
+            let replacement = store.retag(
+                query.program(),
+                facts,
+                query.body.referent_data(target).ok_or(INVALID)?,
+                data,
+            )?;
+            let original = state.get(&key).copied().unwrap_or_default();
+            let updated = store.update(original, path.fields(), replacement, weak);
+            state.insert(key, updated);
+        }
+        return Ok(());
+    }
     if let crate::value_access::Referent::Place(selected) = target {
         let place = query.body.places.get(selected).ok_or(INVALID)?;
         let original = state
@@ -182,6 +199,15 @@ fn assign(
         state.insert(Key::Local(place.local), updated);
         return Ok(());
     }
+    let projections = target
+        .projections(
+            |id| query.body.expressions.get(id),
+            |id| query.body.blocks.get(id),
+            crate::value_access::paths::ProjectionRoots::All,
+            |_| 0_u64,
+            |_, _| Some(0_u64),
+        )
+        .ok_or(INVALID)?;
     for (base, suffix) in projections {
         let crate::value_access::paths::ProjectionRoot::Place(base) = base else {
             continue;
@@ -271,6 +297,21 @@ fn commit(
 }
 
 const INVALID: flow::IntegrityError = flow::IntegrityError::InconsistentTypedBody;
+fn producer_root(
+    query: &Query,
+    root: crate::value_access::paths::ProjectionRoot,
+) -> Result<(Key, nocter_model::TypeId), flow::IntegrityError> {
+    match root {
+        crate::value_access::paths::ProjectionRoot::Place(place) => {
+            let place = query.body.places.get(place).ok_or(INVALID)?;
+            let data = query.body.locals.get(place.local).ok_or(INVALID)?.data;
+            Ok((Key::Local(place.local), data))
+        }
+        crate::value_access::paths::ProjectionRoot::Temporary(value) => {
+            Ok((Key::Expression(value), expression_data(query, value)?))
+        }
+    }
+}
 fn join(target: &mut State, incoming: &State, store: &mut Store) -> bool {
     let mut changed = false;
     for (&key, producers) in incoming {
@@ -299,12 +340,13 @@ fn forward(
     target: nocter_model::TypeId,
     state: &State,
     store: &mut Store,
+    aliases: &flow::Aliases,
 ) -> Result<Facts, flow::IntegrityError> {
     let expression = query.body.expressions.get(source).ok_or(INVALID)?;
     let Some(access) = expression.ty.access() else {
         return Ok(Facts::default());
     };
-    let facts = shape(query, source, state, false, store)?;
+    let facts = shape(query, source, state, false, store, aliases)?;
     store.retag(query.program(), facts, access.data(), target)
 }
 fn value(
@@ -312,12 +354,13 @@ fn value(
     id: AccessExpressionId,
     state: &State,
     store: &mut Store,
+    aliases: &flow::Aliases,
 ) -> Result<Producers, flow::IntegrityError> {
     let expression = query.body.expressions.get(id).ok_or(INVALID)?;
     if expression.ty.access().is_none() {
         return Ok(Producers::new());
     }
-    let facts = shape(query, id, state, false, store)?;
+    let facts = shape(query, id, state, false, store, aliases)?;
     Ok(store.producers(facts))
 }
 enum Projection {
@@ -333,6 +376,7 @@ fn shape(
     state: &State,
     fresh: bool,
     store: &mut Store,
+    aliases: &flow::Aliases,
 ) -> Result<Facts, flow::IntegrityError> {
     let mut current = id;
     let mut projections = Vec::new();
@@ -341,10 +385,27 @@ fn shape(
         let Some(access) = expression.ty.access() else {
             break Facts::default();
         };
-        if let ExpressionKind::Place(place)
-        | ExpressionKind::Move(crate::value_access::Referent::Place(place)) = expression.kind
+        if let ExpressionKind::Place(place_id)
+        | ExpressionKind::Move(crate::value_access::Referent::Place(place_id)) = expression.kind
         {
-            let place = query.body.places.get(place).ok_or(INVALID)?;
+            let place = query.body.places.get(place_id).ok_or(INVALID)?;
+            if let Some(paths) =
+                aliases.producer_paths(query, crate::value_access::Referent::Place(place_id))
+            {
+                let mut result = Facts::default();
+                for (root, path) in paths {
+                    let (key, root) = producer_root(query, root)?;
+                    let data = query
+                        .program()
+                        .project_data_by(root, &path, |(), _| true)
+                        .ok_or(INVALID)?;
+                    let original = state.get(&key).copied().unwrap_or_default();
+                    let selected = store.selected(original, path.fields());
+                    let selected = store.retag(query.program(), selected, data, place.data)?;
+                    result = store.join(result, selected);
+                }
+                break result;
+            }
             break store.selected(
                 state
                     .get(&Key::Local(place.local))
@@ -409,6 +470,7 @@ fn evaluate(
     id: AccessExpressionId,
     state: &State,
     store: &mut Store,
+    aliases: &flow::Aliases,
 ) -> Result<Facts, flow::IntegrityError> {
     let expression = query.body.expressions.get(id).ok_or(INVALID)?;
     match &expression.kind {
@@ -439,7 +501,7 @@ fn evaluate(
                     .data;
                 children.insert(
                     field.field,
-                    forward(query, field.value, target, state, store)?,
+                    forward(query, field.value, target, state, store, aliases)?,
                 );
             }
             if matches!(
@@ -463,7 +525,7 @@ fn evaluate(
             if array.is_empty() {
                 Ok(Facts::default())
             } else {
-                let element = forward(query, *seed, array.element(), state, store)?;
+                let element = forward(query, *seed, array.element(), state, store, aliases)?;
                 Ok(store.array(element))
             }
         }
@@ -472,7 +534,7 @@ fn evaluate(
         | ExpressionKind::Boundary { .. }
         | ExpressionKind::AdaptFunction { .. }
         | ExpressionKind::Index { .. }
-        | ExpressionKind::Select { .. } => shape(query, id, state, true, store),
+        | ExpressionKind::Select { .. } => shape(query, id, state, true, store, aliases),
         _ => Ok(Facts::default()),
     }
 }

@@ -2,7 +2,7 @@
 use super::{INVALID, Producers};
 use crate::value_access::flow::IntegrityError;
 use nocter_declarations::value_access::{FunctionWitness, PayloadSchema, Program};
-use nocter_model::{TypeId, ValueApplication, ValueField, ValueFunctionOrigin};
+use nocter_model::{TypeId, ValueApplication, ValueField, ValueFunctionOrigin, ValueProjection};
 use std::collections::{BTreeMap, BTreeSet};
 #[cfg(test)]
 mod tests;
@@ -28,10 +28,12 @@ impl Default for Store {
         }
     }
 }
-fn field(field: ValueField) -> ValueField {
+fn field<I: Copy>(field: ValueProjection<I>) -> ValueField {
     match field {
-        ValueField::Array(_) => ValueField::Array(0),
-        _ => field,
+        ValueProjection::Array(_) => ValueField::Array(0),
+        ValueProjection::Record(id) => ValueField::Record(id),
+        ValueProjection::Tuple(index) => ValueField::Tuple(index),
+        ValueProjection::Variant(primary) => ValueField::Variant(primary),
     }
 }
 impl Store {
@@ -63,7 +65,11 @@ impl Store {
     pub(super) fn producers(&self, facts: Facts) -> Producers {
         self.nodes[facts.0].producers.clone()
     }
-    pub(super) fn selected(&self, mut facts: Facts, fields: &[ValueField]) -> Facts {
+    pub(super) fn selected<I: Copy>(
+        &self,
+        mut facts: Facts,
+        fields: &[ValueProjection<I>],
+    ) -> Facts {
         for &selected in fields {
             facts = self.nodes[facts.0]
                 .children
@@ -137,10 +143,10 @@ impl Store {
         }
         done[&root]
     }
-    pub(super) fn update(
+    pub(super) fn update<I: Copy>(
         &mut self,
         facts: Facts,
-        fields: &[ValueField],
+        fields: &[ValueProjection<I>],
         replacement: Facts,
         weak: bool,
     ) -> Facts {
@@ -148,7 +154,7 @@ impl Store {
         let mut parents = Vec::new();
         let mut weak = weak;
         for &selected in fields {
-            weak |= matches!(selected, ValueField::Array(_));
+            weak |= matches!(selected, ValueProjection::Array(_));
             let selected = field(selected);
             let node = self.nodes[current.0].clone();
             current = node.children.get(&selected).copied().unwrap_or_default();

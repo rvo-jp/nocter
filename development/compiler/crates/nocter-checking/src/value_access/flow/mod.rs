@@ -2,6 +2,7 @@
 //! An intermediate query is not complete whole-unit acceptance or native validity.
 pub mod access;
 mod aliases;
+pub(super) use aliases::Aliases;
 mod build;
 pub(super) mod call_writes;
 mod initialization;

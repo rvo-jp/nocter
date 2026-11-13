@@ -16,7 +16,7 @@ pub type AccessPath = ValuePath<IndexFact>;
 pub(super) fn known(fields: &FieldPath) -> AccessPath {
     known_by(fields, IndexFact::Known)
 }
-fn known_by<I>(fields: &FieldPath, index: impl Fn(u64) -> I) -> ValuePath<I> {
+pub(super) fn known_by<I>(fields: &FieldPath, index: impl Fn(u64) -> I) -> ValuePath<I> {
     ValuePath::new(fields.fields().iter().map(|field| match *field {
         ValueProjection::Record(id) => ValueProjection::Record(id),
         ValueProjection::Tuple(position) => ValueProjection::Tuple(position),

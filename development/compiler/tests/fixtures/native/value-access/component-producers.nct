@@ -4,7 +4,7 @@ const func snapshot(): i32 {
     let saved = current
     current = make(43)
     let pair = (current, saved)
-    pair.0() + pair.1()
+    pair.0() * 100 + pair.1()
 }
 const func replace_component(): i32 {
     var current = make(42)
@@ -12,7 +12,7 @@ const func replace_component(): i32 {
     current = make(43)
     var pair = (current, saved)
     pair.0 = make(44)
-    pair.0() + pair.1()
+    pair.0() * 100 + pair.1()
 }
 const func choose_component(flag: bool): i32 {
     var current = make(42)
@@ -20,26 +20,64 @@ const func choose_component(flag: bool): i32 {
     current = make(43)
     var pair = (current, saved)
     if flag { pair.0 = make(44) } else { pair.1 = make(45) }
-    pair.0() + pair.1()
+    pair.0() * 100 + pair.1()
 }
 const func repeated_components(): i32 {
     var current = make(42)
     let saved = current
     current = make(43)
     let pairs = [(current, saved); 2]
-    pairs[0].0() + pairs[1].1()
+    pairs[0].0() * 100 + pairs[1].1()
 }
 const func summarized_elements(): i32 {
     var current = make(42)
     let saved = current
     current = make(43)
     let actions = [current, saved]
-    actions[0]() + actions[1]()
+    actions[0]() * 100 + actions[1]()
 }
 const func calculate(): i32 {
-    if snapshot() == 85 && replace_component() == 86
-        && choose_component(true) == 86 && choose_component(false) == 88
-        && repeated_components() == 85 && summarized_elements() == 85 { 42 } else { 0 }
+    if snapshot() == 4342 && replace_component() == 4442
+        && choose_component(true) == 4442 && choose_component(false) == 4345
+        && repeated_components() == 4342 && summarized_elements() == 4342
+        && alias_write() == 4442 && alias_chain() == 4442
+        && frozen_array_alias() == 4872 { 42 } else { 0 }
+}
+const func alias_write(): i32 {
+    var current = make(42)
+    let saved = current
+    current = make(43)
+    var pair = (current, saved)
+    if true {
+        edit alias = pair
+        alias.0 = make(44)
+    }
+    pair.0() * 100 + pair.1()
+}
+const func alias_chain(): i32 {
+    var current = make(42)
+    let saved = current
+    current = make(43)
+    var pair = (current, saved)
+    edit outer = pair
+    if true {
+        edit inner = outer
+        inner.0 = make(44)
+    }
+    outer.0() * 100 + outer.1()
+}
+const func frozen_array_alias(): i32 {
+    var current = make(42)
+    let saved = current
+    current = make(43)
+    var pairs = [(current, saved); 2]
+    var index: usize = 0
+    if true {
+        edit alias = pairs[index]
+        index = 1
+        alias.0 = make(44)
+    }
+    pairs[0].0() * 100 + pairs[1].0() * 10 + pairs[1].1()
 }
 const ANSWER: i32 = calculate()
 func run(): i32 { if ANSWER == 42 && calculate() == 42 { 42 } else { 0 } }

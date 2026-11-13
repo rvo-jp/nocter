@@ -86,9 +86,16 @@ fn equal_typed_tuple_fields_keep_their_own_producer_occurrences_after_reassignme
         ("choose_component", [vec![1, 2], vec![0, 3]]),
         ("repeated_components", [vec![1], vec![0]]),
         ("summarized_elements", [vec![0, 1], vec![0, 1]]),
+        ("alias_write", [vec![2], vec![0]]),
+        ("alias_chain", [vec![2], vec![0]]),
     ] {
         assert_component_producers(&unit, owner, &expected);
     }
+    assert_component_producers(
+        &unit,
+        "frozen_array_alias",
+        &[vec![1, 2], vec![1, 2], vec![0]],
+    );
     let answer = unit
         .program()
         .resolve_constant(unit.program().symbols().get("ANSWER").unwrap())

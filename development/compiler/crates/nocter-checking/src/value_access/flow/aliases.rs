@@ -6,11 +6,11 @@ use std::collections::{BTreeMap, BTreeSet};
 const INVALID: IntegrityError = IntegrityError::InconsistentTypedBody;
 
 #[derive(Clone, Debug, Default)]
-pub(super) struct Aliases {
+pub(in crate::value_access) struct Aliases {
     sources: BTreeMap<AccessLocalId, Referent>,
 }
 impl Aliases {
-    pub(super) fn prepare(typed: &TypedQuery) -> Result<Self, IntegrityError> {
+    pub(in crate::value_access) fn prepare(typed: &TypedQuery) -> Result<Self, IntegrityError> {
         let mut sources = BTreeMap::new();
         for (_, statement) in typed.body().statements().iter() {
             let Statement::Bind { local, value } = *statement else {
@@ -44,6 +44,55 @@ impl Aliases {
             }
         }
         Ok(Self { sources })
+    }
+    /// Lexical roots for producer summaries, with all numeric selectors erased. These paths
+    /// cannot supply saved addresses, index equality, access or definite array replacement.
+    pub(in crate::value_access) fn producer_paths(
+        &self,
+        typed: &TypedQuery,
+        source: Referent,
+    ) -> Option<
+        Vec<(
+            crate::value_access::paths::ProjectionRoot,
+            nocter_model::ValuePath<()>,
+        )>,
+    > {
+        let mut pending = vec![(source, nocter_model::ValuePath::default(), BTreeSet::new())];
+        let mut result = BTreeSet::new();
+        while let Some((source, suffix, mut seen)) = pending.pop() {
+            let mut projections = source.projections(
+                |id| typed.body().expressions().get(id),
+                |id| typed.body().blocks().get(id),
+                crate::value_access::paths::ProjectionRoots::All,
+                |_| (),
+                |_, _| Some(()),
+            )?;
+            while let Some((root, path)) = projections.pop() {
+                let path = path.concat(&suffix);
+                let crate::value_access::paths::ProjectionRoot::Place(place) = root else {
+                    result.insert((root, path));
+                    continue;
+                };
+                let place = typed.body().places().get(place)?;
+                let local = place.local;
+                let path =
+                    crate::value_access::paths::known_by(&place.fields, |_| ()).concat(&path);
+                if let Some(&next) = self.sources.get(&local) {
+                    let mut seen = if projections.is_empty() {
+                        std::mem::take(&mut seen)
+                    } else {
+                        seen.clone()
+                    };
+                    if !seen.insert(local) {
+                        return None;
+                    }
+                    pending.push((next, path, seen));
+                } else {
+                    result.insert((root, path));
+                }
+            }
+        }
+        Some(result.into_iter().collect())
     }
     fn resolve(
         &self,
