@@ -856,7 +856,7 @@ changes invalidate header reuse while unrelated body edits do not.
 
 Flat direct callable inputs in named and anonymous code retain conditional invocation, data and
 cleanup obligations. The template check does not grant an unbound callback unconditional const
-capability. Required evaluation closes the already selected `CodeInstanceKey` contexts before any
+capability. Required evaluation closes the conditions of already selected `CodeInstanceKey` contexts before any
 plan executes, using the same frozen-call instantiation routine as native instances. Named actual
 callbacks still need their authored const capability; captured actuals retain their own local and
 transitive operation causes. A callback that is received but never invoked needs its temporary
@@ -1050,9 +1050,15 @@ A failed request can retry through the same dependency coordinator with a replen
 unused callback values still do not demand invocation bodies. This bounds the expanding direct
 witness closure, not all compiler process memory or general symbolic solving.
 
-Concrete evaluator plans remain separate. Their construction charges an independent plan-work
-quota before each instance is built, configured from the same request work limit. Exhaustion
-reports E0322 as plan preparation, without spending source execution steps, publishing a partial
+Concrete evaluator plans remain separate. `evaluation::projection::Source` realizes a body only
+when execution enters its exact instance.
+It retains the matched checked-body products, shared type projector and complete witness interner.
+Each realized body links its immediate call boundaries without recursively realizing their bodies;
+no lookup, type checking or const-capability inference happens in the executor. The evaluator
+validates each append-only batch against those boundaries before executing it. Actual callable
+environments and executable instances remain distinct even when their conditions can share.
+Construction charges an independent plan-work quota before each body is built, configured from
+the same request work limit. Exhaustion reports E0322 as plan preparation, without spending source execution steps, publishing a partial
 value or manufacturing a const-ineligibility fact. Nested dependencies share the quota, and a
 new outer request resets it alongside condition and execution work.
 

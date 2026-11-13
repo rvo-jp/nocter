@@ -1,5 +1,6 @@
 //! Project one already checked graph and its resource alternatives; no source/ownership decisions.
 mod arrays;
+mod source;
 use super::super::{
     ArgumentAction, Binary, BoundaryAction, ExpressionKind, Referent, SelectionAction, Statement,
     flow,
@@ -13,9 +14,11 @@ use nocter_declarations::value_access::{
     CodeInstanceKey, ConcreteWitness, FunctionWitness, Program,
 };
 use nocter_model::{
-    AccessCodeId, AccessExpressionId, AccessFlowPointId, AccessPlaceId, FieldPath, TypeId,
-    ValueAccessMode, ValueInputOperation,
+    AccessExpressionId, AccessFlowPointId, AccessPlaceId, FieldPath, TypeId, ValueAccessMode,
+    ValueInputOperation,
 };
+pub(super) use source::Source;
+use source::{Instances, initializer};
 use std::collections::BTreeMap;
 const INVALID: flow::IntegrityError = flow::IntegrityError::InconsistentTypedBody;
 type Result<T> = std::result::Result<T, flow::IntegrityError>;
@@ -846,17 +849,7 @@ impl Builder<'_, '_> {
                 self.instance,
                 self.query.typed().result_data(),
             )?,
-            initializer: match self.query.typed().code() {
-                nocter_model::ValueCode::Declaration(id) => self
-                    .program
-                    .codes()
-                    .get(id)
-                    .ok_or(INVALID)?
-                    .kind()
-                    .is_initializer(),
-                nocter_model::ValueCode::Expression(_) => true,
-                nocter_model::ValueCode::Closure(_) => false,
-            },
+            initializer: initializer(self.program, self.query.typed().code())?,
             entry: self.query.graph().entry(),
             points: points.finish(),
         })
@@ -911,80 +904,4 @@ fn binary(
         left,
         right,
     })
-}
-#[derive(Default)]
-struct Instances {
-    ids: BTreeMap<CodeInstanceKey, plan::CodeInstance>,
-    pending: Vec<CodeInstanceKey>,
-}
-impl Instances {
-    fn intern(&mut self, key: CodeInstanceKey) -> Result<plan::CodeInstance> {
-        if let Some(&id) = self.ids.get(&key) {
-            return Ok(id);
-        }
-        let id = plan::CodeInstance {
-            source: key.code(),
-            instance: u32::try_from(self.ids.len()).map_err(|_| INVALID)?,
-        };
-        self.pending.push(key.clone());
-        self.ids.insert(key, id);
-        Ok(id)
-    }
-}
-pub(super) enum PreparationError {
-    Integrity(flow::IntegrityError),
-    WorkLimit,
-}
-impl From<flow::IntegrityError> for PreparationError {
-    fn from(error: flow::IntegrityError) -> Self {
-        Self::Integrity(error)
-    }
-}
-pub(super) fn prepare(
-    checked: &super::super::accepted::Checked,
-    root: nocter_model::ValueCodeRoot,
-    values: impl Fn(AccessCodeId) -> Option<plan::Value>,
-    work: &mut plan::WorkBudget,
-) -> std::result::Result<plan::Program, PreparationError> {
-    let program = &checked.program;
-    let mut instances = Instances::default();
-    instances.intern(program.bind_code(root.code(), []).map_err(|_| INVALID)?)?;
-    let mut types = Types::default();
-    let mut plans = BTreeMap::new();
-    while let Some(key) = instances.pending.pop() {
-        work.step().map_err(|_| PreparationError::WorkLimit)?;
-        let id = *instances.ids.get(&key).ok_or(INVALID)?;
-        let query = checked.code(key.code()).ok_or(INVALID)?;
-        let plan = Builder {
-            query,
-            program,
-            instance: &key,
-            instances: &mut instances,
-            types: &mut types,
-            slots: Vec::new(),
-            keys: BTreeMap::new(),
-        }
-        .build()?;
-        if plans.insert(id, plan).is_some() {
-            return Err(INVALID.into());
-        }
-    }
-    let mut statics = BTreeMap::new();
-    for plan in plans.values() {
-        for &(_, id) in &plan.statics {
-            if statics.contains_key(&id) {
-                continue;
-            }
-            let data = program.static_declaration(id).ok_or(INVALID)?.result();
-            let value = values(id.initializer).ok_or(INVALID)?;
-            statics.insert(
-                id,
-                plan::Static {
-                    data: types.get(program, data)?,
-                    value,
-                },
-            );
-        }
-    }
-    plan::Program::new(types.finish(), plans, statics).map_err(|_| INVALID.into())
 }

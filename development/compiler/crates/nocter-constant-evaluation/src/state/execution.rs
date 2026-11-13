@@ -7,6 +7,8 @@ use nocter_model::{ConstantValue, ValueCode, ValueCodeRoot, ValueInputOperation}
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Rule {
     InvalidPlan,
+    UnavailablePlan,
+    PlanWorkLimit,
     ArithmeticFailure,
     IndexOutOfBounds,
     InactiveVariant,
@@ -23,9 +25,10 @@ pub struct Error {
     pub trace: Box<[Site]>,
 }
 type Result<T> = std::result::Result<T, Rule>;
-/// Executes a closed graph only. Checking owns dependency requests and completed values.
+/// Executes validated plans and call boundaries. A source may realize already selected bodies.
 pub struct Executor<'a, 'budget> {
-    program: &'a Program,
+    program: std::borrow::Cow<'a, Program>,
+    source: Option<&'a mut dyn super::PlanSource>,
     budget: &'budget mut Budget,
     suspended_depth: usize,
     memory: Memory,
@@ -36,9 +39,38 @@ pub struct Executor<'a, 'budget> {
 impl<'a, 'budget> Executor<'a, 'budget> {
     #[must_use]
     pub fn new(program: &'a Program, budget: &'budget mut Budget, suspended_depth: usize) -> Self {
+        Self::from_parts(
+            std::borrow::Cow::Borrowed(program),
+            None,
+            budget,
+            suspended_depth,
+        )
+    }
+    /// Execute with an append-only source of already selected code bodies.
+    #[must_use]
+    pub fn with_source(
+        program: Program,
+        source: &'a mut dyn super::PlanSource,
+        budget: &'budget mut Budget,
+        suspended_depth: usize,
+    ) -> Self {
+        Self::from_parts(
+            std::borrow::Cow::Owned(program),
+            Some(source),
+            budget,
+            suspended_depth,
+        )
+    }
+    fn from_parts(
+        program: std::borrow::Cow<'a, Program>,
+        source: Option<&'a mut dyn super::PlanSource>,
+        budget: &'budget mut Budget,
+        suspended_depth: usize,
+    ) -> Self {
         let memory = Memory::new(budget.storage.clone());
         Self {
             program,
+            source,
             budget,
             suspended_depth,
             memory,
@@ -59,7 +91,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         self.trace.clear();
         let result = if self
             .program
-            .plans
+            .contracts
             .get(&code.code().into())
             .is_some_and(|p| p.initializer)
         {
@@ -87,12 +119,31 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         {
             return Err(Rule::CallDepthLimit);
         }
-        let plan = self.program.plans.get(&code).ok_or(Rule::InvalidPlan)?;
+        if !self.program.contracts.contains_key(&code) {
+            return Err(Rule::InvalidPlan);
+        }
+        if !self.program.plans.contains_key(&code) {
+            let extension = self
+                .source
+                .as_mut()
+                .ok_or(Rule::UnavailablePlan)?
+                .load(code)?;
+            if !extension.plans.contains_key(&code) {
+                return Err(Rule::InvalidPlan);
+            }
+            self.program.to_mut().extend(extension)?;
+        }
+        let plan = self
+            .program
+            .plans
+            .get(&code)
+            .cloned()
+            .ok_or(Rule::InvalidPlan)?;
         if inputs.len() != plan.inputs.len() {
             return Err(Rule::InvalidPlan);
         }
         let mut frame = Frame::new(&self.memory.storage, plan.slots.clone())?;
-        self.bind_inputs(code.source, plan, &mut frame, inputs)?;
+        self.bind_inputs(code.source, &plan, &mut frame, inputs)?;
         for &(slot, id) in &plan.statics {
             let value = &self
                 .program
@@ -105,7 +156,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         let index = self.memory.frames.len();
         self.memory.frames.push(frame);
         let saved = self.site;
-        let result = self.run(code.source, plan, index);
+        let result = self.run(code.source, &plan, index);
         if result.is_err() && self.failed_site.is_none() {
             self.failed_site = self.site;
         }
@@ -287,7 +338,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             .get(frame)
             .ok_or(Rule::InvalidPlan)?
             .slots;
-        let data = super::validation::place_data(self.program, slots, place)?;
+        let data = super::validation::place_data(&self.program, slots, place)?;
         self.program
             .types
             .get(data)
@@ -456,7 +507,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         // the checked plan can select initialized components of an incomplete owner.
         let mut address = self.memory.address(frame, base)?;
         let data =
-            super::validation::place_data(self.program, &self.memory.frames[frame].slots, base)?;
+            super::validation::place_data(&self.program, &self.memory.frames[frame].slots, base)?;
         let Some(super::Type::Array { length, .. }) = self.program.types.get(data) else {
             return Err(Rule::InvalidPlan);
         };
@@ -614,7 +665,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
     }
     fn array_length(&self, frame: usize, source: &Place) -> Result<u64> {
         let data =
-            super::validation::place_data(self.program, &self.memory.frames[frame].slots, source)?;
+            super::validation::place_data(&self.program, &self.memory.frames[frame].slots, source)?;
         let Some(super::Type::Array { length, .. }) = self.program.types.get(data) else {
             return Err(Rule::InvalidPlan);
         };

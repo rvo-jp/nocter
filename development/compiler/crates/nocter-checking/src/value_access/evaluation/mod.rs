@@ -24,7 +24,6 @@ pub enum Rule {
     DependencyCycle,
     FinalValue,
     ConditionWorkLimit,
-    PlanWorkLimit,
 }
 impl Rule {
     fn diagnostic(self) -> Result<(DiagnosticCode, &'static str), BodyFailure> {
@@ -41,6 +40,14 @@ impl Rule {
                 DiagnosticCode::E0325,
                 "required constant evaluation selected an out-of-range array element",
             ),
+            Self::Execution(state::Rule::UnavailablePlan) => (
+                DiagnosticCode::E0323,
+                "required constant evaluation has no matched implementation for this call",
+            ),
+            Self::Execution(state::Rule::PlanWorkLimit) => (
+                DiagnosticCode::E0322,
+                "required constant preparation exhausted its plan-work budget",
+            ),
             Self::Execution(state::Rule::StepLimit) => (
                 DiagnosticCode::E0322,
                 "required constant evaluation exhausted its operation budget",
@@ -56,10 +63,6 @@ impl Rule {
             Self::Execution(state::Rule::InvalidPlan | state::Rule::ReachedUnreachable) => {
                 return Err(BodyFailure::InconsistentSyntax);
             }
-            Self::PlanWorkLimit => (
-                DiagnosticCode::E0322,
-                "required constant preparation exhausted its plan-work budget",
-            ),
             Self::ConditionWorkLimit => (
                 DiagnosticCode::E0322,
                 "required constant analysis exhausted its condition-work budget",

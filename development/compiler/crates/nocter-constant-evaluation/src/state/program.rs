@@ -118,3 +118,11 @@ impl Program {
         Ok(())
     }
 }
+
+/// Supply only already selected immutable code/metadata, never semantic lookup or body checking.
+/// The executor validates and atomically installs every batch before entering its requested body.
+pub trait PlanSource {
+    /// # Errors
+    /// Reports preparation limits or invalid/unavailable matched code.
+    fn load(&mut self, code: CodeInstance) -> Result<ProgramExtension, Rule>;
+}

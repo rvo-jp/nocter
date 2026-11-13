@@ -83,6 +83,12 @@ validated types, contracts, plans and static data. It cannot replace an existing
 reinterpret an old type index; a failed batch leaves the previous program intact. Immutable
 body plans are shared across extensions. This boundary grants neither const capability nor an
 implementation for absent code.
+`Executor::with_source` retains a validated program and a `PlanSource` of frozen code batches.
+It requests a missing body only when entering that exact instance, then validates the batch
+atomically. Active frames retain their immutable plans while the table grows. Ordinary call/depth,
+source-work and live-storage behavior is unchanged; loading does not execute a source operation.
+An unavailable implementation and exhausted plan-preparation work have distinct failures.
+The source cannot perform semantic lookup, body checking or choose a different call target.
 
 Plan tables and direct-call edges select a `CodeInstance`: the complete semantic `ValueCode`,
 including lexical captured code, plus a program-local instance number. Multiple lowered plans may

@@ -76,3 +76,100 @@ fn deferred_call_boundaries_validate_before_bodies_and_extend_atomically() {
     );
     assert_eq!(budget.storage_used(), 0);
 }
+
+#[test]
+fn deferred_loading_preserves_exact_keys_caches_bodies_and_recovers_after_preparation_failure() {
+    struct Bodies {
+        pending: BTreeMap<CodeInstance, Plan>,
+        calls: Vec<CodeInstance>,
+        fail: bool,
+        omit: bool,
+    }
+    impl PlanSource for Bodies {
+        fn load(&mut self, code: CodeInstance) -> Result<ProgramExtension, Rule> {
+            self.calls.push(code);
+            if std::mem::take(&mut self.fail) {
+                return Err(Rule::PlanWorkLimit);
+            }
+            if std::mem::take(&mut self.omit) {
+                return Ok(ProgramExtension {
+                    types: vec![Type::Bool],
+                    ..ProgramExtension::default()
+                });
+            }
+            Ok(ProgramExtension {
+                plans: BTreeMap::from([(
+                    code,
+                    self.pending.remove(&code).ok_or(Rule::UnavailablePlan)?,
+                )]),
+                ..ProgramExtension::default()
+            })
+        }
+    }
+    let (root, target) = code_ids();
+    let mut root_plan = literal();
+    root_plan.points = root_plan.points.map(|_, point| {
+        let mut point = point.clone();
+        point.actions[0].operation = Operation::Call {
+            destination: 0,
+            target: target.into(),
+            inputs: Box::new([]),
+        };
+        point
+    });
+    let mut target_plan = literal();
+    target_plan.initializer = false;
+    let dormant = CodeInstance {
+        source: target.into(),
+        instance: 1,
+    };
+    let program = Program::linked(
+        [Type::Integer(nocter_model::BuiltinType::I32)],
+        BTreeMap::from([
+            (root.into(), CallContract::from_plan(&root_plan).unwrap()),
+            (
+                target.into(),
+                CallContract::from_plan(&target_plan).unwrap(),
+            ),
+            (dormant, CallContract::from_plan(&target_plan).unwrap()),
+        ]),
+        BTreeMap::from([(root.into(), root_plan)]),
+        BTreeMap::new(),
+    )
+    .unwrap();
+    let mut budget = Budget::new(Limits::default());
+    assert_eq!(
+        Executor::new(&program, &mut budget, 0)
+            .evaluate_initializer(root)
+            .unwrap_err()
+            .rule,
+        Rule::UnavailablePlan
+    );
+    assert_eq!(budget.storage_used(), 0);
+    let mut source = Bodies {
+        pending: BTreeMap::from([(target.into(), target_plan.clone()), (dormant, target_plan)]),
+        calls: Vec::new(),
+        fail: true,
+        omit: true,
+    };
+    {
+        let mut executor = Executor::with_source(program, &mut source, &mut budget, 0);
+        let error = executor.evaluate_initializer(root).unwrap_err();
+        assert_eq!(error.rule, Rule::PlanWorkLimit);
+        assert_eq!(error.site.unwrap().code, root.into());
+        assert!(error.trace.is_empty());
+        assert_eq!(
+            executor.evaluate_initializer(root).unwrap_err().rule,
+            Rule::InvalidPlan
+        );
+        for _ in 0..2 {
+            assert_eq!(
+                executor.evaluate_initializer(root).unwrap(),
+                Value::integer(42)
+            );
+        }
+    }
+    assert_eq!(source.calls, [target.into(), target.into(), target.into()]);
+    assert!(source.pending.contains_key(&dormant));
+    assert_eq!(budget.storage_used(), 0);
+}

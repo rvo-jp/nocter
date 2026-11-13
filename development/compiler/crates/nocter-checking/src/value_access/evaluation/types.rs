@@ -49,8 +49,14 @@ impl Types {
         let id = self.get_in(program, instance, data)?;
         Ok(self.shapes[id].supported)
     }
-    pub(super) fn finish(self) -> Vec<Type> {
-        self.shapes.into_iter().map(|shape| shape.ty).collect()
+    pub(super) fn appended(&self, from: usize) -> Vec<Type> {
+        self.shapes[from..]
+            .iter()
+            .map(|shape| shape.ty.clone())
+            .collect()
+    }
+    pub(super) fn len(&self) -> usize {
+        self.shapes.len()
     }
     pub(in crate::value_access) fn supports(
         &mut self,

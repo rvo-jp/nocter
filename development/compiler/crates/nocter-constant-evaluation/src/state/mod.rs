@@ -322,7 +322,7 @@ pub struct Static {
     pub value: Value,
 }
 mod program;
-pub use program::{CallContract, InputContract, Program, ProgramExtension};
+pub use program::{CallContract, InputContract, PlanSource, Program, ProgramExtension};
 
 #[cfg(test)]
 mod tests;

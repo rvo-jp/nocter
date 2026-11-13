@@ -104,6 +104,7 @@ fn conditional_const_callable_inputs_execute_through_exact_instances() {
         "taking",
         "anonymous",
         "interrupted",
+        "permuting",
         "calculate",
     ] {
         let source = source.replace(
@@ -395,7 +396,7 @@ fn shared_conditions_do_not_bypass_plan_expansion_budget_or_failed_request_recov
         .unwrap();
     let mut preparation = Preparation::new(context, Headers::Closed, state::Limits::default());
     preparation.condition_work = state::WorkBudget::new(std::num::NonZeroU64::new(8).unwrap());
-    preparation.plan_work = state::WorkBudget::new(std::num::NonZeroU64::new(4).unwrap());
+    preparation.plan_work = state::WorkBudget::new(std::num::NonZeroU64::new(1).unwrap());
     let mut requests = Dependencies::default();
     let Err(QueryError::Computation(SourceFailure::Checking(Failure::Evaluation {
         diagnostic,
@@ -404,20 +405,23 @@ fn shared_conditions_do_not_bypass_plan_expansion_budget_or_failed_request_recov
     else {
         panic!("condition equivalence cannot erase concrete plan work");
     };
-    assert_eq!(diagnostic.rule(), Rule::PlanWorkLimit);
+    assert_eq!(
+        diagnostic.rule(),
+        Rule::Execution(state::Rule::PlanWorkLimit)
+    );
     assert_eq!(diagnostic.source().code(), "E0322");
     assert!(
         syntax
             .text_at(diagnostic.source().primary().span().range())
             .unwrap()
-            .contains("ANSWER")
+            .starts_with("permute(")
     );
     assert_eq!(requests.active_depth(), 0);
     assert_eq!(requests.active_keys().len(), 0);
     assert!(dependencies::value(&requests, answer).is_none());
     assert_eq!(preparation.budget.storage_used(), 0);
     preparation.condition_work.restart();
-    preparation.plan_work = state::WorkBudget::new(std::num::NonZeroU64::new(32).unwrap());
+    preparation.plan_work = state::WorkBudget::new(std::num::NonZeroU64::new(2).unwrap());
     requests
         .resolve_steps(&mut preparation, Request::Value(answer.into()))
         .unwrap();

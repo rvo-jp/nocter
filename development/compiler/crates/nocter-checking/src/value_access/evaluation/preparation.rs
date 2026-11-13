@@ -710,33 +710,16 @@ impl<'a, 'source> Preparation<'a, 'source> {
                 diagnostic: Box::new(diagnostic),
             });
         }
-        let program = match projection::prepare(
+        let (program, mut source) = projection::Source::prepare(
             &checked,
             id,
             |id| dependencies::value(requests, id).map(|value| value.execution.clone()),
             &mut self.plan_work,
-        ) {
-            Ok(program) => program,
-            Err(projection::PreparationError::Integrity(error)) => {
-                return Err(Failure::Integrity(error));
-            }
-            Err(projection::PreparationError::WorkLimit) => {
-                let primary = self
-                    .source(id)
-                    .and_then(|source| super::source_origin(&self.context, source.origin()))
-                    .map_err(|failure| Failure::Body {
-                        callable: id.source_owner(),
-                        failure,
-                    })?;
-                return Err(super::failure_at_source(
-                    id.source_owner(),
-                    Rule::PlanWorkLimit,
-                    primary,
-                ));
-            }
-        };
-        let mut executor = state::Executor::new(
-            &program,
+        )
+        .map_err(Failure::Integrity)?;
+        let mut executor = state::Executor::with_source(
+            program,
+            &mut source,
             &mut self.budget,
             dependencies::value_depth(requests) - 1,
         );

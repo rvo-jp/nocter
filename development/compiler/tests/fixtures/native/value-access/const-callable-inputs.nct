@@ -61,8 +61,20 @@ const func interrupted(): i32 {
        && stop_edit(named_update) == 42 && stop_edit(named_update) == 42
        && stop_edit(edit_callback) == 42 && stop_edit(edit_callback) == 42 { 42 } else { 0 }
 }
+func unused_alpha(): void {}
+func unused_beta(): void {}
+func unused_gamma(): void {}
+func unused_delta(): void {}
+const func permute_unused(a: func(): void, b: func(): void, c: func(): void, d: func(): void, count: i32): i32 {
+    if count == 0 { 42 } else {
+        let _ = permute_unused(b, a, c, d, count - 1)
+        let _ = permute_unused(a, c, b, d, count - 1)
+        permute_unused(a, b, d, c, count - 1)
+    }
+}
+const func permuting(): i32 { permute_unused(unused_alpha, unused_beta, unused_gamma, unused_delta, 0) }
 const func calculate(): i32 {
-    if reading() == 42 && editing() == 42 && taking() == 42 && anonymous() == 42 && interrupted() == 42 { 42 } else { 0 }
+    if reading() == 42 && editing() == 42 && taking() == 42 && anonymous() == 42 && interrupted() == 42 && permuting() == 42 { 42 } else { 0 }
 }
 const ANSWER: i32 = calculate()
 func run(): i32 { if ANSWER == 42 && calculate() == 42 { 42 } else { 0 } }
