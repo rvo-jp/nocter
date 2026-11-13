@@ -80,6 +80,24 @@ impl Types {
         let data = program
             .instantiate_data(data, instance)
             .map_err(|_| INVALID)?;
+        self.get_instance(program, data)
+    }
+    pub(super) fn get_environment(
+        &mut self,
+        program: &Program,
+        instance: &CodeInstanceKey,
+        source: TypeId,
+    ) -> Result<usize> {
+        let data = program
+            .instantiate_environment(instance)
+            .map_err(|_| INVALID)?
+            .ok_or(INVALID)?;
+        if data.data() != source {
+            return Err(INVALID);
+        }
+        self.get_instance(program, data)
+    }
+    fn get_instance(&mut self, program: &Program, data: DataInstanceKey) -> Result<usize> {
         self.get_key(program, &ShapeKey::instantiated(program, data)?)
     }
     pub(in crate::value_access) fn supports_in(

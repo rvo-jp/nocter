@@ -3,7 +3,7 @@ use super::{
     AggregateSchema, ArraySchema, CodeBindingError, CodeInstanceKey, ConcreteWitness,
     PayloadSchema, Program,
 };
-use nocter_model::{BuiltinType, TypeId, ValueCode, ValueField};
+use nocter_model::{BuiltinType, FieldPath, TypeId, ValueCode, ValueField};
 use std::{collections::BTreeMap, sync::Arc};
 mod graph;
 
@@ -104,6 +104,20 @@ impl DataInstanceKey {
         }
         program.instantiate_closed_data(data)
     }
+    /// Follow validated component metadata without replacing context by a source type lookup.
+    /// This supplies no source access, numeric-index relation or initialization proof.
+    /// # Errors
+    /// Rejects unknown schemas, invalid fields and nonexistent empty-array elements.
+    pub fn project_path(
+        &self,
+        program: &Program,
+        path: &FieldPath,
+    ) -> Result<Self, CodeBindingError> {
+        self.schema(program)?;
+        path.fields()
+            .iter()
+            .try_fold(self.clone(), |key, &field| key.component(program, field))
+    }
     /// Project an actual selected closure's own captured context, independent of invocation inputs.
     /// # Errors
     /// Rejects a missing schema, unresolved producer or incompatible captured dependency.
@@ -111,23 +125,44 @@ impl DataInstanceKey {
         let InstanceSchema::Function(selected) = self.schema(program)? else {
             return Ok(None);
         };
-        let ValueCode::Closure(code) = selected.code() else {
-            return Ok(None);
-        };
-        let environment = program
-            .closure(code)
-            .ok_or(CodeBindingError::UnknownCode)?
-            .environment();
-        selected
-            .environment()
-            .map_or_else(
-                || program.instantiate_closed_data(environment),
-                |environment| Ok(environment.clone()),
-            )
-            .map(Some)
+        program.bound_environment(selected.code(), selected.environment())
     }
 }
 impl Program {
+    /// Select the complete environment input of one existing code frame.
+    /// Source/body guards and ownership remain separate from this metadata projection.
+    /// # Errors
+    /// Rejects unknown closures or an inconsistent contextual environment schema.
+    pub fn instantiate_environment(
+        &self,
+        frame: &CodeInstanceKey,
+    ) -> Result<Option<DataInstanceKey>, CodeBindingError> {
+        self.bound_environment(frame.code(), frame.environment())
+    }
+    fn bound_environment(
+        &self,
+        code: ValueCode,
+        environment: Option<&DataInstanceKey>,
+    ) -> Result<Option<DataInstanceKey>, CodeBindingError> {
+        let ValueCode::Closure(code) = code else {
+            return if environment.is_none() {
+                Ok(None)
+            } else {
+                Err(CodeBindingError::InvalidWitness)
+            };
+        };
+        let data = self
+            .closure(code)
+            .ok_or(CodeBindingError::UnknownCode)?
+            .environment();
+        if let Some(environment) = environment {
+            if environment.data() != data {
+                return Err(CodeBindingError::InvalidWitness);
+            }
+            return Ok(Some(environment.clone()));
+        }
+        self.instantiate_closed_data(data).map(Some)
+    }
     /// Instantiate a context-free descriptor, independently of a containing value or code frame.
     /// This supplies no payload, source admission, ownership or target-layout proof.
     /// # Errors

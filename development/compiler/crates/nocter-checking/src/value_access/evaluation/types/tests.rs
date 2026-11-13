@@ -12,6 +12,7 @@ struct Fixture {
     tuple: TypeId,
     empty: TypeId,
     callbacks: [FunctionWitness; 2],
+    wrapper: FunctionWitness,
 }
 fn fixture() -> Fixture {
     let (sources, tree) = input(
@@ -52,6 +53,21 @@ fn fixture() -> Fixture {
     let array = body.array(captured, 2).unwrap();
     let tuple = body.tuple(&[captured, array]).unwrap();
     let empty = body.array(captured, 0).unwrap();
+    let wrapper = body.reserve_closure().unwrap();
+    body.closure(
+        wrapper,
+        tuple,
+        FunctionConstraint {
+            invocation: ValueInvocation::Read,
+            inputs: Box::new([]),
+            result: integer,
+        },
+    )
+    .unwrap();
+    let wrapper = FunctionWitness {
+        origin: ValueFunctionOrigin::Closure(wrapper),
+        invocation: ValueInvocation::Read,
+    };
     Fixture {
         program: body.finish(),
         creator,
@@ -61,6 +77,7 @@ fn fixture() -> Fixture {
         tuple,
         empty,
         callbacks,
+        wrapper,
     }
 }
 
@@ -192,5 +209,63 @@ fn evaluator_carriers_keep_mixed_component_contexts_without_strengthening_raw_ty
     assert_ne!(actual[0], actual[1]);
     assert!(types.shapes[id].supported);
     assert!(!types.shapes[id].serializable);
+    assert!(!types.supports(program, fixture.tuple).unwrap());
+}
+
+#[test]
+fn an_environment_input_uses_its_complete_frame_instead_of_reconstructing_type_bindings() {
+    let fixture = fixture();
+    let program = &fixture.program;
+    let frames = fixture.callbacks.map(|callback| {
+        program
+            .bind_code(fixture.creator.into(), [(fixture.parameter, callback)])
+            .unwrap()
+    });
+    let roots = frames
+        .each_ref()
+        .map(|frame| program.instantiate_data(fixture.tuple, frame).unwrap());
+    let mixed = program
+        .instantiate_components(
+            fixture.tuple,
+            [
+                (
+                    ValueField::Tuple(0),
+                    roots[0].component(program, ValueField::Tuple(0)).unwrap(),
+                ),
+                (
+                    ValueField::Tuple(1),
+                    roots[1].component(program, ValueField::Tuple(1)).unwrap(),
+                ),
+            ],
+        )
+        .unwrap();
+    let frame = program
+        .bind_instance(
+            &program.bind_callable_data(fixture.wrapper, &mixed).unwrap(),
+            [],
+        )
+        .unwrap();
+    assert!(
+        program.instantiate_data(fixture.tuple, &frame).is_err(),
+        "the two captured occurrences have no single free-parameter binding"
+    );
+    let mut types = Types::default();
+    let expected = types.get_instance(program, mixed).unwrap();
+    assert_eq!(
+        types
+            .get_environment(program, &frame, fixture.tuple)
+            .unwrap(),
+        expected
+    );
+    assert!(
+        types
+            .get_environment(program, &frame, fixture.captured)
+            .is_err()
+    );
+    assert!(
+        types
+            .get_environment(program, &frames[0], fixture.tuple)
+            .is_err()
+    );
     assert!(!types.supports(program, fixture.tuple).unwrap());
 }

@@ -297,3 +297,84 @@ fn environment_validation_rejects_missing_contexts_and_noncanonical_closed_edges
         "invalid requests must not poison a valid retry"
     );
 }
+
+#[test]
+fn frame_environment_projection_retains_each_actual_component_and_rejects_invalid_paths() {
+    use nocter_model::{FieldPath, ValueField};
+    let fixture = fixture();
+    let program = &fixture.program;
+    let frames = fixture.callbacks.map(|callback| {
+        program
+            .bind_code(fixture.creator.into(), [(fixture.formal, callback)])
+            .unwrap()
+    });
+    assert!(
+        program
+            .instantiate_environment(&frames[0])
+            .unwrap()
+            .is_none()
+    );
+    let data = program.function_data(fixture.captured).unwrap();
+    let values = frames
+        .each_ref()
+        .map(|frame| program.instantiate_data(data, frame).unwrap());
+    let environment = program
+        .instantiate_components(
+            fixture.pair,
+            values
+                .iter()
+                .enumerate()
+                .map(|(position, key)| (ValueField::Tuple(position), key.clone())),
+        )
+        .unwrap();
+    let selected = program
+        .bind_callable_data(fixture.mixed, &environment)
+        .unwrap();
+    let frame = program.bind_instance(&selected, []).unwrap();
+    let received = program.instantiate_environment(&frame).unwrap().unwrap();
+    assert_eq!(received, environment);
+    assert_eq!(
+        received
+            .project_path(program, &FieldPath::default())
+            .unwrap(),
+        received
+    );
+    for (position, expected) in values.iter().enumerate() {
+        assert_eq!(
+            received
+                .project_path(program, &FieldPath::new([ValueField::Tuple(position)]))
+                .unwrap(),
+            *expected
+        );
+    }
+    assert!(
+        received
+            .project_path(program, &FieldPath::new([ValueField::Tuple(2)]))
+            .is_err()
+    );
+    assert!(
+        received
+            .project_path(
+                program,
+                &FieldPath::new([ValueField::Tuple(0), ValueField::Tuple(0)])
+            )
+            .is_err(),
+        "a callable environment is not a source field"
+    );
+    let closed = program
+        .bind_code(fixture.callbacks[1].origin.code().unwrap(), [])
+        .unwrap();
+    assert!(
+        program
+            .instantiate_environment(&closed)
+            .unwrap()
+            .unwrap()
+            .is_context_free()
+    );
+    let empty = program.instantiate_closed_data(fixture.empty).unwrap();
+    assert!(
+        empty
+            .project_path(program, &FieldPath::new([ValueField::Array(0)]))
+            .is_err()
+    );
+}

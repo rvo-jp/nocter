@@ -360,6 +360,10 @@ derives only requested free bindings from that environment; conflicting occurren
 while exact component selection retains each context. Own direct inputs do not require flattening
 unrelated captures. Selection preserves frozen views without repeating lookup or body checking.
 Closing a template over its own code frame retains that frame's environment directly.
+`instantiate_environment` selects that complete environment input, including an independently
+closed environment when no contextual substitutions are needed. It shares environment selection
+with callable data projection. `DataInstanceKey::project_path` preserves context through validated
+fields; it cannot expose callable backing as source fields or manufacture an empty-array element.
 Structural context participates in key equality and ordering. Validation and comparison use
 iterative walks that visit shared contexts or context pairs once, including independently built
 equal graphs. Diagnostic formatting emits indexed graph nodes once instead of recursively expanding

@@ -1229,6 +1229,9 @@ It retains the matched checked-body products, shared type projector and complete
 The type projector selects contextual components by validated source fields and follows callable
 environments through their separate environment edge. An empty array retains raw element metadata
 without constructing a positive element instance or granting an element access.
+Evaluator slots identified as the body's environment input or its retained backing use that frame's
+complete environment key. Input layout identifies this role; sharing a TypeId does not make an
+ordinary local an environment. The source input schema must match before selecting the shape.
 Component-context qualification includes a mixed carrier whose same-source callable leaves retain
 different environments. Its evaluator shape remains distinct from both uniform carriers, and this
 metadata construction does not strengthen the raw body's support or final-publication eligibility.

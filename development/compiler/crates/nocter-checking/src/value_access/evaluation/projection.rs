@@ -66,7 +66,17 @@ impl Builder<'_, '_> {
         Ok(self.expression(id)?.access().ok_or(INVALID)?.data())
     }
     fn slot(&mut self, key: Key, data: TypeId, storage: plan::Storage) -> Result<usize> {
-        let data = self.types.get_in(self.program, self.instance, data)?;
+        let environment = self.query.typed().body().inputs().environment();
+        let is_environment = key == Key::EnvironmentBacking
+            || matches!(key,
+                Key::Resource(Holder::Local(local)) if environment.is_some_and(|input| input.local == local)
+            );
+        let data = if is_environment {
+            self.types
+                .get_environment(self.program, self.instance, data)?
+        } else {
+            self.types.get_in(self.program, self.instance, data)?
+        };
         if let Some(&slot) = self.keys.get(&key) {
             if self.slots.get(slot) != Some(&plan::Slot { data, storage }) {
                 return Err(INVALID);
