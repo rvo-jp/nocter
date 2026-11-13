@@ -408,7 +408,7 @@ fn dependent_and_captured_source_witnesses_reach_closed_layouts() {
                 let target = call.target().instance().unwrap();
                 let signature = storage::signature(&instances, &prepared, target).unwrap();
                 let body = instances.body(target).unwrap().typed().body();
-                for (index, (&binding, input)) in
+                for (index, (binding, input)) in
                     call.inputs().iter().zip(signature.explicit()).enumerate()
                 {
                     assert_eq!(input.local, body.inputs().explicit()[index].local);

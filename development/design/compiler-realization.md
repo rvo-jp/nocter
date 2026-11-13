@@ -150,6 +150,18 @@ Resolve frozen calls and data projections from that complete instance without re
 operation selection or body typing. Symbolic conditions may retain free dependencies, but cannot
 close them by equating signatures or by assigning every use of a lexical closure one environment.
 
+Code-frame substitution is not value-occurrence provenance. One caller can receive two results
+from the same factory and lexical closure while their captured callbacks differ. After a result
+solver selects that closure's source identity, a table keyed only by `(code frame, TypeId)` cannot
+recover which creation frame supplied each local, prepared argument or returned value. Preserve
+matched producer/application and creation-frame evidence through result projection and ordinary
+value transport. Compose it with the existing canonical witness/data instance model; do not
+reconstruct a context from the final signature, code name or arbitrary first producer. The two
+values must remain distinct both before and after being forwarded together. This evidence selects
+representation and static callable context; initialization, access, Copy, source-generation receipts
+and cleanup remain owned by their existing analyses. Qualify joins, component selection, recursive
+forwarding and failed requests without an address-indexed value registry or duplicated body typing.
+
 Dependent carrier shapes must use one contextual realization shared by evaluator eligibility,
 plan projection and native storage. Preserve nominal identities, component paths, invocation
 adapters and sparse cleanup; a substituted callable leaf cannot relabel its surrounding raw type

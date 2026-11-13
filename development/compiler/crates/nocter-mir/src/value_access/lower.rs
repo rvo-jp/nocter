@@ -4,16 +4,17 @@ use super::{
 };
 use nocter_checking::value_access::{
     ArgumentAction, ExpressionKind,
-    accepted::DataEvidence,
     flow::{
         self, Operation,
-        resources::{Disposal as CheckedDisposal, Holder, Payload, Step},
+        resources::{Disposal as CheckedDisposal, Holder, Step},
     },
 };
 use nocter_model::{AccessExpressionId, AccessInstanceId, MirLocalId, TypeId};
 use nocter_model::{ArenaBuilder, ValueAccessMode, ValueInputOperation};
 use nocter_runtime_contract::RuntimeDataId;
-use nocter_target_program::value_access::{Instance, InstanceProgram, lifecycle::EnvironmentPart};
+use nocter_target_program::value_access::{
+    DataEvidence, Instance, InstanceProgram, Payload, lifecycle::EnvironmentPart,
+};
 use nocter_target_program::value_access::{lifecycle, storage};
 use std::collections::BTreeMap;
 
@@ -71,16 +72,17 @@ impl Builder<'_> {
         Failure::InvalidBody(self.id)
     }
     pub(super) fn data(&self, source: TypeId) -> Result<RuntimeDataId, Failure> {
-        self.instance
+        let payload = self
+            .instance
             .data()
             .get(&source)
             .and_then(DataEvidence::payload)
             .ok_or_else(|| self.invalid())?;
-        self.payload_data(source)
+        self.payload_data(&payload)
     }
-    fn payload_data(&self, source: TypeId) -> Result<RuntimeDataId, Failure> {
+    fn payload_data(&self, payload: &Payload) -> Result<RuntimeDataId, Failure> {
         self.storage
-            .data(self.instances.unit().program(), self.instance.key(), source)
+            .instance(self.instances.unit().program(), payload.instance())
             .map_err(Failure::Storage)
     }
 
@@ -335,7 +337,7 @@ impl Builder<'_> {
             projections: Box::new([]),
         })
     }
-    fn disposal(&self, payload: Payload) -> Result<Disposal, Failure> {
+    fn disposal(&self, payload: &Payload) -> Result<Disposal, Failure> {
         Ok(match payload.disposal() {
             CheckedDisposal::Trivial => Disposal::Trivial,
             CheckedDisposal::OwnedError => Disposal::Error,
@@ -366,7 +368,7 @@ impl Builder<'_> {
                     }
                     output.push(Effect::Dispose {
                         source,
-                        disposal: self.disposal(*payload)?,
+                        disposal: self.disposal(payload)?,
                     });
                 }
                 lifecycle::Step::Resource(step) => match step {
@@ -377,7 +379,7 @@ impl Builder<'_> {
                         ..
                     } => {
                         let mut destination =
-                            self.root(*destination, self.payload_data(payload.data())?, false)?;
+                            self.root(*destination, self.payload_data(payload)?, false)?;
                         let environment = self.capture_data(destination.data)?;
                         let source = self.place(source, environment)?;
                         destination.projections = Box::new([Projection::Environment]);
@@ -393,9 +395,9 @@ impl Builder<'_> {
                         from,
                         payload,
                     } => {
-                        let source = self.place(source, self.payload_data(from.data())?)?;
+                        let source = self.place(source, self.payload_data(from)?)?;
                         let destination =
-                            self.root(*destination, self.payload_data(payload.data())?, false)?;
+                            self.root(*destination, self.payload_data(payload)?, false)?;
                         output.push(Effect::Reinterpret {
                             source,
                             destination,
@@ -407,7 +409,7 @@ impl Builder<'_> {
                         fields,
                     } => {
                         let destination =
-                            self.root(*destination, self.payload_data(payload.data())?, false)?;
+                            self.root(*destination, self.payload_data(payload)?, false)?;
                         for (field, source) in fields {
                             let data = self
                                 .runtime
@@ -444,7 +446,7 @@ impl Builder<'_> {
                         payload,
                     } => {
                         let destination =
-                            self.root(*destination, self.payload_data(payload.data())?, false)?;
+                            self.root(*destination, self.payload_data(payload)?, false)?;
                         output.push(Effect::Initialize(destination));
                     }
                     Step::Receive {
@@ -452,7 +454,7 @@ impl Builder<'_> {
                         destination,
                         payload,
                     } => {
-                        let data = self.payload_data(payload.data())?;
+                        let data = self.payload_data(payload)?;
                         let slot = self.slot(SlotKey::Answer(*call), data, Storage::Payload)?;
                         let source = Place {
                             slot,
@@ -471,9 +473,8 @@ impl Builder<'_> {
                         destination,
                         payload,
                     } => {
-                        let source = self.place(source, self.payload_data(payload.data())?)?;
-                        let destination =
-                            self.place(destination, self.payload_data(payload.data())?)?;
+                        let source = self.place(source, self.payload_data(payload)?)?;
+                        let destination = self.place(destination, self.payload_data(payload)?)?;
                         output.push(Effect::Transfer {
                             source,
                             destination,
@@ -485,7 +486,7 @@ impl Builder<'_> {
                         payload,
                         ..
                     } => {
-                        let data = self.data(payload.data())?;
+                        let data = self.payload_data(payload)?;
                         output.push(Effect::Transfer {
                             source: self.referent(
                                 nocter_checking::value_access::Referent::Evaluated(
@@ -503,17 +504,17 @@ impl Builder<'_> {
                     } => {
                         let data = self.index_data()?;
                         output.push(Effect::ConsolidateArrayPrefix {
-                            source: self.place(array, self.payload_data(payload.data())?)?,
+                            source: self.place(array, self.payload_data(payload)?)?,
                             endpoint: self
                                 .root(Holder::ArrayFrontier(*frontier), data, false)?
                                 .slot,
                         });
                     }
                     Step::Dispose { source, payload } => {
-                        let source = self.place(source, self.payload_data(payload.data())?)?;
+                        let source = self.place(source, self.payload_data(payload)?)?;
                         output.push(Effect::Dispose {
                             source,
-                            disposal: self.disposal(*payload)?,
+                            disposal: self.disposal(payload)?,
                         });
                     }
                     Step::DisposeArrayElements {
@@ -522,7 +523,7 @@ impl Builder<'_> {
                         range,
                     } => {
                         output.push(Effect::DisposeArrayElements {
-                            source: self.place(source, self.payload_data(payload.data())?)?,
+                            source: self.place(source, self.payload_data(payload)?)?,
                             range: range.try_map_index(|index| {
                                 let data = self.index_data()?;
                                 Ok(self.root(index.holder(), data, false)?.slot)
@@ -534,7 +535,7 @@ impl Builder<'_> {
                         payload,
                         missing,
                     } => {
-                        let array = self.place(source, self.payload_data(payload.data())?)?;
+                        let array = self.place(source, self.payload_data(payload)?)?;
                         let missing = missing
                             .iter()
                             .map(|hole| {
@@ -579,7 +580,7 @@ impl Builder<'_> {
                     }
                     Step::ReleaseContainer { source, payload } => {
                         output.push(Effect::End(
-                            self.place(source, self.payload_data(payload.data())?)?,
+                            self.place(source, self.payload_data(payload)?)?,
                         ));
                     }
                     Step::Invoke {
@@ -588,7 +589,7 @@ impl Builder<'_> {
                         index,
                         payload,
                     } => {
-                        let source = self.place(source, self.payload_data(payload.data())?)?;
+                        let source = self.place(source, self.payload_data(payload)?)?;
                         let destination = self.argument(*call, *index)?;
                         output.push(Effect::Transfer {
                             source,
@@ -600,13 +601,12 @@ impl Builder<'_> {
                         source,
                         payload,
                     } => {
-                        let destination =
-                            self.place(destination, self.payload_data(payload.data())?)?;
+                        let destination = self.place(destination, self.payload_data(payload)?)?;
                         output.push(Effect::Dispose {
                             source: destination.clone(),
-                            disposal: self.disposal(*payload)?,
+                            disposal: self.disposal(payload)?,
                         });
-                        let source = self.place(source, self.payload_data(payload.data())?)?;
+                        let source = self.place(source, self.payload_data(payload)?)?;
                         output.push(Effect::Transfer {
                             source,
                             destination,

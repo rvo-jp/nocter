@@ -263,3 +263,68 @@ fn nested_occurrences_of_one_lexical_closure_materialize_as_a_finite_graph() {
     }
     assert_eq!(count, 66);
 }
+
+#[test]
+fn logical_payload_projection_keeps_context_without_replacing_source_operations() {
+    use nocter_checking::value_access::flow::resources::{self, Disposal, Holder, Step};
+    let fixture = fixture();
+    let program = &fixture.program;
+    let contract = resources::payload(program, fixture.keys[0].data()).unwrap();
+    let source = Holder::Return.place();
+    let step = Step::Dispose {
+        source: source.clone(),
+        payload: contract,
+    };
+    let projected = fixture.keys.each_ref().map(|key| {
+        step.try_map_payloads(|payload| payload.instantiate(program, key))
+            .unwrap()
+    });
+    assert_ne!(projected[0], projected[1]);
+    for (position, projected) in projected.iter().enumerate() {
+        let Step::Dispose {
+            source: actual,
+            payload,
+        } = projected
+        else {
+            panic!("same disposal operation");
+        };
+        assert_eq!(actual, &source);
+        assert_eq!(payload.data(), contract.data());
+        assert_eq!(payload.disposal(), Disposal::Aggregate);
+        assert_eq!(payload.instance(), &fixture.keys[position]);
+    }
+    let scalar = resources::payload(program, program.data_type(BuiltinType::I32).unwrap()).unwrap();
+    assert!(scalar.instantiate(program, &fixture.keys[0]).is_err());
+    assert_eq!(
+        step,
+        Step::Dispose {
+            source,
+            payload: contract
+        }
+    );
+}
+
+#[test]
+fn instantiated_payload_environment_uses_the_actual_captured_value_context() {
+    use nocter_checking::value_access::flow::resources::{self, Disposal};
+    let fixture = fixture();
+    let program = &fixture.program;
+    let contract = resources::payload(program, fixture.captured).unwrap();
+    let payloads = fixture.keys.each_ref().map(|key| {
+        let key = key.project(program, fixture.captured).unwrap();
+        contract.instantiate(program, &key).unwrap()
+    });
+    assert_eq!(payloads[0].data(), payloads[1].data());
+    assert_ne!(payloads[0], payloads[1]);
+    for payload in &payloads {
+        assert_eq!(payload.disposal(), Disposal::OwnedCapture);
+    }
+    let first = payloads[0].environment(program).unwrap().unwrap();
+    let second = payloads[1].environment(program).unwrap().unwrap();
+    assert_eq!(first.disposal(), Disposal::Trivial);
+    assert!(first.environment(program).unwrap().is_none());
+    assert_eq!(second.disposal(), Disposal::OwnedCapture);
+    let nested = second.environment(program).unwrap().unwrap();
+    assert_eq!(nested.disposal(), Disposal::OwnedError);
+    assert_eq!(program.data_kind(nested.data()), Some(BuiltinType::Error));
+}

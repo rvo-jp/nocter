@@ -83,9 +83,9 @@ substitute for the expression's code identity.
 
 `InstanceKey` and `ConcreteWitness` reexport declaration-owned metadata; this crate defines no
 competing binding key or constructor. `build` interns those keys for one named/captured code identity
-and its concrete formal-witness bindings.
-A concrete witness pairs code identity with the supplied invocation view; the code instance itself
-is shared across views. Runtime environment contents do not enter its key. The builder reserves
+and its own formal-witness bindings plus captured substitutions. A concrete witness retains its
+code, supplied invocation view and complete captured callable context. The code instance itself
+is shared across views. Actual runtime environment values do not enter its key. The builder reserves
 before following recursive edges and freezes only after every reachable instance is defined.
 Only checking-reachable invocation commits create call edges. A value reference, uninvoked binding
 or interrupted argument does not force a code instance. Construction indexes are discarded; one
@@ -98,11 +98,14 @@ become an executable target, and an underlying declaration cannot upgrade a rest
 Callable results arrive with checking-closed code or caller-formal witnesses. The body's resolved
 result data enters the same projection table; no target-side result inference or second instance
 graph exists. Key construction delegates exact formal coverage and contract/view validation to
-`Program::bind_code`, without target search or body retyping. One table maps source data IDs to concrete payload obligations or checked unproduced
-shapes in the existing program authority. The unproduced marker supplies neither a duplicate
+`Program::bind_instance`, without target search or body retyping. One table maps the body's
+source data IDs to checking-owned [instantiated payload obligations](../nocter-checking/README.md#shared-flow-access-and-resource-validation)
+or checked unproduced shapes. Each positive entry retains its complete `DataInstanceKey`, not just
+the selected code's raw semantic ID. The unproduced marker supplies neither a duplicate
 signature nor a payload or code instance; shape/contract lookup stays with Program. It also covers
-positive tuple/array shapes with a proved-unproduced callable component. Captured payloads include their ordinary environment-data obligations even when reached
-through a formal witness. Aggregate schemas are visited iteratively, without expanding payload trees.
+positive tuple/array shapes with a proved-unproduced callable component. Captured payloads project their own environment obligations through their complete selected
+context, including when reached through a formal witness. Transitive components are not flattened
+into the body's source-ID map; the contextual schema graph remains the common projection authority.
 Source-selected moves, reservations and snapshots remain unchanged after concrete projection.
 
 `projection::requirements` demands concrete data only for the frozen input/result ABI, checked
@@ -131,7 +134,7 @@ adapter-owned environment before result delivery. Copy supply refers to its prep
 not its original source owner. No unwind/cancellation guarantee is inferred from this normal exit
 recipe. Explicit bindings retain their ordinal, operation and payload; body-local identities remain
 with the body's input layout instead of being duplicated in every caller edge.
-Final freeze verifies each edge's input/result payloads against its selected concrete body or the
+Final freeze verifies each edge's environment, input and result payloads against its selected concrete body or the
 runtime contract's sole primitive value signature.
 Input locals are relative to the selected body and a fresh invocation activation; sharing a
 static instance never shares runtime environment values, owner state or storage between calls.
@@ -159,7 +162,9 @@ identical guard/schedule pairs. A projected condition admitting different schedu
 explicitly, rather than selecting by report order. No second CFG or runtime-state store is built.
 
 `project` substitutes payload obligations through the existing per-instance data map using
-checking's exhaustive resource-step transform. It does not select operations, fields or dispatch.
+checking's exhaustive resource-step transform into `Step<InstantiatedPayload>`. The concrete
+payload retains its captured context through adapter completion and MIR lookup; it does not select
+operations, fields or dispatch.
 `completion` expands the frozen EnvironmentExit recipe only for reached calls; it does not
 reclassify the supplied invocation or the body's environment authority.
 
@@ -196,8 +201,7 @@ independent substitutions. Checked payload/access/cleanup evidence remains a sep
 No released executable adapter is introduced.
 
 This materializer and its nested-context tests do not complete formal-environment source support.
-The instance/lifecycle products and producer/closure-creation paths still need to retain contextual
-payload evidence before that source admission can open. A representation key supplies neither a
+The producer and closure-creation paths still need qualification before that source admission can open. A representation key supplies neither a
 checked payload nor a new destruction or callable-publication rule.
 
 The [private stored-representation contract](../../../architecture/pipeline/value-access-declarations.md#private-stored-representation)

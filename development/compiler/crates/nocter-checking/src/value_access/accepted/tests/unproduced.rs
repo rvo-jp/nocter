@@ -22,9 +22,9 @@ fn absent(unit: &Unit, name: &str) -> Vec<nocter_model::TypeId> {
     }
     assert!(!data.is_empty());
     for step in steps(query) {
-        step.try_map_payloads::<()>(|payload| {
+        step.try_map_payloads::<(), _>(|payload| {
             assert!(!data.contains(&payload.data()));
-            Ok(payload)
+            Ok(*payload)
         })
         .unwrap();
     }

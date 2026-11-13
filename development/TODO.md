@@ -29,15 +29,11 @@ context across return/application producers without reconstructing it from a sig
 exact source/type reuse and deterministic failure recovery. A parser or metadata-only extension
 alone does not complete capture support. Preserve current rejection until executable consumers agree.
 
-Retain contextual payload evidence through the instance and lifecycle products instead of reducing
-an owned capture to a bare source `Payload` identity. The shared native `DataInstanceKey` materializer
-and its prepared identity interner now supply signatures, MIR payload slots and runtime component
-projections; materialization alone does not establish source capture admission.
-The runtime contract, private MIR and common Machine retain physical identities separately
-from semantic types; source closure creation and producer paths still need integration.
-Keep semantic `TypeId` in source checking
-and declarations; never turn a contextual runtime ID into a fabricated semantic type. Qualify
-source capture creation, call/return producers and runtime cleanup before opening admission.
+Preserve value-occurrence creation context through call/return producer evidence and ordinary
+value transport, then close source closure creation before admitting formal callable captures.
+Follow the occurrence-sensitive finding below and the canonical instance obligations. Keep semantic
+`TypeId` in source checking and declarations; contextual runtime IDs must never become fabricated
+semantic types. A representation key alone grants no payload, source admission or cleanup proof.
 
 Continue symbolic value/resource-state guarded discharge and independent module publication after
 that instance boundary is coherent. General R/D/S, dependent carriers, deeper callable inputs,
@@ -110,6 +106,13 @@ not a language restriction derived from the current realization boundary.
   publication is not implied by qualification.
 
 ## Open Findings
+
+- [ ] Preserve value-occurrence producer and creation-frame context when one caller receives the
+  same lexical closure with different captured callback substitutions. A per-frame `TypeId` map
+  cannot distinguish those results after code-only result projection. Extend the existing matched
+  producer/application evidence through local, argument, component and return transport, using the
+  canonical witness/data instance authority. Keep formal-capture source admission closed until
+  this case and its cleanup are qualified; see the [instance obligations](design/compiler-realization.md#captured-callable-instances).
 
 - [ ] Extend symbolic discharge beyond covered root-closed named/owned-environment witnesses and
   parameter-selected calls without callable receiving dependencies. Free/unresolved captures,

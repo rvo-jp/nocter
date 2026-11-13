@@ -1,5 +1,5 @@
 //! Closed data shapes for storage, independent of access operations and physical placement.
-use nocter_checking::value_access::accepted::DataEvidence;
+use super::DataEvidence;
 use nocter_declarations::value_access::{CodeInstanceKey, DataInstanceKey, Program};
 use nocter_model::{AccessInstanceId, TypeId};
 use nocter_runtime_contract::{
@@ -48,10 +48,21 @@ impl Prepared {
         let key = program
             .instantiate_data(source, frame)
             .map_err(|_| invalid())?;
+        self.instance(program, &key)
+    }
+    /// Resolve an already materialized contextual payload without rebuilding its caller frame.
+    /// # Errors
+    /// Rejects unresolved or absent positive data identities.
+    pub fn instance(
+        &self,
+        program: &Program,
+        key: &DataInstanceKey,
+    ) -> Result<RuntimeDataId, Failure> {
+        let invalid = || Failure::InvalidPayload(key.data());
         let key = key
             .function_representation(program)
             .map_err(|_| invalid())?
-            .unwrap_or(key);
+            .unwrap_or_else(|| key.clone());
         self.ids.get(&key).copied().ok_or_else(invalid)
     }
 }
@@ -71,14 +82,14 @@ pub fn signature(
     let inputs = body.body().inputs();
     let project = |input: nocter_checking::value_access::BodyInput| {
         let local = body.body().locals().get(input.local).ok_or_else(invalid)?;
-        instance
+        let payload = instance
             .data()
             .get(&local.data)
             .and_then(DataEvidence::payload)
             .ok_or_else(invalid)?;
         Ok(RuntimeValueInput {
             local: input.local,
-            data: storage.data(instances.unit().program(), instance.key(), local.data)?,
+            data: storage.instance(instances.unit().program(), payload.instance())?,
             operation: input.operation,
         })
     };
@@ -89,16 +100,12 @@ pub fn signature(
         .copied()
         .map(project)
         .collect::<Result<Box<[_]>, Failure>>()?;
-    instance
+    let payload = instance
         .data()
         .get(&body.result_data())
         .and_then(DataEvidence::payload)
         .ok_or_else(invalid)?;
-    let result = storage.data(
-        instances.unit().program(),
-        instance.key(),
-        body.result_data(),
-    )?;
+    let result = storage.instance(instances.unit().program(), payload.instance())?;
     Ok(RuntimeValueSignature::new(environment, explicit, result))
 }
 
@@ -111,14 +118,10 @@ pub fn prepare(instances: &InstanceProgram, abi: RuntimeAbiIdentity) -> Result<P
     let program = instances.unit().program();
     let mut shapes = shapes::Builder::new(program);
     for (_, instance) in instances.instances().iter() {
-        for (&source, evidence) in instance.data() {
-            if evidence.payload().is_none() {
-                continue;
+        for evidence in instance.data().values() {
+            if let Some(payload) = evidence.payload() {
+                shapes.intern(payload.instance().clone())?;
             }
-            let data = program
-                .instantiate_data(source, instance.key())
-                .map_err(|_| Failure::InvalidPayload(source))?;
-            shapes.intern(data)?;
         }
     }
     shapes.finish(abi)

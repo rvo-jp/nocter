@@ -8,16 +8,16 @@ pub mod storage;
 mod tests;
 
 pub use invocation::{CallTarget, Environment, EnvironmentExit, InputBinding, Invocation};
-use nocter_checking::value_access::{
-    accepted::{DataEvidence, Unit},
-    flow,
-};
+use nocter_checking::value_access::{accepted::Unit, flow};
 use nocter_model::{
     AccessCodeId, AccessExpressionId, AccessInstanceId, AccessParameterId, Arena, TypeId,
 };
 use std::{collections::BTreeMap, sync::Arc};
 
 pub use nocter_declarations::value_access::{CodeInstanceKey as InstanceKey, ConcreteWitness};
+
+pub use nocter_checking::value_access::flow::resources::InstantiatedPayload as Payload;
+pub type DataEvidence = nocter_checking::value_access::accepted::DataEvidence<Payload>;
 
 #[derive(Clone, Debug)]
 pub struct Instance {

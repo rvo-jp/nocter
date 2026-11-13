@@ -497,8 +497,32 @@ fn data_closure_visits_shared_record_schemas_without_expanding_payload_trees() {
     let root = callable(&unit, "run");
     let graph = InstanceProgram::prepare(unit, root).unwrap();
     assert_eq!(graph.instances().len(), 1);
+    // The body map owns only its actual input and result. Shared descendants stay in the
+    // canonical data graph instead of being flattened into a second source-type inventory.
+    assert_eq!(graph.instances().get(graph.root()).unwrap().data.len(), 2);
+    let prepared = storage::prepare(
+        &graph,
+        nocter_runtime_contract::RuntimeAbiIdentity::Arm64DarwinV1,
+    )
+    .unwrap();
+    let runtime = prepared.environment();
     // 65 nominal schemas, i32, and unit. The conceptual tree has 2^64 leaves.
-    assert_eq!(graph.instances().get(graph.root()).unwrap().data.len(), 67);
+    assert_eq!(runtime.types().iter().count(), 67);
+    let mut aggregates = 0;
+    for (_, representation) in runtime.type_representations().iter() {
+        let nocter_runtime_contract::RuntimeTypeRepresentation::ValueAggregate { fields } =
+            representation
+        else {
+            panic!("record representation");
+        };
+        aggregates += 1;
+        if fields.len() == 2 {
+            assert_eq!(fields[0].ty(), fields[1].ty());
+        } else {
+            assert_eq!(fields.len(), 1);
+        }
+    }
+    assert_eq!(aggregates, 65);
 }
 
 #[test]

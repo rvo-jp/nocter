@@ -1,12 +1,9 @@
 //! Concrete lifecycle schedules and initialization bits. No payload layout, ABI or native admission.
 pub mod flags;
-use super::{Environment, EnvironmentExit, Instance, InstanceProgram};
-use nocter_checking::value_access::{
-    accepted::DataEvidence,
-    flow::{
-        Location, Operation,
-        resources::{Condition, Payload, Step as ResourceStep},
-    },
+use super::{DataEvidence, Environment, EnvironmentExit, Instance, InstanceProgram, Payload};
+use nocter_checking::value_access::flow::{
+    Location, Operation,
+    resources::{Condition, Step as ResourceStep},
 };
 use nocter_model::AccessInstanceId;
 use std::{
@@ -24,7 +21,7 @@ pub enum EnvironmentPart {
 /// Resource operations retain their selected identity and exact concrete payload obligation.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Step {
-    Resource(ResourceStep),
+    Resource(ResourceStep<Payload>),
     /// End the adapter-owned carrier and dispose its selected payload exactly once.
     /// Normal return only, after the callee protects its answer and before caller receipt.
     DisposeEnvironment {

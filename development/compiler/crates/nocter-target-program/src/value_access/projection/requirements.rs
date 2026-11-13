@@ -33,9 +33,9 @@ pub(super) fn data(checked: &flow::Query) -> Result<BTreeSet<TypeId>, Failure> {
                 .at(flow::Location { point, action })
             {
                 for step in transition.steps() {
-                    step.try_map_payloads::<Failure>(|payload| {
+                    step.try_map_payloads::<Failure, _>(|payload| {
                         needed.data.insert(payload.data());
-                        Ok(payload)
+                        Ok(*payload)
                     })?;
                 }
             }

@@ -612,8 +612,15 @@ project the same ledger for lifecycle lowering; they do not include a physical d
 The report retains entry evidence only after successful initialization analysis. Transition
 snapshots additionally retain the ownership state between the before/after phases, so consumers
 can project bit updates from actual ledger states without replaying source initialization rules.
-Payload projection maps every obligation through one exhaustive step transform without changing
-selected operations or places. A dead access holder is not automatic early resource destruction. A staged
+`resources::Step<P>` owns one operation vocabulary and an exhaustive payload transform for both
+checked and instantiated obligations; projection preserves selected operations and places.
+`resources::Payload::instantiate` binds an existing logical schema to the declaration-owned
+`DataInstanceKey`, preserving the actual callable representation and nested captured context.
+`InstantiatedPayload` retains that complete key with its concrete root cleanup obligation. Its
+environment projection follows the selected value's own context, rather than a caller-wide map of
+raw source type IDs. Neither operation grants source admission, an initialized owner, Copy,
+external-dependency independence or stored representation. The accepted Unit's `DataEvidence<P>`
+uses the same payload-or-unproduced distinction at both projection stages. A dead access holder is not automatic early resource destruction. A staged
 return survives evaluation/lexical cleanup, whose order is reverse actual construction/preparation. A normal return has no evaluation frames and exactly one
 Return owner with the checking-closed result data type, including unit. Trapping/diverging paths do
 not acquire unwind guarantees.

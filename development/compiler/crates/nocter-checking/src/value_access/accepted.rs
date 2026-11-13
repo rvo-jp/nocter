@@ -36,16 +36,16 @@ pub enum Failure {
 /// Known data either has a logical payload contract or is a proved-unproduced shape.
 /// The latter grants no storage, cleanup or executable environment obligation.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum DataEvidence {
-    Payload(flow::resources::Payload),
+pub enum DataEvidence<P = flow::resources::Payload> {
+    Payload(P),
     /// The program remains the sole shape/contract authority; no payload is supplied here.
     Unproduced,
 }
-impl DataEvidence {
+impl<P: Clone> DataEvidence<P> {
     #[must_use]
-    pub const fn payload(&self) -> Option<flow::resources::Payload> {
+    pub fn payload(&self) -> Option<P> {
         match self {
-            Self::Payload(payload) => Some(*payload),
+            Self::Payload(payload) => Some(payload.clone()),
             Self::Unproduced => None,
         }
     }

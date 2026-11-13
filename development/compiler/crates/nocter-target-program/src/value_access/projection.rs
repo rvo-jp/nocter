@@ -1,24 +1,14 @@
 //! Mechanical witness/data substitution, consuming checked binding edges rather than lookup inputs.
-use super::{ConcreteWitness, Failure, InstanceKey};
+use super::{DataEvidence, Failure, InstanceKey};
 use nocter_checking::value_access::{
     Argument, CallKind,
-    accepted::{DataEvidence, Unit},
+    accepted::{DataEvidence as CheckedDataEvidence, Unit},
     flow,
-    flow::resources::payload,
 };
-use nocter_declarations::value_access::{FunctionWitness, PayloadSchema, Program};
-use nocter_model::{TypeId, ValueCode, ValueFunctionOrigin};
+use nocter_declarations::value_access::Program;
+use nocter_model::{TypeId, ValueFunctionOrigin};
 use std::collections::{BTreeMap, BTreeSet};
 mod requirements;
-
-pub(super) fn witness(
-    program: &Program,
-    key: &InstanceKey,
-    selected: FunctionWitness,
-) -> Result<ConcreteWitness, Failure> {
-    key.resolve(program, selected)
-        .map_err(|_| Failure::InvalidAcceptedUnit)
-}
 
 pub(super) fn callee(
     program: &Program,
@@ -62,7 +52,7 @@ pub(super) fn data(
             .data_evidence(source)
             .map_err(|_| Failure::InvalidAcceptedUnit)?;
         if evidence.payload().is_none() {
-            concrete.insert(source, evidence);
+            concrete.insert(source, DataEvidence::Unproduced);
         }
     }
     while let Some(source) = pending.pop_first() {
@@ -72,61 +62,20 @@ pub(super) fn data(
         let evidence = unit
             .data_evidence(source)
             .map_err(|_| Failure::InvalidAcceptedUnit)?;
-        if matches!(evidence, DataEvidence::Unproduced) {
-            concrete.insert(source, evidence);
-            continue;
-        }
-        let target = match program
-            .data_schema(source)
-            .ok_or(Failure::InvalidAcceptedUnit)?
-        {
-            PayloadSchema::Function(selected) => {
-                let selected = witness(program, key, selected)?;
-                if let ValueCode::Closure(id) = selected.code() {
-                    pending.insert(
-                        program
-                            .closure(id)
-                            .ok_or(Failure::InvalidAcceptedUnit)?
-                            .environment(),
-                    );
-                }
-                program
-                    .function_data(FunctionWitness {
-                        origin: selected
-                            .code()
-                            .origin()
-                            .ok_or(Failure::InvalidAcceptedUnit)?,
-                        invocation: selected.invocation(),
-                    })
-                    .ok_or(Failure::InvalidAcceptedUnit)?
-            }
-            PayloadSchema::Aggregate(aggregate) => {
-                pending.extend(aggregate.components().map(|component| component.data));
-                source
-            }
-            PayloadSchema::Builtin(_) => source,
-            PayloadSchema::Optional(payload) => {
-                pending.insert(payload);
-                source
-            }
-            PayloadSchema::Fallible(payload) => {
-                pending.insert(payload);
-                pending.insert(
-                    program
-                        .data_type(nocter_model::BuiltinType::Error)
-                        .ok_or(Failure::InvalidAcceptedUnit)?,
-                );
-                source
-            }
-            PayloadSchema::Array(array) => {
-                if !array.is_empty() {
-                    pending.insert(array.element());
-                }
-                source
+        let projected = match evidence {
+            CheckedDataEvidence::Unproduced => DataEvidence::Unproduced,
+            CheckedDataEvidence::Payload(contract) => {
+                let instance = program
+                    .instantiate_data(source, key)
+                    .map_err(|_| Failure::InvalidAcceptedUnit)?;
+                DataEvidence::Payload(
+                    contract
+                        .instantiate(program, &instance)
+                        .map_err(|_| Failure::InvalidAcceptedUnit)?,
+                )
             }
         };
-        let contract = payload(program, target).map_err(|_| Failure::InvalidAcceptedUnit)?;
-        concrete.insert(source, DataEvidence::Payload(contract));
+        concrete.insert(source, projected);
     }
     Ok(concrete)
 }

@@ -54,16 +54,16 @@ fn executable_selection_rejects_an_unbound_or_weaker_view_even_when_its_underlyi
     assert_eq!(selected.code(), ValueCode::Declaration(identity));
     assert!(selected.witnesses().is_empty());
     assert_eq!(
-        projection::witness(
-            unit.program(),
-            &caller,
-            FunctionWitness {
-                origin: ValueFunctionOrigin::Parameter(parameter),
-                invocation: ValueInvocation::Edit
-            }
-        )
-        .unwrap()
-        .invocation(),
+        caller
+            .resolve(
+                unit.program(),
+                FunctionWitness {
+                    origin: ValueFunctionOrigin::Parameter(parameter),
+                    invocation: ValueInvocation::Edit
+                }
+            )
+            .unwrap()
+            .invocation(),
         ValueInvocation::Edit
     );
 }

@@ -1,17 +1,13 @@
 //! Frozen caller-to-body input channels and normal adapter cleanup, without target selection.
-use super::Failure;
-use nocter_checking::value_access::{
-    BodyInput, CallKind,
-    accepted::{DataEvidence, Unit},
-    flow::resources::Payload,
-};
+use super::{DataEvidence, Failure, Payload};
+use nocter_checking::value_access::{BodyInput, CallKind, accepted::Unit};
 use nocter_model::{AccessExpressionId, AccessInstanceId, TypeId, ValueCode, ValueInputOperation};
 use nocter_runtime_contract::PrimitiveRole;
 use std::collections::BTreeMap;
 const INVALID: Failure = Failure::InvalidAcceptedUnit;
 
 /// Normal completion only; this does not invent unwind or cancellation cleanup guarantees.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EnvironmentExit {
     Retained,
     /// The checked body owns the environment's remaining-payload cleanup.
@@ -19,7 +15,7 @@ pub enum EnvironmentExit {
     /// The adapter owns this post-call environment until disposal before answer delivery.
     DisposeBeforeResult(Payload),
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Environment {
     None,
     /// A named function value has a code token but no environment input in its body.
@@ -40,7 +36,7 @@ pub enum Environment {
         exit: EnvironmentExit,
     },
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct InputBinding {
     /// Slot in the committed prepared bundle.
     pub argument: usize,
@@ -86,12 +82,12 @@ impl Invocation {
         &self.inputs
     }
     #[must_use]
-    pub const fn environment(&self) -> Environment {
-        self.environment
+    pub fn environment(&self) -> Environment {
+        self.environment.clone()
     }
     #[must_use]
-    pub const fn result(&self) -> Payload {
-        self.result
+    pub fn result(&self) -> Payload {
+        self.result.clone()
     }
 }
 
@@ -167,14 +163,7 @@ pub(super) fn bind(
             }
             (
                 1,
-                environment(
-                    unit,
-                    code,
-                    carrier,
-                    argument.operation,
-                    environment_input,
-                    data,
-                )?,
+                environment(unit, code, carrier, argument.operation, environment_input)?,
             )
         }
     };
@@ -208,7 +197,6 @@ fn environment(
     carrier: Payload,
     supplied: ValueInputOperation,
     input: Option<BodyInput>,
-    data: &BTreeMap<TypeId, DataEvidence>,
 ) -> Result<Environment, Failure> {
     match code {
         ValueCode::Expression(_) => Err(INVALID),
@@ -217,7 +205,7 @@ fn environment(
                 return Err(INVALID);
             }
             let exit = if supplied == ValueInputOperation::Take {
-                EnvironmentExit::DisposeBeforeResult(carrier)
+                EnvironmentExit::DisposeBeforeResult(carrier.clone())
             } else {
                 EnvironmentExit::Retained
             };
@@ -230,15 +218,15 @@ fn environment(
         }
         ValueCode::Closure(id) => {
             let input = input.ok_or(INVALID)?;
-            let ty = unit.program().closure(id).ok_or(INVALID)?.environment();
-            let payload = data
-                .get(&ty)
-                .and_then(DataEvidence::payload)
+            unit.program().closure(id).ok_or(INVALID)?;
+            let payload = carrier
+                .environment(unit.program())
+                .map_err(|_| INVALID)?
                 .ok_or(INVALID)?;
             let exit = if input.operation == ValueInputOperation::Take {
                 EnvironmentExit::BodyOwned
             } else if supplied == ValueInputOperation::Take {
-                EnvironmentExit::DisposeBeforeResult(payload)
+                EnvironmentExit::DisposeBeforeResult(payload.clone())
             } else {
                 EnvironmentExit::Retained
             };

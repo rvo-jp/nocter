@@ -114,9 +114,9 @@ fn a_hole_in_a_maximum_length_array_leaves_two_reverse_cleanup_spans() {
     assert!(state.contains(fixture.locals[1]));
     let mut projections = 0;
     let projected = steps[0]
-        .try_map_payloads::<()>(|value| {
+        .try_map_payloads::<(), _>(|value| {
             projections += 1;
-            Ok(value)
+            Ok(*value)
         })
         .unwrap();
     assert_eq!(projected, steps[0]);

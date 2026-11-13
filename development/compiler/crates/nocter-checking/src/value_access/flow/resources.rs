@@ -131,129 +131,8 @@ impl Payload {
         false
     }
 }
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub enum Step {
-    Capture {
-        source: Place,
-        destination: Holder,
-        environment: Payload,
-        payload: Payload,
-    },
-    /// Reclassify one selected named witness without constructing or duplicating its value.
-    AdaptFunction {
-        source: Place,
-        destination: Holder,
-        from: Payload,
-        payload: Payload,
-    },
-    /// Transfer listed component obligations into one structural value; no second value is constructed.
-    Assemble {
-        destination: Holder,
-        payload: Payload,
-        fields: Box<[(nocter_model::ValueField, Place)]>,
-    },
-    Construct {
-        destination: Holder,
-        payload: Payload,
-    },
-    /// Receive the callee's existing result obligation, without acquiring another resource.
-    Receive {
-        call: AccessExpressionId,
-        destination: Holder,
-        payload: Payload,
-    },
-    Move {
-        source: Place,
-        destination: Place,
-        payload: Payload,
-    },
-    MoveArrayElement {
-        array: Place,
-        index: RetainedIndex,
-        destination: Holder,
-        payload: Payload,
-    },
-    ConsolidateArrayPrefix {
-        array: Place,
-        payload: Payload,
-        frontier: ArrayFrontier,
-    },
-    Dispose {
-        source: Place,
-        payload: Payload,
-    },
-    /// Dispose remaining array elements/components and end their container. Missing coverage
-    /// preserves point/prefix roles; cleanup consumes their existing live scalar backing.
-    DisposeArrayRemainder {
-        source: Place,
-        payload: Payload,
-        missing: Box<[Missing]>,
-    },
-    /// Dispose initialized elements in [start, end) in reverse index order, retaining the array
-    /// container. Payload is the array's obligation, not a fabricated subarray type.
-    DisposeArrayElements {
-        source: Place,
-        payload: Payload,
-        range: nocter_model::ArrayRange<IndexBacking>,
-    },
-    /// End a partial structural container's slot after cleaning its surviving regions. This does
-    /// not destroy its payload again or prescribe physical allocation/deallocation.
-    ReleaseContainer {
-        source: Place,
-        payload: Payload,
-    },
-    Invoke {
-        source: Place,
-        call: AccessExpressionId,
-        index: usize,
-        payload: Payload,
-    },
-    /// Complete replacement through a scoped update alias. Its existing referent is initialized;
-    /// the enclosing owner's completeness does not change and no alias becomes an owner.
-    ReplaceReferent {
-        destination: Place,
-        source: Place,
-        payload: Payload,
-    },
-}
-impl Step {
-    /// Project payload obligations without selecting another operation or changing place identity.
-    /// # Errors
-    /// Returns the supplied projection's error without publishing a partly transformed step.
-    pub fn try_map_payloads<E>(
-        &self,
-        mut map: impl FnMut(Payload) -> std::result::Result<Payload, E>,
-    ) -> std::result::Result<Self, E> {
-        let mut step = self.clone();
-        match &mut step {
-            Self::Capture {
-                environment,
-                payload,
-                ..
-            } => {
-                *environment = map(*environment)?;
-                *payload = map(*payload)?;
-            }
-            Self::AdaptFunction { from, payload, .. } => {
-                *from = map(*from)?;
-                *payload = map(*payload)?;
-            }
-            Self::Assemble { payload, .. }
-            | Self::Construct { payload, .. }
-            | Self::Receive { payload, .. }
-            | Self::Move { payload, .. }
-            | Self::MoveArrayElement { payload, .. }
-            | Self::ConsolidateArrayPrefix { payload, .. }
-            | Self::Dispose { payload, .. }
-            | Self::DisposeArrayRemainder { payload, .. }
-            | Self::DisposeArrayElements { payload, .. }
-            | Self::ReleaseContainer { payload, .. }
-            | Self::Invoke { payload, .. }
-            | Self::ReplaceReferent { payload, .. } => *payload = map(*payload)?,
-        }
-        Ok(step)
-    }
-}
+mod step;
+pub use step::Step;
 
 /// Exact owning-container presence and sparse missing selections at one operation boundary.
 /// This is a checked guard projection, not an access grant or a physical drop-flag layout.
@@ -270,6 +149,9 @@ impl Condition {
             .map(|(holder, missing)| (*holder, missing.as_ref()))
     }
 }
+
+mod instance;
+pub use instance::InstantiatedPayload;
 
 /// One ordered sequence with an explicit boundary around the selected source operation.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]

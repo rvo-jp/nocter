@@ -78,7 +78,7 @@ fn invocation_transfers_precede_the_body_and_adapter_cleanup_precedes_receipt() 
         if let Step::Resource(step) = step {
             step.try_map_payloads(|payload| {
                 assert_ne!(payload.disposal(), Disposal::FunctionEnvironment);
-                Ok::<_, ()>(payload)
+                Ok::<_, ()>(payload.clone())
             })
             .unwrap();
         }

@@ -1,5 +1,7 @@
 //! Root-driven interning closes selected calls once. Recursive edges reuse reserved instances.
 use super::{CallTarget, Failure, Instance, InstanceKey, InstanceProgram, invocation, projection};
+#[cfg(test)]
+mod tests;
 use nocter_checking::value_access::{ExpressionKind, accepted::Unit, flow::Operation};
 use nocter_model::{AccessCodeId, AccessInstanceId, ArenaBuilder};
 use std::{
@@ -141,39 +143,7 @@ pub(super) fn close(unit: Arc<Unit>, root: AccessCodeId) -> Result<InstanceProgr
                 continue;
             };
             let callee = instances.get(target).ok_or(Failure::InvalidAcceptedUnit)?;
-            let body = unit
-                .code_body(callee.key.code())
-                .ok_or(Failure::InvalidAcceptedUnit)?
-                .typed();
-            let result = body.result_data();
-            if callee
-                .data
-                .get(&result)
-                .and_then(nocter_checking::value_access::accepted::DataEvidence::payload)
-                != Some(call.result())
-            {
-                return Err(Failure::InvalidAcceptedUnit);
-            }
-            let inputs = body.body().inputs().explicit();
-            if inputs.len() != call.inputs().len() {
-                return Err(Failure::InvalidAcceptedUnit);
-            }
-            for (binding, input) in call.inputs().iter().zip(inputs) {
-                let local = body
-                    .body()
-                    .locals()
-                    .get(input.local)
-                    .ok_or(Failure::InvalidAcceptedUnit)?;
-                if input.operation != binding.operation
-                    || callee
-                        .data
-                        .get(&local.data)
-                        .and_then(nocter_checking::value_access::accepted::DataEvidence::payload)
-                        != Some(binding.payload)
-                {
-                    return Err(Failure::InvalidAcceptedUnit);
-                }
-            }
+            validate_body_edge(&unit, callee, call)?;
         }
     }
     Ok(InstanceProgram {
@@ -181,6 +151,53 @@ pub(super) fn close(unit: Arc<Unit>, root: AccessCodeId) -> Result<InstanceProgr
         root,
         instances,
     })
+}
+
+fn validate_body_edge(
+    unit: &Unit,
+    callee: &Instance,
+    call: &invocation::Invocation,
+) -> Result<(), Failure> {
+    let invalid = Failure::InvalidAcceptedUnit;
+    let body = unit.code_body(callee.key.code()).ok_or(invalid)?.typed();
+    let expected = |data| {
+        callee
+            .data
+            .get(&data)
+            .and_then(super::DataEvidence::payload)
+            .ok_or(invalid)
+    };
+    match (body.body().inputs().environment(), call.environment()) {
+        (
+            Some(input),
+            super::Environment::Capture {
+                input: supplied,
+                payload,
+                ..
+            },
+        ) => {
+            let local = body.body().locals().get(input.local).ok_or(invalid)?;
+            if input != supplied || expected(local.data)? != payload {
+                return Err(invalid);
+            }
+        }
+        (None, super::Environment::None | super::Environment::CodeToken { .. }) => {}
+        _ => return Err(invalid),
+    }
+    if expected(body.result_data())? != call.result() {
+        return Err(invalid);
+    }
+    let inputs = body.body().inputs().explicit();
+    if inputs.len() != call.inputs().len() {
+        return Err(invalid);
+    }
+    for (binding, input) in call.inputs().iter().zip(inputs) {
+        let local = body.body().locals().get(input.local).ok_or(invalid)?;
+        if input.operation != binding.operation || expected(local.data)? != binding.payload {
+            return Err(invalid);
+        }
+    }
+    Ok(())
 }
 
 fn validate_primitive(unit: &Unit, call: &invocation::Invocation) -> Result<(), Failure> {
