@@ -366,7 +366,8 @@ formal-environment admission remain integration work.
 
 `DataInstanceKey` pairs an unchanged semantic TypeId with exactly its closed callable dependencies.
 `instantiate_data` uses the same binding normalization and frozen witness resolution as code
-frames; it discards irrelevant input bindings. `InstanceSchema` exposes the canonical carrier
+frames; it discards irrelevant input bindings. `function_representation` explicitly selects the
+actual callable leaf's code/environment key while leaving its containing carrier unchanged. `InstanceSchema` exposes the canonical carrier
 schema and complete concrete function witnesses. Child projection filters dependencies, while
 closure-environment projection uses the selected value's own captures rather than the receiving
 function's inputs. Two occurrences of one lexical code can therefore retain different nested

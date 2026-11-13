@@ -26,6 +26,31 @@ impl DataInstanceKey {
     pub const fn data(&self) -> TypeId {
         self.data
     }
+    /// Whether representation selection needs any captured/formal substitution.
+    #[must_use]
+    pub fn is_context_free(&self) -> bool {
+        self.witnesses.is_empty()
+    }
+    /// Select the actual function leaf's representation key without relabelling its carrier.
+    /// The original instance retains its semantic identity; only the selected callable changes.
+    /// # Errors
+    /// Rejects an unresolved selected value or missing captured context.
+    pub fn function_representation(
+        &self,
+        program: &Program,
+    ) -> Result<Option<Self>, CodeBindingError> {
+        let InstanceSchema::Function(selected) = self.schema(program)? else {
+            return Ok(None);
+        };
+        let data = program
+            .function_data(selected.witness())
+            .ok_or(CodeBindingError::InvalidWitness)?;
+        program
+            .bind_payload_with(data, |witness| {
+                program.resolve_bindings(witness, |parameter| selected.captures().get(&parameter))
+            })
+            .map(Some)
+    }
     /// Select the frozen shape without interning a new semantic type or granting representation.
     /// # Errors
     /// Rejects a missing schema or unresolved callable dependency.

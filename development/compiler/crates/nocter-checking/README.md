@@ -808,6 +808,13 @@ updates, structured control, explicit transfer, exact named values and eligible 
 memoized by data identity rather than expanded through shared fields. `evaluation::types` is the
 single shape projection used by const-domain validation, final-data admission and closed-plan
 construction; homogeneous arrays retain an element ID and u64 count, never expanded type lists.
+Raw descriptor shapes and closed `DataInstanceKey` shapes have distinct cache keys in that one
+projection. `get_in` consumes the declaration authority's contextual child/environment selection.
+The selected function leaf uses its actual code/environment representation so a supplied value and
+its receiving formal agree on the evaluator type. Carrier identities remain intact. Instance
+support cannot strengthen the raw unbound descriptor, and contextual callable-bearing carriers
+retain the separate final-publication restriction. This shape integration alone does not admit
+formal environments in source; native storage and executable producer/plan integration remain open.
 Zero-length element edges are linked after the positive-containment walk. They retain source
 identity without requiring an element payload, including recursive nominal graphs and otherwise
 unsupported element data. An element declaration can still be unready during required evaluation;
@@ -969,9 +976,10 @@ must have no callable formals requiring a further concrete frame. Unknown or unc
 return to exact checks before consuming condition work. A successful proof rebinds every reachable
 checked body through the matched source/type receipt and charges its completed source edges,
 including parameter-selected edges. This avoids enumerating joint witness permutations without
-using the body-discovery projection as eligibility evidence. It relies on current direct-leaf
-substitution and declaration-owned signature/view normalization; qualifying dependent carriers
-requires revisiting the proof. Closure invocation uses the catalog's existing conditional
+using the body-discovery projection as eligibility evidence. It relies on coverage of the current
+retained predicates and declaration-owned signature/view normalization. More general contextual
+shape projection does not extend that predicate coverage; new dependent carriers still require
+revisiting this proof. Closure invocation uses the catalog's existing conditional
 availability, separately from environment representation and the selected body's complete
 conjunction. An unused supported closure needs no invocation capability. Unresolved/free callable
 captures, unsupported environments and callable receiving dependencies retain the exact-frame path.

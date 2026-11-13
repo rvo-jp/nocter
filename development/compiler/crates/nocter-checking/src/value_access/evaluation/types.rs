@@ -1,11 +1,46 @@
 //! One evaluator shape authority for domain checks, publication and plan projection.
 use super::super::flow;
 use nocter_constant_evaluation::state::Type;
-use nocter_declarations::value_access::{CodeInstanceKey, PayloadSchema, Program};
+use nocter_declarations::value_access::{CodeInstanceKey, DataInstanceKey, PayloadSchema, Program};
 use nocter_model::TypeId;
 use std::collections::{BTreeMap, BTreeSet};
+#[cfg(test)]
+mod tests;
 const INVALID: flow::IntegrityError = flow::IntegrityError::InconsistentTypedBody;
 type Result<T> = std::result::Result<T, flow::IntegrityError>;
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+enum ShapeKey {
+    Raw(TypeId),
+    Instance(DataInstanceKey),
+}
+impl ShapeKey {
+    fn instantiated(program: &Program, instance: DataInstanceKey) -> Result<Self> {
+        let instance = instance
+            .function_representation(program)
+            .map_err(|_| INVALID)?
+            .unwrap_or(instance);
+        Ok(if instance.is_context_free() {
+            Self::Raw(instance.data())
+        } else {
+            Self::Instance(instance)
+        })
+    }
+    fn data(&self) -> TypeId {
+        match self {
+            Self::Raw(data) => *data,
+            Self::Instance(instance) => instance.data(),
+        }
+    }
+    fn child(&self, program: &Program, data: TypeId) -> Result<Self> {
+        match self {
+            Self::Raw(_) => Ok(Self::Raw(data)),
+            Self::Instance(instance) => Self::instantiated(
+                program,
+                instance.project(program, data).map_err(|_| INVALID)?,
+            ),
+        }
+    }
+}
 struct Shape {
     ty: Type,
     /// At least one value is representable. Unavailable variant payloads remain uninhabitable.
@@ -16,29 +51,20 @@ struct Shape {
 #[derive(Default)]
 pub(in crate::value_access) struct Types {
     shapes: Vec<Shape>,
-    ids: BTreeMap<TypeId, usize>,
+    ids: BTreeMap<ShapeKey, usize>,
 }
 impl Types {
-    /// Select only an already frozen direct callable leaf. Compound payload qualification remains
-    /// independent: this does not invent a substituted nominal carrier or another type store.
+    /// Project the shared contextual data instance, preserving carrier and captured identities.
     pub(in crate::value_access) fn get_in(
         &mut self,
         program: &Program,
         instance: &CodeInstanceKey,
         data: TypeId,
     ) -> Result<usize> {
-        let data = match program.data_schema(data).ok_or(INVALID)? {
-            PayloadSchema::Function(witness) => program
-                .function_data(
-                    instance
-                        .resolve(program, witness)
-                        .map_err(|_| INVALID)?
-                        .witness(),
-                )
-                .ok_or(INVALID)?,
-            _ => data,
-        };
-        self.get(program, data)
+        let data = program
+            .instantiate_data(data, instance)
+            .map_err(|_| INVALID)?;
+        self.get_key(program, &ShapeKey::instantiated(program, data)?)
     }
     pub(in crate::value_access) fn supports_in(
         &mut self,
@@ -75,7 +101,10 @@ impl Types {
         Ok(self.shapes[id].serializable)
     }
     pub(super) fn get(&mut self, program: &Program, root: TypeId) -> Result<usize> {
-        let mut roots = vec![(root, false)];
+        self.get_key(program, &ShapeKey::Raw(root))
+    }
+    fn get_key(&mut self, program: &Program, root: &ShapeKey) -> Result<usize> {
+        let mut roots = vec![(root.clone(), false)];
         let mut empty = Vec::new();
         while let Some((root, metadata_only)) = roots.pop() {
             self.project(program, root, metadata_only, &mut roots, &mut empty)?;
@@ -91,15 +120,15 @@ impl Types {
             };
             *target = *self.ids.get(&element).ok_or(INVALID)?;
         }
-        self.ids.get(&root).copied().ok_or(INVALID)
+        self.ids.get(root).copied().ok_or(INVALID)
     }
     fn project(
         &mut self,
         program: &Program,
-        root: TypeId,
+        root: ShapeKey,
         metadata_only: bool,
-        roots: &mut Vec<(TypeId, bool)>,
-        empty: &mut Vec<(usize, TypeId)>,
+        roots: &mut Vec<(ShapeKey, bool)>,
+        empty: &mut Vec<(usize, ShapeKey)>,
     ) -> Result<()> {
         let mut pending = vec![(root, false)];
         let mut active = BTreeSet::new();
@@ -107,8 +136,8 @@ impl Types {
             if self.ids.contains_key(&data) {
                 continue;
             }
-            let Some(schema) = program.data_schema(data) else {
-                if !metadata_only || program.record_identity(data).is_none() {
+            let Some(schema) = program.data_schema(data.data()) else {
+                if !metadata_only || program.record_identity(data.data()).is_none() {
                     return Err(INVALID);
                 }
                 // This identity came from a validated empty-array schema. Its declaration can
@@ -117,59 +146,67 @@ impl Types {
                 self.insert(data, Type::Unavailable, false);
                 continue;
             };
-            let children: Vec<_> = match schema {
-                PayloadSchema::Builtin(builtin) => {
-                    let ty = Type::builtin(builtin);
-                    let supported = ty.is_some();
-                    self.insert(data, ty.unwrap_or(Type::Unavailable), supported);
-                    continue;
-                }
-                PayloadSchema::Fallible(payload) => vec![
-                    payload,
-                    program
-                        .data_type(nocter_model::BuiltinType::Error)
-                        .ok_or(INVALID)?,
-                ],
-                PayloadSchema::Function(witness) => match witness.origin {
-                    nocter_model::ValueFunctionOrigin::Closure(code) => {
-                        vec![program.closure(code).ok_or(INVALID)?.environment()]
-                    }
-                    origin => {
-                        let ty = match origin {
-                            nocter_model::ValueFunctionOrigin::Declaration(code) => {
-                                Type::NamedFunction(code)
-                            }
-                            _ => Type::Unavailable,
-                        };
-                        let supported = !matches!(ty, Type::Unavailable);
-                        let id = self.insert(data, ty, supported);
-                        self.shapes[id].serializable = false;
+            let children: Vec<_> =
+                match schema {
+                    PayloadSchema::Builtin(builtin) => {
+                        let ty = Type::builtin(builtin);
+                        let supported = ty.is_some();
+                        self.insert(data, ty.unwrap_or(Type::Unavailable), supported);
                         continue;
                     }
-                },
-                PayloadSchema::Array(array) if array.is_empty() => {
-                    // A private self-edge is a valid zero containment shape even before linking.
-                    // Nothing observes this draft table until all element identities are linked.
-                    let id = self.insert(
-                        data,
-                        Type::Array {
-                            element: self.shapes.len(),
-                            length: 0,
-                        },
-                        true,
-                    );
-                    empty.push((id, array.element()));
-                    roots.push((array.element(), true));
-                    continue;
-                }
-                PayloadSchema::Aggregate(aggregate) => {
-                    aggregate.components().map(|c| c.data).collect()
-                }
-                PayloadSchema::Array(array) => vec![array.element()],
-                PayloadSchema::Optional(payload) => vec![payload],
-            };
+                    PayloadSchema::Fallible(payload) => vec![
+                        data.child(program, payload)?,
+                        data.child(
+                            program,
+                            program
+                                .data_type(nocter_model::BuiltinType::Error)
+                                .ok_or(INVALID)?,
+                        )?,
+                    ],
+                    PayloadSchema::Function(witness) => match witness.origin {
+                        nocter_model::ValueFunctionOrigin::Closure(code) => {
+                            vec![data.child(
+                                program,
+                                program.closure(code).ok_or(INVALID)?.environment(),
+                            )?]
+                        }
+                        origin => {
+                            let ty = match origin {
+                                nocter_model::ValueFunctionOrigin::Declaration(code) => {
+                                    Type::NamedFunction(code)
+                                }
+                                _ => Type::Unavailable,
+                            };
+                            let supported = !matches!(ty, Type::Unavailable);
+                            let id = self.insert(data, ty, supported);
+                            self.shapes[id].serializable = false;
+                            continue;
+                        }
+                    },
+                    PayloadSchema::Array(array) if array.is_empty() => {
+                        // A private self-edge is a valid zero containment shape even before linking.
+                        // Nothing observes this draft table until all element identities are linked.
+                        let id = self.insert(
+                            data,
+                            Type::Array {
+                                element: self.shapes.len(),
+                                length: 0,
+                            },
+                            true,
+                        );
+                        empty.push((id, ShapeKey::Raw(array.element())));
+                        roots.push((ShapeKey::Raw(array.element()), true));
+                        continue;
+                    }
+                    PayloadSchema::Aggregate(aggregate) => aggregate
+                        .components()
+                        .map(|component| data.child(program, component.data))
+                        .collect::<Result<Vec<_>>>()?,
+                    PayloadSchema::Array(array) => vec![data.child(program, array.element())?],
+                    PayloadSchema::Optional(payload) => vec![data.child(program, payload)?],
+                };
             if !expanded {
-                if !active.insert(data) {
+                if !active.insert(data.clone()) {
                     return Err(INVALID);
                 }
                 pending.push((data, true));
@@ -187,7 +224,7 @@ impl Types {
     }
     fn compose(
         &mut self,
-        data: TypeId,
+        data: ShapeKey,
         schema: PayloadSchema<'_>,
         children: Vec<usize>,
     ) -> Result<()> {
@@ -235,7 +272,7 @@ impl Types {
         self.shapes[id].serializable = serializable;
         Ok(())
     }
-    fn insert(&mut self, data: TypeId, ty: Type, supported: bool) -> usize {
+    fn insert(&mut self, data: ShapeKey, ty: Type, supported: bool) -> usize {
         let id = self.shapes.len();
         self.shapes.push(Shape {
             ty,
