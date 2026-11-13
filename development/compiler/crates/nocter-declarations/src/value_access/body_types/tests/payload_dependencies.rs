@@ -35,11 +35,8 @@ fn formal_environment_descriptors_preserve_views_and_pending_producers_without_p
     let captures = body
         .tuple(&[read_capture, edit_capture, read_capture])
         .unwrap();
-    let call = ArenaBuilder::<AccessExpressionId, ()>::new().insert(());
-    let pending = body
-        .application(ValueCode::Declaration(root), call, factory)
-        .unwrap();
-    let environment = body.tuple(&[captures, pending]).unwrap();
+    let (producers, expected_producers) = producer_environment(&mut body, root, factory);
+    let environment = body.tuple(&[captures, producers]).unwrap();
     let nested = body.reserve_closure().unwrap();
     let nested_data = body.closure(nested, environment, contract.clone()).unwrap();
     body.closure(
@@ -61,6 +58,7 @@ fn formal_environment_descriptors_preserve_views_and_pending_producers_without_p
         &std::collections::BTreeSet::from([read, edit])
     );
     assert!(dependencies.has_pending_producers());
+    assert_eq!(dependencies.producers(), &expected_producers);
     assert_eq!(dependencies.readiness(), PayloadReadiness::Unsupported);
     assert!(!body.program().owned_payload_supported(nested_data));
     assert_eq!(body.program().data_copyable(nested_data), Some(false));
@@ -68,6 +66,7 @@ fn formal_environment_descriptors_preserve_views_and_pending_producers_without_p
     let empty_dependencies = body.program().payload_dependencies(empty).unwrap();
     assert!(empty_dependencies.parameters().is_empty());
     assert!(!empty_dependencies.has_pending_producers());
+    assert!(empty_dependencies.producers().is_empty());
     assert_eq!(empty_dependencies.readiness(), PayloadReadiness::Closed);
     let body = body.finish();
     let canonical = header
@@ -78,4 +77,50 @@ fn formal_environment_descriptors_preserve_views_and_pending_producers_without_p
     assert_eq!(canonical.payload_dependencies(data), Some(dependencies));
     assert!(!canonical.owned_payload_supported(data));
     assert!(header.closure(nested).is_none());
+}
+
+fn producer_environment(
+    body: &mut BodyTypes,
+    root: nocter_model::AccessCodeId,
+    factory: nocter_model::AccessCodeId,
+) -> (TypeId, std::collections::BTreeSet<FunctionWitness>) {
+    let mut calls = ArenaBuilder::<AccessExpressionId, ()>::new();
+    let call = calls.insert(());
+    let second_call = calls.insert(());
+    let pending = body
+        .application(ValueCode::Declaration(root), call, factory)
+        .unwrap();
+    let second = body
+        .application(ValueCode::Declaration(root), second_call, factory)
+        .unwrap();
+    let PayloadSchema::Function(first_witness) = body.program().data_schema(pending).unwrap()
+    else {
+        panic!("first application");
+    };
+    let PayloadSchema::Function(second_witness) = body.program().data_schema(second).unwrap()
+    else {
+        panic!("second application");
+    };
+    let taken = FunctionWitness {
+        invocation: ValueInvocation::Take,
+        ..first_witness
+    };
+    let taken_data = body.program().function_data(taken).unwrap();
+    let result_witness = FunctionWitness {
+        origin: ValueFunctionOrigin::Result(factory),
+        invocation: first_witness.invocation,
+    };
+    let result_data = body.program().function_data(result_witness).unwrap();
+    let producers_only = body.tuple(&[pending, second]).unwrap();
+    assert_eq!(
+        body.program().payload_readiness(producers_only),
+        PayloadReadiness::Pending
+    );
+    let environment = body
+        .tuple(&[pending, second, pending, taken_data, result_data])
+        .unwrap();
+    (
+        environment,
+        std::collections::BTreeSet::from([first_witness, second_witness, taken, result_witness]),
+    )
 }

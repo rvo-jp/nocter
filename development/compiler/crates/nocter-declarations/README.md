@@ -417,8 +417,10 @@ schema components. `owned_payload_supported` owns the common closed payload doma
 closed builtin/record/tuple/array data and exact named/captured callable payloads. Formal and
 unresolved result/application witnesses supply no such payload evidence. Environment descriptors
 may retain valid formal and producer dependencies. `payload_dependencies` derives each formal's
-frozen invocation view and pending-producer flag from the same canonical schema traversal used by
-`payload_readiness`; it adds no capture registry. Shared subtrees are visited once, while empty
+frozen invocation view and the exact unresolved result/application witnesses from the same
+canonical schema traversal used by `payload_readiness`; it adds no capture registry. Distinct
+application occurrences and invocation views remain distinct even when their signatures agree.
+The pending status is derived from that producer set, rather than stored as a second fact. Shared subtrees are visited once, while empty
 arrays introduce no payload dependency on their element. A formal remains an unsupported owned
 payload even when the descriptor also has a pending producer. Descriptor publication preserves
 those independent facts through canonical replay; source admission must establish the closed

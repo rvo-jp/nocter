@@ -31,7 +31,7 @@ pub enum PayloadReadiness {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PayloadDependencies {
     parameters: std::collections::BTreeSet<super::FunctionWitness>,
-    pending_producers: bool,
+    producers: std::collections::BTreeSet<super::FunctionWitness>,
 }
 impl PayloadDependencies {
     /// Keep each frozen view: one formal can appear at more than one invocation view.
@@ -39,15 +39,20 @@ impl PayloadDependencies {
     pub const fn parameters(&self) -> &std::collections::BTreeSet<super::FunctionWitness> {
         &self.parameters
     }
+    /// Exact unresolved result/application terms, including their selected invocation views.
     #[must_use]
-    pub const fn has_pending_producers(&self) -> bool {
-        self.pending_producers
+    pub const fn producers(&self) -> &std::collections::BTreeSet<super::FunctionWitness> {
+        &self.producers
+    }
+    #[must_use]
+    pub fn has_pending_producers(&self) -> bool {
+        !self.producers.is_empty()
     }
     #[must_use]
     pub fn readiness(&self) -> PayloadReadiness {
         if !self.parameters.is_empty() {
             PayloadReadiness::Unsupported
-        } else if self.pending_producers {
+        } else if self.has_pending_producers() {
             PayloadReadiness::Pending
         } else {
             PayloadReadiness::Closed
@@ -346,7 +351,7 @@ impl Program {
         let mut seen = std::collections::BTreeSet::new();
         let mut dependencies = PayloadDependencies {
             parameters: std::collections::BTreeSet::new(),
-            pending_producers: false,
+            producers: std::collections::BTreeSet::new(),
         };
         while let Some(data) = pending.pop() {
             if !seen.insert(data) {
@@ -371,7 +376,7 @@ impl Program {
                         pending.push(self.closure(id)?.environment());
                     }
                     ValueFunctionOrigin::Result(_) | ValueFunctionOrigin::Application(_) => {
-                        dependencies.pending_producers = true;
+                        dependencies.producers.insert(witness);
                     }
                     ValueFunctionOrigin::Parameter(parameter) => {
                         self.parameter_contract(parameter)?;
