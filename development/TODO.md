@@ -39,6 +39,8 @@ component-specific contexts and accepts exactly typed carrier assembly. Complete
 source transport and callable-environment/frame identity behind that boundary, rather than treating
 metadata carrier assembly as their proof. Keep one declaration-owned
 normalization authority and qualify evaluator/native receiving, storage and cleanup together.
+Use occurrence-resolved callable construction to retain actual contexts instead of rebinding their
+free parameter names in the receiving frame; it does not itself grant a matched source receipt.
 Do not substitute outer bindings when occurrences or creation snapshots are missing. Preserve
 dormant definition-contract checks, factored symbolic conditions, condition/plan-work failures,
 pre-commit preparation behavior, exact creation contexts,

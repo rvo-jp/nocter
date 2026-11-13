@@ -3,11 +3,52 @@ use super::{Context, DataInstanceKey};
 use crate::value_access::{
     CodeBindingError, ConcreteWitness, FunctionWitness, PayloadSchema, Program,
 };
-use nocter_model::{BuiltinType, TypeId, ValueField};
+use nocter_model::{BuiltinType, TypeId, ValueField, ValueFunctionOrigin};
 use std::{cmp::Ordering, collections::BTreeSet};
 use std::{collections::BTreeMap, sync::Arc};
 
 impl Program {
+    /// Retain an already resolved value occurrence in its original callable source descriptor.
+    /// This validates identity, signature and invocation view, not the occurrence's source receipt.
+    /// # Errors
+    /// Rejects non-callables, unresolved producer descriptors, incompatible contracts and code
+    /// substitution at a concrete source leaf. Captured context is never rebuilt from a frame.
+    pub fn instantiate_function(
+        &self,
+        data: TypeId,
+        actual: &ConcreteWitness,
+    ) -> Result<DataInstanceKey, CodeBindingError> {
+        let Some(PayloadSchema::Function(wanted)) = self.data_schema(data) else {
+            return Err(CodeBindingError::InvalidWitness);
+        };
+        let actual = self.adapt_witness(actual, wanted.invocation)?;
+        match wanted.origin {
+            ValueFunctionOrigin::Parameter(parameter) => {
+                let mut contract = self
+                    .parameter_contract(parameter)
+                    .ok_or(CodeBindingError::InvalidWitness)?
+                    .clone();
+                contract.invocation = wanted.invocation;
+                let supplied = self
+                    .function_data(actual.witness())
+                    .ok_or(CodeBindingError::InvalidWitness)?;
+                self.constrain_function(supplied, &contract)
+                    .map_err(CodeBindingError::Contract)?;
+            }
+            ValueFunctionOrigin::Closure(_) | ValueFunctionOrigin::Declaration(_)
+                if actual.witness() == wanted => {}
+            _ => return Err(CodeBindingError::InvalidWitness),
+        }
+        let context = if self.concrete_witness(wanted).as_ref() == Ok(&actual) {
+            Context::Closed
+        } else {
+            Context::Function(actual)
+        };
+        Ok(DataInstanceKey {
+            data,
+            context: Arc::new(context),
+        })
+    }
     fn instance_fields(&self, data: TypeId) -> Result<Vec<(ValueField, TypeId)>, CodeBindingError> {
         Ok(
             match self
@@ -93,18 +134,7 @@ impl Program {
                 .ok_or(CodeBindingError::InvalidWitness)?;
             if let PayloadSchema::Function(witness) = schema {
                 let actual = resolve(witness)?;
-                let context = if self.concrete_witness(witness).as_ref() == Ok(&actual) {
-                    Context::Closed
-                } else {
-                    Context::Function(actual)
-                };
-                completed.insert(
-                    data,
-                    DataInstanceKey {
-                        data,
-                        context: Arc::new(context),
-                    },
-                );
+                completed.insert(data, self.instantiate_function(data, &actual)?);
                 continue;
             }
             let fields = self.instance_fields(data)?;

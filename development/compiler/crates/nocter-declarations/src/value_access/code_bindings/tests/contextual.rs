@@ -536,3 +536,100 @@ fn component_contexts_share_schema_dags_and_compare_without_expanding_cardinalit
             .is_err()
     );
 }
+
+#[test]
+fn function_occurrence_construction_keeps_context_without_guessing_an_outer_frame() {
+    use crate::value_access::InstanceSchema;
+    let fixture = fixture();
+    let program = &fixture.program;
+    let data = program.function_data(fixture.captured).unwrap();
+    let formal = program
+        .function_data(FunctionWitness {
+            origin: ValueFunctionOrigin::Parameter(fixture.formal),
+            invocation: ValueInvocation::Read,
+        })
+        .unwrap();
+    let actuals = fixture.callbacks.map(|callback| {
+        program
+            .bind_code(fixture.creator.into(), [(fixture.formal, callback)])
+            .unwrap()
+            .resolve(program, fixture.captured)
+            .unwrap()
+    });
+    let instances = actuals
+        .each_ref()
+        .map(|actual| program.instantiate_function(data, actual).unwrap());
+    assert_ne!(instances[0], instances[1]);
+    for (position, actual) in actuals.iter().enumerate() {
+        let formal_instance = program.instantiate_function(formal, actual).unwrap();
+        assert_eq!(formal_instance.data(), formal);
+        assert_eq!(
+            formal_instance.function_representation(program).unwrap(),
+            Some(instances[position].clone())
+        );
+        let InstanceSchema::Function(received) = formal_instance.schema(program).unwrap() else {
+            panic!("function");
+        };
+        assert_eq!(&received, actual);
+        let frame = program
+            .bind_code(
+                fixture.creator.into(),
+                [(fixture.formal, fixture.callbacks[position])],
+            )
+            .unwrap();
+        assert_eq!(
+            instances[position],
+            program.instantiate_data(data, &frame).unwrap()
+        );
+    }
+    let plain_data = program.function_data(fixture.callbacks[0]).unwrap();
+    let wrong = program
+        .concrete_witness(
+            program
+                .resolve_code(program.symbols().get("wrong").unwrap())
+                .unwrap()
+                .into(),
+        )
+        .unwrap();
+    assert!(matches!(
+        program.instantiate_function(formal, &wrong),
+        Err(CodeBindingError::Contract(FunctionMismatch::Result { .. }))
+    ));
+    assert!(
+        program
+            .instantiate_function(plain_data, &actuals[0])
+            .is_err(),
+        "equal signatures do not replace concrete code"
+    );
+    assert!(
+        program
+            .instantiate_function(program.data_type(BuiltinType::Void).unwrap(), &actuals[0])
+            .is_err()
+    );
+    let factory = program
+        .resolve_code(program.symbols().get("factory").unwrap())
+        .unwrap();
+    assert!(
+        program
+            .instantiate_function(program.codes().get(factory).unwrap().result(), &actuals[0])
+            .is_err(),
+        "a producer contract alone does not identify a supplied occurrence"
+    );
+    let taken = program
+        .adapt_witness(&actuals[0], ValueInvocation::Take)
+        .unwrap();
+    assert!(program.instantiate_function(data, &taken).is_err());
+    let taken_data = program
+        .function_data(FunctionWitness {
+            invocation: ValueInvocation::Take,
+            ..fixture.captured
+        })
+        .unwrap();
+    let weakened = program
+        .instantiate_function(taken_data, &actuals[0])
+        .unwrap();
+    let InstanceSchema::Function(selected) = weakened.schema(program).unwrap() else {
+        panic!("function");
+    };
+    assert_eq!(selected, taken);
+}

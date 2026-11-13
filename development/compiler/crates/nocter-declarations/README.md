@@ -380,6 +380,10 @@ actual callable leaf's code/environment key while leaving its containing carrier
 schema and complete concrete function witnesses. `component` selects a declaration-validated field
 and filters its dependencies; a bare child TypeId is insufficient to identify that selection.
 `instantiate_closed_data` constructs an independent context-free root through the same normalization.
+`instantiate_function` retains an already resolved callable occurrence without reconstructing its
+captured context from outer bindings. A formal leaf checks its structural contract and frozen view;
+a concrete leaf also requires the same source code. A pending producer descriptor alone cannot
+identify an occurrence. Frame-based leaf construction uses this same normalization.
 `instantiate_components` assembles a carrier from complete, exactly typed component instances and
 normalizes to the same identity as frame-based construction. Arrays supply one homogeneous element
 schema at `Array(0)`; this does not describe distinct element values or prove a dynamic index.
