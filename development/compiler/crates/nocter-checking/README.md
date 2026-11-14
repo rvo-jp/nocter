@@ -809,8 +809,13 @@ array element keys must agree without selecting an arbitrary first context. Inde
 schemas select metadata without consulting a backend's frame-wide type cache. Original transitions
 still own before/after order, availability and guards. A failed step list restores prior data
 bindings and publishes no partial list, while spent metadata work remains spent. This projection
-grants no source, layout or executable receipt. Native lifecycle schedules consume this authority;
-evaluator slot integration and changing partial-carrier geometry remain separate obligations.
+grants no source, layout or executable receipt. Native lifecycle schedules and evaluator whole-slot
+metadata consume this authority. Evaluator preparation registers selected whole roots, assembled
+field sources and retained element views before lowering control points, so block allocation order
+cannot choose a frame-wide type default for those slots. It allocates metadata, never cells, values
+or owners, and reuses the ordinary slot interner. Incompatible concrete shapes for one evaluator
+slot reject at the current qualification boundary. Non-materializing views, remaining ordinary
+expression/local selection and changing partial-carrier geometry remain separate obligations.
 `resources::Payload::instantiate` binds an existing logical schema to the declaration-owned
 `DataInstanceKey`, preserving the actual callable representation and nested captured context.
 `InstantiatedPayload` retains that complete key with its concrete root cleanup obligation. Its

@@ -1,5 +1,6 @@
 //! Project one already checked graph and its resource alternatives; no source/ownership decisions.
 mod arrays;
+mod resources;
 mod source;
 use super::super::{
     ArgumentAction, Binary, BoundaryAction, ExpressionKind, Referent, SelectionAction, Statement,
@@ -41,6 +42,14 @@ impl From<crate::value_access::PreparedDataFailure> for Failure {
         match failure {
             crate::value_access::PreparedDataFailure::Argument { failure, .. } => failure.into(),
             crate::value_access::PreparedDataFailure::Body => Self::Integrity,
+        }
+    }
+}
+impl From<crate::value_access::ResourceDataFailure> for Failure {
+    fn from(failure: crate::value_access::ResourceDataFailure) -> Self {
+        match failure {
+            crate::value_access::ResourceDataFailure::Integrity => Self::Integrity,
+            crate::value_access::ResourceDataFailure::Instantiation(failure) => failure.into(),
         }
     }
 }
@@ -127,6 +136,9 @@ impl Builder<'_, '_> {
                 }
                 _ => self.types.get_in(self.program, self.instance, data)?,
             };
+        self.slot_data(key, data, storage)
+    }
+    fn slot_data(&mut self, key: Key, data: usize, storage: plan::Storage) -> Result<usize> {
         if let Some(&slot) = self.keys.get(&key) {
             if self.slots.get(slot) != Some(&plan::Slot { data, storage }) {
                 return Err(INVALID);
@@ -138,7 +150,7 @@ impl Builder<'_, '_> {
         self.keys.insert(key, slot);
         Ok(slot)
     }
-    fn holder(&mut self, holder: Holder) -> Result<usize> {
+    fn holder_contract(&self, holder: Holder) -> Result<(TypeId, plan::Storage)> {
         let (data, storage) = match holder {
             Holder::Local(id) => {
                 let local = self.query.typed().body().locals().get(id).ok_or(INVALID)?;
@@ -202,6 +214,13 @@ impl Builder<'_, '_> {
             }
             Holder::Return => (self.query.typed().result_data(), plan::Storage::Owned),
         };
+        Ok((data, storage))
+    }
+    fn holder(&mut self, holder: Holder) -> Result<usize> {
+        if let Some(&slot) = self.keys.get(&Key::Resource(holder)) {
+            return Ok(slot);
+        }
+        let (data, storage) = self.holder_contract(holder)?;
         self.slot(Key::Resource(holder), data, storage)
     }
     fn component_position(&self, field: nocter_model::ValueField) -> Result<usize> {
@@ -890,6 +909,7 @@ impl Builder<'_, '_> {
         })
     }
     fn build(mut self) -> Result<plan::Plan> {
+        self.prepare_resource_data()?;
         let inputs = self
             .query
             .typed()
