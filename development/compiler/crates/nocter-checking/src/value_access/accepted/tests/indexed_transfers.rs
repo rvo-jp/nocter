@@ -415,7 +415,7 @@ fn restoring_a_point_after_another_field_hole_does_not_establish_a_complete_epoc
 #[test]
 fn retained_restoration_installs_before_retiring_backing_without_destroying_missing_data() {
     let unit = accepted(
-        "func work(take original: error, take replacement: error, index: usize): void { var items = [original^]\nlet extracted = items[index]^\nitems[index] = replacement^ }",
+        "func work(take original: error, take additional: error, take replacement: error, index: usize): void { var items = [original^, additional^]\nlet extracted = items[index]^\nitems[index] = replacement^ }",
     );
     let query = named(&unit, "work");
     let location = query
@@ -473,7 +473,7 @@ fn retained_restoration_installs_before_retiring_backing_without_destroying_miss
 #[test]
 fn conditional_restoration_uses_initialized_and_saved_point_alternatives() {
     let unit = accepted(
-        "func work(take original: error, take replacement: error, index: usize, flag: bool): void { var items = [original^]\nif flag { let old = items[index]^ }\nitems[index] = replacement^ }",
+        "func work(take original: error, take additional: error, take replacement: error, index: usize, flag: bool): void { var items = [original^, additional^]\nif flag { let old = items[index]^ }\nitems[index] = replacement^ }",
     );
     let query = named(&unit, "work");
     let mut kinds = [false; 2];
@@ -656,7 +656,7 @@ fn partial_dynamic_fields_do_not_restore_unproved_holes_or_capture_cancelled_arg
         "items[other].first = Item { value: 9 }",
     ] {
         let source = format!(
-            "struct Item {{ value: i32 }}\nstruct Pair {{ first: Item\nsecond: Item }}\nfunc work(index: usize, other: usize): void {{ var items = [Pair {{ first: Item {{ value: 40 }}, second: Item {{ value: 2 }} }}; 1]\nlet moved = items[index].first^\n{use_after} }}"
+            "struct Item {{ value: i32 }}\nstruct Pair {{ first: Item\nsecond: Item }}\nfunc work(index: usize, other: usize): void {{ var items = [Pair {{ first: Item {{ value: 40 }}, second: Item {{ value: 2 }} }}, Pair {{ first: Item {{ value: 50 }}, second: Item {{ value: 3 }} }}]\nlet moved = items[index].first^\n{use_after} }}"
         );
         let (sources, tree) = input(&source);
         assert!(

@@ -2,6 +2,71 @@
 use super::*;
 
 #[test]
+fn private_contextual_indexed_replacement_uses_the_original_numeric_projection() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-indexed-same-context.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "contextual-indexed-numeric",
+        42,
+    );
+}
+
+#[test]
+fn private_contextual_indexed_replacement_keeps_actual_bounds_failures() {
+    let original = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-indexed-replacement.nct"
+    ));
+    let source = original.replace(
+        "func run(): i32 { if ANSWER == 42 { calculate(0) } else { 0 } }",
+        "func run(): i32 { calculate(1) }",
+    );
+    assert_ne!(source, original);
+    let package = TempPackage::new();
+    execute_native_signal(
+        &compile(&source),
+        &package.0,
+        "contextual-indexed-bounds",
+        5,
+    );
+}
+
+#[test]
+fn private_contextual_indexed_replacement_disposes_actual_retired_saved_and_received_errors() {
+    let machine = trusted_error_machine(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-indexed-replacement-errors.nct"
+    )));
+    let package = TempPackage::new();
+    execute_native_status(
+        &image(&machine),
+        &package.0,
+        "contextual-indexed-errors",
+        42,
+    );
+}
+
+#[test]
+fn private_contextual_indexed_replacement_preserves_containing_roots_and_sibling_views() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-indexed-replacement.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "contextual-indexed-replacement",
+        42,
+    );
+}
+
+#[test]
 fn private_formal_capture_keeps_distinct_received_callback_environments() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

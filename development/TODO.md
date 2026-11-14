@@ -66,6 +66,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Qualify same-geometry contextual callable component replacement and restoration with a
   surviving disjoint sibling reference. Carry each partial receipt's original containing roots
   into MIR and physical geometry checks without fusing separate retirement/receipt operations.
+- [x] Extend matched containing contracts to evaluated indexed destinations, qualifying unique
+  selection and restoration through required/native execution with surviving sibling views.
+  Preserve conservative multi-element context joins and original bounds effects.
 - [ ] Implement [temporal evaluator slot contexts](design/compiler-realization.md#temporal-evaluator-slot-contexts)
   through ordered plan validation and execution. Preserve one logical storage/owner identity,
   exact retired/received contexts, preparation snapshots, surviving aliases and failure recovery;

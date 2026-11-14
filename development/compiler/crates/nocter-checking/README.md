@@ -670,8 +670,11 @@ evaluator slots and context-changing source captures remain unqualified.
 `Unit::instantiate_value_data` normalizes one original value against its receiving source schema
 through that same query and declaration authority. Returned carriers retain their selected callee
 frame and component paths. Aggregate replacement rebuilds only the affected canonical component
-keys; prior snapshots remain unchanged. Erased array writes join old and supplied contexts rather
-than asserting a selected element. Empty sources and unproduced applications publish no data key,
+keys; prior snapshots remain unchanged. Erased multi-element array writes join old and supplied
+contexts rather than asserting a selected element. A direct assignment through one original path
+can replace the selected context when every erased array step has exactly one element: normal
+completion identifies that sole coordinate without claiming a numeric value or bounds proof.
+Call-write summaries retain their independent conservative rules. Empty sources and unproduced applications publish no data key,
 even if their declared scalar schema is independently closed. The key selects contextual metadata,
 not initialized storage, source access, runtime layout or cleanup. Ordinary body payload and
 lifecycle consumers must retain those exact selections within the qualified source scope.
@@ -943,6 +946,8 @@ the same transition-local bindings and original stored-data queries as payload s
 it grants no owner, initialized backing, numeric index proof or stable geometry. Failure rolls
 back that projection's bindings and publishes no prefix, while retaining spent metadata work.
 For a dependent partial owning destination, the original assignment target must match exactly.
+The matched operation must occur in that original action's checked resource report, retaining
+ownership's frozen numeric projection without replaying the analysis or guessing from syntax.
 Its `PartialRootContracts` retain the original whole-container before/after keys with that
 resource step. They neither fuse old disposal with new receipt nor choose another source phase.
 Evaluator projection registers both contexts and emits a typed component receipt plus exact
@@ -1770,6 +1775,14 @@ retain their actual contexts in required and native execution. The matching erro
 retired, saved and received graph cleanup. A native negative case changes the initial environment
 size and must reject shifted sibling geometry before an executable can be published. General
 relocation and changing offsets remain unqualified.
+`contextual-indexed-replacement.nct` qualifies the same transport through a singleton array nested
+in a tuple, using a usize input as the evaluated index. Required/native execution preserves the
+sibling reference and saved callable, while a matching error fixture exercises actual cleanup.
+The normal-continuation coordinate proof is shared by numerical projection and resource paths;
+it never rewrites the operand value or original bounds disposition. Out-of-range input still
+fails in required execution and traps natively, and mixed multi-element contexts remain unresolved.
+`contextual-indexed-same-context.nct` separately qualifies a multi-element update whose original
+numeric analysis establishes its local index and whose element contexts remain homogeneous.
 Additional dependent carriers, context-changing carrier writes, surviving
 partial references, inferred captures and external dependencies still require separate qualification.
 
@@ -2096,6 +2109,11 @@ the old selected value after target preparation. Static and evaluated targets sh
 proven owning targets retain their ordinary sparse replacement transition. Unproved/scoped
 targets use the exact-address `ReplaceReferent` handoff without interpreting a conflict footprint
 as an ownership key; the partial-transfer rules below define restoration and completeness.
+For a singleton array, any normally completed selection identifies coordinate zero. The shared
+projection may use that coordinate for ownership and metadata even when the operand is unknown;
+the operand evaluation and original bounds disposition remain unchanged; a required check still
+executes. This proves neither that an
+out-of-range operand equals zero nor that different recipes have equal numeric values.
 
 `flow::Query::numeric_at` reports normal checked usize difference equalities at an existing graph
 operation. The analysis distinguishes current owned scalar locals, scalar read inputs, computed

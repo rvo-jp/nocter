@@ -15,13 +15,11 @@ pub(in crate::value_access::flow) fn index_fact(
     }
     // These facts choose a valid concrete projection, not a replacement bounds classifier.
     let known = facts.and_then(|facts| facts.constant(operand));
-    let bound = resources::RetainedIndex::for_selection(typed, selection)
-        .map(resources::RetainedIndex::bound);
-    Some(
-        known
-            .filter(|&value| bound.is_some_and(|bound| value < bound))
-            .map_or(IndexFact::Unknown, IndexFact::Known),
-    )
+    let selected = resources::RetainedIndex::for_selection(typed, selection);
+    let fact = known
+        .filter(|&value| selected.is_some_and(|index| value < index.bound()))
+        .map_or(IndexFact::Unknown, IndexFact::Known);
+    Some(selected.map_or(fact, |index| index.selected_fact(fact)))
 }
 
 pub(in crate::value_access::flow) fn path(

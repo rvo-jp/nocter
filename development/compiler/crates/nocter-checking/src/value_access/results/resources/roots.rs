@@ -76,28 +76,31 @@ impl ResourceDataProjection<'_, '_> {
             return Ok(None);
         }
         let target = self.write_target()?;
-        let crate::value_access::Referent::Place(id) = target else {
-            return Err(Failure::Instantiation(
-                super::InstantiationFailure::Unresolved,
-            ));
+        // The original resource operation already retains ownership's exact numeric projection.
+        // Match that sealed result rather than replaying or approximating its numeric analysis.
+        if !self
+            .body
+            .access()
+            .resources()
+            .at(self.at)
+            .any(|transition| transition.steps().contains(step))
+        {
+            return Err(INVALID);
+        }
+        let super::Holder::Local(local_id) = destination.holder() else {
+            return Err(INVALID);
         };
-        let place = self.body.typed().body().places().get(id).ok_or(INVALID)?;
         let local = self
             .body
             .typed()
             .body()
             .locals()
-            .get(place.local)
+            .get(local_id)
             .ok_or(INVALID)?;
-        if local.access().mode() != nocter_model::ValueAccessMode::Own
-            || super::Holder::Local(place.local)
-                .place()
-                .project_path(&place.fields)
-                != *destination
-        {
+        if local.access().mode() != nocter_model::ValueAccessMode::Own {
             return Err(INVALID);
         }
-        let before = super::super::values::root(
+        let contracts = super::super::instantiate_referent_carrier_data(
             self.program,
             self.evidence,
             self.body,
@@ -107,16 +110,25 @@ impl ResourceDataProjection<'_, '_> {
             self.work,
         )
         .map_err(Failure::Instantiation)?;
-        let after = super::super::values::root_after(
-            self.program,
-            self.evidence,
-            self.body,
-            self.frame,
-            self.at,
-            target,
-            self.work,
-        )
-        .map_err(Failure::Instantiation)?;
+        let expected = match target {
+            crate::value_access::Referent::Place(_) => nocter_model::ValuePath::default(),
+            crate::value_access::Referent::Evaluated(_) => super::metadata_path(destination, ()),
+        };
+        let select = |values: &[crate::value_access::ReferentCarrierData]| {
+            let mut matching = values.iter().filter(|value| {
+                value.selection().slot == super::ValueSourceSlot::Local(local_id)
+                    && value.selection().path == expected
+            });
+            let selected = matching.next().ok_or(Failure::Instantiation(
+                super::InstantiationFailure::Unresolved,
+            ))?;
+            if matching.next().is_some() {
+                return Err(INVALID);
+            }
+            Ok(selected.instance().clone())
+        };
+        let before = select(contracts.before())?;
+        let after = select(contracts.after().ok_or(INVALID)?)?;
         Ok(Some(PartialRootContracts {
             destination: destination.clone(),
             before,

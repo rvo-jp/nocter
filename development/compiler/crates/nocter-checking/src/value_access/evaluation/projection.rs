@@ -766,12 +766,16 @@ impl Builder<'_, '_> {
         let destination = if let Some(source) = selected {
             self.holder_from_place(Holder::Expression(id), &source)?
         } else if let ExpressionKind::Index { base, .. } = kind {
-            let source = self.value(base)?;
-            let data = self.place_data(&source)?;
-            // A positive schema bound is enough to select metadata, never to validate the index.
-            let data = self.types.array_element(data, 1)?;
-            let (_, storage) = self.holder_contract(Holder::Expression(id))?;
-            self.slot_data(Key::Resource(Holder::Expression(id)), data, storage)?
+            let mut source = self.value(base)?;
+            // Use an existing original view receipt before consulting the source slot's initial
+            // context. Element zero represents homogeneous metadata, not the evaluated index.
+            source.fields = source
+                .fields
+                .iter()
+                .copied()
+                .chain([plan::Projection::Field(0)])
+                .collect();
+            self.holder_from_place(Holder::Expression(id), &source)?
         } else {
             self.holder(Holder::Expression(id))?
         };

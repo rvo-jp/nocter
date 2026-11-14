@@ -211,17 +211,22 @@ impl Builder<'_> {
         let weak = paths.len() != 1;
         for (slot, path) in paths {
             let source = self.read(point, slot, state);
+            let data = slot.data(self.query)?;
+            // Normal completion of a write into a singleton array selects its only element.
+            // Other erased array selectors still join the prior and supplied contexts.
+            let exact = data.is_some_and(|data| {
+                self.query
+                    .program()
+                    .project_data_by(data, &path, |(), length| length == 1)
+                    .is_some()
+            });
             let value = self.push(
-                slot.data(self.query)?,
+                data,
                 None,
                 ValueSource::Replace {
                     source,
                     value,
-                    weak: weak
-                        || path
-                            .fields()
-                            .iter()
-                            .any(|field| matches!(field, nocter_model::ValueProjection::Array(()))),
+                    weak: weak || !exact,
                     path,
                 },
             );
