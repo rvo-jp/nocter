@@ -468,7 +468,9 @@ and lexical alias authority; this graph does not repeat typing, ownership or ini
 phase. Reaching definitions and original predecessor exits share one selection authority with the
 SSA merge builder, replacing its separate block-output state table. `flow.operand` preserves the
 actual selected read, including inserted receiving adapters and alias-root selection; an alias's
-stored binding is not a later read of its referent. Staged returns retain their own source slot.
+stored binding is not a later read of its referent. Arithmetic operand preparation, condition tests,
+discarded values and compound-assignment inputs retain their own occurrence reads. A later operand
+write cannot change the earlier scalar preparation's source. Staged returns retain their own source slot.
 Definitions survive retirement as metadata and do not make retired owners accessible.
 
 `Unit::instantiate_stored_data` resolves a selected source slot/component at one such boundary

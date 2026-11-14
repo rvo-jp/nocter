@@ -12,6 +12,11 @@ impl Builder<'_> {
         state: &mut State,
     ) -> Result<()> {
         match *operation {
+            flow::Operation::PrepareOperand { value, .. }
+            | flow::Operation::Condition(value)
+            | flow::Operation::Discard(value) => {
+                self.value(point, value, state)?;
+            }
             flow::Operation::Evaluate(id) => {
                 let value = self.expression(point, id, state)?;
                 self.define(Slot::Expression(id), value, state)?;
@@ -56,7 +61,8 @@ impl Builder<'_> {
                 let value = self.value(point, value, state)?;
                 self.assign(point, target, value, state)?;
             }
-            flow::Operation::CompoundAssign { target, .. } => {
+            flow::Operation::CompoundAssign { target, value, .. } => {
+                self.value(point, value, state)?;
                 let data = self.query.body.referent_data(target).ok_or(INVALID)?;
                 let value = self.push(Some(data), None, ValueSource::Opaque);
                 self.assign(point, target, value, state)?;

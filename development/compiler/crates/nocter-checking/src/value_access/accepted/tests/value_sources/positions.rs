@@ -4,6 +4,51 @@ use crate::value_access::{InstantiationFailure, ValueSourceSelection};
 use crate::value_access::{Referent, ValueSourceBoundary, ValueSourceRead, ValueSourceSlot, flow};
 
 #[test]
+fn ordinary_operands_retain_their_actual_source_before_later_operand_mutation() {
+    let unit = accepted(
+        "func make(value: i32): i32 { value }
+func run(): i32 {
+    var current = make(41)
+    let _ = current + if true { current = make(42)\n1 } else { 1 }
+    current += 0
+    if current == 42 { current } else { 0 }
+}",
+    );
+    let owner = code(&unit, "run");
+    let graph = unit.value_sources(owner).unwrap();
+    let positions = graph.flow().unwrap();
+    let checked = unit.code_body(owner).unwrap();
+    let calls = factories(&unit, owner);
+    assert_eq!(calls.len(), 2);
+    let mut counts = [0; 4];
+    let mut snapshots = 0;
+    for (point, block) in checked.graph().points().iter() {
+        for (action, event) in block.actions.iter().enumerate() {
+            let (value, category) = match event.operation {
+                flow::Operation::PrepareOperand { value, .. } => (value, 0),
+                flow::Operation::Condition(value) => (value, 1),
+                flow::Operation::Discard(value) => (value, 2),
+                flow::Operation::CompoundAssign { value, .. } => (value, 3),
+                _ => continue,
+            };
+            let source = positions
+                .operand(flow::Location { point, action }, value)
+                .expect("the original operand has an occurrence source");
+            assert_ne!(graph.node(source).unwrap().value, ValueSource::Empty);
+            counts[category] += 1;
+            if category == 0 && reachable_calls(graph, source) == BTreeSet::from([calls[0]]) {
+                snapshots += 1;
+            }
+        }
+    }
+    assert!(counts.into_iter().all(|count| count > 0));
+    assert_eq!(
+        snapshots, 1,
+        "the first arithmetic operand precedes replacement"
+    );
+}
+
+#[test]
 fn staged_returns_publish_their_original_source_only_after_the_staging_action() {
     let unit = accepted(SOURCE);
     let owner = code(&unit, "captured_components");
