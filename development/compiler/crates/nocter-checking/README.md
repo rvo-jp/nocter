@@ -1750,6 +1750,14 @@ whose callable descriptor is context-bound, retaining a disjoint sibling view an
 container representation through required and native execution. `contextual-component-errors.nct`
 executes selected-callback and remaining-component error graph cleanup through that native path.
 These cases do not qualify changing container geometry or general partial destination writes.
+`contextual-callable-replacement.nct` qualifies sequential whole-local replacement of the same
+lexical wrapper with different captured callable contexts. Calls before and after replacement,
+explicit transfer into a saved owner and restoration retain their exact instances. Empty named
+environments and owning captured environments also exercise growth and shrinkage when no
+reference survives the replacement. A still-used read reference prevents the overwrite.
+`contextual-callable-replacement-errors.nct` executes actual retired, received and saved error
+graph cleanup across those changes. These whole-owner cases do not establish stable offsets
+for retained component references, partial writes, joins or changing backedges.
 Additional dependent carriers, context-changing carrier writes, surviving
 partial references, inferred captures and external dependencies still require separate qualification.
 

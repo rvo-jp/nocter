@@ -1,0 +1,36 @@
+struct Item { value: i32 }
+
+const func identity(value: i32): i32 { value }
+
+const func addition(value: i32): func(i32): i32 {
+    let item = Item { value: value }
+    (item^; amount: i32): i32 { item.value + amount }
+}
+
+const func subtraction(value: i32): func(i32): i32 {
+    let item = Item { value: value }
+    (item^; amount: i32): i32 { item.value - amount }
+}
+
+const func wrap(take callback: func(i32): i32): func(i32): i32 {
+    (callback^; amount: i32): i32 { callback(amount) }
+}
+
+const func calculate(): i32 {
+    var action = wrap(identity)
+    let empty = action(42)
+    action = wrap(addition(20))
+    let first = action(20)
+    action = wrap(subtraction(50))
+    let second = action(8)
+    let saved = action^
+    action = wrap(addition(1))
+    let third = action(41)
+    let preserved = saved(8)
+    action = wrap(identity)
+    let shrunk = action(42)
+    if empty == 42 && first == 40 && second == 42 && third == 42 && preserved == 42 && shrunk == 42 { 42 } else { 0 }
+}
+
+const ANSWER: i32 = calculate()
+func run(): i32 { if ANSWER == 42 { calculate() } else { 0 } }

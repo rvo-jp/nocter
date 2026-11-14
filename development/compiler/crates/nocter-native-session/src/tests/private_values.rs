@@ -203,6 +203,36 @@ fn private_contextual_component_transfers_destroy_actual_selected_and_remaining_
     );
 }
 
+#[test]
+fn private_contextual_callable_replacement_preserves_retired_received_and_transferred_instances() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-callable-replacement.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "contextual-callable-replacement",
+        42,
+    );
+}
+
+#[test]
+fn private_contextual_callable_replacement_disposes_retired_received_and_saved_error_graphs() {
+    let machine = trusted_error_machine(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-callable-replacement-errors.nct"
+    )));
+    let package = TempPackage::new();
+    execute_native_status(
+        &image(&machine),
+        &package.0,
+        "contextual-callable-replacement-errors",
+        42,
+    );
+}
+
 fn compile(source: &str) -> crate::NativeImage {
     let machine = machine(source);
     image(&machine)

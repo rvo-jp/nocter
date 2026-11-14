@@ -72,6 +72,10 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   Preserve separate original retirement and receipt rather than fusing
   them into a replacement solely to accommodate the evaluator.
   Independent closed-plan support does not close ordinary source or native geometry admission.
+- [x] Qualify sequential whole-local replacement of one lexical captured callable with distinct
+  concrete environment contexts, including growth/shrinkage without surviving references,
+  calls before/after replacement, explicit transfer and restoration. Preserve exact retired,
+  received and saved instances; this does not qualify changing partial-carrier geometry.
 - [x] Extend ordinary tuple formation to valid context-bound callable descriptors. Preserve
   matched per-component code/environment keys through forwarding, taking inputs and read aliases;
   keep Copy obligations, unresolved producers and homogeneous-array admission separate.
