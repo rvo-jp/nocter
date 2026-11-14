@@ -169,6 +169,9 @@ not a language restriction derived from the current realization boundary.
   and source safety.
   Work quotas bound uncertainty without proving eligibility; module publication retains its
   independent qualification.
+  Reconcile const-domain frame/type probes (`Types::supports_in`) with independently received
+  compound contexts and occurrence-specific results before using them as eligibility evidence;
+  a contract-wide substitution cannot select the actual supplying value.
 - [ ] Complete nested callable data/witness support through header/data positions and the owning
   type authority. Keep valid formal structural descriptors separate from owned-payload admission.
   Qualify concrete representation, substitution and callable input/result evidence;

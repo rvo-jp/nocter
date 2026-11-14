@@ -110,7 +110,9 @@ does not supply runtime values or access permission. `Instance::metadata` contai
 closed storage roots requested by reached schemas. Its construction takes no frame and cannot
 resolve or choose a contextual occurrence. Storage interns both these sets and the lifecycle's
 additional actual keys through one canonical authority. No per-frame source-type default table is
-present. Transitive components remain in the canonical data graph rather than a flattened inventory.
+present. `Prepared::instance` also requires that exact key for lookup; the storage table cannot
+reconstruct an occurrence from a code frame and raw source type. Transitive components remain in
+the canonical data graph rather than a flattened inventory.
 Unproduced source classification stays with the accepted Unit; it supplies no storage, payload or
 code instance. Source-selected moves, reservations and snapshots remain unchanged by projection.
 

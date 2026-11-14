@@ -1,5 +1,5 @@
 //! Closed data shapes for storage, independent of access operations and physical placement.
-use nocter_declarations::value_access::{CodeInstanceKey, DataInstanceKey, Program};
+use nocter_declarations::value_access::{DataInstanceKey, Program};
 use nocter_model::{AccessInstanceId, TypeId};
 use nocter_runtime_contract::{
     RuntimeAbiIdentity, RuntimeDataId, RuntimeEnvironment, RuntimeEnvironmentError,
@@ -33,21 +33,6 @@ impl Prepared {
     #[must_use]
     pub fn into_environment(self) -> RuntimeEnvironment {
         self.runtime
-    }
-    /// Resolve only an already materialized shape through the canonical declaration authority.
-    /// # Errors
-    /// Rejects unresolved bindings and absent positive storage; empty metadata is not a payload.
-    pub fn data(
-        &self,
-        program: &Program,
-        frame: &CodeInstanceKey,
-        source: TypeId,
-    ) -> Result<RuntimeDataId, Failure> {
-        let invalid = || Failure::InvalidPayload(source);
-        let key = program
-            .instantiate_data(source, frame)
-            .map_err(|_| invalid())?;
-        self.instance(program, &key)
     }
     /// Resolve an already materialized contextual payload without rebuilding its caller frame.
     /// # Errors

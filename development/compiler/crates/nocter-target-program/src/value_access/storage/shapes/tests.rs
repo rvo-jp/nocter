@@ -128,13 +128,14 @@ fn contextual_native_materialization_keeps_each_nested_environment_and_reuses_ac
     }
     let prepared = builder.finish(RuntimeAbiIdentity::Arm64DarwinV1).unwrap();
     let runtime = prepared.environment();
-    for (position, frame) in fixture.frames.iter().enumerate() {
+    for (position, key) in fixture.keys.iter().enumerate() {
+        let leaf = key.component(program, ValueField::Tuple(0)).unwrap();
+        let array = key.component(program, ValueField::Tuple(1)).unwrap();
+        assert_eq!(leaf.data(), fixture.captured);
+        assert_eq!(array.data(), fixture.array);
+        assert_eq!(prepared.instance(program, &leaf).unwrap(), leaves[position]);
         assert_eq!(
-            prepared.data(program, frame, fixture.captured).unwrap(),
-            leaves[position]
-        );
-        assert_eq!(
-            prepared.data(program, frame, fixture.array).unwrap(),
+            prepared.instance(program, &array).unwrap(),
             arrays[position]
         );
         assert_eq!(
@@ -206,7 +207,12 @@ fn empty_contextual_array_keeps_only_source_element_metadata() {
     );
     assert!(
         prepared
-            .data(program, &fixture.frames[0], fixture.captured)
+            .instance(
+                program,
+                &fixture.keys[0]
+                    .component(program, ValueField::Tuple(0))
+                    .unwrap()
+            )
             .is_err()
     );
 }
@@ -218,14 +224,9 @@ fn prepared_lookup_does_not_materialize_a_missing_context() {
     let mut builder = Builder::new(program);
     let first = builder.intern(fixture.keys[0].clone()).unwrap();
     let prepared = builder.finish(RuntimeAbiIdentity::Arm64DarwinV1).unwrap();
+    assert_eq!(prepared.instance(program, &fixture.keys[0]).unwrap(), first);
     assert_eq!(
-        prepared
-            .data(program, &fixture.frames[0], fixture.keys[0].data())
-            .unwrap(),
-        first
-    );
-    assert_eq!(
-        prepared.data(program, &fixture.frames[1], fixture.keys[1].data()),
+        prepared.instance(program, &fixture.keys[1]),
         Err(Failure::InvalidPayload(fixture.keys[1].data()))
     );
 }
@@ -261,12 +262,9 @@ fn nested_occurrences_of_one_lexical_closure_materialize_as_a_finite_graph() {
         .unwrap();
     let key = program.instantiate_data(fixture.captured, &frame).unwrap();
     let mut builder = Builder::new(program);
-    let id = builder.intern(key).unwrap();
+    let id = builder.intern(key.clone()).unwrap();
     let prepared = builder.finish(RuntimeAbiIdentity::Arm64DarwinV1).unwrap();
-    assert_eq!(
-        prepared.data(program, &frame, fixture.captured).unwrap(),
-        id
-    );
+    assert_eq!(prepared.instance(program, &key).unwrap(), id);
     assert_eq!(prepared.environment().types().iter().count(), 66);
     let mut next = Some(id);
     let mut count = 0;
