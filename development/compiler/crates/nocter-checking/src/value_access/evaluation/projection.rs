@@ -223,6 +223,17 @@ impl Builder<'_, '_> {
         let (data, storage) = self.holder_contract(holder)?;
         self.slot(Key::Resource(holder), data, storage)
     }
+    fn place_data(&self, place: &plan::Place) -> Result<usize> {
+        Ok(self.types.select_path(
+            self.slots.get(place.slot).ok_or(INVALID)?.data,
+            &place.fields,
+        )?)
+    }
+    fn holder_from_place(&mut self, holder: Holder, source: &plan::Place) -> Result<usize> {
+        let data = self.place_data(source)?;
+        let (_, storage) = self.holder_contract(holder)?;
+        self.slot_data(Key::Resource(holder), data, storage)
+    }
     fn component_position(&self, field: nocter_model::ValueField) -> Result<usize> {
         match field {
             nocter_model::ValueField::Array(index) => usize::try_from(index).map_err(|_| INVALID),
@@ -474,9 +485,10 @@ impl Builder<'_, '_> {
                 {
                     plan::Operation::None
                 } else {
+                    let source = self.value(source)?;
                     plan::Operation::Alias {
-                        destination: self.holder(Holder::Expression(result))?,
-                        source: self.value(source)?,
+                        destination: self.holder_from_place(Holder::Expression(result), &source)?,
+                        source,
                     }
                 }
             }
@@ -494,9 +506,10 @@ impl Builder<'_, '_> {
                 {
                     plan::Operation::None
                 } else {
+                    let source = self.value(value)?;
                     plan::Operation::Alias {
-                        destination: self.holder(Holder::Local(local))?,
-                        source: self.value(value)?,
+                        destination: self.holder_from_place(Holder::Local(local), &source)?,
+                        source,
                     }
                 }
             }
@@ -689,7 +702,47 @@ impl Builder<'_, '_> {
             .ok_or(INVALID)?
             .kind
             .clone();
-        let destination = self.holder(Holder::Expression(id))?;
+        let selected = match &kind {
+            ExpressionKind::Place(place) => Some(self.selected(*place)?),
+            ExpressionKind::Boundary {
+                source,
+                action:
+                    BoundaryAction::ReadPlace
+                    | BoundaryAction::DelegateUpdate
+                    | BoundaryAction::TemporaryPlace
+                    | BoundaryAction::CopyPayload,
+            }
+            | ExpressionKind::RequirePrimary { source } => Some(self.value(*source)?),
+            // These checks retain the whole carrier; a later Select extracts the payload.
+            ExpressionKind::GuardView { source, .. } => Some(self.referent(*source)?),
+            ExpressionKind::Select {
+                source,
+                fields,
+                action: SelectionAction::Access | SelectionAction::CopyPayload,
+            } => {
+                let mut place = self.value(*source)?;
+                place.fields = place
+                    .fields
+                    .iter()
+                    .copied()
+                    .chain(self.fields(fields)?.iter().copied())
+                    .collect();
+                Some(place)
+            }
+            _ => None,
+        };
+        let destination = if let Some(source) = selected {
+            self.holder_from_place(Holder::Expression(id), &source)?
+        } else if let ExpressionKind::Index { base, .. } = kind {
+            let source = self.value(base)?;
+            let data = self.place_data(&source)?;
+            // A positive schema bound is enough to select metadata, never to validate the index.
+            let data = self.types.array_element(data, 1)?;
+            let (_, storage) = self.holder_contract(Holder::Expression(id))?;
+            self.slot_data(Key::Resource(Holder::Expression(id)), data, storage)?
+        } else {
+            self.holder(Holder::Expression(id))?
+        };
         Ok(match kind {
             ExpressionKind::Constant(ref value) => plan::Operation::Literal {
                 destination,

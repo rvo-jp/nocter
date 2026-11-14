@@ -1,5 +1,6 @@
 use super::*;
 use crate::value_access::tests::{bound, input};
+use nocter_constant_evaluation::state::Projection;
 use nocter_declarations::value_access::{FunctionConstraint, FunctionWitness};
 use nocter_model::{BuiltinType, ValueFunctionOrigin, ValueInvocation, ValueParameter};
 
@@ -207,6 +208,51 @@ fn evaluator_carriers_keep_mixed_component_contexts_without_strengthening_raw_ty
     assert_eq!(length, 2);
     assert_eq!(element, actual[1]);
     assert_ne!(actual[0], actual[1]);
+    let path = |fields: &[Projection]| fields.iter().copied().collect();
+    assert_eq!(
+        types
+            .select_path(id, &path(&[Projection::Field(0)]))
+            .unwrap(),
+        actual[0]
+    );
+    assert_eq!(
+        types
+            .select_path(
+                id,
+                &path(&[
+                    Projection::Field(1),
+                    Projection::Index {
+                        slot: usize::MAX,
+                        bound: 2
+                    },
+                ])
+            )
+            .unwrap(),
+        actual[1],
+        "metadata selection must not inspect a runtime index cell"
+    );
+    assert!(
+        types
+            .select_path(id, &path(&[Projection::Field(2)]))
+            .is_err()
+    );
+    for bound in [0, 3, u64::MAX] {
+        assert!(
+            types
+                .select_path(
+                    id,
+                    &path(&[Projection::Field(1), Projection::Index { slot: 0, bound },])
+                )
+                .is_err()
+        );
+    }
+    let empty = types.get_in(program, &frames[0], fixture.empty).unwrap();
+    assert!(types.array_element(empty, 1).is_err());
+    assert!(
+        types
+            .select_path(empty, &path(&[Projection::Field(0)]))
+            .is_err()
+    );
     assert!(types.shapes[id].supported);
     assert!(!types.shapes[id].serializable);
     assert!(!types.supports(program, fixture.tuple).unwrap());

@@ -122,6 +122,37 @@ impl Types {
     pub(super) fn len(&self) -> usize {
         self.shapes.len()
     }
+    /// Follow represented components without rebuilding a formal type in the caller's frame.
+    pub(super) fn select_path(
+        &self,
+        mut data: usize,
+        fields: &nocter_constant_evaluation::state::ProjectionPath,
+    ) -> Result<usize> {
+        use nocter_constant_evaluation::state::Projection;
+        self.shapes.get(data).ok_or(INVALID)?;
+        for field in fields.iter() {
+            data = match *field {
+                Projection::Field(index) => self
+                    .shapes
+                    .get(data)
+                    .and_then(|shape| shape.ty.component(index))
+                    .ok_or(INVALID)?,
+                Projection::Index { bound, .. } => self.array_element(data, bound)?,
+            };
+        }
+        Ok(data)
+    }
+    /// Only the array schema is checked here; the VM still checks the actual saved number.
+    pub(super) fn array_element(&self, data: usize, bound: u64) -> Result<usize> {
+        let shape = &self.shapes.get(data).ok_or(INVALID)?.ty;
+        let Type::Array { length, .. } = shape else {
+            return Err(INVALID);
+        };
+        if bound == 0 || bound > *length {
+            return Err(INVALID);
+        }
+        shape.component(0).ok_or(INVALID)
+    }
     pub(in crate::value_access) fn supports(
         &mut self,
         program: &Program,

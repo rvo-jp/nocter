@@ -814,8 +814,12 @@ metadata consume this authority. Evaluator preparation registers selected whole 
 field sources and retained element views before lowering control points, so block allocation order
 cannot choose a frame-wide type default for those slots. It allocates metadata, never cells, values
 or owners, and reuses the ordinary slot interner. Incompatible concrete shapes for one evaluator
-slot reject at the current qualification boundary. Non-materializing views, remaining ordinary
-expression/local selection and changing partial-carrier geometry remain separate obligations.
+slot reject at the current qualification boundary. Place, boundary, guard, component and index
+views select their metadata from the represented source slot; read/edit local bindings and forwarded
+views preserve that selection. Physical component lookup has one evaluator authority and does not
+establish active variants, initialized payloads or valid runtime index numbers. Empty arrays provide
+no element view. Remaining ordinary expression/local selection and changing partial-carrier geometry
+remain separate obligations.
 `resources::Payload::instantiate` binds an existing logical schema to the declaration-owned
 `DataInstanceKey`, preserving the actual callable representation and nested captured context.
 `InstantiatedPayload` retains that complete key with its concrete root cleanup obligation. Its

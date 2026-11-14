@@ -62,7 +62,9 @@ pub enum Type {
     },
 }
 impl Type {
-    fn component(&self, index: usize) -> Option<usize> {
+    /// Select component metadata. This does not establish payload presence or initialization.
+    #[must_use]
+    pub fn component(&self, index: usize) -> Option<usize> {
         match self {
             Self::Record(fields) => fields.get(index).copied(),
             Self::Variant { primary, .. } if index == 0 => Some(*primary),
