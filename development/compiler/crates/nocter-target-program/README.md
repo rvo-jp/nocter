@@ -165,10 +165,28 @@ it has no parts constructor. `lower` enumerates reachable checked graph location
 identical guard/schedule pairs. A projected condition admitting different schedules rejects
 explicitly, rather than selecting by report order. No second CFG or runtime-state store is built.
 
-`project` substitutes payload obligations through the existing per-instance data map using
-checking's exhaustive resource-step transform into `Step<InstantiatedPayload>`. The concrete
-payload retains its captured context through adapter completion and MIR lookup; it does not select
-operations, fields or dispatch.
+`lifecycle::payloads` specializes obligations from their checking-owned source/destination roles
+through the exhaustive resource-step transform into `Step<InstantiatedPayload>`. Original action
+boundaries supply stored source values. One transition-local binding map retains only the data
+references of ordered materializations and transfers, including intermediate invocation adapters;
+it adds no owner state and does not change the ownership analysis's world identity or guards.
+Old cleanup precedes replacement binding, so a later use of the same holder selects the supplied
+value rather than the frame's default for that semantic type. Partial writes refer back to the
+original action's resulting definition.
+
+Capture construction, function-view adaptation and component assembly use the declaration-owned
+canonical data/witness operations. Homogeneous array assembly requires represented element keys
+to agree; no arbitrary first context is selected. Independently declaration-closed schemas can
+reuse their existing metadata; a contextual value cannot fall back to a frame-wide TypeId entry.
+The concrete payload retains its complete context for downstream lookup without selecting
+operations, fields or dispatch. Source-definition boundaries are not resource phases: both the
+selected operations and the before/after boundary remain owned by the retained transition.
+
+`Program::prepare_with_budget` bounds contextual metadata work across the complete lifecycle
+request. Failures retain the exact instance/action and instantiation cause and publish no draft;
+the retained InstanceProgram remains reusable for a healthy retry. Ordinary body slots, invocation
+channels, post-update dependent environments and storage must complete their separate occurrence
+integration before source formal captures can open.
 `completion` expands the frozen EnvironmentExit recipe only for reached calls; it does not
 reclassify the supplied invocation or the body's environment authority.
 

@@ -1,6 +1,7 @@
 //! Concrete lifecycle schedules and initialization bits. No payload layout, ABI or native admission.
 pub mod flags;
-use super::{DataEvidence, Environment, EnvironmentExit, Instance, InstanceProgram, Payload};
+mod payloads;
+use super::{Environment, EnvironmentExit, Instance, InstanceProgram, Payload};
 use nocter_checking::value_access::flow::{
     Location, Operation,
     resources::{Condition, Step as ResourceStep},
@@ -93,6 +94,11 @@ struct Draft {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Failure {
     InvalidInstanceProgram,
+    Payload {
+        instance: AccessInstanceId,
+        at: Location,
+        failure: nocter_checking::value_access::InstantiationFailure,
+    },
     /// Ownership bits alone do not distinguish different selected schedules at this boundary.
     /// A later realization must retain more checked control evidence instead of guessing.
     UnresolvedResourceChoice {
@@ -114,7 +120,19 @@ impl Program {
     /// Rejects missing checked evidence or ownership guards that do not distinguish schedules.
     /// No partial program is published.
     pub fn prepare(instances: Arc<InstanceProgram>) -> Result<Self, Failure> {
-        let bodies = lower(&instances)?;
+        let mut work = nocter_constant_evaluation::state::WorkBudget::new(
+            nocter_constant_evaluation::CompileTimeEvaluationLimits::default().steps(),
+        );
+        Self::prepare_with_budget(instances, &mut work)
+    }
+    /// Specialize the original transition payloads under one deterministic metadata-work quota.
+    /// # Errors
+    /// Rejects ambiguous/missing value contexts and work exhaustion without publishing a draft.
+    pub fn prepare_with_budget(
+        instances: Arc<InstanceProgram>,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<Self, Failure> {
+        let bodies = lower(&instances, work)?;
         Ok(Self { instances, bodies })
     }
     #[must_use]
@@ -129,7 +147,10 @@ impl Program {
 
 const INVALID: Failure = Failure::InvalidInstanceProgram;
 
-fn lower(program: &InstanceProgram) -> Result<BTreeMap<AccessInstanceId, Body>, Failure> {
+fn lower(
+    program: &InstanceProgram,
+    work: &mut nocter_constant_evaluation::state::WorkBudget,
+) -> Result<BTreeMap<AccessInstanceId, Body>, Failure> {
     let mut bodies = BTreeMap::new();
     for (id, instance) in program.instances().iter() {
         let checked = program.body(id).ok_or(INVALID)?;
@@ -144,9 +165,10 @@ fn lower(program: &InstanceProgram) -> Result<BTreeMap<AccessInstanceId, Body>, 
                 let mut alternatives = BTreeMap::new();
                 for transition in checked.access().resources().at(at) {
                     let condition = transition.condition();
-                    let before = project(instance, transition.before_steps())?;
+                    let mut projection = payloads::Projection::new(program, instance, id, at, work);
+                    let before = projection.steps(transition.before_steps())?;
                     let mut after = completion.clone().into_iter().collect::<Vec<_>>();
-                    after.extend(project(instance, transition.after_steps())?);
+                    after.extend(projection.steps(transition.after_steps())?);
                     let candidate = Draft {
                         condition: condition.clone(),
                         operation_state: transition.operation_condition().clone(),
@@ -178,22 +200,6 @@ fn lower(program: &InstanceProgram) -> Result<BTreeMap<AccessInstanceId, Body>, 
         bodies.insert(id, flags::lower(actions, entry)?);
     }
     Ok(bodies)
-}
-
-fn project(instance: &Instance, steps: &[ResourceStep]) -> Result<Vec<Step>, Failure> {
-    steps
-        .iter()
-        .map(|step| {
-            step.try_map_payloads(|source| {
-                instance
-                    .data()
-                    .get(&source.data())
-                    .and_then(DataEvidence::payload)
-                    .ok_or(INVALID)
-            })
-            .map(Step::Resource)
-        })
-        .collect()
 }
 
 fn completion(instance: &Instance, operation: &Operation) -> Result<Option<Step>, Failure> {

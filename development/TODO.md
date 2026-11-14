@@ -20,43 +20,29 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 Complete occurrence-sensitive value/capture transport under the
 [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances).
-The declaration-owned frame/data model and original creation-recipe resolver are the existing
-metadata authorities; their component READMEs own implemented scope.
+The [checking](compiler/crates/nocter-checking/README.md) and
+[target-program](compiler/crates/nocter-target-program/README.md) owners describe the implemented
+canonical metadata, original source-definition queries and ordered lifecycle specialization.
 
-The matched sparse `ValueSources` graph now supplies strict callable metadata queries through
-received environment components, selected return paths, value definitions, prepared call bundles
-and new creation environments. Its component README owns the qualified scope. Continue preserving
-one deterministic work quota and request-local failure. Keep code-summary/definition hypotheses
-separate from actual committed calls, and keep opaque effects, ambiguous alternatives and
-unqualified call writes unresolved.
-
-Value-data queries now preserve returned carriers, selected components and replacement snapshots
-through that same graph. Next pair exact value references with receiving, representation and
-resource obligations at their original action/phase; a payload's TypeId alone cannot select its
-context. The exhaustive resource-step payload transform now retains source-place versus new
-destination-holder roles. Sparse original-action definitions/reads and stored-data boundary queries
-now share the SSA merge authority. Next compose their exact value references with the existing
-ordered resource transitions; retain preparation-time reads and staged returns. Assignment cleanup
-refers to the old value even though the semantic action also defines a new local version; call
-cleanup may need the post-update value. Do not replace either with a blanket before/after TypeId
-lookup, downstream step-name phase inference or duplicate ownership analysis. Preserve nominal
-schemas, strict alternatives, sparse arrays and deterministic retry.
-
-Carry the resulting exact keys into ordinary body data selection, receiving and cleanup rather
-than rebuilding them from a per-frame TypeId map. Preserve shared schemas, sparse loops and
-homogeneous arrays without enumerating all paths or declared elements.
+Next carry their exact per-value keys through ordinary body slots, invocation channels and storage
+interning. Keep preparation-time snapshots and staged returns. Post-update dependent environments
+and prepared temporaries must follow actual call-write context rather than reuse an immutable
+pre-call bundle. Source-definition boundaries are not resource phases: preserve the existing
+transition order, old-value cleanup and new-value receipt without adding provenance to ownership
+world identity, a second owner registry or downstream phase inference from step names. Preserve
+shared schemas, sparse loops, homogeneous arrays and one canonical normalization authority.
 
 Qualify the same lexical closure with different captured callbacks before and after forwarding
-them together, including safe/unsafe ordinary source, conditional const admission, evaluator
-plans, native storage and actual cleanup. Keep formal-capture source admission closed until those
-consumers agree. A parser, metadata construction or emitted-only check cannot close that boundary.
+it with another instance, including safe/unsafe ordinary source, conditional const admission,
+evaluator plans, native storage and actual cleanup. Keep formal-capture source admission closed
+until all consumers agree. A parser, metadata construction or emitted-only check cannot close that
+boundary. Opaque effects, ambiguous alternatives and unqualified writes must remain unresolved.
 
-Preserve strict rejection of missing/foreign creation evidence, frozen views, anchored recursion,
-alternatives, deterministic work failure and healthy retry. Keep dormant definition-contract
-checks, factored symbolic conditions and condition/plan quotas distinct from actual committed
-calls and pre-commit preparation. Semantic TypeId remains the source/checking authority; contextual
-runtime IDs grant no fabricated semantic type, source receipt, payload, layout or cleanup proof.
-Follow the occurrence-sensitive finding below and keep one normalization authority.
+Preserve missing/foreign evidence rejection, frozen views, anchored recursion, deterministic work
+failure and healthy retry. Keep dormant definition-contract hypotheses, factored symbolic conditions
+and condition/plan quotas distinct from actual committed calls and pre-commit preparation. Semantic
+TypeId remains the source/checking authority; contextual runtime IDs grant no fabricated semantic
+type, source receipt, payload, layout or cleanup proof. Follow the occurrence-sensitive finding below.
 
 Continue symbolic value/resource-state guarded discharge and independent module publication after
 that boundary is coherent. General R/D/S, dependent carriers, deeper callable inputs, inferred
