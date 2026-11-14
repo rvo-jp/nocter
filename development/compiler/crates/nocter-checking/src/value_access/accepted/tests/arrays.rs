@@ -109,3 +109,51 @@ fn empty_payloads_preserve_element_identity_and_independent_declaration_validati
         matches!(SourceUnit::prepare(bound(&sources, &tree)), Err(SourceFailure::Declarations(declarations::Failure::Headers(errors))) if errors.iter().any(|error| error.source().code() == "E0290"))
     );
 }
+
+#[test]
+fn contextual_callable_arrays_do_not_invent_copy_or_hide_retirement() {
+    use crate::value_access::Rule;
+    for (body, expected) in [
+        ("let values = [callback]", Some(Rule::MissingTransfer)),
+        (
+            "let values = [callback^; 2]",
+            Some(Rule::InvalidConstruction),
+        ),
+        (
+            "let values = [callback^]\nlet copied = values",
+            Some(Rule::MissingTransfer),
+        ),
+        ("let copied = [callback^][0]", Some(Rule::UnsupportedData)),
+        ("let values = [callback^]\nlet _ = callback(0)", None),
+    ] {
+        let source = format!("func probe(take callback: func(i32): i32): void {{ {body} }}");
+        let (sources, tree) = input(&source);
+        let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+        match expected {
+            Some(rule) => assert!(
+                matches!(failure, SourceFailure::Checking(Failure::Body { failure: crate::value_access::Failure::Rejected(error), .. }) if error.rule() == rule),
+                "{source}"
+            ),
+            None => assert!(
+                matches!(failure, SourceFailure::Checking(Failure::Flow { .. })),
+                "{source}: {failure:?}"
+            ),
+        }
+    }
+}
+
+#[test]
+fn contextual_arrays_do_not_select_the_first_of_different_captured_contexts() {
+    let source = concat!(
+        "const func first(): i32 { 40 }\nconst func second(): i32 { 42 }\n",
+        "const func wrap(take callback: func(): i32): func(): i32 { (callback^;): i32 { callback() } }\n",
+        "const func calculate(): i32 { let values = [wrap(first), wrap(second)]\nvalues[0]() }\n",
+        "const ANSWER: i32 = calculate()"
+    );
+    let (sources, tree) = input(source);
+    let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+    assert!(
+        matches!(&failure, SourceFailure::Checking(Failure::Evaluation { diagnostic, .. }) if diagnostic.rule() == crate::value_access::evaluation::Rule::UnresolvedContext && diagnostic.source().code() == "E0323"),
+        "{failure:?}"
+    );
+}

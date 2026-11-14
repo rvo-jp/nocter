@@ -1,0 +1,49 @@
+struct Item { value: i32 }
+
+func runtime(value: i32): i32 { value }
+const func identity(value: i32): i32 { value }
+
+const func owning(value: i32): func(i32): i32 {
+    let item = Item { value: value }
+    (item^; amount: i32): i32 { item.value + amount }
+}
+
+const func apply(take callback: func(i32): i32, value: i32): i32 {
+    let values = [callback^; 1]
+    values[0](value)
+}
+
+const func listed(take callback: func(i32): i32, value: i32): i32 {
+    let values = [callback^]
+    values[0](value)
+}
+
+const func wrap(take callback: func(i32): i32): func(i32): i32 {
+    (callback^; value: i32): i32 { callback(value) }
+}
+
+const func grouped(): i32 {
+    let values = [wrap(identity), wrap(identity)]
+    values[0](20) + values[1](22)
+}
+
+const func discard(take callback: func(i32): i32): void {
+    let values = [callback^; 0]
+    drop values
+}
+
+const func calculate(): i32 {
+    let held = owning(2)
+    let first = apply(identity, 42)
+    let second = apply(held^, 40)
+    let other = owning(4)
+    let third = listed(other^, 38)
+    let fourth = grouped()
+    discard(runtime)
+    let unused = owning(7)
+    discard(unused^)
+    if first == 42 && second == 42 && third == 42 && fourth == 42 { 42 } else { 0 }
+}
+
+const ANSWER: i32 = calculate()
+func run(): i32 { if ANSWER == 42 { calculate() } else { 0 } }

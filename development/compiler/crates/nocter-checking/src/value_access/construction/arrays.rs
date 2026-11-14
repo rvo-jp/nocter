@@ -10,7 +10,7 @@ use nocter_syntax::NodeId;
 
 impl Checker<'_, '_> {
     fn array_element(&self, node: NodeId, data: TypeId) -> Result<(), Failure> {
-        if self.program().payload_readiness(data) == PayloadReadiness::Unsupported {
+        if self.program().payload_dependencies(data).is_none() {
             self.reject(Rule::UnsupportedData, node)
         } else {
             Ok(())

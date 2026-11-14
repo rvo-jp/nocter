@@ -351,14 +351,7 @@ impl Builder<'_> {
         let root = if source.fields.is_root() {
             data
         } else {
-            let at = self.at.ok_or_else(|| self.invalid())?;
-            let key = self
-                .instance
-                .referent_root(at, nocter_checking::value_access::Referent::Place(id))
-                .ok_or_else(|| self.invalid())?;
-            self.storage
-                .instance(self.instances.unit().program(), key)
-                .map_err(Failure::Storage)?
+            self.referent_root(nocter_checking::value_access::Referent::Place(id))?
         };
         let mut place = self.root(Holder::Local(source.local), root, false)?;
         place.data = data;
@@ -370,6 +363,19 @@ impl Builder<'_> {
             .map(Projection::Field)
             .collect();
         Ok(place)
+    }
+    pub(super) fn referent_root(
+        &self,
+        referent: nocter_checking::value_access::Referent,
+    ) -> Result<RuntimeDataId, Failure> {
+        let at = self.at.ok_or_else(|| self.invalid())?;
+        let key = self
+            .instance
+            .referent_root(at, referent)
+            .ok_or_else(|| self.invalid())?;
+        self.storage
+            .instance(self.instances.unit().program(), key)
+            .map_err(Failure::Storage)
     }
     fn prepared_data(
         &self,

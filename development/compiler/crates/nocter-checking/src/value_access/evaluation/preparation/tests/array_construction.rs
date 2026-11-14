@@ -37,7 +37,7 @@ fn array_context_and_exact_inference_reject_invalid_construction() {
         (
             "callback: func(): void",
             "let values = [callback]",
-            BodyRule::UnsupportedData,
+            BodyRule::MissingTransfer,
         ),
     ] {
         assert_eq!(rejected(parameters, body), rule, "{body}");

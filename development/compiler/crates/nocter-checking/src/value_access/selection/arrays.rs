@@ -53,8 +53,7 @@ impl Checker<'_, '_> {
         if matches!(
             self.program().data_schema(element),
             Some(PayloadSchema::Function(_))
-        ) && self.program().payload_readiness(element)
-            == nocter_declarations::value_access::PayloadReadiness::Unsupported
+        ) && self.program().payload_dependencies(element).is_none()
         {
             return self.reject(Rule::UnsupportedData, node);
         }

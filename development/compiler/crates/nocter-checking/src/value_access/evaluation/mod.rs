@@ -27,6 +27,7 @@ pub enum Rule {
     DependencyCycle,
     FinalValue,
     ConditionWorkLimit,
+    UnresolvedContext,
 }
 impl Rule {
     fn diagnostic(self) -> Result<(DiagnosticCode, &'static str), BodyFailure> {
@@ -69,6 +70,10 @@ impl Rule {
             Self::ConditionWorkLimit => (
                 DiagnosticCode::E0322,
                 "required constant analysis exhausted its condition-work budget",
+            ),
+            Self::UnresolvedContext => (
+                DiagnosticCode::E0323,
+                "required constant analysis cannot establish one concrete value context",
             ),
             Self::DependencyCycle => (
                 DiagnosticCode::E0324,
@@ -251,6 +256,9 @@ pub(super) fn condition_failure(
     match failure {
         super::InstantiationFailure::WorkLimit => {
             failure_at_source(code, Rule::ConditionWorkLimit, primary)
+        }
+        super::InstantiationFailure::Unresolved => {
+            failure_at_source(code, Rule::UnresolvedContext, primary)
         }
         _ => Failure::Integrity(flow::IntegrityError::InconsistentTypedBody),
     }

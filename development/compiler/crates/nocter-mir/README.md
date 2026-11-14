@@ -70,6 +70,11 @@ declaration-closed; a missing contextual occurrence rejects. No MIR lookup consu
 frame-wide type map. This includes non-owning local bindings: their actual definition determines
 the alias representation. Source-place address projection consumes checking's frozen reference-root
 contracts at the original action, while partial input resource roots retain the bound input payload.
+Contextual evaluated reference arguments likewise retain the original action's complete selected root.
+At invocation commit this root must match the prepared argument data; the previously evaluated
+expression is not queried as a fresh operand or replaced by a declaration-wide type default.
+Independently closed schemas remain sufficient for representation-only references, including
+compiler-retained index references without a new source-value occurrence at a resource phase.
 Matched scoped replacement uses its sealed before-root for retired-leaf cleanup and its after-root
 for supplied-leaf placement, preserving the same resource path and cleanup order. An unpaired raw
 scoped replacement rejects. It retains same-schema virtual and original containing root pairs as

@@ -1,0 +1,25 @@
+primitive func create_failure(code: str, message: str): error
+primitive func context_error(take value: error, message: str): error
+
+func owning(): func(i32): i32 {
+    let reason = context_error(create_failure("array", "leaf"), "outer")
+    (reason^; value: i32): i32 { value + 2 }
+}
+
+func apply(take callback: func(i32): i32, value: i32): i32 {
+    let values = [callback^; 1]
+    values[0](value)
+}
+
+func discard(take callback: func(i32): i32): void {
+    let values = [callback^; 0]
+    drop values
+}
+
+func run(): i32 {
+    let active = owning()
+    let answer = apply(active^, 40)
+    let unused = owning()
+    discard(unused^)
+    answer
+}

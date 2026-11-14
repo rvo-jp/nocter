@@ -20,6 +20,15 @@ pub(super) fn answer(source: &str, name: &str) -> Value {
     );
     Value::from_frozen(unit.constant_value(id).unwrap()).unwrap()
 }
+
+#[test]
+fn context_bound_callable_arrays_preserve_elements_and_zero_count_seed_cleanup() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-callable-arrays.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Value::integer(42));
+}
 #[test]
 fn literals_forward_dependencies_and_runtime_references_publish_values() {
     assert_eq!(

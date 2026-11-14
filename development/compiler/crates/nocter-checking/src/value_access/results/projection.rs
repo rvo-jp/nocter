@@ -107,14 +107,7 @@ fn validate_payload(
         expression.kind,
         ExpressionKind::Aggregate { .. } | ExpressionKind::Repeat { .. }
     ) {
-        let ready = if matches!(
-            query.program().data_schema(access.data()),
-            Some(PayloadSchema::Aggregate(_))
-        ) {
-            resolved_descriptor(query.program(), access.data())
-        } else {
-            query.program().owned_payload_supported(access.data())
-        };
+        let ready = resolved_descriptor(query.program(), access.data());
         if !ready {
             return Err(reject(
                 Rule::UnsupportedData,

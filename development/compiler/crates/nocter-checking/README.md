@@ -744,14 +744,24 @@ retirement stays explicit even for a finally Copy shape. Pending evaluated refer
 type projection as locals rather than consulting stale expression data. No placeholder environment,
 new ownership ledger or cardinality expansion is introduced.
 
-Tuple formation can also retain valid callable-formal descriptors. Each component still passes
+Tuple and array formation can also retain valid callable-formal descriptors. Each component still passes
 ordinary value supply; an unmarked formal cannot acquire Copy and transferred inputs cannot be
 reused. After result closure, pending producers remain rejected. Concrete component keys close
 under the existing source-value and resource-data queries, preserving distinct environments at
-same-typed positions. This descriptor support does not widen homogeneous-array construction.
+same-typed tuple positions. An array requires one actual homogeneous element context; a formal
+descriptor alone does not prove agreement among different elements. Repetition above one still
+requires a source Copy proof, and selection from a temporary array retains its Copy requirement.
+If required analysis cannot establish one concrete context, it reports E0323 at the original
+source operation; an unresolved query is not an internal integrity failure or a choice of the
+first element. Owner mismatches and missing committed-call identities remain integrity failures.
 `contextual-tuple-results.nct` returns such a carrier from an anonymous body, then invokes its
 selected components with different named/owned environments. Required evaluation and native
 execution must both produce 42; a callee's formal descriptor cannot replace the actual result key.
+`contextual-callable-arrays.nct` qualifies named and owned callable elements through taking
+inputs, single-element repetition and invocation in both consumers. Zero-count repetition still
+evaluates and destroys its seed, without inventing an element or a callback invocation obligation.
+The separate `contextual-callable-array-errors.nct` native case constructs actual owned error
+graphs and disposes them through element cleanup and zero-count seed cleanup.
 
 The shared `structural-result-values.nct` source qualifies factory-produced named/captured values,
 distinct environments of one code, arrays, nested tuples/arrays, repetition, replacement,

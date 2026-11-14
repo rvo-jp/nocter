@@ -67,3 +67,70 @@ fn contextual_aliases_use_actual_inputs_without_a_frame_type_fallback() {
     let lifecycle = lifecycle::Program::prepare(instances).unwrap();
     super::super::Program::lower(&lifecycle, RuntimeAbiIdentity::Arm64DarwinV1).unwrap();
 }
+
+#[test]
+fn evaluated_callback_referents_require_the_original_commit_root() {
+    use nocter_checking::value_access::Referent;
+    let fixture = ValueSourceFixture::new(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-callable-arrays.nct"
+    )));
+    let unit = Arc::new(SourceUnit::prepare(fixture.syntax()).unwrap().into_unit());
+    let root = unit
+        .program()
+        .resolve_code(unit.program().symbols().get("run").unwrap())
+        .unwrap();
+    let instances = Arc::new(InstanceProgram::prepare(unit, root).unwrap());
+    let lifecycle = lifecycle::Program::prepare(instances.clone()).unwrap();
+    let storage = storage::prepare(
+        &instances,
+        RuntimeAbiIdentity::Arm64DarwinV1,
+        lifecycle.payload_instances(),
+    )
+    .unwrap();
+    let mut covered = 0;
+    for (id, instance) in instances.instances().iter() {
+        let checked = instances.body(id).unwrap();
+        for (point, block) in checked.graph().points().iter() {
+            for (action, operation) in block.actions.iter().enumerate() {
+                let Operation::CommitCall(call) = operation.operation else {
+                    continue;
+                };
+                let mut builder = Builder {
+                    runtime: storage.environment(),
+                    storage: &storage,
+                    id,
+                    instances: &instances,
+                    instance,
+                    checked,
+                    at: Some(flow::Location { point, action }),
+                    slots: ArenaBuilder::new(),
+                    keys: BTreeMap::new(),
+                    geometry: BTreeSet::new(),
+                };
+                for (index, argument) in
+                    builder.arguments(call).unwrap().to_vec().iter().enumerate()
+                {
+                    let ArgumentAction::ReserveRead(source @ Referent::Evaluated(_)) =
+                        argument.action
+                    else {
+                        continue;
+                    };
+                    let data = builder.argument(call, index).unwrap().data;
+                    let selected = builder.referent(source, data).unwrap();
+                    assert_eq!(selected.root, data);
+                    assert!(
+                        builder
+                            .referent(source, RuntimeDataId::Instance(u32::MAX))
+                            .is_err()
+                    );
+                    builder.at = None;
+                    assert!(builder.referent(source, data).is_err());
+                    builder.at = Some(flow::Location { point, action });
+                    covered += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(covered, 5);
+}

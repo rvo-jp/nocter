@@ -75,6 +75,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Extend ordinary tuple formation to valid context-bound callable descriptors. Preserve
   matched per-component code/environment keys through forwarding, taking inputs and read aliases;
   keep Copy obligations, unresolved producers and homogeneous-array admission separate.
+- [x] Qualify context-bound callable arrays through ordinary construction, element invocation
+  and zero-count seed cleanup. Require one actual homogeneous element context without a
+  first-element fallback, invented Copy proof or phantom invocation from an empty array.
 - [ ] Qualify the canonical frame's received compound-input contexts through ordinary source and
   consumer storage, cleanup and conditional const reuse. The
   [declaration authority](compiler/crates/nocter-declarations/README.md) owns the validated constructor.

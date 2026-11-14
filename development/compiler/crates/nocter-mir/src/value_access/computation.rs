@@ -36,16 +36,26 @@ impl Builder<'_> {
     ) -> Result<Place, Failure> {
         match source {
             Referent::Place(place) => self.selected(place, data),
-            Referent::Evaluated(id)
-                if self.checked.typed().body().referent_data(source).is_some() =>
-            {
-                let place = self.value(id)?;
-                if place.data != data {
+            Referent::Evaluated(id) => {
+                let raw = self
+                    .checked
+                    .typed()
+                    .body()
+                    .referent_data(source)
+                    .ok_or_else(|| self.invalid())?;
+                // The caller already selected this original referent's concrete data. At a
+                // later invocation commit the expression is not a freshly evaluated operand;
+                // querying its raw type again would discard a contextual callable witness.
+                // Independent shapes also serve compiler-retained index references that have
+                // no new source-value occurrence at this resource phase.
+                let actual = self
+                    .closed_data(raw)
+                    .or_else(|_| self.referent_root(source))?;
+                if actual != data {
                     return Err(self.invalid());
                 }
-                Ok(place)
+                self.root(Holder::Expression(id), data, false)
             }
-            Referent::Evaluated(_) => Err(self.invalid()),
         }
     }
     fn result(&mut self, id: AccessExpressionId) -> Result<Place, Failure> {

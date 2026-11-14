@@ -116,6 +116,63 @@ fn private_contextual_tuple_results_keep_the_actual_anonymous_input_environments
     let package = TempPackage::new();
     execute_native_status(&compile(source), &package.0, "contextual-tuple-results", 42);
 }
+
+#[test]
+fn private_context_bound_callable_arrays_preserve_elements_and_zero_count_seed_cleanup() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-callable-arrays.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "contextual-callable-arrays",
+        42,
+    );
+}
+#[test]
+fn private_contextual_callable_arrays_dispose_owned_error_elements_and_zero_count_seeds() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-callable-array-errors.nct"
+    ));
+    // Qualify each cleanup independently: the other consumer cannot supply its release proof.
+    for (name, source) in [
+        (
+            "element",
+            source.replace("let unused = owning()\n    discard(unused^)", ""),
+        ),
+        (
+            "zero-seed",
+            source.replace(
+                "let answer = apply(active^, 40)",
+                "discard(active^)\n    let answer = 42",
+            ),
+        ),
+    ] {
+        let machine = trusted_error_machine(&source);
+        assert!(
+            machine
+                .functions()
+                .any(
+                    |(_, function)| function.body().operations().any(|(_, operation)| matches!(
+                        operation.kind(),
+                        nocter_machine::MachineOperationKind::ReleaseError { .. }
+                    ))
+                ),
+            "{name}"
+        );
+        let package = TempPackage::new();
+        execute_native_status(
+            &image(&machine),
+            &package.0,
+            &format!("contextual-array-errors-{name}"),
+            42,
+        );
+    }
+}
+
 fn compile(source: &str) -> crate::NativeImage {
     let machine = machine(source);
     image(&machine)
