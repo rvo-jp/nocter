@@ -15,12 +15,14 @@ enum Clause {
     },
     Inputs(AccessExpressionId),
     Data(Violation),
+    Drop(drops::Condition),
     Cleanup(cleanup::Condition),
 }
 impl Clause {
     fn data_condition(&self) -> Option<Violation> {
         match self {
             Self::Data(violation) => Some(*violation),
+            Self::Drop(condition) => Some(condition.violation()),
             Self::Cleanup(condition) => Some(condition.violation()),
             Self::Invocation { .. } | Self::Inputs(_) => None,
         }
@@ -43,6 +45,7 @@ impl CallEdge<'_> {
 
 mod bound;
 mod cleanup;
+mod drops;
 use bound::BoundCalls;
 pub(in crate::value_access) use bound::{BoundCheck, BoundCheckFailure};
 
@@ -94,17 +97,11 @@ impl Requirements {
                 });
             }
         }
-        for (id, statement) in typed.statements().iter() {
-            if let Statement::Drop(local) = statement {
-                let data = typed.locals().get(*local).ok_or(INVALID)?.data;
-                if !domain.supports(program, data)? {
-                    clauses.push(Clause::Data(Violation {
-                        site: Site::Statement(id),
-                        rule: Rule::UnsupportedCleanup(data),
-                    }));
-                }
-            }
-        }
+        clauses.extend(
+            drops::collect(&body, &mut domain)?
+                .into_iter()
+                .map(Clause::Drop),
+        );
         for (id, expression) in typed.expressions().iter() {
             if matches!(expression.kind, ExpressionKind::Call { .. }) {
                 clauses.push(Clause::Inputs(id));
@@ -200,6 +197,13 @@ impl Requirements {
                     };
                     (!supported).then_some(condition.violation())
                 }
+                Clause::Drop(condition) => {
+                    let supported = match calls.as_deref_mut() {
+                        Some(calls) => calls.drop(&self.body, condition, &mut domain)?,
+                        None => super::supports(program, condition.data()?, &mut domain, instance)?,
+                    };
+                    (!supported).then_some(condition.violation())
+                }
             };
             if violation.is_some() {
                 return Ok(violation);
@@ -260,7 +264,7 @@ impl Requirements {
                         return Ok(false);
                     }
                 }
-                Clause::Data(_) | Clause::Cleanup(_) => {
+                Clause::Data(_) | Clause::Drop(_) | Clause::Cleanup(_) => {
                     let violation = clause.data_condition().ok_or(INVALID)?;
                     let (Rule::UnsupportedData(data) | Rule::UnsupportedCleanup(data)) =
                         violation.rule()

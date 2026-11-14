@@ -170,8 +170,9 @@ not a language restriction derived from the current realization boundary.
   Work quotas bound uncertainty without proving eligibility; module publication retains its
   independent qualification.
   Reconcile remaining const-domain frame/type probes (`Types::supports_in`) for body expressions,
-  result contracts and explicit drop statements with occurrence-specific values before using them
-  as eligibility evidence. Preserve retained ordered cleanup selections through shared resource-data
+  result contracts with occurrence-specific values before using them as eligibility evidence.
+  Preserve explicit drops' original pre-retirement selections and dormant definition-contract
+  checks. Preserve retained ordered cleanup selections through shared resource-data
   projection when one action retires and receives the same raw type; a diagnostic type/site is not
   value provenance. Qualify changing cleanup contexts through ordinary source and all consumers.
   Preserve exact received-input

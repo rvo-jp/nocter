@@ -1279,6 +1279,11 @@ or type authority. `Unit::const_requirements` exposes the product for that exact
 Unit clones share both products and bodies. A changed body cannot reuse the old source receipt.
 Required checks apply concrete bindings to the stored clauses and call edges rather than walking
 source bodies or rebuilding resource obligations.
+Explicit `drop` clauses retain their original checked action locations. Bound checks query the
+local's reaching data immediately before retirement through the common source-definition
+normalizer, preserving the authored statement's diagnostic. A dormant statement without an
+action retains its definition-contract check and supplies no fictitious source value. Independently
+closed schemas need no contextual lookup; other live drops cannot use a frame-wide type default.
 Each cleanup condition retains the original transition ordinal, before/after resource phase and
 step ordinal behind its diagnostic site. Selection validates the original cleanup role and schema
 against that immutable body. Replacement conditions select the retired obligation, independently

@@ -1,5 +1,5 @@
 //! One lazy source/contract call resolution per bound clause check, never recursive admission.
-use super::{Requirements, Violation, cleanup, flow, instances};
+use super::{Requirements, Violation, cleanup, drops, flow, instances};
 use nocter_declarations::value_access::CodeInstanceKey;
 use nocter_model::{AccessExpressionId, ValueClosure};
 
@@ -33,6 +33,14 @@ pub(super) struct BoundCalls<'a, 'work> {
     resources: std::collections::BTreeMap<(flow::Location, usize), cleanup::Projected>,
 }
 impl BoundCalls<'_, '_> {
+    pub(super) fn drop(
+        &mut self,
+        body: &flow::Query,
+        condition: &drops::Condition,
+        domain: &mut crate::value_access::evaluation::Types,
+    ) -> Result<bool, BoundCheckFailure> {
+        condition.supports(body, self.caller, self.work, domain)
+    }
     pub(super) fn cleanup(
         &mut self,
         body: &flow::Query,
