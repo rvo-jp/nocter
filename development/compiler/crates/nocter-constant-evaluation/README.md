@@ -197,21 +197,28 @@ sequence without executing later phases.
 The closed plan kernel supports whole-root receipts of a different concrete representation from
 a distinct owned source. `ReplaceRoot` replaces a complete existing owner; `MoveRoot` receives
 into an unowned destination after any original disposal. Retirement and receipt remain separate
-ordered effects. Storage roles and owning-slot identities remain unchanged. Ordered validation propagates exact representation contexts through operations
-and control edges, including stable backedges; conflicting entry or alternative contexts remain
-unqualified. Return contracts and taking-input protection use the context at their actual phase.
+ordered effects. Storage roles and owning-slot identities remain unchanged. Ordered validation
+propagates representation contexts through operations and control edges. Different incoming
+contexts join as unresolved metadata; a fresh receipt from a known source establishes a unique
+destination context before use, including on loop reentry. Typed reads and context constraints
+require a unique context. Whole-root storage-role checks do not read an old representation.
+Conflicting action-alternative outputs remain unqualified. Return contracts and taking-input
+protection use the context at their actual phase.
 Execution retains only changed slot contexts in metered storage. Address validation compares the
 final selected data against the current backing root: an unchanged field remains usable through
 a saved parent alias, while stale callable identity cannot inherit equal payload geometry.
+Retiring an owner does not reset the representation of retained backing storage; logical ownership
+and the lifetime of addressable stored data remain distinct.
 Failed execution releases the contextual metadata with the frame.
 `Context` constraints compare the expected concrete data at their exact sequence positions.
 They neither change representation nor prove a live value, access or ownership. Validation consumes
 them in the common sequence; they add no execution step or payload operation.
 
 These independent closed-plan cases grant no new source admission. Checking's ordinary projection
-still requires one registered representation per holder; it must connect original retired/received
-contracts to temporal slots before emitting these transitions. Partial writes, changing external
-inputs/aliases, general joins and native address/geometry coherence remain obligations of the
+retains exact entry metadata while registering possible owning-local contexts, then emits ordered
+receipts and constraints from the original concrete resource steps. Registration alone cannot
+authorize a context change. Partial writes, changing external inputs/aliases, correlated alternative
+contexts and native address/geometry coherence remain obligations of the
 [temporal slot contract](../../../design/compiler-realization.md#temporal-evaluator-slot-contexts).
 Taking inputs are protected before retirement; read/edit inputs bind addresses after retained
 caller temporaries exist. Ordinary calls execute every time, including unit-returning editing

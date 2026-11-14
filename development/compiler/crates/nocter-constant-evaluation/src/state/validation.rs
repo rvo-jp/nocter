@@ -28,10 +28,14 @@ impl<'a> View<'a> {
 type Result<T> = std::result::Result<T, Rule>;
 const INVALID: Rule = Rule::InvalidPlan;
 fn ordinary_slot(plan: &View<'_>, id: usize) -> Result<super::Slot> {
+    definition(plan, id)?;
+    plan.slots.get(id).ok_or(INVALID)
+}
+fn definition(plan: &View<'_>, id: usize) -> Result<super::Slot> {
     if plan.environment_backing == Some(id) {
         return Err(INVALID);
     }
-    plan.slots.get(id).ok_or(INVALID)
+    plan.plan.slots.get(id).copied().ok_or(INVALID)
 }
 fn place(program: &Program, plan: &View<'_>, place: &Place) -> Result<usize> {
     ordinary_slot(plan, place.slot)?;
@@ -647,15 +651,7 @@ fn check_effect(program: &Program, plan: &View<'_>, effect: &Effect) -> Result<(
             source,
             destination,
             data: received,
-        } => {
-            owned(&Place::root(*destination))?;
-            if source.slot == *destination
-                || owned(source)? != *received
-                || program.types.get(*received).is_none()
-            {
-                return Err(INVALID);
-            }
-        }
+        } => check_root_receipt(program, plan, source, *destination, *received)?,
         Effect::MoveArrayElement {
             array,
             selected,
@@ -731,6 +727,23 @@ fn check_effect(program: &Program, plan: &View<'_>, effect: &Effect) -> Result<(
             destination,
             fields,
         } => check_assembly(program, plan, *destination, fields)?,
+    }
+    Ok(())
+}
+
+fn check_root_receipt(
+    program: &Program,
+    plan: &View<'_>,
+    source: &Place,
+    destination: usize,
+    received: usize,
+) -> Result<()> {
+    if definition(plan, destination)?.storage != Storage::Owned
+        || source.slot == destination
+        || owned_place(program, plan, source)? != received
+        || program.types.get(received).is_none()
+    {
+        return Err(INVALID);
     }
     Ok(())
 }

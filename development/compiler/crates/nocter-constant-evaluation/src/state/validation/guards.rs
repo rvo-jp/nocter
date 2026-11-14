@@ -1,17 +1,13 @@
 //! Validate sparse owner guards without inventing initialized backing.
 use super::{INVALID, Place, Program, Result, Storage, View, bounded_array, place};
-use crate::state::{Missing, ProjectionPath, slot_types::SlotTypes};
+use crate::state::{Missing, ProjectionPath};
 pub(super) fn validate(
     program: &Program,
     plan: &View<'_>,
     alternative: &crate::state::Alternative,
 ) -> Result<()> {
     for (&slot, paths) in &alternative.owned {
-        if plan
-            .slots
-            .get(slot)
-            .is_none_or(|slot| slot.storage != Storage::Owned)
-        {
+        if super::definition(plan, slot)?.storage != Storage::Owned {
             return Err(INVALID);
         }
         if paths.windows(2).any(|pair| pair[0] >= pair[1]) {

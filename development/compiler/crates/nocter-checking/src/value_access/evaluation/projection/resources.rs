@@ -11,6 +11,13 @@ use nocter_declarations::value_access::DataInstanceKey;
 pub(super) struct Projected {
     pub(super) before: Vec<Step<InstantiatedPayload>>,
     pub(super) after: Vec<Step<InstantiatedPayload>>,
+    roots: Vec<Roots>,
+}
+struct Roots {
+    holder: Holder,
+    before: DataInstanceKey,
+    after: DataInstanceKey,
+    carriers: crate::value_access::ReferentCarrierContracts,
 }
 
 fn source_holder(slot: ValueSourceSlot) -> Result<Holder> {
@@ -60,27 +67,28 @@ impl Builder<'_, '_> {
                         .map(|destination| {
                             let (target, carriers) =
                                 projection.replacement_carriers(destination)?;
-                            Ok((
-                                destination.holder(),
-                                self.values.root(at, target).ok_or(INVALID)?.clone(),
-                                self.values.root_after(at, target).ok_or(INVALID)?.clone(),
+                            Ok(Roots {
+                                holder: destination.holder(),
+                                before: self.values.root(at, target).ok_or(INVALID)?.clone(),
+                                after: self.values.root_after(at, target).ok_or(INVALID)?.clone(),
                                 carriers,
-                            ))
+                            })
                         })
                         .collect::<Result<Vec<_>>>()?;
                     let before = projection.steps(transition.before_steps())?;
                     let after = projection.after_steps(transition.after_steps())?;
                     drop(projection);
-                    // Slots currently have one shape. Both actual virtual roots must agree with
-                    // that shape; a later write cannot silently reuse its binding-time snapshot.
-                    // This prepares no value and proves no enclosing-allocation geometry.
-                    for (holder, before, after, carriers) in roots {
-                        self.register_holder(holder, &before)?;
-                        self.register_holder(holder, &after)?;
-                        for carrier in carriers
+                    // Reference views remain fixed. Owning-local metadata may observe multiple
+                    // contexts, but source-boundary constraints must still match the actual plan.
+                    // Registration supplies no initialized value or enclosing-allocation geometry.
+                    for root in &roots {
+                        self.register_holder(root.holder, &root.before)?;
+                        self.register_holder(root.holder, &root.after)?;
+                        for carrier in root
+                            .carriers
                             .before()
                             .iter()
-                            .chain(carriers.after().into_iter().flatten())
+                            .chain(root.carriers.after().into_iter().flatten())
                         {
                             self.register_holder(
                                 source_holder(carrier.selection().slot)?,
@@ -91,7 +99,11 @@ impl Builder<'_, '_> {
                     for step in before.iter().chain(&after) {
                         self.resource_data(step)?;
                     }
-                    alternatives.push(Projected { before, after });
+                    alternatives.push(Projected {
+                        before,
+                        after,
+                        roots,
+                    });
                 }
                 if self.resources.insert(at, alternatives).is_some() {
                     return Err(INVALID);
@@ -105,6 +117,42 @@ impl Builder<'_, '_> {
         let data = self.types.get_instance(self.program, key.clone())?;
         self.slot_data(Key::Resource(holder), data, storage)?;
         Ok(())
+    }
+    fn root_context(&mut self, holder: Holder, data: &DataInstanceKey) -> Result<plan::Effect> {
+        Ok(plan::Effect::Context {
+            place: plan::Place::root(self.holder(holder)?),
+            data: self.types.get_instance(self.program, data.clone())?,
+        })
+    }
+    pub(super) fn source_contexts(
+        &mut self,
+        projected: &Projected,
+    ) -> Result<(Vec<plan::Effect>, Vec<plan::Effect>)> {
+        // These are source-action entry/completion boundaries, enclosing all resource phases;
+        // they neither guess a step's phase nor prove initialized backing or stable addresses.
+        let mut entry = Vec::new();
+        let mut completion = Vec::new();
+        for root in &projected.roots {
+            entry.push(self.root_context(root.holder, &root.before)?);
+            completion.push(self.root_context(root.holder, &root.after)?);
+            for carrier in root.carriers.before() {
+                entry.push(
+                    self.root_context(
+                        source_holder(carrier.selection().slot)?,
+                        carrier.instance(),
+                    )?,
+                );
+            }
+            for carrier in root.carriers.after().ok_or(INVALID)? {
+                completion.push(
+                    self.root_context(
+                        source_holder(carrier.selection().slot)?,
+                        carrier.instance(),
+                    )?,
+                );
+            }
+        }
+        Ok((entry, completion))
     }
     pub(super) fn effects(
         &mut self,

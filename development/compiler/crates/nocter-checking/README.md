@@ -525,9 +525,11 @@ produced payload receipts under the shared metadata quota. Missing sites,
 ambiguous context and exhaustion supply no partial result. Contract metadata does not assert that
 the root is initialized, or describe old/new resource phases. Native storage interns both keys;
 source-place address projection uses the original before-root. Native scoped replacement retains
-the matched pair for virtual-root selection. Evaluator planning checks both matched roots against
-its singleton slot shape; a binding-time snapshot cannot authorize a changed root. This allocates
-metadata only. Enclosing allocation geometry and changing evaluator slot shapes remain separate work.
+the matched pair for virtual-root selection. Evaluator planning retains both virtual roots and
+their enclosing carrier contracts as constraints at the original source entry and completion
+boundaries. Reference-view registration remains strict; a binding-time snapshot cannot authorize
+a changed referent. These constraints allocate metadata only, not initialized storage or stable
+enclosing allocation geometry.
 Guarded carrier views likewise retain their actual referent source before payload selection. A tag
 assertion does not replace the carrier with its payload, choose an alternative or prove availability.
 
@@ -921,8 +923,10 @@ cannot select that reference-root pair. This metadata match grants no owner or l
 `replacement_carriers` resolves that matched destination's containing contracts under the same
 request budget and requires its normal-completion side. Native lifecycle retains the pair;
 evaluator planning registers both sides' original containing holders alongside their virtual roots.
-All use the ordinary slot/shape interners; incompatible evaluator shapes reject without choosing
-the earlier alias snapshot. This still supplies no physical geometry or ownership permission.
+All use the ordinary slot/shape interners. Source-entry constraints precede every before-effect;
+source-completion constraints follow every after-effect. These boundaries enclose resource phases
+rather than being inferred from step names. Incompatible reference-view shapes reject without
+choosing the earlier alias snapshot. This supplies no physical geometry or ownership permission.
 Capture, function-view adaptation and component assembly use the declaration-owned canonical operations;
 array element keys must agree without selecting an arbitrary first context. Independently closed
 schemas select metadata without consulting a backend's frame-wide type cache. Original transitions
@@ -937,8 +941,13 @@ grants no source, layout or executable receipt. Native lifecycle schedules and e
 metadata consume this authority. Evaluator preparation registers selected whole roots, assembled
 field sources and retained element views before lowering control points, so block allocation order
 cannot choose a frame-wide type default for those slots. It allocates metadata, never cells, values
-or owners, and reuses the ordinary slot interner. Incompatible concrete shapes for one evaluator
-slot reject at the current registration boundary. Preparation retains the complete instantiated
+or owners, and reuses the ordinary slot interner. Canonical input contracts establish ABI-entry
+slot data before this registration. An owning local can register different selected representation
+contexts without changing its initial data, storage role or logical slot. This registration is not
+a representation transition. Aliases, expressions, return and auxiliary holders still require a
+single matching context. Previously registered original view definitions retain their exact
+metadata rather than being inferred again from the backing slot's initial data.
+Preparation retains the complete instantiated
 before/after lists for each original action and transition through effect emission, rather than
 discarding them after registering types. Original steps still own declaration/view checks; their
 payload-erased operation identities must match the retained concrete steps. Concrete source
@@ -946,8 +955,8 @@ contexts are constrained before their effects, destination contexts after receip
 retain distinct retired/supplied constraints. Whole owning-root moves emit the evaluator kernel's
 contextual receipt with the actual supplied data, preserving original retirement order. These
 constraints do not create values, access or owners. Publication rejects a mismatched constraint
-without retaining part of the plan. General changing-holder registration and the enclosing
-source-admission boundary remain unqualified.
+without retaining part of the plan. General changing-holder registration, partial-carrier execution
+and the enclosing source-admission boundary remain unqualified.
 Place, boundary, guard, component and index
 views select their metadata from the represented source slot; read/edit local bindings and forwarded
 views preserve that selection. Physical component lookup has one evaluator authority and does not

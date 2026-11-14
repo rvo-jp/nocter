@@ -66,11 +66,15 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   through ordered plan validation and execution. Preserve one logical storage/owner identity,
   exact retired/received contexts, preparation snapshots, surviving aliases and failure recovery;
   code identity cannot be erased merely because two payloads have equal geometry.
-  Qualify checking's slot registration for changing whole-owned-root contexts against its retained
-  concrete resource phases and evaluator constraints, preserving exact entry contracts. Then
-  qualify partial carriers and changing external inputs/aliases. Preserve separate original retirement and receipt rather than fusing
+  Qualify ordinary source changes against checking's owning-local registration, retained concrete
+  resource phases and evaluator constraints, preserving exact entry contracts. Registration alone
+  does not qualify a transition. Then qualify partial carriers and changing external inputs/aliases.
+  Preserve separate original retirement and receipt rather than fusing
   them into a replacement solely to accommodate the evaluator.
   Independent closed-plan support does not close ordinary source or native geometry admission.
+- [x] Join evaluator representation states without erasing retained backing contexts. Allow a
+  fresh whole-root receipt to establish a unique context before use on loop reentry, while
+  unresolved reads remain rejected; verify failed-loop storage recovery.
 - [ ] Qualify the canonical frame's received compound-input contexts through ordinary source and
   consumer storage, cleanup and conditional const reuse. The
   [declaration authority](compiler/crates/nocter-declarations/README.md) owns the validated constructor.

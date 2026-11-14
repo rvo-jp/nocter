@@ -157,7 +157,10 @@ impl Builder<'_, '_> {
     }
     fn slot_data(&mut self, key: Key, data: usize, storage: plan::Storage) -> Result<usize> {
         if let Some(&slot) = self.keys.get(&key) {
-            if self.slots.get(slot) != Some(&plan::Slot { data, storage }) {
+            let existing = self.slots.get(slot).ok_or(INVALID)?;
+            let temporal =
+                storage == plan::Storage::Owned && matches!(key, Key::Resource(Holder::Local(_)));
+            if existing.storage != storage || (existing.data != data && !temporal) {
                 return Err(INVALID);
             }
             return Ok(slot);
@@ -247,8 +250,20 @@ impl Builder<'_, '_> {
         )?)
     }
     fn holder_from_place(&mut self, holder: Holder, source: &plan::Place) -> Result<usize> {
-        let data = self.place_data(source)?;
         let (_, storage) = self.holder_contract(holder)?;
+        // A retained original definition already selected this view's context. A backing slot's
+        // initial representation cannot overwrite that receipt after an intervening transfer.
+        if let Some(&slot) = self.keys.get(&Key::Resource(holder)) {
+            if self
+                .slots
+                .get(slot)
+                .is_none_or(|slot| slot.storage != storage)
+            {
+                return Err(INVALID);
+            }
+            return Ok(slot);
+        }
+        let data = self.place_data(source)?;
         self.slot_data(Key::Resource(holder), data, storage)
     }
     fn component_position(&self, field: nocter_model::ValueField) -> Result<usize> {
@@ -943,14 +958,14 @@ impl Builder<'_, '_> {
                             ))
                         })
                         .collect::<Result<_>>()?;
+                    let (mut before, mut completion) = self.source_contexts(&projected)?;
+                    before.extend(self.effects(transition.before_steps(), &projected.before)?);
+                    let mut after = self.effects(transition.after_steps(), &projected.after)?;
+                    after.append(&mut completion);
                     alternatives.push(plan::Alternative {
                         owned,
-                        before: self
-                            .effects(transition.before_steps(), &projected.before)?
-                            .into(),
-                        after: self
-                            .effects(transition.after_steps(), &projected.after)?
-                            .into(),
+                        before: before.into(),
+                        after: after.into(),
                     });
                 }
                 actions.push(plan::Action {
@@ -981,8 +996,6 @@ impl Builder<'_, '_> {
         })
     }
     fn build(mut self) -> Result<plan::Plan> {
-        self.prepare_value_data()?;
-        self.prepare_resource_data()?;
         let inputs = self
             .query
             .typed()
@@ -991,6 +1004,8 @@ impl Builder<'_, '_> {
             .ordered()
             .map(|i| Ok((self.holder(Holder::Local(i.local))?, i.operation)))
             .collect::<Result<_>>()?;
+        self.prepare_value_data()?;
+        self.prepare_resource_data()?;
         let mut points = nocter_model::ArenaBuilder::new();
         for (id, point) in self.query.graph().points().iter() {
             if points.insert(self.point(id, point)?) != id {

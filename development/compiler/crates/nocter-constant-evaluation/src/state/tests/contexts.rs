@@ -177,6 +177,36 @@ fn stale_function_views_fail_instead_of_inheriting_equal_payload_geometry() {
     assert_eq!(budget.storage_used(), 0);
 }
 #[test]
+fn retired_backing_keeps_its_actual_function_identity() {
+    // This independent kernel rejection grants no source-level lifetime admission.
+    let (root, types, mut plan) = fixture(Selection::Stale, false);
+    plan.points = plan.points.map(|_, point| {
+        let mut point = point.clone();
+        let actions = &mut point.actions;
+        let mut effects = actions[3].alternatives[0].after.to_vec();
+        effects.push(Effect::Dispose(Place::root(0)));
+        actions[3].alternatives[0].after = effects.into();
+        actions[4].alternatives[0].owned.remove(&0);
+        actions[4].alternatives[0].after = Box::new([Effect::Construct(3)]);
+        point
+    });
+    let program = Program::new(
+        types,
+        BTreeMap::from([(root.into(), plan)]),
+        BTreeMap::new(),
+    )
+    .unwrap();
+    let mut budget = Budget::new(Limits::default());
+    assert_eq!(
+        Executor::new(&program, &mut budget, 0)
+            .evaluate_initializer(root)
+            .unwrap_err()
+            .rule,
+        Rule::InvalidPlan
+    );
+    assert_eq!(budget.storage_used(), 0);
+}
+#[test]
 fn root_context_changes_require_actual_suppliers_and_updated_result_contracts() {
     for case in 0..4 {
         let (root, types, mut plan) = fixture(Selection::Root, true);
@@ -429,6 +459,60 @@ fn changed_contexts_cross_a_backedge_only_when_the_entry_context_is_preserved() 
             assert!(matches!(result, Err(Rule::InvalidPlan)));
         }
     }
+}
+
+#[test]
+fn fresh_receipts_resolve_retained_contexts_on_loop_reentry() {
+    let (root, types, mut plan) = fixture(Selection::Root, false);
+    let mut slots = plan.slots.to_vec();
+    slots.push(Slot {
+        data: 3,
+        storage: Storage::Owned,
+    });
+    plan.slots = slots.into();
+    let entry = plan.entry;
+    plan.points = plan.points.map(|_, point| {
+        let mut point = point.clone();
+        point.actions[0].operation = Operation::Literal {
+            destination: 4,
+            value: Value::aggregate(vec![Value::unit(), Value::integer(40)]),
+        };
+        point.actions[0].alternatives[0].after = Box::new([
+            Effect::Construct(4),
+            Effect::MoveRoot {
+                source: Place::root(4),
+                destination: 0,
+                data: 3,
+            },
+        ]);
+        let alternative = &mut point.actions.last_mut().unwrap().alternatives[0];
+        let mut after = alternative.after.to_vec();
+        after.push(Effect::Dispose(Place::root(0)));
+        alternative.after = after.into();
+        point.terminator = Terminator::Jump(entry);
+        point
+    });
+    let program = Program::new(
+        types,
+        BTreeMap::from([(root.into(), plan)]),
+        BTreeMap::new(),
+    )
+    .unwrap();
+    let mut budget = Budget::new(Limits::new(
+        CompileTimeEvaluationLimits::new(
+            NonZeroU64::new(256).unwrap(),
+            NonZeroU32::new(4).unwrap(),
+        ),
+        NonZeroU64::new(128).unwrap(),
+    ));
+    assert_eq!(
+        Executor::new(&program, &mut budget, 0)
+            .evaluate_initializer(root)
+            .unwrap_err()
+            .rule,
+        Rule::StepLimit
+    );
+    assert_eq!(budget.storage_used(), 0);
 }
 
 fn consuming_plan() -> Plan {
