@@ -199,10 +199,14 @@ a distinct owned source. `ReplaceRoot` replaces a complete existing owner; `Move
 into an unowned destination after any original disposal. Retirement and receipt remain separate
 ordered effects. Storage roles and owning-slot identities remain unchanged. Ordered validation
 propagates representation contexts through operations and control edges. Different incoming
-contexts, including ownership-guarded action outputs, join as unresolved metadata; a fresh receipt
-from a known source establishes a unique destination context before use, including on loop reentry.
-Typed reads and context constraints
-require a unique context. Whole-root storage-role checks do not read an old representation.
+contexts, including ownership-guarded action outputs, retain the union of their existing data-type
+identities. A selected component can close when every candidate projects to the same data type;
+each candidate must also satisfy every field and evaluated-index bound on the path. Different
+callable identities remain distinct even with equal payload geometry. Whole-root reads and context
+constraints still require a unique selected type. A fresh receipt from a known source establishes
+a unique destination context, including on loop reentry. The finite candidate union creates no
+new runtime type, ownership state or alternative correlation. Whole-root storage-role checks do
+not read an old representation.
 Each alternative still validates its own ordered phases. Exact ownership guards select execution;
 unresolved context metadata cannot choose a guard or recover correlations between alternatives.
 Return contracts and taking-input protection use the context at their actual phase.

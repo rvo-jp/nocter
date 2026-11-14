@@ -38,7 +38,7 @@ fn definition(plan: &View<'_>, id: usize) -> Result<super::Slot> {
     plan.plan.slots.get(id).copied().ok_or(INVALID)
 }
 fn place(program: &Program, plan: &View<'_>, place: &Place) -> Result<usize> {
-    ordinary_slot(plan, place.slot)?;
+    definition(plan, place.slot)?;
     place_data(program, &plan.slots, place)
 }
 pub(super) fn place_data(
@@ -46,7 +46,14 @@ pub(super) fn place_data(
     slots: &(impl SlotTypes + ?Sized),
     place: &Place,
 ) -> Result<usize> {
-    let mut data = slots.get(place.slot).ok_or(INVALID)?.data;
+    slots.select(program, place)
+}
+pub(super) fn project_data(
+    program: &Program,
+    slots: &(impl SlotTypes + ?Sized),
+    place: &Place,
+    mut data: usize,
+) -> Result<usize> {
     for projection in place.fields.iter() {
         data = match projection {
             super::Projection::Field(field) => program
@@ -601,11 +608,7 @@ fn bounded_array(
     Ok(*length)
 }
 fn owned_place(program: &Program, plan: &View<'_>, source: &Place) -> Result<usize> {
-    if plan
-        .slots
-        .get(source.slot)
-        .is_some_and(|slot| slot.storage == Storage::Owned)
-    {
+    if definition(plan, source.slot)?.storage == Storage::Owned {
         place(program, plan, source)
     } else {
         Err(INVALID)

@@ -16,40 +16,44 @@ pub(super) fn effect(plan: &Plan, contexts: &mut Contexts, effect: &Effect) -> R
     } = *effect
     {
         let initial = plan.slots.get(destination).ok_or(INVALID)?.data;
-        let current = contexts.get(&destination).copied().unwrap_or(Some(initial));
-        if current == Some(data) {
+        let unchanged = contexts
+            .get(&destination)
+            .map_or(initial == data, |candidates| {
+                candidates.len() == 1 && candidates.contains(&data)
+            });
+        if unchanged {
             return Ok(());
         }
         let contexts = Arc::make_mut(contexts);
         if initial == data {
             contexts.remove(&destination);
         } else {
-            contexts.insert(destination, Some(data));
+            contexts.insert(destination, Arc::new(BTreeSet::from([data])));
         }
     }
     Ok(())
 }
 pub(super) fn join(plan: &Plan, current: &mut Contexts, incoming: &Contexts) -> Result<bool> {
+    // Entries only gain existing type identities. Fresh receipts kill prior possibilities;
+    // monotone propagation therefore converges without an arbitrary loop-iteration cutoff.
     if Arc::ptr_eq(current, incoming) {
         return Ok(false);
     }
     let keys: BTreeSet<_> = current.keys().chain(incoming.keys()).copied().collect();
-    let mut unresolved = Vec::new();
+    let mut updates = Vec::new();
     for slot in keys {
-        let initial = Some(plan.slots.get(slot).ok_or(INVALID)?.data);
-        let left = current.get(&slot).copied().unwrap_or(initial);
-        let right = incoming.get(&slot).copied().unwrap_or(initial);
-        if left.is_some() && left != right {
-            unresolved.push(slot);
+        let initial = BTreeSet::from([plan.slots.get(slot).ok_or(INVALID)?.data]);
+        let left = current.get(&slot).map_or(&initial, Arc::as_ref);
+        let right = incoming.get(&slot).map_or(&initial, Arc::as_ref);
+        if !right.is_subset(left) {
+            updates.push((slot, Arc::new(left.union(right).copied().collect())));
         }
     }
-    if unresolved.is_empty() {
+    if updates.is_empty() {
         return Ok(false);
     }
     let current = Arc::make_mut(current);
-    for slot in unresolved {
-        current.insert(slot, None);
-    }
+    current.extend(updates);
     Ok(true)
 }
 pub(super) fn validate(program: &Program, plan: &Plan) -> Result<()> {

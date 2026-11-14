@@ -78,6 +78,10 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Use the same conservative representation join for ownership-guarded action alternatives.
   Preserve exact guard selection and reject unresolved typed uses; qualify fresh receipts under
   both actual ownership states and either alternative order without admitting correlated views.
+- [x] Preserve exact candidate representations at evaluator joins so a component can be read
+  when every candidate projects to the same existing data type. Reject differing callable
+  identities, absent components and mismatched evaluated-index bounds without fabricating a
+  merged runtime type or changing storage/ownership identity.
 - [ ] Qualify the canonical frame's received compound-input contexts through ordinary source and
   consumer storage, cleanup and conditional const reuse. The
   [declaration authority](compiler/crates/nocter-declarations/README.md) owns the validated constructor.
