@@ -5,6 +5,8 @@ use std::collections::BTreeMap;
 mod context_debug;
 mod context_order;
 mod environments;
+mod inputs;
+pub use inputs::InputBindingError;
 #[cfg(test)]
 mod tests;
 
@@ -56,8 +58,15 @@ pub struct CodeInstanceKey {
     code: ValueCode,
     witnesses: BTreeMap<ValueParameter, ConcreteWitness>,
     environment: Option<super::DataInstanceKey>,
+    inputs: BTreeMap<usize, super::DataInstanceKey>,
 }
 impl CodeInstanceKey {
+    /// Context of a received compound value at its frozen explicit-input ordinal. This is not
+    /// an input value or an ownership receipt; closed/direct callable inputs use other authorities.
+    #[must_use]
+    pub fn input_data(&self, index: usize) -> Option<&super::DataInstanceKey> {
+        self.inputs.get(&index)
+    }
     #[must_use]
     pub const fn code(&self) -> ValueCode {
         self.code
@@ -124,6 +133,8 @@ impl CodeTemplateKey {
         program.bind_template(self.code, bindings)
     }
     /// Close free witness values through the matched outer frame, without granting body capability.
+    /// This closes callable variables only; compound-input receipts require the original call
+    /// bundle and are not inherited even when the selected code equals the outer code.
     /// # Errors
     /// Rejects unbound terms and incompatible substituted views or contracts.
     pub fn close(
@@ -264,6 +275,7 @@ impl Program {
             code,
             witnesses,
             environment: None,
+            inputs: BTreeMap::new(),
         })
     }
     /// Build the identity condition frame for a code's own direct callable formals.
@@ -497,6 +509,7 @@ impl Program {
             code,
             witnesses,
             environment,
+            inputs: BTreeMap::new(),
         })
     }
     fn code_parameters(

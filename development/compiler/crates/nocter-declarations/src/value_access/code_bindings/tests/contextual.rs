@@ -4,3 +4,4 @@ mod fixture;
 use fixture::*;
 mod bindings;
 mod data;
+mod inputs;

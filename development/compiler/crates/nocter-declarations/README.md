@@ -360,6 +360,18 @@ derives only requested free bindings from that environment; conflicting occurren
 while exact component selection retains each context. Own direct inputs do not require flattening
 unrelated captures. Selection preserves frozen views without repeating lookup or body checking.
 Closing a template over its own code frame retains that frame's environment directly.
+`bind_instance_with_inputs` additionally retains received compound-input contexts at frozen explicit
+input ordinals. It requires exactly the inputs whose schemas need contextual data; direct callable
+inputs keep their witness bindings, while independently closed inputs, including empty arrays,
+need no extra receipt. `compound_input_contracts` owns that classification for producers and frame
+validation. Their complete canonical data keys participate in frame equality and order,
+so equal code, direct bindings and environment cannot merge distinct received compound contexts.
+Input validation shares the iterative environment/witness validator; a matching outer schema alone
+cannot admit missing children, unresolved positive dependencies or noncanonical stored edges.
+`CodeInstanceKey::input_data` selects this metadata without flattening its nested callable contexts
+into free-parameter bindings. Symbolic template closure supplies no compound-input receipts, even
+for the same code: those require the original supplying bundle. Original source-call and body-entry
+projection remain separate qualification work; this constructor adds no source or payload admission.
 `instantiate_environment` selects that complete environment input, including an independently
 closed environment when no contextual substitutions are needed. It shares environment selection
 with callable data projection. `DataInstanceKey::project_path` preserves context through validated

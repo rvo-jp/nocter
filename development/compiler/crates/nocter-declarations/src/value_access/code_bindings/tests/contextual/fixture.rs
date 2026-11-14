@@ -15,6 +15,7 @@ pub(super) struct Fixture {
     pub(super) pair: nocter_model::TypeId,
     pub(super) large: nocter_model::TypeId,
     pub(super) mixed: FunctionWitness,
+    pub(super) receiver: FunctionWitness,
 }
 pub(super) fn fixture() -> Fixture {
     fixture_with_depth(0)
@@ -90,7 +91,8 @@ pub(super) fn fixture_with_depth(depth: usize) -> Fixture {
     body.closure(branching, environment, contract.clone())
         .unwrap();
     let second = body.reserve_closure().unwrap();
-    body.closure(second, void, contract).unwrap();
+    body.closure(second, void, contract.clone()).unwrap();
+    let receiver = input_receiver(&mut body, pair, empty, &contract);
     let witness = |code: ValueClosure| FunctionWitness {
         origin: ValueFunctionOrigin::Closure(code),
         invocation: ValueInvocation::Read,
@@ -109,5 +111,35 @@ pub(super) fn fixture_with_depth(depth: usize) -> Fixture {
         pair,
         large,
         mixed: witness(mixed),
+        receiver,
+    }
+}
+fn input_receiver(
+    body: &mut crate::value_access::BodyTypes,
+    pair: nocter_model::TypeId,
+    empty: nocter_model::TypeId,
+    contract: &FunctionConstraint,
+) -> FunctionWitness {
+    let receiver = body.reserve_closure().unwrap();
+    let direct = body
+        .closure_parameter(receiver, 1, contract.clone())
+        .unwrap();
+    body.closure(
+        receiver,
+        contract.result,
+        FunctionConstraint {
+            inputs: [pair, direct, empty, contract.result]
+                .map(|data| FunctionInput {
+                    data,
+                    operation: ValueInputOperation::Read,
+                })
+                .into(),
+            ..contract.clone()
+        },
+    )
+    .unwrap();
+    FunctionWitness {
+        origin: ValueFunctionOrigin::Closure(receiver),
+        invocation: ValueInvocation::Read,
     }
 }

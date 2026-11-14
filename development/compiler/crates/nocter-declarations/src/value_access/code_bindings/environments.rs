@@ -38,43 +38,19 @@ impl Program {
         Ok(witness)
     }
     pub(super) fn validate_concrete(&self, root: &ConcreteWitness) -> Result<(), CodeBindingError> {
-        let mut pending = vec![root];
-        let mut validation = Validation {
-            program: self,
-            seen: BTreeSet::new(),
-            closed: BTreeMap::new(),
-        };
-        while let Some(witness) = pending.pop() {
-            if self.function_data(witness.witness()).is_none() {
-                return Err(CodeBindingError::InvalidWitness);
-            }
-            match (witness.code, witness.environment.as_ref()) {
-                (CallableCode::Declaration(_), None) => {}
-                (CallableCode::Declaration(_), Some(_)) => {
-                    return Err(CodeBindingError::InvalidWitness);
-                }
-                (CallableCode::Closure(code), environment) => {
-                    let contracts = self.environment_contracts(code)?;
-                    let Some(environment) = environment else {
-                        if !contracts.is_empty() {
-                            return Err(CodeBindingError::InvalidWitness);
-                        }
-                        continue;
-                    };
-                    if environment.data()
-                        != self
-                            .closure(code)
-                            .ok_or(CodeBindingError::UnknownCode)?
-                            .environment()
-                        || environment.is_context_free()
-                    {
-                        return Err(CodeBindingError::InvalidWitness);
-                    }
-                    validation.environment(environment, &mut pending)?;
-                }
-            }
+        Validation::new(self).witnesses(vec![root])
+    }
+    pub(super) fn validate_data_instance(
+        &self,
+        root: &DataInstanceKey,
+    ) -> Result<(), CodeBindingError> {
+        if root.is_context_free() {
+            return self.instantiate_closed_data(root.data()).map(|_| ());
         }
-        Ok(())
+        let mut validation = Validation::new(self);
+        let mut witnesses = Vec::new();
+        validation.environment(root, &mut witnesses)?;
+        validation.witnesses(witnesses)
     }
     pub(super) fn resolve_frame(
         &self,
@@ -164,6 +140,49 @@ struct Validation<'a> {
     program: &'a Program,
     seen: BTreeSet<(TypeId, *const Context)>,
     closed: BTreeMap<TypeId, bool>,
+}
+impl<'a> Validation<'a> {
+    fn new(program: &'a Program) -> Self {
+        Self {
+            program,
+            seen: BTreeSet::new(),
+            closed: BTreeMap::new(),
+        }
+    }
+    fn witnesses(&mut self, mut pending: Vec<&ConcreteWitness>) -> Result<(), CodeBindingError> {
+        while let Some(witness) = pending.pop() {
+            if self.program.function_data(witness.witness()).is_none() {
+                return Err(CodeBindingError::InvalidWitness);
+            }
+            match (witness.code, witness.environment.as_ref()) {
+                (CallableCode::Declaration(_), None) => {}
+                (CallableCode::Declaration(_), Some(_)) => {
+                    return Err(CodeBindingError::InvalidWitness);
+                }
+                (CallableCode::Closure(code), environment) => {
+                    let contracts = self.program.environment_contracts(code)?;
+                    let Some(environment) = environment else {
+                        if !contracts.is_empty() {
+                            return Err(CodeBindingError::InvalidWitness);
+                        }
+                        continue;
+                    };
+                    if environment.data()
+                        != self
+                            .program
+                            .closure(code)
+                            .ok_or(CodeBindingError::UnknownCode)?
+                            .environment()
+                        || environment.is_context_free()
+                    {
+                        return Err(CodeBindingError::InvalidWitness);
+                    }
+                    self.environment(environment, &mut pending)?;
+                }
+            }
+        }
+        Ok(())
+    }
 }
 impl Validation<'_> {
     fn environment<'a>(

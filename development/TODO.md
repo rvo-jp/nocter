@@ -62,7 +62,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [ ] Close carrier representation coherence under the
   [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances)
   before admitting context-changing writes and retained sibling references.
-- [ ] Retain received compound-input contexts in the canonical invocation/frame authority.
+- [ ] Wire the canonical frame's received compound-input contexts through original supplying
+  bundles, body entry/completion queries and consumer reuse. The
+  [declaration authority](compiler/crates/nocter-declarations/README.md) owns the validated constructor.
   The same code, direct callable bindings and environment can receive compound values with
   different nested callable contexts. Match original input channels to exact canonical data keys;
   do not recover entry metadata from a raw-type default or from the closure's unrelated captures.
