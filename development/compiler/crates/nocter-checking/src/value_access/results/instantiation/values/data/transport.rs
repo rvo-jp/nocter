@@ -148,7 +148,21 @@ impl Query<'_, '_> {
                     Ok(fact)
                 }
             }
-            // Optional state, external dependencies and contextual call writes remain unqualified.
+            ValueSource::CallWrite {
+                source,
+                path: written,
+                ..
+            } => match replacement_path(written, path) {
+                ReplacementPath::Unchanged => self.read(
+                    owner,
+                    Key::Data(frame.clone(), *source, path.clone(), target),
+                ),
+                ReplacementPath::Components => {
+                    self.source_data_components(owner, frame, value, path, target)
+                }
+                ReplacementPath::Supplied(_) => Ok(Fact::Unavailable),
+            },
+            // Optional state and externally dependent whole-input writes remain unqualified.
             _ => Ok(Fact::Unavailable),
         }
     }

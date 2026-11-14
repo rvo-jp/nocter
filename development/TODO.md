@@ -44,8 +44,9 @@ its caller's complete allocation; preserving capacity alone does not stabilize s
 Keep preparation-time snapshots and staged returns; preserve interrupted preparation metadata
 without inventing a committed call or materialization permission. Post-update dependent environments
 and prepared temporaries must follow actual call-write context rather than reuse an immutable
-pre-call bundle. Propagate the demand-resolved final input metadata into caller updates, retaining
-actual body-input correspondence. Source-definition boundaries are not resource phases: preserve the existing
+pre-call bundle. Extend receiver-context completion propagation to explicit edited inputs and
+post-call prepared/temporary channels, retaining actual body-input correspondence.
+Source-definition boundaries are not resource phases: preserve the existing
 transition order, old-value cleanup and new-value receipt without adding provenance to ownership
 world identity, a second owner registry or downstream phase inference from step names. Preserve
 shared schemas, sparse loops, homogeneous arrays and one canonical normalization authority.

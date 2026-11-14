@@ -13,6 +13,7 @@ pub(super) struct Fixture {
     pub(super) sites: [AccessExpressionId; 3],
     pub(super) supporting: BTreeMap<ValueClosure, CreationRecipe>,
     pub(super) array_shapes: Option<[TypeId; 2]>,
+    pub(super) receiver_carrier: Option<TypeId>,
 }
 pub(super) fn fixture() -> Fixture {
     fixture_with_shape(0, false)
@@ -21,9 +22,25 @@ pub(super) fn fixture_with_shape(depth: usize, mixed_views: bool) -> Fixture {
     fixture_with_array_shapes(depth, mixed_views, false)
 }
 pub(super) fn fixture_with_array_shapes(depth: usize, mixed_views: bool, arrays: bool) -> Fixture {
-    let (sources, tree) = input(
-        "func first(): i32 { 41 }\nfunc second(): i32 { 42 }\nfunc creator(take action: func(): i32): func(): i32 { first }\nfunc root(left: func(): i32, right: func(): i32): i32 { 0 }",
-    );
+    configured_fixture(depth, mixed_views, arrays, ValueInvocation::Read)
+}
+pub(super) fn editing_fixture() -> Fixture {
+    configured_fixture(1, false, false, ValueInvocation::Edit)
+}
+fn configured_fixture(
+    depth: usize,
+    mixed_views: bool,
+    arrays: bool,
+    invocation: ValueInvocation,
+) -> Fixture {
+    let receiver = if invocation == ValueInvocation::Edit {
+        "edit left: mut(): i32"
+    } else {
+        "left: func(): i32"
+    };
+    let (sources, tree) = input(&format!(
+        "func first(): i32 {{ 41 }}\nfunc second(): i32 {{ 42 }}\nfunc creator(take action: func(): i32): func(): i32 {{ first }}\nfunc root({receiver}, right: func(): i32): i32 {{ 0 }}"
+    ));
     let syntax = bound(&sources, &tree);
     let query = nocter_declaration_lowering::access_declarations::Query::prepare(syntax).unwrap();
     let context = query.bind(syntax).unwrap();
@@ -50,7 +67,7 @@ pub(super) fn fixture_with_array_shapes(depth: usize, mixed_views: bool, arrays:
         closure,
         environment,
         nocter_declarations::value_access::FunctionConstraint {
-            invocation: ValueInvocation::Read,
+            invocation,
             inputs: Box::new([]),
             result: header.data_type(BuiltinType::I32).unwrap(),
         },
@@ -68,6 +85,17 @@ pub(super) fn fixture_with_array_shapes(depth: usize, mixed_views: bool, arrays:
             body.array(element, 2).unwrap(),
             body.array(element, 0).unwrap(),
         ]
+    });
+    let receiver_carrier = (invocation == ValueInvocation::Edit).then(|| {
+        let receiver = body
+            .program()
+            .function_data(FunctionWitness {
+                origin: Origin::Closure(closure),
+                invocation,
+            })
+            .unwrap();
+        let sibling = body.program().function_data(callbacks[1]).unwrap();
+        body.tuple(&[receiver, sibling]).unwrap()
     });
     let mut expressions = ArenaBuilder::new();
     let program = body.finish();
@@ -94,12 +122,13 @@ pub(super) fn fixture_with_array_shapes(depth: usize, mixed_views: bool, arrays:
         root_formals,
         captured: FunctionWitness {
             origin: Origin::Closure(closure),
-            invocation: ValueInvocation::Read,
+            invocation,
         },
         callbacks,
         sites: std::array::from_fn(|_| expressions.insert(())),
         supporting,
         array_shapes,
+        receiver_carrier,
     }
 }
 pub(super) fn budget() -> WorkBudget {

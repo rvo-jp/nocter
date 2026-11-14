@@ -148,9 +148,15 @@ impl Builder<'_> {
                 }
                 _ => continue,
             };
+            let ambiguous = paths.len() != 1;
             for (slot, path) in paths {
                 let source = self.read(point, slot, state);
                 let data = slot.data(self.query)?;
+                let weak = ambiguous
+                    || path
+                        .fields()
+                        .iter()
+                        .any(|field| matches!(field, nocter_model::ValueProjection::Array(())));
                 let value = self.push(
                     data,
                     None,
@@ -159,6 +165,7 @@ impl Builder<'_> {
                         argument: index,
                         source,
                         path,
+                        weak,
                     },
                 );
                 self.define(slot, value, state)?;

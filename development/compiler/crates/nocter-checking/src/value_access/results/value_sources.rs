@@ -99,6 +99,8 @@ pub enum ValueSource {
         argument: usize,
         source: ValueSourceId,
         path: ValuePath<()>,
+        /// Multiple potential targets or an erased array element retain the old context too.
+        weak: bool,
     },
     /// Scalar operations and context effects not interpreted by this metadata graph.
     Opaque,

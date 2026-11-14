@@ -502,6 +502,8 @@ pair and a new request can retry. Ordinary leaf metadata does not eagerly requir
 context to close. Proving compatible placement remains a separate consumer obligation.
 Argument preparation records its original selected roots; committed read/edit address bindings
 record their current roots before call writes. This does not replace the prepared argument values.
+Call writes retain whether the lexical target is ambiguous or selects an erased array element.
+Those weak writes cannot replace the previous context with one selected element's new context.
 Tag observations record their referent roots while retaining opaque Boolean value semantics.
 `flow.root_after` separately records roots on normal completion of an original assignment or call.
 Call roots include read inputs: a separate edit projection can change their containing carrier
@@ -570,7 +572,7 @@ preparations share a key; incompatible contexts reject without publishing a part
 read-only result includes successfully prepared prefixes whose invocation never commits. Evaluator
 prepared/temporary slots and target-program payload projection consume these same keys, preserving
 source effects and adapter timing. The metadata creates no callee, value, access or materialization
-permission. Post-call writes that change dependent contexts remain a separate qualification boundary;
+permission. Post-call prepared/temporary writes that change dependent contexts remain a separate qualification boundary;
 an immutable preparation snapshot does not describe a changed environment.
 
 Evaluator projection memoizes each committed call's actual source frame within one body plan.
@@ -622,6 +624,15 @@ witness and frame facts to a fixed point, retaining contexts through definitions
 formation and application/result edges. Opaque contextual effects and unqualified call writes
 remain unresolved. A declaration-closed callable schema can identify context-free metadata, but
 never proves that a value exists or can be accessed.
+
+For a value-receiver update with dependent context, the metadata solver preserves the actual callable's code while
+selecting its completed environment from that exact invocation frame. The unique original capture
+input and its schema must match the closure; missing bodies or unresolved completion contexts
+cannot fall back to the old environment. Declaration-closed witnesses fix their static dependencies
+without asserting that runtime payloads are absent or unchanged. Disjoint component paths retain
+the previous source, and containing data is rebuilt through the common component normalizer.
+Weak updates join old and completed contexts. Explicit dependent input writes, post-call temporary
+transport, varying evaluator slots and source formal-capture admission remain unqualified.
 
 `Unit::instantiate_value_data` normalizes one original value against its receiving source schema
 through that same query and declaration authority. Returned carriers retain their selected callee

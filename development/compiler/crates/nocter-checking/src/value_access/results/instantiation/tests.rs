@@ -15,6 +15,7 @@ mod data;
 mod fixture;
 mod stored;
 mod values;
+mod writes;
 use fixture::*;
 
 #[test]

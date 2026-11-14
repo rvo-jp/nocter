@@ -101,6 +101,7 @@ fn received_components_preserve_different_contexts_and_ambiguous_values_cannot_c
                 argument: 0,
                 source: id(1),
                 path: ValuePath::default(),
+                weak: false,
             },
         ),
     ];

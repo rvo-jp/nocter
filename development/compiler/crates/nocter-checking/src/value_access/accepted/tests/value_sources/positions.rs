@@ -4,6 +4,32 @@ use crate::value_access::{InstantiationFailure, ValueSourceSelection};
 use crate::value_access::{Referent, ValueSourceBoundary, ValueSourceRead, ValueSourceSlot, flow};
 
 #[test]
+fn receiver_writes_keep_array_selections_weak_and_direct_locals_strong() {
+    let unit = accepted(
+        "func run(): i32 { let count = 0\nvar action = (count;): i32 { count += 1\ncount }\nlet _ = action()\nvar callbacks = [action; 2]\ncallbacks[0]() }",
+    );
+    let graph = unit.value_sources(code(&unit, "run")).unwrap();
+    let mut kinds = BTreeSet::new();
+    for (_, node) in graph.nodes() {
+        if let ValueSource::CallWrite {
+            argument: 0,
+            ref path,
+            weak,
+            ..
+        } = node.value
+        {
+            let selected = path
+                .fields()
+                .iter()
+                .any(|field| matches!(field, ValueProjection::Array(())));
+            assert_eq!(weak, selected);
+            kinds.insert(weak);
+        }
+    }
+    assert_eq!(kinds, BTreeSet::from([false, true]));
+}
+
+#[test]
 fn normal_completions_select_updated_inputs_after_early_and_ordinary_returns() {
     let unit = accepted(
         "func write(edit value: i32, condition: bool): void { if condition { value = 41\nreturn }\nvalue = 42 }\nfunc forever(): void { loop {} }\nfunc run(): i32 { var value = 0\nwrite(value, true)\nvalue }",

@@ -78,6 +78,11 @@ impl ValueSourceFlow {
             returns,
         }
     }
+    pub(in crate::value_access::results) fn entry_sources(
+        &self,
+    ) -> impl Iterator<Item = (ValueSourceSlot, ValueSourceId)> + '_ {
+        self.inputs.iter().map(|(&slot, &source)| (slot, source))
+    }
     /// Original normal-return boundaries, after each return point's complete action sequence.
     /// This records possible source completion, not execution, cleanup or a resource-phase receipt.
     pub fn completions(&self) -> impl Iterator<Item = ValueSourceBoundary> + '_ {

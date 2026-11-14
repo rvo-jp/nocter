@@ -12,6 +12,7 @@ use nocter_model::{
 };
 
 mod data;
+mod writes;
 type Result = std::result::Result<Fact, InstantiationFailure>;
 impl Query<'_, '_> {
     pub(super) fn source_result(
@@ -295,37 +296,10 @@ impl Query<'_, '_> {
                     }
                 }
             }
-            ValueSource::CallWrite {
-                call,
-                argument: 0,
-                source,
-                ..
-            } if path.is_root()
-                && self
-                    .evidence
-                    .value_sources(frame.code())
-                    .and_then(|graph| graph.call(call))
-                    .is_some_and(|bundles| {
-                        bundles
-                            .iter()
-                            .all(|bundle| bundle.kind == crate::value_access::CallKind::Value)
-                    }) =>
-            {
-                match self.read(
-                    owner,
-                    Key::Value(frame.clone(), source, ValuePath::default()),
-                )? {
-                    Fact::Witness(witness)
-                        if self.program.concrete_witness(witness.witness()).as_ref()
-                            == Ok(&witness) =>
-                    {
-                        Fact::Witness(witness)
-                    }
-                    Fact::Empty => Fact::Empty,
-                    _ => Fact::Unavailable,
-                }
+            ValueSource::CallWrite { .. } => {
+                return self.source_call_write(owner, frame, node, path);
             }
-            ValueSource::Opaque | ValueSource::CallWrite { .. } if path.is_root() => node
+            ValueSource::Opaque if path.is_root() => node
                 .data
                 .and_then(|data| match self.program.data_schema(data)? {
                     PayloadSchema::Function(witness) => self.program.concrete_witness(witness).ok(),
