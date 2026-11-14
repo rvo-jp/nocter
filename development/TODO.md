@@ -37,7 +37,7 @@ this qualification boundary. Keep a virtual reference root distinct from its enc
 and preserve original before/after resource roles; root metadata does not prove initialized storage
 or stable geometry.
 Extend scoped replacement's paired virtual-root transport to enclosing carrier geometry and
-evaluator transitions without equating source operation completion with a resource-transition phase.
+changing evaluator slot shapes without equating source operation completion with a resource-transition phase.
 Keep preparation-time snapshots and staged returns; preserve interrupted preparation metadata
 without inventing a committed call or materialization permission. Post-update dependent environments
 and prepared temporaries must follow actual call-write context rather than reuse an immutable

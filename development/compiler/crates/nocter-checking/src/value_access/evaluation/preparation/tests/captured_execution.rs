@@ -8,6 +8,37 @@ fn captured_read_edit_once_and_consuming_bodies_compute_required_answers() {
         "/../../tests/fixtures/native/value-access/const-captured-values.nct"
     )));
 }
+
+#[test]
+fn scoped_replacements_keep_record_roots_through_aliases_elements_and_capture_backedges() {
+    assert_answer_42(
+        "struct Pair { first: i32\nsecond: i32 }\n\
+         const func update(edit pair: Pair): i32 {\n\
+             read tail = pair.second\n\
+             edit head = pair.first\n\
+             head = 20\n\
+             head += 21\n\
+             head + tail\n\
+         }\n\
+         const func calculate(): i32 {\n\
+             let pairs = [Pair { first: 0, second: 1 }, Pair { first: 0, second: 1 }]\n\
+             var action = (pairs^;): i32 {\n\
+                 var index: usize = 0\n\
+                 var total = 0\n\
+                 while index < 2 {\n\
+                     edit pair = pairs[index]\n\
+                     total += update(pair)\n\
+                     pair.first += 1\n\
+                     index += 1\n\
+                 }\n\
+                 total / 2\n\
+             }\n\
+             let _ = action()\n\
+             action()\n\
+         }\n\
+         const ANSWER: i32 = calculate()",
+    );
+}
 #[test]
 fn a_captured_factory_result_keeps_its_code_and_per_instance_environment() {
     assert_answer_42(

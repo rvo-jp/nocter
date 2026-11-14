@@ -501,8 +501,9 @@ produced payload receipts under the shared metadata quota. Missing sites,
 ambiguous context and exhaustion supply no partial result. Contract metadata does not assert that
 the root is initialized, or describe old/new resource phases. Native storage interns both keys;
 source-place address projection uses the original before-root. Native scoped replacement retains
-the matched pair for virtual-root selection. Enclosing allocation geometry and evaluator transition
-integration remain separate work.
+the matched pair for virtual-root selection. Evaluator planning checks both matched roots against
+its singleton slot shape; a binding-time snapshot cannot authorize a changed root. This allocates
+metadata only. Enclosing allocation geometry and changing evaluator slot shapes remain separate work.
 Guarded carrier views likewise retain their actual referent source before payload selection. A tag
 assertion does not replace the carrier with its payload, choose an alternative or prove availability.
 

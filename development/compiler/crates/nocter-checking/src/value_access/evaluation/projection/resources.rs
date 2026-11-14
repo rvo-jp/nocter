@@ -40,9 +40,33 @@ impl Builder<'_, '_> {
                     let mut projection =
                         self.checked
                             .project_resource_data(self.instance, at, self.work)?;
+                    let roots = transition
+                        .before_steps()
+                        .iter()
+                        .chain(transition.after_steps())
+                        .filter_map(|step| match step {
+                            Step::ReplaceReferent { destination, .. } => Some(destination),
+                            _ => None,
+                        })
+                        .map(|destination| {
+                            let target = projection.replacement_target(destination)?;
+                            Ok((
+                                destination.holder(),
+                                self.values.root(at, target).ok_or(INVALID)?.clone(),
+                                self.values.root_after(at, target).ok_or(INVALID)?.clone(),
+                            ))
+                        })
+                        .collect::<Result<Vec<_>>>()?;
                     let before = projection.steps(transition.before_steps())?;
                     let after = projection.steps(transition.after_steps())?;
                     drop(projection);
+                    // Slots currently have one shape. Both actual virtual roots must agree with
+                    // that shape; a later write cannot silently reuse its binding-time snapshot.
+                    // This prepares no value and proves no enclosing-allocation geometry.
+                    for (holder, before, after) in roots {
+                        self.register_holder(holder, &before)?;
+                        self.register_holder(holder, &after)?;
+                    }
                     for step in before.iter().chain(&after) {
                         self.resource_data(step)?;
                     }
