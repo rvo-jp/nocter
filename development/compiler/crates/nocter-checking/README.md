@@ -493,8 +493,17 @@ the actual return producers. This does not assert that a diverging body returns;
 `instantiate_result_data` query still requires those producers. The evaluator's contracts, input and
 return slots, and plan result use this authority under the shared plan-work quota. Exhaustion during
 initial contract preparation retains the ordinary plan-work diagnostic rather than becoming an
-integrity failure. Ordinary evaluator expression/local and prepared-call occurrence data remain
+integrity failure. Ordinary evaluator expression/local and preparation-slot occurrence data remain
 separate integration tasks.
+
+Evaluator projection memoizes each committed call's actual source frame within one body plan.
+Receiver-prefix handling, owning input data and call-result slots consume that same frame; a
+frame-wide type binding cannot reselect the callee. Code instances are still interned only when
+lowering an actual committed call. The original body input layout owns order and explicit
+operations. A taking callable adapter may retain its environment while lending it to a read/edit
+body; this does not change the explicit inputs' operations. Interrupted preparation creates no
+call frame or invocation effect. The shared `const-callable-inputs.nct` corpus includes a forwarded
+taking view over a reading, non-Copy captured environment in required and native execution.
 
 Input nodes retain their local role, including the complete environment input. Selections retain
 component paths rather than treating a received closure as fresh creation. Formation records retain

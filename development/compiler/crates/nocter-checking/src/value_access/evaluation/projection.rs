@@ -10,9 +10,7 @@ use nocter_constant_evaluation::{
     CompileTimeBinaryOperation as B, CompileTimeComparisonOperation as C,
     CompileTimeUnaryOperation as U, state as plan,
 };
-use nocter_declarations::value_access::{
-    CodeInstanceKey, ConcreteWitness, FunctionWitness, Program,
-};
+use nocter_declarations::value_access::{CodeInstanceKey, Program};
 use nocter_model::{
     AccessExpressionId, AccessFlowPointId, AccessPlaceId, FieldPath, TypeId, ValueAccessMode,
     ValueInputOperation,
@@ -58,6 +56,7 @@ struct Builder<'a, 'b> {
     instances: &'b mut Instances,
     slots: Vec<plan::Slot>,
     keys: BTreeMap<Key, usize>,
+    invocations: BTreeMap<AccessExpressionId, CodeInstanceKey>,
 }
 impl Builder<'_, '_> {
     fn expression(&self, id: AccessExpressionId) -> Result<super::super::ValueType> {
@@ -74,33 +73,45 @@ impl Builder<'_, '_> {
         Ok(self.expression(id)?.access().ok_or(INVALID)?.data())
     }
     fn slot(&mut self, key: Key, data: TypeId, storage: plan::Storage) -> Result<usize> {
-        let data = match key {
-            Key::EnvironmentBacking => {
-                self.types
-                    .get_environment(self.program, self.instance, data)?
-            }
-            Key::Resource(Holder::Local(local))
-                if self
-                    .query
-                    .typed()
-                    .body()
-                    .inputs()
-                    .ordered()
-                    .any(|input| input.local == local) =>
-            {
-                let key = self
-                    .checked
-                    .instantiate_input_data(self.instance, local, self.work)?;
-                self.types.get_instance(self.program, key)?
-            }
-            Key::Resource(Holder::Return) => {
-                let key = self
-                    .checked
-                    .instantiate_result_contract(self.instance, self.work)?;
-                self.types.get_instance(self.program, key)?
-            }
-            _ => self.types.get_in(self.program, self.instance, data)?,
-        };
+        let data =
+            match key {
+                Key::EnvironmentBacking => {
+                    self.types
+                        .get_environment(self.program, self.instance, data)?
+                }
+                Key::Resource(Holder::Local(local))
+                    if self
+                        .query
+                        .typed()
+                        .body()
+                        .inputs()
+                        .ordered()
+                        .any(|input| input.local == local) =>
+                {
+                    let key =
+                        self.checked
+                            .instantiate_input_data(self.instance, local, self.work)?;
+                    self.types.get_instance(self.program, key)?
+                }
+                Key::Resource(Holder::Expression(id))
+                    if self.query.typed().body().expressions().get(id).is_some_and(
+                        |expression| matches!(expression.kind, ExpressionKind::Call { .. }),
+                    ) =>
+                {
+                    let frame = self.invocation(id)?;
+                    let data = self
+                        .checked
+                        .instantiate_result_contract(&frame, self.work)?;
+                    self.types.get_instance(self.program, data)?
+                }
+                Key::Resource(Holder::Return) => {
+                    let key = self
+                        .checked
+                        .instantiate_result_contract(self.instance, self.work)?;
+                    self.types.get_instance(self.program, key)?
+                }
+                _ => self.types.get_in(self.program, self.instance, data)?,
+            };
         if let Some(&slot) = self.keys.get(&key) {
             if self.slots.get(slot) != Some(&plan::Slot { data, storage }) {
                 return Err(INVALID);
@@ -512,41 +523,29 @@ impl Builder<'_, '_> {
             },
         )
     }
-    // Preparation needs the frozen receiver shape even if later arguments interrupt the call.
-    // This lookup does not intern a callee or replace committed-call recipe realization.
-    fn selected_call(&self, id: AccessExpressionId) -> Result<ConcreteWitness> {
-        let ExpressionKind::Call {
-            target,
-            kind,
-            arguments,
-        } = &self
-            .query
-            .typed()
-            .body()
-            .expressions()
-            .get(id)
-            .ok_or(INVALID)?
-            .kind
-        else {
-            return Err(INVALID);
-        };
-        self.instance
-            .resolve(
-                self.program,
-                FunctionWitness {
-                    origin: *target,
-                    invocation: kind.invocation(arguments).ok_or(INVALID)?,
-                },
-            )
-            .map_err(|_| INVALID)
+    // Only committed-call consumers request this frame. Preparation/cancellation cannot intern code.
+    fn invocation(&mut self, id: AccessExpressionId) -> Result<CodeInstanceKey> {
+        if let Some(key) = self.invocations.get(&id) {
+            return Ok(key.clone());
+        }
+        let key = self.checked.instantiate_invocation(
+            self.instance,
+            nocter_model::ValueApplication {
+                owner: self.instance.code(),
+                call: id,
+            },
+            self.work,
+        )?;
+        self.invocations.insert(id, key.clone());
+        Ok(key)
     }
-    fn captured_call(&self, id: AccessExpressionId) -> Result<bool> {
+    fn captured_call(&mut self, id: AccessExpressionId) -> Result<bool> {
         Ok(matches!(
-            self.selected_call(id)?.code(),
+            self.invocation(id)?.code(),
             nocter_model::ValueCode::Closure(_)
         ))
     }
-    fn call_input_offset(&self, call: AccessExpressionId) -> Result<usize> {
+    fn call_input_offset(&mut self, call: AccessExpressionId) -> Result<usize> {
         if self.captured_call(call)? {
             return Ok(0);
         }
@@ -566,14 +565,7 @@ impl Builder<'_, '_> {
         Ok(arguments.len() - kind.explicit_arguments(arguments).ok_or(INVALID)?.len())
     }
     fn call(&mut self, id: AccessExpressionId) -> Result<plan::Operation> {
-        let key = self.checked.instantiate_invocation(
-            self.instance,
-            nocter_model::ValueApplication {
-                owner: self.instance.code(),
-                call: id,
-            },
-            self.work,
-        )?;
+        let key = self.invocation(id)?;
         let target = key.code();
         let captured = matches!(target, nocter_model::ValueCode::Closure(_));
         let arguments = self
@@ -586,25 +578,36 @@ impl Builder<'_, '_> {
         let ExpressionKind::Call { arguments, .. } = &arguments.kind else {
             return Err(INVALID);
         };
-        let target_instance = self.instances.intern(key)?;
+        let target_inputs = self
+            .checked
+            .code(target)
+            .ok_or(INVALID)?
+            .typed()
+            .body()
+            .inputs()
+            .ordered()
+            .collect::<Vec<_>>();
+        let target_instance = self.instances.intern(key.clone())?;
         let arguments = arguments.clone();
         let mut inputs = Vec::new();
         let offset = self.call_input_offset(id)?;
+        if arguments.len().checked_sub(offset) != Some(target_inputs.len()) {
+            return Err(INVALID);
+        }
         for (index, argument) in arguments.iter().enumerate().skip(offset) {
+            let input = target_inputs.get(index - offset).ok_or(INVALID)?;
+            // A taking callable view can lend its retained environment to a read/edit body.
+            // The receiver adapter owns that difference; explicit inputs retain exact operations.
+            if !(captured && index == 0) && input.operation != argument.operation {
+                return Err(INVALID);
+            }
             if argument.operation == ValueInputOperation::Take {
-                let data = if captured && index == 0 {
-                    let nocter_model::ValueCode::Closure(code) = target else {
-                        return Err(INVALID);
-                    };
-                    self.program.closure(code).ok_or(INVALID)?.environment()
-                } else {
-                    self.data(argument.value)?
-                };
-                inputs.push(plan::Input::Take(self.types.get_in(
-                    self.program,
-                    self.instance,
-                    data,
-                )?));
+                let data = self
+                    .checked
+                    .instantiate_input_data(&key, input.local, self.work)?;
+                inputs.push(plan::Input::Take(
+                    self.types.get_instance(self.program, data)?,
+                ));
                 continue;
             }
             let mut place = match &argument.action {

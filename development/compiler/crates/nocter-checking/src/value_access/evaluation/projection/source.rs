@@ -137,6 +137,7 @@ impl<'a, 'work, F: Fn(AccessCodeId) -> Option<plan::Value>> Source<'a, 'work, F>
             types: &mut self.types,
             slots: Vec::new(),
             keys: BTreeMap::new(),
+            invocations: BTreeMap::new(),
         }
         .build()?;
         let mut extension = plan::ProgramExtension::default();
