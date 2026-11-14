@@ -97,15 +97,15 @@ Code-summary/definition hypotheses do not replace missing actual invocation evid
 `build` consumes checked invocation commits and never reconstructs a creation context from the
 projected call signature or code name. `prepare_with_budget` shares one deterministic metadata-work
 quota across all reached calls; default preparation uses the shared compiler work policy. Failure
-retains the requesting code/call site, publishes no partial instance graph and leaves the Unit
+retains the requesting code/call or original action site, publishes no partial instance graph and leaves the Unit
 reusable. Runtime execution work and call-depth limits are not spent or inferred here.
 
 The declaration-owned `Program::bind_instance` still owns complete formal/capture coverage,
 contract matching and view validation. Source permissions, original body invocation and explicit
 input operations stay frozen. Declaration-owned normalization remains shared by source-value
-queries and body projection. `projection::data` retains a frame-wide table for the remaining
-ordinary body-slot consumers; it selects neither actual invocation arguments nor bound body
-input/result channels.
+queries and body projection. `projection::data` retains a frame-wide table for remaining partial
+carrier roots and schema-only consumers; it selects neither original operand/definition occurrences,
+actual invocation arguments nor bound body input/result channels.
 That table maps source data IDs to checking-owned [instantiated payload obligations](../nocter-checking/README.md#shared-flow-access-and-resource-validation)
 or checked unproduced shapes. Each positive entry retains its complete `DataInstanceKey`, not just
 the selected code's raw semantic ID. The unproduced marker supplies neither a duplicate
@@ -114,6 +114,14 @@ positive tuple/array shapes with a proved-unproduced callable component. Capture
 context, including when reached through a formal witness. Transitive components are not flattened
 into the body's source-ID map; the contextual schema graph remains the common projection authority.
 Source-selected moves, reservations and snapshots remain unchanged after concrete projection.
+
+`Instance::operand` and `Instance::definition` retain exact data at original source actions. The
+former consumes the source graph's selected operand reads; the latter consumes its final writes
+to expression and local slots. Repeated intermediate writes within one action have only their
+final stored definition, and no new action or resource phase is inferred. The original typed body
+supplies each requested schema; the shared source-value query resolves its complete data key under
+the same instance work quota. Unproduced contracts supply no payload, incompatible contexts reject,
+and storage interns the actual keys without changing source ownership or granting materialization.
 
 `Instance::input` owns the concrete payload for each existing input local; the typed body's input
 layout remains the sole owner of order and operations. Contextual inputs resolve their original
@@ -126,9 +134,11 @@ requires actual return producers and leaves an absent result unresolved.
 Frozen body edges compare against those channels, and storage signatures and MIR input/return
 roots consume them directly. Changing the remaining body-template cache cannot change an existing
 bound ABI channel. Input/result metadata queries share the instance work quota and identify the
-exact code/input or result on failure. Ordinary expression/local occurrence data and general
-post-update environments still require their separate integration before source formal captures
-can open.
+exact code/input or result on failure. MIR expression production and local binding consume the
+original occurrence definitions, and operand projection uses the matching action's actual reads.
+Detached declaration-closed metadata can still select scalar snapshots; a missing contextual
+occurrence cannot fall back to a frame-wide type entry. Partial carrier roots, evaluator plans and
+general post-update environments still require integration before source formal captures can open.
 
 `projection::requirements` demands concrete data only for the frozen input/result ABI, checked
 reachable operations and their actual resource-step payloads. Beginning an evaluation does not

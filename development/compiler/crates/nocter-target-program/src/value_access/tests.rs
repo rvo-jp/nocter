@@ -151,6 +151,7 @@ fn a_required_expression_cannot_substitute_its_source_owners_runtime_code() {
         inputs: BTreeMap::new(),
         result: DataEvidence::Unproduced,
         prepared: BTreeMap::new(),
+        values: projection::Values::default(),
     });
     let graph = InstanceProgram {
         unit,

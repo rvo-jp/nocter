@@ -28,6 +28,7 @@ pub struct Instance {
     inputs: BTreeMap<AccessLocalId, Payload>,
     result: DataEvidence,
     prepared: BTreeMap<(AccessExpressionId, usize), Payload>,
+    values: projection::Values,
 }
 impl Instance {
     #[must_use]
@@ -54,6 +55,20 @@ impl Instance {
     pub fn prepared(&self, call: AccessExpressionId, index: usize) -> Option<&Payload> {
         self.prepared.get(&(call, index))
     }
+    /// Exact original operand data; metadata does not grant a value or access permission.
+    #[must_use]
+    pub fn operand(&self, at: flow::Location, expression: AccessExpressionId) -> Option<&Payload> {
+        self.values.operand(at, expression)
+    }
+    /// Final stored source data after an original action, independent of resource phases.
+    #[must_use]
+    pub fn definition(
+        &self,
+        at: flow::Location,
+        slot: nocter_checking::value_access::ValueSourceSlot,
+    ) -> Option<&Payload> {
+        self.values.definition(at, slot)
+    }
     /// Source data identities map to concrete payloads or checked unproduced structural contracts.
     #[must_use]
     pub const fn data(&self) -> &BTreeMap<TypeId, DataEvidence> {
@@ -78,6 +93,11 @@ pub enum Failure {
     },
     Result {
         code: nocter_model::ValueCode,
+        failure: nocter_checking::value_access::InstantiationFailure,
+    },
+    Value {
+        code: nocter_model::ValueCode,
+        at: flow::Location,
         failure: nocter_checking::value_access::InstantiationFailure,
     },
     InvalidAcceptedUnit,

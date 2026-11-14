@@ -101,6 +101,29 @@ impl ValueSourceFlow {
     ) -> Option<ValueSourceId> {
         self.reads.get(&(location, expression)).copied()
     }
+    /// Original operand occurrences, without another traversal of source operation kinds.
+    pub fn operands(
+        &self,
+    ) -> impl Iterator<Item = ((flow::Location, AccessExpressionId), ValueSourceId)> + '_ {
+        self.reads.iter().map(|(&site, &source)| (site, source))
+    }
+    /// The final stored definition of each slot written by an original action.
+    /// Intermediate writes in one action are not a second source boundary or resource phase.
+    pub fn definitions(
+        &self,
+    ) -> impl Iterator<Item = ((flow::Location, ValueSourceSlot), ValueSourceId)> + '_ {
+        self.writes.iter().flat_map(|(&(point, slot), writes)| {
+            writes
+                .iter()
+                .enumerate()
+                .filter_map(move |(index, &(action, value))| {
+                    writes
+                        .get(index + 1)
+                        .is_none_or(|&(next, _)| next != action)
+                        .then_some(((flow::Location { point, action }, slot), value))
+                })
+        })
+    }
     #[must_use]
     pub fn write_count(&self) -> usize {
         self.writes.values().map(Vec::len).sum()

@@ -4,6 +4,37 @@ use nocter_declarations::value_access::FunctionWitness;
 use nocter_runtime_contract::RuntimeAbiIdentity;
 
 #[test]
+fn value_data_exhaustion_reports_the_original_action_and_allows_a_healthy_retry() {
+    let fixture = ValueSourceFixture::new("func run(): i32 { 42 }");
+    let unit = accepted(&fixture);
+    let root = callable(&unit, "run");
+    let mut work =
+        nocter_constant_evaluation::state::WorkBudget::new(std::num::NonZeroU64::new(1).unwrap());
+    let failure = InstanceProgram::prepare_with_budget(unit.clone(), root, &mut work).unwrap_err();
+    let Failure::Value { code, at, failure } = failure else {
+        panic!("the value metadata query must report its original action: {failure:?}")
+    };
+    assert_eq!(code, ValueCode::Declaration(root));
+    assert_eq!(
+        failure,
+        nocter_checking::value_access::InstantiationFailure::WorkLimit
+    );
+    assert!(
+        unit.code_body(code)
+            .unwrap()
+            .graph()
+            .points()
+            .get(at.point)
+            .unwrap()
+            .actions
+            .get(at.action)
+            .is_some()
+    );
+    let graph = InstanceProgram::prepare(unit, root).unwrap();
+    assert_eq!(graph.instances().len(), 1);
+}
+
+#[test]
 fn an_independent_return_contract_does_not_publish_a_value_from_a_diverging_body() {
     let fixture = ValueSourceFixture::new("func run(): i32 { loop {} }");
     let unit = accepted(&fixture);
@@ -38,7 +69,7 @@ fn an_independent_return_contract_does_not_publish_a_value_from_a_diverging_body
 #[test]
 fn input_and_return_signatures_ignore_an_unrelated_payload_in_the_body_type_cache() {
     let fixture = ValueSourceFixture::new(
-        "func first(): i32 { 41 }\nfunc second(): i32 { 42 }\nfunc consume(take action: func(): i32): func(): i32 { action^ }\nfunc forward(take action: func(): i32): func(): i32 { consume(action^) }\nfunc run(): i32 { let action = forward(first)\naction() }",
+        "func first(): i32 { 41 }\nfunc second(): i32 { 42 }\nfunc consume(take action: func(): i32): func(): i32 { action^ }\nfunc forward(take action: func(): i32): func(): i32 { let saved = consume(action^)\nsaved^ }\nfunc run(): i32 { let action = forward(first)\naction() }",
     );
     let unit = accepted(&fixture);
     let root = callable(&unit, "run");
@@ -86,6 +117,7 @@ fn input_and_return_signatures_ignore_an_unrelated_payload_in_the_body_type_cach
     let (&call, invocation) = caller.calls().iter().next().unwrap();
     assert_eq!(caller.prepared(call, 0), Some(&actual_input));
     assert_eq!(invocation.argument_payload(0), Some(&actual_input));
+    assert_original_values(&graph, id, data, &actual_input);
     let abi = RuntimeAbiIdentity::Arm64DarwinV1;
     let prepared = storage::prepare(&graph, abi, []).unwrap();
     let signature = storage::signature(&graph, &prepared, id).unwrap();
@@ -109,4 +141,67 @@ fn input_and_return_signatures_ignore_an_unrelated_payload_in_the_body_type_cach
             .instance(graph.unit().program(), wrong.instance())
             .unwrap()
     );
+}
+
+fn assert_original_values(
+    graph: &InstanceProgram,
+    id: AccessInstanceId,
+    data: TypeId,
+    expected: &Payload,
+) {
+    let caller = graph.instances().get(id).unwrap();
+    let checked = graph.body(id).unwrap();
+    let sources = graph
+        .unit()
+        .value_sources(caller.key().code())
+        .unwrap()
+        .flow()
+        .unwrap();
+    let mut definitions = 0;
+    let mut local_definitions = 0;
+    for ((at, slot), _) in sources.definitions() {
+        if !checked.initialization().reachable(at.point) {
+            continue;
+        }
+        if let nocter_checking::value_access::ValueSourceSlot::Expression(expression) = slot
+            && checked
+                .typed()
+                .body()
+                .expressions()
+                .get(expression)
+                .unwrap()
+                .ty
+                .access()
+                .is_some_and(|access| access.data() == data)
+        {
+            assert_eq!(caller.definition(at, slot), Some(expected));
+            definitions += 1;
+        }
+        if let nocter_checking::value_access::ValueSourceSlot::Local(local) = slot
+            && checked.typed().body().locals().get(local).unwrap().data == data
+        {
+            assert_eq!(caller.definition(at, slot), Some(expected));
+            local_definitions += 1;
+        }
+    }
+    assert!(definitions > 0);
+    assert!(local_definitions > 0);
+    let mut operands = 0;
+    for ((at, expression), _) in sources.operands() {
+        if checked.initialization().reachable(at.point)
+            && checked
+                .typed()
+                .body()
+                .expressions()
+                .get(expression)
+                .unwrap()
+                .ty
+                .access()
+                .is_some_and(|access| access.data() == data)
+        {
+            assert_eq!(caller.operand(at, expression), Some(expected));
+            operands += 1;
+        }
+    }
+    assert!(operands > 0);
 }

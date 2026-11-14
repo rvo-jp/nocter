@@ -3,7 +3,7 @@ use super::{
     Slot, SlotKey, Storage,
 };
 use nocter_checking::value_access::{
-    ArgumentAction, ExpressionKind,
+    ArgumentAction, ExpressionKind, ValueSourceSlot,
     flow::{
         self, Operation,
         resources::{Disposal as CheckedDisposal, Holder, Step},
@@ -25,6 +25,7 @@ pub(super) struct Builder<'a> {
     pub(super) instances: &'a InstanceProgram,
     pub(super) instance: &'a Instance,
     pub(super) checked: &'a flow::Query,
+    at: Option<flow::Location>,
     slots: ArenaBuilder<MirLocalId, Slot>,
     keys: BTreeMap<SlotKey, MirLocalId>,
 }
@@ -105,6 +106,14 @@ impl Builder<'_> {
         self.data(source)
     }
     pub(super) fn expression(&self, id: AccessExpressionId) -> Result<RuntimeDataId, Failure> {
+        if let Some(at) = self.at
+            && let Some(payload) = self.instance.operand(at, id).or_else(|| {
+                self.instance
+                    .definition(at, ValueSourceSlot::Expression(id))
+            })
+        {
+            return self.payload_data(payload);
+        }
         let access = self
             .checked
             .typed()
@@ -113,7 +122,17 @@ impl Builder<'_> {
             .get(id)
             .and_then(|e| e.ty.access())
             .ok_or_else(|| self.invalid())?;
-        self.data(access.data())
+        // Detached scalar snapshots and retained selectors can request declaration-closed
+        // metadata. A missing contextual occurrence must not fall back to the frame type cache.
+        let key = self
+            .instances
+            .unit()
+            .program()
+            .instantiate_closed_data(access.data())
+            .map_err(|_| self.invalid())?;
+        self.storage
+            .instance(self.instances.unit().program(), &key)
+            .map_err(Failure::Storage)
     }
     pub(super) fn arguments(
         &self,
@@ -176,7 +195,9 @@ impl Builder<'_> {
                     .ok_or_else(|| self.invalid())?;
                 (
                     SlotKey::Local(local),
-                    if let Some(payload) = self.instance.input(local) {
+                    if !partial {
+                        selected
+                    } else if let Some(payload) = self.instance.input(local) {
                         self.payload_data(payload)?
                     } else {
                         self.data(item.data)?
@@ -195,7 +216,11 @@ impl Builder<'_> {
                     .ok_or_else(|| self.invalid())?;
                 (
                     SlotKey::Expression(expression),
-                    self.data(item.data())?,
+                    if partial {
+                        self.data(item.data())?
+                    } else {
+                        selected
+                    },
                     form(item.mode()),
                 )
             }
@@ -654,6 +679,7 @@ impl Builder<'_> {
         Ok(effects.into())
     }
     fn core(&mut self, operation: &Operation) -> Result<(), Failure> {
+        let at = self.at.ok_or_else(|| self.invalid())?;
         match *operation {
             Operation::Evaluate(id)
             | Operation::BooleanConstant { result: id, .. }
@@ -667,19 +693,20 @@ impl Builder<'_> {
                     .get(id)
                     .and_then(|e| e.ty.normal())
                 {
-                    let data = self.data(access.data())?;
+                    let payload = self
+                        .instance
+                        .definition(at, ValueSourceSlot::Expression(id))
+                        .ok_or_else(|| self.invalid())?;
+                    let data = self.payload_data(payload)?;
                     self.slot(SlotKey::Expression(id), data, form(access.mode()))?;
                 }
             }
             Operation::Bind { local, .. } => {
-                let item = self
-                    .checked
-                    .typed()
-                    .body()
-                    .locals()
-                    .get(local)
+                let payload = self
+                    .instance
+                    .definition(at, ValueSourceSlot::Local(local))
                     .ok_or_else(|| self.invalid())?;
-                let data = self.data(item.data)?;
+                let data = self.payload_data(payload)?;
                 self.root(Holder::Local(local), data, false)?;
             }
             Operation::PrepareOperand {
@@ -752,6 +779,7 @@ pub(super) fn body(
         instances,
         instance,
         checked,
+        at: None,
         slots: ArenaBuilder::new(),
         keys: BTreeMap::new(),
     };
@@ -767,6 +795,7 @@ pub(super) fn body(
             .and_then(|p| p.actions.get(at.action))
             .ok_or(invalid)?
             .operation;
+        builder.at = Some(at);
         builder.core(operation)?;
         let call = if let Operation::CommitCall(call) = *operation {
             Some(call)
@@ -803,6 +832,7 @@ pub(super) fn body(
             },
         );
     }
+    builder.at = None;
     let terminators = builder.control(signature.result())?;
     let inputs = signature
         .ordered()

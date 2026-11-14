@@ -24,16 +24,21 @@ The [checking](compiler/crates/nocter-checking/README.md) and
 [target-program](compiler/crates/nocter-target-program/README.md) owners describe the implemented
 canonical metadata, original source-definition queries and ordered lifecycle specialization.
 
-Next carry their exact per-value keys through ordinary body expression/local slots and evaluator
-plan selection, using the component owners above for completed invocation, body-ABI, lifecycle and
-storage scope.
+Next close remaining partial carrier-root selection and evaluator plans against the exact per-value
+keys. The component owners above describe completed ordinary operand/definition, invocation,
+body-ABI, lifecycle and storage scope.
 Keep preparation-time snapshots and staged returns; preserve interrupted preparation metadata
-without inventing a committed call or materialization permission. Post-update dependent environments and prepared
-temporaries must follow actual call-write context rather than reuse an immutable
+without inventing a committed call or materialization permission. Post-update dependent environments
+and prepared temporaries must follow actual call-write context rather than reuse an immutable
 pre-call bundle. Source-definition boundaries are not resource phases: preserve the existing
 transition order, old-value cleanup and new-value receipt without adding provenance to ownership
 world identity, a second owner registry or downstream phase inference from step names. Preserve
 shared schemas, sparse loops, homogeneous arrays and one canonical normalization authority.
+
+- [ ] Specialize scoped referent replacement's retired and supplied payloads independently. Its
+  current single schema/payload field must not select both old-context destruction and new-context
+  receipt when contextual values can change. Resolve alias-relative targets through their actual
+  source roots, not an immutable alias-binding snapshot; keep dependent source admission closed.
 
 Qualify the same lexical closure with different captured callbacks before and after forwarding
 it with another instance, including safe/unsafe ordinary source, conditional const admission,

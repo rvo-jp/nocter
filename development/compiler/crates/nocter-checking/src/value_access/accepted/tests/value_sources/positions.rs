@@ -4,6 +4,39 @@ use crate::value_access::{InstantiationFailure, ValueSourceSelection};
 use crate::value_access::{Referent, ValueSourceBoundary, ValueSourceRead, ValueSourceSlot, flow};
 
 #[test]
+fn sparse_definition_iteration_exposes_only_the_final_write_of_an_original_action() {
+    let unit = accepted(
+        "func touch(edit left: i32, edit right: i32): void { left += 1\nright += 1 }
+func run(): i32 { var pair = (20, 20)\ntouch(pair.0, pair.1)\npair.0 + pair.1 }",
+    );
+    let graph = unit.value_sources(code(&unit, "run")).unwrap();
+    let positions = graph.flow().unwrap();
+    let mut sites = BTreeSet::new();
+    let mut definitions = 0;
+    for ((at, slot), source) in positions.definitions() {
+        assert!(sites.insert((at, slot)));
+        assert_eq!(
+            positions.read(
+                ValueSourceBoundary {
+                    point: at.point,
+                    action: at.action + 1
+                },
+                slot
+            ),
+            Some(ValueSourceRead::Value(source))
+        );
+        definitions += 1;
+    }
+    assert!(
+        definitions < positions.write_count(),
+        "the two nonoverlapping edit arguments write one root in one commit"
+    );
+    for ((at, expression), source) in positions.operands() {
+        assert_eq!(positions.operand(at, expression), Some(source));
+    }
+}
+
+#[test]
 fn ordinary_operands_retain_their_actual_source_before_later_operand_mutation() {
     let unit = accepted(
         "func make(value: i32): i32 { value }

@@ -113,6 +113,9 @@ pub fn prepare(
     let program = instances.unit().program();
     let mut shapes = shapes::Builder::new(program);
     for (_, instance) in instances.instances().iter() {
+        for value in instance.values.payloads() {
+            shapes.intern(value.instance().clone())?;
+        }
         for argument in instance.prepared.values() {
             shapes.intern(argument.instance().clone())?;
         }

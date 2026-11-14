@@ -103,6 +103,7 @@ impl Builder {
             }
             calls.insert(call, edge);
         }
+        let values = projection::values(unit, &key, body, work)?;
         self.instances
             .get_mut(id)
             .ok_or(Failure::InvalidAcceptedUnit)?
@@ -113,6 +114,7 @@ impl Builder {
             inputs,
             result,
             prepared,
+            values,
         });
         Ok(())
     }
