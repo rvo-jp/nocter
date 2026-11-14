@@ -186,6 +186,14 @@ adapter-owned environment before result delivery. Copy supply refers to its prep
 not its original source owner. No unwind/cancellation guarantee is inferred from this normal exit
 recipe. Explicit bindings retain their ordinal, operation and payload; body-local identities remain
 with the body's input layout instead of being duplicated in every caller edge.
+Binding retains the exact selected callee frame instead of reducing it to code identity. An
+adapter-owned captured environment has separate entry payloads and normal-exit carrier/environment
+contracts. Exit metadata uses the original body's environment schema: independently closed
+metadata needs no completion value, while a dependent schema uses checking's completed-input
+query. The canonical payload authority rebuilds the full callable with that environment.
+`DisposeBeforeResult` and its lifecycle step retain both completed contracts; storage interns
+both. This selects no new owner or source permission, and dependent environments with no qualified
+normal completion remain unresolved.
 Final freeze verifies each edge's environment, input and result payloads against its selected concrete body or the
 runtime contract's sole primitive value signature.
 Input locals are relative to the selected body and a fresh invocation activation; sharing a

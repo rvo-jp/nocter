@@ -49,7 +49,7 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
 - Data identity and physical carrier are independent. Address values and stack objects retain the
   referent data identity but use the selected pointer ABI. Forwarding, storage alias proofs and
   dense remapping must preserve the carrier; no synthetic source pointer type supplies it.
-- Private scoped writes carry original-action geometry constraints from MIR. Their complete
+- Private scoped writes and adapter exits carry original-action geometry constraints from MIR. Their complete
   before/after roots enter the same layout closure. `MachineLayoutPlan::has_same_geometry`
   conservatively checks size, alignment, ABI class and corresponding nested member geometry;
   root capacity alone cannot authorize shifted sibling fields. Callers establish canonical

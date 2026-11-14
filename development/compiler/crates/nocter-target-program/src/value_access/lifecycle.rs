@@ -29,6 +29,7 @@ pub enum Step {
     DisposeEnvironment {
         argument: usize,
         part: EnvironmentPart,
+        carrier: Payload,
         payload: Payload,
     },
 }
@@ -196,7 +197,10 @@ impl Program {
                                 );
                                 Some(replacement.operation())
                             }
-                            Step::DisposeEnvironment { payload, .. } => {
+                            Step::DisposeEnvironment {
+                                carrier, payload, ..
+                            } => {
+                                keys.insert(carrier.instance().clone());
                                 keys.insert(payload.instance().clone());
                                 None
                             }
@@ -293,10 +297,13 @@ fn completion(instance: &Instance, operation: &Operation) -> Result<Option<Step>
     };
     Ok(match exit {
         EnvironmentExit::Retained | EnvironmentExit::BodyOwned => None,
-        EnvironmentExit::DisposeBeforeResult(payload) => Some(Step::DisposeEnvironment {
-            argument,
-            part,
-            payload,
-        }),
+        EnvironmentExit::DisposeBeforeResult { carrier, payload } => {
+            Some(Step::DisposeEnvironment {
+                argument,
+                part,
+                carrier,
+                payload,
+            })
+        }
     })
 }

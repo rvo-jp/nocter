@@ -82,9 +82,9 @@ impl Builder {
                             .ok_or(Failure::InvalidAcceptedUnit)?,
                     )
                 }
-                _ => CallTarget::Body(self.intern(selected)),
+                _ => CallTarget::Body(self.intern(selected.clone())),
             };
-            let edge = invocation::bind(unit, &key, body, call, code, target, work)?;
+            let edge = invocation::bind(unit, &key, body, call, &selected, target, work)?;
             let nocter_checking::value_access::ExpressionKind::Call { arguments, .. } = &body
                 .typed()
                 .body()

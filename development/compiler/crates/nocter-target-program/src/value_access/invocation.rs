@@ -14,7 +14,10 @@ pub enum EnvironmentExit {
     /// The checked body owns the environment's remaining-payload cleanup.
     BodyOwned,
     /// The adapter owns this post-call environment until disposal before answer delivery.
-    DisposeBeforeResult(Payload),
+    DisposeBeforeResult {
+        carrier: Payload,
+        payload: Payload,
+    },
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Environment {
@@ -114,7 +117,7 @@ pub(super) fn bind(
     frame: &InstanceKey,
     caller: &nocter_checking::value_access::flow::Query,
     call: AccessExpressionId,
-    code: ValueCode,
+    body_frame: &InstanceKey,
     target: CallTarget,
     work: &mut WorkBudget,
 ) -> Result<Invocation, Failure> {
@@ -130,7 +133,7 @@ pub(super) fn bind(
         frame,
         caller,
         call,
-        code,
+        body_frame,
         target,
         work,
     };
@@ -151,14 +154,19 @@ struct Binding<'a, 'work> {
     frame: &'a InstanceKey,
     caller: &'a nocter_checking::value_access::flow::Query,
     call: AccessExpressionId,
-    code: ValueCode,
+    body_frame: &'a InstanceKey,
     target: CallTarget,
     work: &'work mut WorkBudget,
 }
 impl Binding<'_, '_> {
     fn bundle(&mut self, bundle: &CallValueSources) -> Result<Invocation, Failure> {
-        let (unit, caller, call, code, target) =
-            (self.unit, self.caller, self.call, self.code, self.target);
+        let (unit, caller, call, code, target) = (
+            self.unit,
+            self.caller,
+            self.call,
+            self.body_frame.code(),
+            self.target,
+        );
         let expression = caller
             .typed()
             .body()
@@ -223,7 +231,7 @@ impl Binding<'_, '_> {
                 }
                 (
                     1,
-                    environment(unit, code, carrier, argument.operation, environment_input)?,
+                    self.environment(carrier, argument.operation, environment_input)?,
                 )
             }
         };
@@ -252,58 +260,96 @@ impl Binding<'_, '_> {
     }
 }
 
-fn environment(
-    unit: &Unit,
-    code: ValueCode,
-    carrier: Payload,
-    supplied: ValueInputOperation,
-    input: Option<BodyInput>,
-) -> Result<Environment, Failure> {
-    match code {
-        ValueCode::Expression(_) => Err(INVALID),
-        ValueCode::Declaration(_) => {
-            if input.is_some() {
-                return Err(INVALID);
+impl Binding<'_, '_> {
+    fn environment(
+        &mut self,
+        carrier: Payload,
+        supplied: ValueInputOperation,
+        input: Option<BodyInput>,
+    ) -> Result<Environment, Failure> {
+        let unit = self.unit;
+        match self.body_frame.code() {
+            ValueCode::Expression(_) => Err(INVALID),
+            ValueCode::Declaration(_) => {
+                if input.is_some() {
+                    return Err(INVALID);
+                }
+                let exit = if supplied == ValueInputOperation::Take {
+                    EnvironmentExit::DisposeBeforeResult {
+                        carrier: carrier.clone(),
+                        payload: carrier.clone(),
+                    }
+                } else {
+                    EnvironmentExit::Retained
+                };
+                Ok(Environment::CodeToken {
+                    argument: 0,
+                    supplied,
+                    carrier,
+                    exit,
+                })
             }
-            let exit = if supplied == ValueInputOperation::Take {
-                EnvironmentExit::DisposeBeforeResult(carrier.clone())
-            } else {
-                EnvironmentExit::Retained
-            };
-            Ok(Environment::CodeToken {
-                argument: 0,
-                supplied,
-                carrier,
-                exit,
-            })
-        }
-        ValueCode::Closure(id) => {
-            let input = input.ok_or(INVALID)?;
-            unit.program().closure(id).ok_or(INVALID)?;
-            let payload = carrier
-                .environment(unit.program())
-                .map_err(|_| INVALID)?
-                .ok_or(INVALID)?;
-            let exit = if input.operation == ValueInputOperation::Take {
-                EnvironmentExit::BodyOwned
-            } else if supplied == ValueInputOperation::Take {
-                EnvironmentExit::DisposeBeforeResult(payload.clone())
-            } else {
-                EnvironmentExit::Retained
-            };
-            Ok(Environment::Capture {
-                argument: 0,
-                supplied,
-                carrier,
-                input,
-                payload,
-                exit,
-            })
+            ValueCode::Closure(id) => {
+                let input = input.ok_or(INVALID)?;
+                unit.program().closure(id).ok_or(INVALID)?;
+                let payload = carrier
+                    .environment(unit.program())
+                    .map_err(|_| INVALID)?
+                    .ok_or(INVALID)?;
+                let exit = if input.operation == ValueInputOperation::Take {
+                    EnvironmentExit::BodyOwned
+                } else if supplied == ValueInputOperation::Take {
+                    let (carrier, payload) = self.completed_environment(&carrier, input)?;
+                    EnvironmentExit::DisposeBeforeResult { carrier, payload }
+                } else {
+                    EnvironmentExit::Retained
+                };
+                Ok(Environment::Capture {
+                    argument: 0,
+                    supplied,
+                    carrier,
+                    input,
+                    payload,
+                    exit,
+                })
+            }
         }
     }
 }
 
 impl Binding<'_, '_> {
+    fn completed_environment(
+        &mut self,
+        carrier: &Payload,
+        input: BodyInput,
+    ) -> Result<(Payload, Payload), Failure> {
+        let unit = self.unit;
+        let data = unit
+            .code_body(self.body_frame.code())
+            .ok_or(INVALID)?
+            .typed()
+            .body()
+            .locals()
+            .get(input.local)
+            .ok_or(INVALID)?
+            .data;
+        // A closed schema fixes all metadata even for a path that never returns. This is not
+        // the preparation snapshot and grants no actual completion or initialized value.
+        let key = match unit.program().instantiate_closed_data(data) {
+            Ok(key) => key,
+            Err(_) => unit
+                .instantiate_completed_input_data(self.body_frame, input.local, self.work)
+                .map_err(|failure| self.failure(failure))?,
+        };
+        let carrier = carrier
+            .with_environment(unit.program(), &key)
+            .map_err(|_| INVALID)?;
+        let payload = carrier
+            .environment(unit.program())
+            .map_err(|_| INVALID)?
+            .ok_or(INVALID)?;
+        Ok((carrier, payload))
+    }
     fn failure(&self, failure: nocter_checking::value_access::InstantiationFailure) -> Failure {
         Failure::Invocation {
             site: nocter_model::ValueApplication {

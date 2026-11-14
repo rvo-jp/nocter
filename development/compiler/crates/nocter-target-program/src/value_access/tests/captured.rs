@@ -144,6 +144,7 @@ fn one_checked_body_is_shared_across_read_update_and_consuming_views() {
             input,
             exit,
             payload,
+            carrier,
             ..
         } = call.environment()
         else {
@@ -154,7 +155,7 @@ fn one_checked_body_is_shared_across_read_update_and_consuming_views() {
         assert_eq!(
             exit,
             if expected == Op::Take {
-                EnvironmentExit::DisposeBeforeResult(payload)
+                EnvironmentExit::DisposeBeforeResult { carrier, payload }
             } else {
                 EnvironmentExit::Retained
             }
@@ -175,6 +176,7 @@ fn consuming_adapter_cleans_a_read_environment_before_delivering_the_answer() {
         input,
         exit,
         payload,
+        carrier,
         ..
     } = call.environment()
     else {
@@ -183,7 +185,10 @@ fn consuming_adapter_cleans_a_read_environment_before_delivering_the_answer() {
     assert_eq!(supplied, Op::Take);
     assert_eq!(input.operation, Op::Read);
     assert_eq!(payload.disposal(), Disposal::OwnedError);
-    assert_eq!(exit, EnvironmentExit::DisposeBeforeResult(payload));
+    assert_eq!(
+        exit,
+        EnvironmentExit::DisposeBeforeResult { carrier, payload }
+    );
     assert_eq!(call.result().disposal(), Disposal::Trivial);
     assert_closed(&graph);
 }
@@ -199,6 +204,7 @@ fn consuming_adapter_cleans_the_post_update_environment() {
         input,
         exit,
         payload,
+        carrier,
         ..
     } = call.environment()
     else {
@@ -206,8 +212,62 @@ fn consuming_adapter_cleans_the_post_update_environment() {
     };
     assert_eq!(supplied, Op::Take);
     assert_eq!(input.operation, Op::Edit);
-    assert_eq!(exit, EnvironmentExit::DisposeBeforeResult(payload));
+    assert_eq!(
+        exit,
+        EnvironmentExit::DisposeBeforeResult { carrier, payload }
+    );
     assert_eq!(call.inputs()[0].operation, Op::Take);
+    assert_closed(&graph);
+}
+
+#[test]
+fn a_diverging_read_body_keeps_its_closed_adapter_contract_without_inventing_completion() {
+    let graph = close(
+        "func consume(take action: once(): i32): i32 { action^() }\nfunc run(): i32 { let count = 41\nlet action = (count;): i32 { loop {} }\nconsume(action^) }",
+    );
+    let call = instance(&graph, "consume")
+        .1
+        .calls()
+        .values()
+        .next()
+        .unwrap();
+    let Environment::Capture { input, exit, .. } = call.environment() else {
+        panic!("capture")
+    };
+    let EnvironmentExit::DisposeBeforeResult { carrier, payload } = exit else {
+        panic!("normal-completion contract")
+    };
+    assert_eq!(
+        carrier
+            .environment(graph.unit().program())
+            .unwrap()
+            .unwrap(),
+        payload
+    );
+    let selected = graph
+        .instances()
+        .get(call.target().instance().unwrap())
+        .unwrap();
+    assert!(
+        graph
+            .unit()
+            .value_sources(selected.key().code())
+            .unwrap()
+            .flow()
+            .unwrap()
+            .completions()
+            .next()
+            .is_none()
+    );
+    let mut work = nocter_constant_evaluation::state::WorkBudget::new(
+        std::num::NonZeroU64::new(10_000).unwrap(),
+    );
+    assert_eq!(
+        graph
+            .unit()
+            .instantiate_completed_input_data(selected.key(), input.local, &mut work),
+        Err(nocter_checking::value_access::InstantiationFailure::Unresolved)
+    );
     assert_closed(&graph);
 }
 

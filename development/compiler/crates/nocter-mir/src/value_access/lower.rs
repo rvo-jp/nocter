@@ -387,11 +387,19 @@ impl Builder<'_> {
         call: AccessExpressionId,
         index: usize,
     ) -> Result<Place, Failure> {
+        let data = self.prepared_data(call, index)?;
+        self.argument_with_data(call, index, data)
+    }
+    fn argument_with_data(
+        &mut self,
+        call: AccessExpressionId,
+        index: usize,
+        data: RuntimeDataId,
+    ) -> Result<Place, Failure> {
         let argument = self
             .arguments(call)?
             .get(index)
             .ok_or_else(|| self.invalid())?;
-        let data = self.prepared_data(call, index)?;
         let slot = self.slot(
             SlotKey::Argument { call, index },
             data,
@@ -502,13 +510,20 @@ impl Builder<'_> {
                 lifecycle::Step::DisposeEnvironment {
                     argument,
                     part,
+                    carrier,
                     payload,
                 } => {
                     let call = call.ok_or_else(|| self.invalid())?;
-                    let mut source = self.argument(call, *argument)?;
+                    let before = self.argument(call, *argument)?;
+                    let data = self.payload_data(carrier)?;
+                    self.constrain_geometry(before.root, data)?;
+                    let mut source = self.argument_with_data(call, *argument, data)?;
                     if *part == EnvironmentPart::Capture {
                         source.projections = Box::new([Projection::Environment]);
                         source.data = self.capture_data(source.data)?;
+                    }
+                    if source.data != self.payload_data(payload)? {
+                        return Err(self.invalid());
                     }
                     output.push(Effect::Dispose {
                         source,

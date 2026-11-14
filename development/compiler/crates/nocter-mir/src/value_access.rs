@@ -247,7 +247,7 @@ pub struct Action {
     pub alternatives: Box<[Alternative]>,
 }
 
-/// Physical compatibility required by an original scoped write, not an executable resource effect.
+/// Physical compatibility for an original scoped write or adapter exit, not a resource effect.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct GeometryConstraint {
     pub at: Location,

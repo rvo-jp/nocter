@@ -50,7 +50,7 @@ fn invocation_transfers_precede_the_body_and_adapter_cleanup_precedes_receipt() 
     for alternative in schedule.alternatives() {
         assert!(alternative.before().iter().any(|step| matches!(step, Step::Resource(ResourceStep::Invoke { payload, .. }) if payload.disposal() == Disposal::OwnedCapture)));
         assert!(matches!(alternative.after(), [
-            Step::DisposeEnvironment { argument: 0, part: EnvironmentPart::Capture, payload },
+            Step::DisposeEnvironment { argument: 0, part: EnvironmentPart::Capture, payload, .. },
             Step::Resource(ResourceStep::Receive { .. })
         ] if payload.disposal() == Disposal::OwnedError));
     }
@@ -364,7 +364,7 @@ fn a_consuming_adapter_destroys_the_live_post_update_environment() {
         .1;
     for alternative in action.alternatives() {
         assert!(matches!(alternative.after(), [
-            Step::DisposeEnvironment { argument: 0, part: EnvironmentPart::Capture, payload },
+            Step::DisposeEnvironment { argument: 0, part: EnvironmentPart::Capture, payload, .. },
             Step::Resource(ResourceStep::Receive { .. })
         ] if payload.disposal() == Disposal::OwnedError));
     }

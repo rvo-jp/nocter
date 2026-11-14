@@ -3,6 +3,7 @@ use super::*;
 use crate::{MirArithmeticCheck, MirBinaryOperation};
 use nocter_checking::value_access::accepted::SourceUnit;
 use nocter_model::{MirLocalId, ValueInputOperation};
+use nocter_runtime_contract::RuntimeType;
 use nocter_target_program::value_access::InstanceProgram;
 use nocter_test_support::ValueSourceFixture;
 use std::sync::Arc;
@@ -58,6 +59,42 @@ fn scoped_geometry_keeps_the_reference_and_its_larger_container_at_the_original_
             Err(Failure::InvalidBody(_))
         ));
     }
+}
+
+#[test]
+fn adapter_cleanup_pairs_its_completed_environment_address_with_the_full_carrier_geometry() {
+    let program = lower(
+        "struct Item { value: i32 }\nfunc consume(take action: once(): i32): i32 { action^() }\nfunc run(): i32 { let item = Item { value: 42 }\nlet action = (item^;): i32 { item.value }\nconsume(action^) }",
+    );
+    let mut cleanups = 0;
+    for body in program.bodies.values() {
+        for (&at, action) in body.actions() {
+            for alternative in &action.alternatives {
+                for effect in &alternative.after {
+                    let Effect::Dispose { source, .. } = effect else {
+                        continue;
+                    };
+                    if source.projections.as_ref() != [Projection::Environment] {
+                        continue;
+                    }
+                    let RuntimeType::StaticCallable {
+                        environment: Some(environment),
+                    } = program.runtime.types().get(source.root).unwrap()
+                    else {
+                        panic!("captured carrier")
+                    };
+                    assert_eq!(source.data, *environment);
+                    assert!(
+                        body.geometry()
+                            .iter()
+                            .any(|pair| pair.at == at && pair.after == source.root)
+                    );
+                    cleanups += 1;
+                }
+            }
+        }
+    }
+    assert!(cleanups > 0);
 }
 
 #[test]

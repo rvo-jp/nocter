@@ -79,6 +79,11 @@ reject absent action/data identities. The Machine layout authority proves their 
 Other resource-step partial roots currently require independently closed data. Changing geometry,
 relocation and general carrier coherence remain separate qualification boundaries before source
 formal captures can open.
+Adapter cleanup likewise selects its completed full carrier in the original argument slot before
+projecting the completed environment. Its selected environment data must match the cleanup
+payload, and its entry/completed carrier pair becomes an original-call geometry constraint.
+The original input/ABI contract stays paired with call entry; adding the exit representation
+grants no initialized storage, lifetime or relocation proof.
 Component integrity and sparse cleanup paths use the closed runtime environment's shared type
 projection, independently of source checking and without a reverse semantic-type lookup.
 Static primitive edges retain their closed roles without adding a body or input locals. Validation
