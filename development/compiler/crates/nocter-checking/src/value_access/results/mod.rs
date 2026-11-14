@@ -21,7 +21,7 @@ mod projection;
 mod relations;
 mod resources;
 pub use relations::{InvocationRecipe, Relation as ProducerRelation, Term as ProducerTerm};
-pub use resources::{ResourceDataFailure, ResourceDataProjection};
+pub use resources::{ResourceDataFailure, ResourceDataProjection, ResourceDataStep};
 mod solve;
 mod typing;
 pub(super) use typing::deferred_equalities;

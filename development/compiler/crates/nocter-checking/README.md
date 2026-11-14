@@ -935,6 +935,13 @@ remain separate integration obligations.
 original action. Its transition-local binding map contains data references for intermediate
 materializations and transfers, not owners or new world identities. Old cleanup precedes new
 binding; scoped retirement uses the original write target's actual alias-root read.
+Consumers that need containing representations request `steps_with_roots` and
+`after_steps_with_roots`. Each sealed `ResourceDataStep` pairs its unchanged operation with the
+dependent roots of partial sources selected before that step. Aggregate source components follow
+the same rule. Independently closed roots need no additional occurrence receipt. Selection uses
+the same transition-local bindings and original stored-data queries as payload specialization;
+it grants no owner, initialized backing, numeric index proof or stable geometry. Failure rolls
+back that projection's bindings and publishes no prefix, while retaining spent metadata work.
 `ResourceDataProjection::replacement_target` matches a scoped destination to the original update
 referent, including its alias-relative fields. A different operation, owned local or destination
 cannot select that reference-root pair. This metadata match grants no owner or layout proof.
@@ -979,7 +986,7 @@ Place, boundary, guard, component and index
 views select their metadata from the represented source slot; read/edit local bindings and forwarded
 views preserve that selection. Physical component lookup has one evaluator authority and does not
 establish active variants, initialized payloads or valid runtime index numbers. Empty arrays provide
-no element view. Remaining partial-carrier roots, context-changing slot geometry and post-update
+no element view. General changing partial-carrier roots, context-changing slot geometry and post-update
 dependent environments remain separate obligations.
 `resources::Payload::instantiate` binds an existing logical schema to the declaration-owned
 `DataInstanceKey`, preserving the actual callable representation and nested captured context.
@@ -1738,7 +1745,12 @@ forwarding through taking inputs/results, tuple formation and read aliases, read
 invocation, persistent state and required/native agreement at 42.
 `formal-captured-errors.nct` executes nested owned error graph disposal through consuming adapters
 and explicit destruction in a real native process. Owned error payloads remain outside required
-evaluation. Additional dependent carriers, context-changing carrier writes, surviving
+evaluation. `contextual-component-transfers.nct` qualifies transfer from a local tuple or array
+whose callable descriptor is context-bound, retaining a disjoint sibling view and the original
+container representation through required and native execution. `contextual-component-errors.nct`
+executes selected-callback and remaining-component error graph cleanup through that native path.
+These cases do not qualify changing container geometry or general partial destination writes.
+Additional dependent carriers, context-changing carrier writes, surviving
 partial references, inferred captures and external dependencies still require separate qualification.
 
 ### Contextual Anonymous Contracts

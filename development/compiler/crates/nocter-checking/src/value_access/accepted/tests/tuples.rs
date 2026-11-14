@@ -4,6 +4,46 @@ use super::*;
 use nocter_model::{BuiltinType, ValueField};
 
 #[test]
+fn contextual_component_transfer_neither_implies_copy_nor_hides_retired_storage() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-component-transfers.nct"
+    ));
+    for (original, replacement, rule) in [
+        (
+            "let action = pair.0^",
+            "let action = pair.0",
+            Some(crate::value_access::Rule::MissingTransfer),
+        ),
+        (
+            "let action = values[0]^",
+            "let action = values[0]",
+            Some(crate::value_access::Rule::MissingTransfer),
+        ),
+        (
+            "action(sibling)",
+            "let _ = pair.0(0)\n    action(sibling)",
+            None,
+        ),
+    ] {
+        let changed = source.replace(original, replacement);
+        assert_ne!(changed, source);
+        let (sources, tree) = input(&changed);
+        let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+        match rule {
+            Some(rule) => assert!(
+                matches!(&failure, SourceFailure::Checking(Failure::Body { failure: BodyFailure::Rejected(error), .. }) if error.rule() == rule),
+                "{failure:?}"
+            ),
+            None => assert!(
+                matches!(failure, SourceFailure::Checking(Failure::Flow { .. })),
+                "{failure:?}"
+            ),
+        }
+    }
+}
+
+#[test]
 fn inferred_and_annotated_tuple_shapes_share_one_identity_and_structural_copy() {
     let unit = accepted(
         "func inspect(value: (i32, bool)): i32 { if value.1 { value.0 } else { 0 } }\nfunc run(): i32 { var pair = (40, true)\nlet snapshot: ((i32, bool)) = pair\npair.0 = 0\nlet nested = (snapshot, ((), 2))\ninspect(nested.0) + nested.1.1 }",

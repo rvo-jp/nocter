@@ -22,7 +22,7 @@ pub enum ResourceDataFailure {
 }
 const INVALID: ResourceDataFailure = ResourceDataFailure::Integrity;
 type Failure = ResourceDataFailure;
-#[derive(Clone)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 enum Binding {
     Value(DataInstanceKey),
     AfterAction,
@@ -37,6 +37,9 @@ pub struct ResourceDataProjection<'a, 'work> {
     work: &'work mut WorkBudget,
     values: BTreeMap<Holder, Binding>,
 }
+
+mod roots;
+pub use roots::ResourceDataStep;
 impl<'a, 'work> ResourceDataProjection<'a, 'work> {
     /// Resolve the matched scoped destination's original containing contracts under this request's
     /// metadata budget. The pair supplies no ownership, physical backing or geometry proof.
@@ -150,7 +153,11 @@ impl<'a, 'work> ResourceDataProjection<'a, 'work> {
     /// # Errors
     /// Invalid source data or quota exhaustion publishes no partly projected step list.
     pub fn steps(&mut self, steps: &[ResourceStep]) -> Result<Vec<ResourceStep<Payload>>, Failure> {
-        self.project_steps(steps, false)
+        Ok(self
+            .project_steps(steps, false, false)?
+            .into_iter()
+            .map(|step| step.operation)
+            .collect())
     }
     /// Project the checked transition's normal post-operation steps. Only this explicit phase
     /// boundary invalidates entry snapshots of edited call temporaries; step names do not.
@@ -160,13 +167,36 @@ impl<'a, 'work> ResourceDataProjection<'a, 'work> {
         &mut self,
         steps: &[ResourceStep],
     ) -> Result<Vec<ResourceStep<Payload>>, Failure> {
-        self.project_steps(steps, true)
+        Ok(self
+            .project_steps(steps, true, false)?
+            .into_iter()
+            .map(|step| step.operation)
+            .collect())
+    }
+    /// Retain dependent partial-source roots in the same atomic, ordered projection as payloads.
+    /// # Errors
+    /// Rejects unavailable original roots or exhausted metadata work without publishing a prefix.
+    pub fn steps_with_roots(
+        &mut self,
+        steps: &[ResourceStep],
+    ) -> Result<Vec<ResourceDataStep>, Failure> {
+        self.project_steps(steps, false, true)
+    }
+    /// Select normal post-operation roots after completing the checked operation's metadata phase.
+    /// # Errors
+    /// Failure restores prior bindings; spent work remains spent.
+    pub fn after_steps_with_roots(
+        &mut self,
+        steps: &[ResourceStep],
+    ) -> Result<Vec<ResourceDataStep>, Failure> {
+        self.project_steps(steps, true, true)
     }
     fn project_steps(
         &mut self,
         steps: &[ResourceStep],
         completed: bool,
-    ) -> Result<Vec<ResourceStep<Payload>>, Failure> {
+        retain_roots: bool,
+    ) -> Result<Vec<ResourceDataStep>, Failure> {
         let before = self.values.clone();
         let result = (|| {
             if completed {
@@ -174,7 +204,17 @@ impl<'a, 'work> ResourceDataProjection<'a, 'work> {
             }
             steps
                 .iter()
-                .map(|step| self.step(step))
+                .map(|step| {
+                    let roots = if retain_roots {
+                        self.containing_roots(step)?
+                    } else {
+                        BTreeMap::new()
+                    };
+                    Ok(ResourceDataStep {
+                        operation: self.step(step)?,
+                        roots,
+                    })
+                })
                 .collect::<Result<_, Failure>>()
         })();
         if result.is_err() {
@@ -396,15 +436,7 @@ impl<'a, 'work> ResourceDataProjection<'a, 'work> {
         target: TypeId,
         after: bool,
     ) -> Result<DataInstanceKey, Failure> {
-        let slot = match place.holder() {
-            Holder::Local(local) => ValueSourceSlot::Local(local),
-            Holder::Expression(expression) => ValueSourceSlot::Expression(expression),
-            Holder::Prepared { call, index } | Holder::Temporary { call, index } => {
-                ValueSourceSlot::Argument { call, index }
-            }
-            Holder::Return => ValueSourceSlot::Return,
-            Holder::IndexSnapshot(_) | Holder::ArrayFrontier(_) => return Err(INVALID),
-        };
+        let slot = source_slot(place.holder())?;
         let selected = ValueSourceSelection {
             boundary: ValueSourceBoundary {
                 point: self.at.point,
@@ -427,6 +459,17 @@ impl<'a, 'work> ResourceDataProjection<'a, 'work> {
         )
         .map_err(Failure::Instantiation)
     }
+}
+fn source_slot(holder: Holder) -> Result<ValueSourceSlot, Failure> {
+    Ok(match holder {
+        Holder::Local(local) => ValueSourceSlot::Local(local),
+        Holder::Expression(expression) => ValueSourceSlot::Expression(expression),
+        Holder::Prepared { call, index } | Holder::Temporary { call, index } => {
+            ValueSourceSlot::Argument { call, index }
+        }
+        Holder::Return => ValueSourceSlot::Return,
+        Holder::IndexSnapshot(_) | Holder::ArrayFrontier(_) => return Err(INVALID),
+    })
 }
 fn metadata_path<I: Copy>(place: &Place, array: I) -> ValuePath<I> {
     ValuePath::new(place.fields().fields().iter().map(|&field| match field {

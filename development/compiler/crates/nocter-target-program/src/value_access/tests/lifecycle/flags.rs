@@ -90,17 +90,17 @@ fn partial_field_retirement_selects_the_correct_cleanup_after_each_branch() {
     assert_eq!(
         partial
             .iter()
-            .filter(|step| matches!(step, Step::Resource(ResourceStep::ReleaseContainer { .. })))
+            .filter(|step| matches!(step.resource(), Some(ResourceStep::ReleaseContainer { .. })))
             .count(),
         1
     );
-    assert!(!partial.iter().any(|step| matches!(step, Step::Resource(ResourceStep::Dispose { payload, .. }) if payload.disposal() == Disposal::Aggregate)));
+    assert!(!partial.iter().any(|step| matches!(step.resource(), Some(ResourceStep::Dispose { payload, .. }) if payload.disposal() == Disposal::Aggregate)));
     let complete = trace(&program, &[false]);
-    assert_eq!(complete.iter().filter(|step| matches!(step, Step::Resource(ResourceStep::Dispose { payload, .. }) if payload.disposal() == Disposal::Aggregate)).count(), 1);
+    assert_eq!(complete.iter().filter(|step| matches!(step.resource(), Some(ResourceStep::Dispose { payload, .. }) if payload.disposal() == Disposal::Aggregate)).count(), 1);
     assert!(
         !complete
             .iter()
-            .any(|step| matches!(step, Step::Resource(ResourceStep::ReleaseContainer { .. })))
+            .any(|step| matches!(step.resource(), Some(ResourceStep::ReleaseContainer { .. })))
     );
 }
 
@@ -114,14 +114,14 @@ fn a_present_container_with_no_remaining_fields_is_distinct_from_an_absent_owner
     assert_eq!(
         empty_container
             .iter()
-            .filter(|step| matches!(step, Step::Resource(ResourceStep::ReleaseContainer { .. })))
+            .filter(|step| matches!(step.resource(), Some(ResourceStep::ReleaseContainer { .. })))
             .count(),
         1
     );
     assert!(
         !absent
             .iter()
-            .any(|step| matches!(step, Step::Resource(ResourceStep::ReleaseContainer { .. })))
+            .any(|step| matches!(step.resource(), Some(ResourceStep::ReleaseContainer { .. })))
     );
 }
 
@@ -141,12 +141,12 @@ fn restoration_resets_the_field_flag_before_the_next_loop_iteration() {
         .explicit()[0]
         .local;
     let steps = trace(&program, &[true, true, true, false, false]);
-    assert_eq!(steps.iter().filter(|step| matches!(step, Step::Resource(ResourceStep::Dispose { source, payload })
+    assert_eq!(steps.iter().filter(|step| matches!(step.resource(), Some(ResourceStep::Dispose { source, payload })
         if source.holder() == Holder::Local(pair) && !source.fields().is_root() && payload.disposal() == Disposal::Trivial)).count(), 1);
     assert!(
         !steps
             .iter()
-            .any(|step| matches!(step, Step::Resource(ResourceStep::ReleaseContainer { .. })))
+            .any(|step| matches!(step.resource(), Some(ResourceStep::ReleaseContainer { .. })))
     );
 }
 
@@ -201,9 +201,9 @@ fn many_flag_updates_preserve_a_still_live_error_owner() {
         .explicit()[0]
         .local;
     let retired = trace(&program, &[true; 71]);
-    assert!(!retired.iter().any(|step| matches!(step, Step::Resource(ResourceStep::Dispose { source, .. }) if source.holder() == Holder::Local(anchor))));
+    assert!(!retired.iter().any(|step| matches!(step.resource(), Some(ResourceStep::Dispose { source, .. }) if source.holder() == Holder::Local(anchor))));
     let retained = trace(&program, &[false; 71]);
-    assert_eq!(retained.iter().filter(|step| matches!(step, Step::Resource(ResourceStep::Dispose { source, .. }) if source.holder() == Holder::Local(anchor))).count(), 1);
+    assert_eq!(retained.iter().filter(|step| matches!(step.resource(), Some(ResourceStep::Dispose { source, .. }) if source.holder() == Holder::Local(anchor))).count(), 1);
 }
 
 #[test]
@@ -244,8 +244,8 @@ fn equivalent_work_shares_a_guard_while_independent_cleanup_choices_remain_disti
     for first in [false, true] {
         for second in [false, true] {
             let selected = trace(&program, &[first, second]);
-            let disposals = selected.iter().filter(|step| matches!(step,
-                Step::Resource(ResourceStep::Dispose { source, .. }) if source.holder() == Holder::Local(value)
+            let disposals = selected.iter().filter(|step| matches!(step.resource(),
+                Some(ResourceStep::Dispose { source, .. }) if source.holder() == Holder::Local(value)
             )).count();
             assert_eq!(disposals, if second { 1 } else { 2 });
         }

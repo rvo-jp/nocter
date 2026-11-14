@@ -22,7 +22,7 @@ pub enum EnvironmentPart {
 /// Resource operations retain their selected identity and exact concrete payload obligation.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Step {
-    Resource(ResourceStep<Payload>),
+    Resource(nocter_checking::value_access::ResourceDataStep),
     ScopedReplacement(ScopedReplacement),
     /// End the adapter-owned carrier and dispose its selected payload exactly once.
     /// Normal return only, after the callee protects its answer and before caller receipt.
@@ -33,11 +33,22 @@ pub enum Step {
         payload: Payload,
     },
 }
+impl Step {
+    /// The original resource operation, independently of its retained representation metadata.
+    #[must_use]
+    pub fn resource(&self) -> Option<&ResourceStep<Payload>> {
+        match self {
+            Self::Resource(step) => Some(step.operation()),
+            Self::ScopedReplacement(replacement) => Some(replacement.operation()),
+            Self::DisposeEnvironment { .. } => None,
+        }
+    }
+}
 /// A matched replacement operation with separate original reference-root contracts.
 /// These roots do not certify enclosing allocations or stable field geometry.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ScopedReplacement {
-    operation: Box<ResourceStep<Payload>>,
+    operation: Box<nocter_checking::value_access::ResourceDataStep>,
     before: nocter_declarations::value_access::DataInstanceKey,
     after: nocter_declarations::value_access::DataInstanceKey,
     carriers: nocter_checking::value_access::ReferentCarrierContracts,
@@ -49,6 +60,10 @@ impl ScopedReplacement {
     }
     #[must_use]
     pub fn operation(&self) -> &ResourceStep<Payload> {
+        self.operation.operation()
+    }
+    #[must_use]
+    pub const fn data(&self) -> &nocter_checking::value_access::ResourceDataStep {
         &self.operation
     }
     #[must_use]
@@ -183,8 +198,12 @@ impl Program {
                 for alternative in &action.alternatives {
                     for step in alternative.before.iter().chain(alternative.after.iter()) {
                         let resource = match step {
-                            Step::Resource(step) => Some(step),
+                            Step::Resource(step) => {
+                                keys.extend(step.roots().cloned());
+                                Some(step.operation())
+                            }
                             Step::ScopedReplacement(replacement) => {
+                                keys.extend(replacement.data().roots().cloned());
                                 keys.insert(replacement.before.clone());
                                 keys.insert(replacement.after.clone());
                                 keys.extend(

@@ -5,6 +5,7 @@ use nocter_model::AccessLocalId;
 use nocter_test_support::ValueSourceFixture;
 use std::sync::Arc;
 mod calls;
+mod roots;
 
 struct Fixture {
     unit: Arc<Unit>,

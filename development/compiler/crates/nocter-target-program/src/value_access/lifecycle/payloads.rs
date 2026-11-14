@@ -73,9 +73,9 @@ impl<'a, 'work> Projection<'a, 'work> {
             })
             .collect::<Result<Vec<_>, Failure>>()?;
         let projected = if completed {
-            self.inner.after_steps(steps)
+            self.inner.after_steps_with_roots(steps)
         } else {
-            self.inner.steps(steps)
+            self.inner.steps_with_roots(steps)
         }
         .map_err(|error| failure(self.id, self.at, error))?;
         Ok(projected

@@ -1,0 +1,30 @@
+primitive func create_failure(code: str, message: str): error
+primitive func context_error(take value: error, message: str): error
+
+func owning(): func(i32): i32 {
+    let reason = context_error(create_failure("component", "leaf"), "outer")
+    (reason^; value: i32): i32 { value + 2 }
+}
+
+func wrap(take callback: func(i32): i32): func(i32): i32 {
+    (callback^; value: i32): i32 { callback(value) }
+}
+
+func tuple(take callback: func(i32): i32, take remainder: error): i32 {
+    let pair = (callback^, remainder^)
+    let action = pair.0^
+    action(40)
+}
+
+func array(): i32 {
+    let values = [wrap(owning()), wrap(owning())]
+    let action = values[0]^
+    action(40)
+}
+
+func run(): i32 {
+    let held = owning()
+    let first = tuple(held^, create_failure("remainder", "tuple"))
+    let second = array()
+    if first == 42 && second == 42 { 42 } else { 0 }
+}

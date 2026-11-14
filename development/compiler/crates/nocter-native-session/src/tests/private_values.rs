@@ -173,6 +173,36 @@ fn private_contextual_callable_arrays_dispose_owned_error_elements_and_zero_coun
     }
 }
 
+#[test]
+fn private_contextual_component_transfers_keep_container_contexts_and_disjoint_sibling_views() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-component-transfers.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "contextual-component-transfers",
+        42,
+    );
+}
+
+#[test]
+fn private_contextual_component_transfers_destroy_actual_selected_and_remaining_error_graphs() {
+    let machine = trusted_error_machine(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-component-errors.nct"
+    )));
+    let package = TempPackage::new();
+    execute_native_status(
+        &image(&machine),
+        &package.0,
+        "contextual-component-errors",
+        42,
+    );
+}
+
 fn compile(source: &str) -> crate::NativeImage {
     let machine = machine(source);
     image(&machine)

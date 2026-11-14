@@ -78,6 +78,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Qualify context-bound callable arrays through ordinary construction, element invocation
   and zero-count seed cleanup. Require one actual homogeneous element context without a
   first-element fallback, invented Copy proof or phantom invocation from an empty array.
+- [x] Qualify partial transfer and remaining-container cleanup of context-bound callable
+  components. Retain each ordered resource step's actual containing representation rather than
+  recovering a local container from its raw formal type; preserve disjoint sibling views.
 - [ ] Qualify the canonical frame's received compound-input contexts through ordinary source and
   consumer storage, cleanup and conditional const reuse. The
   [declaration authority](compiler/crates/nocter-declarations/README.md) owns the validated constructor.

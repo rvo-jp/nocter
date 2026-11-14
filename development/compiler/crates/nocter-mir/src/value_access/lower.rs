@@ -335,6 +335,22 @@ impl Builder<'_> {
             .collect::<Result<_, Failure>>()?;
         Ok(place)
     }
+    fn resource_place(
+        &mut self,
+        source: &flow::resources::Place,
+        data: RuntimeDataId,
+        step: &nocter_checking::value_access::ResourceDataStep,
+    ) -> Result<Place, Failure> {
+        let root = step
+            .root(source)
+            .map(|key| {
+                self.storage
+                    .instance(self.instances.unit().program(), key)
+                    .map_err(Failure::Storage)
+            })
+            .transpose()?;
+        self.place_with_root(source, data, root)
+    }
     pub(super) fn selected(
         &mut self,
         id: nocter_model::AccessPlaceId,
@@ -496,7 +512,7 @@ impl Builder<'_> {
         };
         let supplied = self.payload_data(payload)?;
         let transfer = Effect::Transfer {
-            source: self.place(source, supplied)?,
+            source: self.resource_place(source, supplied, replacement.data())?,
             destination: self.place_with_root(destination, supplied, Some(after))?,
         };
         Ok([retired, transfer])
@@ -536,7 +552,7 @@ impl Builder<'_> {
                         disposal: self.disposal(payload)?,
                     });
                 }
-                lifecycle::Step::Resource(step) => match step {
+                lifecycle::Step::Resource(projected) => match projected.operation() {
                     Step::Capture {
                         source,
                         destination,
@@ -546,7 +562,7 @@ impl Builder<'_> {
                         let mut destination =
                             self.root(*destination, self.payload_data(payload)?, false)?;
                         let environment = self.capture_data(destination.data)?;
-                        let source = self.place(source, environment)?;
+                        let source = self.resource_place(source, environment, projected)?;
                         destination.projections = Box::new([Projection::Environment]);
                         destination.data = environment;
                         output.push(Effect::Transfer {
@@ -560,7 +576,8 @@ impl Builder<'_> {
                         from,
                         payload,
                     } => {
-                        let source = self.place(source, self.payload_data(from)?)?;
+                        let source =
+                            self.resource_place(source, self.payload_data(from)?, projected)?;
                         let destination =
                             self.root(*destination, self.payload_data(payload)?, false)?;
                         output.push(Effect::Reinterpret {
@@ -580,7 +597,7 @@ impl Builder<'_> {
                                 .runtime
                                 .value_field(destination.data, *field)
                                 .ok_or_else(|| self.invalid())?;
-                            let source = self.place(source, data)?;
+                            let source = self.resource_place(source, data, projected)?;
                             let mut selection = destination.clone();
                             selection.projections = Box::new([Projection::Field(*field)]);
                             selection.data = source.data;
@@ -638,7 +655,8 @@ impl Builder<'_> {
                         destination,
                         payload,
                     } => {
-                        let source = self.place(source, self.payload_data(payload)?)?;
+                        let source =
+                            self.resource_place(source, self.payload_data(payload)?, projected)?;
                         let destination = self.place(destination, self.payload_data(payload)?)?;
                         output.push(Effect::Transfer {
                             source,
@@ -669,14 +687,19 @@ impl Builder<'_> {
                     } => {
                         let data = self.index_data()?;
                         output.push(Effect::ConsolidateArrayPrefix {
-                            source: self.place(array, self.payload_data(payload)?)?,
+                            source: self.resource_place(
+                                array,
+                                self.payload_data(payload)?,
+                                projected,
+                            )?,
                             endpoint: self
                                 .root(Holder::ArrayFrontier(*frontier), data, false)?
                                 .slot,
                         });
                     }
                     Step::Dispose { source, payload } => {
-                        let source = self.place(source, self.payload_data(payload)?)?;
+                        let source =
+                            self.resource_place(source, self.payload_data(payload)?, projected)?;
                         output.push(Effect::Dispose {
                             source,
                             disposal: self.disposal(payload)?,
@@ -688,7 +711,11 @@ impl Builder<'_> {
                         range,
                     } => {
                         output.push(Effect::DisposeArrayElements {
-                            source: self.place(source, self.payload_data(payload)?)?,
+                            source: self.resource_place(
+                                source,
+                                self.payload_data(payload)?,
+                                projected,
+                            )?,
                             range: range.try_map_index(|index| {
                                 let data = self.index_data()?;
                                 Ok(self.root(index.holder(), data, false)?.slot)
@@ -700,7 +727,8 @@ impl Builder<'_> {
                         payload,
                         missing,
                     } => {
-                        let array = self.place(source, self.payload_data(payload)?)?;
+                        let array =
+                            self.resource_place(source, self.payload_data(payload)?, projected)?;
                         let missing = missing
                             .iter()
                             .map(|hole| {
@@ -723,8 +751,11 @@ impl Builder<'_> {
                                         }
                                     })
                                     .ok_or_else(|| self.invalid())?;
-                                let place =
-                                    self.place(&source.clone().with_fields(path.clone()), data)?;
+                                let place = self.place_with_root(
+                                    &source.clone().with_fields(path.clone()),
+                                    data,
+                                    Some(array.root),
+                                )?;
                                 Ok(if let Some(frontier) = frontier {
                                     let data = self.index_data()?;
                                     super::RemainderExclusion::ArrayPrefix {
@@ -744,9 +775,11 @@ impl Builder<'_> {
                         });
                     }
                     Step::ReleaseContainer { source, payload } => {
-                        output.push(Effect::End(
-                            self.place(source, self.payload_data(payload)?)?,
-                        ));
+                        output.push(Effect::End(self.resource_place(
+                            source,
+                            self.payload_data(payload)?,
+                            projected,
+                        )?));
                     }
                     Step::Invoke {
                         source,
@@ -754,7 +787,8 @@ impl Builder<'_> {
                         index,
                         payload,
                     } => {
-                        let source = self.place(source, self.payload_data(payload)?)?;
+                        let source =
+                            self.resource_place(source, self.payload_data(payload)?, projected)?;
                         let destination = self.argument(*call, *index)?;
                         output.push(Effect::Transfer {
                             source,

@@ -231,7 +231,7 @@ explicitly, rather than selecting by report order. No second CFG or runtime-stat
 
 `lifecycle::payloads` consumes checking's
 [ordered resource-data projection](../nocter-checking/README.md#shared-flow-access-and-resource-validation)
-and wraps its unchanged selected steps in the native lifecycle vocabulary. It adds instance/action
+and retains each sealed operation/root pair in the native lifecycle vocabulary. It adds instance/action
 failure context, not another source-value substitution model or owner registry. The original
 transition still supplies before/after phases and ownership conditions. Scoped destinations are
 matched by checking before data projection can change transition-local bindings. A match retains
@@ -240,7 +240,9 @@ the original operation and the instance's frozen before/after root contracts in 
 and supplied obligations with their respective virtual roots for disposal and transfer. The sealed
 replacement also retains checking's complete original containing contracts, including source slots
 and selection paths, on both sides. Additional storage roots include both virtual roots and those
-containing contracts through the same canonical interner. Enclosing allocation geometry and adapter completion remain
+containing contracts and dependent partial-source roots through the same canonical interner.
+Root receipts stay attached to their original resource step; no frame-wide type map or later
+phase guess supplies a local container. Enclosing allocation geometry and adapter completion remain
 separate responsibilities; these contracts grant no mutation or layout proof.
 
 `Program::prepare_with_budget` bounds contextual metadata work across the complete lifecycle

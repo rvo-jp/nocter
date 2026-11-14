@@ -48,11 +48,11 @@ fn invocation_transfers_precede_the_body_and_adapter_cleanup_precedes_receipt() 
         .unwrap()
         .1;
     for alternative in schedule.alternatives() {
-        assert!(alternative.before().iter().any(|step| matches!(step, Step::Resource(ResourceStep::Invoke { payload, .. }) if payload.disposal() == Disposal::OwnedCapture)));
+        assert!(alternative.before().iter().any(|step| matches!(step.resource(), Some(ResourceStep::Invoke { payload, .. }) if payload.disposal() == Disposal::OwnedCapture)));
         assert!(matches!(alternative.after(), [
             Step::DisposeEnvironment { argument: 0, part: EnvironmentPart::Capture, payload, .. },
-            Step::Resource(ResourceStep::Receive { .. })
-        ] if payload.disposal() == Disposal::OwnedError));
+            Step::Resource(received)
+        ] if payload.disposal() == Disposal::OwnedError && matches!(received.operation(), ResourceStep::Receive { .. })));
     }
     for (&id, body) in program.bodies() {
         for (&at, action) in body.actions() {
@@ -62,13 +62,13 @@ fn invocation_transfers_precede_the_body_and_adapter_cleanup_precedes_receipt() 
                         !alternative
                             .before()
                             .iter()
-                            .any(|s| matches!(s, Step::Resource(ResourceStep::Receive { .. })))
+                            .any(|s| matches!(s.resource(), Some(ResourceStep::Receive { .. })))
                     );
                     assert!(
                         !alternative
                             .after()
                             .iter()
-                            .any(|s| matches!(s, Step::Resource(ResourceStep::Invoke { .. })))
+                            .any(|s| matches!(s.resource(), Some(ResourceStep::Invoke { .. })))
                     );
                 }
             }
@@ -76,7 +76,7 @@ fn invocation_transfers_precede_the_body_and_adapter_cleanup_precedes_receipt() 
     }
     for step in steps(&program) {
         let resource = match step {
-            Step::Resource(step) => Some(step),
+            Step::Resource(step) => Some(step.operation()),
             Step::ScopedReplacement(replacement) => Some(replacement.operation()),
             Step::DisposeEnvironment { .. } => None,
         };
@@ -111,8 +111,8 @@ fn a_consuming_body_keeps_its_partial_cleanup_without_second_adapter_destruction
         .flat_map(lowering::Action::alternatives)
     {
         for step in alternative.before().iter().chain(alternative.after()) {
-            match step {
-                Step::Resource(ResourceStep::Dispose { source, .. })
+            match step.resource() {
+                Some(ResourceStep::Dispose { source, .. })
                     if source.holder()
                         == nocter_checking::value_access::flow::resources::Holder::Local(
                             input.local,
@@ -120,7 +120,7 @@ fn a_consuming_body_keeps_its_partial_cleanup_without_second_adapter_destruction
                 {
                     disposed.push(source);
                 }
-                Step::Resource(ResourceStep::ReleaseContainer { source, .. }) => {
+                Some(ResourceStep::ReleaseContainer { source, .. }) => {
                     released.push(source);
                 }
                 _ => {}
@@ -145,10 +145,9 @@ fn conditional_partial_cleanup_has_distinct_sparse_runtime_conditions() {
         .find(|(_, action)| {
             action.alternatives().len() == 2
                 && action.alternatives().iter().any(|alternative| {
-                    alternative
-                        .after()
-                        .iter()
-                        .any(|s| matches!(s, Step::Resource(ResourceStep::ReleaseContainer { .. })))
+                    alternative.after().iter().any(|s| {
+                        matches!(s.resource(), Some(ResourceStep::ReleaseContainer { .. }))
+                    })
                 })
         })
         .unwrap();
@@ -174,8 +173,8 @@ fn conditional_partial_cleanup_has_distinct_sparse_runtime_conditions() {
         .collect::<Vec<_>>();
     missing_counts.sort_unstable();
     assert_eq!(missing_counts, [0, 1]);
-    assert!(alternatives.iter().any(|a| matches!(a.after(), [Step::Resource(ResourceStep::Dispose { payload, .. })] if payload.disposal() == Disposal::Aggregate)));
-    assert!(alternatives.iter().any(|a| matches!(a.after(), [Step::Resource(ResourceStep::Dispose { payload, .. }), Step::Resource(ResourceStep::ReleaseContainer { .. })] if payload.disposal() == Disposal::OwnedError)));
+    assert!(alternatives.iter().any(|a| matches!(a.after().iter().map(Step::resource).collect::<Vec<_>>().as_slice(), [Some(ResourceStep::Dispose { payload, .. })] if payload.disposal() == Disposal::Aggregate)));
+    assert!(alternatives.iter().any(|a| matches!(a.after().iter().map(Step::resource).collect::<Vec<_>>().as_slice(), [Some(ResourceStep::Dispose { payload, .. }), Some(ResourceStep::ReleaseContainer { .. })] if payload.disposal() == Disposal::OwnedError)));
 }
 
 #[test]
@@ -197,8 +196,13 @@ fn caller_owned_input_moves_before_preparation_but_condition_disposal_follows_re
         .unwrap()
         .1;
     assert!(matches!(
-        prepared.alternatives()[0].before(),
-        [Step::Resource(ResourceStep::Move { .. })]
+        prepared.alternatives()[0]
+            .before()
+            .iter()
+            .map(Step::resource)
+            .collect::<Vec<_>>()
+            .as_slice(),
+        [Some(ResourceStep::Move { .. })]
     ));
     let condition = body
         .actions()
@@ -209,8 +213,13 @@ fn caller_owned_input_moves_before_preparation_but_condition_disposal_follows_re
     for alternative in condition.alternatives() {
         assert!(alternative.before().is_empty());
         assert!(matches!(
-            alternative.after(),
-            [Step::Resource(ResourceStep::Dispose { .. })]
+            alternative
+                .after()
+                .iter()
+                .map(Step::resource)
+                .collect::<Vec<_>>()
+                .as_slice(),
+            [Some(ResourceStep::Dispose { .. })]
         ));
     }
 }
@@ -246,11 +255,13 @@ fn interrupted_preparation_has_no_call_or_adapter_completion_schedule() {
     assert!(instance.prepared(call, 0).is_some());
     assert!(instance.prepared(call, 1).is_none());
     assert_eq!(program.instance_program().instances().len(), 1);
-    assert!(!steps(&program).any(|s| matches!(
-        s,
-        Step::DisposeEnvironment { .. }
-            | Step::Resource(ResourceStep::Invoke { .. } | ResourceStep::Receive { .. })
-    )));
+    assert!(
+        !steps(&program).any(|s| matches!(s, Step::DisposeEnvironment { .. })
+            || matches!(
+                s.resource(),
+                Some(ResourceStep::Invoke { .. } | ResourceStep::Receive { .. })
+            ))
+    );
     assert!(program.bodies()[&id].actions().keys().any(|&at| matches!(
         operation(&program, id, at),
         Operation::CancelCall { prepared: 1, .. }
@@ -365,8 +376,8 @@ fn a_consuming_adapter_destroys_the_live_post_update_environment() {
     for alternative in action.alternatives() {
         assert!(matches!(alternative.after(), [
             Step::DisposeEnvironment { argument: 0, part: EnvironmentPart::Capture, payload, .. },
-            Step::Resource(ResourceStep::Receive { .. })
-        ] if payload.disposal() == Disposal::OwnedError));
+            Step::Resource(received)
+        ] if payload.disposal() == Disposal::OwnedError && matches!(received.operation(), ResourceStep::Receive { .. })));
     }
     assert!(steps(&program).any(|step| matches!(step, Step::ScopedReplacement(_))));
 }
@@ -390,8 +401,8 @@ fn a_lent_callable_temporary_is_destroyed_once_by_its_caller_after_the_edit_call
         for alternative in action.alternatives() {
             for (after, steps) in [(false, alternative.before()), (true, alternative.after())] {
                 for step in steps {
-                    match step {
-                        Step::Resource(ResourceStep::Move {
+                    match step.resource() {
+                        Some(ResourceStep::Move {
                             destination,
                             payload,
                             ..
@@ -401,7 +412,7 @@ fn a_lent_callable_temporary_is_destroyed_once_by_its_caller_after_the_edit_call
                             assert_eq!(payload.disposal(), Disposal::OwnedCapture);
                             transfers += 1;
                         }
-                        Step::Resource(ResourceStep::Dispose { source, payload })
+                        Some(ResourceStep::Dispose { source, payload })
                             if source.holder() == temporary =>
                         {
                             assert_eq!(at.point, call_at.point);

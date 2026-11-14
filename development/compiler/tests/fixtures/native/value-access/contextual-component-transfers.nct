@@ -1,0 +1,33 @@
+struct Item { value: i32 }
+
+const func identity(value: i32): i32 { value }
+
+const func owning(value: i32): func(i32): i32 {
+    let item = Item { value: value }
+    (item^; amount: i32): i32 { item.value + amount }
+}
+
+const func tuple(take callback: func(i32): i32, value: i32): i32 {
+    let pair = (callback^, value)
+    read sibling = pair.1
+    let action = pair.0^
+    action(sibling)
+}
+
+const func array(take callback: func(i32): i32, value: i32): i32 {
+    let values = [callback^]
+    let action = values[0]^
+    action(value)
+}
+
+const func calculate(): i32 {
+    let first = tuple(identity, 42)
+    let held = owning(2)
+    let second = tuple(held^, 40)
+    let other = owning(4)
+    let third = array(other^, 38)
+    if first == 42 && second == 42 && third == 42 { 42 } else { 0 }
+}
+
+const ANSWER: i32 = calculate()
+func run(): i32 { if ANSWER == 42 { calculate() } else { 0 } }

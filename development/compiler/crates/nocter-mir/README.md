@@ -81,7 +81,10 @@ scoped replacement rejects. It retains same-schema virtual and original containi
 `GeometryConstraint` metadata at the original action. Containing selections must match their slots
 and paths on both sides. Constraints grant no resource phase or initialized value; integrity checks
 reject absent action/data identities. The Machine layout authority proves their physical compatibility.
-Other resource-step partial roots currently require independently closed data. Changing geometry,
+Dependent resource-source projections consume their original step's retained containing data;
+independent roots keep their declaration-closed representation. Array remainder exclusions use
+the same selected container root as the cleanup operation. Partial destinations without an exact
+receipt still require independently closed or bound-input data. Changing geometry,
 relocation and general carrier coherence remain separate qualification boundaries for changing
 captured representations. The [checking owner](../nocter-checking/README.md#context-bound-callable-captures)
 defines the qualified ordinary-source capture scope.

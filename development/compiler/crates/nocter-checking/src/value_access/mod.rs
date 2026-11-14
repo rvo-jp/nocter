@@ -29,7 +29,7 @@ pub use results::{
     ValueSourceNode, ValueSourceRead, ValueSourceSelection, ValueSourceSlot, ValueSources,
 };
 pub use results::{ReferentCarrierContracts, ReferentCarrierData};
-pub use results::{ResourceDataFailure, ResourceDataProjection};
+pub use results::{ResourceDataFailure, ResourceDataProjection, ResourceDataStep};
 pub use results::{ValueData, ValueDataFailure};
 mod selection;
 mod staged;
