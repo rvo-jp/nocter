@@ -541,6 +541,16 @@ return slots, and plan result use this authority under the shared plan-work quot
 initial contract preparation retains the ordinary plan-work diagnostic rather than becoming an
 integrity failure.
 
+`Unit::instantiate_completed_input_data` selects an original input's final metadata through every
+retained normal-completion boundary in the same budgeted fixed point as stored values. Input roles
+and schemas share validation with the entry query. Different final contexts remain unresolved;
+there is no first-return, entry-frame or preparation-snapshot fallback. A body with no normal
+completion supplies no final-input key, even for an independently closed schema. Failed work
+publishes no partial result and can retry. Internally, known absence of normal completion contributes
+an empty fact, separately from an unavailable context. Source identities can survive retirement as metadata,
+so this grants no initialized input, caller write, actual return, const permission or resource phase.
+Projecting those completed contexts into caller writes remains separate work.
+
 `Unit::instantiate_value_data_map` owns ordinary operand and stored-definition metadata. It reads
 the original source graph's operand selections and final local/expression writes at each reachable
 action, using typed schemas and the shared source-value query under one metadata quota. Intermediate

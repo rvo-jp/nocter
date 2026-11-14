@@ -5,7 +5,8 @@ use nocter_declarations::value_access::{
     CodeInstanceKey, ConcreteWitness, DataInstanceKey, FunctionWitness, Program,
 };
 use nocter_model::{
-    TypeId, ValueApplication, ValueCode, ValueFunctionOrigin as Origin, ValueInvocation, ValuePath,
+    AccessLocalId, TypeId, ValueApplication, ValueCode, ValueFunctionOrigin as Origin,
+    ValueInvocation, ValuePath,
 };
 use std::collections::{BTreeMap, BTreeSet, btree_map::Entry as MapEntry};
 mod creations;
@@ -30,6 +31,7 @@ enum Key {
     Value(CodeInstanceKey, super::ValueSourceId, ValuePath<()>),
     Data(CodeInstanceKey, super::ValueSourceId, ValuePath<()>, TypeId),
     Stored(CodeInstanceKey, super::ValueSourceSelection, TypeId),
+    CompletedInput(CodeInstanceKey, AccessLocalId, ValuePath<()>, TypeId),
 }
 #[derive(Clone, Debug, Eq, PartialEq, Default)]
 enum Fact {
@@ -130,6 +132,24 @@ pub(in crate::value_access) fn data(
     }
 }
 
+pub(in crate::value_access) fn completed_input(
+    program: &Program,
+    evidence: &Evidence,
+    frame: &CodeInstanceKey,
+    local: AccessLocalId,
+    source: TypeId,
+    work: &mut WorkBudget,
+) -> Result<DataInstanceKey, InstantiationFailure> {
+    match Query::new(program, evidence, work).solve(&Key::CompletedInput(
+        frame.clone(),
+        local,
+        ValuePath::default(),
+        source,
+    ))? {
+        Fact::Data(data) => Ok(data),
+        _ => Err(InstantiationFailure::Unresolved),
+    }
+}
 pub(in crate::value_access) fn stored(
     program: &Program,
     evidence: &Evidence,
@@ -269,6 +289,9 @@ impl<'a, 'work> Query<'a, 'work> {
             }
             Key::Stored(frame, selected, target) => {
                 self.source_stored_data(key, frame, selected, *target)
+            }
+            Key::CompletedInput(frame, local, path, target) => {
+                self.source_completed_input(key, frame, *local, path, *target)
             }
         }
     }

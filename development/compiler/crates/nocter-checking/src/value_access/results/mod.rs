@@ -4,15 +4,16 @@ mod carriers;
 mod channels;
 pub(super) use carriers::instantiate as instantiate_referent_carrier_data;
 pub use carriers::{ReferentCarrierContracts, ReferentCarrierData};
+pub(super) use channels::completed_input as instantiate_completed_input_data;
 pub(super) use channels::instantiate_prepared_data;
 pub use channels::{PreparedData, PreparedDataFailure};
 pub(super) use channels::{input as instantiate_input_data, result as instantiate_result_contract};
 mod instantiation;
 pub use instantiation::InstantiationFailure;
 pub(super) use instantiation::{
-    call as instantiate_invocation, data as instantiate_value_data,
-    result as instantiate_result_data, stored as instantiate_stored_data,
-    value as instantiate_value,
+    call as instantiate_invocation, completed_input as instantiate_source_completed_input_data,
+    data as instantiate_value_data, result as instantiate_result_data,
+    stored as instantiate_stored_data, value as instantiate_value,
 };
 mod producers;
 pub use producers::{CreationRecipe, ProducerShape};

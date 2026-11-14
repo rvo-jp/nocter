@@ -285,6 +285,30 @@ impl Unit {
             work,
         )
     }
+    /// Resolve one original input's context across all retained normal-completion boundaries.
+    /// Retired source identities remain metadata: this proves no surviving input, caller write,
+    /// resource phase or actual return. Preparation-time snapshots are not a completion fallback.
+    /// # Errors
+    /// Rejects non-input locals, absent completions, ambiguous contexts and exhausted metadata work.
+    pub fn instantiate_completed_input_data(
+        &self,
+        frame: &nocter_declarations::value_access::CodeInstanceKey,
+        local: nocter_model::AccessLocalId,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<nocter_declarations::value_access::DataInstanceKey, super::InstantiationFailure>
+    {
+        let body = self
+            .code_body(frame.code())
+            .ok_or(super::InstantiationFailure::Unresolved)?;
+        super::results::instantiate_completed_input_data(
+            &self.program,
+            &self.result_evidence,
+            body,
+            frame,
+            local,
+            work,
+        )
+    }
     /// Resolve containing contracts only when requested, preserving each original source/path pair.
     /// Metadata grants no initialized owner, physical backing, geometry or resource-phase receipt.
     /// # Errors

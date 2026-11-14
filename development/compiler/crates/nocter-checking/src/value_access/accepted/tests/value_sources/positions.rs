@@ -681,6 +681,11 @@ fn contextual_body_input_metadata_uses_one_budget_and_allows_retry() {
         unit.instantiate_result_contract(&frame, &mut work).unwrap(),
         expected
     );
+    assert_eq!(
+        unit.instantiate_completed_input_data(&frame, input, &mut work)
+            .unwrap(),
+        expected
+    );
     let roots = unit.value_sources(owner).unwrap().flow().unwrap();
     let mut occurrences = 0;
     for ((at, referent), _) in roots.roots() {
@@ -703,6 +708,54 @@ fn contextual_body_input_metadata_uses_one_budget_and_allows_retry() {
         occurrences += 1;
     }
     assert!(occurrences > 0);
+}
+
+#[test]
+fn completed_input_contracts_require_original_input_roles_and_normal_completions() {
+    let unit = accepted(
+        "func done(edit value: i32): void { let unrelated = 1\nvalue = 42 }\nfunc stop(edit value: i32): void { loop {} }\nfunc run(): void {}",
+    );
+    for name in ["done", "stop"] {
+        let owner = code(&unit, name);
+        let frame = unit.program().bind_code(owner, []).unwrap();
+        let body = unit.code_body(owner).unwrap().typed().body();
+        let input = body.inputs().explicit()[0].local;
+        let data = body.locals().get(input).unwrap().data;
+        let mut work = nocter_constant_evaluation::state::WorkBudget::new(
+            std::num::NonZeroU64::new(10_000).unwrap(),
+        );
+        let actual = unit.instantiate_completed_input_data(&frame, input, &mut work);
+        if name == "stop" {
+            assert_eq!(
+                actual,
+                Err(InstantiationFailure::Unresolved),
+                "a closed schema cannot invent a normal completion"
+            );
+            continue;
+        }
+        assert_eq!(
+            actual.unwrap(),
+            unit.program().instantiate_closed_data(data).unwrap()
+        );
+        let local = body
+            .locals()
+            .iter()
+            .find(|(_, local)| local.origin == crate::value_access::ir::LocalOrigin::Binding)
+            .unwrap()
+            .0;
+        assert_eq!(body.locals().get(local).unwrap().data, data);
+        let mut tiny = nocter_constant_evaluation::state::WorkBudget::new(
+            std::num::NonZeroU64::new(1).unwrap(),
+        );
+        assert_eq!(
+            unit.instantiate_completed_input_data(&frame, local, &mut tiny),
+            Err(InstantiationFailure::Unresolved)
+        );
+        assert!(
+            tiny.step().is_ok(),
+            "role validation precedes metadata solving"
+        );
+    }
 }
 
 #[test]

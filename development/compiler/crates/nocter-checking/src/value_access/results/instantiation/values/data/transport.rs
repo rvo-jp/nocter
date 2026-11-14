@@ -6,6 +6,39 @@ use super::{
 };
 
 impl Query<'_, '_> {
+    pub(in super::super::super) fn source_completed_input(
+        &mut self,
+        owner: &Key,
+        frame: &CodeInstanceKey,
+        local: nocter_model::AccessLocalId,
+        path: &ValuePath<()>,
+        target: TypeId,
+    ) -> Result {
+        let Some(boundaries) = self
+            .evidence
+            .value_sources(frame.code())
+            .and_then(|graph| graph.flow())
+            .map(|flow| flow.completions().collect::<Vec<_>>())
+        else {
+            return Ok(Fact::Unavailable);
+        };
+        let mut fact = Fact::Empty;
+        for boundary in boundaries {
+            fact = fact.join(self.read(
+                owner,
+                Key::Stored(
+                    frame.clone(),
+                    crate::value_access::ValueSourceSelection {
+                        boundary,
+                        slot: crate::value_access::ValueSourceSlot::Local(local),
+                        path: path.clone(),
+                    },
+                    target,
+                ),
+            )?);
+        }
+        Ok(fact)
+    }
     pub(in super::super::super) fn source_stored_data(
         &mut self,
         owner: &Key,

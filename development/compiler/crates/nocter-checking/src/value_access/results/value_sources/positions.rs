@@ -64,6 +64,7 @@ impl ValueSourceFlow {
         inputs: State,
         predecessors: BTreeMap<AccessFlowPointId, Vec<AccessFlowPointId>>,
         writes: BTreeMap<(AccessFlowPointId, ValueSourceSlot), Vec<(usize, ValueSourceId)>>,
+        returns: BTreeSet<AccessFlowPointId>,
     ) -> Self {
         Self {
             entry,
@@ -74,7 +75,7 @@ impl ValueSourceFlow {
             reads: BTreeMap::new(),
             referents: BTreeMap::new(),
             roots: BTreeMap::new(),
-            returns: BTreeSet::new(),
+            returns,
         }
     }
     /// Original normal-return boundaries, after each return point's complete action sequence.
