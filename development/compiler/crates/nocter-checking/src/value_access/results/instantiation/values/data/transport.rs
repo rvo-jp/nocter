@@ -161,14 +161,14 @@ impl Query<'_, '_> {
                     self.source_data_components(owner, frame, value, path, target)
                 }
                 ReplacementPath::Supplied(_) => {
-                    self.source_call_write_data(owner, frame, kind, path, target)
+                    self.source_call_write_data(owner, frame, value, kind, path, target)
                 }
             },
             // Optional state and externally dependent whole-input writes remain unqualified.
             _ => Ok(Fact::Unavailable),
         }
     }
-    pub(super) fn source_data_components(
+    pub(in super::super) fn source_data_components(
         &mut self,
         owner: &Key,
         frame: &CodeInstanceKey,

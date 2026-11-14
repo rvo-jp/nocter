@@ -1,0 +1,23 @@
+struct Item { value: i32 }
+const func addition(value: i32): func(i32): i32 {
+    let item = Item { value: value }
+    (item^; amount: i32): i32 { item.value + amount }
+}
+const func wrap(take callback: func(i32): i32): func(i32): i32 {
+    (callback^; amount: i32): i32 { callback(amount) }
+}
+const func update(edit pair: (func(i32): i32, i32)): i32 {
+    pair.1 += 1
+    pair.0(pair.1)
+}
+const func forward(edit pair: (func(i32): i32, i32)): i32 { update(pair) }
+const func calculate(): i32 {
+    var pair = (wrap(addition(20)), 21)
+    let first = update(pair)
+    let seen = pair.0(pair.1)
+    let next = forward(pair)
+    let after = pair.0(pair.1)
+    if first == 42 && seen == 42 && next == 43 && after == 43 && pair.1 == 23 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { if ANSWER == 42 { calculate() } else { 0 } }

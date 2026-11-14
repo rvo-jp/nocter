@@ -4,6 +4,129 @@ use super::*;
 use nocter_constant_evaluation::state::Value;
 
 #[test]
+fn compound_edits_preserve_received_contexts_and_caller_completion() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-compound-edits.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Value::integer(42));
+}
+
+#[test]
+fn compound_edits_require_writable_storage_and_preserve_live_reference_conflicts() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-compound-edits.nct"
+    ));
+    for (index, changed) in [
+        source.replace("var pair =", "let pair ="),
+        source.replace(
+            "let first = update(pair)",
+            "read held = pair.1\nlet first = update(pair)\nlet _ = held",
+        ),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        assert_ne!(changed, source);
+        let (sources, tree) = input(&changed);
+        let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+        assert!(
+            matches!(
+                (index, &failure),
+                (0, SourceFailure::Checking(Failure::Body { .. }))
+                    | (1, SourceFailure::Checking(Failure::Flow { .. }))
+            ),
+            "{failure:?}"
+        );
+    }
+}
+
+#[test]
+fn completed_compound_input_reprojection_cannot_substitute_another_static_callable() {
+    use crate::value_access::{
+        ArgumentAction, ExpressionKind, Referent, ValueSourceBoundary, ValueSourceSelection,
+        ValueSourceSlot,
+    };
+    use nocter_declarations::value_access::PayloadSchema;
+    use nocter_model::{ValueField, ValueFunctionOrigin};
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-compound-edits.nct"
+    ));
+    let source = source.replace(
+        "let first = update(pair)",
+        "let other = (addition(20), 21)\nlet first = update(pair)",
+    );
+    let unit = accepted(&source);
+    let code = |name| {
+        unit.program()
+            .resolve(unit.program().symbols().get(name).unwrap())
+            .unwrap()
+    };
+    let query = named(&unit, "calculate");
+    let body = query.typed().body();
+    let frame = unit
+        .program()
+        .bind_code(code("calculate").into(), [])
+        .unwrap();
+    let mut selected = None;
+    for (point, block) in query.graph().points().iter() {
+        for (action, event) in block.actions.iter().enumerate() {
+            let Operation::CommitCall(call) = event.operation else {
+                continue;
+            };
+            let ExpressionKind::Call {
+                target: ValueFunctionOrigin::Declaration(target),
+                arguments,
+                ..
+            } = &body.expressions().get(call).unwrap().kind
+            else {
+                continue;
+            };
+            if *target != code("update") {
+                continue;
+            }
+            let ArgumentAction::ReserveUpdate(Referent::Place(place)) = &arguments[0].action else {
+                panic!("original edit argument")
+            };
+            let local = body.places().get(*place).unwrap().local;
+            selected = Some((
+                ValueSourceSelection {
+                    boundary: ValueSourceBoundary {
+                        point,
+                        action: action + 1,
+                    },
+                    slot: ValueSourceSlot::Local(local),
+                    path: nocter_model::ValuePath::default(),
+                },
+                body.locals().get(local).unwrap().data,
+            ));
+        }
+    }
+    let (selected, actual) = selected.unwrap();
+    let wrong = body.locals().iter().find_map(|(_, local)| {
+        let leaf = unit.program().component(local.data, ValueField::Tuple(0))?.data;
+        let PayloadSchema::Function(witness) = unit.program().data_schema(leaf)? else { return None; };
+        matches!(witness.origin, ValueFunctionOrigin::Closure(closure) if closure.owner.source_owner() == code("addition")).then_some(local.data)
+    }).unwrap();
+    assert_ne!(actual, wrong);
+    let mut work = nocter_constant_evaluation::state::WorkBudget::new(
+        std::num::NonZeroU64::new(1_000_000).unwrap(),
+    );
+    assert_eq!(
+        unit.instantiate_stored_data(&frame, &selected, actual, &mut work)
+            .unwrap()
+            .data(),
+        actual
+    );
+    assert_eq!(
+        unit.instantiate_stored_data(&frame, &selected, wrong, &mut work),
+        Err(crate::value_access::InstantiationFailure::Unresolved)
+    );
+}
+
+#[test]
 fn compound_inputs_preserve_each_received_callable_context() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

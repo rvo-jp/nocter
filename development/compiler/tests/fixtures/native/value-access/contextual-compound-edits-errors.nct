@@ -1,0 +1,24 @@
+primitive func create_failure(code: str, message: str): error
+primitive func context_error(take value: error, message: str): error
+
+func addition(value: i32): func(i32): i32 {
+    let reason = context_error(create_failure("addition", "leaf"), "outer")
+    (reason^, value; amount: i32): i32 { value + amount }
+}
+func wrap(take callback: func(i32): i32): func(i32): i32 {
+    (callback^; amount: i32): i32 { callback(amount) }
+}
+func update(edit pair: (func(i32): i32, i32)): i32 {
+    pair.1 += 1
+    pair.0(pair.1)
+}
+func forward(edit pair: (func(i32): i32, i32)): i32 { update(pair) }
+func calculate(): i32 {
+    var pair = (wrap(addition(20)), 21)
+    let first = update(pair)
+    let seen = pair.0(pair.1)
+    let next = forward(pair)
+    let after = pair.0(pair.1)
+    if first == 42 && seen == 42 && next == 43 && after == 43 && pair.1 == 23 { 42 } else { 0 }
+}
+func run(): i32 { calculate() }

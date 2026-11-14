@@ -1753,6 +1753,13 @@ values. The matching error fixture executes actual received-container and discar
 Missing transfers, moved-source reuse, runtime-only invocation and changed header contracts reject.
 Higher-order component signatures, callable record fields and compound callable results remain
 separate admission boundaries.
+`contextual-compound-edits.nct` additionally qualifies scalar updates through edit tuple inputs,
+forwarded updates and caller reads after completion while the callable context remains unchanged.
+The matching error fixture executes actual cleanup after both updates. Receiving/caller descriptors
+are reconciled from original completed-input components, preserving may-write footprints and weak
+joins. An abstract signature match cannot substitute another static callable. Immutable storage
+and overlapping still-used references continue to reject. Changing callable contexts and general
+external carrier geometry remain separate qualification boundaries.
 
 An owned callable input can enter an explicit captured environment without a declaration-closed
 representation. Its descriptor retains callable dependencies; the checked transfer supplies the

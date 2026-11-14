@@ -2,6 +2,26 @@
 use super::*;
 
 #[test]
+fn private_compound_edits_preserve_caller_values_after_completion() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-compound-edits.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "compound-edits", 42);
+}
+
+#[test]
+fn private_compound_edits_keep_actual_error_graph_cleanup() {
+    let machine = trusted_error_machine(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-compound-edits-errors.nct"
+    )));
+    let package = TempPackage::new();
+    execute_native_status(&image(&machine), &package.0, "compound-edit-errors", 42);
+}
+
+#[test]
 fn private_compound_inputs_keep_distinct_received_callable_contexts() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

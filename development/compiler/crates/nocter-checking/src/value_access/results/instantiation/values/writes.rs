@@ -58,6 +58,7 @@ impl Query<'_, '_> {
         &mut self,
         owner: &Key,
         frame: &CodeInstanceKey,
+        value: super::ValueSourceId,
         kind: &ValueSource,
         selected: &ValuePath<()>,
         target: TypeId,
@@ -77,6 +78,15 @@ impl Query<'_, '_> {
         };
         let after = match self.completed_explicit_input(owner, frame, *call, *argument, &tail)? {
             Fact::Data(data) if data.data() == target => Fact::Data(data),
+            Fact::Data(data)
+                if self.program.matches_compound_input(data.data(), target)
+                    || self.program.matches_compound_input(target, data.data()) =>
+            {
+                // Completion belongs to the receiving input descriptor. Preserve that original
+                // channel, then reproject its actual components into the caller's descriptor.
+                // Leaf instantiation still checks exact code/contracts; no write is weakened.
+                self.source_data_components(owner, frame, value, selected, target)?
+            }
             Fact::Empty => Fact::Empty,
             _ => Fact::Unavailable,
         };
