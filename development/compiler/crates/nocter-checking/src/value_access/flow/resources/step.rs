@@ -86,15 +86,33 @@ pub enum Step<P = Payload> {
         payload: P,
     },
 }
+/// The value occurrence supplying a step's payload, without an access or initialization grant.
+/// A destination is the new value defined by the step; a source retains the original selected place.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PayloadSite<'a> {
+    Source(&'a Place),
+    Destination(Holder),
+}
+
 impl<P> Step<P> {
     /// Project payload obligations without selecting another operation or changing place identity.
     /// # Errors
     /// Returns the supplied projection's error without publishing a partly transformed step.
-    // One exhaustive structural transform keeps every operation and its payload fields together.
-    #[allow(clippy::too_many_lines)]
     pub fn try_map_payloads<E, Q>(
         &self,
         mut map: impl FnMut(&P) -> std::result::Result<Q, E>,
+    ) -> std::result::Result<Step<Q>, E> {
+        self.try_map_payloads_at(|_, payload| map(payload))
+    }
+    /// Project each obligation together with its exact source or newly defined destination.
+    /// The caller retains action/step order; this does not select a state boundary or access proof.
+    /// # Errors
+    /// Returns the projection's error without publishing a partly transformed step.
+    // One exhaustive structural transform keeps operation identities and both APIs consistent.
+    #[allow(clippy::too_many_lines)]
+    pub fn try_map_payloads_at<E, Q>(
+        &self,
+        mut map: impl FnMut(PayloadSite<'_>, &P) -> std::result::Result<Q, E>,
     ) -> std::result::Result<Step<Q>, E> {
         Ok(match self {
             Self::Capture {
@@ -105,8 +123,8 @@ impl<P> Step<P> {
             } => Step::Capture {
                 source: source.clone(),
                 destination: *destination,
-                environment: map(environment)?,
-                payload: map(payload)?,
+                environment: map(PayloadSite::Source(source), environment)?,
+                payload: map(PayloadSite::Destination(*destination), payload)?,
             },
             Self::AdaptFunction {
                 source,
@@ -116,8 +134,8 @@ impl<P> Step<P> {
             } => Step::AdaptFunction {
                 source: source.clone(),
                 destination: *destination,
-                from: map(from)?,
-                payload: map(payload)?,
+                from: map(PayloadSite::Source(source), from)?,
+                payload: map(PayloadSite::Destination(*destination), payload)?,
             },
             Self::Assemble {
                 destination,
@@ -125,7 +143,7 @@ impl<P> Step<P> {
                 fields,
             } => Step::Assemble {
                 destination: *destination,
-                payload: map(payload)?,
+                payload: map(PayloadSite::Destination(*destination), payload)?,
                 fields: fields.clone(),
             },
             Self::Construct {
@@ -133,7 +151,7 @@ impl<P> Step<P> {
                 payload,
             } => Step::Construct {
                 destination: *destination,
-                payload: map(payload)?,
+                payload: map(PayloadSite::Destination(*destination), payload)?,
             },
             Self::Receive {
                 call,
@@ -142,7 +160,7 @@ impl<P> Step<P> {
             } => Step::Receive {
                 call: *call,
                 destination: *destination,
-                payload: map(payload)?,
+                payload: map(PayloadSite::Destination(*destination), payload)?,
             },
             Self::Move {
                 source,
@@ -151,7 +169,7 @@ impl<P> Step<P> {
             } => Step::Move {
                 source: source.clone(),
                 destination: destination.clone(),
-                payload: map(payload)?,
+                payload: map(PayloadSite::Source(source), payload)?,
             },
             Self::MoveArrayElement {
                 array,
@@ -162,7 +180,10 @@ impl<P> Step<P> {
                 array: array.clone(),
                 index: *index,
                 destination: *destination,
-                payload: map(payload)?,
+                payload: map(
+                    PayloadSite::Source(&array.project_retained(*index)),
+                    payload,
+                )?,
             },
             Self::ConsolidateArrayPrefix {
                 array,
@@ -170,12 +191,12 @@ impl<P> Step<P> {
                 frontier,
             } => Step::ConsolidateArrayPrefix {
                 array: array.clone(),
-                payload: map(payload)?,
+                payload: map(PayloadSite::Source(array), payload)?,
                 frontier: *frontier,
             },
             Self::Dispose { source, payload } => Step::Dispose {
                 source: source.clone(),
-                payload: map(payload)?,
+                payload: map(PayloadSite::Source(source), payload)?,
             },
             Self::DisposeArrayRemainder {
                 source,
@@ -183,7 +204,7 @@ impl<P> Step<P> {
                 missing,
             } => Step::DisposeArrayRemainder {
                 source: source.clone(),
-                payload: map(payload)?,
+                payload: map(PayloadSite::Source(source), payload)?,
                 missing: missing.clone(),
             },
             Self::DisposeArrayElements {
@@ -192,12 +213,12 @@ impl<P> Step<P> {
                 range,
             } => Step::DisposeArrayElements {
                 source: source.clone(),
-                payload: map(payload)?,
+                payload: map(PayloadSite::Source(source), payload)?,
                 range: *range,
             },
             Self::ReleaseContainer { source, payload } => Step::ReleaseContainer {
                 source: source.clone(),
-                payload: map(payload)?,
+                payload: map(PayloadSite::Source(source), payload)?,
             },
             Self::Invoke {
                 source,
@@ -208,7 +229,7 @@ impl<P> Step<P> {
                 source: source.clone(),
                 call: *call,
                 index: *index,
-                payload: map(payload)?,
+                payload: map(PayloadSite::Source(source), payload)?,
             },
             Self::ReplaceReferent {
                 destination,
@@ -217,7 +238,7 @@ impl<P> Step<P> {
             } => Step::ReplaceReferent {
                 destination: destination.clone(),
                 source: source.clone(),
-                payload: map(payload)?,
+                payload: map(PayloadSite::Source(source), payload)?,
             },
         })
     }

@@ -33,7 +33,13 @@ unqualified call writes unresolved.
 Value-data queries now preserve returned carriers, selected components and replacement snapshots
 through that same graph. Next pair exact value references with receiving, representation and
 resource obligations at their original action/phase; a payload's TypeId alone cannot select its
-context. Preserve nominal schemas, strict alternatives, sparse arrays and deterministic retry.
+context. The exhaustive resource-step payload transform now retains source-place versus new
+destination-holder roles. Next retain sparse value definitions and source reads at original action
+boundaries and compose them with the existing ordered resource transitions. Assignment cleanup
+refers to the old value even though the semantic action also defines a new local version; call
+cleanup may need the post-update value. Do not replace either with a blanket before/after TypeId
+lookup, downstream step-name phase inference or duplicate ownership analysis. Preserve nominal
+schemas, strict alternatives, sparse arrays and deterministic retry.
 
 Carry the resulting exact keys into ordinary body data selection, receiving and cleanup rather
 than rebuilding them from a per-frame TypeId map. Preserve shared schemas, sparse loops and

@@ -737,6 +737,14 @@ snapshots additionally retain the ownership state between the before/after phase
 can project bit updates from actual ledger states without replaying source initialization rules.
 `resources::Step<P>` owns one operation vocabulary and an exhaustive payload transform for both
 checked and instantiated obligations; projection preserves selected operations and places.
+`Step::try_map_payloads_at` supplies each obligation's `PayloadSite`: its selected source place or
+new destination holder. Capture and invocation-view adapters retain separate environment/source
+and callable/destination roles. Array transfers identify the original retained element, not the
+whole array. The type-only convenience transform delegates to this same exhaustive operation
+mapping. A site grants no availability or bounds proof and does not choose an operation phase.
+Consumers must pair it with the retained transition order: replacing a local does not make its old
+cleanup refer to the new value. Source/phase provenance and occurrence-specific lifecycle transport
+remain separate integration obligations.
 `resources::Payload::instantiate` binds an existing logical schema to the declaration-owned
 `DataInstanceKey`, preserving the actual callable representation and nested captured context.
 `InstantiatedPayload` retains that complete key with its concrete root cleanup obligation. Its

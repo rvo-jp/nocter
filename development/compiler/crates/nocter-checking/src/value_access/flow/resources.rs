@@ -132,7 +132,7 @@ impl Payload {
     }
 }
 mod step;
-pub use step::Step;
+pub use step::{PayloadSite, Step};
 
 /// Exact owning-container presence and sparse missing selections at one operation boundary.
 /// This is a checked guard projection, not an access grant or a physical drop-flag layout.

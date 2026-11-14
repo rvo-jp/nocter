@@ -73,6 +73,51 @@ fn extract(state: &mut State, typed: &TypedQuery, index: RetainedIndex) -> Vec<S
         .unwrap();
     steps
 }
+
+#[test]
+fn payload_mapping_of_an_array_transfer_retains_the_selected_element_and_original_index() {
+    let unit = unit();
+    let typed = query(&unit, "work");
+    let index = indices(typed)[0];
+    let array = index.array(typed).unwrap();
+    let step = Step::MoveArrayElement {
+        array: array.clone(),
+        index,
+        destination: Holder::Return,
+        payload: 7,
+    };
+    let projected = step
+        .try_map_payloads_at::<(), _>(|site, _| {
+            let PayloadSite::Source(place) = site else {
+                panic!("existing array element")
+            };
+            assert_eq!(place.holder(), array.holder());
+            assert_eq!(
+                &place.fields().fields()[..array.fields().fields().len()],
+                array.fields().fields()
+            );
+            assert_eq!(
+                place.fields().fields().last(),
+                Some(&nocter_model::ValueProjection::Array(Index::Retained(
+                    index
+                )))
+            );
+            Ok(place.clone())
+        })
+        .unwrap();
+    let Step::MoveArrayElement {
+        array: original,
+        index: retained,
+        payload,
+        ..
+    } = projected
+    else {
+        panic!("array transfer")
+    };
+    assert_eq!(original, array);
+    assert_eq!(retained, index);
+    assert_ne!(payload, array);
+}
 #[test]
 fn snapshot_and_hole_commit_together_and_outlive_the_operand_frame() {
     let unit = unit();
