@@ -44,6 +44,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [ ] Close carrier representation coherence under the
   [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances)
   before admitting context-changing writes and retained sibling references.
+- [ ] Preserve guarded carrier source identity in the original-value graph before integrating
+  evaluator occurrence maps. A tag assertion retains the whole carrier; payload selection and
+  executable availability remain separate obligations.
 
 Qualify the same lexical closure with different captured callbacks before and after forwarding
 it with another instance, including safe/unsafe ordinary source, conditional const admission,

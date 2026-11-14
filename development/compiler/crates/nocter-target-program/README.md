@@ -115,13 +115,10 @@ context, including when reached through a formal witness. Transitive components 
 into the body's source-ID map; the contextual schema graph remains the common projection authority.
 Source-selected moves, reservations and snapshots remain unchanged after concrete projection.
 
-`Instance::operand` and `Instance::definition` retain exact data at original source actions. The
-former consumes the source graph's selected operand reads; the latter consumes its final writes
-to expression and local slots. Repeated intermediate writes within one action have only their
-final stored definition, and no new action or resource phase is inferred. The original typed body
-supplies each requested schema; the shared source-value query resolves its complete data key under
-the same instance work quota. Unproduced contracts supply no payload, incompatible contexts reject,
-and storage interns the actual keys without changing source ownership or granting materialization.
+`Instance::operand` and `Instance::definition` retain checking's read-only `ValueData` from
+[`Unit::instantiate_value_data_map`](../nocter-checking/README.md#shared-flow-access-and-resource-validation).
+This layer does not traverse source definitions or select their schemas again. Storage interns the
+actual keys without changing source ownership or granting materialization.
 
 `Instance::input` retains the checking-selected payload for each existing input local; the typed
 body's input layout remains the sole owner of order and operations. `Instance::result` retains its

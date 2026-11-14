@@ -218,6 +218,23 @@ impl Unit {
             work,
         )
     }
+    /// Freeze ordinary operand and stored-definition metadata at original source actions.
+    /// This supplies no runtime value, source access or executable-body receipt.
+    /// # Errors
+    /// Rejects missing bodies, unavailable/ambiguous data and exhausted metadata work.
+    pub fn instantiate_value_data_map(
+        &self,
+        frame: &nocter_declarations::value_access::CodeInstanceKey,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<super::ValueData, super::ValueDataFailure> {
+        super::results::instantiate_value_data_map(
+            &self.program,
+            &self.result_evidence,
+            self.code_body(frame.code()),
+            frame,
+            work,
+        )
+    }
     /// Freeze actual data at original argument preparations, including interrupted prefixes.
     /// This creates no executable callee, invocation effect, owning value or materialization permission.
     /// # Errors

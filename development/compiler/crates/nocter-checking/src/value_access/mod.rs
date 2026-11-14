@@ -29,6 +29,7 @@ pub use results::{
     ValueSourceSelection, ValueSourceSlot, ValueSources,
 };
 pub use results::{ResourceDataFailure, ResourceDataProjection};
+pub use results::{ValueData, ValueDataFailure};
 mod selection;
 mod staged;
 mod statements;

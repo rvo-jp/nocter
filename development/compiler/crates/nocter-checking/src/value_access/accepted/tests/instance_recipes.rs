@@ -45,6 +45,64 @@ fn frame(unit: &Unit) -> CodeInstanceKey {
 }
 
 #[test]
+fn ordinary_data_failure_reports_its_source_action_and_does_not_poison_retry() {
+    use crate::value_access::ValueDataFailure;
+    let unit = accepted(RECURSIVE);
+    let frame = frame(&unit);
+    let Err(ValueDataFailure::Value { at, failure }) =
+        unit.instantiate_value_data_map(&frame, &mut budget(1))
+    else {
+        panic!("expected bounded original value metadata failure");
+    };
+    assert_eq!(failure, InstantiationFailure::WorkLimit);
+    assert!(
+        unit.code_body(frame.code())
+            .unwrap()
+            .graph()
+            .points()
+            .get(at.point)
+            .unwrap()
+            .actions
+            .get(at.action)
+            .is_some()
+    );
+    let values = unit
+        .instantiate_value_data_map(&frame, &mut budget(10_000))
+        .unwrap();
+    assert!(values.payloads().next().is_some());
+    let body = unit.code_body(frame.code()).unwrap();
+    let sources = unit.value_sources(frame.code()).unwrap().flow().unwrap();
+    let mut actual = 0;
+    for ((at, slot), _) in sources.definitions() {
+        let Some(payload) = values.definition(at, slot) else {
+            continue;
+        };
+        let Some(nocter_declarations::value_access::PayloadSchema::Function(_)) =
+            unit.program().data_schema(payload.data())
+        else {
+            continue;
+        };
+        let representation = payload
+            .instance()
+            .function_representation(unit.program())
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            representation.data(),
+            unit.program()
+                .function_data(code(&unit, "first").into())
+                .unwrap()
+        );
+        assert!(body.initialization().reachable(at.point));
+        actual += 1;
+    }
+    assert!(
+        actual > 0,
+        "must qualify actual callable definitions rather than only scalar keys"
+    );
+}
+
+#[test]
 fn concrete_invocation_closes_an_anchored_recursive_result_without_host_recursion() {
     let unit = accepted(RECURSIVE);
     let caller = frame(&unit);

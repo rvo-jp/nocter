@@ -495,6 +495,15 @@ return slots, and plan result use this authority under the shared plan-work quot
 initial contract preparation retains the ordinary plan-work diagnostic rather than becoming an
 integrity failure. Ordinary evaluator expression/local occurrence data remain a separate integration task.
 
+`Unit::instantiate_value_data_map` owns ordinary operand and stored-definition metadata. It reads
+the original source graph's operand selections and final local/expression writes at each reachable
+action, using typed schemas and the shared source-value query under one metadata quota. Intermediate
+writes within one action do not become new phases. Unproduced contracts supply no payload. Failure
+identifies the original action and publishes no partial map; a fresh request can retry. The read-only
+`ValueData` retains actual instantiated payload contracts without adding owners or granting source
+access, materialization or executable-body permission. Target-program occurrence projection consumes
+this map directly; evaluator integration remains open.
+
 `Unit::instantiate_prepared_data` freezes preparation-time data from the original argument-slot
 definitions under one metadata quota. The typed call owns each ordinal and schema. Equal repeated
 preparations share a key; incompatible contexts reject without publishing a partial map. The

@@ -142,6 +142,14 @@ fn a_required_expression_cannot_substitute_its_source_owners_runtime_code() {
     assert_eq!(code.source_owner(), root);
     assert_eq!(code.origin(), None);
     assert!(unit.code_body(code).is_none());
+    let values = projection::values(
+        &unit,
+        &unit.program().bind_code(root.into(), []).unwrap(),
+        &mut nocter_constant_evaluation::state::WorkBudget::new(
+            std::num::NonZeroU64::new(1_000).unwrap(),
+        ),
+    )
+    .unwrap();
     let key = unit.program().bind_code(code, []).unwrap();
     let mut instances = nocter_model::ArenaBuilder::new();
     let root = instances.insert(Instance {
@@ -151,7 +159,7 @@ fn a_required_expression_cannot_substitute_its_source_owners_runtime_code() {
         inputs: BTreeMap::new(),
         result: DataEvidence::Unproduced,
         prepared: BTreeMap::new(),
-        values: projection::Values::default(),
+        values,
     });
     let graph = InstanceProgram {
         unit,

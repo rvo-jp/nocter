@@ -27,6 +27,9 @@ pub use value_sources::{
     ValueSourceNode, ValueSourceRead, ValueSourceSelection, ValueSourceSlot, ValueSources,
 };
 mod unproduced;
+mod values;
+pub(super) use values::values as instantiate_value_data_map;
+pub use values::{ValueData, ValueDataFailure};
 
 use super::{Failure, Query, accepted, flow};
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
