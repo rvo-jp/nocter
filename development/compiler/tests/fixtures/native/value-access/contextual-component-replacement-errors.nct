@@ -1,0 +1,31 @@
+primitive func create_failure(code: str, message: str): error
+primitive func context_error(take value: error, message: str): error
+
+func identity(value: i32): i32 { value }
+
+func addition(value: i32): func(i32): i32 {
+    let reason = context_error(create_failure("addition", "leaf"), "outer")
+    (reason^, value; amount: i32): i32 { value + amount }
+}
+
+func subtraction(value: i32): func(i32): i32 {
+    let reason = context_error(create_failure("subtraction", "leaf"), "outer")
+    (reason^, value; amount: i32): i32 { value - amount }
+}
+
+func wrap(take callback: func(i32): i32): func(i32): i32 {
+    (callback^; amount: i32): i32 { callback(amount) }
+}
+
+func run(): i32 {
+    var pair = (wrap(addition(20)), 2)
+    read sibling = pair.1
+    let first = pair.0(20)
+    pair.0 = wrap(subtraction(50))
+    let second = pair.0(8)
+    let saved = pair.0^
+    pair.0 = wrap(addition(1))
+    let third = pair.0(41)
+    let preserved = saved(8)
+    if first == 40 && second == 42 && third == 42 && preserved == 42 && sibling == 2 { 42 } else { 0 }
+}

@@ -198,10 +198,11 @@ pub enum Effect {
         destination: usize,
         data: usize,
     },
-    /// Receive a whole root from an actual owner after any prior value has been retired.
+    /// Receive a selected value and its resulting containing representation after retirement.
+    /// Unchanged components retain their exact types; data describes the destination root.
     MoveRoot {
         source: Place,
-        destination: usize,
+        destination: Place,
         data: usize,
     },
     Invoke {

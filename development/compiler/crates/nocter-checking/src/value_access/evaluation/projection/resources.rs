@@ -9,8 +9,8 @@ use nocter_constant_evaluation::state as plan;
 use nocter_declarations::value_access::DataInstanceKey;
 
 pub(super) struct Projected {
-    pub(super) before: Vec<Step<InstantiatedPayload>>,
-    pub(super) after: Vec<Step<InstantiatedPayload>>,
+    pub(super) before: Vec<crate::value_access::ResourceDataStep>,
+    pub(super) after: Vec<crate::value_access::ResourceDataStep>,
     roots: Vec<Roots>,
 }
 struct Roots {
@@ -75,8 +75,8 @@ impl Builder<'_, '_> {
                             })
                         })
                         .collect::<Result<Vec<_>>>()?;
-                    let before = projection.steps(transition.before_steps())?;
-                    let after = projection.after_steps(transition.after_steps())?;
+                    let before = projection.steps_with_roots(transition.before_steps())?;
+                    let after = projection.after_steps_with_roots(transition.after_steps())?;
                     drop(projection);
                     // Reference views remain fixed. Owning-local metadata may observe multiple
                     // contexts, but source-boundary constraints must still match the actual plan.
@@ -97,7 +97,11 @@ impl Builder<'_, '_> {
                         }
                     }
                     for step in before.iter().chain(&after) {
-                        self.resource_data(step)?;
+                        self.resource_data(step.operation())?;
+                        if let Some(roots) = step.destination_roots() {
+                            self.register_holder(roots.destination().holder(), roots.before())?;
+                            self.register_holder(roots.destination().holder(), roots.after())?;
+                        }
                     }
                     alternatives.push(Projected {
                         before,
@@ -157,13 +161,14 @@ impl Builder<'_, '_> {
     pub(super) fn effects(
         &mut self,
         original: &[Step],
-        projected: &[Step<InstantiatedPayload>],
+        projected: &[crate::value_access::ResourceDataStep],
     ) -> Result<Vec<plan::Effect>> {
         if original.len() != projected.len() {
             return Err(INVALID);
         }
         let mut effects = Vec::new();
-        for (original, projected) in original.iter().zip(projected) {
+        for (original, selected) in original.iter().zip(projected) {
+            let projected = selected.operation();
             let mut before = Vec::new();
             let mut after = Vec::new();
             let actual = projected.try_map_payloads_at::<super::Failure, ()>(|site, payload| {
@@ -200,14 +205,29 @@ impl Builder<'_, '_> {
                     source,
                     destination: target,
                 } = &effect
-                    && target.fields.is_empty()
                     && self.holder_contract(destination.holder())?.1 == plan::Storage::Owned
                 {
-                    effect = plan::Effect::MoveRoot {
-                        source: source.clone(),
-                        destination: target.slot,
-                        data,
-                    };
+                    if let Some(roots) = selected.destination_roots() {
+                        if roots.destination() != destination {
+                            return Err(INVALID);
+                        }
+                        before.push(self.root_context(destination.holder(), roots.before())?);
+                        let root = self
+                            .types
+                            .get_instance(self.program, roots.after().clone())?;
+                        after.push(self.root_context(destination.holder(), roots.after())?);
+                        effect = plan::Effect::MoveRoot {
+                            source: source.clone(),
+                            destination: target.clone(),
+                            data: root,
+                        };
+                    } else if target.fields.is_empty() {
+                        effect = plan::Effect::MoveRoot {
+                            source: source.clone(),
+                            destination: target.clone(),
+                            data,
+                        };
+                    }
                 }
                 after.push(plan::Effect::Context {
                     place: self.resource(destination)?,

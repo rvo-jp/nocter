@@ -3,7 +3,9 @@ use std::collections::{BTreeMap, BTreeSet};
 mod contexts;
 mod guards;
 mod handoffs;
+mod receipts;
 use super::slot_types::{Contexts, SlotTypes, View as Slots};
+pub(super) use receipts::compatible_receipt;
 struct View<'a> {
     plan: &'a super::Plan,
     slots: Slots<'a>,
@@ -647,12 +649,12 @@ fn check_effect(program: &Program, plan: &View<'_>, effect: &Effect) -> Result<(
             source,
             destination,
             data: received,
-        }
-        | Effect::MoveRoot {
+        } => check_root_receipt(program, plan, source, &Place::root(*destination), *received)?,
+        Effect::MoveRoot {
             source,
             destination,
             data: received,
-        } => check_root_receipt(program, plan, source, *destination, *received)?,
+        } => check_root_receipt(program, plan, source, destination, *received)?,
         Effect::MoveArrayElement {
             array,
             selected,
@@ -736,15 +738,24 @@ fn check_root_receipt(
     program: &Program,
     plan: &View<'_>,
     source: &Place,
-    destination: usize,
+    destination: &Place,
     received: usize,
 ) -> Result<()> {
-    if definition(plan, destination)?.storage != Storage::Owned
-        || source.slot == destination
-        || owned_place(program, plan, source)? != received
+    if definition(plan, destination.slot)?.storage != Storage::Owned
+        || source.slot == destination.slot
+        || owned_place(program, plan, source)?
+            != project_data(program, &plan.slots, destination, received)?
         || program.types.get(received).is_none()
     {
         return Err(INVALID);
+    }
+    let initial = definition(plan, destination.slot)?.data;
+    if let Some(candidates) = plan.slots.contexts.get(&destination.slot) {
+        for &before in candidates.iter() {
+            compatible_receipt(program, before, received, &destination.fields)?;
+        }
+    } else {
+        compatible_receipt(program, initial, received, &destination.fields)?;
     }
     Ok(())
 }

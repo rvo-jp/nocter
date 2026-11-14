@@ -39,7 +39,7 @@ pub struct ResourceDataProjection<'a, 'work> {
 }
 
 mod roots;
-pub use roots::ResourceDataStep;
+pub use roots::{PartialRootContracts, ResourceDataStep};
 impl<'a, 'work> ResourceDataProjection<'a, 'work> {
     /// Resolve the matched scoped destination's original containing contracts under this request's
     /// metadata budget. The pair supplies no ownership, physical backing or geometry proof.
@@ -210,9 +210,15 @@ impl<'a, 'work> ResourceDataProjection<'a, 'work> {
                     } else {
                         BTreeMap::new()
                     };
+                    let destination = if retain_roots {
+                        self.partial_destination(step)?.map(Box::new)
+                    } else {
+                        None
+                    };
                     Ok(ResourceDataStep {
                         operation: self.step(step)?,
                         roots,
+                        destination,
                     })
                 })
                 .collect::<Result<_, Failure>>()

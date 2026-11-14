@@ -565,12 +565,18 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                 source,
                 destination,
                 data,
-            } => self.receive_root(frame, source, *destination, *data, RootReceipt::Replace),
+            } => self.receive_root(
+                frame,
+                source,
+                &Place::root(*destination),
+                *data,
+                RootReceipt::Replace,
+            ),
             Effect::MoveRoot {
                 source,
                 destination,
                 data,
-            } => self.receive_root(frame, source, *destination, *data, RootReceipt::Move),
+            } => self.receive_root(frame, source, destination, *data, RootReceipt::Move),
             Effect::MoveArrayElement {
                 array,
                 selected,
@@ -679,41 +685,61 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         &mut self,
         frame: usize,
         source: &Place,
-        destination: usize,
+        destination: &Place,
         data: usize,
         receipt: RootReceipt,
     ) -> Result<()> {
-        if source.slot == destination
+        let slots = &self.memory.frames[frame].value;
+        let selected = super::validation::project_data(&self.program, slots, destination, data)?;
+        if source.slot == destination.slot
             || super::validation::place_data(
                 &self.program,
                 &self.memory.frames[frame].value,
                 source,
-            )? != data
+            )? != selected
         {
             return Err(Rule::InvalidPlan);
         }
-        let target = self
-            .memory
-            .address(&self.program, frame, &Place::root(destination))?;
+        super::validation::compatible_receipt(
+            &self.program,
+            slots.get(destination.slot).ok_or(Rule::InvalidPlan)?.data,
+            data,
+            &destination.fields,
+        )?;
+        let target = self.memory.address(&self.program, frame, destination)?;
         match receipt {
             RootReceipt::Replace => {
                 if self.memory.frames[frame]
                     .owned
-                    .get(&destination)
+                    .get(&destination.slot)
                     .is_none_or(|owner| !owner.is_empty())
                 {
                     return Err(Rule::InvalidPlan);
                 }
                 self.memory.read(&target)?;
             }
-            RootReceipt::Move if self.memory.frames[frame].owned.contains_key(&destination) => {
+            RootReceipt::Move
+                if destination.fields.is_empty()
+                    && self.memory.frames[frame]
+                        .owned
+                        .contains_key(&destination.slot) =>
+            {
+                return Err(Rule::InvalidPlan);
+            }
+            RootReceipt::Move
+                if !destination.fields.is_empty()
+                    && self.memory.frames[frame]
+                        .owned
+                        .get(&destination.slot)
+                        .is_none_or(|owner| !owner.is_retired(&target.fields)) =>
+            {
                 return Err(Rule::InvalidPlan);
             }
             RootReceipt::Move => {}
         }
         let source = self.memory.address(&self.program, frame, source)?;
         let value = self.memory.read(&source)?;
-        self.memory.frames[frame].set_context(&self.memory.storage, destination, data)?;
+        self.memory.frames[frame].set_context(&self.memory.storage, destination.slot, data)?;
         self.memory.retire(&source, false)?;
         self.memory.store(&target, value)?;
         if matches!(receipt, RootReceipt::Move) {

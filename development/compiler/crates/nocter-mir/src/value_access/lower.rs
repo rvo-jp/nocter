@@ -657,7 +657,28 @@ impl Builder<'_> {
                     } => {
                         let source =
                             self.resource_place(source, self.payload_data(payload)?, projected)?;
-                        let destination = self.place(destination, self.payload_data(payload)?)?;
+                        let destination = if let Some(roots) = projected.destination_roots() {
+                            if roots.destination() != destination {
+                                return Err(self.invalid());
+                            }
+                            let program = self.instances.unit().program();
+                            let before = self
+                                .storage
+                                .instance(program, roots.before())
+                                .map_err(Failure::Storage)?;
+                            let after = self
+                                .storage
+                                .instance(program, roots.after())
+                                .map_err(Failure::Storage)?;
+                            self.constrain_geometry(before, after)?;
+                            self.place_with_root(
+                                destination,
+                                self.payload_data(payload)?,
+                                Some(after),
+                            )?
+                        } else {
+                            self.place(destination, self.payload_data(payload)?)?
+                        };
                         output.push(Effect::Transfer {
                             source,
                             destination,

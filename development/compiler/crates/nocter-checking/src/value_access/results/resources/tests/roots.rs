@@ -120,3 +120,79 @@ fn containing_root_work_failure_restores_only_the_failed_phase_and_allows_health
     assert!(selected.iter().any(|step| step.roots().next().is_some()));
     assert_eq!(selected.len(), before.len() + after.len());
 }
+
+#[test]
+fn partial_destination_contracts_retain_the_original_parent_and_selected_receipt() {
+    let fixture = ValueSourceFixture::new(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-component-replacement.nct"
+    )));
+    let unit = SourceUnit::prepare(fixture.syntax()).unwrap().into_unit();
+    let program = unit.program();
+    let code = program
+        .resolve_code(program.symbols().get("calculate").unwrap())
+        .unwrap();
+    let frame = program.bind_code(code.into(), []).unwrap();
+    let body = unit.code_body(frame.code()).unwrap();
+    let representation = |key: &DataInstanceKey| {
+        key.function_representation(program)
+            .unwrap()
+            .unwrap_or_else(|| key.clone())
+    };
+    let mut covered = 0;
+    for (point, block) in body.graph().points().iter() {
+        for action in 0..block.actions.len() {
+            let at = Location { point, action };
+            for transition in body.access().resources().at(at) {
+                let mut work = budget(10_000);
+                let mut projection = unit.project_resource_data(&frame, at, &mut work).unwrap();
+                let selected = projection
+                    .steps_with_roots(transition.before_steps())
+                    .unwrap()
+                    .into_iter()
+                    .chain(
+                        projection
+                            .after_steps_with_roots(transition.after_steps())
+                            .unwrap(),
+                    );
+                for step in selected {
+                    let Some(roots) = step.destination_roots() else {
+                        continue;
+                    };
+                    let ResourceStep::Move {
+                        destination,
+                        payload,
+                        ..
+                    } = step.operation()
+                    else {
+                        panic!("a containing contract cannot invent an operation")
+                    };
+                    assert_eq!(destination, roots.destination());
+                    assert_eq!(roots.before().data(), roots.after().data());
+                    assert_ne!(roots.before(), roots.after());
+                    assert_eq!(
+                        roots
+                            .before()
+                            .component(program, ValueField::Tuple(1))
+                            .unwrap(),
+                        roots
+                            .after()
+                            .component(program, ValueField::Tuple(1))
+                            .unwrap()
+                    );
+                    assert_eq!(
+                        representation(
+                            &roots
+                                .after()
+                                .component(program, ValueField::Tuple(0))
+                                .unwrap()
+                        ),
+                        representation(payload.instance())
+                    );
+                    covered += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(covered, 2);
+}

@@ -61,7 +61,7 @@ fn fresh_receipts_resolve_retained_contexts_on_loop_reentry() {
             Effect::Construct(4),
             Effect::MoveRoot {
                 source: Place::root(4),
-                destination: 0,
+                destination: Place::root(0),
                 data: 3,
             },
         ]);

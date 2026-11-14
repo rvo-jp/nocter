@@ -28,8 +28,10 @@ pub use results::{
     ValueSourceBoundary, ValueSourceCarrier, ValueSourceFlow, ValueSourceId, ValueSourceInput,
     ValueSourceNode, ValueSourceRead, ValueSourceSelection, ValueSourceSlot, ValueSources,
 };
+pub use results::{
+    PartialRootContracts, ResourceDataFailure, ResourceDataProjection, ResourceDataStep,
+};
 pub use results::{ReferentCarrierContracts, ReferentCarrierData};
-pub use results::{ResourceDataFailure, ResourceDataProjection, ResourceDataStep};
 pub use results::{ValueData, ValueDataFailure};
 mod selection;
 mod staged;

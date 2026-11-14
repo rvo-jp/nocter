@@ -60,6 +60,9 @@ impl Ownership {
     pub(in crate::state) fn is_empty(&self) -> bool {
         self.holes.is_empty()
     }
+    pub(in crate::state) fn is_retired(&self, path: &Path) -> bool {
+        self.holes.contains_key(&Hole::Value(path.clone()))
+    }
     pub(in crate::state) fn matches(&self, expected: &[Hole]) -> bool {
         self.holes.keys().eq(expected)
     }

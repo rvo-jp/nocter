@@ -242,7 +242,9 @@ replacement also retains checking's complete original containing contracts, incl
 and selection paths, on both sides. Additional storage roots include both virtual roots and those
 containing contracts and dependent partial-source roots through the same canonical interner.
 Root receipts stay attached to their original resource step; no frame-wide type map or later
-phase guess supplies a local container. Enclosing allocation geometry and adapter completion remain
+phase guess supplies a local container. A partial owning move also retains its matched original
+destination's whole-container before/after contracts; both enter the shared storage interner.
+Enclosing allocation geometry and adapter completion remain
 separate responsibilities; these contracts grant no mutation or layout proof.
 
 `Program::prepare_with_budget` bounds contextual metadata work across the complete lifecycle

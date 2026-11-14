@@ -31,8 +31,9 @@ Keep evaluator slot selection on checking's shared original-value and ordered re
 projection; the checking owner records covered non-materializing views. Keep
 execution lowering separate from source-value normalization.
 Extend reference-root contract transport through resource-step carrier selection. Source-place
-address projection uses checking's frozen original root contracts; resource partial roots without
-a bound input still need exact old/new carrier receipts. A frame-wide type default cannot bypass
+address projection uses checking's frozen original root contracts. Extend retained dependent
+partial-source roots and matched owning-place before/after contracts to remaining evaluated
+destinations and external alias carriers. A frame-wide type default cannot bypass
 this qualification boundary. Keep a virtual reference root distinct from its enclosing allocation
 and preserve original before/after resource roles; root metadata does not prove initialized storage
 or stable geometry.
@@ -62,6 +63,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [ ] Close carrier representation coherence under the
   [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances)
   before admitting context-changing writes and retained sibling references.
+- [x] Qualify same-geometry contextual callable component replacement and restoration with a
+  surviving disjoint sibling reference. Carry each partial receipt's original containing roots
+  into MIR and physical geometry checks without fusing separate retirement/receipt operations.
 - [ ] Implement [temporal evaluator slot contexts](design/compiler-realization.md#temporal-evaluator-slot-contexts)
   through ordered plan validation and execution. Preserve one logical storage/owner identity,
   exact retired/received contexts, preparation snapshots, surviving aliases and failure recovery;

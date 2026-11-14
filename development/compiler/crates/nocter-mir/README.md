@@ -84,7 +84,9 @@ reject absent action/data identities. The Machine layout authority proves their 
 Dependent resource-source projections consume their original step's retained containing data;
 independent roots keep their declaration-closed representation. Array remainder exclusions use
 the same selected container root as the cleanup operation. Partial destinations without an exact
-receipt still require independently closed or bound-input data. Changing geometry,
+receipt still require independently closed or bound-input data. Matched owning partial moves use
+their original after-container for placement and retain the before/after pair as a geometry
+constraint, preserving the preceding separate disposal. Changing geometry,
 relocation and general carrier coherence remain separate qualification boundaries for changing
 captured representations. The [checking owner](../nocter-checking/README.md#context-bound-callable-captures)
 defines the qualified ordinary-source capture scope.

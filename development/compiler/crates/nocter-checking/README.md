@@ -942,6 +942,12 @@ the same rule. Independently closed roots need no additional occurrence receipt.
 the same transition-local bindings and original stored-data queries as payload specialization;
 it grants no owner, initialized backing, numeric index proof or stable geometry. Failure rolls
 back that projection's bindings and publishes no prefix, while retaining spent metadata work.
+For a dependent partial owning destination, the original assignment target must match exactly.
+Its `PartialRootContracts` retain the original whole-container before/after keys with that
+resource step. They neither fuse old disposal with new receipt nor choose another source phase.
+Evaluator projection registers both contexts and emits a typed component receipt plus exact
+constraints; the kernel preserves the types of all unselected components. Native projection
+retains the same contracts for placement and independent physical geometry validation.
 `ResourceDataProjection::replacement_target` matches a scoped destination to the original update
 referent, including its alias-relative fields. A different operation, owned local or destination
 cannot select that reference-root pair. This metadata match grants no owner or layout proof.
@@ -1758,6 +1764,12 @@ reference survives the replacement. A still-used read reference prevents the ove
 `contextual-callable-replacement-errors.nct` executes actual retired, received and saved error
 graph cleanup across those changes. These whole-owner cases do not establish stable offsets
 for retained component references, partial writes, joins or changing backedges.
+`contextual-component-replacement.nct` additionally qualifies same-geometry partial replacement
+and restoration while a disjoint sibling reference survives. Calls and a saved transferred owner
+retain their actual contexts in required and native execution. The matching error fixture executes
+retired, saved and received graph cleanup. A native negative case changes the initial environment
+size and must reject shifted sibling geometry before an executable can be published. General
+relocation and changing offsets remain unqualified.
 Additional dependent carriers, context-changing carrier writes, surviving
 partial references, inferred captures and external dependencies still require separate qualification.
 

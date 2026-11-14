@@ -194,9 +194,13 @@ Plan validation and execution share one phase sequence: before-effects, the sour
 then after-effects. Invocation-input protection belongs to the before phase; failure stops the
 sequence without executing later phases.
 
-The closed plan kernel supports whole-root receipts of a different concrete representation from
+The closed plan kernel supports typed receipts of a different concrete representation from
 a distinct owned source. `ReplaceRoot` replaces a complete existing owner; `MoveRoot` receives
-into an unowned destination after any original disposal. Retirement and receipt remain separate
+a selected value and the resulting whole-container type. A whole destination must be unowned;
+a partial destination requires its existing container owner and an exactly retired subplace.
+The selected source type must match the new destination component, while every unselected
+component retains its exact type. Compatibility traverses the selected path iteratively and
+does not expand array cardinality. Retirement and receipt remain separate
 ordered effects. Storage roles and owning-slot identities remain unchanged. Ordered validation
 propagates representation contexts through operations and control edges. Different incoming
 contexts, including ownership-guarded action outputs, retain the union of their existing data-type
@@ -223,7 +227,7 @@ them in the common sequence; they add no execution step or payload operation.
 These independent closed-plan cases grant no new source admission. Checking's ordinary projection
 retains exact entry metadata while registering possible owning-local contexts, then emits ordered
 receipts and constraints from the original concrete resource steps. Registration alone cannot
-authorize a context change. Partial writes, changing external inputs/aliases, correlated alternative
+authorize a context change. General changing partial writes, external inputs/aliases, correlated alternative
 contexts and native address/geometry coherence remain obligations of the
 [temporal slot contract](../../../design/compiler-realization.md#temporal-evaluator-slot-contexts).
 Taking inputs are protected before retirement; read/edit inputs bind addresses after retained

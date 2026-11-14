@@ -29,3 +29,12 @@ fn contextual_replacement_cannot_overwrite_a_still_used_reference() {
         "{failure:?}"
     );
 }
+
+#[test]
+fn contextual_component_replacement_preserves_sibling_views_and_saved_instances() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-component-replacement.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Value::integer(42));
+}

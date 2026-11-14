@@ -8,28 +8,29 @@ use std::{
 };
 
 pub(super) fn effect(plan: &Plan, contexts: &mut Contexts, effect: &Effect) -> Result<()> {
-    if let Effect::ReplaceRoot {
-        destination, data, ..
+    let (destination, data) = match effect {
+        Effect::ReplaceRoot {
+            destination, data, ..
+        } => (*destination, *data),
+        Effect::MoveRoot {
+            destination, data, ..
+        } => (destination.slot, *data),
+        _ => return Ok(()),
+    };
+    let initial = plan.slots.get(destination).ok_or(INVALID)?.data;
+    let unchanged = contexts
+        .get(&destination)
+        .map_or(initial == data, |candidates| {
+            candidates.len() == 1 && candidates.contains(&data)
+        });
+    if unchanged {
+        return Ok(());
     }
-    | Effect::MoveRoot {
-        destination, data, ..
-    } = *effect
-    {
-        let initial = plan.slots.get(destination).ok_or(INVALID)?.data;
-        let unchanged = contexts
-            .get(&destination)
-            .map_or(initial == data, |candidates| {
-                candidates.len() == 1 && candidates.contains(&data)
-            });
-        if unchanged {
-            return Ok(());
-        }
-        let contexts = Arc::make_mut(contexts);
-        if initial == data {
-            contexts.remove(&destination);
-        } else {
-            contexts.insert(destination, Arc::new(BTreeSet::from([data])));
-        }
+    let contexts = Arc::make_mut(contexts);
+    if initial == data {
+        contexts.remove(&destination);
+    } else {
+        contexts.insert(destination, Arc::new(BTreeSet::from([data])));
     }
     Ok(())
 }

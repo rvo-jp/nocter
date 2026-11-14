@@ -1,5 +1,6 @@
 //! Context changes preserve owners and actual references, never merely relabel function code.
 use super::*;
+mod components;
 mod joins;
 
 #[derive(Clone, Copy)]
@@ -527,7 +528,7 @@ fn moving_program(retire_first: bool) -> (AccessCodeId, Program) {
                     {
                         *effect = Effect::MoveRoot {
                             source: source.clone(),
-                            destination: *destination,
+                            destination: Place::root(*destination),
                             data: *data,
                         };
                         if retire_first {
