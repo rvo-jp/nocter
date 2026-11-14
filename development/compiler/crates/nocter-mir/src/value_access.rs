@@ -247,6 +247,14 @@ pub struct Action {
     pub alternatives: Box<[Alternative]>,
 }
 
+/// Physical compatibility required by an original scoped write, not an executable resource effect.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct GeometryConstraint {
+    pub at: Location,
+    pub before: RuntimeDataId,
+    pub after: RuntimeDataId,
+}
+
 #[derive(Clone, Debug)]
 pub struct Body {
     statics: Box<[(MirLocalId, nocter_model::ValueStatic)]>,
@@ -257,8 +265,13 @@ pub struct Body {
     entry: AccessFlowPointId,
     terminators: BTreeMap<AccessFlowPointId, Terminator>,
     inputs: Box<[MirLocalId]>,
+    geometry: Box<[GeometryConstraint]>,
 }
 impl Body {
+    #[must_use]
+    pub fn geometry(&self) -> &[GeometryConstraint] {
+        &self.geometry
+    }
     #[must_use]
     pub fn statics(&self) -> &[(MirLocalId, nocter_model::ValueStatic)] {
         &self.statics

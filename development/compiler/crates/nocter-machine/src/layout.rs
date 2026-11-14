@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
+mod geometry;
 
 use nocter_mir::{MirBody, MirCallTarget, MirOperationKind, MirProgram, MirRoot};
 use nocter_model::{CaptureId, FieldId, ParameterId, ValueField, VariantId};

@@ -47,6 +47,7 @@ fn contextual_aliases_use_actual_inputs_without_a_frame_type_fallback() {
         at: None,
         slots: ArenaBuilder::new(),
         keys: BTreeMap::new(),
+        geometry: BTreeSet::new(),
     };
     assert!(
         builder.closed_data(formal).is_err(),

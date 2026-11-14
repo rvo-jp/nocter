@@ -72,8 +72,13 @@ the alias representation. Source-place address projection consumes checking's fr
 contracts at the original action, while partial input resource roots retain the bound input payload.
 Matched scoped replacement uses its sealed before-root for retired-leaf cleanup and its after-root
 for supplied-leaf placement, preserving the same resource path and cleanup order. An unpaired raw
-scoped replacement rejects. Other resource-step partial roots currently require independently closed data. General old/new
-carrier geometry remains a separate qualification boundary before source formal captures can open.
+scoped replacement rejects. It retains same-schema virtual and original containing root pairs as
+`GeometryConstraint` metadata at the original action. Containing selections must match their slots
+and paths on both sides. Constraints grant no resource phase or initialized value; integrity checks
+reject absent action/data identities. The Machine layout authority proves their physical compatibility.
+Other resource-step partial roots currently require independently closed data. Changing geometry,
+relocation and general carrier coherence remain separate qualification boundaries before source
+formal captures can open.
 Component integrity and sparse cleanup paths use the closed runtime environment's shared type
 projection, independently of source checking and without a reverse semantic-type lookup.
 Static primitive edges retain their closed roles without adding a body or input locals. Validation

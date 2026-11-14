@@ -541,6 +541,11 @@ impl Context<'_> {
 
 fn validate_body(program: &Program, id: AccessInstanceId, body: &Body) -> Result<(), Failure> {
     let context = Context { program, body, id };
+    for constraint in &body.geometry {
+        context.require(body.actions.contains_key(&constraint.at))?;
+        context.require(program.runtime.types().get(constraint.before).is_some())?;
+        context.require(program.runtime.types().get(constraint.after).is_some())?;
+    }
     let mut bound = BTreeSet::new();
     for &(slot, id) in &body.statics {
         let data = program.statics.get(&id).ok_or_else(|| context.invalid())?;

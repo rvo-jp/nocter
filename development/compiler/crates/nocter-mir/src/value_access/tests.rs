@@ -26,6 +26,41 @@ fn operations(body: &Body) -> impl Iterator<Item = &Operation> {
 }
 
 #[test]
+fn scoped_geometry_keeps_the_reference_and_its_larger_container_at_the_original_action() {
+    let program = lower(
+        "struct Pair { first: i32\nsecond: i32 }\nfunc run(): i32 { var bundle = (Pair { first: 41, second: 1 }, 0)\nedit pair = bundle.0\npair.first = 42\nbundle.0.first }",
+    );
+    let body = &program.bodies[&program.root];
+    assert_eq!(body.geometry().len(), 2);
+    assert_eq!(body.geometry()[0].at, body.geometry()[1].at);
+    assert_ne!(body.geometry()[0].before, body.geometry()[1].before);
+    for pair in body.geometry() {
+        assert_eq!(pair.before, pair.after);
+        let action = &body.actions()[&pair.at];
+        assert!(action.alternatives.iter().any(|alternative| {
+            alternative
+                .after
+                .iter()
+                .chain(&alternative.before)
+                .any(|effect| matches!(effect, Effect::Transfer { .. }))
+        }));
+    }
+    for corrupt_site in [false, true] {
+        let mut changed = program.clone();
+        let pair = &mut changed.bodies.get_mut(&changed.root).unwrap().geometry[0];
+        if corrupt_site {
+            pair.at.action = usize::MAX;
+        } else {
+            pair.before = RuntimeDataId::Instance(u32::MAX);
+        }
+        assert!(matches!(
+            validate::program(&changed),
+            Err(Failure::InvalidBody(_))
+        ));
+    }
+}
+
+#[test]
 fn static_primitive_calls_keep_closed_roles_without_fake_mir_bodies() {
     use nocter_compile_input::{ModuleIdentity, PrimitiveRoleLocator, ToolchainInput};
     use nocter_declaration_lowering::access_declarations as declarations;

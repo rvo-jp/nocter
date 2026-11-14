@@ -24,6 +24,43 @@ struct Context<'a> {
     primitives: BTreeMap<nocter_runtime_contract::PrimitiveRole, crate::MachinePrimitiveTarget>,
 }
 
+fn prepare_layouts(program: &mir::Program) -> Result<MachineLayoutPlan, Failure> {
+    let roots = program
+        .bodies()
+        .values()
+        .flat_map(|body| {
+            body.slots()
+                .iter()
+                .flat_map(|(_, slot)| slot.representations.iter().copied())
+                .chain(body.signature().ordered().map(|input| input.data))
+                .chain(std::iter::once(body.signature().result()))
+                .chain(
+                    body.geometry()
+                        .iter()
+                        .flat_map(|pair| [pair.before, pair.after]),
+                )
+        })
+        .chain(
+            program
+                .runtime()
+                .types()
+                .iter()
+                .filter_map(|(data, shape)| {
+                    matches!(shape, RuntimeType::Primitive(_)).then_some(data)
+                }),
+        );
+    let layouts =
+        MachineLayoutPlan::from_runtime(program.runtime(), roots).map_err(Failure::Layout)?;
+    for (&id, body) in program.bodies() {
+        for pair in body.geometry() {
+            if !layouts.has_same_geometry(pair.before, pair.after) {
+                return Err(Failure::InvalidBody(id));
+            }
+        }
+    }
+    Ok(layouts)
+}
+
 pub(super) fn program(program: &mir::Program) -> Result<MachineProgram, Failure> {
     let source_root = program
         .bodies()
@@ -40,27 +77,7 @@ pub(super) fn program(program: &mir::Program) -> Result<MachineProgram, Failure>
     {
         return Err(Failure::InvalidRoot);
     }
-    let roots = program
-        .bodies()
-        .values()
-        .flat_map(|body| {
-            body.slots()
-                .iter()
-                .flat_map(|(_, slot)| slot.representations.iter().copied())
-                .chain(body.signature().ordered().map(|input| input.data))
-                .chain(std::iter::once(body.signature().result()))
-        })
-        .chain(
-            program
-                .runtime()
-                .types()
-                .iter()
-                .filter_map(|(data, shape)| {
-                    matches!(shape, RuntimeType::Primitive(_)).then_some(data)
-                }),
-        );
-    let layouts =
-        MachineLayoutPlan::from_runtime(program.runtime(), roots).map_err(Failure::Layout)?;
+    let layouts = prepare_layouts(program)?;
     let functions = program
         .bodies()
         .keys()

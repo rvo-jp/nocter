@@ -36,10 +36,11 @@ a bound input still need exact old/new carrier receipts. A frame-wide type defau
 this qualification boundary. Keep a virtual reference root distinct from its enclosing allocation
 and preserve original before/after resource roles; root metadata does not prove initialized storage
 or stable geometry.
-Extend scoped replacement's paired virtual-root transport to enclosing carrier geometry and
-changing evaluator slot shapes without equating source operation completion with a resource-transition phase.
-Qualify representation compatibility against the transported original containing contracts;
-an input's virtual root need not describe its caller's complete allocation.
+Extend scoped replacement's [MIR](compiler/crates/nocter-mir/README.md) and
+[Machine](compiler/crates/nocter-machine/README.md) geometry qualification to changing
+representations, other partial writes and changing evaluator slot shapes. Do not equate source
+operation completion with a resource-transition phase. An input's virtual root need not describe
+its caller's complete allocation; preserving capacity alone does not stabilize surviving references.
 Keep preparation-time snapshots and staged returns; preserve interrupted preparation metadata
 without inventing a committed call or materialization permission. Post-update dependent environments
 and prepared temporaries must follow actual call-write context rather than reuse an immutable

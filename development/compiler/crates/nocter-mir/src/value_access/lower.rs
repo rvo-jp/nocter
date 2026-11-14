@@ -16,7 +16,7 @@ use nocter_target_program::value_access::{
     Instance, InstanceProgram, Payload, lifecycle::EnvironmentPart,
 };
 use nocter_target_program::value_access::{lifecycle, storage};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 #[cfg(test)]
 mod tests;
 
@@ -30,6 +30,7 @@ pub(super) struct Builder<'a> {
     at: Option<flow::Location>,
     slots: ArenaBuilder<MirLocalId, Slot>,
     keys: BTreeMap<SlotKey, MirLocalId>,
+    geometry: BTreeSet<super::GeometryConstraint>,
 }
 impl Builder<'_> {
     fn control(
@@ -412,6 +413,22 @@ impl Builder<'_> {
             CheckedDisposal::FunctionEnvironment => return Err(self.invalid()),
         })
     }
+    fn constrain_geometry(
+        &mut self,
+        before: RuntimeDataId,
+        after: RuntimeDataId,
+    ) -> Result<(), Failure> {
+        let at = self.at.ok_or_else(|| self.invalid())?;
+        self.geometry.insert(super::GeometryConstraint {
+            at: Location {
+                point: at.point,
+                action: at.action,
+            },
+            before,
+            after,
+        });
+        Ok(())
+    }
     fn scoped_replacement(
         &mut self,
         replacement: &lifecycle::ScopedReplacement,
@@ -425,7 +442,31 @@ impl Builder<'_> {
         else {
             return Err(self.invalid());
         };
+        if replacement.root_before().data() != replacement.root_after().data() {
+            return Err(self.invalid());
+        }
         let program = self.instances.unit().program();
+        let carriers = replacement.carriers();
+        let after = carriers.after().ok_or_else(|| self.invalid())?;
+        if carriers.before().len() != after.len() {
+            return Err(self.invalid());
+        }
+        for (before, after) in carriers.before().iter().zip(after) {
+            if before.selection().slot != after.selection().slot
+                || before.selection().path != after.selection().path
+                || before.instance().data() != after.instance().data()
+            {
+                return Err(self.invalid());
+            }
+            self.constrain_geometry(
+                self.storage
+                    .instance(program, before.instance())
+                    .map_err(Failure::Storage)?,
+                self.storage
+                    .instance(program, after.instance())
+                    .map_err(Failure::Storage)?,
+            )?;
+        }
         let before = self
             .storage
             .instance(program, replacement.root_before())
@@ -434,6 +475,7 @@ impl Builder<'_> {
             .storage
             .instance(program, replacement.root_after())
             .map_err(Failure::Storage)?;
+        self.constrain_geometry(before, after)?;
         let retired = Effect::Dispose {
             source: self.place_with_root(destination, self.payload_data(retired)?, Some(before))?,
             disposal: self.disposal(retired)?,
@@ -832,6 +874,7 @@ pub(super) fn body(
         at: None,
         slots: ArenaBuilder::new(),
         keys: BTreeMap::new(),
+        geometry: BTreeSet::new(),
     };
     for input in signature.ordered() {
         builder.root(Holder::Local(input.local), input.data, false)?;
@@ -904,5 +947,6 @@ pub(super) fn body(
         entry: checked.graph().entry(),
         terminators,
         inputs,
+        geometry: builder.geometry.into_iter().collect(),
     })
 }
