@@ -1,0 +1,36 @@
+const func changing(seed: i32): mut(i32): i32 {
+    var total = seed
+    (total; amount: i32): i32 { total += amount
+                               total }
+}
+const func wrap_edit(take callback: mut(i32): i32): mut(i32): i32 {
+    (callback^; amount: i32): i32 { callback(amount) }
+}
+const func decreasing(seed: i32): mut(i32): i32 {
+    var total = seed
+    (total; amount: i32): i32 { total -= amount
+                               total }
+}
+const func step_one(edit actions: [mut(i32): i32; 1], amount: i32): i32 { actions[0](amount) }
+const func step(edit actions: [mut(i32): i32; 2], index: usize, amount: i32): i32 {
+    actions[index](amount)
+}
+const func forward(edit actions: [mut(i32): i32; 2], index: usize, amount: i32): i32 {
+    step(actions, index, amount)
+}
+const func calculate(): i32 {
+    var actions = [wrap_edit(changing(40)), wrap_edit(changing(60))]
+    let first = step(actions, 0, 1)
+    let other = forward(actions, 1, 0)
+    let next = forward(actions, 0, 1)
+    let last = step(actions, 1, -18)
+    var single = [wrap_edit(changing(40))]
+    let before = step_one(single, 1)
+    var saved = single[0]^
+    single[0] = wrap_edit(decreasing(60))
+    let after = step_one(single, 18)
+    let preserved = saved(1)
+    if first == 41 && other == 60 && next == 42 && last == 42 && before == 41 && after == 42 && preserved == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { if ANSWER == 42 { calculate() } else { 0 } }

@@ -1758,8 +1758,14 @@ forwarded updates and caller reads after completion while the callable context r
 The matching error fixture executes actual cleanup after both updates. Receiving/caller descriptors
 are reconciled from original completed-input components, preserving may-write footprints and weak
 joins. An abstract signature match cannot substitute another static callable. Immutable storage
-and overlapping still-used references continue to reject. Changing callable contexts and general
-external carrier geometry remain separate qualification boundaries.
+and overlapping still-used references continue to reject.
+`contextual-mutable-array-inputs.nct` qualifies evaluated element receivers through edit array
+inputs and forwarded calls, with persistent independent state in two homogeneous elements.
+A singleton array also changes its nested callback context between calls to the same receiving
+function; the moved-out callback retains its earlier state independently of its replacement.
+Required/native execution agrees, the matching error fixture executes remaining-owner cleanup,
+and out-of-range selection preserves its original failure/trap. These cases do not qualify
+context-changing assignment inside a generic receiving body or general external carrier geometry.
 
 An owned callable input can enter an explicit captured environment without a declaration-closed
 representation. Its descriptor retains callable dependencies; the checked transfer supplies the

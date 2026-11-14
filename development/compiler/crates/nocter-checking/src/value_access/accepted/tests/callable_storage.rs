@@ -4,6 +4,40 @@ use super::*;
 use nocter_constant_evaluation::state::Value;
 
 #[test]
+fn mutable_array_inputs_preserve_selected_callback_state_across_forwarded_calls() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-mutable-array-inputs.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Value::integer(42));
+}
+
+#[test]
+fn mutable_array_inputs_preserve_bounds_and_writable_access_requirements() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-mutable-array-inputs.nct"
+    ));
+    let immutable = source.replace("var actions =", "let actions =");
+    assert_ne!(immutable, source);
+    let (sources, tree) = input(&immutable);
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Body { .. }))
+    ));
+    let bad_index = source.replace(
+        "let first = step(actions, 0, 1)",
+        "let first = step(actions, 2, 1)",
+    );
+    assert_ne!(bad_index, source);
+    let (sources, tree) = input(&bad_index);
+    let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+    assert!(
+        matches!(failure, SourceFailure::Checking(Failure::Evaluation { diagnostic, .. }) if diagnostic.rule() == crate::value_access::evaluation::Rule::Execution(nocter_constant_evaluation::state::Rule::IndexOutOfBounds))
+    );
+}
+
+#[test]
 fn compound_edits_preserve_received_contexts_and_caller_completion() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

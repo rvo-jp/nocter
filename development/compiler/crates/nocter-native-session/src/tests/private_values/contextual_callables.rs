@@ -2,6 +2,55 @@
 use super::*;
 
 #[test]
+fn private_mutable_array_inputs_keep_independent_selected_state() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-mutable-array-inputs.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "mutable-array-inputs", 42);
+}
+
+#[test]
+fn private_mutable_array_inputs_dispose_actual_remaining_error_graphs() {
+    let machine = trusted_error_machine(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-mutable-array-input-errors.nct"
+    )));
+    let package = TempPackage::new();
+    execute_native_status(
+        &image(&machine),
+        &package.0,
+        "mutable-array-input-errors",
+        42,
+    );
+}
+
+#[test]
+fn private_mutable_array_inputs_keep_original_bounds_effects() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-mutable-array-inputs.nct"
+    ));
+    let runtime = source
+        .replace("const ANSWER: i32 = calculate()", "")
+        .replace("if ANSWER == 42 { calculate() } else { 0 }", "calculate()")
+        .replace("const func", "func");
+    let changed = runtime.replace(
+        "let first = step(actions, 0, 1)",
+        "let first = step(actions, 2, 1)",
+    );
+    assert_ne!(changed, runtime);
+    let package = TempPackage::new();
+    execute_native_signal(
+        &compile(&changed),
+        &package.0,
+        "mutable-array-input-bounds",
+        5,
+    );
+}
+
+#[test]
 fn private_compound_edits_preserve_caller_values_after_completion() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
