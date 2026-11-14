@@ -556,7 +556,7 @@ completion supplies no final-input key, even for an independently closed schema.
 publishes no partial result and can retry. Internally, known absence of normal completion contributes
 an empty fact, separately from an unavailable context. Source identities can survive retirement as metadata,
 so this grants no initialized input, caller write, actual return, const permission or resource phase.
-Projecting those completed contexts into caller writes remains separate work.
+Caller writes consume those contexts only through the qualified correspondence described below.
 
 `Unit::instantiate_value_data_map` owns ordinary operand and stored-definition metadata. It reads
 the original source graph's operand selections and final local/expression writes at each reachable
@@ -587,7 +587,8 @@ lowering an actual committed call. The original body input layout owns order and
 operations. A taking callable adapter may retain its environment while lending it to a read/edit
 body; this does not change the explicit inputs' operations. Interrupted preparation creates no
 call frame or invocation effect. The shared `const-callable-inputs.nct` corpus includes a forwarded
-taking view over a reading, non-Copy captured environment in required and native execution.
+taking view over a reading, non-Copy captured environment and reuse of named and captured reading
+callables after forwarding them as edit inputs, in required and native execution.
 
 Input nodes retain their local role, including the complete environment input. Selections retain
 component paths rather than treating a received closure as fresh creation. Formation records retain
@@ -636,8 +637,15 @@ input and its schema must match the closure; missing bodies or unresolved comple
 cannot fall back to the old environment. Declaration-closed witnesses fix their static dependencies
 without asserting that runtime payloads are absent or unchanged. Disjoint component paths retain
 the previous source, and containing data is rebuilt through the common component normalizer.
-Weak updates join old and completed contexts. Explicit dependent input writes, post-call temporary
-transport, varying evaluator slots and source formal-capture admission remain unqualified.
+Weak updates join old and completed contexts. Explicit edited callable inputs select their final
+witness through the same completed-input query. The original call kind distinguishes the frozen
+value-call prefix; the selected body's retained source-channel order then supplies its exact input
+local, operation and schema, including a closure's environment prefix. Only an actual edit input
+can supply this write. Missing correspondence, mixed call kinds or differing final contexts remain
+unresolved, without a caller-entry or preparation-snapshot fallback. Logical replacement tests do
+not grant source assignment or materialization permission. General dependent input carriers,
+post-call temporary transport, varying evaluator slots and source formal-capture admission remain
+unqualified.
 
 `Unit::instantiate_value_data` normalizes one original value against its receiving source schema
 through that same query and declaration authority. Returned carriers retain their selected callee

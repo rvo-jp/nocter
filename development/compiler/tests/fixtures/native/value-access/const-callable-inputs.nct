@@ -6,6 +6,11 @@ const func forward(action: func(i32): i32, value: i32): i32 {
     read selected = action
     apply(selected, value)
 }
+const func observe_read(edit action: func(i32): i32): void { let _ = action(0) }
+const func edited_forward(edit action: func(i32): i32, value: i32): i32 {
+    observe_read(action)
+    action(value)
+}
 const func edit_twice(edit action: mut(i32): i32, value: i32): i32 {
     edit selected = action
     let _ = selected(value)
@@ -21,7 +26,10 @@ const func reading(): i32 {
     let left = (first; value: i32): i32 { first + value }
     let second = 41
     let right = (second; value: i32): i32 { second + value }
+    var direct = identity
+    var edit_left = left
     if forward(identity, 42) == 42 && forward(left, 2) == 42 && forward(right, 1) == 42
+       && edited_forward(direct, 42) == 42 && edited_forward(edit_left, 2) == 42
        && descend(increment, 4) == 42 { 42 } else { 0 }
 }
 const func editing(): i32 {

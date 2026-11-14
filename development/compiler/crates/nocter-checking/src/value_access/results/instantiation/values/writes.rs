@@ -1,10 +1,12 @@
-//! Value-receiver call writes retain code identity while selecting the completed actual environment.
+//! Original call writes select completed receiver environments or explicit body inputs.
 use super::{
     CodeInstanceKey, Fact, Key, LocalOrigin, Query, ReplacementPath, Result, ValuePath,
     ValueSource, ValueSourceNode, replacement_path,
 };
 use crate::value_access::{CallKind, ValueSourceSlot};
-use nocter_model::{AccessExpressionId, AccessLocalId, TypeId, ValueApplication, ValueCode};
+use nocter_model::{
+    AccessExpressionId, AccessLocalId, TypeId, ValueApplication, ValueCode, ValueInputOperation,
+};
 
 impl Query<'_, '_> {
     pub(super) fn source_call_write(
@@ -31,21 +33,125 @@ impl Query<'_, '_> {
             ReplacementPath::Supplied(tail) if tail.is_root() => {}
             _ => return Ok(Fact::Unavailable),
         }
-        if *argument != 0
-            || !self
+        let receiver = *argument == 0
+            && self
                 .evidence
                 .value_sources(frame.code())
                 .and_then(|graph| graph.call(*call))
                 .is_some_and(|bundles| {
                     !bundles.is_empty()
                         && bundles.iter().all(|bundle| bundle.kind == CallKind::Value)
-                })
-        {
+                });
+        let before = self.read(owner, Key::Value(frame.clone(), *source, written.clone()))?;
+        let after = if receiver {
+            self.completed_receiver(owner, frame, *call, before.clone())?
+        } else {
+            self.completed_explicit_input(owner, frame, *call, *argument)?
+        };
+        Ok(if *weak { before.join(after) } else { after })
+    }
+    fn completed_explicit_input(
+        &mut self,
+        owner: &Key,
+        frame: &CodeInstanceKey,
+        call: AccessExpressionId,
+        argument: usize,
+    ) -> Result {
+        let Some(bundles) = self
+            .evidence
+            .value_sources(frame.code())
+            .and_then(|graph| graph.call(call))
+        else {
+            return Ok(Fact::Unavailable);
+        };
+        let Some(first) = bundles.first() else {
+            return Ok(Fact::Unavailable);
+        };
+        if bundles.iter().any(|bundle| bundle.kind != first.kind) {
             return Ok(Fact::Unavailable);
         }
-        let before = self.read(owner, Key::Value(frame.clone(), *source, written.clone()))?;
-        let after = self.completed_receiver(owner, frame, *call, before.clone())?;
-        Ok(if *weak { before.join(after) } else { after })
+        let Some(explicit) = argument.checked_sub(usize::from(first.kind == CallKind::Value))
+        else {
+            return Ok(Fact::Unavailable);
+        };
+        let selected = match self.read(
+            owner,
+            Key::Call(
+                frame.clone(),
+                ValueApplication {
+                    owner: frame.code(),
+                    call,
+                },
+            ),
+        )? {
+            Fact::Frame(selected) => selected,
+            Fact::Empty => return Ok(Fact::Empty),
+            _ => return Ok(Fact::Unavailable),
+        };
+        let Some(graph) = self.evidence.value_sources(selected.code()) else {
+            return Ok(Fact::Unavailable);
+        };
+        let Some(flow) = graph.flow() else {
+            return Ok(Fact::Unavailable);
+        };
+        let prefix = usize::from(matches!(selected.code(), ValueCode::Closure(_)));
+        if prefix != 0 {
+            let Some(input) = flow
+                .channels()
+                .first()
+                .and_then(|channel| graph.node(channel.source))
+            else {
+                return Ok(Fact::Unavailable);
+            };
+            if !matches!(
+                input.value,
+                ValueSource::Input {
+                    origin: LocalOrigin::Capture,
+                    ..
+                }
+            ) {
+                return Ok(Fact::Unavailable);
+            }
+        }
+        let Some(index) = explicit.checked_add(prefix) else {
+            return Ok(Fact::Unavailable);
+        };
+        let Some(channel) = flow.channels().get(index) else {
+            return Ok(Fact::Unavailable);
+        };
+        self.work
+            .step()
+            .map_err(|_| super::InstantiationFailure::WorkLimit)?;
+        if channel.operation != ValueInputOperation::Edit {
+            return Ok(Fact::Unavailable);
+        }
+        let Some(node) = graph.node(channel.source) else {
+            return Ok(Fact::Unavailable);
+        };
+        let ValueSource::Input { local, origin } = node.value else {
+            return Ok(Fact::Unavailable);
+        };
+        if !origin.is_input() || origin == LocalOrigin::Capture {
+            return Ok(Fact::Unavailable);
+        }
+        let Some(data) = node.data else {
+            return Ok(Fact::Unavailable);
+        };
+        Ok(
+            match self.read(
+                owner,
+                Key::CompletedInput(selected, local, ValuePath::default(), data),
+            )? {
+                Fact::Data(data) => match data.schema(self.program).ok() {
+                    Some(nocter_declarations::value_access::InstanceSchema::Function(value)) => {
+                        Fact::Witness(value)
+                    }
+                    _ => Fact::Unavailable,
+                },
+                Fact::Empty => Fact::Empty,
+                _ => Fact::Unavailable,
+            },
+        )
     }
     fn completed_receiver(
         &mut self,

@@ -46,8 +46,9 @@ without inventing a committed call or materialization permission. Post-update de
 and prepared temporaries must follow actual call-write context rather than reuse an immutable
 pre-call bundle. Qualify completed adapter carrier/environment transport through context-changing
 source and actual cleanup before formal-capture admission. Extend receiver-context completion
-propagation to explicit edited inputs and remaining post-call prepared/temporary channels,
-using the retained original source-channel correspondence rather than guessing body-local inputs.
+propagation beyond covered explicit edited callable inputs to general dependent input carriers and
+remaining post-call prepared/temporary channels, using the retained original source-channel
+correspondence rather than guessing body-local inputs.
 Source-definition boundaries are not resource phases: preserve the existing
 transition order, old-value cleanup and new-value receipt without adding provenance to ownership
 world identity, a second owner registry or downstream phase inference from step names. Preserve
