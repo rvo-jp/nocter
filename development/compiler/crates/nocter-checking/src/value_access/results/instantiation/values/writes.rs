@@ -26,13 +26,13 @@ impl Query<'_, '_> {
         else {
             return Ok(Fact::Unavailable);
         };
-        match replacement_path(written, selected) {
+        let tail = match replacement_path(written, selected) {
             ReplacementPath::Unchanged => {
                 return self.read(owner, Key::Value(frame.clone(), *source, selected.clone()));
             }
-            ReplacementPath::Supplied(tail) if tail.is_root() => {}
-            _ => return Ok(Fact::Unavailable),
-        }
+            ReplacementPath::Supplied(tail) => tail,
+            ReplacementPath::Components => return Ok(Fact::Unavailable),
+        };
         let receiver = *argument == 0
             && self
                 .evidence
@@ -42,13 +42,64 @@ impl Query<'_, '_> {
                     !bundles.is_empty()
                         && bundles.iter().all(|bundle| bundle.kind == CallKind::Value)
                 });
-        let before = self.read(owner, Key::Value(frame.clone(), *source, written.clone()))?;
+        let before = self.read(owner, Key::Value(frame.clone(), *source, selected.clone()))?;
         let after = if receiver {
+            if !tail.is_root() {
+                return Ok(Fact::Unavailable);
+            }
             self.completed_receiver(owner, frame, *call, before.clone())?
         } else {
-            self.completed_explicit_input(owner, frame, *call, *argument)?
+            let data = self.completed_explicit_input(owner, frame, *call, *argument, &tail)?;
+            self.callable_fact(data)
         };
         Ok(if *weak { before.join(after) } else { after })
+    }
+    pub(super) fn source_call_write_data(
+        &mut self,
+        owner: &Key,
+        frame: &CodeInstanceKey,
+        kind: &ValueSource,
+        selected: &ValuePath<()>,
+        target: TypeId,
+    ) -> Result {
+        let ValueSource::CallWrite {
+            call,
+            argument,
+            source,
+            path,
+            weak,
+        } = kind
+        else {
+            return Ok(Fact::Unavailable);
+        };
+        let ReplacementPath::Supplied(tail) = replacement_path(path, selected) else {
+            return Ok(Fact::Unavailable);
+        };
+        let after = match self.completed_explicit_input(owner, frame, *call, *argument, &tail)? {
+            Fact::Data(data) if data.data() == target => Fact::Data(data),
+            Fact::Empty => Fact::Empty,
+            _ => Fact::Unavailable,
+        };
+        Ok(if *weak {
+            after.join(self.read(
+                owner,
+                Key::Data(frame.clone(), *source, selected.clone(), target),
+            )?)
+        } else {
+            after
+        })
+    }
+    fn callable_fact(&self, fact: Fact) -> Fact {
+        match fact {
+            Fact::Data(data) => match data.schema(self.program).ok() {
+                Some(nocter_declarations::value_access::InstanceSchema::Function(value)) => {
+                    Fact::Witness(value)
+                }
+                _ => Fact::Unavailable,
+            },
+            Fact::Empty => Fact::Empty,
+            _ => Fact::Unavailable,
+        }
     }
     fn completed_explicit_input(
         &mut self,
@@ -56,6 +107,7 @@ impl Query<'_, '_> {
         frame: &CodeInstanceKey,
         call: AccessExpressionId,
         argument: usize,
+        path: &ValuePath<()>,
     ) -> Result {
         let Some(bundles) = self
             .evidence
@@ -137,20 +189,15 @@ impl Query<'_, '_> {
         let Some(data) = node.data else {
             return Ok(Fact::Unavailable);
         };
-        Ok(
-            match self.read(
-                owner,
-                Key::CompletedInput(selected, local, ValuePath::default(), data),
-            )? {
-                Fact::Data(data) => match data.schema(self.program).ok() {
-                    Some(nocter_declarations::value_access::InstanceSchema::Function(value)) => {
-                        Fact::Witness(value)
-                    }
-                    _ => Fact::Unavailable,
-                },
-                Fact::Empty => Fact::Empty,
-                _ => Fact::Unavailable,
-            },
+        let Some(data) = self
+            .program
+            .project_data_by(data, path, |(), length| length > 0)
+        else {
+            return Ok(Fact::Unavailable);
+        };
+        self.read(
+            owner,
+            Key::CompletedInput(selected, local, path.clone(), data),
         )
     }
     fn completed_receiver(

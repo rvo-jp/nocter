@@ -160,7 +160,9 @@ impl Query<'_, '_> {
                 ReplacementPath::Components => {
                     self.source_data_components(owner, frame, value, path, target)
                 }
-                ReplacementPath::Supplied(_) => Ok(Fact::Unavailable),
+                ReplacementPath::Supplied(_) => {
+                    self.source_call_write_data(owner, frame, kind, path, target)
+                }
             },
             // Optional state and externally dependent whole-input writes remain unqualified.
             _ => Ok(Fact::Unavailable),

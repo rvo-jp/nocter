@@ -45,10 +45,10 @@ Keep preparation-time snapshots and staged returns; preserve interrupted prepara
 without inventing a committed call or materialization permission. Post-update dependent environments
 and prepared temporaries must follow actual call-write context rather than reuse an immutable
 pre-call bundle. Qualify completed adapter carrier/environment transport through context-changing
-source and actual cleanup before formal-capture admission. Extend receiver-context completion
-propagation beyond covered explicit edited callable inputs to general dependent input carriers and
-remaining dependent post-call channels, using the retained original source-channel correspondence
-rather than guessing body-local inputs. Materialized edit temporaries now retain separate post-call
+source and actual cleanup before formal-capture admission. Qualify general dependent input carrier
+entry/completion transport and remaining dependent post-call channels. Completed-input metadata
+now carries structural data and selected callable components; keep the retained original
+source-channel correspondence rather than guessing body-local inputs. Materialized edit temporaries now retain separate post-call
 sources and use the checked post-operation phase for cleanup metadata; qualify context-changing
 carrier transport and storage before widening source admission.
 Source-definition boundaries are not resource phases: preserve the existing
@@ -62,6 +62,11 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [ ] Close carrier representation coherence under the
   [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances)
   before admitting context-changing writes and retained sibling references.
+- [ ] Retain received compound-input contexts in the canonical invocation/frame authority.
+  The same code, direct callable bindings and environment can receive compound values with
+  different nested callable contexts. Match original input channels to exact canonical data keys;
+  do not recover entry metadata from a raw-type default or from the closure's unrelated captures.
+  Close entry/completion selection and consumer reuse before source admission.
 
 Qualify the same lexical closure with different captured callbacks before and after forwarding
 it with another instance, including safe/unsafe ordinary source, conditional const admission,

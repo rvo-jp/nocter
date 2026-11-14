@@ -162,6 +162,20 @@ representation and static callable context; initialization, access, Copy, source
 and cleanup remain owned by their existing analyses. Qualify joins, component selection, recursive
 forwarding and failed requests without an address-indexed value registry or duplicated body typing.
 
+Received compound inputs are another independent value context: equal code, direct callable
+bindings and environment do not imply equal nested callbacks in those inputs. The canonical
+invocation/frame authority must retain their exact contextual data keys in frozen explicit-input
+order. Original body-channel correspondence maps those ordinals to input locals; raw type IDs,
+local allocation order or unrelated captured values cannot supply the entry context. An
+independently closed input needs no additional context, and direct callable inputs and the
+environment keep their existing canonical binding authorities instead of duplicating leaf maps.
+
+Obtain compound-input contexts from the matched original call bundle. Preserve them through
+instance interning, entry projections, normal completion and selected component queries, without
+substituting a caller's later storage state for the supplied snapshot. Missing, foreign, conflicting
+or unqualified inputs remain unresolved. These keys describe static specialization only; they
+add no owner, initialized input, access grant, const capability or representation proof.
+
 Dependent carrier shapes must use one contextual realization shared by evaluator eligibility,
 plan projection and native storage. Preserve nominal identities, component paths, invocation
 adapters and sparse cleanup; a substituted callable leaf cannot relabel its surrounding raw type

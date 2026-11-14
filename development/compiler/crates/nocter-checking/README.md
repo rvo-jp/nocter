@@ -640,15 +640,19 @@ input and its schema must match the closure; missing bodies or unresolved comple
 cannot fall back to the old environment. Declaration-closed witnesses fix their static dependencies
 without asserting that runtime payloads are absent or unchanged. Disjoint component paths retain
 the previous source, and containing data is rebuilt through the common component normalizer.
-Weak updates join old and completed contexts. Explicit edited callable inputs select their final
-witness through the same completed-input query. The original call kind distinguishes the frozen
+Weak updates join old and completed contexts. Explicit edited inputs select their final structural
+data and callable components through the same completed-input query. A selection within the
+written carrier follows its relative component path into the selected input; whole carriers retain
+their exact source schema and canonical component contexts. Function selections use the resulting
+concrete witness without discarding its environment. The original call kind distinguishes the frozen
 value-call prefix; the selected body's retained source-channel order then supplies its exact input
 local, operation and schema, including a closure's environment prefix. Only an actual edit input
 can supply this write. Missing correspondence, mixed call kinds or differing final contexts remain
-unresolved, without a caller-entry or preparation-snapshot fallback. Logical replacement tests do
-not grant source assignment or materialization permission. General dependent input carriers,
-post-call temporary transport, varying evaluator slots and source formal-capture admission remain
-unqualified.
+unresolved, without a caller-entry or preparation-snapshot fallback. Weak writes join only the
+selected old and new components; equal siblings can resolve even when the whole carrier cannot.
+Logical carrier/replacement tests do not grant source assignment or materialization permission.
+General dependent source input carriers, context-changing post-call temporary transport, varying
+evaluator slots and source formal-capture admission remain unqualified.
 
 `Unit::instantiate_value_data` normalizes one original value against its receiving source schema
 through that same query and declaration authority. Returned carriers retain their selected callee
