@@ -5,7 +5,13 @@ use crate::value_access::flow::{
     self,
     resources::{Holder, InstantiatedPayload, PayloadSite, Step},
 };
+use nocter_constant_evaluation::state as plan;
 use nocter_declarations::value_access::DataInstanceKey;
+
+pub(super) struct Projected {
+    pub(super) before: Vec<Step<InstantiatedPayload>>,
+    pub(super) after: Vec<Step<InstantiatedPayload>>,
+}
 
 fn source_holder(slot: ValueSourceSlot) -> Result<Holder> {
     match slot {
@@ -38,6 +44,7 @@ impl Builder<'_, '_> {
             }
             for action in 0..block.actions.len() {
                 let at = flow::Location { point, action };
+                let mut alternatives = Vec::new();
                 for transition in query.access().resources().at(at) {
                     let mut projection =
                         self.checked
@@ -84,6 +91,10 @@ impl Builder<'_, '_> {
                     for step in before.iter().chain(&after) {
                         self.resource_data(step)?;
                     }
+                    alternatives.push(Projected { before, after });
+                }
+                if self.resources.insert(at, alternatives).is_some() {
+                    return Err(INVALID);
                 }
             }
         }
@@ -94,6 +105,84 @@ impl Builder<'_, '_> {
         let data = self.types.get_instance(self.program, key.clone())?;
         self.slot_data(Key::Resource(holder), data, storage)?;
         Ok(())
+    }
+    pub(super) fn effects(
+        &mut self,
+        original: &[Step],
+        projected: &[Step<InstantiatedPayload>],
+    ) -> Result<Vec<plan::Effect>> {
+        if original.len() != projected.len() {
+            return Err(INVALID);
+        }
+        let mut effects = Vec::new();
+        for (original, projected) in original.iter().zip(projected) {
+            let mut before = Vec::new();
+            let mut after = Vec::new();
+            let actual = projected.try_map_payloads_at::<super::Failure, ()>(|site, payload| {
+                let data = self
+                    .types
+                    .get_instance(self.program, payload.instance().clone())?;
+                match site {
+                    PayloadSite::Source(place) => before.push(plan::Effect::Context {
+                        place: self.resource(place)?,
+                        data,
+                    }),
+                    PayloadSite::Destination(holder) => after.push(plan::Effect::Context {
+                        place: plan::Place::root(self.holder(holder)?),
+                        data,
+                    }),
+                }
+                Ok(())
+            })?;
+            let expected = original.try_map_payloads_at::<super::Failure, ()>(|_, _| Ok(()))?;
+            if actual != expected {
+                return Err(INVALID);
+            }
+            let mut effect = self.effect(original)?;
+            if let Step::Move {
+                destination,
+                payload,
+                ..
+            } = projected
+            {
+                let data = self
+                    .types
+                    .get_instance(self.program, payload.instance().clone())?;
+                if let plan::Effect::Move {
+                    source,
+                    destination: target,
+                } = &effect
+                    && target.fields.is_empty()
+                    && self.holder_contract(destination.holder())?.1 == plan::Storage::Owned
+                {
+                    effect = plan::Effect::MoveRoot {
+                        source: source.clone(),
+                        destination: target.slot,
+                        data,
+                    };
+                }
+                after.push(plan::Effect::Context {
+                    place: self.resource(destination)?,
+                    data,
+                });
+            } else if let Step::ReplaceReferent {
+                destination,
+                payload,
+                ..
+            } = projected
+            {
+                after.push(plan::Effect::Context {
+                    place: self.resource(destination)?,
+                    data: self
+                        .types
+                        .get_instance(self.program, payload.instance().clone())?,
+                });
+            }
+            effects.extend(before);
+            effects.push(effect);
+            effects.extend(after);
+        }
+        Ok(effects)
     }
     fn resource_data(&mut self, step: &Step<InstantiatedPayload>) -> Result<()> {
         step.try_map_payloads_at::<super::Failure, ()>(|site, payload| {

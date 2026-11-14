@@ -2,6 +2,8 @@
 mod arrays;
 mod resources;
 mod source;
+#[cfg(test)]
+mod tests;
 use super::super::{
     ArgumentAction, Binary, BoundaryAction, ExpressionKind, Referent, SelectionAction, Statement,
     flow,
@@ -84,6 +86,7 @@ struct Builder<'a, 'b> {
     invocations: BTreeMap<AccessExpressionId, CodeInstanceKey>,
     prepared: crate::value_access::PreparedData,
     values: crate::value_access::ValueData,
+    resources: BTreeMap<flow::Location, Vec<resources::Projected>>,
 }
 impl Builder<'_, '_> {
     fn expression(&self, id: AccessExpressionId) -> Result<super::super::ValueType> {
@@ -920,7 +923,13 @@ impl Builder<'_, '_> {
                     action: index,
                 };
                 let mut alternatives = Vec::new();
-                for transition in self.query.access().resources().at(location) {
+                let projected = self.resources.remove(&location).ok_or(INVALID)?;
+                if projected.len() != self.query.access().resources().at(location).count() {
+                    return Err(INVALID);
+                }
+                for (transition, projected) in
+                    self.query.access().resources().at(location).zip(projected)
+                {
                     let owned = transition
                         .condition()
                         .owned()
@@ -936,16 +945,12 @@ impl Builder<'_, '_> {
                         .collect::<Result<_>>()?;
                     alternatives.push(plan::Alternative {
                         owned,
-                        before: transition
-                            .before_steps()
-                            .iter()
-                            .map(|step| self.effect(step))
-                            .collect::<Result<_>>()?,
-                        after: transition
-                            .after_steps()
-                            .iter()
-                            .map(|step| self.effect(step))
-                            .collect::<Result<_>>()?,
+                        before: self
+                            .effects(transition.before_steps(), &projected.before)?
+                            .into(),
+                        after: self
+                            .effects(transition.after_steps(), &projected.after)?
+                            .into(),
                     });
                 }
                 actions.push(plan::Action {
@@ -991,6 +996,9 @@ impl Builder<'_, '_> {
             if points.insert(self.point(id, point)?) != id {
                 return Err(INVALID);
             }
+        }
+        if !self.resources.is_empty() {
+            return Err(INVALID);
         }
         let statics = self.static_views();
         let environment_backing = self.environment_backing()?;

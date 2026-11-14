@@ -142,6 +142,7 @@ impl<'a, 'work, F: Fn(AccessCodeId) -> Option<plan::Value>> Source<'a, 'work, F>
             invocations: BTreeMap::new(),
             prepared,
             values,
+            resources: BTreeMap::new(),
         }
         .build()?;
         let mut extension = plan::ProgramExtension::default();

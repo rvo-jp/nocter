@@ -938,7 +938,17 @@ metadata consume this authority. Evaluator preparation registers selected whole 
 field sources and retained element views before lowering control points, so block allocation order
 cannot choose a frame-wide type default for those slots. It allocates metadata, never cells, values
 or owners, and reuses the ordinary slot interner. Incompatible concrete shapes for one evaluator
-slot reject at the current qualification boundary. Place, boundary, guard, component and index
+slot reject at the current registration boundary. Preparation retains the complete instantiated
+before/after lists for each original action and transition through effect emission, rather than
+discarding them after registering types. Original steps still own declaration/view checks; their
+payload-erased operation identities must match the retained concrete steps. Concrete source
+contexts are constrained before their effects, destination contexts after receipt, and replacements
+retain distinct retired/supplied constraints. Whole owning-root moves emit the evaluator kernel's
+contextual receipt with the actual supplied data, preserving original retirement order. These
+constraints do not create values, access or owners. Publication rejects a mismatched constraint
+without retaining part of the plan. General changing-holder registration and the enclosing
+source-admission boundary remain unqualified.
+Place, boundary, guard, component and index
 views select their metadata from the represented source slot; read/edit local bindings and forwarded
 views preserve that selection. Physical component lookup has one evaluator authority and does not
 establish active variants, initialized payloads or valid runtime index numbers. Empty arrays provide
