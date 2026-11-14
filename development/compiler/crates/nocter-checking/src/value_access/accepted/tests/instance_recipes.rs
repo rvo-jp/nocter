@@ -152,6 +152,73 @@ fn contextual_referent_root_contracts_are_bounded_and_retry_without_a_default_fr
 }
 
 #[test]
+fn post_call_root_contracts_resolve_actual_inputs_and_reject_preparation_as_a_completion() {
+    use crate::value_access::{ArgumentAction, flow};
+    let unit = accepted(
+        "func first(): i32 { 42 }\nfunc inspect(action: func(): i32): i32 { action() }\nfunc run(action: func(): i32): i32 { inspect(action) }",
+    );
+    let owner = code(&unit, "run");
+    let parameter = unit.program().codes().get(owner).unwrap().parameters()[0].into();
+    let frame = unit
+        .program()
+        .bind_code(owner.into(), [(parameter, code(&unit, "first").into())])
+        .unwrap();
+    let body = unit.code_body(frame.code()).unwrap();
+    let mut completions = 0;
+    let mut preparations = 0;
+    for (point, block) in body.graph().points().iter() {
+        for (action, event) in block.actions.iter().enumerate() {
+            let (call, completed) = match event.operation {
+                flow::Operation::PrepareArgument { call, argument: 0 } => (call, false),
+                flow::Operation::CommitCall(call) => (call, true),
+                _ => continue,
+            };
+            let ExpressionKind::Call { arguments, .. } =
+                &body.typed().body().expressions().get(call).unwrap().kind
+            else {
+                panic!("call")
+            };
+            let ArgumentAction::ReserveRead(referent) = arguments[0].action else {
+                panic!("read input")
+            };
+            let at = flow::Location { point, action };
+            let after = unit.instantiate_referent_root_data_after(
+                &frame,
+                at,
+                referent,
+                &mut budget(10_000),
+            );
+            if completed {
+                let after = after.unwrap();
+                assert_eq!(
+                    after
+                        .function_representation(unit.program())
+                        .unwrap()
+                        .unwrap()
+                        .data(),
+                    unit.program()
+                        .function_data(code(&unit, "first").into())
+                        .unwrap()
+                );
+                assert_eq!(
+                    unit.instantiate_referent_root_data_after(&frame, at, referent, &mut budget(1)),
+                    Err(InstantiationFailure::WorkLimit)
+                );
+                completions += 1;
+            } else {
+                assert_eq!(after, Err(InstantiationFailure::Unresolved));
+                assert!(
+                    unit.instantiate_referent_root_data(&frame, at, referent, &mut budget(10_000))
+                        .is_ok()
+                );
+                preparations += 1;
+            }
+        }
+    }
+    assert_eq!((preparations, completions), (1, 1));
+}
+
+#[test]
 fn concrete_invocation_closes_an_anchored_recursive_result_without_host_recursion() {
     let unit = accepted(RECURSIVE);
     let caller = frame(&unit);

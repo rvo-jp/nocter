@@ -20,19 +20,31 @@ type Failure = ValueDataFailure;
 const INVALID: Failure = Failure::Body;
 
 #[derive(Clone, Debug)]
+struct RootContracts {
+    before: DataInstanceKey,
+    after: Option<DataInstanceKey>,
+}
+#[derive(Clone, Debug)]
 pub struct ValueData {
     operands: BTreeMap<(flow::Location, AccessExpressionId), Payload>,
     definitions: BTreeMap<(flow::Location, ValueSourceSlot), Payload>,
-    roots: BTreeMap<(flow::Location, Referent), DataInstanceKey>,
+    roots: BTreeMap<(flow::Location, Referent), RootContracts>,
 }
 impl ValueData {
     /// Reference-root contract metadata, not an initialized value or physical allocation receipt.
     #[must_use]
     pub fn root(&self, at: flow::Location, referent: Referent) -> Option<&DataInstanceKey> {
-        self.roots.get(&(at, referent))
+        self.roots.get(&(at, referent)).map(|roots| &roots.before)
+    }
+    /// Normal-completion contract only; this is not a write or execution receipt.
+    #[must_use]
+    pub fn root_after(&self, at: flow::Location, referent: Referent) -> Option<&DataInstanceKey> {
+        self.roots.get(&(at, referent))?.after.as_ref()
     }
     pub fn roots(&self) -> impl Iterator<Item = &DataInstanceKey> {
-        self.roots.values()
+        self.roots
+            .values()
+            .flat_map(|roots| std::iter::once(&roots.before).chain(roots.after.as_ref()))
     }
     #[must_use]
     pub fn operand(&self, at: flow::Location, expression: AccessExpressionId) -> Option<&Payload> {
@@ -110,7 +122,14 @@ pub(in crate::value_access) fn values(
         }
         let key = root(program, evidence, body, frame, at, referent, work)
             .map_err(|failure| Failure::Value { at, failure })?;
-        values.roots.insert((at, referent), key);
+        let after = sources
+            .root_after(at, referent)
+            .map(|_| root_after(program, evidence, body, frame, at, referent, work))
+            .transpose()
+            .map_err(|failure| Failure::Value { at, failure })?;
+        values
+            .roots
+            .insert((at, referent), RootContracts { before: key, after });
     }
     Ok(values)
 }
@@ -134,14 +153,47 @@ pub(in crate::value_access) fn root(
     referent: Referent,
     work: &mut WorkBudget,
 ) -> Result<DataInstanceKey, InstantiationFailure> {
+    let source = root_flow(evidence, body, frame)?
+        .root(at, referent)
+        .ok_or(InstantiationFailure::Unresolved)?;
+    root_data(program, evidence, body, frame, source, referent, work)
+}
+pub(in crate::value_access) fn root_after(
+    program: &Program,
+    evidence: &Evidence,
+    body: &flow::Query,
+    frame: &CodeInstanceKey,
+    at: flow::Location,
+    referent: Referent,
+    work: &mut WorkBudget,
+) -> Result<DataInstanceKey, InstantiationFailure> {
+    let source = root_flow(evidence, body, frame)?
+        .root_after(at, referent)
+        .ok_or(InstantiationFailure::Unresolved)?;
+    root_data(program, evidence, body, frame, source, referent, work)
+}
+fn root_flow<'a>(
+    evidence: &'a Evidence,
+    body: &flow::Query,
+    frame: &CodeInstanceKey,
+) -> Result<&'a super::ValueSourceFlow, InstantiationFailure> {
     if body.typed().code() != frame.code() {
         return Err(InstantiationFailure::WrongOwner);
     }
-    let source = evidence
+    evidence
         .value_sources(frame.code())
         .and_then(|graph| graph.flow())
-        .and_then(|flow| flow.root(at, referent))
-        .ok_or(InstantiationFailure::Unresolved)?;
+        .ok_or(InstantiationFailure::Unresolved)
+}
+fn root_data(
+    program: &Program,
+    evidence: &Evidence,
+    body: &flow::Query,
+    frame: &CodeInstanceKey,
+    source: ValueSourceId,
+    referent: Referent,
+    work: &mut WorkBudget,
+) -> Result<DataInstanceKey, InstantiationFailure> {
     let data = root_type(body, referent).ok_or(InstantiationFailure::Unresolved)?;
     if let Ok(key) = program.instantiate_closed_data(data) {
         return Ok(key);

@@ -36,8 +36,8 @@ a bound input still need exact old/new carrier receipts. A frame-wide type defau
 this qualification boundary. Keep a virtual reference root distinct from its enclosing allocation
 and preserve original before/after resource roles; root metadata does not prove initialized storage
 or stable geometry.
-Connect normal-completion reference-root sources to common contract resolution before selecting
-scoped old/new carrier data. Source operation completion is not a resource-transition phase.
+Select scoped old/new carrier data from the common paired root contracts without equating source
+operation completion with a resource-transition phase.
 Keep preparation-time snapshots and staged returns; preserve interrupted preparation metadata
 without inventing a committed call or materialization permission. Post-update dependent environments
 and prepared temporaries must follow actual call-write context rather than reuse an immutable

@@ -29,6 +29,7 @@ pub use value_sources::{
 mod unproduced;
 mod values;
 pub(super) use values::root as instantiate_referent_root_data;
+pub(super) use values::root_after as instantiate_referent_root_data_after;
 pub(super) use values::values as instantiate_value_data_map;
 pub use values::{ValueData, ValueDataFailure};
 

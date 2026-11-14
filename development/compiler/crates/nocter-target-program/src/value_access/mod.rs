@@ -81,6 +81,15 @@ impl Instance {
     ) -> Option<&DataInstanceKey> {
         self.values.root(at, referent)
     }
+    /// Original normal-completion root contract, without a resource-phase or mutation proof.
+    #[must_use]
+    pub fn referent_root_after(
+        &self,
+        at: flow::Location,
+        referent: nocter_checking::value_access::Referent,
+    ) -> Option<&DataInstanceKey> {
+        self.values.root_after(at, referent)
+    }
     /// Independently closed metadata roots, never a contextual value or source-availability map.
     #[must_use]
     pub const fn metadata(&self) -> &BTreeSet<DataInstanceKey> {

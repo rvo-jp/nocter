@@ -118,8 +118,9 @@ code instance. Source-selected moves, reservations and snapshots remain unchange
 [`Unit::instantiate_value_data_map`](../nocter-checking/README.md#shared-flow-access-and-resource-validation).
 This layer does not traverse source definitions or select their schemas again. Storage interns the
 actual keys without changing source ownership or granting materialization.
-`Instance::referent_root` retains checking's original reference-root contracts. Storage interns
-their complete keys separately from independently closed schema probes. These contracts identify
+`Instance::referent_root` and `Instance::referent_root_after` retain checking's paired original
+reference-root contracts. Storage interns their complete keys separately from independently closed
+schema probes. These contracts identify
 virtual reference roots at source actions, not enclosing allocations, initialized owners or the
 old/new sides of a resource step.
 

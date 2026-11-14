@@ -50,28 +50,7 @@ fn referent_roots_preserve_an_alias_prefix_and_follow_the_current_owner_after_a_
         let mut work = nocter_constant_evaluation::state::WorkBudget::new(
             std::num::NonZeroU64::new(10_000).unwrap(),
         );
-        let contract = unit
-            .instantiate_referent_root_data(&frame, at, referent, &mut work)
-            .unwrap();
-        assert_eq!(
-            contract,
-            unit.program().instantiate_closed_data(local.data).unwrap()
-        );
-        assert_eq!(
-            unit.instantiate_referent_root_data(
-                &frame,
-                flow::Location {
-                    action: usize::MAX,
-                    ..at
-                },
-                referent,
-                &mut work
-            ),
-            Err(InstantiationFailure::Unresolved),
-            "closed metadata still requires an original root occurrence"
-        );
-        let frozen = unit.instantiate_value_data_map(&frame, &mut work).unwrap();
-        assert_eq!(frozen.root(at, referent), Some(&contract));
+        assert_closed_root_contracts(&unit, &frame, at, referent, local.data, &mut work);
         assert_eq!(
             unit.instantiate_value_data(&frame, root, local.data, &mut work)
                 .unwrap(),
@@ -100,6 +79,52 @@ fn referent_roots_preserve_an_alias_prefix_and_follow_the_current_owner_after_a_
         BTreeSet::from([false, true]),
         "a lexical alias snapshot must not hide the later referent write"
     );
+}
+
+fn assert_closed_root_contracts(
+    unit: &Unit,
+    frame: &nocter_declarations::value_access::CodeInstanceKey,
+    at: flow::Location,
+    referent: Referent,
+    data: nocter_model::TypeId,
+    work: &mut nocter_constant_evaluation::state::WorkBudget,
+) {
+    let contract = unit
+        .instantiate_referent_root_data(frame, at, referent, work)
+        .unwrap();
+    assert_eq!(
+        contract,
+        unit.program().instantiate_closed_data(data).unwrap()
+    );
+    assert_eq!(
+        unit.instantiate_referent_root_data(
+            frame,
+            flow::Location {
+                action: usize::MAX,
+                ..at
+            },
+            referent,
+            work
+        ),
+        Err(InstantiationFailure::Unresolved),
+        "closed metadata still requires an original root occurrence"
+    );
+    let after = unit
+        .value_sources(frame.code())
+        .unwrap()
+        .flow()
+        .unwrap()
+        .root_after(at, referent)
+        .map(|_| {
+            unit.instantiate_referent_root_data_after(frame, at, referent, work)
+                .unwrap()
+        });
+    if let Some(after) = &after {
+        assert_eq!(*after, contract);
+    }
+    let frozen = unit.instantiate_value_data_map(frame, work).unwrap();
+    assert_eq!(frozen.root(at, referent), Some(&contract));
+    assert_eq!(frozen.root_after(at, referent), after.as_ref());
 }
 
 #[test]

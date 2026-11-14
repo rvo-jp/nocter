@@ -493,11 +493,15 @@ the original before-root is retained. These are source contracts, not evidence t
 that the selected location was modified or that a resource phase has executed.
 `Unit::instantiate_referent_root_data` validates that original occurrence before selecting either
 independently closed root-contract data or its actual source key. A place root uses the local's
-complete schema; an evaluated root uses the selected referent's schema. `ValueData` freezes these
-contracts separately from produced payload receipts under the shared metadata quota. Missing sites,
+complete schema; an evaluated root uses the selected referent's schema.
+`Unit::instantiate_referent_root_data_after` selects the separately recorded normal-completion
+source through that same schema and data resolver. A preparation entry cannot stand in for a
+completion entry. `ValueData` freezes both contracts as one occurrence pair, separately from
+produced payload receipts under the shared metadata quota. Missing sites,
 ambiguous context and exhaustion supply no partial result. Contract metadata does not assert that
-the root is initialized, or describe old/new resource phases. Native storage and source-place
-address projection consume these keys; resource-step carrier geometry remains separate work.
+the root is initialized, or describe old/new resource phases. Native storage interns both keys;
+source-place address projection uses the original before-root. Selecting scoped resource-step
+carriers and proving their geometry remain separate work.
 Guarded carrier views likewise retain their actual referent source before payload selection. A tag
 assertion does not replace the carrier with its payload, choose an alternative or prove availability.
 
