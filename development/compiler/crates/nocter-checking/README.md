@@ -1279,6 +1279,12 @@ or type authority. `Unit::const_requirements` exposes the product for that exact
 Unit clones share both products and bodies. A changed body cannot reuse the old source receipt.
 Required checks apply concrete bindings to the stored clauses and call edges rather than walking
 source bodies or rebuilding resource obligations.
+Each cleanup condition retains the original transition ordinal, before/after resource phase and
+step ordinal behind its diagnostic site. Selection validates the original cleanup role and schema
+against that immutable body. Replacement conditions select the retired obligation, independently
+of a supplied value with the same raw type. No resource phase is inferred from source-action
+completion. These cursors retain metadata correspondence; contextual cleanup specialization through
+the shared ordered resource-data projection remains a separate qualification obligation.
 
 Each invocation clause derives its identity-frame call edge once from the frozen operation.
 Interrupted preparation stores no edge; unresolved producer/view metadata stays an unavailable

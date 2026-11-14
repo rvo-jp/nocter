@@ -171,8 +171,9 @@ not a language restriction derived from the current realization boundary.
   independent qualification.
   Reconcile remaining const-domain frame/type probes (`Types::supports_in`) for body expressions,
   result contracts and ordered cleanup with occurrence-specific values before using them as
-  eligibility evidence. Retain original resource payload roles when one action retires and receives
-  the same raw type; a diagnostic type/site is not value provenance. Preserve exact received-input
+  eligibility evidence. Bind the retained ordered cleanup selections through shared resource-data
+  projection when one action retires and receives the same raw type; a diagnostic type/site is not
+  value provenance. Preserve exact received-input
   probes and exact compound-context traversal/discovery rather than same-typed capture defaults.
 - [ ] Complete nested callable data/witness support through header/data positions and the owning
   type authority. Keep valid formal structural descriptors separate from owned-payload admission.

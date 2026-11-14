@@ -15,6 +15,16 @@ enum Clause {
     },
     Inputs(AccessExpressionId),
     Data(Violation),
+    Cleanup(cleanup::Condition),
+}
+impl Clause {
+    fn data_condition(&self) -> Option<Violation> {
+        match self {
+            Self::Data(violation) => Some(*violation),
+            Self::Cleanup(condition) => Some(condition.violation()),
+            Self::Invocation { .. } | Self::Inputs(_) => None,
+        }
+    }
 }
 
 /// One completed edge borrowed from its matched definition-owned body product.
@@ -32,6 +42,7 @@ impl CallEdge<'_> {
 }
 
 mod bound;
+mod cleanup;
 use bound::BoundCalls;
 pub(in crate::value_access) use bound::{BoundCheck, BoundCheckFailure};
 
@@ -108,40 +119,11 @@ impl Requirements {
                 }));
             }
         }
-        // Only actual sparse cleanup operations contribute conditions; read inputs own nothing.
-        for (point, block) in body.graph().points().iter() {
-            for action in 0..block.actions.len() {
-                let location = flow::Location { point, action };
-                for transition in body.access().resources().at(location) {
-                    for step in transition.steps() {
-                        let payload = match step {
-                            flow::resources::Step::Dispose { payload, .. }
-                            | flow::resources::Step::DisposeArrayRemainder { payload, .. }
-                            | flow::resources::Step::DisposeArrayElements { payload, .. } => {
-                                *payload
-                            }
-                            flow::resources::Step::ReplaceReferent { retired, .. } => *retired,
-                            flow::resources::Step::Capture { .. }
-                            | flow::resources::Step::AdaptFunction { .. }
-                            | flow::resources::Step::Assemble { .. }
-                            | flow::resources::Step::Construct { .. }
-                            | flow::resources::Step::Receive { .. }
-                            | flow::resources::Step::Move { .. }
-                            | flow::resources::Step::MoveArrayElement { .. }
-                            | flow::resources::Step::ConsolidateArrayPrefix { .. }
-                            | flow::resources::Step::ReleaseContainer { .. }
-                            | flow::resources::Step::Invoke { .. } => continue,
-                        };
-                        if !domain.supports(program, payload.data())? {
-                            clauses.push(Clause::Data(Violation {
-                                site: Site::Cleanup(location),
-                                rule: Rule::UnsupportedCleanup(payload.data()),
-                            }));
-                        }
-                    }
-                }
-            }
-        }
+        clauses.extend(
+            cleanup::collect(&body, &mut domain)?
+                .into_iter()
+                .map(Clause::Cleanup),
+        );
         Ok(Self {
             body,
             clauses: clauses.into(),
@@ -207,6 +189,11 @@ impl Requirements {
                     };
                     (!super::supports(program, data, &mut domain, instance)?).then_some(*violation)
                 }
+                Clause::Cleanup(condition) => {
+                    let data = condition.data(&self.body)?;
+                    (!super::supports(program, data, &mut domain, instance)?)
+                        .then_some(condition.violation())
+                }
             };
             if violation.is_some() {
                 return Ok(violation);
@@ -267,7 +254,8 @@ impl Requirements {
                         return Ok(false);
                     }
                 }
-                Clause::Data(violation) => {
+                Clause::Data(_) | Clause::Cleanup(_) => {
+                    let violation = clause.data_condition().ok_or(INVALID)?;
                     let (Rule::UnsupportedData(data) | Rule::UnsupportedCleanup(data)) =
                         violation.rule()
                     else {
@@ -374,10 +362,7 @@ impl Requirements {
         Ok(true)
     }
     pub(super) fn data_conditions(&self) -> impl Iterator<Item = Violation> + '_ {
-        self.clauses.iter().filter_map(|clause| match clause {
-            Clause::Data(violation) => Some(*violation),
-            _ => None,
-        })
+        self.clauses.iter().filter_map(Clause::data_condition)
     }
     pub(in crate::value_access) fn completed_calls(&self) -> impl Iterator<Item = CallEdge<'_>> {
         self.clauses.iter().filter_map(|clause| match clause {
