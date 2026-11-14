@@ -285,6 +285,31 @@ impl Unit {
             work,
         )
     }
+    /// Resolve containing contracts only when requested, preserving each original source/path pair.
+    /// Metadata grants no initialized owner, physical backing, geometry or resource-phase receipt.
+    /// # Errors
+    /// Rejects absent occurrences, unresolved containing contexts and exhausted metadata work.
+    /// No partial before/after result is published; an independent request can retry.
+    pub fn instantiate_referent_carrier_data(
+        &self,
+        frame: &nocter_declarations::value_access::CodeInstanceKey,
+        at: flow::Location,
+        referent: super::Referent,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<super::ReferentCarrierContracts, super::InstantiationFailure> {
+        let body = self
+            .code_body(frame.code())
+            .ok_or(super::InstantiationFailure::Unresolved)?;
+        super::results::instantiate_referent_carrier_data(
+            &self.program,
+            &self.result_evidence,
+            body,
+            frame,
+            at,
+            referent,
+            work,
+        )
+    }
     /// Freeze actual data at original argument preparations, including interrupted prefixes.
     /// This creates no executable callee, invocation effect, owning value or materialization permission.
     /// # Errors

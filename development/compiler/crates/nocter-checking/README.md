@@ -488,8 +488,14 @@ selecting the virtual root. `flow.root_carriers_after` retains the separately se
 state. Both are collected by the same lexical selector as the virtual root; alternative sources
 stay paired with their paths. An external input can itself refer into a larger allocation, so
 these selections do not certify physical backing. Erased array indices establish no numeric
-address or bounds. Instantiating complete containing contracts and proving compatible placement
-remain separate from retaining these source selections.
+address or bounds.
+`Unit::instantiate_referent_carrier_data` resolves the recorded before/completion selections on
+demand, retaining each original slot/source/path with its complete contextual data key. Source
+slots have one typed-schema projection shared by source writes, ordinary definitions and these
+queries. Each selected contract spends the shared metadata budget, including independently closed
+schemas. An absent occurrence fails before resolving any contract; failure publishes no partial
+pair and a new request can retry. Ordinary leaf metadata does not eagerly require every containing
+context to close. Proving compatible placement remains a separate consumer obligation.
 Argument preparation records its original selected roots; committed read/edit address bindings
 record their current roots before call writes. This does not replace the prepared argument values.
 Tag observations record their referent roots while retaining opaque Boolean value semantics.

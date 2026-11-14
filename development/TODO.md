@@ -38,7 +38,7 @@ and preserve original before/after resource roles; root metadata does not prove 
 or stable geometry.
 Extend scoped replacement's paired virtual-root transport to enclosing carrier geometry and
 changing evaluator slot shapes without equating source operation completion with a resource-transition phase.
-Instantiate the retained original containing-source selections before proving representation
+Consume the demand-resolved original containing contracts when proving representation
 compatibility; an input's virtual root need not describe its caller's complete allocation.
 Keep preparation-time snapshots and staged returns; preserve interrupted preparation metadata
 without inventing a committed call or materialization permission. Post-update dependent environments

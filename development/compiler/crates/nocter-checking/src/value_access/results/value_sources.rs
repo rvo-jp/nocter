@@ -30,6 +30,27 @@ pub enum ValueSourceSlot {
         index: usize,
     },
 }
+impl ValueSourceSlot {
+    /// The original typed slot schema; this is independent of any actual context or availability.
+    pub(in crate::value_access::results) fn data(
+        self,
+        query: &Query,
+    ) -> Result<Option<TypeId>, flow::IntegrityError> {
+        match self {
+            Self::Return => Ok(Some(query.result_data())),
+            Self::Local(local) => Ok(Some(query.body.locals.get(local).ok_or(INVALID)?.data)),
+            Self::Expression(expression) => data(query, expression),
+            Self::Argument { call, index } => {
+                let crate::value_access::ExpressionKind::Call { arguments, .. } =
+                    &query.body.expressions.get(call).ok_or(INVALID)?.kind
+                else {
+                    return Err(INVALID);
+                };
+                data(query, arguments.get(index).ok_or(INVALID)?.value)
+            }
+        }
+    }
+}
 /// Original value formation, independent of owner availability and physical layout.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ValueSource {

@@ -150,7 +150,7 @@ impl Builder<'_> {
             };
             for (slot, path) in paths {
                 let source = self.read(point, slot, state);
-                let data = self.slot_data(slot)?;
+                let data = slot.data(self.query)?;
                 let value = self.push(
                     data,
                     None,
@@ -182,21 +182,6 @@ impl Builder<'_> {
         self.define(Slot::Expression(call), value, state)?;
         Ok(())
     }
-    fn slot_data(&self, slot: Slot) -> Result<Option<nocter_model::TypeId>> {
-        match slot {
-            Slot::Return => Ok(Some(self.query.result_data())),
-            Slot::Local(local) => Ok(Some(self.query.body.locals.get(local).ok_or(INVALID)?.data)),
-            Slot::Expression(expression) => self.data(expression),
-            Slot::Argument { call, index } => {
-                let ExpressionKind::Call { arguments, .. } =
-                    &self.query.body.expressions.get(call).ok_or(INVALID)?.kind
-                else {
-                    return Err(INVALID);
-                };
-                self.data(arguments.get(index).ok_or(INVALID)?.value)
-            }
-        }
-    }
     fn assign(
         &mut self,
         point: AccessFlowPointId,
@@ -212,7 +197,7 @@ impl Builder<'_> {
         for (slot, path) in paths {
             let source = self.read(point, slot, state);
             let value = self.push(
-                self.slot_data(slot)?,
+                slot.data(self.query)?,
                 None,
                 ValueSource::Replace {
                     source,

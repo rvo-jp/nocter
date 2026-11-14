@@ -99,13 +99,13 @@ pub(in crate::value_access) fn values(
         if !body.initialization().reachable(at.point) {
             continue;
         }
-        let data = match slot {
-            ValueSourceSlot::Local(local) => {
-                Some(body.typed().body().locals().get(local).ok_or(INVALID)?.data)
-            }
-            ValueSourceSlot::Expression(expression) => expression_data(body, expression)?,
-            ValueSourceSlot::Argument { .. } | ValueSourceSlot::Return => continue,
-        };
+        if matches!(
+            slot,
+            ValueSourceSlot::Argument { .. } | ValueSourceSlot::Return
+        ) {
+            continue;
+        }
+        let data = slot.data(body.typed()).map_err(|_| INVALID)?;
         if let Some(data) = data
             && let Some(payload) = payload(program, evidence, frame, at, source, data, work)?
         {
@@ -172,7 +172,7 @@ pub(in crate::value_access) fn root_after(
         .ok_or(InstantiationFailure::Unresolved)?;
     root_data(program, evidence, body, frame, source, referent, work)
 }
-fn root_flow<'a>(
+pub(super) fn root_flow<'a>(
     evidence: &'a Evidence,
     body: &flow::Query,
     frame: &CodeInstanceKey,

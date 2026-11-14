@@ -28,6 +28,7 @@ pub use results::{
     ValueSourceBoundary, ValueSourceCarrier, ValueSourceFlow, ValueSourceId, ValueSourceNode,
     ValueSourceRead, ValueSourceSelection, ValueSourceSlot, ValueSources,
 };
+pub use results::{ReferentCarrierContracts, ReferentCarrierData};
 pub use results::{ResourceDataFailure, ResourceDataProjection};
 pub use results::{ValueData, ValueDataFailure};
 mod selection;

@@ -178,6 +178,82 @@ fn assert_closed_root_contracts(
     let frozen = unit.instantiate_value_data_map(frame, work).unwrap();
     assert_eq!(frozen.root(at, referent), Some(&contract));
     assert_eq!(frozen.root_after(at, referent), after.as_ref());
+    assert_closed_containing_contracts(unit, frame, at, referent, work);
+}
+
+fn assert_closed_containing_contracts(
+    unit: &Unit,
+    frame: &nocter_declarations::value_access::CodeInstanceKey,
+    at: flow::Location,
+    referent: Referent,
+    work: &mut nocter_constant_evaluation::state::WorkBudget,
+) {
+    let roots = unit.value_sources(frame.code()).unwrap().flow().unwrap();
+    let contracts = unit
+        .instantiate_referent_carrier_data(frame, at, referent, work)
+        .unwrap();
+    let body = unit.code_body(frame.code()).unwrap().typed().body();
+    for (actual, selections) in std::iter::once((
+        contracts.before(),
+        roots.root_carriers(at, referent).unwrap(),
+    ))
+    .chain(
+        contracts
+            .after()
+            .zip(roots.root_carriers_after(at, referent)),
+    ) {
+        assert_eq!(actual.len(), selections.len());
+        for (actual, selection) in actual.iter().zip(selections) {
+            assert_eq!(actual.selection(), selection);
+            let ValueSourceSlot::Local(local) = selection.slot else {
+                panic!("tuple local")
+            };
+            let expected = unit
+                .program()
+                .instantiate_closed_data(body.locals().get(local).unwrap().data)
+                .unwrap();
+            assert_eq!(actual.instance(), &expected);
+        }
+    }
+    assert_eq!(
+        contracts.after().is_some(),
+        roots.root_after(at, referent).is_some()
+    );
+    if contracts.after().is_some() {
+        // The first independently closed key fits; the second side must not be published on failure.
+        for _ in 0..2 {
+            let mut exhausted = nocter_constant_evaluation::state::WorkBudget::new(
+                std::num::NonZeroU64::new(1).unwrap(),
+            );
+            assert_eq!(
+                unit.instantiate_referent_carrier_data(frame, at, referent, &mut exhausted),
+                Err(InstantiationFailure::WorkLimit)
+            );
+            assert_eq!(
+                unit.instantiate_referent_carrier_data(frame, at, referent, work)
+                    .unwrap(),
+                contracts
+            );
+        }
+    }
+    let mut untouched =
+        nocter_constant_evaluation::state::WorkBudget::new(std::num::NonZeroU64::new(1).unwrap());
+    assert_eq!(
+        unit.instantiate_referent_carrier_data(
+            frame,
+            flow::Location {
+                action: usize::MAX,
+                ..at
+            },
+            referent,
+            &mut untouched
+        ),
+        Err(InstantiationFailure::Unresolved)
+    );
+    assert!(
+        untouched.step().is_ok(),
+        "an absent occurrence must not start metadata resolution"
+    );
 }
 
 #[test]
@@ -533,6 +609,28 @@ fn contextual_body_input_metadata_uses_one_budget_and_allows_retry() {
         unit.instantiate_result_contract(&frame, &mut work).unwrap(),
         expected
     );
+    let roots = unit.value_sources(owner).unwrap().flow().unwrap();
+    let mut occurrences = 0;
+    for ((at, referent), _) in roots.roots() {
+        let contracts = unit
+            .instantiate_referent_carrier_data(&frame, at, referent, &mut work)
+            .unwrap();
+        assert_eq!(contracts.before().len(), 1);
+        assert_eq!(contracts.before()[0].instance(), &expected);
+        assert_eq!(
+            contracts.before()[0].selection().slot,
+            ValueSourceSlot::Local(input)
+        );
+        let mut exhausted = nocter_constant_evaluation::state::WorkBudget::new(
+            std::num::NonZeroU64::new(1).unwrap(),
+        );
+        assert_eq!(
+            unit.instantiate_referent_carrier_data(&frame, at, referent, &mut exhausted),
+            Err(InstantiationFailure::WorkLimit)
+        );
+        occurrences += 1;
+    }
+    assert!(occurrences > 0);
 }
 
 #[test]
