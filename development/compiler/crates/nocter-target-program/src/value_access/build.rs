@@ -47,6 +47,8 @@ impl Builder {
         let body = unit
             .code_body(key.code())
             .ok_or(Failure::InvalidAcceptedUnit)?;
+        let inputs = projection::inputs(unit, &key, body, work)?;
+        let result = projection::result(unit, &key, body, work)?;
         let data = projection::data(unit, &key, body)?;
         let mut invocations = BTreeSet::new();
         for (point, block) in body.graph().points().iter() {
@@ -87,7 +89,13 @@ impl Builder {
         self.instances
             .get_mut(id)
             .ok_or(Failure::InvalidAcceptedUnit)?
-            .definition = Some(Instance { key, calls, data });
+            .definition = Some(Instance {
+            key,
+            calls,
+            data,
+            inputs,
+            result,
+        });
         Ok(())
     }
 }
@@ -162,13 +170,6 @@ fn validate_body_edge(
 ) -> Result<(), Failure> {
     let invalid = Failure::InvalidAcceptedUnit;
     let body = unit.code_body(callee.key.code()).ok_or(invalid)?.typed();
-    let expected = |data| {
-        callee
-            .data
-            .get(&data)
-            .and_then(super::DataEvidence::payload)
-            .ok_or(invalid)
-    };
     match (body.body().inputs().environment(), call.environment()) {
         (
             Some(input),
@@ -178,15 +179,14 @@ fn validate_body_edge(
                 ..
             },
         ) => {
-            let local = body.body().locals().get(input.local).ok_or(invalid)?;
-            if input != supplied || expected(local.data)? != payload {
+            if input != supplied || callee.input(input.local).ok_or(invalid)? != &payload {
                 return Err(invalid);
             }
         }
         (None, super::Environment::None | super::Environment::CodeToken { .. }) => {}
         _ => return Err(invalid),
     }
-    if expected(body.result_data())? != call.result() {
+    if callee.result().payload().ok_or(invalid)? != call.result() {
         return Err(invalid);
     }
     let inputs = body.body().inputs().explicit();
@@ -194,8 +194,9 @@ fn validate_body_edge(
         return Err(invalid);
     }
     for (binding, input) in call.inputs().iter().zip(inputs) {
-        let local = body.body().locals().get(input.local).ok_or(invalid)?;
-        if input.operation != binding.operation || expected(local.data)? != binding.payload {
+        if input.operation != binding.operation
+            || callee.input(input.local).ok_or(invalid)? != &binding.payload
+        {
             return Err(invalid);
         }
     }

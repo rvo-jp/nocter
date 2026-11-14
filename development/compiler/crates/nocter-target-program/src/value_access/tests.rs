@@ -7,6 +7,7 @@ use nocter_declaration_lowering::access_declarations;
 use nocter_model::{ValueCode, ValueFunctionOrigin, ValueInvocation};
 use nocter_test_support::ValueSourceFixture;
 use std::fmt::Write as _;
+mod body_channels;
 mod captured;
 mod invocation_sources;
 mod primitives;
@@ -147,6 +148,8 @@ fn a_required_expression_cannot_substitute_its_source_owners_runtime_code() {
         key,
         calls: BTreeMap::new(),
         data: BTreeMap::new(),
+        inputs: BTreeMap::new(),
+        result: DataEvidence::Unproduced,
     });
     let graph = InstanceProgram {
         unit,

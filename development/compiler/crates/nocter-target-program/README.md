@@ -104,7 +104,8 @@ The declaration-owned `Program::bind_instance` still owns complete formal/captur
 contract matching and view validation. Source permissions, original body invocation and explicit
 input operations stay frozen. Declaration-owned normalization remains shared by source-value
 queries and body projection. `projection::data` retains a frame-wide table for the remaining
-ordinary body-slot and body-ABI consumers; it does not select actual invocation arguments.
+ordinary body-slot consumers; it selects neither actual invocation arguments nor bound body
+input/result channels.
 That table maps source data IDs to checking-owned [instantiated payload obligations](../nocter-checking/README.md#shared-flow-access-and-resource-validation)
 or checked unproduced shapes. Each positive entry retains its complete `DataInstanceKey`, not just
 the selected code's raw semantic ID. The unproduced marker supplies neither a duplicate
@@ -113,6 +114,21 @@ positive tuple/array shapes with a proved-unproduced callable component. Capture
 context, including when reached through a formal witness. Transitive components are not flattened
 into the body's source-ID map; the contextual schema graph remains the common projection authority.
 Source-selected moves, reservations and snapshots remain unchanged after concrete projection.
+
+`Instance::input` owns the concrete payload for each existing input local; the typed body's input
+layout remains the sole owner of order and operations. Contextual inputs resolve their original
+entry values, including the complete capture input, without reconstructing one binding for every
+occurrence of a raw type. `Instance::result` owns either its actual return-producer payload or the
+checked unproduced contract. A declaration-closed result schema can select ABI metadata for a
+diverging body without asserting that it returns a value. `Unit::instantiate_result_data` separately
+requires actual return producers and leaves an absent result unresolved.
+
+Frozen body edges compare against those channels, and storage signatures and MIR input/return
+roots consume them directly. Changing the remaining body-template cache cannot change an existing
+bound ABI channel. Input/result metadata queries share the instance work quota and identify the
+exact code/input or result on failure. Ordinary expression/local occurrence data and general
+post-update environments still require their separate integration before source formal captures
+can open.
 
 `projection::requirements` demands concrete data only for the frozen input/result ABI, checked
 reachable operations and their actual resource-step payloads. Beginning an evaluation does not

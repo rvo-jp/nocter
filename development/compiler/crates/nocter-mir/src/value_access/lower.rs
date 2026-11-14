@@ -176,7 +176,11 @@ impl Builder<'_> {
                     .ok_or_else(|| self.invalid())?;
                 (
                     SlotKey::Local(local),
-                    self.data(item.data)?,
+                    if let Some(payload) = self.instance.input(local) {
+                        self.payload_data(payload)?
+                    } else {
+                        self.data(item.data)?
+                    },
                     form(item.access().mode()),
                 )
             }
@@ -243,7 +247,13 @@ impl Builder<'_> {
             }
             Holder::Return => (
                 SlotKey::Return,
-                self.data(self.checked.typed().result_data())?,
+                self.payload_data(
+                    &self
+                        .instance
+                        .result()
+                        .payload()
+                        .ok_or_else(|| self.invalid())?,
+                )?,
                 Storage::Payload,
             ),
         };

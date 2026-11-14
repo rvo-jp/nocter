@@ -6,7 +6,9 @@ use nocter_checking::value_access::{
 };
 use nocter_model::TypeId;
 use std::collections::{BTreeMap, BTreeSet};
+mod abi;
 mod requirements;
+pub(super) use abi::{inputs, result};
 
 pub(super) fn data(
     unit: &Unit,

@@ -10,7 +10,8 @@ mod tests;
 pub use invocation::{CallTarget, Environment, EnvironmentExit, InputBinding, Invocation};
 use nocter_checking::value_access::{accepted::Unit, flow};
 use nocter_model::{
-    AccessCodeId, AccessExpressionId, AccessInstanceId, AccessParameterId, Arena, TypeId,
+    AccessCodeId, AccessExpressionId, AccessInstanceId, AccessLocalId, AccessParameterId, Arena,
+    TypeId,
 };
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -24,6 +25,8 @@ pub struct Instance {
     key: InstanceKey,
     calls: BTreeMap<AccessExpressionId, Invocation>,
     data: BTreeMap<TypeId, DataEvidence>,
+    inputs: BTreeMap<AccessLocalId, Payload>,
+    result: DataEvidence,
 }
 impl Instance {
     #[must_use]
@@ -34,6 +37,16 @@ impl Instance {
     #[must_use]
     pub const fn calls(&self) -> &BTreeMap<AccessExpressionId, Invocation> {
         &self.calls
+    }
+    /// Actual body input data keyed only by the original input local, without another input layout.
+    #[must_use]
+    pub fn input(&self, local: AccessLocalId) -> Option<&Payload> {
+        self.inputs.get(&local)
+    }
+    /// Original result metadata; an unproduced contract grants no payload.
+    #[must_use]
+    pub const fn result(&self) -> &DataEvidence {
+        &self.result
     }
     /// Source data identities map to concrete payloads or checked unproduced structural contracts.
     #[must_use]
@@ -50,6 +63,15 @@ pub enum Failure {
     UnboundRoot(AccessParameterId),
     Invocation {
         site: nocter_model::ValueApplication,
+        failure: nocter_checking::value_access::InstantiationFailure,
+    },
+    Input {
+        code: nocter_model::ValueCode,
+        local: AccessLocalId,
+        failure: nocter_checking::value_access::InstantiationFailure,
+    },
+    Result {
+        code: nocter_model::ValueCode,
         failure: nocter_checking::value_access::InstantiationFailure,
     },
     InvalidAcceptedUnit,

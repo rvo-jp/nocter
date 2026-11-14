@@ -1,5 +1,4 @@
 //! Closed data shapes for storage, independent of access operations and physical placement.
-use super::DataEvidence;
 use nocter_declarations::value_access::{CodeInstanceKey, DataInstanceKey, Program};
 use nocter_model::{AccessInstanceId, TypeId};
 use nocter_runtime_contract::{
@@ -81,12 +80,7 @@ pub fn signature(
     let body = instances.body(id).ok_or_else(invalid)?.typed();
     let inputs = body.body().inputs();
     let project = |input: nocter_checking::value_access::BodyInput| {
-        let local = body.body().locals().get(input.local).ok_or_else(invalid)?;
-        let payload = instance
-            .data()
-            .get(&local.data)
-            .and_then(DataEvidence::payload)
-            .ok_or_else(invalid)?;
+        let payload = instance.input(input.local).ok_or_else(invalid)?;
         Ok(RuntimeValueInput {
             local: input.local,
             data: storage.instance(instances.unit().program(), payload.instance())?,
@@ -100,11 +94,7 @@ pub fn signature(
         .copied()
         .map(project)
         .collect::<Result<Box<[_]>, Failure>>()?;
-    let payload = instance
-        .data()
-        .get(&body.result_data())
-        .and_then(DataEvidence::payload)
-        .ok_or_else(invalid)?;
+    let payload = instance.result().payload().ok_or_else(invalid)?;
     let result = storage.instance(instances.unit().program(), payload.instance())?;
     Ok(RuntimeValueSignature::new(environment, explicit, result))
 }
@@ -123,6 +113,12 @@ pub fn prepare(
     let program = instances.unit().program();
     let mut shapes = shapes::Builder::new(program);
     for (_, instance) in instances.instances().iter() {
+        for input in instance.inputs.values() {
+            shapes.intern(input.instance().clone())?;
+        }
+        if let Some(result) = instance.result().payload() {
+            shapes.intern(result.instance().clone())?;
+        }
         for evidence in instance.data().values() {
             if let Some(payload) = evidence.payload() {
                 shapes.intern(payload.instance().clone())?;

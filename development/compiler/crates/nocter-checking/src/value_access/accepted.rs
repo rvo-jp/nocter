@@ -247,6 +247,25 @@ impl Unit {
             work,
         )
     }
+    /// Resolve the contextual data of original returned values in this exact frame.
+    /// This supplies no return value, initialized owner or executable ABI.
+    /// # Errors
+    /// Rejects absent/ambiguous return producers and exhausted metadata work.
+    pub fn instantiate_result_data(
+        &self,
+        frame: &nocter_declarations::value_access::CodeInstanceKey,
+        source: TypeId,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<nocter_declarations::value_access::DataInstanceKey, super::InstantiationFailure>
+    {
+        super::results::instantiate_result_data(
+            &self.program,
+            &self.result_evidence,
+            frame,
+            source,
+            work,
+        )
+    }
     /// Original sparse value definitions, scoped to this complete matched Unit.
     /// These metadata edges grant no initialization, numeric or executable proof.
     #[must_use]

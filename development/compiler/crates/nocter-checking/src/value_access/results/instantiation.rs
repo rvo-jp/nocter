@@ -148,6 +148,23 @@ pub(in crate::value_access) fn stored(
     }
 }
 
+pub(in crate::value_access) fn result(
+    program: &Program,
+    evidence: &Evidence,
+    frame: &CodeInstanceKey,
+    source: TypeId,
+    work: &mut WorkBudget,
+) -> Result<DataInstanceKey, InstantiationFailure> {
+    match Query::new(program, evidence, work).solve(&Key::DataResult(
+        frame.clone(),
+        ValuePath::default(),
+        source,
+    ))? {
+        Fact::Data(data) => Ok(data),
+        _ => Err(InstantiationFailure::Unresolved),
+    }
+}
+
 impl<'a, 'work> Query<'a, 'work> {
     fn new(program: &'a Program, evidence: &'a Evidence, work: &'work mut WorkBudget) -> Self {
         Self {

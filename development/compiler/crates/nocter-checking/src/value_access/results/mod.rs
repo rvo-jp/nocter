@@ -4,7 +4,8 @@ mod instantiation;
 pub use instantiation::InstantiationFailure;
 pub(super) use instantiation::{
     call as instantiate_invocation, data as instantiate_value_data,
-    stored as instantiate_stored_data, value as instantiate_value,
+    result as instantiate_result_data, stored as instantiate_stored_data,
+    value as instantiate_value,
 };
 mod producers;
 pub use producers::{CreationRecipe, ProducerShape};

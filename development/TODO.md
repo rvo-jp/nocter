@@ -24,8 +24,9 @@ The [checking](compiler/crates/nocter-checking/README.md) and
 [target-program](compiler/crates/nocter-target-program/README.md) owners describe the implemented
 canonical metadata, original source-definition queries and ordered lifecycle specialization.
 
-Next carry their exact per-value keys through ordinary body slots, body ABI channels and evaluator
-plan selection, using the component owners above for completed invocation/lifecycle/storage scope.
+Next carry their exact per-value keys through ordinary body expression/local slots and evaluator
+plan selection, using the component owners above for completed invocation, body-ABI, lifecycle and
+storage scope.
 Keep preparation-time snapshots and staged returns. Post-update dependent environments and prepared
 temporaries must follow actual call-write context rather than reuse an immutable
 pre-call bundle. Source-definition boundaries are not resource phases: preserve the existing
