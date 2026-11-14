@@ -30,7 +30,8 @@ const func calculate(): i32 {
     single[0] = wrap_edit(decreasing(60))
     let after = step_one(single, 18)
     let preserved = saved(1)
-    if first == 41 && other == 60 && next == 42 && last == 42 && before == 41 && after == 42 && preserved == 42 { 42 } else { 0 }
+    let fresh = step_one([wrap_edit(decreasing(60))], 18)
+    if first == 41 && other == 60 && next == 42 && last == 42 && before == 41 && after == 42 && preserved == 42 && fresh == 42 { 42 } else { 0 }
 }
 const ANSWER: i32 = calculate()
 func run(): i32 { if ANSWER == 42 { calculate() } else { 0 } }

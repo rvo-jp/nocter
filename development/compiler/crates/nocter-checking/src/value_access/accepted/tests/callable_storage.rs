@@ -77,6 +77,24 @@ fn compound_edits_require_writable_storage_and_preserve_live_reference_conflicts
 }
 
 #[test]
+fn compound_edit_preparations_retire_only_explicitly_transferred_owners() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-compound-edits.nct"
+    ));
+    let changed = source.replace(
+        "let moved = forward(pair^)",
+        "let moved = forward(pair^)\nlet _ = pair.1",
+    );
+    assert_ne!(changed, source);
+    let (sources, tree) = input(&changed);
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Flow { .. }))
+    ));
+}
+
+#[test]
 fn completed_compound_input_reprojection_cannot_substitute_another_static_callable() {
     use crate::value_access::{
         ArgumentAction, ExpressionKind, Referent, ValueSourceBoundary, ValueSourceSelection,
@@ -122,7 +140,7 @@ fn completed_compound_input_reprojection_cannot_substitute_another_static_callab
                 continue;
             }
             let ArgumentAction::ReserveUpdate(Referent::Place(place)) = &arguments[0].action else {
-                panic!("original edit argument")
+                continue;
             };
             let local = body.places().get(*place).unwrap().local;
             selected = Some((

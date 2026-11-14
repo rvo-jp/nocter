@@ -19,6 +19,23 @@ func calculate(): i32 {
     let seen = pair.0(pair.1)
     let next = forward(pair)
     let after = pair.0(pair.1)
-    if first == 42 && seen == 42 && next == 43 && after == 43 && pair.1 == 23 { 42 } else { 0 }
+    let observed = pair.1
+    let fresh = update((wrap(addition(20)), 21))
+    let forwarded = forward((wrap(addition(10)), 31))
+    let moved = forward(pair^)
+    if first == 42 && seen == 42 && next == 43 && after == 43 && observed == 23 && fresh == 42 && forwarded == 42 && moved == 44 { 42 } else { 0 }
 }
-func run(): i32 { calculate() }
+func fail(): i32! { throw create_failure("preparation", "interrupted") }
+func invoke(edit calls: i32, edit pair: (func(i32): i32, i32), amount: i32): i32 {
+    calls += 1
+    pair.1 += amount
+    pair.0(pair.1)
+}
+func interrupted(edit calls: i32): i32! {
+    invoke(calls, (wrap(addition(20)), 21), fail()?)
+}
+func run(): i32 {
+    var calls = 0
+    let failed = interrupted(calls) catch _ { 42 }
+    if failed == 42 && calls == 0 { calculate() } else { 0 }
+}

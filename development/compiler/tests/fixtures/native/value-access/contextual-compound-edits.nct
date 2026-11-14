@@ -17,7 +17,11 @@ const func calculate(): i32 {
     let seen = pair.0(pair.1)
     let next = forward(pair)
     let after = pair.0(pair.1)
-    if first == 42 && seen == 42 && next == 43 && after == 43 && pair.1 == 23 { 42 } else { 0 }
+    let observed = pair.1
+    let fresh = update((wrap(addition(20)), 21))
+    let forwarded = forward((wrap(addition(10)), 31))
+    let moved = forward(pair^)
+    if first == 42 && seen == 42 && next == 43 && after == 43 && observed == 23 && fresh == 42 && forwarded == 42 && moved == 44 { 42 } else { 0 }
 }
 const ANSWER: i32 = calculate()
 func run(): i32 { if ANSWER == 42 { calculate() } else { 0 } }

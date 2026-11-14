@@ -1766,6 +1766,12 @@ function; the moved-out callback retains its earlier state independently of its 
 Required/native execution agrees, the matching error fixture executes remaining-owner cleanup,
 and out-of-range selection preserves its original failure/trap. These cases do not qualify
 context-changing assignment inside a generic receiving body or general external carrier geometry.
+The edit tuple and mutable-array fixtures also qualify freshly constructed compound arguments;
+the tuple fixture additionally lends an explicitly transferred owner and rejects subsequent source
+reuse. Their temporaries retain completed input metadata through post-call cleanup. The tuple
+error fixture exercises interruption during later argument preparation: the already constructed
+callable graph is cleaned while the receiving body remains uninvoked. This does not establish
+context-changing writes inside those temporary environments.
 
 An owned callable input can enter an explicit captured environment without a declaration-closed
 representation. Its descriptor retains callable dependencies; the checked transfer supplies the
