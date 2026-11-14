@@ -143,32 +143,10 @@ impl Query<'_, '_> {
         let Some(graph) = self.evidence.value_sources(selected.code()) else {
             return Ok(Fact::Unavailable);
         };
-        let Some(flow) = graph.flow() else {
-            return Ok(Fact::Unavailable);
-        };
-        let prefix = usize::from(matches!(selected.code(), ValueCode::Closure(_)));
-        if prefix != 0 {
-            let Some(input) = flow
-                .channels()
-                .first()
-                .and_then(|channel| graph.node(channel.source))
-            else {
-                return Ok(Fact::Unavailable);
-            };
-            if !matches!(
-                input.value,
-                ValueSource::Input {
-                    origin: LocalOrigin::Capture,
-                    ..
-                }
-            ) {
-                return Ok(Fact::Unavailable);
-            }
-        }
-        let Some(index) = explicit.checked_add(prefix) else {
-            return Ok(Fact::Unavailable);
-        };
-        let Some(channel) = flow.channels().get(index) else {
+        let Some(channel) = graph
+            .explicit_channels()
+            .and_then(|channels| channels.get(explicit))
+        else {
             return Ok(Fact::Unavailable);
         };
         self.work

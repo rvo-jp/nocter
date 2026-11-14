@@ -370,8 +370,8 @@ Input validation shares the iterative environment/witness validator; a matching 
 cannot admit missing children, unresolved positive dependencies or noncanonical stored edges.
 `CodeInstanceKey::input_data` selects this metadata without flattening its nested callable contexts
 into free-parameter bindings. Symbolic template closure supplies no compound-input receipts, even
-for the same code: those require the original supplying bundle. Original source-call and body-entry
-projection remain separate qualification work; this constructor adds no source or payload admission.
+for the same code: those require the original supplying bundle. The checking owner qualifies
+source-call and body-entry projection separately; this constructor adds no source or payload admission.
 `instantiate_environment` selects that complete environment input, including an independently
 closed environment when no contextual substitutions are needed. It shares environment selection
 with callable data projection. `DataInstanceKey::project_path` preserves context through validated

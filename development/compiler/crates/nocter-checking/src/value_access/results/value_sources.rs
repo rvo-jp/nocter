@@ -171,6 +171,25 @@ impl ValueSources {
     pub const fn flow(&self) -> Option<&ValueSourceFlow> {
         self.flow.as_ref()
     }
+    /// Original explicit channels, excluding only a validated typed environment prefix.
+    pub(in crate::value_access::results) fn explicit_channels(
+        &self,
+    ) -> Option<&[ValueSourceInput]> {
+        let channels = self.flow()?.channels();
+        if matches!(self.owner, ValueCode::Closure(_)) {
+            let (environment, explicit) = channels.split_first()?;
+            matches!(
+                self.node(environment.source)?.value,
+                ValueSource::Input {
+                    origin: LocalOrigin::Capture,
+                    ..
+                }
+            )
+            .then_some(explicit)
+        } else {
+            Some(channels)
+        }
+    }
     #[must_use]
     pub const fn owner(&self) -> ValueCode {
         self.owner

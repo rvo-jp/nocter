@@ -4,6 +4,66 @@ use crate::value_access::{InstantiationFailure, ValueSourceSelection};
 use crate::value_access::{Referent, ValueSourceBoundary, ValueSourceRead, ValueSourceSlot, flow};
 
 #[test]
+fn committed_reference_inputs_use_current_referents_while_materialized_inputs_keep_preparation() {
+    use crate::value_access::ArgumentAction;
+    let unit = accepted(
+        "func combine(value: i32, edit target: i32, take copied: i32): i32 { target = copied\nvalue }\nfunc run(): i32 { var value = 42\nvar target = 0\ncombine(value, target, value) }",
+    );
+    let owner = code(&unit, "run");
+    let graph = unit.value_sources(owner).unwrap();
+    let sources = graph.flow().unwrap();
+    let checked = unit.code_body(owner).unwrap();
+    let mut roles = [0; 3];
+    for (point, block) in checked.graph().points().iter() {
+        for (action, event) in block.actions.iter().enumerate() {
+            let flow::Operation::CommitCall(call) = event.operation else {
+                continue;
+            };
+            let ExpressionKind::Call { arguments, .. } =
+                &checked.typed().body().expressions().get(call).unwrap().kind
+            else {
+                panic!("call")
+            };
+            let [bundle] = graph.call(call).unwrap() else {
+                panic!("original bundle")
+            };
+            let at = flow::Location { point, action };
+            for (index, argument) in arguments.iter().enumerate() {
+                let ValueSourceRead::Value(prepared) = sources
+                    .read(
+                        ValueSourceBoundary { point, action },
+                        ValueSourceSlot::Argument { call, index },
+                    )
+                    .unwrap()
+                else {
+                    panic!("prepared")
+                };
+                match argument.action {
+                    ArgumentAction::ReserveRead(target) | ArgumentAction::ReserveUpdate(target) => {
+                        assert_eq!(Some(bundle.arguments[index]), sources.root(at, target));
+                        assert_eq!(
+                            graph.node(bundle.arguments[index]).unwrap().origin,
+                            Some(at)
+                        );
+                        assert_ne!(bundle.arguments[index], prepared);
+                        roles[usize::from(matches!(
+                            argument.action,
+                            ArgumentAction::ReserveUpdate(_)
+                        ))] += 1;
+                    }
+                    ArgumentAction::CopyPlace(_) => {
+                        assert_eq!(bundle.arguments[index], prepared);
+                        roles[2] += 1;
+                    }
+                    _ => panic!("fixture receiving role"),
+                }
+            }
+        }
+    }
+    assert_eq!(roles, [1, 1, 1]);
+}
+
+#[test]
 fn body_source_channels_preserve_typed_order_modes_and_capture_prefix_without_static_locals() {
     let unit = accepted(
         "static FIXED: i32 = 1\nfunc named(value: i32, edit target: i32, take owned: error): void { target = value\ndrop owned }\nfunc run(): i32 { let count = 40\nvar action = (count; value: i32): i32 { count += value\ncount + FIXED }\naction(1) }",

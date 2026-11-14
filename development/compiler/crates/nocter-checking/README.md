@@ -595,8 +595,10 @@ callables after forwarding them as edit inputs, in required and native execution
 
 Input nodes retain their local role, including the complete environment input. Selections retain
 component paths rather than treating a received closure as fresh creation. Formation records retain
-their actual environment source. Committed calls retain complete prepared bundles in source order;
-multiple bundles do not form a Cartesian product. Definition and bundle origins name the original
+their actual environment source. Committed calls retain complete argument bundles in source order.
+Materialized inputs preserve their preparation sources; reserved read/edit references select the
+actual referent at commit, independently of their earlier preparation-slot definitions. Multiple
+bundles do not form a Cartesian product. Definition and bundle origins name the original
 action. Aggregate fields and one repetition seed retain shared references independently of array
 cardinality. Numeric selectors in alias/update paths are erased, and array replacements remain weak;
 these paths prove neither equal indices, bounds nor saved-address identity.
@@ -625,7 +627,16 @@ requires its separate qualification before formal-capture admission can open.
 
 `Unit::instantiate_invocation` resolves a concrete metadata frame under a caller-supplied
 deterministic `WorkBudget`. For matched source bodies it consumes the original sparse value graph:
-complete prepared call bundles select both the callee and its actual callable inputs. Return edges
+complete committed bundles select the callee, its actual callable inputs and independently received
+compound contexts. The declaration authority's `compound_input_contracts` selects which exact data
+keys the frame requires. Every bundle must supply them before a frame is published; differing
+compound contexts distinguish otherwise equal code, environment and direct callable bindings.
+Legacy code-only recipes cannot invent those keys. Body entry and normal completion share the
+retained original explicit-channel correspondence, excluding the validated environment prefix.
+Entry component queries select the frame's own input key, not a raw-type default or an unrelated
+captured occurrence. Missing/duplicate correspondence or a mismatched schema remains unresolved.
+This metadata integration does not open formal-capture source admission or qualify storage.
+Return edges
 retain selected component paths; received environment inputs project their complete canonical data
 key rather than reopening lexical capture names. `Unit::instantiate_value` exposes callable metadata
 for one value-definition ID in that exact frame. One request-local worklist joins value, data,

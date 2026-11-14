@@ -24,7 +24,7 @@ pub enum Environment {
     None,
     /// A named function value has a code token but no environment input in its body.
     CodeToken {
-        /// Slot in the committed prepared bundle, not the original source place.
+        /// Ordinal in the original committed argument bundle, not a physical source slot.
         argument: usize,
         supplied: ValueInputOperation,
         carrier: Payload,
@@ -42,7 +42,7 @@ pub enum Environment {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct InputBinding {
-    /// Slot in the committed prepared bundle.
+    /// Ordinal in the original committed argument bundle.
     pub argument: usize,
     /// The explicit input's ordinal is its position in this list; no callee local is invented.
     pub operation: ValueInputOperation,
@@ -73,7 +73,7 @@ pub struct Invocation {
     result: Payload,
 }
 impl Invocation {
-    /// Actual payload of one original prepared slot; no new argument inventory or input order.
+    /// Actual payload of one committed argument; no new argument inventory or input order.
     #[must_use]
     pub fn argument_payload(&self, index: usize) -> Option<&Payload> {
         match &self.environment {

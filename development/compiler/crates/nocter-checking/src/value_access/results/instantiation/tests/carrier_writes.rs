@@ -139,9 +139,18 @@ impl Case {
         }
     }
     fn caller(&self, weak: bool) -> ValueSources {
+        self.caller_with_inputs(weak, &[0])
+    }
+    fn caller_with_inputs(&self, weak: bool, inputs: &[usize]) -> ValueSources {
         let mut locals = ArenaBuilder::new();
-        let mut call = bundle(1, &[1, 0], &[]);
-        call.kind = CallKind::Value;
+        let calls = inputs
+            .iter()
+            .map(|&input| {
+                let mut call = bundle(1, &[1, input], &[]);
+                call.kind = CallKind::Value;
+                call
+            })
+            .collect();
         ValueSources::test(
             self.frame.code(),
             vec![
@@ -213,8 +222,21 @@ impl Case {
                         ]),
                     },
                 ),
+                (
+                    Some(self.wrapper),
+                    ValueSource::Select {
+                        source: id(0),
+                        path: ValuePath::new([ValueProjection::Tuple(1)]),
+                    },
+                ),
+                (
+                    Some(self.carrier),
+                    ValueSource::Aggregate(
+                        vec![(ValueField::Tuple(0), id(9)), (ValueField::Tuple(1), id(9))].into(),
+                    ),
+                ),
             ],
-            BTreeMap::from([(self.call, vec![call])]),
+            BTreeMap::from([(self.call, calls)]),
             BTreeSet::new(),
         )
     }
@@ -232,7 +254,7 @@ impl Case {
                 (ValueSourceSlot::Local(target), id(1)),
             ]),
             BTreeMap::new(),
-            BTreeMap::from([((entry, ValueSourceSlot::Local(target)), vec![(0, id(4))])]),
+            BTreeMap::from([((entry, ValueSourceSlot::Local(target)), vec![(0, id(3))])]),
             BTreeSet::from([entry]),
             vec![
                 ValueSourceInput {
@@ -272,17 +294,18 @@ impl Case {
                 ),
                 (
                     Some(self.carrier),
-                    ValueSource::Aggregate(
-                        vec![(ValueField::Tuple(0), id(2)), (ValueField::Tuple(1), id(2))].into(),
-                    ),
-                ),
-                (
-                    Some(self.carrier),
                     ValueSource::Replace {
                         source: id(1),
-                        value: id(3),
-                        path: ValuePath::default(),
+                        value: id(2),
+                        path: ValuePath::new([ValueProjection::Tuple(0)]),
                         weak: false,
+                    },
+                ),
+                (
+                    Some(self.wrapper),
+                    ValueSource::Select {
+                        source: id(1),
+                        path: ValuePath::new([ValueProjection::Tuple(0)]),
                     },
                 ),
             ],
@@ -297,6 +320,68 @@ impl Case {
         insert_graph(&mut evidence, self.body(), &[]);
         evidence
     }
+}
+
+#[test]
+fn original_call_inputs_distinguish_entry_contexts_without_stealing_the_callees_environment() {
+    let case = Case::new();
+    let mut evidence = case.evidence(false);
+    let site = ValueApplication {
+        owner: case.frame.code(),
+        call: case.call,
+    };
+    let first = call(&case.program, &evidence, &case.frame, site, &mut budget()).unwrap();
+    assert_eq!(first.input_data(0), Some(&case.before));
+    assert_eq!(
+        data(
+            &case.program,
+            &evidence,
+            &first,
+            id(1),
+            case.carrier,
+            &mut budget()
+        )
+        .unwrap(),
+        case.before
+    );
+    let before = value(&case.program, &evidence, &first, id(4), &mut budget()).unwrap();
+    assert_ne!(before, case.leaf);
+    insert_graph(
+        &mut evidence,
+        case.caller_with_inputs(false, &[10]),
+        &[case.call],
+    );
+    let second = call(&case.program, &evidence, &case.frame, site, &mut budget()).unwrap();
+    assert_eq!(second.input_data(0), Some(&case.after));
+    assert_eq!(first.code(), second.code());
+    assert_eq!(first.witnesses(), second.witnesses());
+    assert_eq!(first.environment(), second.environment());
+    assert_ne!(first, second);
+    assert_eq!(
+        data(
+            &case.program,
+            &evidence,
+            &second,
+            id(1),
+            case.carrier,
+            &mut budget()
+        )
+        .unwrap(),
+        case.after
+    );
+    assert_eq!(
+        value(&case.program, &evidence, &second, id(4), &mut budget()).unwrap(),
+        case.leaf
+    );
+    insert_graph(
+        &mut evidence,
+        case.caller_with_inputs(false, &[0, 10]),
+        &[case.call],
+    );
+    assert_eq!(
+        call(&case.program, &evidence, &case.frame, site, &mut budget()),
+        Err(InstantiationFailure::Unresolved)
+    );
 }
 
 #[test]

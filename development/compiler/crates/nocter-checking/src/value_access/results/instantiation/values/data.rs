@@ -1,7 +1,6 @@
 //! Close declaration-validated contextual schemas from exact source paths, not outer bindings.
 use super::{
-    Fact, Key, LocalOrigin, PayloadSchema, Query, Result, TypeId, ValuePath, ValueSource,
-    ValueSourceId,
+    Fact, Key, PayloadSchema, Query, Result, TypeId, ValuePath, ValueSource, ValueSourceId,
 };
 use nocter_declarations::value_access::CodeInstanceKey;
 use nocter_model::{ValueField, ValueProjection};
@@ -61,18 +60,8 @@ impl Query<'_, '_> {
             return Ok(Fact::Data(data));
         }
         match node.value {
-            ValueSource::Input {
-                origin: LocalOrigin::Capture,
-                ..
-            } => Ok(self
-                .program
-                .instantiate_environment(frame)
-                .ok()
-                .flatten()
-                .and_then(|key| {
-                    key.project_path(self.program, &super::concrete_path(path))
-                        .ok()
-                })
+            ValueSource::Input { local, origin } => Ok(self
+                .projected_input_data(frame, local, origin, path)
                 .filter(|key| key.data() == target)
                 .map_or(Fact::Unavailable, Fact::Data)),
             ValueSource::Adapt { source } => self.read(

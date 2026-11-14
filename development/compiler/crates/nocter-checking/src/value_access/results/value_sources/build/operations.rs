@@ -99,15 +99,16 @@ impl Builder<'_> {
         else {
             return Err(INVALID);
         };
-        let values = (0..arguments.len())
+        let mut values = (0..arguments.len())
             .map(|index| self.read(point, Slot::Argument { call, index }, state))
             .collect::<Box<[_]>>();
-        // Addresses are bound at commit; prepared value snapshots remain unchanged.
-        for argument in arguments {
+        // Materialized values keep their preparation snapshots. Reserved references select the
+        // actual referent at commit; their earlier slot definitions remain preparation metadata.
+        for (index, argument) in arguments.iter().enumerate() {
             if let ArgumentAction::ReserveRead(target) | ArgumentAction::ReserveUpdate(target) =
                 argument.action
             {
-                self.place(point, target, state)?;
+                values[index] = self.place(point, target, state)?;
             }
         }
         let callee = if *kind == CallKind::Value {

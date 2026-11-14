@@ -168,7 +168,7 @@ expression's TypeId default. Storage includes their actual geometry without crea
 callee, invocation effect or adapter-completion schedule. Metadata for a reserved adaptation does
 not assert that its runtime materialization has happened.
 
-`invocation` binds each reached call's committed prepared bundle to the selected ordered inputs.
+`invocation` binds checking's original committed argument bundle to the selected ordered inputs.
 Argument payloads, including the callable-value carrier, normalize the bundle's actual source
 value IDs under the caller frame and the same deterministic work quota. They do not use the
 frame's default payload for a matching TypeId. Result ABI metadata can use an independently closed

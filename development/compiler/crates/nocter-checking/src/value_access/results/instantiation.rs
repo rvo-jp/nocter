@@ -378,7 +378,7 @@ impl<'a, 'work> Query<'a, 'work> {
         };
         Ok(self
             .program
-            .bind_instance(&selected, bindings)
+            .bind_instance_with_inputs(&selected, bindings, [])
             .map_or(Fact::Unavailable, Fact::Frame))
     }
 }
