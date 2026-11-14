@@ -128,8 +128,7 @@ impl Types {
             if actual.data() != data {
                 return Err(INVALID);
             }
-            let id = self.get_instance(program, actual.clone())?;
-            Ok(self.shapes[id].supported)
+            self.supports_instance(program, actual.clone())
         } else if matches!(program.data_schema(data), Some(PayloadSchema::Function(_))) {
             self.supports_in(program, instance, data)
         } else if program.instantiate_closed_data(data).is_ok() {
@@ -143,6 +142,14 @@ impl Types {
             .iter()
             .map(|shape| shape.ty.clone())
             .collect()
+    }
+    pub(in crate::value_access) fn supports_instance(
+        &mut self,
+        program: &Program,
+        data: DataInstanceKey,
+    ) -> Result<bool> {
+        let id = self.get_instance(program, data)?;
+        Ok(self.shapes[id].supported)
     }
     pub(super) fn len(&self) -> usize {
         self.shapes.len()

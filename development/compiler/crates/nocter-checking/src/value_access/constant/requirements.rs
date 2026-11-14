@@ -136,7 +136,9 @@ impl Requirements {
         self.check_clauses(available, None, None)
             .map_err(|error| match error {
                 BoundCheckFailure::Integrity(error) => error,
-                BoundCheckFailure::Invocation { .. } => INVALID,
+                BoundCheckFailure::Invocation { .. } | BoundCheckFailure::Resource { .. } => {
+                    INVALID
+                }
             })
     }
     fn check_clauses(
@@ -191,8 +193,12 @@ impl Requirements {
                 }
                 Clause::Cleanup(condition) => {
                     let data = condition.data(&self.body)?;
-                    (!super::supports(program, data, &mut domain, instance)?)
-                        .then_some(condition.violation())
+                    let supported = match calls.as_deref_mut() {
+                        Some(calls) => domain
+                            .supports_instance(program, calls.cleanup(&self.body, condition)?)?,
+                        None => super::supports(program, data, &mut domain, instance)?,
+                    };
+                    (!supported).then_some(condition.violation())
                 }
             };
             if violation.is_some() {

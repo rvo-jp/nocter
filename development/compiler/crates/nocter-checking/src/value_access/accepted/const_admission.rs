@@ -166,8 +166,8 @@ fn bound_failure(
     bound: &flow::Context<'_, '_>,
     callable: nocter_model::AccessCodeId,
 ) -> Failure {
-    match error {
-        constant::BoundCheckFailure::Integrity(error) => Failure::Integrity(error),
+    let (origin, failure) = match error {
+        constant::BoundCheckFailure::Integrity(error) => return Failure::Integrity(error),
         constant::BoundCheckFailure::Invocation {
             expression,
             failure,
@@ -175,10 +175,15 @@ fn bound_failure(
             let Some(origin) = bound.typed().expression_origin(expression) else {
                 return Failure::Integrity(flow::IntegrityError::InconsistentTypedBody);
             };
-            match source_origin(bound.typed().syntax(), origin) {
-                Ok(origin) => evaluation::condition_failure(failure, callable, origin),
-                Err(failure) => Failure::Body { callable, failure },
-            }
+            (origin, failure)
         }
+        constant::BoundCheckFailure::Resource { at, failure } => match bound.origin(at) {
+            Ok(origin) => (origin, failure),
+            Err(failure) => return Failure::Body { callable, failure },
+        },
+    };
+    match source_origin(bound.typed().syntax(), origin) {
+        Ok(origin) => evaluation::condition_failure(failure, callable, origin),
+        Err(failure) => Failure::Body { callable, failure },
     }
 }

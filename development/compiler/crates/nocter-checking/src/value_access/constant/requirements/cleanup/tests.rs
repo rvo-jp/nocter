@@ -101,3 +101,87 @@ fn projected_cleanup_selects_the_retired_context_when_receiving_the_same_source_
     assert_eq!(payload(&step).unwrap().instance(), retired.instance());
     assert_ne!(payload(&step).unwrap().instance(), supplied.instance());
 }
+
+#[test]
+fn bound_cleanup_uses_the_received_environment_and_retries_after_work_failure() {
+    use crate::value_access::constant::{BoundCheck, BoundCheckFailure};
+    use crate::value_access::{ExpressionKind, InstantiationFailure};
+    use nocter_constant_evaluation::state::{Limits, WorkBudget};
+    use nocter_declarations::value_access::FunctionWitness;
+    use nocter_model::ValueApplication;
+    use std::num::NonZeroU64;
+
+    let source = ValueSourceFixture::new(
+        "func first(): void {}\nconst func discard(take action: func(): void): void {}\nfunc run(take held: error): void { let action = (held^;): void {}\ndiscard(action^) }",
+    );
+    let unit = crate::value_access::accepted::SourceUnit::prepare(source.syntax())
+        .unwrap()
+        .into_unit();
+    let program = unit.program();
+    let code = |name| {
+        program
+            .resolve_code(program.symbols().get(name).unwrap())
+            .unwrap()
+    };
+    let discard = code("discard");
+    let formal = program.codes().get(discard).unwrap().parameters()[0];
+    let plain = program
+        .bind_code(
+            discard.into(),
+            [(formal.into(), FunctionWitness::from(code("first")))],
+        )
+        .unwrap();
+    let run = unit.code_body(code("run").into()).unwrap();
+    let (call, _) = run
+        .typed()
+        .body()
+        .expressions()
+        .iter()
+        .find(|(_, expression)| matches!(expression.kind, ExpressionKind::Call { .. }))
+        .unwrap();
+    let healthy = || WorkBudget::new(Limits::default().steps());
+    let captured = unit
+        .instantiate_invocation(
+            &program.bind_code(run.typed().code(), []).unwrap(),
+            ValueApplication {
+                owner: run.typed().code(),
+                call,
+            },
+            &mut healthy(),
+        )
+        .unwrap();
+    let requirements = unit.const_requirements(discard.into()).unwrap();
+    let body = requirements.body();
+    let conditions = collect(body, &mut evaluation::Types::default()).unwrap();
+    assert_eq!(conditions.len(), 1);
+    let condition = &conditions[0];
+    let (at, transition) = condition.request().unwrap();
+    let keys = [&plain, &captured].map(|frame| {
+        let projected = project(body, frame, at, transition, &mut healthy()).unwrap();
+        condition.projected_data(&projected).unwrap()
+    });
+    // The original condition keeps its formal source type. Resource payloads normalize to
+    // each selected function's concrete representation; those raw identities need not agree.
+    assert_ne!(keys[0].data(), keys[1].data());
+    assert_ne!(keys[0], keys[1]);
+    let mut domain = evaluation::Types::default();
+    assert!(domain.supports_instance(program, keys[0].clone()).unwrap());
+    assert!(!domain.supports_instance(program, keys[1].clone()).unwrap());
+    let mut exhausted = WorkBudget::new(NonZeroU64::new(1).unwrap());
+    exhausted.step().unwrap();
+    assert!(
+        matches!(requirements.check_bound(&|_| true, &plain, &mut exhausted),
+        Err(BoundCheckFailure::Resource { at: failed_at, failure: InstantiationFailure::WorkLimit }) if failed_at == at)
+    );
+    assert!(
+        matches!(requirements.check_bound(&|_| true, &plain, &mut healthy()).unwrap(), BoundCheck::Calls(calls) if calls.is_empty())
+    );
+    let BoundCheck::Violation(violation) = requirements
+        .check_bound(&|_| true, &captured, &mut healthy())
+        .unwrap()
+    else {
+        panic!("owned error environment must remain outside the const domain")
+    };
+    assert_eq!(violation.rule(), condition.violation().rule());
+    assert!(matches!(violation.site, Site::Cleanup(actual) if actual == at));
+}

@@ -1283,8 +1283,14 @@ Each cleanup condition retains the original transition ordinal, before/after res
 step ordinal behind its diagnostic site. Selection validates the original cleanup role and schema
 against that immutable body. Replacement conditions select the retired obligation, independently
 of a supplied value with the same raw type. No resource phase is inferred from source-action
-completion. These cursors retain metadata correspondence; contextual cleanup specialization through
-the shared ordered resource-data projection remains a separate qualification obligation.
+completion. Exact-instance checks specialize these selections through the same ordered
+resource-data projection used by execution consumers, then test the selected concrete data key.
+A request-local cache shares a complete before/after projection for each original action and
+transition; failed or partial projections are never cached. Metadata-work failures retain the
+original action location, and unsupported cleanup retains its original diagnostic type and cause.
+Unbound definition-contract checks remain distinct from this concrete selection. These metadata
+checks grant no source admission, initialized storage or physical-layout receipt; general
+context-changing carrier transport and cleanup still require consumer qualification.
 
 Each invocation clause derives its identity-frame call edge once from the frozen operation.
 Interrupted preparation stores no edge; unresolved producer/view metadata stays an unavailable

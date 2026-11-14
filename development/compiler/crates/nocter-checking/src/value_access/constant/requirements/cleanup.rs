@@ -1,6 +1,9 @@
 //! Original ordered cleanup selections, not a type/site reconstruction of a retired value.
 use super::{INVALID, Rule, Site, Violation, evaluation, flow};
-use crate::value_access::flow::resources::{Payload, Step};
+use crate::value_access::flow::resources::{self, Payload, Step};
+use crate::value_access::{ResourceDataFailure, ResourceDataProjection};
+use nocter_constant_evaluation::state::WorkBudget;
+use nocter_declarations::value_access::{CodeInstanceKey, DataInstanceKey};
 use nocter_model::TypeId;
 #[cfg(test)]
 mod tests;
@@ -18,6 +21,12 @@ pub(super) struct Condition {
     step: usize,
 }
 impl Condition {
+    pub(super) fn request(&self) -> Result<(flow::Location, usize), flow::IntegrityError> {
+        let Site::Cleanup(at) = self.violation.site else {
+            return Err(INVALID);
+        };
+        Ok((at, self.transition))
+    }
     pub(super) fn violation(&self) -> Violation {
         self.violation
     }
@@ -47,6 +56,45 @@ impl Condition {
         }
         Ok(data)
     }
+    pub(super) fn projected_data(
+        &self,
+        projected: &Projected,
+    ) -> Result<DataInstanceKey, flow::IntegrityError> {
+        let steps = match self.phase {
+            Phase::Before => &projected.before,
+            Phase::After => &projected.after,
+        };
+        let step = steps.get(self.step).ok_or(INVALID)?;
+        Ok(payload(step).ok_or(INVALID)?.instance().clone())
+    }
+}
+pub(super) struct Projected {
+    before: Vec<Step<resources::InstantiatedPayload>>,
+    after: Vec<Step<resources::InstantiatedPayload>>,
+}
+pub(super) fn project(
+    body: &flow::Query,
+    caller: &CodeInstanceKey,
+    at: flow::Location,
+    transition: usize,
+    work: &mut WorkBudget,
+) -> Result<Projected, ResourceDataFailure> {
+    let query = body.typed();
+    let evidence = query
+        .result_evidence
+        .as_ref()
+        .ok_or(ResourceDataFailure::Integrity)?;
+    let transition = body
+        .access()
+        .resources()
+        .at(at)
+        .nth(transition)
+        .ok_or(ResourceDataFailure::Integrity)?;
+    let mut projection =
+        ResourceDataProjection::new(query.program(), evidence, Some(body), caller, at, work)?;
+    let before = projection.steps(transition.before_steps())?;
+    let after = projection.after_steps(transition.after_steps())?;
+    Ok(Projected { before, after })
 }
 // The same role selector also applies to concretely projected resource steps. Replacements
 // inspect the retired obligation; the supplied value has a different role even at the same type.

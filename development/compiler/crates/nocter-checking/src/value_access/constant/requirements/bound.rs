@@ -1,5 +1,5 @@
 //! One lazy source/contract call resolution per bound clause check, never recursive admission.
-use super::{Requirements, Violation, flow, instances};
+use super::{Requirements, Violation, cleanup, flow, instances};
 use nocter_declarations::value_access::CodeInstanceKey;
 use nocter_model::{AccessExpressionId, ValueClosure};
 
@@ -15,6 +15,10 @@ pub(in crate::value_access) enum BoundCheckFailure {
         expression: AccessExpressionId,
         failure: crate::value_access::InstantiationFailure,
     },
+    Resource {
+        at: flow::Location,
+        failure: crate::value_access::InstantiationFailure,
+    },
 }
 impl From<flow::IntegrityError> for BoundCheckFailure {
     fn from(error: flow::IntegrityError) -> Self {
@@ -26,8 +30,36 @@ pub(super) struct BoundCalls<'a, 'work> {
     caller: &'a CodeInstanceKey,
     work: &'work mut nocter_constant_evaluation::state::WorkBudget,
     calls: std::collections::BTreeMap<AccessExpressionId, Option<CodeInstanceKey>>,
+    resources: std::collections::BTreeMap<(flow::Location, usize), cleanup::Projected>,
 }
 impl BoundCalls<'_, '_> {
+    pub(super) fn cleanup(
+        &mut self,
+        body: &flow::Query,
+        condition: &cleanup::Condition,
+    ) -> Result<nocter_declarations::value_access::DataInstanceKey, BoundCheckFailure> {
+        use std::collections::btree_map::Entry;
+        let request = condition.request()?;
+        let projected = match self.resources.entry(request) {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => entry.insert(
+                cleanup::project(body, self.caller, request.0, request.1, self.work).map_err(
+                    |failure| match failure {
+                        crate::value_access::ResourceDataFailure::Integrity => {
+                            BoundCheckFailure::Integrity(super::INVALID)
+                        }
+                        crate::value_access::ResourceDataFailure::Instantiation(failure) => {
+                            BoundCheckFailure::Resource {
+                                at: request.0,
+                                failure,
+                            }
+                        }
+                    },
+                )?,
+            ),
+        };
+        condition.projected_data(projected).map_err(Into::into)
+    }
     pub(super) fn resolve(
         &mut self,
         expression: AccessExpressionId,
@@ -60,6 +92,7 @@ impl Requirements {
             caller,
             work,
             calls: std::collections::BTreeMap::new(),
+            resources: std::collections::BTreeMap::new(),
         };
         if let Some(violation) = self.check_clauses(available, Some(caller), Some(&mut calls))? {
             return Ok(BoundCheck::Violation(violation));
@@ -71,5 +104,67 @@ impl Requirements {
                 .filter_map(|(expression, call)| call.map(|call| (expression, call)))
                 .collect(),
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nocter_constant_evaluation::state::{Limits, WorkBudget};
+    use nocter_declarations::value_access::FunctionWitness;
+    use nocter_test_support::ValueSourceFixture;
+    use std::{collections::BTreeMap, num::NonZeroU64};
+
+    #[test]
+    fn cleanup_cache_publishes_only_complete_projections_and_reuses_them_without_work() {
+        let source = ValueSourceFixture::new(
+            "func first(): void {}\nconst func discard(take action: func(): void): void {}",
+        );
+        let unit = crate::value_access::accepted::SourceUnit::prepare(source.syntax())
+            .unwrap()
+            .into_unit();
+        let program = unit.program();
+        let code = |name| {
+            program
+                .resolve_code(program.symbols().get(name).unwrap())
+                .unwrap()
+        };
+        let discard = code("discard");
+        let formal = program.codes().get(discard).unwrap().parameters()[0];
+        let caller = program
+            .bind_code(
+                discard.into(),
+                [(formal.into(), FunctionWitness::from(code("first")))],
+            )
+            .unwrap();
+        let body = unit.code_body(discard.into()).unwrap();
+        let conditions =
+            cleanup::collect(body, &mut crate::value_access::evaluation::Types::default()).unwrap();
+        assert_eq!(conditions.len(), 1);
+        let condition = &conditions[0];
+        let mut work = WorkBudget::new(NonZeroU64::new(1).unwrap());
+        work.step().unwrap();
+        let mut calls = BoundCalls {
+            query: body.typed(),
+            caller: &caller,
+            work: &mut work,
+            calls: BTreeMap::new(),
+            resources: BTreeMap::new(),
+        };
+        assert!(matches!(
+            calls.cleanup(body, condition),
+            Err(BoundCheckFailure::Resource {
+                failure: crate::value_access::InstantiationFailure::WorkLimit,
+                ..
+            })
+        ));
+        assert!(calls.resources.is_empty());
+        *calls.work = WorkBudget::new(Limits::default().steps());
+        let selected = calls.cleanup(body, condition).unwrap();
+        assert_eq!(calls.resources.len(), 1);
+        *calls.work = WorkBudget::new(NonZeroU64::new(1).unwrap());
+        calls.work.step().unwrap();
+        assert_eq!(calls.cleanup(body, condition).unwrap(), selected);
+        assert_eq!(calls.resources.len(), 1);
     }
 }
