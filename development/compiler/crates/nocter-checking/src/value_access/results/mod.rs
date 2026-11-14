@@ -11,6 +11,10 @@ pub use relations::{InvocationRecipe, Relation as ProducerRelation, Term as Prod
 mod solve;
 mod typing;
 pub(super) use typing::deferred_equalities;
+mod value_sources;
+pub use value_sources::{
+    CallValueSources, ValueSource, ValueSourceId, ValueSourceNode, ValueSourceSlot, ValueSources,
+};
 mod unproduced;
 
 use super::{Failure, Query, accepted, flow};
@@ -36,6 +40,7 @@ pub(super) struct Evidence {
     creations: BTreeMap<nocter_model::ValueClosure, CreationRecipe>,
     applications: BTreeMap<ValueApplication, ApplicationEvidence>,
     bodies: nocter_declaration_lowering::access_declarations::BodySources,
+    value_sources: BTreeMap<nocter_model::ValueCode, ValueSources>,
 }
 #[derive(Clone, Copy, Debug)]
 enum ApplicationEvidence {
@@ -48,6 +53,9 @@ pub(super) struct Verified<'a, 'source> {
     pub(super) context: &'a DeclarationContext<'source>,
 }
 impl Evidence {
+    pub(super) fn value_sources(&self, owner: nocter_model::ValueCode) -> Option<&ValueSources> {
+        self.value_sources.get(&owner)
+    }
     pub(super) fn creation(&self, closure: nocter_model::ValueClosure) -> Option<&CreationRecipe> {
         self.creations.get(&closure)
     }
@@ -241,7 +249,7 @@ pub(super) fn close(
             _ => accepted::Failure::Integrity(flow::IntegrityError::InconsistentTypedBody),
         })?;
     let program = Arc::new(projection.program().clone());
-    for (&root, control) in controls {
+    for (&root, control) in controls.iter_mut() {
         let query = Arc::make_mut(&mut control.typed);
         attach(query, &evidence);
         crate::value_access::types::bind_program(query, &program);
@@ -252,6 +260,22 @@ pub(super) fn close(
             }
         })?;
         seal(query);
+    }
+    // Source definitions depend on resolved receiving actions, not provisional PendingValue
+    // plans. The original control/action identities and value relationships stay unchanged.
+    let mut completed = (*evidence).clone();
+    for (&owner, control) in
+        &flow::scope(controls.values()).map_err(accepted::Failure::Integrity)?
+    {
+        let aliases =
+            flow::Aliases::prepare(&control.typed).map_err(accepted::Failure::Integrity)?;
+        let graph =
+            value_sources::analyze(control, &aliases).map_err(accepted::Failure::Integrity)?;
+        completed.value_sources.insert(owner, graph);
+    }
+    let evidence = Arc::new(completed);
+    for control in controls.values_mut() {
+        attach(Arc::make_mut(&mut control.typed), &evidence);
     }
     Ok((program, evidence))
 }

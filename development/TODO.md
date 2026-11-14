@@ -23,12 +23,16 @@ Complete occurrence-sensitive value/capture transport under the
 The declaration-owned frame/data model and original creation-recipe resolver are the existing
 metadata authorities; their component READMEs own implemented scope.
 
-Next preserve exact environment component provenance at received capture leaves in the shared
-original producer model. A received value must designate its actual environment component rather
-than becoming a fresh lexical closure term or an arbitrary outer free-parameter binding. Carry
-this evidence through local, argument, component and return transport without expanding shared
-schemas into all paths. Extend ordinary body data selection, receiving and cleanup to consume
-those exact value contexts instead of reconstructing them from a per-frame TypeId map.
+Next consume the matched sparse `ValueSources` graph to resolve received environment components
+and value-occurrence contexts under the existing deterministic work quota. Follow input roles,
+selections, value definitions, prepared call bundles, creation environments and returned values;
+do not turn a received value into fresh lexical creation or an outer free-parameter lookup.
+Keep code-summary/definition hypotheses separate from actual committed value-source resolution.
+Opaque effects, ambiguous alternatives and unqualified call writes must not supply a context.
+
+Carry the resulting exact keys into ordinary body data selection, receiving and cleanup rather
+than rebuilding them from a per-frame TypeId map. Preserve shared schemas, sparse loops and
+homogeneous arrays without enumerating all paths or declared elements.
 
 Qualify the same lexical closure with different captured callbacks before and after forwarding
 them together, including safe/unsafe ordinary source, conditional const admission, evaluator

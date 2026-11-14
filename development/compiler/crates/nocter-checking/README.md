@@ -453,6 +453,32 @@ result projection normalizes the closure's environment. Component queries return
 not path validity or bounds proofs. Complete-Unit rebinding verifies source bodies before exposing
 these records; equal header types do not permit reuse after changed capture effects. Concrete
 captured-frame realization and occurrence-sensitive executable data remain separate obligations.
+
+`Unit::value_sources` retains a sparse source value-definition graph for each reached body,
+after canonical type projection and receiving-action resolution. Those stages preserve the original
+control/action identities and value relationships.
+Definitions refer to earlier values or incoming merge nodes; a later local update cannot rewrite a
+previous formation or prepared argument. One incoming node per control point and value slot links
+to predecessor definitions, including backedges, without unrolling iterations. Source slots share
+their identity vocabulary with the producer analysis. Both consume the same selected control graph
+and lexical alias authority; this graph does not repeat typing, ownership or initialization checks.
+
+Input nodes retain their local role, including the complete environment input. Selections retain
+component paths rather than treating a received closure as fresh creation. Formation records retain
+their actual environment source. Committed calls retain complete prepared bundles in source order;
+multiple bundles do not form a Cartesian product. Definition and bundle origins name the original
+action. Aggregate fields and one repetition seed retain shared references independently of array
+cardinality. Numeric selectors in alias/update paths are erased, and array replacements remain weak;
+these paths prove neither equal indices, bounds nor saved-address identity.
+
+Scalar operations are opaque to this metadata graph. A call's selected edit input records a possible
+post-call write, distinguishing existing storage from an owned temporary; it does not assert an
+unchanged context or infer the callee's effects. Nodes retain canonical projected schemas and are scoped to
+the exact complete Unit and body. Neither graph IDs nor detached graph copies are reusable source
+receipts. Occurrence-context instantiation still uses the qualified witness/creation recipes below;
+integrating these broader value definitions into its consumers remains required before source
+formal-capture admission can open.
+
 `Unit::invocation_recipe` exposes each committed-call record
 under their exact code/call identity. Callable application nodes share the same immutable record,
 so the equation graph and invocation catalog do not maintain separate binding copies. Interrupted

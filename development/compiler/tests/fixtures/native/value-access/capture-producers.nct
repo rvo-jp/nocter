@@ -38,9 +38,15 @@ const func repeated_creation(): i32 {
     }
     42
 }
+const func consume_prepared(action: func(): i32, ignored: i32): i32 { action() }
+const func prepared_snapshot(): i32 {
+    var current = make(42)
+    consume_prepared(if true { current } else { current }, if true { current = make(43)
+0 } else { 0 })
+}
 const func calculate(): i32 {
     if captured_components() == 4442 && nested_creation() == 42
-        && dormant_creation() == 42 && repeated_creation() == 42 { 42 } else { 0 }
+        && dormant_creation() == 42 && repeated_creation() == 42 && prepared_snapshot() == 42 { 42 } else { 0 }
 }
 const ANSWER: i32 = calculate()
 func run(): i32 { if ANSWER == 42 && calculate() == 42 { 42 } else { 0 } }

@@ -2,12 +2,11 @@
 //! A conditional's provisional type is not evidence that its named branch can execute.
 use crate::value_access::{CallKind, ExpressionKind, Query, flow};
 use nocter_declarations::value_access::{FunctionWitness, PayloadSchema};
-use nocter_model::{AccessExpressionId, AccessLocalId, ValueApplication, ValueFunctionOrigin};
+use nocter_model::{AccessExpressionId, ValueApplication, ValueFunctionOrigin};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) type Producers = BTreeSet<FunctionWitness>;
 pub(super) type Inputs = BTreeMap<nocter_model::ValueParameter, Producers>;
-#[derive(Default)]
 pub(super) struct Report {
     pub(super) returned: Vec<(FunctionWitness, AccessExpressionId)>,
     pub(super) applications: BTreeSet<ValueApplication>,
@@ -17,15 +16,8 @@ pub(super) struct Report {
     /// concrete anchor. An uncommitted origin can therefore remain genuinely empty.
     pub(super) referenced_applications: BTreeSet<ValueApplication>,
 }
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-enum Key {
-    Local(AccessLocalId),
-    Expression(AccessExpressionId),
-    Argument {
-        call: AccessExpressionId,
-        index: usize,
-    },
-}
+use super::value_sources::ValueSourceSlot as Key;
+
 mod creations;
 mod facts;
 use creations::Creations;
@@ -313,21 +305,8 @@ fn commit(
 }
 
 const INVALID: flow::IntegrityError = flow::IntegrityError::InconsistentTypedBody;
-fn producer_root(
-    query: &Query,
-    root: crate::value_access::paths::ProjectionRoot,
-) -> Result<(Key, nocter_model::TypeId), flow::IntegrityError> {
-    match root {
-        crate::value_access::paths::ProjectionRoot::Place(place) => {
-            let place = query.body.places.get(place).ok_or(INVALID)?;
-            let data = query.body.locals.get(place.local).ok_or(INVALID)?.data;
-            Ok((Key::Local(place.local), data))
-        }
-        crate::value_access::paths::ProjectionRoot::Temporary(value) => {
-            Ok((Key::Expression(value), expression_data(query, value)?))
-        }
-    }
-}
+use super::value_sources::root as producer_root;
+
 fn join(target: &mut State, incoming: &State, store: &mut Store) -> bool {
     let mut changed = false;
     for (&key, producers) in incoming {
@@ -342,14 +321,9 @@ fn expression_data(
     query: &Query,
     id: AccessExpressionId,
 ) -> Result<nocter_model::TypeId, flow::IntegrityError> {
-    query
-        .body
-        .expressions
-        .get(id)
-        .and_then(|expression| expression.ty.access())
-        .map(nocter_model::ValueAccess::data)
-        .ok_or(INVALID)
+    super::value_sources::data(query, id)?.ok_or(INVALID)
 }
+
 fn forward(
     query: &Query,
     source: AccessExpressionId,

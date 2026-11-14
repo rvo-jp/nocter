@@ -193,6 +193,15 @@ impl Unit {
             work,
         )
     }
+    /// Original sparse value definitions, scoped to this complete matched Unit.
+    /// These metadata edges grant no initialization, numeric or executable proof.
+    #[must_use]
+    pub fn value_sources(
+        &self,
+        owner: nocter_model::ValueCode,
+    ) -> Option<&super::results::ValueSources> {
+        self.result_evidence.value_sources(owner)
+    }
     /// Original bindings of a reached committed call, independently of its result data.
     /// The recipe belongs to this exact accepted Unit and grants no executable call/frame proof.
     #[must_use]
