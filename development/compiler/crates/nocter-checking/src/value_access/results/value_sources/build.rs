@@ -15,6 +15,7 @@ struct Builder<'a> {
     writes: BTreeMap<(AccessFlowPointId, Slot), Vec<(usize, ValueSourceId)>>,
     reads: BTreeMap<(flow::Location, AccessExpressionId), ValueSourceId>,
     referents: BTreeMap<(flow::Location, Referent), ValueSourceId>,
+    roots: BTreeMap<(flow::Location, Referent), ValueSourceId>,
     origin: Option<flow::Location>,
     aliases: &'a flow::Aliases,
     nodes: Vec<ValueSourceNode>,
@@ -37,6 +38,7 @@ pub(in crate::value_access::results) fn analyze(
         writes: BTreeMap::new(),
         reads: BTreeMap::new(),
         referents: BTreeMap::new(),
+        roots: BTreeMap::new(),
         origin: None,
         aliases,
         nodes: vec![ValueSourceNode {
@@ -129,6 +131,7 @@ impl Builder<'_> {
             writes: std::mem::take(&mut self.writes),
             reads: std::mem::take(&mut self.reads),
             referents: std::mem::take(&mut self.referents),
+            roots: std::mem::take(&mut self.roots),
         })
     }
     fn close_incoming(&mut self, positions: &super::ValueSourceFlow) -> Result<()> {
@@ -265,11 +268,46 @@ impl Builder<'_> {
         state: &State,
     ) -> Result<ValueSourceId> {
         let paths = self.paths(place)?;
+        let suffix = match place {
+            Referent::Place(id) => crate::value_access::paths::known_by(
+                &self.query.body.places.get(id).ok_or(INVALID)?.fields,
+                |_| (),
+            ),
+            Referent::Evaluated(_) => nocter_model::ValuePath::default(),
+        };
         let mut values = BTreeSet::new();
+        let mut roots = BTreeSet::new();
         for (slot, path) in paths {
             let source = self.read(point, slot, state);
-            values.insert(self.push(None, None, ValueSource::Select { source, path }));
+            let prefix = path
+                .fields()
+                .len()
+                .checked_sub(suffix.fields().len())
+                .ok_or(INVALID)?;
+            if !path.fields().ends_with(suffix.fields()) {
+                return Err(INVALID);
+            }
+            let root = (!suffix.is_root()).then(|| {
+                self.push(
+                    None,
+                    None,
+                    ValueSource::Select {
+                        source,
+                        path: nocter_model::ValuePath::new(path.fields()[..prefix].iter().copied()),
+                    },
+                )
+            });
+            let selected = self.push(None, None, ValueSource::Select { source, path });
+            values.insert(selected);
+            roots.insert(root.unwrap_or(selected));
         }
+        let root = if roots.len() == 1 {
+            *roots.first().ok_or(INVALID)?
+        } else {
+            self.push(None, None, ValueSource::Alternatives(roots))
+        };
+        self.roots
+            .insert((self.origin.ok_or(INVALID)?, place), root);
         Ok(if values.len() == 1 {
             *values.first().ok_or(INVALID)?
         } else {

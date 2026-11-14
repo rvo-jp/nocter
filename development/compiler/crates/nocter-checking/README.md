@@ -477,6 +477,16 @@ multiple writes within a commit do not become new source boundaries or resource 
 `flow.referent` retains the value selected by an assignment target before its write, through the
 same lexical alias authority. A repeated alias write therefore refers to the current source root,
 not the value at alias formation. An uninitialized target's metadata grants no previous payload.
+`flow.root` retains each selected referent before its authored place-field suffix. Lexical alias
+prefixes remain part of that root; an evaluated referent is already a complete selected root. The
+suffix must match the common resolved path before it is separated. Root occurrences are sparse
+original-action entries and follow the current source through writes, not an alias binding's old
+snapshot. They identify reference-root metadata, not the enclosing physical allocation, initialized
+storage, saved numbers or a resource phase. Storage integration and changing-layout proofs remain
+separate obligations.
+Argument preparation records its original selected roots; committed read/edit address bindings
+record their current roots before call writes. This does not replace the prepared argument values.
+Tag observations record their referent roots while retaining opaque Boolean value semantics.
 Guarded carrier views likewise retain their actual referent source before payload selection. A tag
 assertion does not replace the carrier with its payload, choose an alternative or prove availability.
 

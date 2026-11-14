@@ -43,6 +43,15 @@ impl Builder<'_> {
                 };
                 let source =
                     self.value(point, arguments.get(argument).ok_or(INVALID)?.value, state)?;
+                match &arguments.get(argument).ok_or(INVALID)?.action {
+                    ArgumentAction::ReserveRead(target)
+                    | ArgumentAction::ReserveUpdate(target)
+                    | ArgumentAction::ReserveTransfer { place: target, .. }
+                    | ArgumentAction::CopyPlace(target) => {
+                        self.place(point, *target, state)?;
+                    }
+                    _ => {}
+                }
                 self.define(
                     Slot::Argument {
                         call,
@@ -93,6 +102,14 @@ impl Builder<'_> {
         let values = (0..arguments.len())
             .map(|index| self.read(point, Slot::Argument { call, index }, state))
             .collect::<Box<[_]>>();
+        // Addresses are bound at commit; prepared value snapshots remain unchanged.
+        for argument in arguments {
+            if let ArgumentAction::ReserveRead(target) | ArgumentAction::ReserveUpdate(target) =
+                argument.action
+            {
+                self.place(point, target, state)?;
+            }
+        }
         let callee = if *kind == CallKind::Value {
             *values.first().ok_or(INVALID)?
         } else {

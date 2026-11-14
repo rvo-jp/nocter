@@ -34,6 +34,7 @@ pub struct ValueSourceFlow {
     pub(super) writes: BTreeMap<(AccessFlowPointId, ValueSourceSlot), Vec<(usize, ValueSourceId)>>,
     pub(super) reads: BTreeMap<(flow::Location, AccessExpressionId), ValueSourceId>,
     pub(super) referents: BTreeMap<(flow::Location, Referent), ValueSourceId>,
+    pub(super) roots: BTreeMap<(flow::Location, Referent), ValueSourceId>,
 }
 impl ValueSourceFlow {
     #[cfg(test)]
@@ -52,6 +53,7 @@ impl ValueSourceFlow {
             writes,
             reads: BTreeMap::new(),
             referents: BTreeMap::new(),
+            roots: BTreeMap::new(),
         }
     }
     /// Select a sparse reaching definition without allocating a point-by-slot state matrix.
@@ -108,6 +110,17 @@ impl ValueSourceFlow {
     #[must_use]
     pub fn referent(&self, location: flow::Location, target: Referent) -> Option<ValueSourceId> {
         self.referents.get(&(location, target)).copied()
+    }
+    /// The current referent root before its authored place-field suffix, through lexical aliases.
+    /// For an evaluated referent the complete selected value is its root. This is source metadata,
+    /// not the enclosing physical allocation, an initialized owner or a resource-phase receipt.
+    #[must_use]
+    pub fn root(&self, location: flow::Location, target: Referent) -> Option<ValueSourceId> {
+        self.roots.get(&(location, target)).copied()
+    }
+    /// Only roots selected by original referent operations, without a place-by-action matrix.
+    pub fn roots(&self) -> impl Iterator<Item = ((flow::Location, Referent), ValueSourceId)> + '_ {
+        self.roots.iter().map(|(&site, &source)| (site, source))
     }
     /// Original operand occurrences, without another traversal of source operation kinds.
     pub fn operands(

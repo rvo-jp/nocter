@@ -4,6 +4,121 @@ use crate::value_access::{InstantiationFailure, ValueSourceSelection};
 use crate::value_access::{Referent, ValueSourceBoundary, ValueSourceRead, ValueSourceSlot, flow};
 
 #[test]
+fn referent_roots_preserve_an_alias_prefix_and_follow_the_current_owner_after_a_write() {
+    let unit = accepted(
+        "struct Pair { first: i32\nsecond: i32 }\nfunc make(value: i32): Pair { Pair { first: value, second: 0 } }\nfunc run(): i32 { var bundle = (make(41), 0)\nedit alias = bundle.0\nalias.first = 42\nalias.first }",
+    );
+    let owner = code(&unit, "run");
+    let graph = unit.value_sources(owner).unwrap();
+    let flow = graph.flow().unwrap();
+    let body = unit.code_body(owner).unwrap().typed().body();
+    let frame = unit.program().bind_code(owner, []).unwrap();
+    let mut snapshots = BTreeSet::new();
+    for ((at, referent), root) in flow.roots() {
+        let Referent::Place(place) = referent else {
+            continue;
+        };
+        let place = body.places().get(place).unwrap();
+        let local = body.locals().get(place.local).unwrap();
+        if local.kind != nocter_model::ValueBindingKind::EditAlias
+            || place.fields.fields().is_empty()
+        {
+            continue;
+        }
+        assert_eq!(flow.root(at, referent), Some(root));
+        let ValueSource::Select { path, .. } = &graph.node(root).unwrap().value else {
+            panic!("the referent root must select the aliased Pair from its tuple owner");
+        };
+        assert_eq!(path.fields(), &[ValueProjection::Tuple(0)]);
+        let mut work = nocter_constant_evaluation::state::WorkBudget::new(
+            std::num::NonZeroU64::new(10_000).unwrap(),
+        );
+        assert_eq!(
+            unit.instantiate_value_data(&frame, root, local.data, &mut work)
+                .unwrap(),
+            unit.program().instantiate_closed_data(local.data).unwrap()
+        );
+        // This reference's root is a Pair, not the enclosing physical tuple or selected i32.
+        assert_eq!(
+            unit.instantiate_value_data(&frame, root, place.data, &mut work),
+            Err(InstantiationFailure::Unresolved)
+        );
+        let mut pending = vec![root];
+        let mut seen = BTreeSet::new();
+        let mut updated = false;
+        while let Some(source) = pending.pop() {
+            if !seen.insert(source) {
+                continue;
+            }
+            let value = &graph.node(source).unwrap().value;
+            updated |= matches!(value, ValueSource::Replace { .. });
+            pending.extend(edges(value));
+        }
+        snapshots.insert(updated);
+    }
+    assert_eq!(
+        snapshots,
+        BTreeSet::from([false, true]),
+        "a lexical alias snapshot must not hide the later referent write"
+    );
+}
+
+#[test]
+fn argument_preparation_commit_and_tag_observation_have_original_root_receipts() {
+    let unit = accepted(
+        "func combine(value: i32, edit target: i32): i32 { target = value\ntarget }\nfunc run(): i32 { var value: i32? = 41\nread selected = value otherwise { return 0 }\nvar next = 0\ncombine(selected, next) }",
+    );
+    let owner = code(&unit, "run");
+    let graph = unit.value_sources(owner).unwrap();
+    let flow = graph.flow().unwrap();
+    let checked = unit.code_body(owner).unwrap();
+    let mut counts = [0; 3];
+    for (point, block) in checked.graph().points().iter() {
+        for (action, event) in block.actions.iter().enumerate() {
+            let at = flow::Location { point, action };
+            let (arguments, category) = match event.operation {
+                flow::Operation::PrepareArgument { call, argument } => {
+                    let ExpressionKind::Call { arguments, .. } =
+                        &checked.typed().body().expressions().get(call).unwrap().kind
+                    else {
+                        panic!("call")
+                    };
+                    (&arguments[argument..=argument], 0)
+                }
+                flow::Operation::CommitCall(call) => {
+                    let ExpressionKind::Call { arguments, .. } =
+                        &checked.typed().body().expressions().get(call).unwrap().kind
+                    else {
+                        panic!("call")
+                    };
+                    (arguments.as_ref(), 1)
+                }
+                flow::Operation::Evaluate(id) => {
+                    if let ExpressionKind::PrimaryCondition { source } =
+                        checked.typed().body().expressions().get(id).unwrap().kind
+                    {
+                        assert!(flow.root(at, source).is_some());
+                        counts[2] += 1;
+                    }
+                    continue;
+                }
+                _ => continue,
+            };
+            for argument in arguments {
+                let (crate::value_access::ArgumentAction::ReserveRead(target)
+                | crate::value_access::ArgumentAction::ReserveUpdate(target)) = argument.action
+                else {
+                    continue;
+                };
+                assert!(flow.root(at, target).is_some());
+                counts[category] += 1;
+            }
+        }
+    }
+    assert_eq!(counts, [2, 2, 1]);
+}
+
+#[test]
 fn guarded_carriers_retain_the_actual_source_on_each_side_of_a_replacement() {
     for carrier in ["i32?", "i32!"] {
         let unit = accepted(&format!(

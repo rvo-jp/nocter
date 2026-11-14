@@ -32,6 +32,9 @@ projection; the checking owner records covered non-materializing views. Keep
 execution lowering separate from source-value normalization.
 MIR partial roots without a bound input must gain exact carrier receipts; a frame-wide type
 default cannot bypass this qualification boundary.
+Connect the checking owner's original referent-root sources to actual payload/storage selection.
+Keep a virtual reference root distinct from its enclosing allocation and preserve original
+before/after resource roles; root metadata does not prove initialized storage or stable geometry.
 Keep preparation-time snapshots and staged returns; preserve interrupted preparation metadata
 without inventing a committed call or materialization permission. Post-update dependent environments
 and prepared temporaries must follow actual call-write context rather than reuse an immutable

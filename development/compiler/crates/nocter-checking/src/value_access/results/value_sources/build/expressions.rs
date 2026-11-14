@@ -42,6 +42,10 @@ impl Builder<'_> {
             ExpressionKind::GuardView { source, .. } => ValueSource::Adapt {
                 source: self.place(point, *source, state)?,
             },
+            ExpressionKind::PrimaryCondition { source } => {
+                self.place(point, *source, state)?;
+                ValueSource::Opaque
+            }
             ExpressionKind::Boundary { source, .. }
             | ExpressionKind::AdaptFunction { source }
             | ExpressionKind::Move(Referent::Evaluated(source))
