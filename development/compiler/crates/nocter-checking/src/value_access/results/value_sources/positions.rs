@@ -2,7 +2,7 @@
 use super::{State, ValueSourceId, ValueSourceSlot};
 use crate::value_access::{Referent, flow};
 use nocter_model::{AccessExpressionId, AccessFlowPointId};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// A boundary after exactly `action` original actions in one original control point.
 /// This describes source-definition order, not a resource-transition phase or an access grant.
@@ -54,6 +54,7 @@ pub struct ValueSourceFlow {
     pub(super) reads: BTreeMap<(flow::Location, AccessExpressionId), ValueSourceId>,
     pub(super) referents: BTreeMap<(flow::Location, Referent), ValueSourceId>,
     pub(super) roots: BTreeMap<(flow::Location, Referent), RootSources>,
+    pub(super) returns: BTreeSet<AccessFlowPointId>,
 }
 impl ValueSourceFlow {
     #[cfg(test)]
@@ -73,7 +74,16 @@ impl ValueSourceFlow {
             reads: BTreeMap::new(),
             referents: BTreeMap::new(),
             roots: BTreeMap::new(),
+            returns: BTreeSet::new(),
         }
+    }
+    /// Original normal-return boundaries, after each return point's complete action sequence.
+    /// This records possible source completion, not execution, cleanup or a resource-phase receipt.
+    pub fn completions(&self) -> impl Iterator<Item = ValueSourceBoundary> + '_ {
+        self.returns.iter().map(|&point| ValueSourceBoundary {
+            point,
+            action: self.points[&point],
+        })
     }
     /// Select a sparse reaching definition without allocating a point-by-slot state matrix.
     /// Missing/uninitialized inputs supply Empty, never an availability or runtime-value proof.

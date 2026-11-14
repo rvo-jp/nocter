@@ -472,6 +472,10 @@ stored binding is not a later read of its referent. Arithmetic operand preparati
 discarded values and compound-assignment inputs retain their own occurrence reads. A later operand
 write cannot change the earlier scalar preparation's source. Staged returns retain their own source slot.
 Definitions survive retirement as metadata and do not make retired owners accessible.
+`flow.completions` selects reached original normal-return points after their complete action
+sequences. Early and ordinary returns use those same sparse boundaries; a diverging path creates
+none. These endpoints can select final input definitions without substituting argument-preparation
+snapshots. They prove no actual completion, cleanup execution, ownership or resource phase.
 The occurrence iterators expose these reads and the final write per slot in each original action;
 multiple writes within a commit do not become new source boundaries or resource phases.
 `flow.referent` retains the value selected by an assignment target before its write, through the

@@ -132,6 +132,17 @@ impl Builder<'_> {
             reads: std::mem::take(&mut self.reads),
             referents: std::mem::take(&mut self.referents),
             roots: std::mem::take(&mut self.roots),
+            returns: reached
+                .iter()
+                .copied()
+                .filter(|&point| {
+                    control
+                        .graph
+                        .points()
+                        .get(point)
+                        .is_some_and(|block| matches!(block.terminator, flow::Terminator::Return))
+                })
+                .collect(),
         })
     }
     fn close_incoming(&mut self, positions: &super::ValueSourceFlow) -> Result<()> {

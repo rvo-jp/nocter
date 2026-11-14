@@ -4,6 +4,78 @@ use crate::value_access::{InstantiationFailure, ValueSourceSelection};
 use crate::value_access::{Referent, ValueSourceBoundary, ValueSourceRead, ValueSourceSlot, flow};
 
 #[test]
+fn normal_completions_select_updated_inputs_after_early_and_ordinary_returns() {
+    let unit = accepted(
+        "func write(edit value: i32, condition: bool): void { if condition { value = 41\nreturn }\nvalue = 42 }\nfunc forever(): void { loop {} }\nfunc run(): i32 { var value = 0\nwrite(value, true)\nvalue }",
+    );
+    let owner = code(&unit, "write");
+    let graph = unit.value_sources(owner).unwrap();
+    let source = graph.flow().unwrap();
+    let checked = unit.code_body(owner).unwrap();
+    let expected = checked
+        .graph()
+        .points()
+        .iter()
+        .filter_map(|(point, block)| {
+            (checked.initialization().reachable(point)
+                && matches!(block.terminator, flow::Terminator::Return))
+            .then_some(ValueSourceBoundary {
+                point,
+                action: block.actions.len(),
+            })
+        })
+        .collect::<BTreeSet<_>>();
+    let completions = source.completions().collect::<BTreeSet<_>>();
+    assert!(!completions.is_empty());
+    assert_eq!(completions, expected);
+    let input = checked.typed().body().inputs().explicit()[0].local;
+    let data = checked.typed().body().locals().get(input).unwrap().data;
+    let frame = unit.program().bind_code(owner, []).unwrap();
+    for boundary in completions {
+        assert_ne!(
+            source.read(boundary, ValueSourceSlot::Local(input)),
+            Some(ValueSourceRead::Empty)
+        );
+        let mut work = nocter_constant_evaluation::state::WorkBudget::new(
+            std::num::NonZeroU64::new(10_000).unwrap(),
+        );
+        assert_eq!(
+            unit.instantiate_stored_data(
+                &frame,
+                &ValueSourceSelection {
+                    boundary,
+                    slot: ValueSourceSlot::Local(input),
+                    path: ValuePath::default(),
+                },
+                data,
+                &mut work
+            )
+            .unwrap(),
+            unit.program().instantiate_closed_data(data).unwrap(),
+        );
+        assert_eq!(
+            source.read(
+                ValueSourceBoundary {
+                    action: boundary.action + 1,
+                    ..boundary
+                },
+                ValueSourceSlot::Local(input)
+            ),
+            None
+        );
+    }
+    assert!(
+        unit.value_sources(code(&unit, "forever"))
+            .unwrap()
+            .flow()
+            .unwrap()
+            .completions()
+            .next()
+            .is_none()
+    );
+}
+
+#[test]
 fn referent_roots_preserve_an_alias_prefix_and_follow_the_current_owner_after_a_write() {
     let unit = accepted(
         "struct Pair { first: i32\nsecond: i32 }\nfunc make(value: i32): Pair { Pair { first: value, second: 0 } }\nfunc run(): i32 { var bundle = (make(41), 0)\nedit alias = bundle.0\nalias.first = 42\nalias.first }",
