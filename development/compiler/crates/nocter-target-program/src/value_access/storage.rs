@@ -113,22 +113,11 @@ pub fn prepare(
     let program = instances.unit().program();
     let mut shapes = shapes::Builder::new(program);
     for (_, instance) in instances.instances().iter() {
-        for value in instance.values.payloads() {
-            shapes.intern(value.instance().clone())?;
+        for payload in instance.payloads() {
+            shapes.intern(payload.instance().clone())?;
         }
-        for argument in instance.prepared.values() {
-            shapes.intern(argument.instance().clone())?;
-        }
-        for input in instance.inputs.values() {
-            shapes.intern(input.instance().clone())?;
-        }
-        if let Some(result) = instance.result().payload() {
-            shapes.intern(result.instance().clone())?;
-        }
-        for evidence in instance.data().values() {
-            if let Some(payload) = evidence.payload() {
-                shapes.intern(payload.instance().clone())?;
-            }
+        for key in instance.metadata() {
+            shapes.intern(key.clone())?;
         }
     }
     for key in additional {

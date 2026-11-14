@@ -45,7 +45,7 @@ fn zero_capture_metadata_does_not_require_a_binding_for_a_trapping_element_proje
         .unwrap()
         .1;
     assert!(captured.key().witnesses().is_empty());
-    assert!(!captured.data().contains_key(&data));
+    assert!(captured.metadata().iter().all(|key| key.data() != data));
     assert!(
         graph
             .instances()
@@ -91,10 +91,11 @@ fn uninvoked_owned_capture_projects_its_payload_without_creating_a_code_instance
     assert_eq!(graph.instances().len(), 1);
     let instance = graph.instances().get(graph.root()).unwrap();
     assert!(instance.calls().is_empty());
-    assert!(instance.data().values().any(|d| {
-        d.payload()
-            .is_some_and(|p| p.disposal() == Disposal::OwnedCapture)
-    }));
+    assert!(
+        instance
+            .payloads()
+            .any(|payload| payload.disposal() == Disposal::OwnedCapture)
+    );
 }
 
 #[test]
@@ -123,6 +124,32 @@ fn captured_code_invocation_selects_its_checked_body() {
             .code(),
         ValueCode::Closure(_)
     ));
+}
+fn unproduced(graph: &InstanceProgram, id: AccessInstanceId) -> Vec<nocter_model::TypeId> {
+    let body = graph.body(id).unwrap().typed().body();
+    let mut data = std::collections::BTreeSet::new();
+    data.extend(body.locals().iter().map(|(_, local)| local.data));
+    data.extend(body.places().iter().map(|(_, place)| place.data));
+    data.extend(
+        body.expressions().iter().filter_map(|(_, expression)| {
+            expression.ty.access().map(nocter_model::ValueAccess::data)
+        }),
+    );
+    data.extend(
+        body.blocks()
+            .iter()
+            .filter_map(|(_, block)| block.ty.access().map(nocter_model::ValueAccess::data)),
+    );
+    data.into_iter()
+        .filter(|&data| {
+            graph
+                .unit()
+                .data_evidence(data)
+                .unwrap()
+                .payload()
+                .is_none()
+        })
+        .collect()
 }
 fn callable(unit: &Unit, name: &str) -> AccessCodeId {
     unit.program()
@@ -155,7 +182,7 @@ fn a_required_expression_cannot_substitute_its_source_owners_runtime_code() {
     let root = instances.insert(Instance {
         key,
         calls: BTreeMap::new(),
-        data: BTreeMap::new(),
+        metadata: std::collections::BTreeSet::new(),
         inputs: BTreeMap::new(),
         result: DataEvidence::Unproduced,
         prepared: BTreeMap::new(),
@@ -282,14 +309,18 @@ fn adapters_specialize_payload_obligations_without_changing_source_move_semantic
         Some(false)
     );
     let payload = apply
-        .data
-        .get(&parameter.data())
-        .unwrap()
-        .payload()
+        .input(body.typed().body().inputs().explicit()[0].local)
         .unwrap();
     assert_eq!(payload.disposal(), Disposal::Trivial);
     assert_eq!(
-        graph.unit().program().data_copyable(payload.data()),
+        graph.unit().program().data_copyable(
+            payload
+                .instance()
+                .function_representation(graph.unit().program())
+                .unwrap()
+                .unwrap()
+                .data()
+        ),
         Some(true)
     );
     let call = body
@@ -311,11 +342,17 @@ fn adapters_specialize_payload_obligations_without_changing_source_move_semantic
         ArgumentAction::ReserveTransfer { .. }
     ));
     for (_, selected) in graph.instances().iter() {
-        for evidence in selected.data.values() {
-            let payload = evidence.payload().unwrap();
+        for payload in selected.payloads() {
             assert_ne!(payload.disposal(), Disposal::FunctionEnvironment);
             if let Some(nocter_declarations::value_access::PayloadSchema::Function(witness)) =
-                graph.unit().program().data_schema(payload.data())
+                graph.unit().program().data_schema(
+                    payload
+                        .instance()
+                        .function_representation(graph.unit().program())
+                        .unwrap()
+                        .unwrap_or_else(|| payload.instance().clone())
+                        .data(),
+                )
             {
                 assert!(matches!(
                     witness.origin,
@@ -336,14 +373,7 @@ fn unknown_interrupted_result_contracts_do_not_acquire_payloads_or_instance_edge
     assert_eq!(graph.instances().len(), 1);
     let instance = graph.instances().get(graph.root()).unwrap();
     assert!(instance.calls().is_empty());
-    let absent = instance
-        .data()
-        .iter()
-        .filter_map(|(&data, evidence)| match evidence {
-            DataEvidence::Unproduced => Some(data),
-            DataEvidence::Payload(_) => None,
-        })
-        .collect::<Vec<_>>();
+    let absent = unproduced(&graph, graph.root());
     assert_eq!(absent.len(), 1);
     let Some(nocter_declarations::value_access::PayloadSchema::Function(witness)) =
         graph.unit().program().data_schema(absent[0])
@@ -374,14 +404,7 @@ fn dead_adapted_locals_keep_contract_only_data_through_instance_projection() {
     assert_eq!(graph.instances().len(), 1);
     let instance = graph.instances().get(graph.root()).unwrap();
     assert!(instance.calls().is_empty());
-    assert_eq!(
-        instance
-            .data()
-            .values()
-            .filter(|e| matches!(e, DataEvidence::Unproduced))
-            .count(),
-        2
-    );
+    assert_eq!(unproduced(&graph, graph.root()).len(), 2);
 }
 
 #[test]
@@ -396,13 +419,7 @@ fn interrupted_structural_shapes_do_not_gain_storage_or_callee_instances() {
     assert_eq!(graph.instances().len(), 1);
     let instance = graph.instances().get(graph.root()).unwrap();
     assert!(instance.calls().is_empty());
-    let absent = instance
-        .data()
-        .iter()
-        .filter_map(|(&data, evidence)| {
-            matches!(evidence, DataEvidence::Unproduced).then_some(data)
-        })
-        .collect::<Vec<_>>();
+    let absent = unproduced(&graph, graph.root());
     assert!(absent.iter().any(|&data| matches!(
         graph.unit().program().data_schema(data),
         Some(nocter_declarations::value_access::PayloadSchema::Array(_))
@@ -514,9 +531,16 @@ fn data_closure_visits_shared_record_schemas_without_expanding_payload_trees() {
     let root = callable(&unit, "run");
     let graph = InstanceProgram::prepare(unit, root).unwrap();
     assert_eq!(graph.instances().len(), 1);
-    // The body map owns only its actual input and result. Shared descendants stay in the
-    // canonical data graph instead of being flattened into a second source-type inventory.
-    assert_eq!(graph.instances().get(graph.root()).unwrap().data.len(), 2);
+    // Closed metadata roots do not flatten shared descendants into a second type inventory.
+    assert_eq!(
+        graph
+            .instances()
+            .get(graph.root())
+            .unwrap()
+            .metadata()
+            .len(),
+        2
+    );
     let prepared = storage::prepare(
         &graph,
         nocter_runtime_contract::RuntimeAbiIdentity::Arm64DarwinV1,
@@ -668,11 +692,10 @@ fn callable_results_enter_the_same_instance_graph_with_resolved_payloads() {
         );
         for (id, instance) in graph.instances().iter() {
             assert!(graph.body(id).unwrap().typed().results_closed());
-            for evidence in instance.data().values() {
-                let payload = evidence.payload().expect("produced payload contract");
+            for payload in instance.payloads() {
                 assert_ne!(payload.disposal(), Disposal::FunctionEnvironment);
                 assert!(
-                    !matches!(graph.unit().program().data_schema(payload.data()), Some(nocter_declarations::value_access::PayloadSchema::Function(w)) if matches!(w.origin, ValueFunctionOrigin::Result(_)))
+                    !matches!(graph.unit().program().data_schema(payload.instance().function_representation(graph.unit().program()).unwrap().unwrap_or_else(|| payload.instance().clone()).data()), Some(nocter_declarations::value_access::PayloadSchema::Function(w)) if matches!(w.origin, ValueFunctionOrigin::Result(_)))
                 );
             }
         }
@@ -756,12 +779,28 @@ fn dependent_result_relations_share_the_existing_instance_graph_and_payload_proj
         assert_eq!(graph.instances().len(), expected, "{case}");
         for (id, instance) in graph.instances().iter() {
             let body = graph.body(id).unwrap();
-            assert!(instance.data().contains_key(&body.typed().result_data()));
-            assert!(instance.data().values().all(|evidence| {
-                evidence
-                    .payload()
-                    .is_some_and(|payload| payload.disposal() != Disposal::FunctionEnvironment)
-            }));
+            assert!(body.typed().results_closed());
+            let expected = graph
+                .unit()
+                .instantiate_result_contract(
+                    instance.key(),
+                    &mut nocter_constant_evaluation::state::WorkBudget::new(
+                        std::num::NonZeroU64::new(10_000).unwrap(),
+                    ),
+                )
+                .unwrap();
+            let actual = instance.result().payload().unwrap();
+            let representation = |key: &nocter_declarations::value_access::DataInstanceKey| {
+                key.function_representation(graph.unit().program())
+                    .unwrap()
+                    .unwrap_or_else(|| key.clone())
+            };
+            assert_eq!(representation(actual.instance()), representation(&expected));
+            assert!(
+                instance
+                    .payloads()
+                    .all(|payload| payload.disposal() != Disposal::FunctionEnvironment)
+            );
         }
     }
 }

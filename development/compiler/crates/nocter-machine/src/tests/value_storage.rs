@@ -338,11 +338,23 @@ fn interrupted_unproduced_callable_shapes_do_not_request_symbolic_storage() {
     let instances = close(&ValueSourceFixture::new(
         "func forward(take action: func(i32): i32): func(i32): i32 { action^ }\nfunc run(): i32 {\nlet absent = forward(if true { return 1 } else { return 2 })\nlet adapted: once(i32): i32 = absent\nadapted(1)\n}",
     ));
+    let mut absent = std::collections::BTreeSet::new();
+    for (id, _) in instances.instances().iter() {
+        for (_, local) in instances.body(id).unwrap().typed().body().locals().iter() {
+            if instances
+                .unit()
+                .data_evidence(local.data)
+                .unwrap()
+                .payload()
+                .is_none()
+            {
+                absent.insert(local.data);
+            }
+        }
+    }
     assert!(
-        instances
-            .instances()
-            .iter()
-            .any(|(_, instance)| instance.data().values().any(|e| e.payload().is_none()))
+        !absent.is_empty(),
+        "the source must retain unproduced contracts"
     );
     let prepared = storage::prepare(&instances, RuntimeAbiIdentity::Arm64DarwinV1, []).unwrap();
     let environment = prepared.environment();
@@ -353,18 +365,14 @@ fn interrupted_unproduced_callable_shapes_do_not_request_symbolic_storage() {
         matches!(abi.transport().result(), MachineResultAbi::Value(result)
         if result.class() == MachineValueClass::Direct { words: 1 })
     );
-    for (_, instance) in instances.instances().iter() {
-        for (&data, evidence) in instance.data() {
-            if evidence.payload().is_none() {
-                assert!(
-                    environment
-                        .types()
-                        .get(nocter_runtime_contract::RuntimeDataId::Source(data))
-                        .is_none()
-                );
-                assert!(layouts.get(data).is_none());
-            }
-        }
+    for data in absent {
+        assert!(
+            environment
+                .types()
+                .get(nocter_runtime_contract::RuntimeDataId::Source(data))
+                .is_none()
+        );
+        assert!(layouts.get(data).is_none());
     }
     assert!(
         environment
@@ -399,10 +407,15 @@ fn dependent_and_captured_source_witnesses_reach_closed_layouts() {
         }
         // Storage must refer to the already closed concrete identities, not caller formals.
         for (_, instance) in instances.instances().iter() {
-            for evidence in instance.data().values() {
-                if let Some(payload) = evidence.payload() {
-                    assert!(layouts.get(payload.data()).is_some());
-                }
+            for payload in instance.payloads() {
+                let data = prepared
+                    .instance(instances.unit().program(), payload.instance())
+                    .unwrap();
+                assert!(layouts.get(data).is_some());
+            }
+            for key in instance.metadata() {
+                let data = prepared.instance(instances.unit().program(), key).unwrap();
+                assert!(layouts.get(data).is_some());
             }
             for call in instance.calls().values() {
                 let target = call.target().instance().unwrap();

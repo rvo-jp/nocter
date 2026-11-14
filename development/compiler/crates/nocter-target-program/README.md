@@ -103,17 +103,16 @@ reusable. Runtime execution work and call-depth limits are not spent or inferred
 The declaration-owned `Program::bind_instance` still owns complete formal/capture coverage,
 contract matching and view validation. Source permissions, original body invocation and explicit
 input operations stay frozen. Declaration-owned normalization remains shared by source-value
-queries and body projection. `projection::data` retains a frame-wide table for remaining partial
-carrier roots and schema-only consumers; it selects neither original operand/definition occurrences,
-actual invocation arguments nor bound body input/result channels.
-That table maps source data IDs to checking-owned [instantiated payload obligations](../nocter-checking/README.md#shared-flow-access-and-resource-validation)
-or checked unproduced shapes. Each positive entry retains its complete `DataInstanceKey`, not just
-the selected code's raw semantic ID. The unproduced marker supplies neither a duplicate
-signature nor a payload or code instance; shape/contract lookup stays with Program. It also covers
-positive tuple/array shapes with a proved-unproduced callable component. Captured payloads project their own environment obligations through their complete selected
-context, including when reached through a formal witness. Transitive components are not flattened
-into the body's source-ID map; the contextual schema graph remains the common projection authority.
-Source-selected moves, reservations and snapshots remain unchanged after concrete projection.
+queries and body projection. Actual [instantiated payload obligations](../nocter-checking/README.md#shared-flow-access-and-resource-validation)
+retain their complete `DataInstanceKey`, including captured environments and component context.
+`Instance::payloads` exposes the original occurrence, preparation and body-channel metadata; it
+does not supply runtime values or access permission. `Instance::metadata` contains only independently
+closed storage roots requested by reached schemas. Its construction takes no frame and cannot
+resolve or choose a contextual occurrence. Storage interns both these sets and the lifecycle's
+additional actual keys through one canonical authority. No per-frame source-type default table is
+present. Transitive components remain in the canonical data graph rather than a flattened inventory.
+Unproduced source classification stays with the accepted Unit; it supplies no storage, payload or
+code instance. Source-selected moves, reservations and snapshots remain unchanged by projection.
 
 `Instance::operand` and `Instance::definition` retain checking's read-only `ValueData` from
 [`Unit::instantiate_value_data_map`](../nocter-checking/README.md#shared-flow-access-and-resource-validation).
@@ -128,16 +127,18 @@ own source selection and the distinction between contract metadata and an actual
 Evaluator contracts consume those same queries; this layer adds no alternate resolution rule.
 
 Frozen body edges compare against those channels, and storage signatures and MIR input/return
-roots consume them directly. Changing the remaining body-template cache cannot change an existing
-bound ABI channel. Input/result metadata queries share the instance work quota and identify the
+roots consume them directly. Additional closed storage metadata cannot change an existing bound
+ABI channel. Input/result metadata queries share the instance work quota and identify the
 exact code/input or result on failure. MIR expression production and local binding consume the
 original occurrence definitions, and operand projection uses the matching action's actual reads.
 Detached declaration-closed metadata can still select scalar snapshots; a missing contextual
 occurrence cannot fall back to a frame-wide type entry. Partial carrier roots and general post-update
 representation still require integration before source formal captures can open.
 
-`projection::requirements` demands concrete data only for the frozen input/result ABI, checked
-reachable operations and their actual resource-step payloads. Beginning an evaluation does not
+`projection::requirements` collects schema requests for the frozen input/result ABI, checked
+reachable operations and their resource steps. Independently closed requests contribute metadata;
+contextual representation must come from actual value/channel or ordered resource obligations.
+Skipping a non-closed schema probe supplies no positive representation receipt. Beginning an evaluation does not
 produce its result; a proved index failure requires its base/index data without an element carrier.
 The typed body's referent-base projection retains complete storage-root data for reached accesses,
 including static/member views, without resolving an index or granting access. Positive schema

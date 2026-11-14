@@ -4,6 +4,47 @@ use nocter_declarations::value_access::FunctionWitness;
 use nocter_runtime_contract::RuntimeAbiIdentity;
 
 #[test]
+fn closed_metadata_cannot_select_between_two_actual_input_contexts() {
+    let fixture = ValueSourceFixture::new(
+        "func first(): i32 { 41 }\nfunc second(): i32 { 42 }\nfunc apply(action: func(): i32): i32 { read selected = action\nselected() }\nfunc run(): i32 { apply(first) + apply(second) - 41 }",
+    );
+    let unit = accepted(&fixture);
+    let root = callable(&unit, "run");
+    let apply = callable(&unit, "apply");
+    let graph = InstanceProgram::prepare(unit, root).unwrap();
+    let frames = graph
+        .instances()
+        .iter()
+        .filter(|(_, frame)| frame.key().code() == ValueCode::Declaration(apply))
+        .collect::<Vec<_>>();
+    assert_eq!(frames.len(), 2);
+    assert_eq!(frames[0].1.metadata(), frames[1].1.metadata());
+    assert!(
+        frames[0]
+            .1
+            .metadata()
+            .iter()
+            .all(nocter_declarations::value_access::DataInstanceKey::is_context_free)
+    );
+    let inputs = frames
+        .iter()
+        .map(|(id, frame)| {
+            let local = graph.body(*id).unwrap().typed().body().inputs().explicit()[0].local;
+            frame.input(local).unwrap().instance()
+        })
+        .collect::<Vec<_>>();
+    assert_ne!(
+        inputs[0], inputs[1],
+        "identical closed metadata must not merge actual bindings"
+    );
+    let storage = storage::prepare(&graph, RuntimeAbiIdentity::Arm64DarwinV1, []).unwrap();
+    assert_ne!(
+        storage.instance(graph.unit().program(), inputs[0]).unwrap(),
+        storage.instance(graph.unit().program(), inputs[1]).unwrap()
+    );
+}
+
+#[test]
 fn value_data_exhaustion_reports_the_original_action_and_allows_a_healthy_retry() {
     let fixture = ValueSourceFixture::new("func run(): i32 { 42 }");
     let unit = accepted(&fixture);
@@ -71,7 +112,7 @@ fn an_independent_return_contract_does_not_publish_a_value_from_a_diverging_body
 }
 
 #[test]
-fn input_and_return_signatures_ignore_an_unrelated_payload_in_the_body_type_cache() {
+fn input_and_return_signatures_ignore_unrelated_closed_storage_metadata() {
     let fixture = ValueSourceFixture::new(
         "func first(): i32 { 41 }\nfunc second(): i32 { 42 }\nfunc consume(take action: func(): i32): func(): i32 { action^ }\nfunc forward(take action: func(): i32): func(): i32 { let saved = consume(action^)\nsaved^ }\nfunc run(): i32 { let action = forward(first)\naction() }",
     );
@@ -111,9 +152,13 @@ fn input_and_return_signatures_ignore_an_unrelated_payload_in_the_body_type_cach
     graph.instances = graph.instances.map(|_, frame| {
         let mut frame = frame.clone();
         if frame.key().code() == ValueCode::Declaration(code) {
-            frame
-                .data
-                .insert(data, DataEvidence::Payload(wrong.clone()));
+            frame.metadata.insert(
+                wrong
+                    .instance()
+                    .function_representation(graph.unit().program())
+                    .unwrap()
+                    .unwrap(),
+            );
         }
         frame
     });
@@ -150,7 +195,7 @@ fn input_and_return_signatures_ignore_an_unrelated_payload_in_the_body_type_cach
 fn assert_original_values(
     graph: &InstanceProgram,
     id: AccessInstanceId,
-    data: TypeId,
+    data: nocter_model::TypeId,
     expected: &Payload,
 ) {
     let caller = graph.instances().get(id).unwrap();

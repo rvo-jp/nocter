@@ -9,11 +9,14 @@ mod tests;
 
 pub use invocation::{CallTarget, Environment, EnvironmentExit, InputBinding, Invocation};
 use nocter_checking::value_access::{accepted::Unit, flow};
+use nocter_declarations::value_access::DataInstanceKey;
 use nocter_model::{
     AccessCodeId, AccessExpressionId, AccessInstanceId, AccessLocalId, AccessParameterId, Arena,
-    TypeId,
 };
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 pub use nocter_declarations::value_access::{CodeInstanceKey as InstanceKey, ConcreteWitness};
 
@@ -24,7 +27,7 @@ pub type DataEvidence = nocter_checking::value_access::accepted::DataEvidence<Pa
 pub struct Instance {
     key: InstanceKey,
     calls: BTreeMap<AccessExpressionId, Invocation>,
-    data: BTreeMap<TypeId, DataEvidence>,
+    metadata: BTreeSet<DataInstanceKey>,
     inputs: BTreeMap<AccessLocalId, Payload>,
     result: DataEvidence,
     prepared: BTreeMap<(AccessExpressionId, usize), Payload>,
@@ -69,10 +72,21 @@ impl Instance {
     ) -> Option<&Payload> {
         self.values.definition(at, slot)
     }
-    /// Source data identities map to concrete payloads or checked unproduced structural contracts.
+    /// Independently closed metadata roots, never a contextual value or source-availability map.
     #[must_use]
-    pub const fn data(&self) -> &BTreeMap<TypeId, DataEvidence> {
-        &self.data
+    pub const fn metadata(&self) -> &BTreeSet<DataInstanceKey> {
+        &self.metadata
+    }
+    /// Original value/channel metadata, including interrupted preparation prefixes.
+    pub fn payloads(&self) -> impl Iterator<Item = &Payload> {
+        self.values
+            .payloads()
+            .chain(self.prepared.values())
+            .chain(self.inputs.values())
+            .chain(match &self.result {
+                DataEvidence::Payload(payload) => Some(payload),
+                DataEvidence::Unproduced => None,
+            })
     }
 }
 

@@ -50,7 +50,7 @@ impl Builder {
         let inputs = projection::inputs(unit, &key, body, work)?;
         let result = projection::result(unit, &key, body, work)?;
         let prepared = projection::prepared(unit, &key, work)?;
-        let data = projection::data(unit, &key, body)?;
+        let metadata = projection::metadata(unit, body)?;
         let mut invocations = BTreeSet::new();
         for (point, block) in body.graph().points().iter() {
             if !body.initialization().reachable(point) {
@@ -110,7 +110,7 @@ impl Builder {
             .definition = Some(Instance {
             key,
             calls,
-            data,
+            metadata,
             inputs,
             result,
             prepared,

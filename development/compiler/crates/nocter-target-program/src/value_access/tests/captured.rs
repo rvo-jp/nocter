@@ -16,20 +16,18 @@ fn assert_closed(graph: &InstanceProgram) {
         let body = graph.body(id).unwrap();
         assert_eq!(body.typed().code(), instance.key().code());
         assert!(std::ptr::eq(body.typed().program(), graph.unit().program()));
-        assert!(instance.data().values().all(|d| {
-            d.payload()
-                .is_none_or(|p| p.disposal() != Disposal::FunctionEnvironment)
-        }));
+        assert!(
+            instance
+                .payloads()
+                .all(|payload| payload.disposal() != Disposal::FunctionEnvironment)
+        );
         for call in instance.calls().values() {
             let target = graph
                 .instances()
                 .get(call.target().instance().unwrap())
                 .unwrap();
             let body = graph.body(call.target().instance().unwrap()).unwrap();
-            assert_eq!(
-                target.data()[&body.typed().result_data()].payload(),
-                Some(call.result())
-            );
+            assert_eq!(target.result().payload(), Some(call.result()));
             assert_eq!(
                 call.inputs().len(),
                 body.typed().body().inputs().explicit().len()

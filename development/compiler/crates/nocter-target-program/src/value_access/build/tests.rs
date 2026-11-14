@@ -31,7 +31,6 @@ fn frozen_body_edge_checks_the_environment_independently_of_explicit_inputs_and_
     validate_body_edge(&unit, &callee, call).unwrap();
     let body = unit.code_body(callee.key().code()).unwrap().typed().body();
     let input = body.inputs().environment().unwrap();
-    let source_data = body.locals().get(input.local).unwrap().data;
     let integer = unit.program().data_type(BuiltinType::I32).unwrap();
     let key = unit
         .program()
@@ -41,11 +40,8 @@ fn frozen_body_edge_checks_the_environment_independently_of_explicit_inputs_and_
         .unwrap()
         .instantiate(unit.program(), &key)
         .unwrap();
-    callee.data.insert(
-        source_data,
-        super::super::DataEvidence::Payload(wrong.clone()),
-    );
-    // The remaining body-template cache no longer selects the bound environment channel.
+    callee.metadata.insert(key);
+    // Unrelated independently closed storage metadata does not select a bound channel.
     validate_body_edge(&unit, &callee, call).unwrap();
     callee.inputs.insert(input.local, wrong);
     assert_eq!(
