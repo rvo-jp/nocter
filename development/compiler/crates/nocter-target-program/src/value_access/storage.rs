@@ -116,6 +116,9 @@ pub fn prepare(
         for payload in instance.payloads() {
             shapes.intern(payload.instance().clone())?;
         }
+        for key in instance.values.roots() {
+            shapes.intern(key.clone())?;
+        }
         for key in instance.metadata() {
             shapes.intern(key.clone())?;
         }

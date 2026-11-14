@@ -68,9 +68,10 @@ reads use the same occurrence authority, and whole-slot roots preserve the selec
 than replacing it with a TypeId-wide default. Detached scalar/selector metadata must be independently
 declaration-closed; a missing contextual occurrence rejects. No MIR lookup consults the legacy
 frame-wide type map. This includes non-owning local bindings: their actual definition determines
-the alias representation. Partial input roots retain the bound input payload; other partial roots
-currently require independently closed data. General contextual partial roots remain a separate
-qualification boundary before source formal captures can open.
+the alias representation. Source-place address projection consumes checking's frozen reference-root
+contracts at the original action, while partial input resource roots retain the bound input payload.
+Other resource-step partial roots currently require independently closed data. General old/new
+carrier geometry remains a separate qualification boundary before source formal captures can open.
 Component integrity and sparse cleanup paths use the closed runtime environment's shared type
 projection, independently of source checking and without a reverse semantic-type lookup.
 Static primitive edges retain their closed roles without adding a body or input locals. Validation

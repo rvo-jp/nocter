@@ -103,6 +103,55 @@ fn ordinary_data_failure_reports_its_source_action_and_does_not_poison_retry() {
 }
 
 #[test]
+fn contextual_referent_root_contracts_are_bounded_and_retry_without_a_default_frame_type() {
+    use crate::value_access::Referent;
+    let unit = accepted(RECURSIVE);
+    let frame = frame(&unit);
+    let body = unit.code_body(frame.code()).unwrap();
+    let input = body.typed().body().inputs().explicit()[0].local;
+    let (at, referent) = unit
+        .value_sources(frame.code())
+        .unwrap()
+        .flow()
+        .unwrap()
+        .roots()
+        .find_map(|((at, referent), _)| match referent {
+            Referent::Place(place)
+                if body.typed().body().places().get(place).unwrap().local == input =>
+            {
+                Some((at, referent))
+            }
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(
+        unit.instantiate_referent_root_data(&frame, at, referent, &mut budget(1)),
+        Err(InstantiationFailure::WorkLimit)
+    );
+    let root = unit
+        .instantiate_referent_root_data(&frame, at, referent, &mut budget(10_000))
+        .unwrap();
+    let frozen = unit
+        .instantiate_value_data_map(&frame, &mut budget(10_000))
+        .unwrap();
+    assert_eq!(frozen.root(at, referent), Some(&root));
+    assert_eq!(
+        root.function_representation(unit.program())
+            .unwrap()
+            .unwrap()
+            .data(),
+        unit.program()
+            .function_data(code(&unit, "first").into())
+            .unwrap()
+    );
+    assert_eq!(
+        unit.instantiate_referent_root_data(&frame, at, referent, &mut budget(1)),
+        Err(InstantiationFailure::WorkLimit),
+        "a healthy query must not publish a shortcut after failure"
+    );
+}
+
+#[test]
 fn concrete_invocation_closes_an_anchored_recursive_result_without_host_recursion() {
     let unit = accepted(RECURSIVE);
     let caller = frame(&unit);

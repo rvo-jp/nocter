@@ -333,7 +333,20 @@ impl Builder<'_> {
             .get(id)
             .ok_or_else(|| self.invalid())?
             .clone();
-        let mut place = self.root(Holder::Local(source.local), data, !source.fields.is_root())?;
+        let root = if source.fields.is_root() {
+            data
+        } else {
+            let at = self.at.ok_or_else(|| self.invalid())?;
+            let key = self
+                .instance
+                .referent_root(at, nocter_checking::value_access::Referent::Place(id))
+                .ok_or_else(|| self.invalid())?;
+            self.storage
+                .instance(self.instances.unit().program(), key)
+                .map_err(Failure::Storage)?
+        };
+        let mut place = self.root(Holder::Local(source.local), root, false)?;
+        place.data = data;
         place.projections = source
             .fields
             .fields()

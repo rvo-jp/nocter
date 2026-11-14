@@ -235,6 +235,31 @@ impl Unit {
             work,
         )
     }
+    /// Select reference-root contract metadata at one original source occurrence.
+    /// This grants no initialized value, source access, physical allocation or stable layout.
+    /// # Errors
+    /// Rejects missing/foreign occurrences, unresolved context and exhausted metadata work.
+    pub fn instantiate_referent_root_data(
+        &self,
+        frame: &nocter_declarations::value_access::CodeInstanceKey,
+        at: flow::Location,
+        referent: super::Referent,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<nocter_declarations::value_access::DataInstanceKey, super::InstantiationFailure>
+    {
+        let body = self
+            .code_body(frame.code())
+            .ok_or(super::InstantiationFailure::Unresolved)?;
+        super::results::instantiate_referent_root_data(
+            &self.program,
+            &self.result_evidence,
+            body,
+            frame,
+            at,
+            referent,
+            work,
+        )
+    }
     /// Freeze actual data at original argument preparations, including interrupted prefixes.
     /// This creates no executable callee, invocation effect, owning value or materialization permission.
     /// # Errors

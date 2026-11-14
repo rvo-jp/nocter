@@ -118,6 +118,10 @@ code instance. Source-selected moves, reservations and snapshots remain unchange
 [`Unit::instantiate_value_data_map`](../nocter-checking/README.md#shared-flow-access-and-resource-validation).
 This layer does not traverse source definitions or select their schemas again. Storage interns the
 actual keys without changing source ownership or granting materialization.
+`Instance::referent_root` retains checking's original reference-root contracts. Storage interns
+their complete keys separately from independently closed schema probes. These contracts identify
+virtual reference roots at source actions, not enclosing allocations, initialized owners or the
+old/new sides of a resource step.
 
 `Instance::input` retains the checking-selected payload for each existing input local; the typed
 body's input layout remains the sole owner of order and operations. `Instance::result` retains its

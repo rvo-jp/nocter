@@ -482,11 +482,17 @@ prefixes remain part of that root; an evaluated referent is already a complete s
 suffix must match the common resolved path before it is separated. Root occurrences are sparse
 original-action entries and follow the current source through writes, not an alias binding's old
 snapshot. They identify reference-root metadata, not the enclosing physical allocation, initialized
-storage, saved numbers or a resource phase. Storage integration and changing-layout proofs remain
-separate obligations.
+storage, saved numbers or a resource phase. Changing-layout proofs remain a separate obligation.
 Argument preparation records its original selected roots; committed read/edit address bindings
 record their current roots before call writes. This does not replace the prepared argument values.
 Tag observations record their referent roots while retaining opaque Boolean value semantics.
+`Unit::instantiate_referent_root_data` validates that original occurrence before selecting either
+independently closed root-contract data or its actual source key. A place root uses the local's
+complete schema; an evaluated root uses the selected referent's schema. `ValueData` freezes these
+contracts separately from produced payload receipts under the shared metadata quota. Missing sites,
+ambiguous context and exhaustion supply no partial result. Contract metadata does not assert that
+the root is initialized, or describe old/new resource phases. Native storage and source-place
+address projection consume these keys; resource-step carrier geometry remains separate work.
 Guarded carrier views likewise retain their actual referent source before payload selection. A tag
 assertion does not replace the carrier with its payload, choose an alternative or prove availability.
 
