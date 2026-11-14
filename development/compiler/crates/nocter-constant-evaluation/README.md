@@ -190,6 +190,11 @@ The executor keeps fresh invocation frames, canonical scoped addresses, independ
 snapshots and sparse owning states. Immutable aggregate data may share internal nodes; writes copy only
 the affected path, preserving independent value semantics and the identity of aliased places.
 Frozen before/after effects transport ownership, assemble aggregates and perform actual sparse cleanup.
+Plan validation and execution share one phase sequence: before-effects, the source operation,
+then after-effects. Invocation-input protection belongs to the before phase; failure stops the
+sequence without executing later phases. This shared order does not yet qualify changing slot
+representations; the [temporal slot contract](../../../design/compiler-realization.md#temporal-evaluator-slot-contexts)
+owns that remaining realization obligation.
 Taking inputs are protected before retirement; read/edit inputs bind addresses after retained
 caller temporaries exist. Ordinary calls execute every time, including unit-returning editing
 calls. The executor performs only closed execution; checking owns required value requests and

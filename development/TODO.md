@@ -62,6 +62,10 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [ ] Close carrier representation coherence under the
   [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances)
   before admitting context-changing writes and retained sibling references.
+- [ ] Implement [temporal evaluator slot contexts](design/compiler-realization.md#temporal-evaluator-slot-contexts)
+  through ordered plan validation and execution. Preserve one logical storage/owner identity,
+  exact retired/received contexts, preparation snapshots, surviving aliases and failure recovery;
+  code identity cannot be erased merely because two payloads have equal geometry.
 - [ ] Qualify the canonical frame's received compound-input contexts through ordinary source and
   consumer storage, cleanup and conditional const reuse. The
   [declaration authority](compiler/crates/nocter-declarations/README.md) owns the validated constructor.

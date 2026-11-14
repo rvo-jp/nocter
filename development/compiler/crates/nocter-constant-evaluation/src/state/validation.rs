@@ -279,7 +279,6 @@ fn validate_action(program: &Program, plan: &super::Plan, action: &super::Action
     if action.alternatives.is_empty() {
         return Err(INVALID);
     }
-    operation(program, plan, &action.operation)?;
     let mut guards = BTreeMap::new();
     for alternative in &action.alternatives {
         validate_handoffs(program, plan, action, alternative)?;
@@ -352,8 +351,13 @@ fn validate_action(program: &Program, plan: &super::Plan, action: &super::Action
                 }
             }
         }
-        for effect in alternative.before.iter().chain(&alternative.after) {
-            check_effect(program, plan, effect)?;
+        for step in alternative.sequence(&action.operation) {
+            match step {
+                super::sequence::Step::Before(effect) | super::sequence::Step::After(effect) => {
+                    check_effect(program, plan, effect)?;
+                }
+                super::sequence::Step::Operation(op) => operation(program, plan, op)?,
+            }
         }
     }
 

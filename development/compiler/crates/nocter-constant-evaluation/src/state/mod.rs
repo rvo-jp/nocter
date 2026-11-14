@@ -10,6 +10,7 @@ use nocter_model::{AccessCodeId, AccessFlowPointId, Arena, ValueCode};
 use std::{collections::BTreeMap, sync::Arc};
 pub use value::{Data, Value};
 mod projection;
+mod sequence;
 pub use projection::{Missing, Projection, ProjectionPath};
 
 /// One lowered plan of a semantic code body. Instance numbers are local to this Program;

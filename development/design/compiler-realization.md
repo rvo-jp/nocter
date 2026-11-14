@@ -205,6 +205,28 @@ Keep original bounds effects and old/new destruction observable. These are compi
 obligations, not a request for user annotations, a second owner registry or a permanent ban on
 context-changing updates. Unsupported cases remain explicitly unqualified until those proofs close.
 
+#### Temporal Evaluator Slot Contexts
+
+A logical slot identifies storage and its existing ownership role; it does not establish one
+concrete representation for that slot's entire lifetime. Retain exact contextual data at the
+original action and ordered resource phase. Destruction consumes the retired context, receipt
+consumes the supplied context, and later uses consume the resulting context. Preparation snapshots
+and saved aliases keep their original meanings. Context metadata must not become another owner
+registry or alter the identity of checking's resource worlds.
+
+Extend evaluator plan validation and execution together. Both must consume before-effects, the
+source operation and after-effects in the same order. A representation change needs a matched
+value transfer or replacement; an annotation alone cannot reinterpret an initialized value.
+Preserve callable code and invocation identity even when payload geometry is equal. Validate
+surviving component references against their selected carrier contexts rather than restoring a
+slot's first type, reserving maximum capacity or treating code identity as physical payload.
+
+Carry these obligations across control-flow joins, backedges, calls and adapter cleanup. Unknown
+or conflicting contexts remain unresolved; a failed validation/projection publishes no partial
+plan and preserves healthy retry under the existing budgets. Evaluator logical projections do
+not discharge native address/geometry proofs. Keep formal-capture source admission closed until
+the corresponding ordinary-source consumer cases satisfy the enclosing instance obligations.
+
 ### Structural Type Request Closure
 
 The [source header path](../compiler/crates/nocter-declaration-lowering/README.md#exact-source-evidence)

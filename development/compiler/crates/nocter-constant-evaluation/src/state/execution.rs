@@ -308,26 +308,30 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             None
         };
         let mut taken = vec![None; inputs.len()];
-        for effect in &alternative.before {
-            self.tick()?;
-            if let Effect::Invoke {
-                inputs: protected, ..
-            } = effect
-            {
-                for (index, place) in protected {
-                    let index = *index;
-                    if taken.get(index).is_none_or(Option::is_some) {
-                        return Err(Rule::InvalidPlan);
+        for step in alternative.sequence(&action.operation) {
+            match step {
+                super::sequence::Step::Before(effect) => {
+                    self.tick()?;
+                    if let Effect::Invoke {
+                        inputs: protected, ..
+                    } = effect
+                    {
+                        for (index, place) in protected {
+                            let index = *index;
+                            if taken.get(index).is_none_or(Option::is_some) {
+                                return Err(Rule::InvalidPlan);
+                            }
+                            taken[index] = Some(self.read(frame, place)?);
+                        }
                     }
-                    taken[index] = Some(self.read(frame, place)?);
+                    self.effect(frame, effect)?;
+                }
+                super::sequence::Step::Operation(op) => self.operation(frame, op, &taken)?,
+                super::sequence::Step::After(effect) => {
+                    self.tick()?;
+                    self.effect(frame, effect)?;
                 }
             }
-            self.effect(frame, effect)?;
-        }
-        self.operation(frame, &action.operation, &taken)?;
-        for effect in &alternative.after {
-            self.tick()?;
-            self.effect(frame, effect)?;
         }
         Ok(())
     }
