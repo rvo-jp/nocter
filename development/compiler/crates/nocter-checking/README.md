@@ -1685,6 +1685,12 @@ reject unmarked non-Copy acquisition/consumption, retired-source reuse, unknown 
 and result-induced positive environment cycles. No new syntax, runtime dispatch or environment
 ownership registry is introduced.
 
+`recreated-captured-callables.nct` exercises the same loop-local owners repeatedly through a
+factory result, a taking forwarder, a tuple component transfer and a consuming call. A saved sibling
+view remains readable after that transfer. Required evaluation and the actual native process both
+produce 42 from the shared source. This qualifies recreation of established environment shapes,
+not changing formal capture representations or native geometry.
+
 ### Contextual Anonymous Contracts
 
 A selected callable contract can supply omitted closure parameter data, input operations and result

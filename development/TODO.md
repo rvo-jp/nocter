@@ -72,6 +72,8 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   Preserve separate original retirement and receipt rather than fusing
   them into a replacement solely to accommodate the evaluator.
   Independent closed-plan support does not close ordinary source or native geometry admission.
+- [x] Qualify ordinary loop recreation of owned captured callables through forwarding, partial
+  tuple moves and surviving sibling views in both required evaluation and actual native execution.
 - [x] Join evaluator representation states without erasing retained backing contexts. Allow a
   fresh whole-root receipt to establish a unique context before use on loop reentry, while
   unresolved reads remain rejected; verify failed-loop storage recovery.

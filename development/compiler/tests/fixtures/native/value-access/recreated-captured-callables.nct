@@ -1,0 +1,26 @@
+struct Item { value: i32 }
+
+const func make(value: i32): once(): i32 {
+    let item = Item { value: value }
+    (item^;): i32 { item.value }
+}
+
+const func relay(take callback: once(): i32): once(): i32 { callback^ }
+
+const func calculate(): i32 {
+    var index = 0
+    var total = 0
+    while index < 3 {
+        let callback = make(13 + index)
+        let bundle = (relay(callback^), index)
+        read sibling = bundle.1
+        let action = bundle.0^
+        let value = action^()
+        if sibling == index { total += value } else { return 0 }
+        index += 1
+    }
+    total
+}
+
+const ANSWER: i32 = calculate()
+func run(): i32 { if ANSWER == 42 { calculate() } else { 0 } }

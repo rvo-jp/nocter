@@ -56,6 +56,21 @@ fn private_result_owned_captures_close_nested_environments_and_source_operations
     let package = TempPackage::new();
     execute_native_status(&compile(source), &package.0, "result-owned-captures", 42);
 }
+
+#[test]
+fn private_loop_recreation_preserves_forwarded_captures_and_surviving_sibling_views() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/recreated-captured-callables.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "recreated-captured-callables",
+        42,
+    );
+}
 fn compile(source: &str) -> crate::NativeImage {
     let machine = machine(source);
     image(&machine)

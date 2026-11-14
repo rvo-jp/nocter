@@ -59,6 +59,25 @@ fn result_owned_captures_preserve_instances_invocation_and_supply_in_required_ex
 }
 
 #[test]
+fn loop_recreation_preserves_forwarded_captures_and_surviving_sibling_views() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/recreated-captured-callables.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
+    let invalid = source.replace(
+        "let value = action^()",
+        "let value = action^()\nlet _ = action^()",
+    );
+    assert_ne!(source, invalid);
+    let (sources, tree) = input(&invalid);
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Flow { .. }))
+    ));
+}
+
+#[test]
 fn even_an_unused_pending_environment_requires_result_closure_before_flow_admission() {
     let source = "func leaf(value: i32): i32 { value }\nfunc make(): func(i32): i32 { leaf }\nfunc run(): void { let callback = make()\nlet unused = (callback;): i32 { 42 } }";
     let (sources, tree) = input(source);
