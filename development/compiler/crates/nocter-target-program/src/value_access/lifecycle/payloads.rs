@@ -49,9 +49,9 @@ impl<'a, 'work> Projection<'a, 'work> {
                 let ResourceStep::ReplaceReferent { destination, .. } = step else {
                     return Ok(None);
                 };
-                let target = self
+                let (target, carriers) = self
                     .inner
-                    .replacement_target(destination)
+                    .replacement_carriers(destination)
                     .map_err(|error| failure(self.id, self.at, error))?;
                 let before = self
                     .instance
@@ -63,7 +63,7 @@ impl<'a, 'work> Projection<'a, 'work> {
                     .referent_root_after(self.at, target)
                     .ok_or(Failure::InvalidInstanceProgram)?
                     .clone();
-                Ok(Some((before, after)))
+                Ok(Some((before, after, carriers)))
             })
             .collect::<Result<Vec<_>, Failure>>()?;
         let projected = self
@@ -74,11 +74,14 @@ impl<'a, 'work> Projection<'a, 'work> {
             .into_iter()
             .zip(roots)
             .map(|(step, roots)| match roots {
-                Some((before, after)) => Step::ScopedReplacement(super::ScopedReplacement {
-                    operation: Box::new(step),
-                    before,
-                    after,
-                }),
+                Some((before, after, carriers)) => {
+                    Step::ScopedReplacement(super::ScopedReplacement {
+                        operation: Box::new(step),
+                        before,
+                        after,
+                        carriers,
+                    })
+                }
                 None => Step::Resource(step),
             })
             .collect())

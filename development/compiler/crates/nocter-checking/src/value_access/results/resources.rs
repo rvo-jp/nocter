@@ -37,6 +37,36 @@ pub struct ResourceDataProjection<'a, 'work> {
     values: BTreeMap<Holder, Binding>,
 }
 impl<'a, 'work> ResourceDataProjection<'a, 'work> {
+    /// Resolve the matched scoped destination's original containing contracts under this request's
+    /// metadata budget. The pair supplies no ownership, physical backing or geometry proof.
+    /// # Errors
+    /// Rejects unmatched destinations, unavailable contexts and exhausted metadata work.
+    pub fn replacement_carriers(
+        &mut self,
+        destination: &Place,
+    ) -> Result<
+        (
+            crate::value_access::Referent,
+            super::ReferentCarrierContracts,
+        ),
+        Failure,
+    > {
+        let target = self.replacement_target(destination)?;
+        let contracts = super::instantiate_referent_carrier_data(
+            self.program,
+            self.evidence,
+            self.body,
+            self.frame,
+            self.at,
+            target,
+            self.work,
+        )
+        .map_err(Failure::Instantiation)?;
+        if contracts.after().is_none() {
+            return Err(INVALID);
+        }
+        Ok((target, contracts))
+    }
     /// Match a scoped replacement to its original alias-relative destination. This grants no
     /// ownership, initialized carrier or geometry proof; it selects the frozen source root pair.
     /// # Errors

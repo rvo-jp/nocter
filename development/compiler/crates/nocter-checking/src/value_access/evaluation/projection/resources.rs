@@ -1,25 +1,27 @@
 //! Allocate only slot metadata from common ordered data projection, never values or owners.
 use super::{Builder, INVALID, Key, Result};
+use crate::value_access::ValueSourceSlot;
 use crate::value_access::flow::{
     self,
     resources::{Holder, InstantiatedPayload, PayloadSite, Step},
 };
 use nocter_declarations::value_access::DataInstanceKey;
 
+fn source_holder(slot: ValueSourceSlot) -> Result<Holder> {
+    match slot {
+        ValueSourceSlot::Local(local) => Ok(Holder::Local(local)),
+        ValueSourceSlot::Expression(expression) => Ok(Holder::Expression(expression)),
+        ValueSourceSlot::Argument { .. } | ValueSourceSlot::Return => Err(INVALID),
+    }
+}
+
 impl Builder<'_, '_> {
     pub(super) fn prepare_value_data(&mut self) -> Result<()> {
-        use crate::value_access::ValueSourceSlot;
         let definitions = self
             .values
             .definitions()
             .map(|((_, slot), payload)| {
-                let holder = match slot {
-                    ValueSourceSlot::Local(local) => Holder::Local(local),
-                    ValueSourceSlot::Expression(expression) => Holder::Expression(expression),
-                    ValueSourceSlot::Argument { .. } | ValueSourceSlot::Return => {
-                        return Err(INVALID);
-                    }
-                };
+                let holder = source_holder(slot)?;
                 Ok((holder, payload.instance().clone()))
             })
             .collect::<Result<Vec<_>>>()?;
@@ -49,11 +51,13 @@ impl Builder<'_, '_> {
                             _ => None,
                         })
                         .map(|destination| {
-                            let target = projection.replacement_target(destination)?;
+                            let (target, carriers) =
+                                projection.replacement_carriers(destination)?;
                             Ok((
                                 destination.holder(),
                                 self.values.root(at, target).ok_or(INVALID)?.clone(),
                                 self.values.root_after(at, target).ok_or(INVALID)?.clone(),
+                                carriers,
                             ))
                         })
                         .collect::<Result<Vec<_>>>()?;
@@ -63,9 +67,19 @@ impl Builder<'_, '_> {
                     // Slots currently have one shape. Both actual virtual roots must agree with
                     // that shape; a later write cannot silently reuse its binding-time snapshot.
                     // This prepares no value and proves no enclosing-allocation geometry.
-                    for (holder, before, after) in roots {
+                    for (holder, before, after, carriers) in roots {
                         self.register_holder(holder, &before)?;
                         self.register_holder(holder, &after)?;
+                        for carrier in carriers
+                            .before()
+                            .iter()
+                            .chain(carriers.after().into_iter().flatten())
+                        {
+                            self.register_holder(
+                                source_holder(carrier.selection().slot)?,
+                                carrier.instance(),
+                            )?;
+                        }
                     }
                     for step in before.iter().chain(&after) {
                         self.resource_data(step)?;

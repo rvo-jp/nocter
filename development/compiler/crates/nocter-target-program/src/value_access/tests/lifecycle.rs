@@ -374,9 +374,10 @@ fn a_consuming_adapter_destroys_the_live_post_update_environment() {
 #[test]
 fn scoped_field_replacement_retains_carrier_roots_separately_from_leaf_cleanup() {
     let program = lower_source(
-        "struct Pair { first: i32\nsecond: i32 }\nfunc set(edit pair: Pair): void { pair.first = 42 }\nfunc run(): i32 { var pair = Pair { first: 41, second: 1 }\nset(pair)\npair.first }",
+        "struct Pair { first: i32\nsecond: i32 }\nfunc set(edit pair: Pair): void { pair.first = 42 }\nfunc run(): i32 { var bundle = (Pair { first: 41, second: 1 }, 0)\nset(bundle.0)\nedit pair = bundle.0\npair.first = 42\nbundle.0.first }",
     );
     let mut replacements = 0;
+    let mut enclosing = 0;
     for step in steps(&program) {
         let Step::ScopedReplacement(replacement) = step else {
             continue;
@@ -395,7 +396,37 @@ fn scoped_field_replacement_retains_carrier_roots_separately_from_leaf_cleanup()
         assert_eq!(replacement.root_before(), replacement.root_after());
         assert_eq!(retired.data(), payload.data());
         assert_eq!(retired.disposal(), Disposal::Trivial);
+        let [before] = replacement.carriers().before() else {
+            panic!("one original containing slot")
+        };
+        let [after] = replacement.carriers().after().unwrap() else {
+            panic!("one updated containing slot")
+        };
+        assert_eq!(before.selection().slot, after.selection().slot);
+        assert_eq!(before.selection().path, after.selection().path);
+        assert_eq!(before.instance(), after.instance());
+        let selected = if before.selection().path.is_root() {
+            before.instance().clone()
+        } else {
+            assert_eq!(
+                before.selection().path.fields(),
+                &[nocter_model::ValueProjection::Tuple(0)]
+            );
+            before
+                .instance()
+                .component(
+                    program.instance_program().unit().program(),
+                    nocter_model::ValueField::Tuple(0),
+                )
+                .unwrap()
+        };
+        assert_eq!(selected, *replacement.root_before());
+        enclosing += usize::from(before.instance().data() != replacement.root_before().data());
         replacements += 1;
     }
-    assert_eq!(replacements, 1);
+    assert_eq!(replacements, 2);
+    assert_eq!(
+        enclosing, 1,
+        "the lexical alias retains its larger tuple carrier"
+    );
 }

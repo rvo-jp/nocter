@@ -39,8 +39,13 @@ pub struct ScopedReplacement {
     operation: Box<ResourceStep<Payload>>,
     before: nocter_declarations::value_access::DataInstanceKey,
     after: nocter_declarations::value_access::DataInstanceKey,
+    carriers: nocter_checking::value_access::ReferentCarrierContracts,
 }
 impl ScopedReplacement {
+    #[must_use]
+    pub const fn carriers(&self) -> &nocter_checking::value_access::ReferentCarrierContracts {
+        &self.carriers
+    }
     #[must_use]
     pub fn operation(&self) -> &ResourceStep<Payload> {
         &self.operation
@@ -181,6 +186,14 @@ impl Program {
                             Step::ScopedReplacement(replacement) => {
                                 keys.insert(replacement.before.clone());
                                 keys.insert(replacement.after.clone());
+                                keys.extend(
+                                    replacement
+                                        .carriers
+                                        .before()
+                                        .iter()
+                                        .chain(replacement.carriers.after().into_iter().flatten())
+                                        .map(|carrier| carrier.instance().clone()),
+                                );
                                 Some(replacement.operation())
                             }
                             Step::DisposeEnvironment { payload, .. } => {

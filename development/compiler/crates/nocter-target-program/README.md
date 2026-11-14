@@ -221,8 +221,10 @@ transition still supplies before/after phases and ownership conditions. Scoped d
 matched by checking before data projection can change transition-local bindings. A match retains
 the original operation and the instance's frozen before/after root contracts in one sealed
 `ScopedReplacement`; other operations retain their resource form. MIR uses the independent retired
-and supplied obligations with their respective virtual roots for disposal and transfer. Additional
-storage roots include both contracts. Enclosing allocation geometry and adapter completion remain
+and supplied obligations with their respective virtual roots for disposal and transfer. The sealed
+replacement also retains checking's complete original containing contracts, including source slots
+and selection paths, on both sides. Additional storage roots include both virtual roots and those
+containing contracts through the same canonical interner. Enclosing allocation geometry and adapter completion remain
 separate responsibilities; these contracts grant no mutation or layout proof.
 
 `Program::prepare_with_budget` bounds contextual metadata work across the complete lifecycle

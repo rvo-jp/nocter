@@ -862,6 +862,11 @@ binding; scoped retirement uses the original write target's actual alias-root re
 `ResourceDataProjection::replacement_target` matches a scoped destination to the original update
 referent, including its alias-relative fields. A different operation, owned local or destination
 cannot select that reference-root pair. This metadata match grants no owner or layout proof.
+`replacement_carriers` resolves that matched destination's containing contracts under the same
+request budget and requires its normal-completion side. Native lifecycle retains the pair;
+evaluator planning registers both sides' original containing holders alongside their virtual roots.
+All use the ordinary slot/shape interners; incompatible evaluator shapes reject without choosing
+the earlier alias snapshot. This still supplies no physical geometry or ownership permission.
 Capture, function-view adaptation and component assembly use the declaration-owned canonical operations;
 array element keys must agree without selecting an arbitrary first context. Independently closed
 schemas select metadata without consulting a backend's frame-wide type cache. Original transitions
