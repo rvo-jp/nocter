@@ -4,6 +4,44 @@ use crate::value_access::{InstantiationFailure, ValueSourceSelection};
 use crate::value_access::{Referent, ValueSourceBoundary, ValueSourceRead, ValueSourceSlot, flow};
 
 #[test]
+fn prepared_data_exhaustion_retains_the_argument_site_and_allows_retry() {
+    let unit =
+        accepted("func identity(value: i32): i32 { value }\nfunc run(): i32 { identity(42) }");
+    let owner = code(&unit, "run");
+    let frame = unit.program().bind_code(owner, []).unwrap();
+    let mut exhausted =
+        nocter_constant_evaluation::state::WorkBudget::new(std::num::NonZeroU64::new(1).unwrap());
+    let failure = unit
+        .instantiate_prepared_data(&frame, &mut exhausted)
+        .unwrap_err();
+    let crate::value_access::PreparedDataFailure::Argument {
+        site,
+        index,
+        failure,
+    } = failure
+    else {
+        panic!("the original preparation")
+    };
+    assert_eq!(site.owner, owner);
+    assert_eq!(index, 0);
+    assert_eq!(failure, InstantiationFailure::WorkLimit);
+    let mut work = nocter_constant_evaluation::state::WorkBudget::new(
+        std::num::NonZeroU64::new(1_000).unwrap(),
+    );
+    let prepared = unit.instantiate_prepared_data(&frame, &mut work).unwrap();
+    let data = unit
+        .program()
+        .data_type(nocter_model::BuiltinType::I32)
+        .unwrap();
+    assert_eq!(
+        prepared.get(site.call, index),
+        Some(&unit.program().instantiate_closed_data(data).unwrap())
+    );
+    assert_eq!(prepared.iter().count(), 1);
+    assert!(prepared.get(site.call, 1).is_none());
+}
+
+#[test]
 fn body_input_metadata_rejects_an_ordinary_local_before_using_its_closed_schema() {
     let unit = accepted("func run(value: i32): i32 { let copied = value\ncopied }");
     let owner = code(&unit, "run");

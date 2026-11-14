@@ -156,9 +156,10 @@ and seed disposal retain their real bindings, while the body preserves its origi
 through native execution. Detached function metadata cannot force a phantom callee or carrier.
 
 `Instance::prepared` retains the actual metadata from each reached argument-preparation receipt,
-even when a later operand prevents the invocation commit. The original typed argument layout owns
-its ordinal and operation. Equal repeated preparations share a key; incompatible alternatives
-reject. Each committed edge verifies its complete payload list against those preparation receipts.
+even when a later operand prevents the invocation commit. Checking's
+`Unit::instantiate_prepared_data` owns source selection and repeated-context agreement; this layer
+only instantiates the resulting payload obligations. The original typed layout retains operations.
+Each committed edge verifies its complete payload list against those preparation receipts.
 MIR argument, prepared and temporary roots consume these keys rather than rereading the original
 expression's TypeId default. Storage includes their actual geometry without creating an uncommitted
 callee, invocation effect or adapter-completion schedule. Metadata for a reserved adaptation does

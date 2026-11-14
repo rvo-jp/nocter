@@ -6,6 +6,9 @@ use crate::value_access::flow;
 use nocter_constant_evaluation::state::WorkBudget;
 use nocter_declarations::value_access::{CodeInstanceKey, DataInstanceKey, Program};
 use nocter_model::{AccessLocalId, ValuePath};
+mod prepared;
+pub(in crate::value_access) use prepared::arguments as instantiate_prepared_data;
+pub use prepared::{PreparedData, PreparedDataFailure};
 
 pub(in crate::value_access) fn input(
     program: &Program,

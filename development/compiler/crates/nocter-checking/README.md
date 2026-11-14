@@ -493,8 +493,16 @@ the actual return producers. This does not assert that a diverging body returns;
 `instantiate_result_data` query still requires those producers. The evaluator's contracts, input and
 return slots, and plan result use this authority under the shared plan-work quota. Exhaustion during
 initial contract preparation retains the ordinary plan-work diagnostic rather than becoming an
-integrity failure. Ordinary evaluator expression/local and preparation-slot occurrence data remain
-separate integration tasks.
+integrity failure. Ordinary evaluator expression/local occurrence data remain a separate integration task.
+
+`Unit::instantiate_prepared_data` freezes preparation-time data from the original argument-slot
+definitions under one metadata quota. The typed call owns each ordinal and schema. Equal repeated
+preparations share a key; incompatible contexts reject without publishing a partial map. The
+read-only result includes successfully prepared prefixes whose invocation never commits. Evaluator
+prepared/temporary slots and target-program payload projection consume these same keys, preserving
+source effects and adapter timing. The metadata creates no callee, value, access or materialization
+permission. Post-call writes that change dependent contexts remain a separate qualification boundary;
+an immutable preparation snapshot does not describe a changed environment.
 
 Evaluator projection memoizes each committed call's actual source frame within one body plan.
 Receiver-prefix handling, owning input data and call-result slots consume that same frame; a

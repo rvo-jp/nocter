@@ -24,7 +24,7 @@ The [checking](compiler/crates/nocter-checking/README.md) and
 [target-program](compiler/crates/nocter-target-program/README.md) owners describe the implemented
 canonical metadata, original source-definition queries and ordered lifecycle specialization.
 
-Next close remaining partial carrier-root selection and evaluator expression/local/preparation-slot
+Next close remaining partial carrier-root selection and evaluator expression/local
 plan data against the exact per-value keys. The component owners above describe completed ordinary
 operand/definition, shared body-channel metadata, invocation, body-ABI, lifecycle and storage scope.
 Keep preparation-time snapshots and staged returns; preserve interrupted preparation metadata

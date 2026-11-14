@@ -36,6 +36,14 @@ impl From<crate::value_access::InstantiationFailure> for Failure {
         }
     }
 }
+impl From<crate::value_access::PreparedDataFailure> for Failure {
+    fn from(failure: crate::value_access::PreparedDataFailure) -> Self {
+        match failure {
+            crate::value_access::PreparedDataFailure::Argument { failure, .. } => failure.into(),
+            crate::value_access::PreparedDataFailure::Body => Self::Integrity,
+        }
+    }
+}
 const INVALID: Failure = Failure::Integrity;
 type Result<T> = std::result::Result<T, Failure>;
 use super::Types;
@@ -57,6 +65,7 @@ struct Builder<'a, 'b> {
     slots: Vec<plan::Slot>,
     keys: BTreeMap<Key, usize>,
     invocations: BTreeMap<AccessExpressionId, CodeInstanceKey>,
+    prepared: crate::value_access::PreparedData,
 }
 impl Builder<'_, '_> {
     fn expression(&self, id: AccessExpressionId) -> Result<super::super::ValueType> {
@@ -109,6 +118,12 @@ impl Builder<'_, '_> {
                         .checked
                         .instantiate_result_contract(self.instance, self.work)?;
                     self.types.get_instance(self.program, key)?
+                }
+                Key::Resource(
+                    Holder::Prepared { call, index } | Holder::Temporary { call, index },
+                ) => {
+                    let data = self.prepared.get(call, index).ok_or(INVALID)?.clone();
+                    self.types.get_instance(self.program, data)?
                 }
                 _ => self.types.get_in(self.program, self.instance, data)?,
             };

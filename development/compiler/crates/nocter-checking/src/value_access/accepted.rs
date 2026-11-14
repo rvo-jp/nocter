@@ -218,6 +218,23 @@ impl Unit {
             work,
         )
     }
+    /// Freeze actual data at original argument preparations, including interrupted prefixes.
+    /// This creates no executable callee, invocation effect, owning value or materialization permission.
+    /// # Errors
+    /// Rejects missing bodies, unavailable/ambiguous preparation data and exhausted metadata work.
+    pub fn instantiate_prepared_data(
+        &self,
+        frame: &nocter_declarations::value_access::CodeInstanceKey,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<super::PreparedData, super::PreparedDataFailure> {
+        super::results::instantiate_prepared_data(
+            &self.program,
+            &self.result_evidence,
+            self.code_body(frame.code()),
+            frame,
+            work,
+        )
+    }
     /// Resolve one original call's concrete metadata frame without choosing a value alternative.
     /// # Errors
     /// Rejects a foreign owner, missing call, unresolved/ambiguous context or exhausted work.
@@ -427,6 +444,20 @@ pub(super) struct Checked {
     const_templates: Arc<super::constant::Catalog>,
 }
 impl Checked {
+    pub(super) fn instantiate_prepared_data(
+        &self,
+        frame: &nocter_declarations::value_access::CodeInstanceKey,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<super::PreparedData, super::PreparedDataFailure> {
+        super::results::instantiate_prepared_data(
+            &self.program,
+            &self.result_evidence,
+            self.code(frame.code()),
+            frame,
+            work,
+        )
+    }
+
     pub(super) fn instantiate_input_data(
         &self,
         frame: &nocter_declarations::value_access::CodeInstanceKey,
