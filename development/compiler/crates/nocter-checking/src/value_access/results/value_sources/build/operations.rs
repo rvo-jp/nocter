@@ -164,6 +164,13 @@ impl Builder<'_> {
                 self.define(slot, value, state)?;
             }
         }
+        for argument in arguments {
+            if let ArgumentAction::ReserveRead(target) | ArgumentAction::ReserveUpdate(target) =
+                argument.action
+            {
+                self.place_after(point, target, state)?;
+            }
+        }
         let value = self.push(
             self.data(call)?,
             Some(call),
@@ -220,6 +227,7 @@ impl Builder<'_> {
             );
             self.define(slot, value, state)?;
         }
+        self.place_after(point, target, state)?;
         Ok(())
     }
     pub(super) fn paths(&self, target: Referent) -> Result<Vec<(Slot, ValuePath<()>)>> {

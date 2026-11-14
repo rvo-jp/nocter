@@ -486,6 +486,11 @@ storage, saved numbers or a resource phase. Changing-layout proofs remain a sepa
 Argument preparation records its original selected roots; committed read/edit address bindings
 record their current roots before call writes. This does not replace the prepared argument values.
 Tag observations record their referent roots while retaining opaque Boolean value semantics.
+`flow.root_after` separately records roots on normal completion of an original assignment or call.
+Call roots include read inputs: a separate edit projection can change their containing carrier
+without writing the read projection. Both sides use the same lexical selector and source state;
+the original before-root is retained. These are source contracts, not evidence that a call returns,
+that the selected location was modified or that a resource phase has executed.
 `Unit::instantiate_referent_root_data` validates that original occurrence before selecting either
 independently closed root-contract data or its actual source key. A place root uses the local's
 complete schema; an evaluated root uses the selected referent's schema. `ValueData` freezes these

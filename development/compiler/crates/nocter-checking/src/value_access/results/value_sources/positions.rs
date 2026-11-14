@@ -26,6 +26,11 @@ pub enum ValueSourceRead {
     Incoming(Box<[ValueSourceBoundary]>),
 }
 #[derive(Clone, Debug)]
+pub(super) struct RootSources {
+    pub(super) before: ValueSourceId,
+    pub(super) after: Option<ValueSourceId>,
+}
+#[derive(Clone, Debug)]
 pub struct ValueSourceFlow {
     pub(super) entry: AccessFlowPointId,
     pub(super) inputs: State,
@@ -34,7 +39,7 @@ pub struct ValueSourceFlow {
     pub(super) writes: BTreeMap<(AccessFlowPointId, ValueSourceSlot), Vec<(usize, ValueSourceId)>>,
     pub(super) reads: BTreeMap<(flow::Location, AccessExpressionId), ValueSourceId>,
     pub(super) referents: BTreeMap<(flow::Location, Referent), ValueSourceId>,
-    pub(super) roots: BTreeMap<(flow::Location, Referent), ValueSourceId>,
+    pub(super) roots: BTreeMap<(flow::Location, Referent), RootSources>,
 }
 impl ValueSourceFlow {
     #[cfg(test)]
@@ -116,11 +121,19 @@ impl ValueSourceFlow {
     /// not the enclosing physical allocation, an initialized owner or a resource-phase receipt.
     #[must_use]
     pub fn root(&self, location: flow::Location, target: Referent) -> Option<ValueSourceId> {
-        self.roots.get(&(location, target)).copied()
+        self.roots
+            .get(&(location, target))
+            .map(|roots| roots.before)
+    }
+    /// Reference-root source on normal completion of this original write/call. This proves neither
+    /// a mutation nor that execution reaches that boundary, and is not a resource-phase receipt.
+    #[must_use]
+    pub fn root_after(&self, location: flow::Location, target: Referent) -> Option<ValueSourceId> {
+        self.roots.get(&(location, target))?.after
     }
     /// Only roots selected by original referent operations, without a place-by-action matrix.
     pub fn roots(&self) -> impl Iterator<Item = ((flow::Location, Referent), ValueSourceId)> + '_ {
-        self.roots.iter().map(|(&site, &source)| (site, source))
+        self.roots.iter().map(|(&site, roots)| (site, roots.before))
     }
     /// Original operand occurrences, without another traversal of source operation kinds.
     pub fn operands(

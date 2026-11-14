@@ -26,6 +26,23 @@ fn referent_roots_preserve_an_alias_prefix_and_follow_the_current_owner_after_a_
             continue;
         }
         assert_eq!(flow.root(at, referent), Some(root));
+        let writes = matches!(unit.code_body(owner).unwrap().graph().points().get(at.point).unwrap().actions[at.action].operation,
+            flow::Operation::Assign { target, .. } | flow::Operation::CompoundAssign { target, .. } if target == referent);
+        assert_eq!(flow.root_after(at, referent).is_some(), writes);
+        if let Some(updated) = flow.root_after(at, referent) {
+            assert_ne!(updated, root);
+            let ValueSource::Select { source, path } = &graph.node(updated).unwrap().value else {
+                panic!("updated alias root");
+            };
+            assert_eq!(path.fields(), &[ValueProjection::Tuple(0)]);
+            assert!(
+                matches!(
+                    graph.node(*source).unwrap().value,
+                    ValueSource::Replace { weak: false, .. }
+                ),
+                "the updated root must follow the original write"
+            );
+        }
         let ValueSource::Select { path, .. } = &graph.node(root).unwrap().value else {
             panic!("the referent root must select the aliased Pair from its tuple owner");
         };
@@ -133,11 +150,98 @@ fn argument_preparation_commit_and_tag_observation_have_original_root_receipts()
                     continue;
                 };
                 assert!(flow.root(at, target).is_some());
+                if category == 1 {
+                    let updated = flow.root_after(at, target);
+                    if argument.operation == nocter_model::ValueInputOperation::Edit {
+                        let ValueSource::Select { source, .. } =
+                            graph.node(updated.unwrap()).unwrap().value
+                        else {
+                            panic!("updated call root");
+                        };
+                        assert!(matches!(
+                            graph.node(source).unwrap().value,
+                            ValueSource::CallWrite { .. }
+                        ));
+                    } else {
+                        let ValueSource::Select { source: before, .. } =
+                            graph.node(flow.root(at, target).unwrap()).unwrap().value
+                        else {
+                            panic!("read root")
+                        };
+                        let ValueSource::Select { source: after, .. } =
+                            graph.node(updated.unwrap()).unwrap().value
+                        else {
+                            panic!("post-call read root")
+                        };
+                        assert_eq!(
+                            before, after,
+                            "the fixture's separate read root is unchanged"
+                        );
+                    }
+                }
                 counts[category] += 1;
             }
         }
     }
     assert_eq!(counts, [2, 2, 1]);
+}
+
+#[test]
+fn a_read_projection_keeps_the_post_call_parent_changed_through_a_separate_edit_projection() {
+    let unit = accepted(
+        "func touch(value: i32, edit target: i32): i32 { target = 42\nvalue }\nfunc run(): i32 { var pair = (1, 2)\ntouch(pair.0, pair.1) }",
+    );
+    let owner = code(&unit, "run");
+    let graph = unit.value_sources(owner).unwrap();
+    let checked = unit.code_body(owner).unwrap();
+    let roots = graph.flow().unwrap();
+    let mut calls = 0;
+    for (point, block) in checked.graph().points().iter() {
+        for (action, event) in block.actions.iter().enumerate() {
+            let flow::Operation::CommitCall(call) = event.operation else {
+                continue;
+            };
+            let ExpressionKind::Call { arguments, .. } =
+                &checked.typed().body().expressions().get(call).unwrap().kind
+            else {
+                panic!("call")
+            };
+            let [read, edit] = arguments.as_ref() else {
+                panic!("two projections")
+            };
+            let crate::value_access::ArgumentAction::ReserveRead(read) = read.action else {
+                panic!("read")
+            };
+            let crate::value_access::ArgumentAction::ReserveUpdate(edit) = edit.action else {
+                panic!("edit")
+            };
+            let at = flow::Location { point, action };
+            let parent = |root| {
+                let ValueSource::Select { source, ref path } = graph.node(root).unwrap().value
+                else {
+                    panic!("tuple root")
+                };
+                assert!(path.is_root());
+                source
+            };
+            let before = parent(roots.root(at, read).unwrap());
+            let after = parent(roots.root_after(at, read).unwrap());
+            assert_ne!(before, after);
+            assert_eq!(after, parent(roots.root_after(at, edit).unwrap()));
+            let ValueSource::CallWrite {
+                call: changed,
+                ref path,
+                ..
+            } = graph.node(after).unwrap().value
+            else {
+                panic!("post-call parent")
+            };
+            assert_eq!(changed, call);
+            assert_eq!(path.fields(), &[ValueProjection::Tuple(1)]);
+            calls += 1;
+        }
+    }
+    assert_eq!(calls, 1);
 }
 
 #[test]

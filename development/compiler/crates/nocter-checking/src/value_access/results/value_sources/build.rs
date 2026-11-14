@@ -15,7 +15,7 @@ struct Builder<'a> {
     writes: BTreeMap<(AccessFlowPointId, Slot), Vec<(usize, ValueSourceId)>>,
     reads: BTreeMap<(flow::Location, AccessExpressionId), ValueSourceId>,
     referents: BTreeMap<(flow::Location, Referent), ValueSourceId>,
-    roots: BTreeMap<(flow::Location, Referent), ValueSourceId>,
+    roots: BTreeMap<(flow::Location, Referent), super::positions::RootSources>,
     origin: Option<flow::Location>,
     aliases: &'a flow::Aliases,
     nodes: Vec<ValueSourceNode>,
@@ -267,6 +267,35 @@ impl Builder<'_> {
         place: Referent,
         state: &State,
     ) -> Result<ValueSourceId> {
+        let (value, root) = self.select_place(point, place, state)?;
+        self.roots.insert(
+            (self.origin.ok_or(INVALID)?, place),
+            super::positions::RootSources {
+                before: root,
+                after: None,
+            },
+        );
+        Ok(value)
+    }
+    fn place_after(
+        &mut self,
+        point: AccessFlowPointId,
+        place: Referent,
+        state: &State,
+    ) -> Result<()> {
+        let (_, root) = self.select_place(point, place, state)?;
+        self.roots
+            .get_mut(&(self.origin.ok_or(INVALID)?, place))
+            .ok_or(INVALID)?
+            .after = Some(root);
+        Ok(())
+    }
+    fn select_place(
+        &mut self,
+        point: AccessFlowPointId,
+        place: Referent,
+        state: &State,
+    ) -> Result<(ValueSourceId, ValueSourceId)> {
         let paths = self.paths(place)?;
         let suffix = match place {
             Referent::Place(id) => crate::value_access::paths::known_by(
@@ -306,12 +335,11 @@ impl Builder<'_> {
         } else {
             self.push(None, None, ValueSource::Alternatives(roots))
         };
-        self.roots
-            .insert((self.origin.ok_or(INVALID)?, place), root);
-        Ok(if values.len() == 1 {
+        let value = if values.len() == 1 {
             *values.first().ok_or(INVALID)?
         } else {
             self.push(None, None, ValueSource::Alternatives(values))
-        })
+        };
+        Ok((value, root))
     }
 }
