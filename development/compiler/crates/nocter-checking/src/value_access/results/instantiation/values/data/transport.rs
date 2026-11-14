@@ -168,7 +168,7 @@ impl Query<'_, '_> {
             _ => Ok(Fact::Unavailable),
         }
     }
-    fn source_data_components(
+    pub(super) fn source_data_components(
         &mut self,
         owner: &Key,
         frame: &CodeInstanceKey,

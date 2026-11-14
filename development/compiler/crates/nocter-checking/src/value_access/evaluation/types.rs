@@ -75,10 +75,21 @@ fn component_support(schema: &PayloadSchema<'_>, mut values: impl Iterator<Item 
         _ => values.all(|value| value),
     }
 }
+/// Resolved structural runtime shapes, separate from source descriptors and nominal identity.
+/// Children already retain exact callable code/environment and domain classification.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+enum StructuralShape {
+    Tuple(Box<[usize]>),
+    Array { element: usize, length: u64 },
+    Optional(usize),
+    Fallible { primary: usize, alternate: usize },
+}
 #[derive(Default)]
 pub(in crate::value_access) struct Types {
     shapes: Vec<Shape>,
     ids: BTreeMap<ShapeKey, usize>,
+    structures: BTreeMap<StructuralShape, usize>,
+    empty_array: Option<usize>,
 }
 impl Types {
     /// Project the shared contextual data instance, preserving carrier and captured identities.
@@ -223,20 +234,8 @@ impl Types {
     }
     fn get_key(&mut self, program: &Program, root: &ShapeKey) -> Result<usize> {
         let mut roots = vec![(root.clone(), false)];
-        let mut empty = Vec::new();
         while let Some((root, metadata_only)) = roots.pop() {
-            self.project(program, root, metadata_only, &mut roots, &mut empty)?;
-        }
-        // Empty element identity survives, but its representation is not a payload prerequisite.
-        // Link only after the current positive-containment walk has finished.
-        for (id, element) in empty {
-            let Type::Array {
-                element: target, ..
-            } = &mut self.shapes[id].ty
-            else {
-                return Err(INVALID);
-            };
-            *target = *self.ids.get(&element).ok_or(INVALID)?;
+            self.project(program, root, metadata_only, &mut roots)?;
         }
         self.ids.get(root).copied().ok_or(INVALID)
     }
@@ -246,7 +245,6 @@ impl Types {
         root: ShapeKey,
         metadata_only: bool,
         roots: &mut Vec<(ShapeKey, bool)>,
-        empty: &mut Vec<(usize, ShapeKey)>,
     ) -> Result<()> {
         let mut pending = vec![(root, false)];
         let mut active = BTreeSet::new();
@@ -297,17 +295,15 @@ impl Types {
                     }
                 },
                 PayloadSchema::Array(array) if array.is_empty() => {
-                    // A private self-edge is a valid zero containment shape even before linking.
-                    // Nothing observes this draft table until all element identities are linked.
-                    let id = self.insert(
-                        data,
-                        Type::Array {
-                            element: self.shapes.len(),
-                            length: 0,
-                        },
-                        true,
-                    );
-                    empty.push((id, ShapeKey::Raw(array.element())));
+                    // Retain element classification in the source-key table without inventing
+                    // an element in the executable value. All empty runtime arrays are the same
+                    // value shape; no representative callable is selected from their metadata.
+                    if let Some(id) = self.empty_array {
+                        self.ids.insert(data, id);
+                    } else {
+                        let id = self.insert(data, Type::EmptyArray, true);
+                        self.empty_array = Some(id);
+                    }
                     roots.push((ShapeKey::Raw(array.element()), true));
                     continue;
                 }
@@ -343,6 +339,36 @@ impl Types {
         schema: PayloadSchema<'_>,
         children: Vec<usize>,
     ) -> Result<()> {
+        let structure = match schema {
+            PayloadSchema::Aggregate(schema)
+                if matches!(
+                    schema.form(),
+                    nocter_declarations::value_access::AggregateForm::Tuple(_)
+                ) =>
+            {
+                Some(StructuralShape::Tuple(children.clone().into()))
+            }
+            PayloadSchema::Array(array) => Some(StructuralShape::Array {
+                element: *children.first().ok_or(INVALID)?,
+                length: array.length(),
+            }),
+            PayloadSchema::Optional(_) => {
+                Some(StructuralShape::Optional(*children.first().ok_or(INVALID)?))
+            }
+            PayloadSchema::Fallible(_) => Some(StructuralShape::Fallible {
+                primary: *children.first().ok_or(INVALID)?,
+                alternate: *children.get(1).ok_or(INVALID)?,
+            }),
+            _ => None,
+        };
+        if let Some(id) = structure
+            .as_ref()
+            .and_then(|key| self.structures.get(key))
+            .copied()
+        {
+            self.ids.insert(data, id);
+            return Ok(());
+        }
         let variant = matches!(
             schema,
             PayloadSchema::Optional(_) | PayloadSchema::Fallible(_)
@@ -391,6 +417,9 @@ impl Types {
         let id = self.insert(data, ty, supported);
         self.shapes[id].contract_supported = contract_supported;
         self.shapes[id].serializable = serializable;
+        if let Some(structure) = structure {
+            self.structures.insert(structure, id);
+        }
         Ok(())
     }
     fn insert(&mut self, data: ShapeKey, ty: Type, supported: bool) -> usize {

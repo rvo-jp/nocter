@@ -125,12 +125,18 @@ fn matches_code(
                 program.parameters().get(*id).is_some_and(|parameter| {
                     parameter.name() == expected.name
                         && parameter.operation() == expected.operation
-                        && matches_value(
-                            program,
-                            &expected.data,
-                            parameter.data(),
-                            parameter.contract(),
-                        )
+                        && match (&expected.data, parameter.contract()) {
+                            (ValueDefinition::Data(data), None) => {
+                                program.existing_input_data_reference(*id, data)
+                                    == Some(parameter.data())
+                            }
+                            _ => matches_value(
+                                program,
+                                &expected.data,
+                                parameter.data(),
+                                parameter.contract(),
+                            ),
+                        }
                 })
             })
         && matches_value(

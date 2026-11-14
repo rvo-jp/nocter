@@ -92,6 +92,13 @@ fn compound_callable_leaves_have_stable_distinct_contracts_without_extra_paramet
                 program.data_type(BuiltinType::I32).unwrap()
             );
             assert!(program.parameter_label(parameter).unwrap().contains("pair"));
+            assert_eq!(
+                program
+                    .code_template(receiver.into())
+                    .unwrap()
+                    .resolve(&program, witness),
+                Ok(witness)
+            );
         }
         assert!(
             program
@@ -110,6 +117,19 @@ fn compound_callable_leaves_have_stable_distinct_contracts_without_extra_paramet
                 .witnesses()
                 .is_empty()
         );
+        let recipe = DataReference::Tuple(TupleData::new(
+            callable(),
+            DataReference::Array {
+                element: Box::new(callable()),
+                length: 2,
+            },
+            [],
+        ));
+        assert_eq!(
+            program.existing_input_data_reference(parameters[0], &recipe),
+            Some(input.data())
+        );
+        assert_eq!(program.existing_data_reference(&recipe), None);
     }
 }
 

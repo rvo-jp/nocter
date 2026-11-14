@@ -2,6 +2,45 @@
 use super::*;
 
 #[test]
+fn private_compound_inputs_keep_distinct_received_callable_contexts() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-compound-inputs.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "compound-input-contexts", 42);
+}
+
+#[test]
+fn private_compound_inputs_dispose_actual_received_error_graphs() {
+    let machine = trusted_error_machine(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-compound-input-errors.nct"
+    )));
+    let package = TempPackage::new();
+    execute_native_status(&image(&machine), &package.0, "compound-input-errors", 42);
+}
+
+#[test]
+fn private_compound_inputs_keep_empty_array_bounds_failures() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-compound-inputs.nct"
+    ));
+    let runtime = source
+        .replace("const ANSWER: i32 = calculate()", "")
+        .replace("if ANSWER == 42 { calculate() } else { 0 }", "calculate()")
+        .replace("const func", "func");
+    let changed = runtime.replace(
+        "func empty(take actions: [func(i32): i32; 0]): i32 { 42 }",
+        "func empty(take actions: [func(i32): i32; 0]): i32 { actions[0](22) }",
+    );
+    assert_ne!(changed, runtime);
+    let package = TempPackage::new();
+    execute_native_signal(&compile(&changed), &package.0, "compound-empty-bounds", 5);
+}
+
+#[test]
 fn private_contextual_indexed_replacement_uses_the_original_numeric_projection() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

@@ -27,6 +27,80 @@ fn operations(body: &Body) -> impl Iterator<Item = &Operation> {
 }
 
 #[test]
+fn compound_input_transport_cannot_substitute_another_callable_context() {
+    let source = lower(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-compound-inputs.nct"
+    )));
+    let candidates =
+        source
+            .bodies
+            .values()
+            .flat_map(operations)
+            .filter_map(|operation| {
+                let Operation::Call(call) = operation else {
+                    return None;
+                };
+                let [input] = call.inputs.as_ref() else {
+                    return None;
+                };
+                let Some(nocter_runtime_contract::RuntimeTypeRepresentation::ValueAggregate {
+                    fields,
+                }) = source.runtime.type_representations().get(input.source.data)
+                else {
+                    return None;
+                };
+                (input.operation == ValueInputOperation::Take
+                    && fields.len() == 2
+                    && matches!(
+                        source.runtime.types().get(fields[0].ty()),
+                        Some(RuntimeType::StaticCallable { .. })
+                    ))
+                .then_some((call.target, input.source.data))
+            })
+            .collect::<Vec<_>>();
+    let &(first, data) = candidates
+        .iter()
+        .find(|(target, _)| {
+            candidates
+                .iter()
+                .filter(|(other, _)| target == other)
+                .count()
+                >= 2
+        })
+        .unwrap();
+    let &(other, _) = candidates
+        .iter()
+        .find(|(target, other)| *target != first && *other != data)
+        .unwrap();
+    let mut changed = source.clone();
+    let call = changed
+        .bodies
+        .values_mut()
+        .flat_map(|body| body.actions.values_mut())
+        .flat_map(|action| &mut action.operations)
+        .find_map(|operation| match operation {
+            Operation::Call(call) if call.target == first => Some(call),
+            _ => None,
+        })
+        .unwrap();
+    call.target = other;
+    // Another unchanged edge still reaches the original instance: rejection must not depend
+    // on turning that body unreachable when the one call is corrupted.
+    assert!(
+        changed
+            .bodies
+            .values()
+            .flat_map(operations)
+            .any(|operation| matches!(operation, Operation::Call(call) if call.target == first))
+    );
+    assert!(matches!(
+        validate::program(&changed),
+        Err(Failure::InvalidBody(_))
+    ));
+}
+
+#[test]
 fn scoped_geometry_keeps_the_reference_and_its_larger_container_at_the_original_action() {
     let program = lower(
         "struct Pair { first: i32\nsecond: i32 }\nfunc run(): i32 { var bundle = (Pair { first: 41, second: 1 }, 0)\nedit pair = bundle.0\npair.first = 42\nbundle.0.first }",

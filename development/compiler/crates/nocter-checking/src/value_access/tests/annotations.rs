@@ -10,7 +10,7 @@ fn grouped_flat_callable_annotations_share_ordinary_witness_checking() {
 fn nested_callable_data_reports_missing_type_evidence_at_the_current_header() {
     for source in [
         "struct Data { action: func(): i32 }",
-        "func f(input: (func(): i32)?): void {}",
+        "func f(): (func(): i32)? { loop {} }",
         "func f(input: func(func(): i32): i32): void {}",
         "func f(): func(): func(): i32 { loop {} }",
     ] {

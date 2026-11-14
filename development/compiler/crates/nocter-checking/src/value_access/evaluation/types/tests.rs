@@ -23,6 +23,70 @@ fn fixture() -> Fixture {
 }
 
 #[test]
+fn received_structural_descriptors_share_only_the_same_resolved_runtime_shape() {
+    let (sources, tree) = input(
+        "func first(): i32 { 41 }\nfunc second(): i32 { 42 }\nfunc receive(take pair: (func(): i32, i32)): void {}",
+    );
+    let headers =
+        nocter_declaration_lowering::access_declarations::Query::prepare(bound(&sources, &tree))
+            .unwrap();
+    let context = headers.bind(bound(&sources, &tree)).unwrap();
+    let header = context.program();
+    let code = |name| {
+        header
+            .resolve_code(header.symbols().get(name).unwrap())
+            .unwrap()
+    };
+    let owner = code("receive");
+    let parameter = header.codes().get(owner).unwrap().parameters()[0];
+    let expected = header.parameters().get(parameter).unwrap().data();
+    let first = header
+        .component(expected, ValueField::Tuple(0))
+        .unwrap()
+        .data;
+    let integer = header.data_type(BuiltinType::I32).unwrap();
+    let mut body = header.body_types(owner).unwrap();
+    let actual = ["first", "second"].map(|name| {
+        let data = header.function_data(code(name).into()).unwrap();
+        body.tuple(&[data, integer]).unwrap()
+    });
+    let program = body.finish();
+    let mut types = Types::default();
+    let mut ids = Vec::new();
+    for (name, actual) in ["first", "second"].into_iter().zip(actual) {
+        let witness = program.concrete_witness(code(name).into()).unwrap();
+        let received = program
+            .instantiate_components(
+                expected,
+                [
+                    (
+                        ValueField::Tuple(0),
+                        program.instantiate_function(first, &witness).unwrap(),
+                    ),
+                    (
+                        ValueField::Tuple(1),
+                        program.instantiate_closed_data(integer).unwrap(),
+                    ),
+                ],
+            )
+            .unwrap();
+        let concrete = program.instantiate_closed_data(actual).unwrap();
+        assert_ne!(received.data(), concrete.data());
+        assert_eq!(
+            types.get_instance(&program, received).unwrap(),
+            types.get_instance(&program, concrete.clone()).unwrap()
+        );
+        ids.push(types.get_instance(&program, concrete).unwrap());
+    }
+    assert_ne!(
+        ids[0], ids[1],
+        "equal physical geometry cannot erase code identity"
+    );
+    assert!(!types.supports(&program, expected).unwrap());
+    assert!(types.supports_contract(&program, expected).unwrap());
+}
+
+#[test]
 fn conditional_contract_shapes_never_create_payload_or_final_value_evidence() {
     let fixture = configured_fixture(true);
     let program = &fixture.program;

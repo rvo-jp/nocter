@@ -6,9 +6,9 @@ use super::{
     text,
 };
 use nocter_declarations::value_access::{
-    DataReference, DeclarationId, DeclarationRule, DeclarationViolation, FieldDefinition,
-    FunctionDefinition, HeaderPosition, HeaderPublication, ParameterDefinition, Program, ScopeId,
-    TupleData, ValueDefinition,
+    DataReference, DeclarationId, DeclarationViolation, FieldDefinition, FunctionDefinition,
+    HeaderPosition, HeaderPublication, ParameterDefinition, Program, ScopeId, TupleData,
+    ValueDefinition,
 };
 use nocter_model::{
     AccessCodeId, ConstantValue, FrozenData, FrozenNode, NominalTypeId, Symbol, ValueInputOperation,
@@ -241,13 +241,26 @@ impl Definitions<'_, '_, '_> {
         position: HeaderPosition,
     ) -> Result<Option<DataReference>, Failure> {
         match ty {
-            TypeSyntax::Callable(_) => {
-                self.violations.push(DeclarationViolation {
-                    declaration: owner,
-                    position,
-                    rule: DeclarationRule::UnsupportedCallableData,
-                });
-                Ok(None)
+            TypeSyntax::Callable(contract) => {
+                let inputs = contract
+                    .inputs
+                    .iter()
+                    .map(|(operation, data)| {
+                        Ok(self
+                            .data_type(data, owner, position)?
+                            .map(|data| (*operation, data)))
+                    })
+                    .collect::<Result<Vec<_>, Failure>>()?
+                    .into_iter()
+                    .collect::<Option<Box<[_]>>>();
+                let result = self.data_type(&contract.result, owner, position)?;
+                Ok(inputs.zip(result).map(|(inputs, result)| {
+                    DataReference::Function(Box::new(FunctionDefinition {
+                        invocation: contract.invocation,
+                        inputs,
+                        result,
+                    }))
+                }))
             }
             TypeSyntax::Named(path) => self.data_path(path, owner, position),
             TypeSyntax::Optional { payload, layers } => Ok(self
@@ -336,35 +349,10 @@ impl Definitions<'_, '_, '_> {
         owner: DeclarationId,
         position: HeaderPosition,
     ) -> Result<Option<ValueDefinition>, Failure> {
-        Ok(match ty {
-            TypeSyntax::Callable(contract) => {
-                let inputs = contract
-                    .inputs
-                    .iter()
-                    .map(|(operation, data)| {
-                        Ok(self
-                            .data_type(data, owner, position)?
-                            .map(|data| (*operation, data)))
-                    })
-                    .collect::<Result<Vec<_>, Failure>>()?
-                    .into_iter()
-                    .collect::<Option<Vec<_>>>();
-                let result = self.data_type(&contract.result, owner, position)?;
-                match (inputs, result) {
-                    (Some(inputs), Some(result)) => {
-                        Some(ValueDefinition::Function(FunctionDefinition {
-                            invocation: contract.invocation,
-                            inputs: inputs.into_boxed_slice(),
-                            result,
-                        }))
-                    }
-                    _ => None,
-                }
-            }
-            data => self
-                .data_type(data, owner, position)?
-                .map(ValueDefinition::Data),
-        })
+        Ok(self.data_type(ty, owner, position)?.map(|data| match data {
+            DataReference::Function(contract) => ValueDefinition::Function(*contract),
+            data => ValueDefinition::Data(data),
+        }))
     }
     fn function(
         &mut self,

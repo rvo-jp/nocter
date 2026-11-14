@@ -22,7 +22,11 @@ fn types(length: u64) -> Vec<Type> {
     vec![
         Type::Integer(nocter_model::BuiltinType::I32),
         Type::Integer(nocter_model::BuiltinType::Usize),
-        Type::Array { element: 0, length },
+        if length == 0 {
+            Type::EmptyArray
+        } else {
+            Type::Array { element: 0, length }
+        },
     ]
 }
 fn array(values: &[i32]) -> Value {
@@ -132,7 +136,18 @@ fn script(values: &[i32], operations: Vec<Operation>) -> Plan {
     }
 }
 fn read(position: u64, values: &[i32]) -> Plan {
-    script(values, vec![integer(1, position), index(2), copy(4, 2)])
+    script(
+        values,
+        vec![
+            integer(1, position),
+            if values.is_empty() {
+                Operation::BoundsTrap
+            } else {
+                index(2)
+            },
+            copy(4, 2),
+        ],
+    )
 }
 fn execute(plan: Plan, types: Vec<Type>) -> Value {
     let (code, _) = code_ids();
@@ -407,15 +422,7 @@ fn array_metadata_preserves_finite_containment_without_expanding_counts() {
         BTreeMap::new(),
     )
     .unwrap();
-    Program::new(
-        vec![Type::Array {
-            element: 0,
-            length: 0,
-        }],
-        BTreeMap::new(),
-        BTreeMap::new(),
-    )
-    .unwrap();
+    Program::new(vec![Type::EmptyArray], BTreeMap::new(), BTreeMap::new()).unwrap();
 }
 
 #[test]

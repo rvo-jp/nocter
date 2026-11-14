@@ -24,7 +24,8 @@ The [checking](compiler/crates/nocter-checking/README.md) and
 [target-program](compiler/crates/nocter-target-program/README.md) owners describe the implemented
 canonical metadata, original source-definition queries and ordered lifecycle specialization.
 
-Next close remaining partial carrier-root selection and context-changing evaluator slots against
+Next qualify edit compound inputs, caller reads after completion and changing callback components
+against their original entry/completion channels. Continue closing partial carrier-root selection and context-changing evaluator slots against
 the exact per-value keys. The component owners above describe covered ordinary operand/definition,
 evaluator slot metadata, shared body-channel metadata, invocation, body-ABI, lifecycle and storage scope.
 Keep evaluator slot selection on checking's shared original-value and ordered resource-data
@@ -104,6 +105,10 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   identity without allocating extra physical parameters. Qualify deterministic publication,
   separate same-signature leaves, canonical input metadata and invalid-header rejection before
   opening source admission. Keep nested callback signatures and compound callable results separate.
+- [x] Qualify read/take compound inputs through source and consumers: original-source schema matching,
+  forwarding across distinct formal component identities, resolved structural runtime identities,
+  source safety, conditional const admission and actual native cleanup, including zero-length
+  callable-array inputs. Preserve source element metadata without inventing an element value.
 
 Qualify the same lexical closure with different captured callbacks before and after forwarding
 it with another instance, including safe/unsafe ordinary source, conditional const admission,

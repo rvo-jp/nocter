@@ -40,13 +40,12 @@ impl Checker<'_, '_> {
             return self.reject(Rule::TypeMismatch, node);
         }
         let expected = context.map(|(_, array)| array.element());
-        let mut element = expected;
+        let mut element = None;
         let mut fields = Vec::new();
         let mut continues = true;
         for (index, entry) in entries.into_iter().enumerate() {
             // Inference has no first-element coercion: only an authored context constrains entries.
-            let mut value =
-                self.expression(entry, expected.map(Boundary::Value), reachable && continues)?;
+            let mut value = self.construction_value(entry, expected, reachable && continues)?;
             let Some(data) = self
                 .ty(value)
                 .access()
@@ -77,7 +76,7 @@ impl Checker<'_, '_> {
                 value,
             });
         }
-        let Some(element) = element else {
+        let Some(element) = element.or(expected) else {
             return self.reject_message(
                 Rule::UnknownResultType,
                 node,
@@ -86,8 +85,8 @@ impl Checker<'_, '_> {
             );
         };
         let data = match context {
-            Some((data, _)) => data,
-            None => self
+            Some((data, array)) if array.element() == element => data,
+            _ => self
                 .types
                 .array(element, length)
                 .map_err(|_| Failure::InconsistentSyntax)?,
@@ -114,7 +113,7 @@ impl Checker<'_, '_> {
             return self.reject(Rule::TypeMismatch, node);
         }
         let expected = context.map(|(_, array)| array.element());
-        let mut value = self.expression(seed, expected.map(Boundary::Value), reachable)?;
+        let mut value = self.construction_value(seed, expected, reachable)?;
         let Some(element) = self
             .ty(value)
             .access()
@@ -139,8 +138,8 @@ impl Checker<'_, '_> {
             );
         }
         let data = match context {
-            Some((data, _)) => data,
-            None => self
+            Some((data, array)) if array.element() == element => data,
+            _ => self
                 .types
                 .array(element, length)
                 .map_err(|_| Failure::InconsistentSyntax)?,

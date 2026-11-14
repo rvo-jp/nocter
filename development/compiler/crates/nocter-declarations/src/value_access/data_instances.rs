@@ -6,6 +6,7 @@ use super::{
 use nocter_model::{BuiltinType, FieldPath, TypeId, ValueCode, ValueField};
 use std::{collections::BTreeMap, sync::Arc};
 mod graph;
+mod representation;
 
 #[derive(Clone)]
 pub struct DataInstanceKey {

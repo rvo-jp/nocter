@@ -1,4 +1,5 @@
 //! Integrity of the closed product, never another source-acceptance or ownership checker.
+mod input_data;
 use super::{
     Body, CallTarget, Effect, Failure, Operation, Place, Program, Projection, SlotKey, Storage,
     Terminator,
@@ -522,7 +523,8 @@ impl Context<'_> {
                 for (actual, expected) in call.inputs.iter().zip(inputs) {
                     self.place(&actual.source)?;
                     self.require(
-                        actual.source.data == expected.0 && actual.operation == expected.1,
+                        self.input_data_compatible(actual.source.data, expected.0)
+                            && actual.operation == expected.1,
                     )?;
                     if actual.operation == ValueInputOperation::Take {
                         self.require(

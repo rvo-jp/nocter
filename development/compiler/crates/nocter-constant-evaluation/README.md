@@ -256,18 +256,17 @@ admission, exact-generation reuse and the currently supported final-value scope.
 
 ### Evaluated Array Addresses
 
-The closed stateful domain retains fixed arrays as homogeneous element-type/target-u64-length
-metadata, separately from ordered record/tuple schemas. Schema validation does not expand a count.
-Positive containment edges follow the finite table order; a zero-length edge requires a valid
-element type but contributes no payload containment. Nominal/structural identity remains the
-producer's type-table identity, never a physical value's shape.
+The closed stateful domain retains positive fixed arrays as homogeneous element-type/target-u64-length
+metadata, separately from ordered record/tuple schemas. `Type::EmptyArray` is the sole executable
+zero-count shape and contains no element identity. Source element contracts remain with the producer;
+they cannot select a represented callable or create an element value. Schema validation does not
+expand a count, and positive containment edges follow the finite table order.
 
 `Type::Unavailable` names declared data for which this closed table provides no payload representation.
-Every literal value rejects against it. A zero-length array can retain that element identity
-without constructing it, while a positive element cannot smuggle unit/scalar/aggregate data into
-that shape. The descriptor creates no source type or runtime representation. Checking derives
-its payload-domain decision from the same projected table and links zero-element identities
-without introducing positive containment cycles.
+Every literal value rejects against it. An empty array needs no element representation, while a
+positive element cannot smuggle unit/scalar/aggregate data into that shape. The descriptor creates
+no source type or runtime representation. Checking retains zero-count element classification in
+its source-key table, separately from the empty executable value and positive containment.
 
 Listed arrays use the same `Data::Aggregate` nodes, metered import, copy-on-write, assembly and
 frozen publication as records/tuples. The selected slot schema validates their exact count and

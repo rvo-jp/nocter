@@ -113,6 +113,12 @@ additional actual keys through one canonical authority. No per-frame source-type
 present. `Prepared::instance` also requires that exact key for lookup; the storage table cannot
 reconstruct an occurrence from a code frame and raw source type. Transitive components remain in
 the canonical data graph rather than a flattened inventory.
+The declaration authority's `DataInstanceKey::has_same_representation` checks received explicit
+input channels against their supplying payloads without equating their source descriptors.
+It follows actual logical components and preserves nominal and selected callable code/environment
+identity. Empty-array element metadata supplies no represented element. Native storage interns
+resolved structural tuples, positive arrays and outcome carriers by their actual child identities;
+it keeps every original source/context key as a lookup alias and does not create semantic types.
 Unproduced source classification stays with the accepted Unit; it supplies no storage, payload or
 code instance. Source-selected moves, reservations and snapshots remain unchanged by projection.
 

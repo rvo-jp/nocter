@@ -226,6 +226,35 @@ impl Program {
             ReferenceNode::Function(_) => None,
         })
     }
+    /// Reconcile a compound input recipe with that input's already published callable leaves.
+    /// No ordinal can be inferred without its reserved input owner. This interns nothing and
+    /// grants no body, source-value or payload evidence.
+    #[must_use]
+    pub fn existing_input_data_reference(
+        &self,
+        input: nocter_model::AccessParameterId,
+        data: &DataReference,
+    ) -> Option<TypeId> {
+        let parameter = self.parameters.get(input)?;
+        let mut ordinal = 0;
+        let resolved = resolve_reference(data, |node| match node {
+            ReferenceNode::Data(TypeKind::Builtin(data)) if !supported(data) => None,
+            ReferenceNode::Data(kind) => self.types.store().identity(&kind),
+            ReferenceNode::Function(contract) => {
+                let component = nocter_model::ValueParameter::Component { input, ordinal };
+                ordinal += 1;
+                (self.parameter_contract(component) == Some(&contract))
+                    .then(|| {
+                        self.function_data(super::FunctionWitness {
+                            origin: nocter_model::ValueFunctionOrigin::Parameter(component),
+                            invocation: contract.invocation,
+                        })
+                    })
+                    .flatten()
+            }
+        })?;
+        (ordinal == parameter.components.len()).then_some(resolved)
+    }
     /// Structural Copy evidence for the payload, never permission to duplicate an access.
     #[must_use]
     pub fn data_copyable(&self, data: TypeId) -> Option<bool> {

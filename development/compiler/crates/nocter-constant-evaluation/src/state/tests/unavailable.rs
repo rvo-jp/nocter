@@ -57,7 +57,7 @@ fn no_value_can_inhabit_an_unavailable_shape_or_its_positive_element() {
     }
 }
 #[test]
-fn an_empty_array_can_retain_an_unavailable_element_identity() {
+fn an_empty_array_needs_no_element_payload_or_execution_identity() {
     let (code, _) = code_ids();
     let mut plan = literal();
     let mut slots = plan.slots.to_vec();
@@ -75,13 +75,7 @@ fn an_empty_array_can_retain_an_unavailable_element_identity() {
         point
     });
     let program = Program::new(
-        [
-            Type::Unavailable,
-            Type::Array {
-                element: 0,
-                length: 0,
-            },
-        ],
+        [Type::Unavailable, Type::EmptyArray],
         BTreeMap::from([(code.into(), plan)]),
         BTreeMap::new(),
     )

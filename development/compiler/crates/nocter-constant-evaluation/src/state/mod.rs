@@ -38,7 +38,8 @@ impl From<AccessCodeId> for CodeInstance {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Type {
     /// A declared data identity without a payload representation in this table. No Value validates
-    /// against it; empty arrays and inactive variants may retain its uninstantiated identity.
+    /// against it; inactive variants may retain its uninstantiated identity. Source zero-count
+    /// element classification requires no executable reference to this shape.
     Unavailable,
     Unit,
     /// A concrete code witness with no runtime environment; Unit is its payload.
@@ -58,6 +59,9 @@ pub enum Type {
         alternate: Option<usize>,
     },
     Record(Box<[usize]>),
+    /// An empty array has no represented element. Source element contracts remain upstream.
+    EmptyArray,
+    /// Positive homogeneous storage. Zero-count values use `EmptyArray`.
     Array {
         element: usize,
         length: u64,
@@ -83,6 +87,7 @@ impl Type {
             Self::Record(fields) => u64::try_from(fields.len()).ok(),
             Self::CapturedFunction { .. } => Some(1),
             Self::Array { length, .. } => Some(*length),
+            Self::EmptyArray => Some(0),
             _ => None,
         }
     }

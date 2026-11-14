@@ -123,6 +123,7 @@ pub(super) fn value(program: &Program, data: usize, value: &Value) -> bool {
             {
                 pending.extend(fields.iter().copied().zip(values.iter().cloned()));
             }
+            (Some(Type::EmptyArray), Data::Aggregate(values)) if values.is_empty() => {}
             (Some(Type::Array { element, length }), Data::Aggregate(values))
                 if u64::try_from(values.len()).ok() == Some(*length) =>
             {
@@ -183,7 +184,7 @@ fn validate_types(program: &Program, first: usize) -> Result<()> {
             return Err(INVALID);
         }
         if let Type::Array { element, length } = data
-            && (*element >= program.types.len() || (*length != 0 && *element >= id))
+            && (*length == 0 || *element >= id)
         {
             return Err(INVALID);
         }

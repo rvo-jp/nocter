@@ -1,0 +1,35 @@
+primitive func create_failure(code: str, message: str): error
+primitive func context_error(take value: error, message: str): error
+
+func identity(value: i32): i32 { value }
+func addition(value: i32): func(i32): i32 {
+    let reason = context_error(create_failure("addition", "leaf"), "outer")
+    (reason^, value; amount: i32): i32 { value + amount }
+}
+func subtraction(value: i32): func(i32): i32 {
+    let reason = context_error(create_failure("subtraction", "leaf"), "outer")
+    (reason^, value; amount: i32): i32 { value - amount }
+}
+func wrap(take callback: func(i32): i32): func(i32): i32 {
+    (callback^; amount: i32): i32 { callback(amount) }
+}
+func receive(take pair: (func(i32): i32, i32)): i32 { pair.0(pair.1) }
+func observe(pair: (func(i32): i32, i32)): i32 { pair.0(pair.1) }
+func forward(take pair: (func(i32): i32, i32)): i32 { receive(pair^) }
+func twins(take pair: (func(i32): i32, func(i32): i32)): i32 {
+    pair.0(22) + pair.1(8) - 42
+}
+func array(take actions: [func(i32): i32; 1]): i32 { actions[0](22) }
+func empty(take actions: [func(i32): i32; 0]): i32 { 42 }
+func run(): i32 {
+    let first = (wrap(addition(20)), 22)
+    let seen = observe(first)
+    let a = receive(first^)
+    let again = receive((wrap(addition(10)), 32))
+    let b = forward((wrap(subtraction(50)), 8))
+    let c = receive((wrap(identity), 42))
+    let d = twins((wrap(addition(20)), wrap(subtraction(50))))
+    let e = array([wrap(addition(20))])
+    let f = empty([wrap(addition(20)); 0])
+    if seen == 42 && a == 42 && again == 42 && b == 42 && c == 42 && d == 42 && e == 42 && f == 42 { 42 } else { 0 }
+}

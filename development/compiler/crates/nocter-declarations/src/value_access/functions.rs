@@ -4,6 +4,7 @@ use nocter_model::{
     AccessCodeId, TypeAuthority, TypeId, TypeKind, ValueFunctionOrigin, ValueInputOperation,
     ValueInvocation,
 };
+mod compound_inputs;
 mod patterns;
 mod substitution;
 pub use patterns::{

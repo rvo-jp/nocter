@@ -215,7 +215,11 @@ fn validate_body_edge(
     }
     for (binding, input) in call.inputs().iter().zip(inputs) {
         if input.operation != binding.operation
-            || callee.input(input.local).ok_or(invalid)? != &binding.payload
+            || !callee
+                .input(input.local)
+                .ok_or(invalid)?
+                .instance()
+                .has_same_representation(unit.program(), binding.payload.instance())
         {
             return Err(invalid);
         }

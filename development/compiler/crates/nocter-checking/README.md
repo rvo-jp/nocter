@@ -1582,8 +1582,11 @@ Concrete evaluator plans remain separate. `evaluation::projection::Source` reali
 when execution enters its exact instance.
 It retains the matched checked-body products, shared type projector and complete witness interner.
 The type projector selects contextual components by validated source fields and follows callable
-environments through their separate environment edge. An empty array retains raw element metadata
-without constructing a positive element instance or granting an element access.
+environments through their separate environment edge. Resolved structural shapes share runtime
+identities when their actual child representations agree; nominal identity and callable code and
+environments remain distinct. Source descriptors and canonical frame keys retain their own identities.
+An empty array retains raw element classification in the source-key table, while its executable
+`Type::EmptyArray` contains no element identity or payload. It grants no element access.
 Evaluator slots identified as the body's environment input or its retained backing use that frame's
 complete environment key. Input layout identifies this role; sharing a TypeId does not make an
 ordinary local an environment. The source input schema must match before selecting the shape.
@@ -1737,6 +1740,19 @@ produce 42 from the shared source. This qualifies recreation of established envi
 not changing formal capture representations or native geometry.
 
 ### Context-Bound Callable Captures
+
+Declared compound inputs retain a distinct formal contract at each callable leaf. Input matching
+checks the whole structural contract while preserving the supplied value's semantic identity.
+Original argument sources close the received `CodeInstanceKey.inputs`; forwarding reprojects each
+matched component into the next input's descriptor rather than flattening it into direct callable
+bindings. Header reuse reconciles component contracts under their original reserved input owner.
+`contextual-compound-inputs.nct` qualifies reading and taking tuples, forwarding, two independently
+selected callable leaves, singleton arrays and zero-count arrays through required/native execution.
+It distinguishes nested callable contexts and repeated calls with the same context but different
+values. The matching error fixture executes actual received-container and discarded-seed cleanup.
+Missing transfers, moved-source reuse, runtime-only invocation and changed header contracts reject.
+Higher-order component signatures, callable record fields and compound callable results remain
+separate admission boundaries.
 
 An owned callable input can enter an explicit captured environment without a declaration-closed
 representation. Its descriptor retains callable dependencies; the checked transfer supplies the

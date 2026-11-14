@@ -325,7 +325,8 @@ These descriptors supply neither Copy nor owned-payload evidence. Canonical comp
 retain the concrete witness at each component instead of adding those witnesses to direct input
 bindings. Raw callable data at an entire input must use the existing `ValueDefinition::Function`
 form. Compound callable results, record fields and higher-order component signatures remain
-rejected before publication; source lowering does not yet admit these compound input contracts.
+rejected before publication. Checking owns the
+[qualified source input scope](../nocter-checking/README.md#context-bound-callable-captures).
 `BodyTypes::closure_parameter` publishes each anonymous formal's structural signature once, before
 body checking. The completed closure signature refers to that formal descriptor. Older snapshots
 cannot acquire the new signature, and canonical replay rejects a formal without a completed owner

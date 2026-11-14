@@ -60,10 +60,15 @@ impl Query<'_, '_> {
             return Ok(Fact::Data(data));
         }
         match node.value {
-            ValueSource::Input { local, origin } => Ok(self
-                .projected_input_data(frame, local, origin, path)
-                .filter(|key| key.data() == target)
-                .map_or(Fact::Unavailable, Fact::Data)),
+            ValueSource::Input { local, origin } => {
+                match self.projected_input_data(frame, local, origin, path) {
+                    Some(key) if key.data() == target => Ok(Fact::Data(key)),
+                    Some(key) if self.program.matches_compound_input(key.data(), target) => {
+                        self.source_data_components(owner, frame, value, path, target)
+                    }
+                    _ => Ok(Fact::Unavailable),
+                }
+            }
             ValueSource::Adapt { source } => self.read(
                 owner,
                 Key::Data(frame.clone(), source, path.clone(), target),

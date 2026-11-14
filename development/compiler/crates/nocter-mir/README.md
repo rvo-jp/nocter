@@ -97,6 +97,10 @@ The original input/ABI contract stays paired with call entry; adding the exit re
 grants no initialized storage, lifetime or relocation proof.
 Component integrity and sparse cleanup paths use the closed runtime environment's shared type
 projection, independently of source checking and without a reverse semantic-type lookup.
+Call-boundary validation additionally compares structural containers whose empty-array element
+metadata differs. Empty arrays have no positive element; their source descriptors remain intact.
+All positive leaf identities, including static callable tokens, must still agree. This check
+neither uses byte geometry as a type proof nor permits conversion between distinct nominal records.
 Static primitive edges retain their closed roles without adding a body or input locals. Validation
 checks their data and input operations against the runtime contract's sole value signature;
 unsupported roles and substituted signatures reject. Only body edges participate in body-graph

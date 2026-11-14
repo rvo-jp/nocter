@@ -120,6 +120,14 @@ impl CodeTemplateKey {
         program: &Program,
         selected: FunctionWitness,
     ) -> Result<FunctionWitness, CodeBindingError> {
+        if let ValueFunctionOrigin::Parameter(parameter @ ValueParameter::Component { .. }) =
+            selected.origin
+            && program.parameter_owner(parameter) == Some(self.code)
+        {
+            // This frame has no actual compound-input receipts. Its own component remains a
+            // symbolic condition, not a missing direct input binding or a concrete witness.
+            return program.template_witness(selected);
+        }
         let selected = selected
             .substitute(|parameter| self.witnesses.get(&parameter).copied())
             .map_err(CodeBindingError::Contract)?
