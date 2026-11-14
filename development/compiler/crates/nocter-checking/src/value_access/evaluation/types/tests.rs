@@ -21,6 +21,43 @@ struct Fixture {
 fn fixture() -> Fixture {
     configured_fixture(false)
 }
+
+#[test]
+fn conditional_contract_shapes_never_create_payload_or_final_value_evidence() {
+    let fixture = configured_fixture(true);
+    let program = &fixture.program;
+    let mut types = Types::default();
+    for data in [fixture.formal, fixture.captured, fixture.tuple] {
+        assert!(types.supports_contract(program, data).unwrap());
+        assert!(!types.supports(program, data).unwrap());
+        assert!(!types.supports_final(program, data).unwrap());
+    }
+    let error = program.function_data(fixture.callbacks[1]).unwrap();
+    assert!(!types.supports_contract(program, error).unwrap());
+    assert!(!types.supports(program, error).unwrap());
+    let [named, owned] = fixture.callbacks.each_ref().map(|callback| {
+        let selected = program.concrete_witness(*callback).unwrap();
+        program
+            .bind_callable_environment(
+                match program.data_schema(fixture.captured).unwrap() {
+                    PayloadSchema::Function(witness) => witness,
+                    _ => unreachable!(),
+                },
+                [(fixture.parameter, selected)],
+            )
+            .unwrap()
+    });
+    for (selected, expected) in [(named, true), (owned, false)] {
+        let instance = program
+            .instantiate_function(fixture.captured, &selected)
+            .unwrap();
+        assert_eq!(
+            types.supports_instance(program, instance).unwrap(),
+            expected
+        );
+    }
+    assert!(!types.supports(program, fixture.captured).unwrap());
+}
 fn configured_fixture(error_callback: bool) -> Fixture {
     let (sources, tree) = input(
         "func first(): i32 { 41 }\nfunc second(): i32 { 42 }\nfunc creator(take action: func(): i32): i32 { action() }",

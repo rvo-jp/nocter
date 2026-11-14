@@ -77,8 +77,9 @@ scoped replacement rejects. It retains same-schema virtual and original containi
 and paths on both sides. Constraints grant no resource phase or initialized value; integrity checks
 reject absent action/data identities. The Machine layout authority proves their physical compatibility.
 Other resource-step partial roots currently require independently closed data. Changing geometry,
-relocation and general carrier coherence remain separate qualification boundaries before source
-formal captures can open.
+relocation and general carrier coherence remain separate qualification boundaries for changing
+captured representations. The [checking owner](../nocter-checking/README.md#context-bound-callable-captures)
+defines the qualified ordinary-source capture scope.
 Adapter cleanup likewise selects its completed full carrier in the original argument slot before
 projecting the completed environment. Its selected environment data must match the cleanup
 payload, and its entry/completed carrier pair becomes an original-call geometry constraint.

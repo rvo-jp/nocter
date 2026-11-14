@@ -158,17 +158,7 @@ fn supports(
 ) -> Result<bool, flow::IntegrityError> {
     match instance {
         Some(instance) => domain.supports_in(program, instance, data),
-        None if matches!(
-            program.data_schema(data),
-            Some(PayloadSchema::Function(FunctionWitness {
-                origin: ValueFunctionOrigin::Parameter(_),
-                ..
-            }))
-        ) =>
-        {
-            Ok(true)
-        }
-        None => domain.supports(program, data),
+        None => domain.supports_contract(program, data),
     }
 }
 

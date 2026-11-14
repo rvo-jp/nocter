@@ -53,7 +53,7 @@ impl Condition {
         let program = query.program();
         // Dormant source retains its authored contract, not a counterfeit runtime occurrence.
         if self.selections.is_empty() {
-            return super::super::supports(program, data, domain, Some(frame)).map_err(Into::into);
+            return super::super::supports(program, data, domain, None).map_err(Into::into);
         }
         let evidence = query.result_evidence.as_ref().ok_or(INVALID)?;
         for &(at, source) in &self.selections {

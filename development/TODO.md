@@ -45,7 +45,7 @@ Keep preparation-time snapshots and staged returns; preserve interrupted prepara
 without inventing a committed call or materialization permission. Post-update dependent environments
 and prepared temporaries must follow actual call-write context rather than reuse an immutable
 pre-call bundle. Qualify completed adapter carrier/environment transport through context-changing
-source and actual cleanup before formal-capture admission. Qualify general dependent input carrier
+source and actual cleanup before widening the qualified context-bound capture scope. Qualify general dependent input carrier
 entry/completion transport and remaining dependent post-call channels. Completed-input metadata
 now carries structural data and selected callable components; keep the retained original
 source-channel correspondence rather than guessing body-local inputs. Materialized edit temporaries now retain separate post-call
@@ -72,18 +72,11 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   Preserve separate original retirement and receipt rather than fusing
   them into a replacement solely to accommodate the evaluator.
   Independent closed-plan support does not close ordinary source or native geometry admission.
-- [x] Qualify ordinary loop recreation of owned captured callables through forwarding, partial
-  tuple moves and surviving sibling views in both required evaluation and actual native execution.
-- [x] Join evaluator representation states without erasing retained backing contexts. Allow a
-  fresh whole-root receipt to establish a unique context before use on loop reentry, while
-  unresolved reads remain rejected; verify failed-loop storage recovery.
-- [x] Use the same conservative representation join for ownership-guarded action alternatives.
-  Preserve exact guard selection and reject unresolved typed uses; qualify fresh receipts under
-  both actual ownership states and either alternative order without admitting correlated views.
-- [x] Preserve exact candidate representations at evaluator joins so a component can be read
-  when every candidate projects to the same existing data type. Reject differing callable
-  identities, absent components and mismatched evaluated-index bounds without fabricating a
-  merged runtime type or changing storage/ownership identity.
+- [x] Qualify context-bound callable captures through ordinary read/edit/take source and actual
+  owned-error cleanup. Preserve definition-only domain hypotheses without granting payload,
+  Copy or final-value evidence. Dormant expressions and explicit drops retain unbound contract
+  hypotheses rather than an unrelated execution-frame type default; absent result captures
+  must remain local rejections.
 - [ ] Qualify the canonical frame's received compound-input contexts through ordinary source and
   consumer storage, cleanup and conditional const reuse. The
   [declaration authority](compiler/crates/nocter-declarations/README.md) owns the validated constructor.
@@ -95,8 +88,8 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 
 Qualify the same lexical closure with different captured callbacks before and after forwarding
 it with another instance, including safe/unsafe ordinary source, conditional const admission,
-evaluator plans, native storage and actual cleanup. Keep formal-capture source admission closed
-until all consumers agree. A parser, metadata construction or emitted-only check cannot close that
+evaluator plans, native storage and actual cleanup. Extend source admission only when all consumers
+agree. A parser, metadata construction or emitted-only check cannot close that
 boundary. Opaque effects, ambiguous alternatives and unqualified writes must remain unresolved.
 
 Preserve missing/foreign evidence rejection, frozen views, anchored recursion, deterministic work
@@ -181,8 +174,10 @@ not a language restriction derived from the current realization boundary.
   same lexical closure with different captured callback substitutions. A per-frame `TypeId` map
   cannot distinguish those results after code-only result projection. Extend the existing matched
   producer/application evidence through local, argument, component and return transport, using the
-  canonical witness/data instance authority. Keep formal-capture source admission closed until
-  this case and its cleanup are qualified; see the [instance obligations](design/compiler-realization.md#captured-callable-instances).
+  canonical witness/data instance authority. Extend the
+  [qualified capture scope](compiler/crates/nocter-checking/README.md#context-bound-callable-captures)
+  only after these transport and cleanup cases are qualified; see the
+  [instance obligations](design/compiler-realization.md#captured-callable-instances).
 
 - [ ] Extend symbolic discharge beyond covered root-closed named/owned-environment witnesses and
   parameter-selected calls without callable receiving dependencies. Free/unresolved captures,

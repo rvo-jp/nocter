@@ -49,7 +49,7 @@ impl Condition {
         // A dormant authored statement has no source operation. Preserve its definition-contract
         // obligation rather than inventing an executed value or dropping lexical const checks.
         if self.selections.is_empty() {
-            return super::super::supports(program, data, domain, Some(frame)).map_err(Into::into);
+            return super::super::supports(program, data, domain, None).map_err(Into::into);
         }
         let evidence = query.result_evidence.as_ref().ok_or(INVALID)?;
         for &at in &self.selections {

@@ -224,7 +224,7 @@ slot's first type, reserving maximum capacity or treating code identity as physi
 Carry these obligations across control-flow joins, backedges, calls and adapter cleanup. Unknown
 or conflicting contexts remain unresolved; a failed validation/projection publishes no partial
 plan and preserves healthy retry under the existing budgets. Evaluator logical projections do
-not discharge native address/geometry proofs. Keep formal-capture source admission closed until
+not discharge native address/geometry proofs. Extend formal-capture source admission only after
 the corresponding ordinary-source consumer cases satisfy the enclosing instance obligations.
 
 ### Structural Type Request Closure

@@ -55,7 +55,7 @@ fn explicit_drop_selects_the_original_local_before_retirement_and_recovers_from_
                 owner: run.typed().code(),
                 call,
             },
-            &mut healthy(),
+            &mut WorkBudget::new(Limits::default().steps()),
         )
         .unwrap();
     assert!(
@@ -90,7 +90,7 @@ fn explicit_drop_selects_the_original_local_before_retirement_and_recovers_from_
 #[test]
 fn dormant_drop_preserves_its_contract_without_inventing_a_source_occurrence() {
     let source = ValueSourceFixture::new(
-        "func first(): void {}\nconst func dormant(take action: func(): void): void { return ()\ndrop action }",
+        "func first(): void {}\nconst func dormant(take action: func(): void): void { return ()\ndrop action }\nfunc run(take held: error): void { let action = (held^;): void {}\ndormant(action^) }",
     );
     let unit = SourceUnit::prepare(source.syntax()).unwrap().into_unit();
     let program = unit.program();
@@ -121,6 +121,35 @@ fn dormant_drop_preserves_its_contract_without_inventing_a_source_occurrence() {
                 &mut exhausted,
                 &mut evaluation::Types::default()
             )
+            .unwrap()
+    );
+    let run = unit.code_body(code("run").into()).unwrap();
+    let (call, _) = run
+        .typed()
+        .body()
+        .expressions()
+        .iter()
+        .find(|(_, expression)| matches!(expression.kind, ExpressionKind::Call { .. }))
+        .unwrap();
+    let captured = unit
+        .instantiate_invocation(
+            &program.bind_code(run.typed().code(), []).unwrap(),
+            ValueApplication {
+                owner: run.typed().code(),
+                call,
+            },
+            &mut WorkBudget::new(Limits::default().steps()),
+        )
+        .unwrap();
+    let mut domain = evaluation::Types::default();
+    assert!(
+        conditions[0]
+            .supports(body, &captured, &mut exhausted, &mut domain)
+            .unwrap()
+    );
+    assert!(
+        !domain
+            .supports_input(program, &captured, 0, conditions[0].data().unwrap())
             .unwrap()
     );
 }

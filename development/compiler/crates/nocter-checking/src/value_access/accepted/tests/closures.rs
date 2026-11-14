@@ -4,6 +4,68 @@ use super::*;
 use nocter_model::ValueInvocation;
 
 #[test]
+fn formal_capture_keeps_distinct_received_callback_environments() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/formal-captured-callbacks.nct"
+    ));
+    assert_eq!(
+        super::initializers::answer(source, "ANSWER"),
+        nocter_constant_evaluation::state::Value::integer(42)
+    );
+}
+
+#[test]
+fn formal_capture_invocation_modes_retain_valid_original_body_products() {
+    for source in [
+        "func wrap(take callback: func(): i32): func(): i32 { (callback^;): i32 { callback() } }",
+        "func wrap(take callback: mut(i32): i32): mut(i32): i32 { (callback^; amount: i32): i32 { callback(amount) } }",
+        "func wrap(take callback: once(): i32): once(): i32 { (callback^;): i32 { callback^() } }",
+    ] {
+        accepted(source);
+    }
+}
+
+#[test]
+fn received_formal_capture_modes_execute_independently() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/formal-captured-callbacks.nct"
+    ));
+    let prefix = source.split("const func calculate").next().unwrap();
+    let mut failures = Vec::new();
+    for body in [
+        "let action = wrap(named)\naction()",
+        "let counter = changing(20)\nvar edited = wrap_edit(counter^)\nlet _ = edited(1)\nedited(21)",
+        "let owned = consuming(42)\nowned^()",
+        "let owned = consuming(42)\nlet taken = wrap_once(owned^)\ntaken^()",
+    ] {
+        let source = format!(
+            "{prefix}\nconst func calculate(): i32 {{ {body} }}\nconst ANSWER: i32 = calculate()"
+        );
+        let (sources, tree) = input(&source);
+        match SourceUnit::prepare(bound(&sources, &tree)) {
+            Ok(unit) => {
+                let unit = unit.into_unit();
+                let id = unit
+                    .program()
+                    .resolve_constant(unit.program().symbols().get("ANSWER").unwrap())
+                    .unwrap();
+                assert_eq!(
+                    nocter_constant_evaluation::state::Value::from_frozen(
+                        unit.constant_value(id).unwrap()
+                    )
+                    .unwrap(),
+                    nocter_constant_evaluation::state::Value::integer(42)
+                );
+            }
+            Err(failure) => failures.push(format!("{body}: {failure:?}")),
+        }
+    }
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
+#[test]
 fn a_captured_callback_cannot_hide_writes_to_an_explicit_prefix_counter() {
     for setup in [
         "let value = ()\nlet reset = (value; edit index: usize): void { index = 0 }",
@@ -110,17 +172,53 @@ fn a_named_mut_callback_cannot_hide_reset_of_a_prefix_counter() {
 }
 
 #[test]
-fn unknown_callable_environments_cannot_inherit_one_concrete_payloads_properties() {
+fn formal_captures_keep_their_receiving_identity_without_inheriting_copy_properties() {
     for source in [
         "func work(take callback: func(i32): i32): void { let outer = (callback^;): i32 { callback(41) } }",
         "func forward(take callback: func(i32): i32): func(i32): i32 { callback^ }\nfunc work(take callback: func(i32): i32): void { let pending = forward(callback^)\nlet outer = (pending^;): i32 { pending(41) } }",
     ] {
-        let (sources, tree) = input(source);
+        let unit = accepted(source);
+        assert_eq!(unit.closures().len(), 1);
+        let closure = *unit.closures().keys().next().unwrap();
+        let environment = unit.program().closure(closure).unwrap().environment();
+        assert!(!unit.program().owned_payload_supported(environment));
+        assert_eq!(unit.program().data_copyable(environment), Some(false));
+        let invalid = source
+            .replace("callback^;", "callback;")
+            .replace("pending^;", "pending;");
+        assert_ne!(source, invalid);
+        let (sources, tree) = input(&invalid);
         assert!(
-            matches!(SourceUnit::prepare(bound(&sources, &tree)), Err(SourceFailure::Checking(Failure::Body { failure: BodyFailure::Rejected(diagnostic), .. })) if diagnostic.rule() == crate::value_access::Rule::TypeMismatch && diagnostic.source().message().contains("component payloads")),
-            "{source}"
+            matches!(SourceUnit::prepare(bound(&sources, &tree)), Err(SourceFailure::Checking(Failure::Body {
+            failure: BodyFailure::Rejected(diagnostic), ..
+        })) if diagnostic.rule() == crate::value_access::Rule::MissingTransfer)
         );
     }
+}
+
+#[test]
+fn formal_captures_do_not_strengthen_invocation_capabilities_or_revive_the_source() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/formal-captured-callbacks.nct"
+    ));
+    let runtime = source.replace("const func named", "func named");
+    let (sources, tree) = input(&runtime);
+    let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+    assert!(
+        matches!(failure, SourceFailure::Checking(Failure::Const { diagnostic, .. })
+        if matches!(diagnostic.rule(), crate::value_access::constant::Rule::RuntimeCall(_)))
+    );
+    let reused = source.replace(
+        "(callback^;): i32 { callback() }",
+        "let outer = (callback^;): i32 { callback() }\nlet _ = callback()\nouter^",
+    );
+    assert_ne!(source, reused);
+    let (sources, tree) = input(&reused);
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Flow { .. }))
+    ));
 }
 
 #[test]

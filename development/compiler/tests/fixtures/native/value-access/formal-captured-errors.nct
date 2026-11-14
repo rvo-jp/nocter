@@ -1,0 +1,26 @@
+primitive func create_failure(code: str, message: str): error
+primitive func context_error(take value: error, message: str): error
+
+func named(): i32 { 42 }
+
+func owning(): func(): i32 {
+    let reason = context_error(create_failure("captured", "leaf"), "outer")
+    (reason^;): i32 { 42 }
+}
+
+func wrap(take callback: func(): i32): func(): i32 {
+    (callback^;): i32 { callback() }
+}
+
+func consume(take callback: once(): i32): i32 { callback^() }
+
+func run(): i32 {
+    let direct = wrap(named)
+    let held = owning()
+    let wrapped = wrap(held^)
+    let answer = consume(wrapped^)
+    let discarded = owning()
+    let unused = wrap(discarded^)
+    drop unused
+    if direct() == 42 { answer } else { 0 }
+}

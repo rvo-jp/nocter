@@ -71,6 +71,41 @@ fn private_loop_recreation_preserves_forwarded_captures_and_surviving_sibling_vi
         42,
     );
 }
+
+#[test]
+fn private_formal_capture_keeps_distinct_received_callback_environments() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/formal-captured-callbacks.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "formal-captured-callbacks",
+        42,
+    );
+}
+
+#[test]
+fn private_formal_capture_disposes_actual_owned_error_environments() {
+    let machine = trusted_error_machine(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/formal-captured-errors.nct"
+    )));
+    assert!(
+        machine
+            .functions()
+            .any(
+                |(_, function)| function.body().operations().any(|(_, operation)| matches!(
+                    operation.kind(),
+                    nocter_machine::MachineOperationKind::ReleaseError { .. }
+                ))
+            )
+    );
+    let package = TempPackage::new();
+    execute_native_status(&image(&machine), &package.0, "formal-captured-errors", 42);
+}
 fn compile(source: &str) -> crate::NativeImage {
     let machine = machine(source);
     image(&machine)

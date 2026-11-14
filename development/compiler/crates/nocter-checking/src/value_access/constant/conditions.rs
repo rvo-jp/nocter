@@ -411,7 +411,7 @@ impl Conditions {
                 }
                 Term::Representation(_) | Term::Cleanup(_) | Term::Input { .. } => {
                     let data = program.function_data(witness).ok_or(INVALID)?;
-                    if domain.supports(program, data)? {
+                    if domain.supports_contract(program, data)? {
                         None
                     } else {
                         let mut current = cause;

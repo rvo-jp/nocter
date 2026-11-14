@@ -86,7 +86,11 @@ fn validate_payload(
             .closure(closure)
             .ok_or(Failure::InconsistentSyntax)?
             .environment();
-        if !query.program().owned_payload_supported(environment) {
+        if query
+            .program()
+            .payload_dependencies(environment)
+            .is_none_or(|dependencies| dependencies.has_pending_producers())
+        {
             return Err(reject(
                 Rule::TypeMismatch,
                 "this owned capture has no established component payloads after callable-result resolution",

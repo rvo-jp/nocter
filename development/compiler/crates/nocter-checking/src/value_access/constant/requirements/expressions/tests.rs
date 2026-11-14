@@ -84,7 +84,7 @@ fn expression_conditions_select_original_values_and_preserve_work_failure_locati
 #[test]
 fn dormant_expressions_retain_definition_contract_checks_without_source_values() {
     let source = ValueSourceFixture::new(
-        "func first(): void {}\nconst func inspect(action: func(): void): void { return ()\nread alias = action }",
+        "func first(): void {}\nconst func inspect(action: func(): void): void { return ()\nread alias = action }\nfunc run(take held: error): void { let action = (held^;): void {}\ninspect(action) }",
     );
     let unit = SourceUnit::prepare(source.syntax()).unwrap().into_unit();
     let program = unit.program();
@@ -116,6 +116,37 @@ fn dormant_expressions_retain_definition_contract_checks_without_source_values()
                     &mut exhausted,
                     &mut evaluation::Types::default()
                 )
+                .unwrap()
+        );
+    }
+    let run = unit.code_body(code("run").into()).unwrap();
+    let (call, _) = run
+        .typed()
+        .body()
+        .expressions()
+        .iter()
+        .find(|(_, expression)| matches!(expression.kind, ExpressionKind::Call { .. }))
+        .unwrap();
+    let captured = unit
+        .instantiate_invocation(
+            &program.bind_code(run.typed().code(), []).unwrap(),
+            ValueApplication {
+                owner: run.typed().code(),
+                call,
+            },
+            &mut WorkBudget::new(Limits::default().steps()),
+        )
+        .unwrap();
+    let mut domain = evaluation::Types::default();
+    for condition in conditions.values() {
+        assert!(
+            condition
+                .supports(body, &captured, &mut exhausted, &mut domain)
+                .unwrap()
+        );
+        assert!(
+            !domain
+                .supports_input(program, &captured, 0, condition.data(body).unwrap())
                 .unwrap()
         );
     }

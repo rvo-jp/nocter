@@ -140,7 +140,8 @@ exact code/input or result on failure. MIR expression production and local bindi
 original occurrence definitions, and operand projection uses the matching action's actual reads.
 Detached declaration-closed metadata can still select scalar snapshots; a missing contextual
 occurrence cannot fall back to a frame-wide type entry. Partial carrier roots and general post-update
-representation still require integration before source formal captures can open.
+representation still require integration before extending the qualified
+[context-bound capture scope](../nocter-checking/README.md#context-bound-callable-captures).
 
 `projection::requirements` collects schema requests for the frozen input/result ABI, checked
 reachable operations and their resource steps. Independently closed requests contribute metadata;
@@ -213,9 +214,10 @@ execution authority; downstream consumers must qualify that operation explicitly
 
 Each instance retains its exact accepted body and these frozen edges/data maps. Consumers cannot
 recheck a body, select by names, infer an environment offset from arity, recover source-level Copy
-from concrete payloads, or reinterpret a closure's source owner as its code body. The graph admits the bounded owned-capture producer through that same code authority. General
-captures, nested/factory-result closure bodies, physical input/environment realization, executable
-cleanup, ABI and backend admission remain separate obligations. The
+from concrete payloads, or reinterpret a closure's source owner as its code body. The graph retains
+owned-capture producers and nested/factory-result closure bodies through that same code authority.
+Physical input/environment realization, executable cleanup, ABI and backend admission belong to
+downstream consumers and their qualified scopes. The
 [private cross-stage contract](../../../architecture/pipeline/value-access-declarations.md) owns
 the handoff; the [current realization plan](../../../design/compiler-realization.md) owns remaining
 admission obligations.
@@ -245,7 +247,7 @@ separate responsibilities; these contracts grant no mutation or layout proof.
 request. Failures retain the exact instance/action and instantiation cause and publish no draft;
 the retained InstanceProgram remains reusable for a healthy retry. Ordinary body slots, invocation
 channels, post-update dependent environments and storage must complete their separate occurrence
-integration before source formal captures can open.
+integration before that context-bound source scope can widen.
 `completion` expands the frozen EnvironmentExit recipe only for reached calls; it does not
 reclassify the supplied invocation or the body's environment authority.
 

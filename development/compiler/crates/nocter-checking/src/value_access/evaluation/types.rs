@@ -63,8 +63,17 @@ struct Shape {
     ty: Type,
     /// At least one value is representable. Unavailable variant payloads remain uninhabitable.
     supported: bool,
+    /// Definition-only hypothesis: callable parameters remain obligations, never payloads.
+    contract_supported: bool,
     /// The represented domain is nonempty and contains only final-publication data.
     serializable: bool,
+}
+fn component_support(schema: &PayloadSchema<'_>, mut values: impl Iterator<Item = bool>) -> bool {
+    match schema {
+        PayloadSchema::Optional(_) => true,
+        PayloadSchema::Fallible(_) => values.any(|value| value),
+        _ => values.all(|value| value),
+    }
 }
 #[derive(Default)]
 pub(in crate::value_access) struct Types {
@@ -193,6 +202,14 @@ impl Types {
         let id = self.get(program, data)?;
         Ok(self.shapes[id].supported)
     }
+    pub(in crate::value_access) fn supports_contract(
+        &mut self,
+        program: &Program,
+        data: TypeId,
+    ) -> Result<bool> {
+        let id = self.get(program, data)?;
+        Ok(self.shapes[id].contract_supported)
+    }
     pub(in crate::value_access) fn supports_final(
         &mut self,
         program: &Program,
@@ -263,6 +280,9 @@ impl Types {
                         vec![data.environment(program, code)?]
                     }
                     origin => {
+                        let conditional =
+                            matches!(origin, nocter_model::ValueFunctionOrigin::Parameter(_))
+                                && matches!(&data, ShapeKey::Raw(_));
                         let ty = match origin {
                             nocter_model::ValueFunctionOrigin::Declaration(code) => {
                                 Type::NamedFunction(code)
@@ -271,6 +291,7 @@ impl Types {
                         };
                         let supported = !matches!(ty, Type::Unavailable);
                         let id = self.insert(data, ty, supported);
+                        self.shapes[id].contract_supported |= conditional;
                         self.shapes[id].serializable = false;
                         continue;
                     }
@@ -326,11 +347,16 @@ impl Types {
             schema,
             PayloadSchema::Optional(_) | PayloadSchema::Fallible(_)
         );
-        let supported = match schema {
-            PayloadSchema::Optional(_) => true,
-            PayloadSchema::Fallible(_) => children.iter().any(|&id| self.shapes[id].supported),
-            _ => children.iter().all(|&id| self.shapes[id].supported),
-        };
+        let supported = component_support(
+            &schema,
+            children.iter().map(|&id| self.shapes[id].supported),
+        );
+        let contract_supported = component_support(
+            &schema,
+            children
+                .iter()
+                .map(|&id| self.shapes[id].contract_supported),
+        );
         let serializable = supported
             && !matches!(schema, PayloadSchema::Function(_))
             && children
@@ -363,6 +389,7 @@ impl Types {
             PayloadSchema::Builtin(_) => return Err(INVALID),
         };
         let id = self.insert(data, ty, supported);
+        self.shapes[id].contract_supported = contract_supported;
         self.shapes[id].serializable = serializable;
         Ok(())
     }
@@ -371,6 +398,7 @@ impl Types {
         self.shapes.push(Shape {
             ty,
             supported,
+            contract_supported: supported,
             serializable: supported,
         });
         self.ids.insert(data, id);

@@ -624,8 +624,8 @@ that graph, not a replacement creation recipe. `Unit::producer_relation` exposes
 metadata from that Unit. Rebinding the complete Unit verifies every accepted body before exposing
 current-source views; a detached typed-body rebind does not expose this graph as a new source
 receipt. These relations do not establish a concrete captured frame, runtime value, layout,
-callable target, const permission or ownership. Occurrence-sensitive contextual realization still
-requires its separate qualification before formal-capture admission can open.
+callable target, const permission or ownership. The separately qualified ordinary-source boundary
+is described under [context-bound callable captures](#context-bound-callable-captures).
 
 `Unit::instantiate_invocation` resolves a concrete metadata frame under a caller-supplied
 deterministic `WorkBudget`. For matched source bodies it consumes the original sparse value graph:
@@ -637,7 +637,7 @@ Legacy code-only recipes cannot invent those keys. Body entry and normal complet
 retained original explicit-channel correspondence, excluding the validated environment prefix.
 Entry component queries select the frame's own input key, not a raw-type default or an unrelated
 captured occurrence. Missing/duplicate correspondence or a mismatched schema remains unresolved.
-This metadata integration does not open formal-capture source admission or qualify storage.
+This metadata integration alone does not authorize source construction or qualify storage.
 Return edges
 retain selected component paths; received environment inputs project their complete canonical data
 key rather than reopening lexical capture names. `Unit::instantiate_value` exposes callable metadata
@@ -665,7 +665,7 @@ unresolved, without a caller-entry or preparation-snapshot fallback. Weak writes
 selected old and new components; equal siblings can resolve even when the whole carrier cannot.
 Logical carrier/replacement tests do not grant source assignment or materialization permission.
 General dependent source input carriers, context-changing post-call temporary transport, varying
-evaluator slots and source formal-capture admission remain unqualified.
+evaluator slots and context-changing source captures remain unqualified.
 
 `Unit::instantiate_value_data` normalizes one original value against its receiving source schema
 through that same query and declaration authority. Returned carriers retain their selected callee
@@ -674,8 +674,7 @@ keys; prior snapshots remain unchanged. Erased array writes join old and supplie
 than asserting a selected element. Empty sources and unproduced applications publish no data key,
 even if their declared scalar schema is independently closed. The key selects contextual metadata,
 not initialized storage, source access, runtime layout or cleanup. Ordinary body payload and
-lifecycle consumers still require occurrence-sensitive integration before source formal captures
-can open.
+lifecycle consumers must retain those exact selections within the qualified source scope.
 
 The code-summary/creation-recipe resolver remains available for original metadata fixtures and
 definition-contract reasoning without a matched value graph. Failure of an actual source-value
@@ -701,7 +700,7 @@ parameter names. An alternative producer set at one position must independently 
 witness. Missing creation records, foreign creator frames, incompatible views and alternative
 contexts remain unresolved rather than borrowing current outer formal names.
 This closes metadata substitution only; per-value/component executable representation and source
-formal-capture admission still require their separate qualification.
+additional source admission still require their separate qualification.
 
 Different concrete alternatives remain unresolved rather than selecting the first witness or
 enumerating a Cartesian set of joint frames. Empty facts supply no success receipt. Anchored
@@ -709,8 +708,8 @@ recursive forwarding can close through the same positive fixed point without hos
 resolution. Work failure drops the request-local draft and cannot publish partial state or poison
 a retry. Foreign owners and absent committed calls reject before resolution. The returned key is
 metadata only: it supplies no runtime value, initialized owner, const permission, body plan,
-representation or executable admission. Source formal-capture creation and occurrence-sensitive
-transport remain separately gated; logical context tests do not widen that source domain.
+representation or executable admission. Source creation and occurrence-sensitive transport require
+their separate consumer qualification; logical context tests alone do not widen that source domain.
 
 After deferred identity equalities are proved, the declaration owner's
 [`resolve_body_types`](../nocter-declarations/README.md#future-value-declaration-boundary)
@@ -1289,7 +1288,7 @@ Direct callable data leaves select their actual named or captured representation
 the unbound template's type identity; distinct environments and returned callbacks remain distinct.
 The shared source corpus covers read/edit/take calls, forwarding, recursion, anonymous formal
 inputs, per-instance mutable state and returned taking callbacks through required and native
-execution. General contextual captures, outside R/D/S dependencies, dependent callable carriers,
+execution. Context-changing captures, outside R/D/S dependencies, dependent callable carriers,
 deeper callable inputs and opaque error-data operations remain outside this evaluator domain.
 `constant::Requirements` retains once-derived operation references and sparse cleanup obligations,
 sharing the exact immutable `flow::Query` with the unit's body catalog. Calls, input contracts and
@@ -1304,6 +1303,12 @@ expression diagnostic and metadata-work failure location. A live contextual valu
 recovered from a frame-wide type default. Dormant expressions retain their definition-contract
 checks; the existing uninhabited-projection rule remains separate from producing an unsupported
 value. These selections supply metadata, not execution or source-access permission.
+Definition-only data hypotheses use `Types::supports_contract` over the same canonical shape
+graph. Callable parameters remain conditions; aggregate and captured-environment composition
+preserves them without making the raw shape supported or serializable. Known unsupported data,
+including an owned error environment, still fails that hypothesis. Exact-instance checks consume
+the original value contexts and ordinary supported-shape predicate; a conditional descriptor
+cannot manufacture a payload, invocation capability or final value.
 Explicit `drop` clauses retain their original checked action locations. Bound checks query the
 local's reaching data immediately before retirement through the common source-definition
 normalizer, preserving the authored statement's diagnostic. A dormant statement without an
@@ -1636,10 +1641,12 @@ ordinary closed data and can construct nested closed-data environments under tho
 The body type authority reserves lexical IDs before descending into nested producers; sibling and
 descendant code cannot reuse a pending parent's slot. Canonical program binding, result closure and
 flow admission cover every nested body through the common scope. Exact named/captured callable
-values can themselves form an owned environment, using the declaration owner's admission predicate.
+values can themselves form an owned environment, using declaration-owned descriptor dependencies
+and the original checked value-supply operations.
 Unmarked formation still needs source-context Copy; explicit transfer retires even a Copy function
 value. Selected mut/once views survive capture. Result/application components follow the closure
-boundary below; unbound formal payloads and inferred outside access remain outside this qualified scope.
+boundary below. Context-bound callable inputs follow their separate boundary; inferred outside
+access remains outside this qualified scope.
 Named factory calls inside the body use
 the same callable-result closure as root bodies. Their applications retain actual lexical code,
 not only the shared source/type root. A shared `flow::scope` traversal indexes captured controls
@@ -1672,8 +1679,9 @@ The shared result solver closes it against actual producer relations; an uncommi
 starts as an empty equation, never an anchor manufactured from its signature. Root and nested code
 retain their own operation/application identities throughout. The declaration owner's common type
 projection resolves environment slots and checks positive containment before source admission.
-Each capture constructor then requires an established owned environment. Still-unbound formal or
-absent payloads reject locally rather than reaching resource/layout execution.
+Each capture constructor retains its checked value-supply operation and valid descriptor
+dependencies. Pending or absent result payloads reject locally rather than reaching resource/layout
+execution; valid callable formals follow the context-bound boundary below.
 
 The shared `result-owned-captures.nct` source compares required answers with ordinary native calls
 for result captures, nested/returned environments, callable-bearing arrays, independent snapshots,
@@ -1690,6 +1698,28 @@ factory result, a taking forwarder, a tuple component transfer and a consuming c
 view remains readable after that transfer. Required evaluation and the actual native process both
 produce 42 from the shared source. This qualifies recreation of established environment shapes,
 not changing formal capture representations or native geometry.
+
+### Context-Bound Callable Captures
+
+An owned callable input can enter an explicit captured environment without a declaration-closed
+representation. Its descriptor retains callable dependencies; the checked transfer supplies the
+value. After result closure, pending producers and absent applications still reject. Each concrete
+invocation then selects its actual canonical code/environment key through the shared original-value
+queries. A matching signature or another instance of the same lexical closure cannot supply that key.
+
+The formal contract does not acquire Copy or invocation capabilities from one concrete argument.
+Unmarked acquisition still requires a source-level Copy proof, explicit transfer retires its source,
+and a runtime-only callback cannot become a required const invocation. Definition-only domain
+hypotheses remain separate from supported payloads, final values and exact-instance conditions.
+Dormant expressions and explicit drops use those unbound hypotheses rather than an unrelated
+execution-frame type default; receiving and executed operations retain their own exact checks.
+
+`formal-captured-callbacks.nct` qualifies one lexical capture with named and owned environments,
+read/edit/take invocation, persistent state and required/native agreement at 42.
+`formal-captured-errors.nct` executes nested owned error graph disposal through consuming adapters
+and explicit destruction in a real native process. Owned error payloads remain outside required
+evaluation. General dependent aggregate construction, context-changing carrier writes, surviving
+partial references, inferred captures and external dependencies still require separate qualification.
 
 ### Contextual Anonymous Contracts
 
@@ -1730,18 +1760,18 @@ factory inside that anonymous body retains its dependency until the common equat
 caller's actual input. `Program::function_result` independently projects the closed declared
 result through those frozen bindings to validate normal call-result agreement. No body is retyped
 and no callee-owned formal is published as a caller value.
-General callable carriers, deeper callable signatures within those inputs, inferred capture
-footprints and evaluator formal substitution remain unqualified.
+General callable carriers, deeper callable signatures within those inputs and inferred capture
+footprints remain unqualified. The [constant-domain owner](#constant-domain-acceptance) defines
+the separately qualified formal-substitution scope.
 The shared anonymous-callable-application source covers deferred input returns, calls through
 returned higher-order code, result invocation adapters and interrupted inputs. Its required path
-executes a returned concrete callback; formal callback invocation remains unqualified for required
-execution. The logical-module primitive source also carries a real owned-error environment through
+executes a returned concrete callback. The logical-module primitive source also carries a real owned-error environment through
 a deferred anonymous return and executes its invocation and cleanup.
 
 The shared contextual-closure source qualifies annotation/call/result completion, nested conditional
 result positions, edited caller state, taking non-Copy inputs and mut/once adapters through required
-and native execution. Formal callable invocation remains outside the evaluator domain; the fixture's
-required paths invoke exact local/factory witnesses, while native source also calls selected formals.
+and native execution. This fixture's required paths invoke exact local/factory witnesses, while
+native source also calls selected formals; required formal calls follow the constant-domain owner.
 The shared inferred-result source checks tail/early/explicit returns, unit, record/tuple/array
 results, owned captures, nested lexical bodies and unchanged read/edit/take inputs through required
 and native execution. The shared logical-module primitive source also returns a real owned error
@@ -2240,7 +2270,7 @@ The shared adapted-element source qualifies atomic view changes while draining a
 arguments, independent read/edit environments, a non-Copy capture, zero-byte named function values
 and cancellation before commit. Local adapted views also compute required answers through the
 same ledger/evaluator operations; deferred formal calls execute through native instances. General
-formal callable evaluator substitution remains outside the [constant domain](#constant-domain-acceptance).
+dependent formal substitution still needs qualification under the [constant domain](#constant-domain-acceptance).
 Overlapping argument sources and callbacks that really reset the counter still reject. The one-
 iteration regression also uses ordinary unit elements, independently of callable representation.
 
