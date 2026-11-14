@@ -1,0 +1,309 @@
+//! Ordered resource data projection shared by checked consumers; never an ownership analysis.
+use super::{
+    Evidence, InstantiationFailure, ValueSourceBoundary, ValueSourceSelection, ValueSourceSlot,
+};
+use crate::value_access::flow::{
+    self, Location, Operation,
+    resources::{Holder, InstantiatedPayload as Payload, PayloadSite, Place, Step as ResourceStep},
+};
+use nocter_constant_evaluation::state::WorkBudget;
+use nocter_declarations::value_access::{
+    CodeInstanceKey, DataInstanceKey, InstanceSchema, PayloadSchema, Program,
+};
+use nocter_model::{TypeId, ValueField, ValuePath, ValueProjection};
+use std::collections::BTreeMap;
+#[cfg(test)]
+mod tests;
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ResourceDataFailure {
+    Integrity,
+    Instantiation(InstantiationFailure),
+}
+const INVALID: ResourceDataFailure = ResourceDataFailure::Integrity;
+type Failure = ResourceDataFailure;
+#[derive(Clone)]
+enum Binding {
+    Value(DataInstanceKey),
+    AfterAction,
+}
+/// Only data references for materializations in this one ordered transition, never owner state.
+pub struct ResourceDataProjection<'a, 'work> {
+    program: &'a Program,
+    evidence: &'a Evidence,
+    body: &'a flow::Query,
+    frame: &'a CodeInstanceKey,
+    at: Location,
+    work: &'work mut WorkBudget,
+    values: BTreeMap<Holder, Binding>,
+}
+impl<'a, 'work> ResourceDataProjection<'a, 'work> {
+    pub(in crate::value_access) fn new(
+        program: &'a Program,
+        evidence: &'a Evidence,
+        body: Option<&'a flow::Query>,
+        frame: &'a CodeInstanceKey,
+        at: Location,
+        work: &'work mut WorkBudget,
+    ) -> Result<Self, Failure> {
+        let body = body
+            .filter(|body| body.typed().code() == frame.code())
+            .ok_or(INVALID)?;
+        body.graph()
+            .points()
+            .get(at.point)
+            .and_then(|point| point.actions.get(at.action))
+            .ok_or(INVALID)?;
+        Ok(Self {
+            program,
+            evidence,
+            body,
+            frame,
+            at,
+            work,
+            values: BTreeMap::new(),
+        })
+    }
+    /// Project only payload metadata, preserving the supplied operation and place identities.
+    /// # Errors
+    /// Invalid source data or quota exhaustion publishes no partly projected step list.
+    pub fn steps(&mut self, steps: &[ResourceStep]) -> Result<Vec<ResourceStep<Payload>>, Failure> {
+        let before = self.values.clone();
+        let result = steps
+            .iter()
+            .map(|step| self.step(step))
+            .collect::<Result<_, _>>();
+        if result.is_err() {
+            self.values = before;
+        }
+        result
+    }
+    fn step(&mut self, step: &ResourceStep) -> Result<ResourceStep<Payload>, Failure> {
+        let mut source = None;
+        let mut created = None;
+        let result = step.try_map_payloads_at(|site, contract| {
+            let key = match site {
+                PayloadSite::Source(place) => {
+                    if matches!(step, ResourceStep::ReplaceReferent { destination, .. } if destination == place) {
+                        self.retired(place, contract.data())?
+                    } else {
+                        self.source(place, contract.data())?
+                    }
+                }
+                PayloadSite::Destination(holder) => {
+                    let key = self.destination(step, holder, contract.data(), source.as_ref())?;
+                    created = Some((holder, key.clone()));
+                    key
+                }
+            };
+            if matches!(site, PayloadSite::Source(place)
+                if !matches!(step, ResourceStep::ReplaceReferent { source, .. } if place != source))
+            {
+                source = Some(key.clone());
+            }
+            contract
+                .instantiate(self.program, &key)
+                .map_err(|_| INVALID)
+        })?;
+        if let Some((holder, key)) = created {
+            self.values.insert(holder, Binding::Value(key));
+        }
+        match step {
+            ResourceStep::Move { destination, .. }
+            | ResourceStep::ReplaceReferent { destination, .. } => {
+                let key = source.ok_or(INVALID)?;
+                self.values.insert(
+                    destination.holder(),
+                    if destination.fields().is_root() {
+                        Binding::Value(key)
+                    } else {
+                        Binding::AfterAction
+                    },
+                );
+            }
+            ResourceStep::MoveArrayElement { destination, .. } => {
+                self.values
+                    .insert(*destination, Binding::Value(source.ok_or(INVALID)?));
+            }
+            _ => {}
+        }
+        Ok(result)
+    }
+    fn closed(&self, target: TypeId) -> Option<DataInstanceKey> {
+        self.program.instantiate_closed_data(target).ok()
+    }
+    fn retired(&mut self, place: &Place, data: TypeId) -> Result<DataInstanceKey, Failure> {
+        if let Some(key) = self.closed(data) {
+            return Ok(key);
+        }
+        if self.values.contains_key(&place.holder()) {
+            return self.source(place, data);
+        }
+        let body = self.body;
+        let operation = &body
+            .graph()
+            .points()
+            .get(self.at.point)
+            .and_then(|block| block.actions.get(self.at.action))
+            .ok_or(INVALID)?
+            .operation;
+        let (Operation::Assign { target, .. } | Operation::CompoundAssign { target, .. }) =
+            *operation
+        else {
+            return Err(INVALID);
+        };
+        let source = self
+            .evidence
+            .value_sources(self.frame.code())
+            .and_then(|graph| graph.flow())
+            .and_then(|flow| flow.referent(self.at, target))
+            .ok_or(INVALID)?;
+        super::instantiate_value_data(
+            self.program,
+            self.evidence,
+            self.frame,
+            source,
+            data,
+            self.work,
+        )
+        .map_err(Failure::Instantiation)
+    }
+    fn source(&mut self, place: &Place, target: TypeId) -> Result<DataInstanceKey, Failure> {
+        let program = self.program;
+        // An independent schema selects metadata only. The matched transition owns availability.
+        if let Some(key) = self.closed(target) {
+            return Ok(key);
+        }
+        match self.values.get(&place.holder()) {
+            Some(Binding::Value(key)) => {
+                let key = key
+                    .project_path(program, &metadata_path(place, 0_u64))
+                    .map_err(|_| INVALID)?;
+                self.receiving(key, target)
+            }
+            Some(Binding::AfterAction) => self.stored(place, target, true),
+            None => self.stored(place, target, false),
+        }
+    }
+    fn destination(
+        &mut self,
+        step: &ResourceStep,
+        holder: Holder,
+        target: TypeId,
+        source: Option<&DataInstanceKey>,
+    ) -> Result<DataInstanceKey, Failure> {
+        let program = self.program;
+        if let Some(key) = self.closed(target) {
+            return Ok(key);
+        }
+        match step {
+            ResourceStep::Capture { .. } => {
+                let Some(PayloadSchema::Function(selected)) = program.data_schema(target) else {
+                    return Err(INVALID);
+                };
+                let actual = program
+                    .bind_callable_data(selected, source.ok_or(INVALID)?)
+                    .map_err(|_| INVALID)?;
+                program
+                    .instantiate_function(target, &actual)
+                    .map_err(|_| INVALID)
+            }
+            ResourceStep::AdaptFunction { .. } => {
+                self.receiving(source.ok_or(INVALID)?.clone(), target)
+            }
+            ResourceStep::Assemble { fields, .. } => self.assemble(target, fields),
+            ResourceStep::Construct { .. } | ResourceStep::Receive { .. } => {
+                self.stored(&holder.place(), target, true)
+            }
+            _ => Err(INVALID),
+        }
+    }
+    fn assemble(
+        &mut self,
+        target: TypeId,
+        fields: &[(ValueField, Place)],
+    ) -> Result<DataInstanceKey, Failure> {
+        let program = self.program;
+        let array = matches!(program.data_schema(target), Some(PayloadSchema::Array(_)));
+        let mut values = Vec::new();
+        let mut element = None;
+        for (field, source) in fields {
+            let data = program.component(target, *field).ok_or(INVALID)?.data;
+            let key = self.source(source, data)?;
+            if array {
+                if element.as_ref().is_some_and(|previous| previous != &key) {
+                    return Err(INVALID);
+                }
+                element = Some(key);
+            } else {
+                values.push((*field, key));
+            }
+        }
+        if let Some(element) = element {
+            values.push((ValueField::Array(0), element));
+        }
+        program
+            .instantiate_components(target, values)
+            .map_err(|_| INVALID)
+    }
+    fn receiving(
+        &self,
+        source: DataInstanceKey,
+        target: TypeId,
+    ) -> Result<DataInstanceKey, Failure> {
+        if source.data() == target {
+            return Ok(source);
+        }
+        let program = self.program;
+        match source.schema(program).map_err(|_| INVALID)? {
+            InstanceSchema::Function(actual) => program
+                .instantiate_function(target, &actual)
+                .map_err(|_| INVALID),
+            _ => Err(INVALID),
+        }
+    }
+    fn stored(
+        &mut self,
+        place: &Place,
+        target: TypeId,
+        after: bool,
+    ) -> Result<DataInstanceKey, Failure> {
+        let slot = match place.holder() {
+            Holder::Local(local) => ValueSourceSlot::Local(local),
+            Holder::Expression(expression) => ValueSourceSlot::Expression(expression),
+            Holder::Prepared { call, index } | Holder::Temporary { call, index } => {
+                ValueSourceSlot::Argument { call, index }
+            }
+            Holder::Return => ValueSourceSlot::Return,
+            Holder::IndexSnapshot(_) | Holder::ArrayFrontier(_) => return Err(INVALID),
+        };
+        let selected = ValueSourceSelection {
+            boundary: ValueSourceBoundary {
+                point: self.at.point,
+                action: self
+                    .at
+                    .action
+                    .checked_add(usize::from(after))
+                    .ok_or(INVALID)?,
+            },
+            slot,
+            path: metadata_path(place, ()),
+        };
+        super::instantiate_stored_data(
+            self.program,
+            self.evidence,
+            self.frame,
+            &selected,
+            target,
+            self.work,
+        )
+        .map_err(Failure::Instantiation)
+    }
+}
+fn metadata_path<I: Copy>(place: &Place, array: I) -> ValuePath<I> {
+    ValuePath::new(place.fields().fields().iter().map(|&field| match field {
+        ValueProjection::Array(_) => ValueProjection::Array(array),
+        ValueProjection::Record(field) => ValueProjection::Record(field),
+        ValueProjection::Tuple(index) => ValueProjection::Tuple(index),
+        ValueProjection::Variant(primary) => ValueProjection::Variant(primary),
+    }))
+}

@@ -210,28 +210,13 @@ it has no parts constructor. `lower` enumerates reachable checked graph location
 identical guard/schedule pairs. A projected condition admitting different schedules rejects
 explicitly, rather than selecting by report order. No second CFG or runtime-state store is built.
 
-`lifecycle::payloads` specializes obligations from their checking-owned source/destination roles
-through the exhaustive resource-step transform into `Step<InstantiatedPayload>`. Original action
-boundaries supply stored source values. One transition-local binding map retains only the data
-references of ordered materializations and transfers, including intermediate invocation adapters;
-it adds no owner state and does not change the ownership analysis's world identity or guards.
-Old cleanup precedes replacement binding, so a later use of the same holder selects the supplied
-value rather than the frame's default for that semantic type. Partial writes refer back to the
-original action's resulting definition.
-Scoped referent replacement specializes its retired destination and supplied source separately,
-then binds subsequent use to the supplied key. MIR disposal consumes the retired obligation;
-transfer consumes the supplied one. Without an intermediate transition-local binding, contextual
-retirement resolves the original assignment target's actual referent read through the source graph;
-it cannot substitute the alias binding's immutable snapshot. Missing write-target evidence rejects.
-Evaluator plans and changing partial carrier geometry remain separate qualification obligations.
-
-Capture construction, function-view adaptation and component assembly use the declaration-owned
-canonical data/witness operations. Homogeneous array assembly requires represented element keys
-to agree; no arbitrary first context is selected. Independently declaration-closed schemas can
-reuse their existing metadata; a contextual value cannot fall back to a frame-wide TypeId entry.
-The concrete payload retains its complete context for downstream lookup without selecting
-operations, fields or dispatch. Source-definition boundaries are not resource phases: both the
-selected operations and the before/after boundary remain owned by the retained transition.
+`lifecycle::payloads` consumes checking's
+[ordered resource-data projection](../nocter-checking/README.md#shared-flow-access-and-resource-validation)
+and wraps its unchanged selected steps in the native lifecycle vocabulary. It adds instance/action
+failure context, not another source-value substitution model or owner registry. The original
+transition still supplies before/after phases and ownership conditions. Scoped replacement passes
+its independent retired/supplied obligations to MIR disposal and transfer. Backend layout and
+adapter completion remain separate responsibilities.
 
 `Program::prepare_with_budget` bounds contextual metadata work across the complete lifecycle
 request. Failures retain the exact instance/action and instantiation cause and publish no draft;

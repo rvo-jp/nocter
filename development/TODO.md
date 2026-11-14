@@ -27,6 +27,8 @@ canonical metadata, original source-definition queries and ordered lifecycle spe
 Next close remaining partial carrier-root selection and evaluator expression/local
 plan data against the exact per-value keys. The component owners above describe completed ordinary
 operand/definition, shared body-channel metadata, invocation, body-ABI, lifecycle and storage scope.
+Consume checking's shared ordered resource-data projection when extending evaluator slot selection;
+keep each backend's execution lowering separate from source-value normalization.
 Keep preparation-time snapshots and staged returns; preserve interrupted preparation metadata
 without inventing a committed call or materialization permission. Post-update dependent environments
 and prepared temporaries must follow actual call-write context rather than reuse an immutable
@@ -38,6 +40,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [ ] Retain scoped replacement's independent retired/supplied obligations and actual alias-root
   selections through evaluator plans and changing partial-carrier geometry. An alias binding's
   immutable snapshot is not a later read of its referent; keep dependent source admission closed.
+- [ ] Close carrier representation coherence under the
+  [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances)
+  before admitting context-changing writes and retained sibling references.
 
 Qualify the same lexical closure with different captured callbacks before and after forwarding
 it with another instance, including safe/unsafe ordinary source, conditional const admission,

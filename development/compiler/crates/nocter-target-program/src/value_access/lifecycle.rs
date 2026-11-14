@@ -198,7 +198,8 @@ fn lower(
                 let mut alternatives = BTreeMap::new();
                 for transition in checked.access().resources().at(at) {
                     let condition = transition.condition();
-                    let mut projection = payloads::Projection::new(program, instance, id, at, work);
+                    let mut projection =
+                        payloads::Projection::new(program, instance, id, at, work)?;
                     let before = projection.steps(transition.before_steps())?;
                     let mut after = completion.clone().into_iter().collect::<Vec<_>>();
                     after.extend(projection.steps(transition.after_steps())?);

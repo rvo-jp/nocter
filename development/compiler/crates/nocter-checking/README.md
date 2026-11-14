@@ -800,6 +800,17 @@ mapping. A site grants no availability or bounds proof and does not choose an op
 Consumers must pair it with the retained transition order: replacing a local does not make its old
 cleanup refer to the new value. Source/phase provenance and occurrence-specific lifecycle transport
 remain separate integration obligations.
+`Unit::project_resource_data` owns ordered payload specialization under one concrete frame and
+original action. Its transition-local binding map contains data references for intermediate
+materializations and transfers, not owners or new world identities. Old cleanup precedes new
+binding; scoped retirement uses the original write target's actual alias-root read. Capture,
+function-view adaptation and component assembly use the declaration-owned canonical operations;
+array element keys must agree without selecting an arbitrary first context. Independently closed
+schemas select metadata without consulting a backend's frame-wide type cache. Original transitions
+still own before/after order, availability and guards. A failed step list restores prior data
+bindings and publishes no partial list, while spent metadata work remains spent. This projection
+grants no source, layout or executable receipt. Native lifecycle schedules consume this authority;
+evaluator slot integration and changing partial-carrier geometry remain separate obligations.
 `resources::Payload::instantiate` binds an existing logical schema to the declaration-owned
 `DataInstanceKey`, preserving the actual callable representation and nested captured context.
 `InstantiatedPayload` retains that complete key with its concrete root cleanup obligation. Its

@@ -1,31 +1,25 @@
-//! One transition's value transport, without replaying ownership or changing its selected steps.
-use super::{Failure, INVALID, Instance, InstanceProgram, Location, Payload, ResourceStep, Step};
+//! Consume checking's ordered resource data projection; no second source substitution model.
+use super::{Failure, Instance, InstanceProgram, Location, ResourceStep, Step};
+use nocter_checking::value_access::{ResourceDataFailure, ResourceDataProjection};
+use nocter_constant_evaluation::state::WorkBudget;
+use nocter_model::AccessInstanceId;
 #[cfg(test)]
 mod tests;
-use nocter_checking::value_access::{
-    ValueSourceBoundary, ValueSourceSelection, ValueSourceSlot,
-    flow::{
-        Operation,
-        resources::{Holder, PayloadSite, Place},
-    },
-};
-use nocter_constant_evaluation::state::WorkBudget;
-use nocter_declarations::value_access::{DataInstanceKey, InstanceSchema, PayloadSchema};
-use nocter_model::{AccessInstanceId, TypeId, ValueField, ValuePath, ValueProjection};
-use std::collections::BTreeMap;
 
-enum Binding {
-    Value(DataInstanceKey),
-    AfterAction,
-}
-/// Only data references for materializations in this one ordered transition, never owner state.
 pub(super) struct Projection<'a, 'work> {
-    instances: &'a InstanceProgram,
-    instance: &'a Instance,
+    inner: ResourceDataProjection<'a, 'work>,
     id: AccessInstanceId,
     at: Location,
-    work: &'work mut WorkBudget,
-    values: BTreeMap<Holder, Binding>,
+}
+fn failure(id: AccessInstanceId, at: Location, error: ResourceDataFailure) -> Failure {
+    match error {
+        ResourceDataFailure::Integrity => Failure::InvalidInstanceProgram,
+        ResourceDataFailure::Instantiation(failure) => Failure::Payload {
+            instance: id,
+            at,
+            failure,
+        },
+    }
 }
 impl<'a, 'work> Projection<'a, 'work> {
     pub(super) fn new(
@@ -34,263 +28,17 @@ impl<'a, 'work> Projection<'a, 'work> {
         id: AccessInstanceId,
         at: Location,
         work: &'work mut WorkBudget,
-    ) -> Self {
-        Self {
-            instances,
-            instance,
-            id,
-            at,
-            work,
-            values: BTreeMap::new(),
-        }
+    ) -> Result<Self, Failure> {
+        let inner = instances
+            .unit()
+            .project_resource_data(instance.key(), at, work)
+            .map_err(|error| failure(id, at, error))?;
+        Ok(Self { inner, id, at })
     }
     pub(super) fn steps(&mut self, steps: &[ResourceStep]) -> Result<Vec<Step>, Failure> {
-        steps
-            .iter()
-            .map(|step| self.step(step).map(Step::Resource))
-            .collect()
+        self.inner
+            .steps(steps)
+            .map(|steps| steps.into_iter().map(Step::Resource).collect())
+            .map_err(|error| failure(self.id, self.at, error))
     }
-    fn step(
-        &mut self,
-        step: &ResourceStep,
-    ) -> Result<nocter_checking::value_access::flow::resources::Step<Payload>, Failure> {
-        let mut source = None;
-        let mut created = None;
-        let result = step.try_map_payloads_at(|site, contract| {
-            let key = match site {
-                PayloadSite::Source(place) => {
-                    if matches!(step, ResourceStep::ReplaceReferent { destination, .. } if destination == place) {
-                        self.retired(place, contract.data())?
-                    } else {
-                        self.source(place, contract.data())?
-                    }
-                }
-                PayloadSite::Destination(holder) => {
-                    let key = self.destination(step, holder, contract.data(), source.as_ref())?;
-                    created = Some((holder, key.clone()));
-                    key
-                }
-            };
-            if matches!(site, PayloadSite::Source(place)
-                if !matches!(step, ResourceStep::ReplaceReferent { source, .. } if place != source))
-            {
-                source = Some(key.clone());
-            }
-            contract
-                .instantiate(self.instances.unit().program(), &key)
-                .map_err(|_| INVALID)
-        })?;
-        if let Some((holder, key)) = created {
-            self.values.insert(holder, Binding::Value(key));
-        }
-        match step {
-            ResourceStep::Move { destination, .. }
-            | ResourceStep::ReplaceReferent { destination, .. } => {
-                let key = source.ok_or(INVALID)?;
-                self.values.insert(
-                    destination.holder(),
-                    if destination.fields().is_root() {
-                        Binding::Value(key)
-                    } else {
-                        Binding::AfterAction
-                    },
-                );
-            }
-            ResourceStep::MoveArrayElement { destination, .. } => {
-                self.values
-                    .insert(*destination, Binding::Value(source.ok_or(INVALID)?));
-            }
-            _ => {}
-        }
-        Ok(result)
-    }
-    fn closed(&self, target: TypeId) -> Option<DataInstanceKey> {
-        if let Some(key) = self
-            .instance
-            .data()
-            .get(&target)
-            .and_then(super::super::DataEvidence::payload)
-            .map(|payload| payload.instance().clone())
-            && key.data() == target
-            && key.is_context_free()
-        {
-            return Some(key);
-        }
-        self.instances
-            .unit()
-            .program()
-            .instantiate_closed_data(target)
-            .ok()
-    }
-    fn retired(&mut self, place: &Place, data: TypeId) -> Result<DataInstanceKey, Failure> {
-        if let Some(key) = self.closed(data) {
-            return Ok(key);
-        }
-        if self.values.contains_key(&place.holder()) {
-            return self.source(place, data);
-        }
-        let unit = self.instances.unit();
-        let body = self.instances.body(self.id).ok_or(INVALID)?;
-        let operation = &body
-            .graph()
-            .points()
-            .get(self.at.point)
-            .and_then(|block| block.actions.get(self.at.action))
-            .ok_or(INVALID)?
-            .operation;
-        let (Operation::Assign { target, .. } | Operation::CompoundAssign { target, .. }) =
-            *operation
-        else {
-            return Err(INVALID);
-        };
-        let source = unit
-            .value_sources(self.instance.key().code())
-            .and_then(|graph| graph.flow())
-            .and_then(|flow| flow.referent(self.at, target))
-            .ok_or(INVALID)?;
-        unit.instantiate_value_data(self.instance.key(), source, data, self.work)
-            .map_err(|failure| Failure::Payload {
-                instance: self.id,
-                at: self.at,
-                failure,
-            })
-    }
-    fn source(&mut self, place: &Place, target: TypeId) -> Result<DataInstanceKey, Failure> {
-        let program = self.instances.unit().program();
-        // An independent schema selects metadata only. The matched transition owns availability.
-        if let Some(key) = self.closed(target) {
-            return Ok(key);
-        }
-        match self.values.get(&place.holder()) {
-            Some(Binding::Value(key)) => {
-                let key = key
-                    .project_path(program, &metadata_path(place, 0_u64))
-                    .map_err(|_| INVALID)?;
-                self.receiving(key, target)
-            }
-            Some(Binding::AfterAction) => self.stored(place, target, true),
-            None => self.stored(place, target, false),
-        }
-    }
-    fn destination(
-        &mut self,
-        step: &ResourceStep,
-        holder: Holder,
-        target: TypeId,
-        source: Option<&DataInstanceKey>,
-    ) -> Result<DataInstanceKey, Failure> {
-        let program = self.instances.unit().program();
-        if let Some(key) = self.closed(target) {
-            return Ok(key);
-        }
-        match step {
-            ResourceStep::Capture { .. } => {
-                let Some(PayloadSchema::Function(selected)) = program.data_schema(target) else {
-                    return Err(INVALID);
-                };
-                let actual = program
-                    .bind_callable_data(selected, source.ok_or(INVALID)?)
-                    .map_err(|_| INVALID)?;
-                program
-                    .instantiate_function(target, &actual)
-                    .map_err(|_| INVALID)
-            }
-            ResourceStep::AdaptFunction { .. } => {
-                self.receiving(source.ok_or(INVALID)?.clone(), target)
-            }
-            ResourceStep::Assemble { fields, .. } => self.assemble(target, fields),
-            ResourceStep::Construct { .. } | ResourceStep::Receive { .. } => {
-                self.stored(&holder.place(), target, true)
-            }
-            _ => Err(INVALID),
-        }
-    }
-    fn assemble(
-        &mut self,
-        target: TypeId,
-        fields: &[(ValueField, Place)],
-    ) -> Result<DataInstanceKey, Failure> {
-        let program = self.instances.unit().program();
-        let array = matches!(program.data_schema(target), Some(PayloadSchema::Array(_)));
-        let mut values = Vec::new();
-        let mut element = None;
-        for (field, source) in fields {
-            let data = program.component(target, *field).ok_or(INVALID)?.data;
-            let key = self.source(source, data)?;
-            if array {
-                if element.as_ref().is_some_and(|previous| previous != &key) {
-                    return Err(INVALID);
-                }
-                element = Some(key);
-            } else {
-                values.push((*field, key));
-            }
-        }
-        if let Some(element) = element {
-            values.push((ValueField::Array(0), element));
-        }
-        program
-            .instantiate_components(target, values)
-            .map_err(|_| INVALID)
-    }
-    fn receiving(
-        &self,
-        source: DataInstanceKey,
-        target: TypeId,
-    ) -> Result<DataInstanceKey, Failure> {
-        if source.data() == target {
-            return Ok(source);
-        }
-        let program = self.instances.unit().program();
-        match source.schema(program).map_err(|_| INVALID)? {
-            InstanceSchema::Function(actual) => program
-                .instantiate_function(target, &actual)
-                .map_err(|_| INVALID),
-            _ => Err(INVALID),
-        }
-    }
-    fn stored(
-        &mut self,
-        place: &Place,
-        target: TypeId,
-        after: bool,
-    ) -> Result<DataInstanceKey, Failure> {
-        let slot = match place.holder() {
-            Holder::Local(local) => ValueSourceSlot::Local(local),
-            Holder::Expression(expression) => ValueSourceSlot::Expression(expression),
-            Holder::Prepared { call, index } | Holder::Temporary { call, index } => {
-                ValueSourceSlot::Argument { call, index }
-            }
-            Holder::Return => ValueSourceSlot::Return,
-            Holder::IndexSnapshot(_) | Holder::ArrayFrontier(_) => return Err(INVALID),
-        };
-        let selected = ValueSourceSelection {
-            boundary: ValueSourceBoundary {
-                point: self.at.point,
-                action: self
-                    .at
-                    .action
-                    .checked_add(usize::from(after))
-                    .ok_or(INVALID)?,
-            },
-            slot,
-            path: metadata_path(place, ()),
-        };
-        self.instances
-            .unit()
-            .instantiate_stored_data(self.instance.key(), &selected, target, self.work)
-            .map_err(|failure| Failure::Payload {
-                instance: self.id,
-                at: self.at,
-                failure,
-            })
-    }
-}
-fn metadata_path<I: Copy>(place: &Place, array: I) -> ValuePath<I> {
-    ValuePath::new(place.fields().fields().iter().map(|&field| match field {
-        ValueProjection::Array(_) => ValueProjection::Array(array),
-        ValueProjection::Record(field) => ValueProjection::Record(field),
-        ValueProjection::Tuple(index) => ValueProjection::Tuple(index),
-        ValueProjection::Variant(primary) => ValueProjection::Variant(primary),
-    }))
 }

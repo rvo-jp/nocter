@@ -28,6 +28,7 @@ pub use results::{
     ValueSourceBoundary, ValueSourceFlow, ValueSourceId, ValueSourceNode, ValueSourceRead,
     ValueSourceSelection, ValueSourceSlot, ValueSources,
 };
+pub use results::{ResourceDataFailure, ResourceDataProjection};
 mod selection;
 mod staged;
 mod statements;

@@ -235,6 +235,25 @@ impl Unit {
             work,
         )
     }
+    /// Project ordered resource payload metadata against this body's original source values.
+    /// The projection grants no ownership, source access, layout or executable transition receipt.
+    /// # Errors
+    /// Rejects a missing body, invalid original action, incompatible data or exhausted metadata work.
+    pub fn project_resource_data<'a, 'work>(
+        &'a self,
+        frame: &'a nocter_declarations::value_access::CodeInstanceKey,
+        at: flow::Location,
+        work: &'work mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<super::ResourceDataProjection<'a, 'work>, super::ResourceDataFailure> {
+        super::ResourceDataProjection::new(
+            &self.program,
+            &self.result_evidence,
+            self.code_body(frame.code()),
+            frame,
+            at,
+            work,
+        )
+    }
     /// Resolve one original call's concrete metadata frame without choosing a value alternative.
     /// # Errors
     /// Rejects a foreign owner, missing call, unresolved/ambiguous context or exhausted work.

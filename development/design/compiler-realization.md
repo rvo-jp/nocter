@@ -171,6 +171,26 @@ read/edit/take calls, forwarding and failed-request recovery through ordinary so
 execution. Until those consumers agree, retain the explicit source rejection of unsupported
 formal environments rather than accepting a body that has no realizable instance.
 
+Context identity alone does not prove that existing storage can change representation. Replacing
+one callable component can change its captured environment's size or alignment while references
+to other components remain live. Select the complete old and new carrier roots at their actual
+operation boundaries, in addition to the selected component data. A slot's first or only recorded
+representation is not proof that an alias-relative write left its carrier unchanged.
+
+Preserve valid saved addresses and projections of unaffected components. Reserving the maximum
+root size alone does not stabilize field offsets. The representation planner must establish
+compatible geometry for coexisting contexts or prove a relocation strategy that preserves every
+surviving reference; metadata must not silently choose either policy. Evaluator slot interpretation,
+native field placement and cleanup must consume the same selected root context. Representation
+choices must also respect established size/alignment observations, required header values and
+published ABI contracts; later specialization cannot invalidate those earlier results.
+
+Qualify mixed environment shapes, including empty named callbacks and callbacks owning captured
+data, inside nested carriers with a surviving sibling reference and across replacement/backedges.
+Keep original bounds effects and old/new destruction observable. These are compiler realization
+obligations, not a request for user annotations, a second owner registry or a permanent ban on
+context-changing updates. Unsupported cases remain explicitly unqualified until those proofs close.
+
 ### Structural Type Request Closure
 
 The [source header path](../compiler/crates/nocter-declaration-lowering/README.md#exact-source-evidence)
