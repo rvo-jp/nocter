@@ -37,6 +37,11 @@ pub struct Executor<'a, 'budget> {
     failed_site: Option<Site>,
     trace: Vec<Site>,
 }
+#[derive(Clone, Copy)]
+enum RootReceipt {
+    Move,
+    Replace,
+}
 impl<'a, 'budget> Executor<'a, 'budget> {
     #[must_use]
     pub fn new(program: &'a Program, budget: &'budget mut Budget, suspended_depth: usize) -> Self {
@@ -312,6 +317,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         let mut taken = vec![None; inputs.len()];
         for step in alternative.sequence(&action.operation) {
             match step {
+                super::sequence::Step::Context(_, _) => {}
                 super::sequence::Step::Before(effect) => {
                     self.tick()?;
                     if let Effect::Invoke {
@@ -554,11 +560,17 @@ impl<'a, 'budget> Executor<'a, 'budget> {
     }
     fn effect(&mut self, frame: usize, effect: &Effect) -> Result<()> {
         match effect {
+            Effect::Context { .. } => Err(Rule::InvalidPlan),
             Effect::ReplaceRoot {
                 source,
                 destination,
                 data,
-            } => self.replace_root(frame, source, *destination, *data),
+            } => self.receive_root(frame, source, *destination, *data, RootReceipt::Replace),
+            Effect::MoveRoot {
+                source,
+                destination,
+                data,
+            } => self.receive_root(frame, source, *destination, *data, RootReceipt::Move),
             Effect::MoveArrayElement {
                 array,
                 selected,
@@ -663,12 +675,13 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             &Place::root(destination),
         )?)
     }
-    fn replace_root(
+    fn receive_root(
         &mut self,
         frame: usize,
         source: &Place,
         destination: usize,
         data: usize,
+        receipt: RootReceipt,
     ) -> Result<()> {
         if source.slot == destination
             || super::validation::place_data(
@@ -682,19 +695,31 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         let target = self
             .memory
             .address(&self.program, frame, &Place::root(destination))?;
-        if self.memory.frames[frame]
-            .owned
-            .get(&destination)
-            .is_none_or(|owner| !owner.is_empty())
-        {
-            return Err(Rule::InvalidPlan);
+        match receipt {
+            RootReceipt::Replace => {
+                if self.memory.frames[frame]
+                    .owned
+                    .get(&destination)
+                    .is_none_or(|owner| !owner.is_empty())
+                {
+                    return Err(Rule::InvalidPlan);
+                }
+                self.memory.read(&target)?;
+            }
+            RootReceipt::Move if self.memory.frames[frame].owned.contains_key(&destination) => {
+                return Err(Rule::InvalidPlan);
+            }
+            RootReceipt::Move => {}
         }
-        self.memory.read(&target)?;
         let source = self.memory.address(&self.program, frame, source)?;
         let value = self.memory.read(&source)?;
         self.memory.frames[frame].set_context(&self.memory.storage, destination, data)?;
         self.memory.retire(&source, false)?;
-        self.memory.store(&target, value)
+        self.memory.store(&target, value)?;
+        if matches!(receipt, RootReceipt::Move) {
+            self.memory.construct(&target)?;
+        }
+        Ok(())
     }
     fn move_array_element(
         &mut self,

@@ -145,6 +145,11 @@ pub struct Site {
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Effect {
+    /// Static representation constraint at this exact sequence position, not a value/access grant.
+    Context {
+        place: Place,
+        data: usize,
+    },
     Construct(usize),
     Move {
         source: Place,
@@ -189,6 +194,12 @@ pub enum Effect {
     /// Replace a whole owned root and retain the supplied representation for subsequent uses.
     /// The source must carry this exact data; this is not a reinterpretation of the old value.
     ReplaceRoot {
+        source: Place,
+        destination: usize,
+        data: usize,
+    },
+    /// Receive a whole root from an actual owner after any prior value has been retired.
+    MoveRoot {
         source: Place,
         destination: usize,
         data: usize,

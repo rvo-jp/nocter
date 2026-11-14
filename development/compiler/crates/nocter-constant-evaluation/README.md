@@ -194,15 +194,19 @@ Plan validation and execution share one phase sequence: before-effects, the sour
 then after-effects. Invocation-input protection belongs to the before phase; failure stops the
 sequence without executing later phases.
 
-The closed plan kernel supports `ReplaceRoot` for a whole owned slot receiving a different
-concrete representation from a distinct owned source. Storage roles and owning-slot identities
-remain unchanged. Ordered validation propagates exact representation contexts through operations
+The closed plan kernel supports whole-root receipts of a different concrete representation from
+a distinct owned source. `ReplaceRoot` replaces a complete existing owner; `MoveRoot` receives
+into an unowned destination after any original disposal. Retirement and receipt remain separate
+ordered effects. Storage roles and owning-slot identities remain unchanged. Ordered validation propagates exact representation contexts through operations
 and control edges, including stable backedges; conflicting entry or alternative contexts remain
 unqualified. Return contracts and taking-input protection use the context at their actual phase.
 Execution retains only changed slot contexts in metered storage. Address validation compares the
 final selected data against the current backing root: an unchanged field remains usable through
 a saved parent alias, while stale callable identity cannot inherit equal payload geometry.
 Failed execution releases the contextual metadata with the frame.
+`Context` constraints compare the expected concrete data at their exact sequence positions.
+They neither change representation nor prove a live value, access or ownership. Validation consumes
+them in the common sequence; they add no execution step or payload operation.
 
 These independent closed-plan cases grant no new source admission. Checking's ordinary projection
 still requires one registered representation per holder; it must connect original retired/received

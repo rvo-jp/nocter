@@ -7,6 +7,9 @@ use std::{collections::BTreeMap, sync::Arc};
 pub(super) fn effect(plan: &Plan, contexts: &mut Contexts, effect: &Effect) -> Result<()> {
     if let Effect::ReplaceRoot {
         destination, data, ..
+    }
+    | Effect::MoveRoot {
+        destination, data, ..
     } = *effect
     {
         let initial = plan.slots.get(destination).ok_or(INVALID)?.data;

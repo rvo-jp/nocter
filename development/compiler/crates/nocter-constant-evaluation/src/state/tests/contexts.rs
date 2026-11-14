@@ -222,27 +222,28 @@ fn root_context_changes_require_actual_suppliers_and_updated_result_contracts() 
 }
 #[test]
 fn metered_contexts_release_after_each_failed_request_and_healthy_completion() {
-    let (root, program) = program(Selection::Preserved, true);
-    let mut succeeded = false;
-    for units in 1..256 {
-        let mut budget = Budget::new(Limits::new(
-            CompileTimeEvaluationLimits::default(),
-            NonZeroU64::new(units).unwrap(),
-        ));
-        match Executor::new(&program, &mut budget, 0).evaluate_initializer(root) {
-            Ok(value) => {
-                assert_eq!(value, Value::integer(42));
-                drop(value);
-                succeeded = true;
+    for (root, program) in [program(Selection::Preserved, true), moving_program(true)] {
+        let mut succeeded = false;
+        for units in 1..256 {
+            let mut budget = Budget::new(Limits::new(
+                CompileTimeEvaluationLimits::default(),
+                NonZeroU64::new(units).unwrap(),
+            ));
+            match Executor::new(&program, &mut budget, 0).evaluate_initializer(root) {
+                Ok(value) => {
+                    assert_eq!(value, Value::integer(42));
+                    drop(value);
+                    succeeded = true;
+                }
+                Err(error) => assert_eq!(error.rule, Rule::StorageLimit),
             }
-            Err(error) => assert_eq!(error.rule, Rule::StorageLimit),
+            assert_eq!(budget.storage_used(), 0, "storage {units}");
+            if succeeded {
+                break;
+            }
         }
-        assert_eq!(budget.storage_used(), 0, "storage {units}");
-        if succeeded {
-            break;
-        }
+        assert!(succeeded);
     }
-    assert!(succeeded);
 }
 
 #[test]
@@ -298,6 +299,96 @@ fn restoring_a_saved_value_restores_its_original_context_and_payload() {
     );
     drop(value);
     assert_eq!(budget.storage_used(), 0);
+}
+
+#[test]
+fn retired_roots_receive_new_contexts_only_after_their_original_disposal() {
+    for retire_first in [true, false] {
+        let (root, program) = moving_program(retire_first);
+        let mut budget = Budget::new(Limits::default());
+        let result = Executor::new(&program, &mut budget, 0).evaluate_initializer(root);
+        if retire_first {
+            let value = result.unwrap();
+            assert_eq!(value, Value::integer(42));
+            drop(value);
+        } else {
+            assert_eq!(result.unwrap_err().rule, Rule::InvalidPlan);
+        }
+        assert_eq!(budget.storage_used(), 0);
+    }
+}
+
+fn constrained_plan(valid: bool) -> (AccessCodeId, Vec<Type>, Plan) {
+    let (root, types, mut plan) = fixture(Selection::Preserved, false);
+    plan.points = plan.points.map(|_, point| {
+        let mut point = point.clone();
+        let alternative = &mut point.actions[3].alternatives[0];
+        alternative.before = Box::new([
+            Effect::Context {
+                place: Place::root(0),
+                data: 3,
+            },
+            Effect::Context {
+                place: Place::root(1),
+                data: 4,
+            },
+        ]);
+        let mut after = alternative.after.to_vec();
+        after.push(Effect::Context {
+            place: Place::root(0),
+            data: if valid { 4 } else { 3 },
+        });
+        alternative.after = after.into();
+        point
+    });
+    (root, types, plan)
+}
+#[test]
+fn contextual_constraints_follow_their_exact_phase_and_do_not_consume_execution_steps() {
+    let (root, baseline) = program(Selection::Preserved, false);
+    let steps = (1..128)
+        .find(|&units| {
+            let mut budget = Budget::new(Limits::new(
+                CompileTimeEvaluationLimits::new(
+                    NonZeroU64::new(units).unwrap(),
+                    NonZeroU32::new(4).unwrap(),
+                ),
+                NonZeroU64::new(256).unwrap(),
+            ));
+            Executor::new(&baseline, &mut budget, 0)
+                .evaluate_initializer(root)
+                .is_ok()
+        })
+        .unwrap();
+    let (root, types, plan) = constrained_plan(true);
+    let program = Program::new(
+        types,
+        BTreeMap::from([(root.into(), plan)]),
+        BTreeMap::new(),
+    )
+    .unwrap();
+    let mut budget = Budget::new(Limits::new(
+        CompileTimeEvaluationLimits::new(
+            NonZeroU64::new(steps).unwrap(),
+            NonZeroU32::new(4).unwrap(),
+        ),
+        NonZeroU64::new(256).unwrap(),
+    ));
+    let value = Executor::new(&program, &mut budget, 0)
+        .evaluate_initializer(root)
+        .unwrap();
+    assert_eq!(value, Value::integer(42));
+    drop(value);
+    assert_eq!(budget.storage_used(), 0);
+    let (root, types, plan) = constrained_plan(false);
+    assert!(matches!(
+        Program::new(
+            types,
+            BTreeMap::from([(root.into(), plan)]),
+            BTreeMap::new()
+        ),
+        Err(Rule::InvalidPlan)
+    ));
 }
 
 #[test]
@@ -428,4 +519,40 @@ fn taking_protection_uses_the_context_at_the_exact_before_effect() {
             assert!(matches!(result, Err(Rule::InvalidPlan)));
         }
     }
+}
+
+fn moving_program(retire_first: bool) -> (AccessCodeId, Program) {
+    let (root, types, mut plan) = fixture(Selection::Preserved, true);
+    plan.points = plan.points.map(|_, point| {
+        let mut point = point.clone();
+        for action in &mut point.actions {
+            for alternative in &mut action.alternatives {
+                for effect in &mut alternative.after {
+                    if let Effect::ReplaceRoot {
+                        source,
+                        destination,
+                        data,
+                    } = effect
+                    {
+                        *effect = Effect::MoveRoot {
+                            source: source.clone(),
+                            destination: *destination,
+                            data: *data,
+                        };
+                        if retire_first {
+                            alternative.before = Box::new([Effect::Dispose(Place::root(0))]);
+                        }
+                    }
+                }
+            }
+        }
+        point
+    });
+    let program = Program::new(
+        types,
+        BTreeMap::from([(root.into(), plan)]),
+        BTreeMap::new(),
+    )
+    .unwrap();
+    (root, program)
 }

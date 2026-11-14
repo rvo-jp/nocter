@@ -67,7 +67,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   exact retired/received contexts, preparation snapshots, surviving aliases and failure recovery;
   code identity cannot be erased merely because two payloads have equal geometry.
   Connect checking's original ordered source/resource selections to the evaluator kernel's
-  whole-owned-root transition, then qualify partial carriers and changing external inputs/aliases.
+  whole-owned-root receipts and exact phase constraints, then qualify partial carriers and changing
+  external inputs/aliases. Preserve separate original retirement and receipt rather than fusing
+  them into a replacement solely to accommodate the evaluator.
   Independent closed-plan support does not close ordinary source or native geometry admission.
 - [ ] Qualify the canonical frame's received compound-input contexts through ordinary source and
   consumer storage, cleanup and conditional const reuse. The

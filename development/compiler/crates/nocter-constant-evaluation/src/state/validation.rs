@@ -292,6 +292,11 @@ fn validate_action(program: &Program, plan: &View<'_>, action: &super::Action) -
         for step in alternative.sequence(&action.operation) {
             let view = &View::new(plan.plan, &contexts);
             match step {
+                super::sequence::Step::Context(target, expected) => {
+                    if place(program, view, target)? != expected {
+                        return Err(INVALID);
+                    }
+                }
                 super::sequence::Step::Before(effect) => {
                     handoffs.protect(program, view, effect)?;
                     check_effect(program, view, effect)?;
@@ -632,7 +637,13 @@ fn check_effect(program: &Program, plan: &View<'_>, effect: &Effect) -> Result<(
     let data = |p: &Place| place(program, plan, p);
     let owned = |p: &Place| owned_place(program, plan, p);
     match effect {
+        Effect::Context { .. } => return Err(INVALID),
         Effect::ReplaceRoot {
+            source,
+            destination,
+            data: received,
+        }
+        | Effect::MoveRoot {
             source,
             destination,
             data: received,
