@@ -340,7 +340,10 @@ fn bound_condition_calls_reuse_original_frames_across_clauses() {
             matches!(requirements.check_bound(&|_| true, &caller, &mut limited),
             Err(crate::value_access::constant::BoundCheckFailure::Invocation { expression, failure: crate::value_access::InstantiationFailure::WorkLimit }) if expression == id)
         );
-        let mut work = WorkBudget::new(NonZeroU64::new(needed).unwrap());
+        // Exact expression-data selection has its own metadata work, separate from discovery
+        // of the callee. The request-local call cache has an independent exhausted-budget test.
+        let mut work =
+            WorkBudget::new(nocter_constant_evaluation::state::Limits::default().steps());
         let BoundCheck::Calls(calls) = requirements
             .check_bound(&|_| true, &caller, &mut work)
             .unwrap()

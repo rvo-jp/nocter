@@ -82,7 +82,7 @@ impl Condition {
                     data,
                     work,
                 )
-                .map_err(|failure| BoundCheckFailure::Resource { at, failure })?,
+                .map_err(|failure| BoundCheckFailure::Data { at, failure })?,
             };
             if !domain.supports_instance(program, key)? {
                 return Ok(false);

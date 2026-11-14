@@ -177,7 +177,7 @@ fn bound_failure(
             };
             (origin, failure)
         }
-        constant::BoundCheckFailure::Resource { at, failure } => match bound.origin(at) {
+        constant::BoundCheckFailure::Data { at, failure } => match bound.origin(at) {
             Ok(origin) => (origin, failure),
             Err(failure) => return Failure::Body { callable, failure },
         },

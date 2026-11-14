@@ -169,8 +169,9 @@ not a language restriction derived from the current realization boundary.
   and source safety.
   Work quotas bound uncertainty without proving eligibility; module publication retains its
   independent qualification.
-  Reconcile remaining const-domain frame/type probes (`Types::supports_in`) for body expressions,
-  result contracts with occurrence-specific values before using them as eligibility evidence.
+  Keep dormant definition-contract checks separate from source-value receipts. Preserve body
+  expressions' original operand and result-definition selections. Qualify general dependent
+  result/carrier contexts through actual consumer paths before widening source admission.
   Preserve explicit drops' original pre-retirement selections and dormant definition-contract
   checks. Preserve retained ordered cleanup selections through shared resource-data
   projection when one action retires and receives the same raw type; a diagnostic type/site is not

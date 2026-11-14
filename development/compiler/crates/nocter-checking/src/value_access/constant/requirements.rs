@@ -1,5 +1,5 @@
 //! Derived condition references belong to one immutable ordinary checked body.
-use super::{INVALID, Rule, Site, Statement, Violation, flow, representation};
+use super::{INVALID, Rule, Site, Statement, Violation, flow};
 use crate::value_access::{CallTemplate, ExpressionKind, evaluation, instances};
 use nocter_declarations::value_access::{CodeInstanceKey, CodeTemplateKey};
 use nocter_model::{AccessExpressionId, ValueClosure, ValueCode};
@@ -14,14 +14,14 @@ enum Clause {
         template: Option<Result<CallTemplate, flow::IntegrityError>>,
     },
     Inputs(AccessExpressionId),
-    Data(Violation),
+    Data(expressions::Condition),
     Drop(drops::Condition),
     Cleanup(cleanup::Condition),
 }
 impl Clause {
     fn data_condition(&self) -> Option<Violation> {
         match self {
-            Self::Data(violation) => Some(*violation),
+            Self::Data(condition) => Some(condition.violation()),
             Self::Drop(condition) => Some(condition.violation()),
             Self::Cleanup(condition) => Some(condition.violation()),
             Self::Invocation { .. } | Self::Inputs(_) => None,
@@ -46,7 +46,8 @@ impl CallEdge<'_> {
 mod bound;
 mod cleanup;
 mod drops;
-use bound::BoundCalls;
+mod expressions;
+use bound::BoundContext;
 pub(in crate::value_access) use bound::{BoundCheck, BoundCheckFailure};
 
 /// Definition-owned operation requirements, with the exact shared checked-body generation.
@@ -68,7 +69,7 @@ impl Requirements {
         let program = body.typed().program();
         let typed = body.typed().body();
         let mut domain = evaluation::Types::default();
-        let mut projections = representation::Projections::default();
+        let mut expression_data = expressions::collect(&body, &mut domain)?;
         let mut clauses = Vec::new();
         let identity = program
             .code_template(body.typed().code())
@@ -106,14 +107,8 @@ impl Requirements {
             if matches!(expression.kind, ExpressionKind::Call { .. }) {
                 clauses.push(Clause::Inputs(id));
             }
-            if let Some(value) = expression.ty.normal()
-                && !domain.supports(program, value.data())?
-                && !projections.uninhabited(&body, id, &mut domain)?
-            {
-                clauses.push(Clause::Data(Violation {
-                    site: Site::Expression(id),
-                    rule: Rule::UnsupportedData(value.data()),
-                }));
+            if let Some(condition) = expression_data.remove(&id) {
+                clauses.push(Clause::Data(condition));
             }
         }
         clauses.extend(
@@ -133,16 +128,14 @@ impl Requirements {
         self.check_clauses(available, None, None)
             .map_err(|error| match error {
                 BoundCheckFailure::Integrity(error) => error,
-                BoundCheckFailure::Invocation { .. } | BoundCheckFailure::Resource { .. } => {
-                    INVALID
-                }
+                BoundCheckFailure::Invocation { .. } | BoundCheckFailure::Data { .. } => INVALID,
             })
     }
     fn check_clauses(
         &self,
         available: &dyn Fn(ValueClosure) -> bool,
         instance: Option<&CodeInstanceKey>,
-        mut calls: Option<&mut BoundCalls<'_, '_>>,
+        mut calls: Option<&mut BoundContext<'_, '_>>,
     ) -> Result<Option<Violation>, BoundCheckFailure> {
         if instance.is_some_and(|key| key.code() != self.code()) {
             return Err(INVALID.into());
@@ -180,13 +173,17 @@ impl Requirements {
                         callee,
                     )?
                 }
-                Clause::Data(violation) => {
-                    let (Rule::UnsupportedData(data) | Rule::UnsupportedCleanup(data)) =
-                        violation.rule()
-                    else {
-                        return Err(INVALID.into());
+                Clause::Data(condition) => {
+                    let supported = match calls.as_deref_mut() {
+                        Some(calls) => calls.expression(&self.body, condition, &mut domain)?,
+                        None => super::supports(
+                            program,
+                            condition.data(&self.body)?,
+                            &mut domain,
+                            instance,
+                        )?,
                     };
-                    (!super::supports(program, data, &mut domain, instance)?).then_some(*violation)
+                    (!supported).then_some(condition.violation())
                 }
                 Clause::Cleanup(condition) => {
                     let data = condition.data(&self.body)?;

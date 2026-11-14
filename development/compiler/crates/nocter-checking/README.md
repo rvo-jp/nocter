@@ -1279,6 +1279,12 @@ or type authority. `Unit::const_requirements` exposes the product for that exact
 Unit clones share both products and bodies. A changed body cannot reuse the old source receipt.
 Required checks apply concrete bindings to the stored clauses and call edges rather than walking
 source bodies or rebuilding resource obligations.
+Expression-domain clauses retain original operand and result-definition sources from the shared
+value-source flow. Bound checks test each selected concrete data context, preserving the original
+expression diagnostic and metadata-work failure location. A live contextual value cannot be
+recovered from a frame-wide type default. Dormant expressions retain their definition-contract
+checks; the existing uninhabited-projection rule remains separate from producing an unsupported
+value. These selections supply metadata, not execution or source-access permission.
 Explicit `drop` clauses retain their original checked action locations. Bound checks query the
 local's reaching data immediately before retirement through the common source-definition
 normalizer, preserving the authored statement's diagnostic. A dormant statement without an

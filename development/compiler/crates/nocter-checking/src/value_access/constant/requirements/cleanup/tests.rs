@@ -171,7 +171,7 @@ fn bound_cleanup_uses_the_received_environment_and_retries_after_work_failure() 
     exhausted.step().unwrap();
     assert!(
         matches!(requirements.check_bound(&|_| true, &plain, &mut exhausted),
-        Err(BoundCheckFailure::Resource { at: failed_at, failure: InstantiationFailure::WorkLimit }) if failed_at == at)
+        Err(BoundCheckFailure::Data { at: failed_at, failure: InstantiationFailure::WorkLimit }) if failed_at == at)
     );
     assert!(
         matches!(requirements.check_bound(&|_| true, &plain, &mut healthy()).unwrap(), BoundCheck::Calls(calls) if calls.is_empty())

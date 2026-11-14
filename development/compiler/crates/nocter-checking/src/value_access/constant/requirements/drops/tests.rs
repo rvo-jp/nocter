@@ -67,7 +67,7 @@ fn explicit_drop_selects_the_original_local_before_retirement_and_recovers_from_
     exhausted.step().unwrap();
     assert!(
         matches!(condition.supports(body, &plain, &mut exhausted, &mut domain),
-        Err(BoundCheckFailure::Resource { at: actual, failure: InstantiationFailure::WorkLimit }) if actual == at)
+        Err(BoundCheckFailure::Data { at: actual, failure: InstantiationFailure::WorkLimit }) if actual == at)
     );
     assert!(
         condition
