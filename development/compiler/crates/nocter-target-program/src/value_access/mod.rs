@@ -27,6 +27,7 @@ pub struct Instance {
     data: BTreeMap<TypeId, DataEvidence>,
     inputs: BTreeMap<AccessLocalId, Payload>,
     result: DataEvidence,
+    prepared: BTreeMap<(AccessExpressionId, usize), Payload>,
 }
 impl Instance {
     #[must_use]
@@ -47,6 +48,11 @@ impl Instance {
     #[must_use]
     pub const fn result(&self) -> &DataEvidence {
         &self.result
+    }
+    /// Actual prepared argument metadata, including preparations whose call never commits.
+    #[must_use]
+    pub fn prepared(&self, call: AccessExpressionId, index: usize) -> Option<&Payload> {
+        self.prepared.get(&(call, index))
     }
     /// Source data identities map to concrete payloads or checked unproduced structural contracts.
     #[must_use]

@@ -49,6 +49,7 @@ impl Builder {
             .ok_or(Failure::InvalidAcceptedUnit)?;
         let inputs = projection::inputs(unit, &key, body, work)?;
         let result = projection::result(unit, &key, body, work)?;
+        let prepared = projection::prepared(unit, &key, body, work)?;
         let data = projection::data(unit, &key, body)?;
         let mut invocations = BTreeSet::new();
         for (point, block) in body.graph().points().iter() {
@@ -84,6 +85,22 @@ impl Builder {
                 _ => CallTarget::Body(self.intern(selected)),
             };
             let edge = invocation::bind(unit, &key, body, call, code, target, work)?;
+            let nocter_checking::value_access::ExpressionKind::Call { arguments, .. } = &body
+                .typed()
+                .body()
+                .expressions()
+                .get(call)
+                .ok_or(Failure::InvalidAcceptedUnit)?
+                .kind
+            else {
+                return Err(Failure::InvalidAcceptedUnit);
+            };
+            let supplied = arguments.len();
+            for index in 0..supplied {
+                if prepared.get(&(call, index)) != edge.argument_payload(index) {
+                    return Err(Failure::InvalidAcceptedUnit);
+                }
+            }
             calls.insert(call, edge);
         }
         self.instances
@@ -95,6 +112,7 @@ impl Builder {
             data,
             inputs,
             result,
+            prepared,
         });
         Ok(())
     }

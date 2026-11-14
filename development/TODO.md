@@ -27,7 +27,8 @@ canonical metadata, original source-definition queries and ordered lifecycle spe
 Next carry their exact per-value keys through ordinary body expression/local slots and evaluator
 plan selection, using the component owners above for completed invocation, body-ABI, lifecycle and
 storage scope.
-Keep preparation-time snapshots and staged returns. Post-update dependent environments and prepared
+Keep preparation-time snapshots and staged returns; preserve interrupted preparation metadata
+without inventing a committed call or materialization permission. Post-update dependent environments and prepared
 temporaries must follow actual call-write context rather than reuse an immutable
 pre-call bundle. Source-definition boundaries are not resource phases: preserve the existing
 transition order, old-value cleanup and new-value receipt without adding provenance to ownership

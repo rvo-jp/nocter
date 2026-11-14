@@ -146,6 +146,15 @@ empty array and has no callable binding for an element that cannot exist. Reache
 and seed disposal retain their real bindings, while the body preserves its original bounds trap
 through native execution. Detached function metadata cannot force a phantom callee or carrier.
 
+`Instance::prepared` retains the actual metadata from each reached argument-preparation receipt,
+even when a later operand prevents the invocation commit. The original typed argument layout owns
+its ordinal and operation. Equal repeated preparations share a key; incompatible alternatives
+reject. Each committed edge verifies its complete payload list against those preparation receipts.
+MIR argument, prepared and temporary roots consume these keys rather than rereading the original
+expression's TypeId default. Storage includes their actual geometry without creating an uncommitted
+callee, invocation effect or adapter-completion schedule. Metadata for a reserved adaptation does
+not assert that its runtime materialization has happened.
+
 `invocation` binds each reached call's committed prepared bundle to the selected ordered inputs.
 Argument payloads, including the callable-value carrier, normalize the bundle's actual source
 value IDs under the caller frame and the same deterministic work quota. They do not use the

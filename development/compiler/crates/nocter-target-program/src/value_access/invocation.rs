@@ -70,6 +70,23 @@ pub struct Invocation {
     result: Payload,
 }
 impl Invocation {
+    /// Actual payload of one original prepared slot; no new argument inventory or input order.
+    #[must_use]
+    pub fn argument_payload(&self, index: usize) -> Option<&Payload> {
+        match &self.environment {
+            Environment::CodeToken {
+                argument, carrier, ..
+            }
+            | Environment::Capture {
+                argument, carrier, ..
+            } if *argument == index => Some(carrier),
+            _ => self
+                .inputs
+                .iter()
+                .find(|input| input.argument == index)
+                .map(|input| &input.payload),
+        }
+    }
     #[must_use]
     pub const fn target(&self) -> CallTarget {
         self.target

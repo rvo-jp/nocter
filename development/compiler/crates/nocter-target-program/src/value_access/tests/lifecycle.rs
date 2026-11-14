@@ -225,6 +225,22 @@ fn interrupted_preparation_has_no_call_or_adapter_completion_schedule() {
             .calls()
             .is_empty()
     );
+    let instance = program.instance_program().instances().get(id).unwrap();
+    let typed = program.instance_program().body(id).unwrap().typed().body();
+    let call = typed
+        .expressions()
+        .iter()
+        .find_map(|(call, expression)| {
+            matches!(
+                expression.kind,
+                nocter_checking::value_access::ExpressionKind::Call { .. }
+            )
+            .then_some(call)
+        })
+        .unwrap();
+    assert!(instance.prepared(call, 0).is_some());
+    assert!(instance.prepared(call, 1).is_none());
+    assert_eq!(program.instance_program().instances().len(), 1);
     assert!(!steps(&program).any(|s| matches!(
         s,
         Step::DisposeEnvironment { .. }

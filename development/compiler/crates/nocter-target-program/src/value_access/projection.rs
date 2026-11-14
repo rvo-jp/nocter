@@ -7,6 +7,8 @@ use nocter_checking::value_access::{
 use nocter_model::TypeId;
 use std::collections::{BTreeMap, BTreeSet};
 mod abi;
+mod prepared;
+pub(super) use prepared::arguments as prepared;
 mod requirements;
 pub(super) use abi::{inputs, result};
 

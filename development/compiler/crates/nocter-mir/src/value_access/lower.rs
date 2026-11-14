@@ -201,26 +201,17 @@ impl Builder<'_> {
             }
             Holder::Prepared { call, index } => {
                 let root = if partial {
-                    self.expression(
-                        self.arguments(call)?
-                            .get(index)
-                            .ok_or_else(|| self.invalid())?
-                            .value,
-                    )?
+                    self.prepared_data(call, index)?
                 } else {
                     selected
                 };
                 (SlotKey::Prepared { call, index }, root, Storage::Payload)
             }
-            Holder::Temporary { call, index } => {
-                let root = self.expression(
-                    self.arguments(call)?
-                        .get(index)
-                        .ok_or_else(|| self.invalid())?
-                        .value,
-                )?;
-                (SlotKey::Temporary { call, index }, root, Storage::Payload)
-            }
+            Holder::Temporary { call, index } => (
+                SlotKey::Temporary { call, index },
+                self.prepared_data(call, index)?,
+                Storage::Payload,
+            ),
             Holder::IndexSnapshot(index) => {
                 if flow::resources::RetainedIndex::for_selection(
                     self.checked.typed(),
@@ -325,6 +316,17 @@ impl Builder<'_> {
             .collect();
         Ok(place)
     }
+    fn prepared_data(
+        &self,
+        call: AccessExpressionId,
+        index: usize,
+    ) -> Result<RuntimeDataId, Failure> {
+        self.payload_data(
+            self.instance
+                .prepared(call, index)
+                .ok_or_else(|| self.invalid())?,
+        )
+    }
     pub(super) fn argument(
         &mut self,
         call: AccessExpressionId,
@@ -334,7 +336,7 @@ impl Builder<'_> {
             .arguments(call)?
             .get(index)
             .ok_or_else(|| self.invalid())?;
-        let data = self.expression(argument.value)?;
+        let data = self.prepared_data(call, index)?;
         let slot = self.slot(
             SlotKey::Argument { call, index },
             data,

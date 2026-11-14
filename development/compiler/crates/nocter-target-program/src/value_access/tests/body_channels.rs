@@ -38,7 +38,7 @@ fn an_independent_return_contract_does_not_publish_a_value_from_a_diverging_body
 #[test]
 fn input_and_return_signatures_ignore_an_unrelated_payload_in_the_body_type_cache() {
     let fixture = ValueSourceFixture::new(
-        "func first(): i32 { 41 }\nfunc second(): i32 { 42 }\nfunc forward(take action: func(): i32): func(): i32 { action^ }\nfunc run(): i32 { let action = forward(first)\naction() }",
+        "func first(): i32 { 41 }\nfunc second(): i32 { 42 }\nfunc consume(take action: func(): i32): func(): i32 { action^ }\nfunc forward(take action: func(): i32): func(): i32 { consume(action^) }\nfunc run(): i32 { let action = forward(first)\naction() }",
     );
     let unit = accepted(&fixture);
     let root = callable(&unit, "run");
@@ -82,6 +82,10 @@ fn input_and_return_signatures_ignore_an_unrelated_payload_in_the_body_type_cach
         }
         frame
     });
+    let caller = graph.instances().get(id).unwrap();
+    let (&call, invocation) = caller.calls().iter().next().unwrap();
+    assert_eq!(caller.prepared(call, 0), Some(&actual_input));
+    assert_eq!(invocation.argument_payload(0), Some(&actual_input));
     let abi = RuntimeAbiIdentity::Arm64DarwinV1;
     let prepared = storage::prepare(&graph, abi, []).unwrap();
     let signature = storage::signature(&graph, &prepared, id).unwrap();
