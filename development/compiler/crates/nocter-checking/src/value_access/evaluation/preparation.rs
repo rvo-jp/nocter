@@ -719,7 +719,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
             |id| dependencies::value(requests, id).map(|value| value.execution.clone()),
             &mut self.plan_work,
         )
-        .map_err(Failure::Integrity)?;
+        .map_err(|failure| super::plan_failure(&self.context, &checked, id, failure))?;
         let mut executor = state::Executor::with_source(
             program,
             &mut source,

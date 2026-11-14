@@ -47,6 +47,10 @@ fn an_independent_return_contract_does_not_publish_a_value_from_a_diverging_body
         unit.instantiate_result_data(&key, data, &mut work),
         Err(nocter_checking::value_access::InstantiationFailure::Unresolved)
     );
+    assert_eq!(
+        unit.instantiate_result_contract(&key, &mut work).unwrap(),
+        unit.program().instantiate_closed_data(data).unwrap()
+    );
     let graph = InstanceProgram::prepare(unit, root).unwrap();
     let abi = RuntimeAbiIdentity::Arm64DarwinV1;
     let storage = storage::prepare(&graph, abi, []).unwrap();

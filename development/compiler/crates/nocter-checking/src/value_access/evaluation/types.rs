@@ -97,7 +97,11 @@ impl Types {
         }
         self.get_instance(program, data)
     }
-    fn get_instance(&mut self, program: &Program, data: DataInstanceKey) -> Result<usize> {
+    pub(super) fn get_instance(
+        &mut self,
+        program: &Program,
+        data: DataInstanceKey,
+    ) -> Result<usize> {
         self.get_key(program, &ShapeKey::instantiated(program, data)?)
     }
     pub(in crate::value_access) fn supports_in(

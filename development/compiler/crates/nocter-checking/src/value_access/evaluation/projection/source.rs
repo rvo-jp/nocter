@@ -57,7 +57,7 @@ impl<'a, 'work, F: Fn(AccessCodeId) -> Option<plan::Value>> Source<'a, 'work, F>
         root: nocter_model::ValueCodeRoot,
         values: F,
         work: &'work mut plan::WorkBudget,
-    ) -> Result<(plan::Program, Self)> {
+    ) -> super::Result<(plan::Program, Self)> {
         let mut source = Self {
             checked,
             values,
@@ -84,7 +84,7 @@ impl<'a, 'work, F: Fn(AccessCodeId) -> Option<plan::Value>> Source<'a, 'work, F>
         .map_err(|_| INVALID)?;
         Ok((program, source))
     }
-    fn contracts(&mut self, extension: &mut plan::ProgramExtension) -> Result<()> {
+    fn contracts(&mut self, extension: &mut plan::ProgramExtension) -> super::Result<()> {
         let program = &self.checked.program;
         for key in self.instances.pending.drain(..) {
             let id = *self.instances.ids.get(&key).ok_or(INVALID)?;
@@ -94,18 +94,21 @@ impl<'a, 'work, F: Fn(AccessCodeId) -> Option<plan::Value>> Source<'a, 'work, F>
                 .inputs()
                 .ordered()
                 .map(|input| {
-                    let data = body.locals().get(input.local).ok_or(INVALID)?.data;
+                    let data = self
+                        .checked
+                        .instantiate_input_data(&key, input.local, self.work)?;
                     Ok(plan::InputContract {
-                        data: self.types.get_in(program, &key, data)?,
+                        data: self.types.get_instance(program, data)?,
                         operation: input.operation,
                     })
                 })
-                .collect::<Result<_>>()?;
+                .collect::<super::Result<_>>()?;
             let contract = plan::CallContract {
                 inputs,
-                result: self
-                    .types
-                    .get_in(program, &key, query.typed().result_data())?,
+                result: self.types.get_instance(
+                    program,
+                    self.checked.instantiate_result_contract(&key, self.work)?,
+                )?,
                 initializer: initializer(program, key.code())?,
                 environment_backing: body
                     .inputs()
@@ -113,7 +116,7 @@ impl<'a, 'work, F: Fn(AccessCodeId) -> Option<plan::Value>> Source<'a, 'work, F>
                     .is_some_and(|input| input.operation != ValueInputOperation::Take),
             };
             if extension.contracts.insert(id, contract).is_some() {
-                return Err(INVALID);
+                return Err(INVALID.into());
             }
         }
         extension.types = self.types.appended(self.published_types);

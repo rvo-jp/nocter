@@ -123,13 +123,12 @@ supplies each requested schema; the shared source-value query resolves its compl
 the same instance work quota. Unproduced contracts supply no payload, incompatible contexts reject,
 and storage interns the actual keys without changing source ownership or granting materialization.
 
-`Instance::input` owns the concrete payload for each existing input local; the typed body's input
-layout remains the sole owner of order and operations. Contextual inputs resolve their original
-entry values, including the complete capture input, without reconstructing one binding for every
-occurrence of a raw type. `Instance::result` owns either its actual return-producer payload or the
-checked unproduced contract. A declaration-closed result schema can select ABI metadata for a
-diverging body without asserting that it returns a value. `Unit::instantiate_result_data` separately
-requires actual return producers and leaves an absent result unresolved.
+`Instance::input` retains the checking-selected payload for each existing input local; the typed
+body's input layout remains the sole owner of order and operations. `Instance::result` retains its
+selected payload or the checked unproduced contract. Checking's
+[body-channel metadata queries](../nocter-checking/README.md#shared-flow-access-and-resource-validation)
+own source selection and the distinction between contract metadata and an actually produced return.
+Evaluator contracts consume those same queries; this layer adds no alternate resolution rule.
 
 Frozen body edges compare against those channels, and storage signatures and MIR input/return
 roots consume them directly. Changing the remaining body-template cache cannot change an existing

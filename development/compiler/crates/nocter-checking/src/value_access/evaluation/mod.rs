@@ -168,6 +168,35 @@ fn final_diagnostic(
         source: SourceDiagnostic::new(code, message, primary, [], None::<&str>),
     })
 }
+fn plan_failure(
+    context: &DeclarationContext<'_>,
+    checked: &super::accepted::Checked,
+    code: nocter_model::ValueCodeRoot,
+    failure: projection::Failure,
+) -> Failure {
+    match failure {
+        projection::Failure::Integrity => {
+            return Failure::Integrity(flow::IntegrityError::InconsistentTypedBody);
+        }
+        projection::Failure::WorkLimit => {}
+    }
+    let error = state::Error {
+        rule: state::Rule::PlanWorkLimit,
+        site: None,
+        code,
+        trace: Box::new([]),
+    };
+    match project(context, checked, &error) {
+        Ok(diagnostic) => Failure::Evaluation {
+            callable: code.source_owner(),
+            diagnostic: Box::new(diagnostic),
+        },
+        Err(failure) => Failure::Body {
+            callable: code.source_owner(),
+            failure,
+        },
+    }
+}
 pub(super) trait Values {
     fn value(&self, id: nocter_model::ValueCodeRoot) -> Option<&FrozenData>;
 }

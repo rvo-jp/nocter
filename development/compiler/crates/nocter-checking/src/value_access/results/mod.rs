@@ -1,5 +1,7 @@
 //! One closure of callable result producers, followed by identity-only body projection.
 mod applications;
+mod channels;
+pub(super) use channels::{input as instantiate_input_data, result as instantiate_result_contract};
 mod instantiation;
 pub use instantiation::InstantiationFailure;
 pub(super) use instantiation::{

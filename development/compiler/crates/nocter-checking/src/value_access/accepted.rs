@@ -174,6 +174,50 @@ impl Unit {
     ) -> Option<nocter_declarations::value_access::FunctionWitness> {
         self.result_evidence.producer(callable)
     }
+    /// Select original body-input metadata, preserving the complete capture input.
+    /// This selects no input order, operation, runtime value or ownership permission.
+    /// # Errors
+    /// Rejects absent bodies, non-input locals, unresolved contexts and exhausted metadata work.
+    pub fn instantiate_input_data(
+        &self,
+        frame: &nocter_declarations::value_access::CodeInstanceKey,
+        local: nocter_model::AccessLocalId,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<nocter_declarations::value_access::DataInstanceKey, super::InstantiationFailure>
+    {
+        let body = self
+            .code_body(frame.code())
+            .ok_or(super::InstantiationFailure::Unresolved)?;
+        super::results::instantiate_input_data(
+            &self.program,
+            &self.result_evidence,
+            body,
+            frame,
+            local,
+            work,
+        )
+    }
+    /// Select the original body's result metadata, including independently closed contracts.
+    /// Unlike `instantiate_result_data`, this need not prove that a diverging body returns a value.
+    /// # Errors
+    /// Rejects absent bodies, unresolved contexts and exhausted metadata work.
+    pub fn instantiate_result_contract(
+        &self,
+        frame: &nocter_declarations::value_access::CodeInstanceKey,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<nocter_declarations::value_access::DataInstanceKey, super::InstantiationFailure>
+    {
+        let body = self
+            .code_body(frame.code())
+            .ok_or(super::InstantiationFailure::Unresolved)?;
+        super::results::instantiate_result_contract(
+            &self.program,
+            &self.result_evidence,
+            body,
+            frame,
+            work,
+        )
+    }
     /// Resolve one original call's concrete metadata frame without choosing a value alternative.
     /// # Errors
     /// Rejects a foreign owner, missing call, unresolved/ambiguous context or exhausted work.
@@ -383,6 +427,44 @@ pub(super) struct Checked {
     const_templates: Arc<super::constant::Catalog>,
 }
 impl Checked {
+    pub(super) fn instantiate_input_data(
+        &self,
+        frame: &nocter_declarations::value_access::CodeInstanceKey,
+        local: nocter_model::AccessLocalId,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<nocter_declarations::value_access::DataInstanceKey, super::InstantiationFailure>
+    {
+        let body = self
+            .code(frame.code())
+            .ok_or(super::InstantiationFailure::Unresolved)?;
+        super::results::instantiate_input_data(
+            &self.program,
+            &self.result_evidence,
+            body,
+            frame,
+            local,
+            work,
+        )
+    }
+    /// Shared result-channel metadata for evaluator projection.
+    pub(super) fn instantiate_result_contract(
+        &self,
+        frame: &nocter_declarations::value_access::CodeInstanceKey,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<nocter_declarations::value_access::DataInstanceKey, super::InstantiationFailure>
+    {
+        let body = self
+            .code(frame.code())
+            .ok_or(super::InstantiationFailure::Unresolved)?;
+        super::results::instantiate_result_contract(
+            &self.program,
+            &self.result_evidence,
+            body,
+            frame,
+            work,
+        )
+    }
+
     pub(super) fn instantiate_invocation(
         &self,
         caller: &nocter_declarations::value_access::CodeInstanceKey,

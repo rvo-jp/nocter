@@ -2,12 +2,11 @@
 use super::{DataEvidence, Failure, InstanceKey};
 use crate::value_access::Payload;
 use nocter_checking::value_access::{
-    ValueSourceBoundary, ValueSourceSelection, ValueSourceSlot,
     accepted::{DataEvidence as CheckedEvidence, Unit},
     flow,
 };
 use nocter_constant_evaluation::state::WorkBudget;
-use nocter_model::{AccessLocalId, ValuePath};
+use nocter_model::AccessLocalId;
 use std::collections::BTreeMap;
 const INVALID: Failure = Failure::InvalidAcceptedUnit;
 
@@ -36,24 +35,13 @@ pub(in crate::value_access) fn inputs(
             .map_err(|_| INVALID)?
             .payload()
             .ok_or(INVALID)?;
-        let key = if let Ok(key) = unit.program().instantiate_closed_data(source) {
-            key
-        } else {
-            let selected = ValueSourceSelection {
-                boundary: ValueSourceBoundary {
-                    point: body.graph().entry(),
-                    action: 0,
-                },
-                slot: ValueSourceSlot::Local(input.local),
-                path: ValuePath::default(),
-            };
-            unit.instantiate_stored_data(frame, &selected, source, work)
-                .map_err(|failure| Failure::Input {
-                    code: frame.code(),
-                    local: input.local,
-                    failure,
-                })?
-        };
+        let key = unit
+            .instantiate_input_data(frame, input.local, work)
+            .map_err(|failure| Failure::Input {
+                code: frame.code(),
+                local: input.local,
+                failure,
+            })?;
         let payload = contract
             .instantiate(unit.program(), &key)
             .map_err(|_| INVALID)?;
@@ -74,16 +62,12 @@ pub(in crate::value_access) fn result(
     match unit.data_evidence(source).map_err(|_| INVALID)? {
         CheckedEvidence::Unproduced => Ok(DataEvidence::Unproduced),
         CheckedEvidence::Payload(contract) => {
-            // ABI metadata does not assert that a diverging body ever returns a value.
-            let key = if let Ok(key) = unit.program().instantiate_closed_data(source) {
-                key
-            } else {
-                unit.instantiate_result_data(frame, source, work)
-                    .map_err(|failure| Failure::Result {
-                        code: frame.code(),
-                        failure,
-                    })?
-            };
+            let key = unit
+                .instantiate_result_contract(frame, work)
+                .map_err(|failure| Failure::Result {
+                    code: frame.code(),
+                    failure,
+                })?;
             Ok(DataEvidence::Payload(
                 contract
                     .instantiate(unit.program(), &key)

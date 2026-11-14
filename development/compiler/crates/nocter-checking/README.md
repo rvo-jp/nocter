@@ -485,6 +485,17 @@ Invalid boundaries, absent inputs, ambiguity and work exhaustion publish no part
 boundary describes source definitions; pairing old cleanup, receipt and post-call updates with the
 existing ordered resource transitions remains required before lifecycle admission can widen.
 
+`results::channels` owns body input/result metadata selection for both evaluator contracts and
+target-program ABI projection. `Unit::instantiate_input_data` validates the original input local
+before using either an independently closed schema or its actual entry source, including the full
+capture input. `Unit::instantiate_result_contract` selects independently closed result metadata or
+the actual return producers. This does not assert that a diverging body returns; the separate
+`instantiate_result_data` query still requires those producers. The evaluator's contracts, input and
+return slots, and plan result use this authority under the shared plan-work quota. Exhaustion during
+initial contract preparation retains the ordinary plan-work diagnostic rather than becoming an
+integrity failure. Ordinary evaluator expression/local and prepared-call occurrence data remain
+separate integration tasks.
+
 Input nodes retain their local role, including the complete environment input. Selections retain
 component paths rather than treating a received closure as fresh creation. Formation records retain
 their actual environment source. Committed calls retain complete prepared bundles in source order;

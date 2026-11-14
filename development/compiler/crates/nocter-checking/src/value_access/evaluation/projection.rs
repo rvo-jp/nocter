@@ -21,13 +21,21 @@ pub(super) use source::Source;
 use source::{Instances, initializer};
 use std::collections::BTreeMap;
 #[derive(Clone, Copy, Debug)]
-enum Failure {
+pub(super) enum Failure {
     Integrity,
     WorkLimit,
 }
 impl From<flow::IntegrityError> for Failure {
     fn from(_: flow::IntegrityError) -> Self {
         Self::Integrity
+    }
+}
+impl From<crate::value_access::InstantiationFailure> for Failure {
+    fn from(failure: crate::value_access::InstantiationFailure) -> Self {
+        match failure {
+            crate::value_access::InstantiationFailure::WorkLimit => Self::WorkLimit,
+            _ => Self::Integrity,
+        }
     }
 }
 const INVALID: Failure = Failure::Integrity;
@@ -66,16 +74,32 @@ impl Builder<'_, '_> {
         Ok(self.expression(id)?.access().ok_or(INVALID)?.data())
     }
     fn slot(&mut self, key: Key, data: TypeId, storage: plan::Storage) -> Result<usize> {
-        let environment = self.query.typed().body().inputs().environment();
-        let is_environment = key == Key::EnvironmentBacking
-            || matches!(key,
-                Key::Resource(Holder::Local(local)) if environment.is_some_and(|input| input.local == local)
-            );
-        let data = if is_environment {
-            self.types
-                .get_environment(self.program, self.instance, data)?
-        } else {
-            self.types.get_in(self.program, self.instance, data)?
+        let data = match key {
+            Key::EnvironmentBacking => {
+                self.types
+                    .get_environment(self.program, self.instance, data)?
+            }
+            Key::Resource(Holder::Local(local))
+                if self
+                    .query
+                    .typed()
+                    .body()
+                    .inputs()
+                    .ordered()
+                    .any(|input| input.local == local) =>
+            {
+                let key = self
+                    .checked
+                    .instantiate_input_data(self.instance, local, self.work)?;
+                self.types.get_instance(self.program, key)?
+            }
+            Key::Resource(Holder::Return) => {
+                let key = self
+                    .checked
+                    .instantiate_result_contract(self.instance, self.work)?;
+                self.types.get_instance(self.program, key)?
+            }
+            _ => self.types.get_in(self.program, self.instance, data)?,
         };
         if let Some(&slot) = self.keys.get(&key) {
             if self.slots.get(slot) != Some(&plan::Slot { data, storage }) {
@@ -542,20 +566,14 @@ impl Builder<'_, '_> {
         Ok(arguments.len() - kind.explicit_arguments(arguments).ok_or(INVALID)?.len())
     }
     fn call(&mut self, id: AccessExpressionId) -> Result<plan::Operation> {
-        let key = self
-            .checked
-            .instantiate_invocation(
-                self.instance,
-                nocter_model::ValueApplication {
-                    owner: self.instance.code(),
-                    call: id,
-                },
-                self.work,
-            )
-            .map_err(|failure| match failure {
-                super::super::InstantiationFailure::WorkLimit => Failure::WorkLimit,
-                _ => INVALID,
-            })?;
+        let key = self.checked.instantiate_invocation(
+            self.instance,
+            nocter_model::ValueApplication {
+                owner: self.instance.code(),
+                call: id,
+            },
+            self.work,
+        )?;
         let target = key.code();
         let captured = matches!(target, nocter_model::ValueCode::Closure(_));
         let arguments = self
@@ -875,10 +893,10 @@ impl Builder<'_, '_> {
             statics,
             inputs,
             slots: self.slots.into(),
-            result: self.types.get_in(
+            result: self.types.get_instance(
                 self.program,
-                self.instance,
-                self.query.typed().result_data(),
+                self.checked
+                    .instantiate_result_contract(self.instance, self.work)?,
             )?,
             initializer: initializer(self.program, self.query.typed().code())?,
             entry: self.query.graph().entry(),

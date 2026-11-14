@@ -4,6 +4,81 @@ use crate::value_access::{InstantiationFailure, ValueSourceSelection};
 use crate::value_access::{Referent, ValueSourceBoundary, ValueSourceRead, ValueSourceSlot, flow};
 
 #[test]
+fn body_input_metadata_rejects_an_ordinary_local_before_using_its_closed_schema() {
+    let unit = accepted("func run(value: i32): i32 { let copied = value\ncopied }");
+    let owner = code(&unit, "run");
+    let frame = unit.program().bind_code(owner, []).unwrap();
+    let body = unit.code_body(owner).unwrap().typed().body();
+    let input = body.inputs().explicit()[0].local;
+    let local = body
+        .locals()
+        .iter()
+        .find(|(local, _)| *local != input)
+        .unwrap()
+        .0;
+    let data = body.locals().get(input).unwrap().data;
+    assert_eq!(body.locals().get(local).unwrap().data, data);
+    let mut work =
+        nocter_constant_evaluation::state::WorkBudget::new(std::num::NonZeroU64::new(100).unwrap());
+    assert_eq!(
+        unit.instantiate_input_data(&frame, input, &mut work)
+            .unwrap(),
+        unit.program().instantiate_closed_data(data).unwrap()
+    );
+    assert_eq!(
+        unit.instantiate_input_data(&frame, local, &mut work),
+        Err(InstantiationFailure::Unresolved)
+    );
+}
+
+#[test]
+fn contextual_body_input_metadata_uses_one_budget_and_allows_retry() {
+    let unit = accepted(
+        "func first(): i32 { 42 }\nfunc forward(take action: func(): i32): func(): i32 { action^ }",
+    );
+    let owner = code(&unit, "forward");
+    let ValueCode::Declaration(declaration) = owner else {
+        panic!("named function")
+    };
+    let parameter = unit
+        .program()
+        .codes()
+        .get(declaration)
+        .unwrap()
+        .parameters()[0];
+    let selected = nocter_declarations::value_access::FunctionWitness {
+        origin: code(&unit, "first").origin().unwrap(),
+        invocation: nocter_model::ValueInvocation::Read,
+    };
+    let frame = unit
+        .program()
+        .bind_code(owner, [(parameter.into(), selected)])
+        .unwrap();
+    let body = unit.code_body(owner).unwrap().typed().body();
+    let input = body.inputs().explicit()[0].local;
+    let data = body.locals().get(input).unwrap().data;
+    let mut exhausted =
+        nocter_constant_evaluation::state::WorkBudget::new(std::num::NonZeroU64::new(1).unwrap());
+    assert_eq!(
+        unit.instantiate_input_data(&frame, input, &mut exhausted),
+        Err(InstantiationFailure::WorkLimit)
+    );
+    let mut work = nocter_constant_evaluation::state::WorkBudget::new(
+        std::num::NonZeroU64::new(1_000).unwrap(),
+    );
+    let expected = unit.program().instantiate_data(data, &frame).unwrap();
+    assert_eq!(
+        unit.instantiate_input_data(&frame, input, &mut work)
+            .unwrap(),
+        expected
+    );
+    assert_eq!(
+        unit.instantiate_result_contract(&frame, &mut work).unwrap(),
+        expected
+    );
+}
+
+#[test]
 fn repeated_alias_writes_select_the_current_referent_instead_of_the_original_binding() {
     let unit = accepted("func make(value: i32): i32 { value }
 func run(): i32 { var value = make(40)\nedit alias = value\nalias = make(41)\nalias = make(42)\nvalue }");
