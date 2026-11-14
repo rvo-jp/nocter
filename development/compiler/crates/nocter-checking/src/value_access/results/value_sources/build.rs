@@ -295,7 +295,7 @@ impl Builder<'_> {
         point: AccessFlowPointId,
         place: Referent,
         state: &State,
-    ) -> Result<(ValueSourceId, ValueSourceId)> {
+    ) -> Result<(ValueSourceId, super::positions::RootSelection)> {
         let paths = self.paths(place)?;
         let suffix = match place {
             Referent::Place(id) => crate::value_access::paths::known_by(
@@ -306,6 +306,7 @@ impl Builder<'_> {
         };
         let mut values = BTreeSet::new();
         let mut roots = BTreeSet::new();
+        let mut carriers = BTreeSet::new();
         for (slot, path) in paths {
             let source = self.read(point, slot, state);
             let prefix = path
@@ -316,13 +317,19 @@ impl Builder<'_> {
             if !path.fields().ends_with(suffix.fields()) {
                 return Err(INVALID);
             }
+            let root_path = nocter_model::ValuePath::new(path.fields()[..prefix].iter().copied());
+            carriers.insert(super::ValueSourceCarrier {
+                slot,
+                source,
+                path: root_path.clone(),
+            });
             let root = (!suffix.is_root()).then(|| {
                 self.push(
                     None,
                     None,
                     ValueSource::Select {
                         source,
-                        path: nocter_model::ValuePath::new(path.fields()[..prefix].iter().copied()),
+                        path: root_path,
                     },
                 )
             });
@@ -340,6 +347,12 @@ impl Builder<'_> {
         } else {
             self.push(None, None, ValueSource::Alternatives(values))
         };
-        Ok((value, root))
+        Ok((
+            value,
+            super::positions::RootSelection {
+                source: root,
+                carriers: carriers.into_iter().collect(),
+            },
+        ))
     }
 }

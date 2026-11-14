@@ -8,7 +8,9 @@ use nocter_model::{
 use std::collections::{BTreeMap, BTreeSet};
 mod build;
 mod positions;
-pub use positions::{ValueSourceBoundary, ValueSourceFlow, ValueSourceRead, ValueSourceSelection};
+pub use positions::{
+    ValueSourceBoundary, ValueSourceCarrier, ValueSourceFlow, ValueSourceRead, ValueSourceSelection,
+};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct ValueSourceId(usize);

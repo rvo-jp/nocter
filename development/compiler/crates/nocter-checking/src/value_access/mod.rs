@@ -25,8 +25,8 @@ mod results;
 pub use results::{
     CallValueSources, CreationRecipe, InstantiationFailure, InvocationRecipe, PreparedData,
     PreparedDataFailure, ProducerRelation, ProducerShape, ProducerTerm, ValueSource,
-    ValueSourceBoundary, ValueSourceFlow, ValueSourceId, ValueSourceNode, ValueSourceRead,
-    ValueSourceSelection, ValueSourceSlot, ValueSources,
+    ValueSourceBoundary, ValueSourceCarrier, ValueSourceFlow, ValueSourceId, ValueSourceNode,
+    ValueSourceRead, ValueSourceSelection, ValueSourceSlot, ValueSources,
 };
 pub use results::{ResourceDataFailure, ResourceDataProjection};
 pub use results::{ValueData, ValueDataFailure};

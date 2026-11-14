@@ -26,15 +26,30 @@ fn referent_roots_preserve_an_alias_prefix_and_follow_the_current_owner_after_a_
             continue;
         }
         assert_eq!(flow.root(at, referent), Some(root));
+        let [carrier] = flow.root_carriers(at, referent).unwrap() else {
+            panic!("one lexical enclosing slot");
+        };
+        let ValueSourceSlot::Local(container) = carrier.slot else {
+            panic!("the original tuple local");
+        };
+        assert_ne!(body.locals().get(container).unwrap().data, local.data);
         let writes = matches!(unit.code_body(owner).unwrap().graph().points().get(at.point).unwrap().actions[at.action].operation,
             flow::Operation::Assign { target, .. } | flow::Operation::CompoundAssign { target, .. } if target == referent);
         assert_eq!(flow.root_after(at, referent).is_some(), writes);
+        assert_eq!(flow.root_carriers_after(at, referent).is_some(), writes);
         if let Some(updated) = flow.root_after(at, referent) {
             assert_ne!(updated, root);
             let ValueSource::Select { source, path } = &graph.node(updated).unwrap().value else {
                 panic!("updated alias root");
             };
             assert_eq!(path.fields(), &[ValueProjection::Tuple(0)]);
+            let [after] = flow.root_carriers_after(at, referent).unwrap() else {
+                panic!("one updated enclosing slot");
+            };
+            assert_eq!(after.slot, carrier.slot);
+            assert_eq!(&after.path, path);
+            assert_eq!(after.source, *source);
+            assert_ne!(after.source, carrier.source);
             assert!(
                 matches!(
                     graph.node(*source).unwrap().value,
@@ -43,10 +58,12 @@ fn referent_roots_preserve_an_alias_prefix_and_follow_the_current_owner_after_a_
                 "the updated root must follow the original write"
             );
         }
-        let ValueSource::Select { path, .. } = &graph.node(root).unwrap().value else {
+        let ValueSource::Select { source, path } = &graph.node(root).unwrap().value else {
             panic!("the referent root must select the aliased Pair from its tuple owner");
         };
         assert_eq!(path.fields(), &[ValueProjection::Tuple(0)]);
+        assert_eq!(&carrier.path, path);
+        assert_eq!(carrier.source, *source);
         let mut work = nocter_constant_evaluation::state::WorkBudget::new(
             std::num::NonZeroU64::new(10_000).unwrap(),
         );
@@ -78,6 +95,42 @@ fn referent_roots_preserve_an_alias_prefix_and_follow_the_current_owner_after_a_
         snapshots,
         BTreeSet::from([false, true]),
         "a lexical alias snapshot must not hide the later referent write"
+    );
+}
+
+#[test]
+fn evaluated_roots_keep_the_containing_array_without_claiming_a_numeric_index() {
+    let unit = accepted(
+        "func run(): i32 { var items = [(0, 1), (0, 1)]\nvar index: usize = 1\nitems[index].0 = 42\nitems[index].0 }",
+    );
+    let owner = code(&unit, "run");
+    let graph = unit.value_sources(owner).unwrap();
+    let flow = graph.flow().unwrap();
+    let body = unit.code_body(owner).unwrap().typed().body();
+    let mut selected = 0;
+    for ((at, referent), _) in flow.roots() {
+        let Referent::Evaluated(_) = referent else {
+            continue;
+        };
+        let [carrier] = flow.root_carriers(at, referent).unwrap() else {
+            panic!("one enclosing array");
+        };
+        if !carrier.path.fields().contains(&ValueProjection::Array(())) {
+            continue;
+        }
+        let ValueSourceSlot::Local(local) = carrier.slot else {
+            panic!("the original array local");
+        };
+        assert_ne!(
+            Some(body.locals().get(local).unwrap().data),
+            body.referent_data(referent)
+        );
+        assert!(graph.node(carrier.source).is_some());
+        selected += 1;
+    }
+    assert!(
+        selected > 0,
+        "evaluated field roots retain their larger containing source"
     );
 }
 
@@ -253,6 +306,21 @@ fn a_read_projection_keeps_the_post_call_parent_changed_through_a_separate_edit_
             let after = parent(roots.root_after(at, read).unwrap());
             assert_ne!(before, after);
             assert_eq!(after, parent(roots.root_after(at, edit).unwrap()));
+            let [old_carrier] = roots.root_carriers(at, read).unwrap() else {
+                panic!("one old parent");
+            };
+            let [new_carrier] = roots.root_carriers_after(at, read).unwrap() else {
+                panic!("one updated parent");
+            };
+            assert_eq!(old_carrier.slot, new_carrier.slot);
+            assert!(old_carrier.path.is_root());
+            assert!(new_carrier.path.is_root());
+            assert_eq!(old_carrier.source, before);
+            assert_eq!(new_carrier.source, after);
+            assert_eq!(
+                roots.root_carriers_after(at, read),
+                roots.root_carriers_after(at, edit)
+            );
             let ValueSource::CallWrite {
                 call: changed,
                 ref path,

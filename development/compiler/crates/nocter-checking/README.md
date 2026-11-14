@@ -483,6 +483,13 @@ suffix must match the common resolved path before it is separated. Root occurren
 original-action entries and follow the current source through writes, not an alias binding's old
 snapshot. They identify reference-root metadata, not the enclosing physical allocation, initialized
 storage, saved numbers or a resource phase. Changing-layout proofs remain a separate obligation.
+`flow.root_carriers` retains each original containing source slot, its current source and the path
+selecting the virtual root. `flow.root_carriers_after` retains the separately selected completion
+state. Both are collected by the same lexical selector as the virtual root; alternative sources
+stay paired with their paths. An external input can itself refer into a larger allocation, so
+these selections do not certify physical backing. Erased array indices establish no numeric
+address or bounds. Instantiating complete containing contracts and proving compatible placement
+remain separate from retaining these source selections.
 Argument preparation records its original selected roots; committed read/edit address bindings
 record their current roots before call writes. This does not replace the prepared argument values.
 Tag observations record their referent roots while retaining opaque Boolean value semantics.

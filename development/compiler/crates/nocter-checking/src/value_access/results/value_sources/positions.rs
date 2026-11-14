@@ -25,10 +25,24 @@ pub enum ValueSourceRead {
     Value(ValueSourceId),
     Incoming(Box<[ValueSourceBoundary]>),
 }
+/// An enclosing original source slot and the path selecting a referent's virtual root within it.
+/// Alternatives stay paired with their sources. Erased indices prove no numeric address, and a
+/// source slot need not be the complete physical allocation behind an external input.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct ValueSourceCarrier {
+    pub slot: ValueSourceSlot,
+    pub source: ValueSourceId,
+    pub path: nocter_model::ValuePath<()>,
+}
+#[derive(Clone, Debug)]
+pub(super) struct RootSelection {
+    pub(super) source: ValueSourceId,
+    pub(super) carriers: Box<[ValueSourceCarrier]>,
+}
 #[derive(Clone, Debug)]
 pub(super) struct RootSources {
-    pub(super) before: ValueSourceId,
-    pub(super) after: Option<ValueSourceId>,
+    pub(super) before: RootSelection,
+    pub(super) after: Option<RootSelection>,
 }
 #[derive(Clone, Debug)]
 pub struct ValueSourceFlow {
@@ -123,17 +137,49 @@ impl ValueSourceFlow {
     pub fn root(&self, location: flow::Location, target: Referent) -> Option<ValueSourceId> {
         self.roots
             .get(&(location, target))
-            .map(|roots| roots.before)
+            .map(|roots| roots.before.source)
     }
     /// Reference-root source on normal completion of this original write/call. This proves neither
     /// a mutation nor that execution reaches that boundary, and is not a resource-phase receipt.
     #[must_use]
     pub fn root_after(&self, location: flow::Location, target: Referent) -> Option<ValueSourceId> {
-        self.roots.get(&(location, target))?.after
+        self.roots
+            .get(&(location, target))?
+            .after
+            .as_ref()
+            .map(|root| root.source)
+    }
+    /// Original containing sources before the operation, resolved by the same lexical selector.
+    /// These retain metadata provenance, not availability, allocation geometry or ownership.
+    #[must_use]
+    pub fn root_carriers(
+        &self,
+        location: flow::Location,
+        target: Referent,
+    ) -> Option<&[ValueSourceCarrier]> {
+        Some(&self.roots.get(&(location, target))?.before.carriers)
+    }
+    /// Containing sources on normal completion, separately from preparation and prior state.
+    #[must_use]
+    pub fn root_carriers_after(
+        &self,
+        location: flow::Location,
+        target: Referent,
+    ) -> Option<&[ValueSourceCarrier]> {
+        Some(
+            &self
+                .roots
+                .get(&(location, target))?
+                .after
+                .as_ref()?
+                .carriers,
+        )
     }
     /// Only roots selected by original referent operations, without a place-by-action matrix.
     pub fn roots(&self) -> impl Iterator<Item = ((flow::Location, Referent), ValueSourceId)> + '_ {
-        self.roots.iter().map(|(&site, roots)| (site, roots.before))
+        self.roots
+            .iter()
+            .map(|(&site, roots)| (site, roots.before.source))
     }
     /// Original operand occurrences, without another traversal of source operation kinds.
     pub fn operands(
