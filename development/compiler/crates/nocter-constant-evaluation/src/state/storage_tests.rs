@@ -102,6 +102,15 @@ fn importing_foreign_data_preserves_sharing_and_cannot_bypass_the_new_budget() {
 #[test]
 fn updating_shared_data_charges_the_copied_path_and_preserves_the_snapshot() {
     use super::memory::{Cell, Frame, Memory};
+    let program = Program::new(
+        [
+            Type::Integer(nocter_model::BuiltinType::I32),
+            Type::Record(Box::new([0])),
+        ],
+        BTreeMap::new(),
+        BTreeMap::new(),
+    )
+    .unwrap();
     let budget = budget(100);
     let leaf = integer(&budget.storage, 1);
     let record = budget.storage.aggregate([leaf].into_iter()).unwrap();
@@ -110,7 +119,7 @@ fn updating_shared_data_charges_the_copied_path_and_preserves_the_snapshot() {
     let mut frame = Frame::new(
         &budget.storage,
         vec![Slot {
-            data: 0,
+            data: 1,
             storage: Storage::Owned,
         }]
         .into(),
@@ -120,6 +129,7 @@ fn updating_shared_data_charges_the_copied_path_and_preserves_the_snapshot() {
     memory.frames.push(frame);
     let address = memory
         .address(
+            &program,
             0,
             &Place {
                 slot: 0,
@@ -303,6 +313,18 @@ fn static_views_share_metered_data_and_reject_mutation_without_changing_it() {
     let source = integer(&budget.storage, 42);
     let (initializer, _) = super::tests::code_ids();
     let id = nocter_model::ValueStatic { initializer };
+    let program = Program::new(
+        [Type::Integer(nocter_model::BuiltinType::I32)],
+        BTreeMap::new(),
+        BTreeMap::from([(
+            id,
+            Static {
+                data: 0,
+                value: Value::integer(42),
+            },
+        )]),
+    )
+    .unwrap();
     let mut frame = Frame::new(
         &budget.storage,
         vec![Slot {
@@ -318,7 +340,7 @@ fn static_views_share_metered_data_and_reject_mutation_without_changing_it() {
     memory.bind_static(&mut frame, 0, id, &source).unwrap();
     assert_eq!(budget.storage_used(), before);
     memory.frames.push(frame);
-    let address = memory.address(0, &Place::root(0)).unwrap();
+    let address = memory.address(&program, 0, &Place::root(0)).unwrap();
     let replacement = integer(&budget.storage, 0);
     assert_eq!(memory.store(&address, replacement), Err(Rule::InvalidPlan));
     assert_eq!(memory.read(&address).unwrap(), Value::integer(42));

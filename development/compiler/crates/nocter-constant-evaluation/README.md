@@ -192,9 +192,23 @@ the affected path, preserving independent value semantics and the identity of al
 Frozen before/after effects transport ownership, assemble aggregates and perform actual sparse cleanup.
 Plan validation and execution share one phase sequence: before-effects, the source operation,
 then after-effects. Invocation-input protection belongs to the before phase; failure stops the
-sequence without executing later phases. This shared order does not yet qualify changing slot
-representations; the [temporal slot contract](../../../design/compiler-realization.md#temporal-evaluator-slot-contexts)
-owns that remaining realization obligation.
+sequence without executing later phases.
+
+The closed plan kernel supports `ReplaceRoot` for a whole owned slot receiving a different
+concrete representation from a distinct owned source. Storage roles and owning-slot identities
+remain unchanged. Ordered validation propagates exact representation contexts through operations
+and control edges, including stable backedges; conflicting entry or alternative contexts remain
+unqualified. Return contracts and taking-input protection use the context at their actual phase.
+Execution retains only changed slot contexts in metered storage. Address validation compares the
+final selected data against the current backing root: an unchanged field remains usable through
+a saved parent alias, while stale callable identity cannot inherit equal payload geometry.
+Failed execution releases the contextual metadata with the frame.
+
+These independent closed-plan cases grant no new source admission. Checking's ordinary projection
+still requires one registered representation per holder; it must connect original retired/received
+contracts to temporal slots before emitting these transitions. Partial writes, changing external
+inputs/aliases, general joins and native address/geometry coherence remain obligations of the
+[temporal slot contract](../../../design/compiler-realization.md#temporal-evaluator-slot-contexts).
 Taking inputs are protected before retirement; read/edit inputs bind addresses after retained
 caller temporaries exist. Ordinary calls execute every time, including unit-returning editing
 calls. The executor performs only closed execution; checking owns required value requests and

@@ -1,6 +1,6 @@
 //! Protection is checked at its ordered before-effect, and completed at the invocation boundary.
 use super::{Effect, INVALID, Operation, Program, Result, place};
-use crate::state::{Input, Plan};
+use crate::state::Input;
 use std::collections::BTreeSet;
 
 pub(super) struct Handoffs<'a> {
@@ -21,7 +21,7 @@ impl<'a> Handoffs<'a> {
     pub(super) fn protect(
         &mut self,
         program: &Program,
-        plan: &Plan,
+        plan: &super::View<'_>,
         effect: &Effect,
     ) -> Result<()> {
         let Effect::Invoke {

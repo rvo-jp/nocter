@@ -66,6 +66,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   through ordered plan validation and execution. Preserve one logical storage/owner identity,
   exact retired/received contexts, preparation snapshots, surviving aliases and failure recovery;
   code identity cannot be erased merely because two payloads have equal geometry.
+  Connect checking's original ordered source/resource selections to the evaluator kernel's
+  whole-owned-root transition, then qualify partial carriers and changing external inputs/aliases.
+  Independent closed-plan support does not close ordinary source or native geometry admission.
 - [ ] Qualify the canonical frame's received compound-input contexts through ordinary source and
   consumer storage, cleanup and conditional const reuse. The
   [declaration authority](compiler/crates/nocter-declarations/README.md) owns the validated constructor.

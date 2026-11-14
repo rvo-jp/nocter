@@ -6,6 +6,7 @@ use std::num::{NonZeroU32, NonZeroU64};
 mod arrays;
 mod captured_invocation;
 mod captured_values;
+mod contexts;
 mod expression_roots;
 mod lexical_codes;
 mod named_functions;

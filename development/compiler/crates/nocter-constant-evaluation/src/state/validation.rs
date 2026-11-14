@@ -1,19 +1,47 @@
 use super::{Data, Effect, Operation, Place, Program, Rule, Storage, Terminator, Type, Value};
 use std::collections::{BTreeMap, BTreeSet};
+mod contexts;
+mod guards;
 mod handoffs;
+use super::slot_types::{Contexts, SlotTypes, View as Slots};
+struct View<'a> {
+    plan: &'a super::Plan,
+    slots: Slots<'a>,
+}
+impl std::ops::Deref for View<'_> {
+    type Target = super::Plan;
+    fn deref(&self) -> &Self::Target {
+        self.plan
+    }
+}
+impl<'a> View<'a> {
+    fn new(plan: &'a super::Plan, contexts: &'a Contexts) -> Self {
+        Self {
+            plan,
+            slots: Slots {
+                initial: &plan.slots,
+                contexts,
+            },
+        }
+    }
+}
 type Result<T> = std::result::Result<T, Rule>;
 const INVALID: Rule = Rule::InvalidPlan;
-fn ordinary_slot(plan: &super::Plan, id: usize) -> Result<&super::Slot> {
+fn ordinary_slot(plan: &View<'_>, id: usize) -> Result<super::Slot> {
     if plan.environment_backing == Some(id) {
         return Err(INVALID);
     }
     plan.slots.get(id).ok_or(INVALID)
 }
-pub(super) fn place(program: &Program, plan: &super::Plan, place: &Place) -> Result<usize> {
+fn place(program: &Program, plan: &View<'_>, place: &Place) -> Result<usize> {
     ordinary_slot(plan, place.slot)?;
     place_data(program, &plan.slots, place)
 }
-pub(super) fn place_data(program: &Program, slots: &[super::Slot], place: &Place) -> Result<usize> {
+pub(super) fn place_data(
+    program: &Program,
+    slots: &(impl SlotTypes + ?Sized),
+    place: &Place,
+) -> Result<usize> {
     let mut data = slots.get(place.slot).ok_or(INVALID)?.data;
     for projection in place.fields.iter() {
         data = match projection {
@@ -241,46 +269,15 @@ fn validate_plan(program: &Program, plan: &super::Plan) -> Result<()> {
             return Err(INVALID);
         }
     }
-    for (_, point) in plan.points.iter() {
-        for action in &point.actions {
-            validate_action(program, plan, action)?;
-        }
-        let targets: Vec<_> = match &point.terminator {
-            Terminator::Jump(next) => vec![*next],
-            Terminator::Branch { condition, yes, no } => {
-                if program.types.get(place(program, plan, condition)?) != Some(&Type::Bool) {
-                    return Err(INVALID);
-                }
-                vec![*yes, *no]
-            }
-            Terminator::Return(result) => {
-                if !result.fields.is_empty()
-                    || plan
-                        .slots
-                        .get(result.slot)
-                        .is_none_or(|s| s.storage != Storage::Owned)
-                {
-                    return Err(INVALID);
-                }
-                if place(program, plan, result)? != plan.result {
-                    return Err(INVALID);
-                }
-                vec![]
-            }
-            Terminator::Unreachable => vec![],
-        };
-        if targets.iter().any(|&id| plan.points.get(id).is_none()) {
-            return Err(INVALID);
-        }
-    }
-    Ok(())
+    contexts::validate(program, plan)
 }
 
-fn validate_action(program: &Program, plan: &super::Plan, action: &super::Action) -> Result<()> {
+fn validate_action(program: &Program, plan: &View<'_>, action: &super::Action) -> Result<Contexts> {
     if action.alternatives.is_empty() {
         return Err(INVALID);
     }
     let mut guards = BTreeMap::new();
+    let mut result = None;
     for alternative in &action.alternatives {
         let phases = (&alternative.before, &alternative.after);
         if guards
@@ -289,92 +286,42 @@ fn validate_action(program: &Program, plan: &super::Plan, action: &super::Action
         {
             return Err(INVALID);
         }
-        for (&slot, paths) in &alternative.owned {
-            if plan
-                .slots
-                .get(slot)
-                .is_none_or(|slot| slot.storage != Storage::Owned)
-            {
-                return Err(INVALID);
-            }
-            if paths.windows(2).any(|pair| pair[0] >= pair[1]) {
-                return Err(INVALID);
-            }
-            let mut previous_value: Option<&super::ProjectionPath> = None;
-            let mut previous_prefix = None;
-            for missing in paths {
-                if missing.indices().any(|(slot, _)| {
-                    alternative
-                        .owned
-                        .get(&slot)
-                        .is_none_or(|holes| !holes.is_empty())
-                }) {
-                    return Err(INVALID);
-                }
-                match missing {
-                    super::Missing::Value(fields) => {
-                        if fields.is_empty()
-                            || previous_value.is_some_and(|previous| fields.starts_with(previous))
-                        {
-                            return Err(INVALID);
-                        }
-                        previous_value = Some(fields);
-                        place(
-                            program,
-                            plan,
-                            &Place {
-                                slot,
-                                fields: fields.clone(),
-                            },
-                        )?;
-                    }
-                    super::Missing::ArrayPrefix {
-                        base,
-                        endpoint,
-                        bound,
-                    } => {
-                        if previous_prefix == Some(base)
-                            || bounded_array(
-                                program,
-                                plan,
-                                &Place {
-                                    slot,
-                                    fields: base.clone(),
-                                },
-                                *endpoint,
-                            )? != *bound
-                        {
-                            return Err(INVALID);
-                        }
-                        previous_prefix = Some(base);
-                    }
-                }
-            }
-        }
+        guards::validate(program, plan, alternative)?;
+        let mut contexts = plan.slots.contexts.clone();
         let mut handoffs = handoffs::Handoffs::new(&action.operation);
         for step in alternative.sequence(&action.operation) {
+            let view = &View::new(plan.plan, &contexts);
             match step {
                 super::sequence::Step::Before(effect) => {
-                    handoffs.protect(program, plan, effect)?;
-                    check_effect(program, plan, effect)?;
+                    handoffs.protect(program, view, effect)?;
+                    check_effect(program, view, effect)?;
+                    contexts::effect(plan.plan, &mut contexts, effect)?;
                 }
                 super::sequence::Step::Operation(op) => {
                     handoffs.complete()?;
-                    operation(program, plan, op)?;
+                    operation(program, view, op)?;
                 }
                 super::sequence::Step::After(effect) => {
                     if matches!(effect, Effect::Invoke { .. }) {
                         return Err(INVALID);
                     }
-                    check_effect(program, plan, effect)?;
+                    check_effect(program, view, effect)?;
+                    contexts::effect(plan.plan, &mut contexts, effect)?;
                 }
             }
         }
+        if result
+            .as_ref()
+            .is_some_and(|previous| previous != &contexts)
+        {
+            return Err(INVALID);
+        }
+        result = Some(contexts);
     }
 
-    Ok(())
+    result.ok_or(INVALID)
 }
-fn operation(program: &Program, plan: &super::Plan, op: &Operation) -> Result<()> {
+fn operation(program: &Program, plan: &View<'_>, op: &Operation) -> Result<()> {
     let slot = |id: usize| ordinary_slot(plan, id);
     let data = |p: &Place| place(program, plan, p);
     let equal = |a: usize, b: usize| if a == b { Ok(()) } else { Err(INVALID) };
@@ -473,7 +420,7 @@ fn operation(program: &Program, plan: &super::Plan, op: &Operation) -> Result<()
 }
 fn variant_view(
     program: &Program,
-    plan: &super::Plan,
+    plan: &View<'_>,
     source: &Place,
     view: Option<usize>,
 ) -> Result<()> {
@@ -491,7 +438,7 @@ fn variant_view(
 }
 fn compare_operation(
     program: &Program,
-    plan: &super::Plan,
+    plan: &View<'_>,
     destination: usize,
     operation: crate::CompileTimeComparisonOperation,
     left: &Place,
@@ -514,7 +461,7 @@ fn compare_operation(
 }
 fn binary_operation(
     program: &Program,
-    plan: &super::Plan,
+    plan: &View<'_>,
     destination: &Place,
     operation: crate::CompileTimeBinaryOperation,
     left: &Place,
@@ -539,7 +486,7 @@ fn binary_operation(
 }
 fn repeat_operation(
     program: &Program,
-    plan: &super::Plan,
+    plan: &View<'_>,
     destination: usize,
     source: &Place,
 ) -> Result<()> {
@@ -555,7 +502,7 @@ fn repeat_operation(
 }
 fn index_operation(
     program: &Program,
-    plan: &super::Plan,
+    plan: &View<'_>,
     destination: usize,
     base: &Place,
     index: &Place,
@@ -576,7 +523,7 @@ fn index_operation(
 }
 fn call(
     program: &Program,
-    plan: &super::Plan,
+    plan: &View<'_>,
     destination: usize,
     target: super::CodeInstance,
     inputs: &[super::Input],
@@ -619,7 +566,7 @@ fn call(
 }
 fn bounded_array(
     program: &Program,
-    plan: &super::Plan,
+    plan: &View<'_>,
     source: &Place,
     endpoint: usize,
 ) -> Result<u64> {
@@ -646,7 +593,7 @@ fn bounded_array(
     }
     Ok(*length)
 }
-fn owned_place(program: &Program, plan: &super::Plan, source: &Place) -> Result<usize> {
+fn owned_place(program: &Program, plan: &View<'_>, source: &Place) -> Result<usize> {
     if plan
         .slots
         .get(source.slot)
@@ -659,7 +606,7 @@ fn owned_place(program: &Program, plan: &super::Plan, source: &Place) -> Result<
 }
 fn check_array_move(
     program: &Program,
-    plan: &super::Plan,
+    plan: &View<'_>,
     array: &Place,
     selected: &Place,
     destination: usize,
@@ -681,10 +628,23 @@ fn check_array_move(
     }
     Ok(())
 }
-fn check_effect(program: &Program, plan: &super::Plan, effect: &Effect) -> Result<()> {
+fn check_effect(program: &Program, plan: &View<'_>, effect: &Effect) -> Result<()> {
     let data = |p: &Place| place(program, plan, p);
     let owned = |p: &Place| owned_place(program, plan, p);
     match effect {
+        Effect::ReplaceRoot {
+            source,
+            destination,
+            data: received,
+        } => {
+            owned(&Place::root(*destination))?;
+            if source.slot == *destination
+                || owned(source)? != *received
+                || program.types.get(*received).is_none()
+            {
+                return Err(INVALID);
+            }
+        }
         Effect::MoveArrayElement {
             array,
             selected,
@@ -759,25 +719,7 @@ fn check_effect(program: &Program, plan: &super::Plan, effect: &Effect) -> Resul
         Effect::Assemble {
             destination,
             fields,
-        } => {
-            let ty = owned(&Place::root(*destination))?;
-            let schema = program.types.get(ty).ok_or(INVALID)?;
-            let complete = match schema {
-                Type::Variant { alternate, .. } => {
-                    fields.len() == 1 || (fields.is_empty() && alternate.is_none())
-                }
-                _ => schema.component_count() == u64::try_from(fields.len()).ok(),
-            };
-            if !complete {
-                return Err(INVALID);
-            }
-            let mut seen = BTreeSet::new();
-            for (field, source) in fields {
-                if schema.component(*field) != Some(owned(source)?) || !seen.insert(*field) {
-                    return Err(INVALID);
-                }
-            }
-        }
+        } => check_assembly(program, plan, *destination, fields)?,
     }
     Ok(())
 }
@@ -798,4 +740,31 @@ fn same_function_payload(from: &Type, to: &Type) -> bool {
         ) => a == b && left == right,
         _ => false,
     }
+}
+
+fn check_assembly(
+    program: &Program,
+    plan: &View<'_>,
+    destination: usize,
+    fields: &[(usize, Place)],
+) -> Result<()> {
+    let owned = |place: &Place| owned_place(program, plan, place);
+    let ty = owned(&Place::root(destination))?;
+    let schema = program.types.get(ty).ok_or(INVALID)?;
+    let complete = match schema {
+        Type::Variant { alternate, .. } => {
+            fields.len() == 1 || (fields.is_empty() && alternate.is_none())
+        }
+        _ => schema.component_count() == u64::try_from(fields.len()).ok(),
+    };
+    if !complete {
+        return Err(INVALID);
+    }
+    let mut seen = BTreeSet::new();
+    for (field, source) in fields {
+        if schema.component(*field) != Some(owned(source)?) || !seen.insert(*field) {
+            return Err(INVALID);
+        }
+    }
+    Ok(())
 }

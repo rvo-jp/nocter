@@ -1,4 +1,5 @@
 mod ownership;
+use super::slot_types::SlotTypes;
 use super::{
     Missing, Place, Projection, ProjectionPath, Rule, Slot, Storage as SlotStorage, Value,
     budget::{Lease, Resident, Storage},
@@ -85,13 +86,32 @@ pub(super) enum Cell {
 }
 pub(super) struct Frame {
     pub slots: Arc<[Slot]>,
+    contexts: BTreeMap<usize, Resident<usize>>,
     pub cells: BTreeMap<usize, Resident<Cell>>,
     pub owned: BTreeMap<usize, Resident<Ownership>>,
 }
 impl Frame {
+    pub fn set_context(&mut self, storage: &Storage, slot: usize, data: usize) -> Result<()> {
+        let initial = self.slots.get(slot).ok_or(Rule::InvalidPlan)?;
+        if initial.storage != SlotStorage::Owned {
+            return Err(Rule::InvalidPlan);
+        }
+        if initial.data == data {
+            self.contexts.remove(&slot);
+        } else {
+            match self.contexts.entry(slot) {
+                Entry::Occupied(mut entry) => entry.get_mut().value = data,
+                Entry::Vacant(entry) => {
+                    entry.insert(storage.entry(data)?);
+                }
+            }
+        }
+        Ok(())
+    }
     pub fn new(storage: &Storage, slots: Arc<[Slot]>) -> Result<Resident<Self>> {
         storage.entry(Self {
             slots,
+            contexts: BTreeMap::new(),
             cells: BTreeMap::new(),
             owned: BTreeMap::new(),
         })
@@ -117,6 +137,15 @@ impl Frame {
         };
         entry.insert(storage.entry(Ownership::default())?);
         Ok(())
+    }
+}
+impl super::slot_types::SlotTypes for Frame {
+    fn get(&self, slot: usize) -> Option<Slot> {
+        let mut definition = *self.slots.get(slot)?;
+        if let Some(data) = self.contexts.get(&slot) {
+            definition.data = data.value;
+        }
+        Some(definition)
     }
 }
 impl Address {
@@ -220,7 +249,12 @@ impl Memory {
         })
     }
     /// Alias cells store canonical roots at definition time; no chain or cycle can be created.
-    pub fn address(&self, frame: usize, place: &Place) -> Result<Address> {
+    pub fn address(
+        &self,
+        program: &super::Program,
+        frame: usize,
+        place: &Place,
+    ) -> Result<Address> {
         let current = self.frames.get(frame).ok_or(Rule::InvalidPlan)?;
         let role = current
             .slots
@@ -239,9 +273,26 @@ impl Memory {
                         return Err(Rule::InvalidPlan);
                     }
                 }
+                let fields = self.projected(frame, &base.fields, &place.fields)?;
+                let expected = current.get(place.slot).ok_or(Rule::InvalidPlan)?.data;
+                let actual = match base.root {
+                    Root::Local { frame, slot } => {
+                        self.frames
+                            .get(frame)
+                            .and_then(|frame| frame.get(slot))
+                            .ok_or(Rule::InvalidPlan)?
+                            .data
+                    }
+                    Root::Static(id) => program.statics.get(&id).ok_or(Rule::InvalidPlan)?.data,
+                };
+                if type_path(program, expected, &fields[base.fields.len()..])?
+                    != type_path(program, actual, &fields)?
+                {
+                    return Err(Rule::InvalidPlan);
+                }
                 Ok(Address {
                     root: base.root,
-                    fields: self.projected(frame, &base.fields, &place.fields)?,
+                    fields,
                 })
             }
             Some(Cell::Alias(_)) => Err(Rule::InvalidPlan),
@@ -377,4 +428,14 @@ impl Memory {
         }
         Ok(())
     }
+}
+fn type_path(program: &super::Program, mut data: usize, fields: &[usize]) -> Result<usize> {
+    for &field in fields {
+        data = program
+            .types
+            .get(data)
+            .and_then(|ty| ty.component(field))
+            .ok_or(Rule::InvalidPlan)?;
+    }
+    Ok(data)
 }

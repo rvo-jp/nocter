@@ -11,6 +11,7 @@ use std::{collections::BTreeMap, sync::Arc};
 pub use value::{Data, Value};
 mod projection;
 mod sequence;
+mod slot_types;
 pub use projection::{Missing, Projection, ProjectionPath};
 
 /// One lowered plan of a semantic code body. Instance numbers are local to this Program;
@@ -184,6 +185,13 @@ pub enum Effect {
     Replace {
         source: Place,
         destination: Place,
+    },
+    /// Replace a whole owned root and retain the supplied representation for subsequent uses.
+    /// The source must carry this exact data; this is not a reinterpretation of the old value.
+    ReplaceRoot {
+        source: Place,
+        destination: usize,
+        data: usize,
     },
     Invoke {
         source: Place,

@@ -1,3 +1,4 @@
+use super::slot_types::SlotTypes;
 use super::{
     Action, Budget, Data, Effect, Input, Operation, Place, Plan, Program, Site, Terminator, Value,
     memory::{Address, Cell, Frame, Memory},
@@ -230,7 +231,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                     point = if *value { *yes } else { *no };
                 }
                 Terminator::Return(place) => {
-                    let address = self.memory.address(frame, place)?;
+                    let address = self.memory.address(&self.program, frame, place)?;
                     let (_, slot) = address.local()?;
                     let owners = &self.memory.frames[frame].owned;
                     if owners.len() != 1 || owners.get(&slot).is_none_or(|holes| !holes.is_empty())
@@ -245,11 +246,12 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         }
     }
     fn read(&self, frame: usize, place: &Place) -> Result<Value> {
-        self.memory.read(&self.memory.address(frame, place)?)
+        self.memory
+            .read(&self.memory.address(&self.program, frame, place)?)
     }
     fn write(&mut self, frame: usize, place: &Place, value: Value) -> Result<()> {
         self.memory
-            .store(&self.memory.address(frame, place)?, value)
+            .store(&self.memory.address(&self.program, frame, place)?, value)
     }
     fn action(&mut self, frame: usize, action: &Action) -> Result<()> {
         let owners = &self.memory.frames[frame].owned;
@@ -341,7 +343,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             .frames
             .get(frame)
             .ok_or(Rule::InvalidPlan)?
-            .slots;
+            .value;
         let data = super::validation::place_data(&self.program, slots, place)?;
         self.program
             .types
@@ -360,7 +362,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             } => {
                 self.require_variant(frame, source, *primary)?;
                 if let Some(destination) = view {
-                    let address = self.memory.address(frame, source)?;
+                    let address = self.memory.address(&self.program, frame, source)?;
                     self.bind_alias(frame, *destination, address)?;
                 }
                 return Ok(());
@@ -386,7 +388,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                 destination,
                 source,
             } => {
-                let address = self.memory.address(frame, source)?;
+                let address = self.memory.address(&self.program, frame, source)?;
                 return self.bind_alias(frame, *destination, address);
             }
             Operation::Index {
@@ -493,7 +495,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             .frames
             .get(frame)
             .ok_or(Rule::InvalidPlan)?
-            .slots;
+            .value;
         let data = slots.get(destination).ok_or(Rule::InvalidPlan)?.data;
         let Some(super::Type::Array { length, .. }) = self.program.types.get(data) else {
             return Err(Rule::InvalidPlan);
@@ -509,9 +511,9 @@ impl<'a, 'budget> Executor<'a, 'budget> {
     fn index_address(&self, frame: usize, base: &Place, index: &Place) -> Result<Address> {
         // Resolve the base before reading the index. Do not read the complete array:
         // the checked plan can select initialized components of an incomplete owner.
-        let mut address = self.memory.address(frame, base)?;
+        let mut address = self.memory.address(&self.program, frame, base)?;
         let data =
-            super::validation::place_data(&self.program, &self.memory.frames[frame].slots, base)?;
+            super::validation::place_data(&self.program, &self.memory.frames[frame].value, base)?;
         let Some(super::Type::Array { length, .. }) = self.program.types.get(data) else {
             return Err(Rule::InvalidPlan);
         };
@@ -541,7 +543,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                         .clone(),
                 )),
                 Input::Read(place) | Input::Edit(place) => {
-                    let address = self.memory.address(frame, place)?;
+                    let address = self.memory.address(&self.program, frame, place)?;
                     // Closed types need no recursive shape walk; initialization still matters
                     // even when the callee never reads this scoped input.
                     self.memory.read(&address)?;
@@ -552,6 +554,11 @@ impl<'a, 'budget> Executor<'a, 'budget> {
     }
     fn effect(&mut self, frame: usize, effect: &Effect) -> Result<()> {
         match effect {
+            Effect::ReplaceRoot {
+                source,
+                destination,
+                data,
+            } => self.replace_root(frame, source, *destination, *data),
             Effect::MoveArrayElement {
                 array,
                 selected,
@@ -570,15 +577,17 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                 self.memory
                     .retire_array(&address, interval.start, interval.end)
             }
-            Effect::Construct(slot) => Ok(self
-                .memory
-                .construct(&self.memory.address(frame, &Place::root(*slot))?)?),
+            Effect::Construct(slot) => Ok(self.memory.construct(&self.memory.address(
+                &self.program,
+                frame,
+                &Place::root(*slot),
+            )?)?),
             Effect::Dispose(place) | Effect::Invoke { source: place, .. } => Ok(self
                 .memory
-                .retire(&self.memory.address(frame, place)?, false)?),
+                .retire(&self.memory.address(&self.program, frame, place)?, false)?),
             Effect::DisposeArrayRemainder(place) | Effect::Release(place) => Ok(self
                 .memory
-                .retire(&self.memory.address(frame, place)?, true)?),
+                .retire(&self.memory.address(&self.program, frame, place)?, true)?),
             Effect::Move {
                 source,
                 destination,
@@ -593,8 +602,8 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             } => {
                 let value = self.read(frame, source)?;
                 self.memory
-                    .retire(&self.memory.address(frame, source)?, false)?;
-                let destination = self.memory.address(frame, destination)?;
+                    .retire(&self.memory.address(&self.program, frame, source)?, false)?;
+                let destination = self.memory.address(&self.program, frame, destination)?;
                 self.memory.store(&destination, value)?;
                 if matches!(effect, Effect::Move { .. } | Effect::AdaptFunction { .. }) {
                     self.memory.construct(&destination)?;
@@ -604,48 +613,88 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             Effect::Assemble {
                 destination,
                 fields,
-            } => {
-                let _assembly_storage = self.memory.storage.items(fields.len())?;
-                let data = self.memory.frames[frame]
-                    .slots
-                    .get(*destination)
-                    .ok_or(Rule::InvalidPlan)?
-                    .data;
-                let value = if matches!(
-                    self.program.types.get(data),
-                    Some(super::Type::Variant { .. })
-                ) {
-                    match fields.as_ref() {
-                        [] => self.memory.storage.variant(false, None)?,
-                        [(field, source)] => {
-                            let payload = self.read(frame, source)?;
-                            self.memory
-                                .retire(&self.memory.address(frame, source)?, false)?;
-                            self.memory.storage.variant(*field == 0, Some(payload))?
-                        }
-                        _ => return Err(Rule::InvalidPlan),
-                    }
-                } else {
-                    let mut values = vec![None; fields.len()];
-                    for (field, source) in fields {
-                        values[*field] = Some(self.read(frame, source)?);
-                        self.memory
-                            .retire(&self.memory.address(frame, source)?, false)?;
-                    }
-                    let values = values
-                        .into_iter()
-                        .collect::<Option<Box<[_]>>>()
-                        .ok_or(Rule::InvalidPlan)?;
-                    self.memory
-                        .storage
-                        .aggregate(values.into_vec().into_iter())?
-                };
-                self.write(frame, &Place::root(*destination), value)?;
-                Ok(self
-                    .memory
-                    .construct(&self.memory.address(frame, &Place::root(*destination))?)?)
-            }
+            } => self.assemble(frame, *destination, fields),
         }
+    }
+    fn assemble(
+        &mut self,
+        frame: usize,
+        destination: usize,
+        fields: &[(usize, Place)],
+    ) -> Result<()> {
+        let _assembly_storage = self.memory.storage.items(fields.len())?;
+        let data = self.memory.frames[frame]
+            .get(destination)
+            .ok_or(Rule::InvalidPlan)?
+            .data;
+        let value = if matches!(
+            self.program.types.get(data),
+            Some(super::Type::Variant { .. })
+        ) {
+            match fields {
+                [] => self.memory.storage.variant(false, None)?,
+                [(field, source)] => {
+                    let payload = self.read(frame, source)?;
+                    self.memory
+                        .retire(&self.memory.address(&self.program, frame, source)?, false)?;
+                    self.memory.storage.variant(*field == 0, Some(payload))?
+                }
+                _ => return Err(Rule::InvalidPlan),
+            }
+        } else {
+            let mut values = vec![None; fields.len()];
+            for (field, source) in fields {
+                values[*field] = Some(self.read(frame, source)?);
+                self.memory
+                    .retire(&self.memory.address(&self.program, frame, source)?, false)?;
+            }
+            let values = values
+                .into_iter()
+                .collect::<Option<Box<[_]>>>()
+                .ok_or(Rule::InvalidPlan)?;
+            self.memory
+                .storage
+                .aggregate(values.into_vec().into_iter())?
+        };
+        self.write(frame, &Place::root(destination), value)?;
+        self.memory.construct(&self.memory.address(
+            &self.program,
+            frame,
+            &Place::root(destination),
+        )?)
+    }
+    fn replace_root(
+        &mut self,
+        frame: usize,
+        source: &Place,
+        destination: usize,
+        data: usize,
+    ) -> Result<()> {
+        if source.slot == destination
+            || super::validation::place_data(
+                &self.program,
+                &self.memory.frames[frame].value,
+                source,
+            )? != data
+        {
+            return Err(Rule::InvalidPlan);
+        }
+        let target = self
+            .memory
+            .address(&self.program, frame, &Place::root(destination))?;
+        if self.memory.frames[frame]
+            .owned
+            .get(&destination)
+            .is_none_or(|owner| !owner.is_empty())
+        {
+            return Err(Rule::InvalidPlan);
+        }
+        self.memory.read(&target)?;
+        let source = self.memory.address(&self.program, frame, source)?;
+        let value = self.memory.read(&source)?;
+        self.memory.frames[frame].set_context(&self.memory.storage, destination, data)?;
+        self.memory.retire(&source, false)?;
+        self.memory.store(&target, value)
     }
     fn move_array_element(
         &mut self,
@@ -654,8 +703,8 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         selected: &Place,
         destination: usize,
     ) -> Result<()> {
-        let array_address = self.memory.address(frame, array)?;
-        let selected_address = self.memory.address(frame, selected)?;
+        let array_address = self.memory.address(&self.program, frame, array)?;
+        let selected_address = self.memory.address(&self.program, frame, selected)?;
         self.memory.require_array_element(
             &array_address,
             &selected_address,
@@ -663,13 +712,15 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         )?;
         let value = self.memory.read(&selected_address)?;
         self.memory.retire(&selected_address, false)?;
-        let destination = self.memory.address(frame, &Place::root(destination))?;
+        let destination = self
+            .memory
+            .address(&self.program, frame, &Place::root(destination))?;
         self.memory.store(&destination, value)?;
         self.memory.construct(&destination)
     }
     fn array_length(&self, frame: usize, source: &Place) -> Result<u64> {
         let data =
-            super::validation::place_data(&self.program, &self.memory.frames[frame].slots, source)?;
+            super::validation::place_data(&self.program, &self.memory.frames[frame].value, source)?;
         let Some(super::Type::Array { length, .. }) = self.program.types.get(data) else {
             return Err(Rule::InvalidPlan);
         };
@@ -681,7 +732,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         source: &Place,
         range: &nocter_model::ArrayRange<usize>,
     ) -> Result<(Address, std::ops::Range<u64>)> {
-        let address = self.memory.address(frame, source)?;
+        let address = self.memory.address(&self.program, frame, source)?;
         let length = self.array_length(frame, source)?;
         let captured = match range {
             nocter_model::ArrayRange::Constant { .. } => None,
