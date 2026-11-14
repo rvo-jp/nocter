@@ -10,6 +10,8 @@ use super::{Failure as BodyFailure, flow};
 use nocter_constant_evaluation::state;
 use nocter_model::FrozenData;
 pub(super) use types::Types;
+#[cfg(test)]
+pub(in crate::value_access) use types::received_test_frames;
 #[derive(Clone, Debug)]
 struct Completed {
     execution: state::Value,

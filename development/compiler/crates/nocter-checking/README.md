@@ -1149,7 +1149,13 @@ memoized by data identity rather than expanded through shared fields. `evaluatio
 single shape projection used by const-domain validation, final-data admission and closed-plan
 construction; homogeneous arrays retain an element ID and u64 count, never expanded type lists.
 Raw descriptor shapes and closed `DataInstanceKey` shapes have distinct cache keys in that one
-projection. `get_in` consumes the declaration authority's contextual child/environment selection.
+projection. `get_in` describes the declaration authority's frame-bound child/environment selection;
+it is not an occurrence lookup. Call-input domain checks use `supports_input` with the exact
+received compound key at its explicit ordinal. A missing compound context cannot be filled from
+same-typed captures; direct callable inputs retain their own witness bindings, and closed inputs
+use their raw schema. The supported/unsupported decision follows the supplied input independently
+of the surrounding environment. Schema disagreement rejects rather than selecting another shape.
+A representable optional absence does not supply a missing contextual-input receipt.
 The selected function leaf uses its actual code/environment representation so a supplied value and
 its receiving formal agree on the evaluator type. Carrier identities remain intact. Instance
 support cannot strengthen the raw unbound descriptor, and contextual callable-bearing carriers
@@ -1238,16 +1244,18 @@ positions and selected callees have no callable-argument correlation to preserve
 propagates each new witness at one formal position through a complete declaration-validated
 representative frame, instead of enumerating joint permutations. Actual source recipes must also
 have singleton unary producers: unresolved application/result terms and alternative inputs retain
-exact discovery. Frames or received witnesses with
-captured substitutions retain exact discovery until contextual data is qualified. Existing fixed-target components
+exact discovery. Frames with received compound contexts, or frames/received witnesses with
+captured substitutions, retain exact discovery until contextual data is qualified. Existing fixed-target components
 still need only one visit. A selected target receiving another callable, or a target outside the
 recognized terms, retains exact joint contexts. Discovery is recomputed when required bodies
 arrive; a missing body's unknown operations never establish condition or plan equivalence.
 This projection executes no value operation and merges no source owner or captured environment.
 
 `constant::Traversal` separately qualifies condition-only sharing for a fixed-target call closure.
-Captured substitutions retain exact traversal; a bare code or raw environment type cannot erase
-those contexts.
+Captured substitutions and received compound contexts retain exact traversal; a bare code or raw
+environment type cannot erase those contexts. Compound frames bypass both code-only condition
+sharing and independent-witness body factoring, including frames with no captured substitutions
+or direct callable bindings.
 It checks every actual direct callable witness through the evaluator's type authority. When all
 those temporary representations are supported, the present condition clauses can observe neither
 which callable code was passed nor its environment layout: invocation targets are fixed, and bound

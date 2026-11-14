@@ -14,8 +14,14 @@ struct Fixture {
     empty: TypeId,
     callbacks: [FunctionWitness; 2],
     wrapper: FunctionWitness,
+    receiver: FunctionWitness,
+    independent: FunctionWitness,
+    optional: TypeId,
 }
 fn fixture() -> Fixture {
+    configured_fixture(false)
+}
+fn configured_fixture(error_callback: bool) -> Fixture {
     let (sources, tree) = input(
         "func first(): i32 { 41 }\nfunc second(): i32 { 42 }\nfunc creator(take action: func(): i32): i32 { action() }",
     );
@@ -29,7 +35,7 @@ fn fixture() -> Fixture {
             .unwrap()
     };
     let creator = code("creator");
-    let callbacks = ["first", "second"].map(|name| code(name).into());
+    let mut callbacks = ["first", "second"].map(|name| code(name).into());
     let parameter = program.codes().get(creator).unwrap().parameters()[0].into();
     let formal = program
         .function_data(FunctionWitness {
@@ -39,6 +45,23 @@ fn fixture() -> Fixture {
         .unwrap();
     let integer = program.data_type(BuiltinType::I32).unwrap();
     let mut body = program.body_types(creator).unwrap();
+    if error_callback {
+        let code = body.reserve_closure().unwrap();
+        body.closure(
+            code,
+            program.data_type(BuiltinType::Error).unwrap(),
+            FunctionConstraint {
+                invocation: ValueInvocation::Read,
+                inputs: Box::new([]),
+                result: integer,
+            },
+        )
+        .unwrap();
+        callbacks[1] = FunctionWitness {
+            origin: ValueFunctionOrigin::Closure(code),
+            invocation: ValueInvocation::Read,
+        };
+    }
     let closure = body.reserve_closure().unwrap();
     let captured = body
         .closure(
@@ -53,6 +76,7 @@ fn fixture() -> Fixture {
         .unwrap();
     let array = body.array(captured, 2).unwrap();
     let tuple = body.tuple(&[captured, array]).unwrap();
+    let optional = body.optional(captured).unwrap();
     let empty = body.array(captured, 0).unwrap();
     let wrapper = body.reserve_closure().unwrap();
     body.closure(
@@ -69,6 +93,14 @@ fn fixture() -> Fixture {
         origin: ValueFunctionOrigin::Closure(wrapper),
         invocation: ValueInvocation::Read,
     };
+    let receiver = input_receiver(&mut body, tuple, tuple, optional, integer);
+    let independent = input_receiver(
+        &mut body,
+        program.data_type(BuiltinType::Void).unwrap(),
+        tuple,
+        optional,
+        integer,
+    );
     Fixture {
         program: body.finish(),
         creator,
@@ -78,7 +110,136 @@ fn fixture() -> Fixture {
         tuple,
         empty,
         callbacks,
+        optional,
         wrapper,
+        receiver,
+        independent,
+    }
+}
+fn input_receiver(
+    body: &mut nocter_declarations::value_access::BodyTypes,
+    environment: TypeId,
+    tuple: TypeId,
+    optional: TypeId,
+    result: TypeId,
+) -> FunctionWitness {
+    let receiver = body.reserve_closure().unwrap();
+    body.closure(
+        receiver,
+        environment,
+        FunctionConstraint {
+            invocation: ValueInvocation::Read,
+            inputs: [tuple, optional]
+                .map(|data| nocter_declarations::value_access::FunctionInput {
+                    data,
+                    operation: nocter_model::ValueInputOperation::Read,
+                })
+                .into(),
+            result,
+        },
+    )
+    .unwrap();
+    FunctionWitness {
+        origin: ValueFunctionOrigin::Closure(receiver),
+        invocation: ValueInvocation::Read,
+    }
+}
+fn input_contexts(fixture: &Fixture) -> [DataInstanceKey; 2] {
+    let program = &fixture.program;
+    fixture.callbacks.map(|callback| {
+        let frame = program
+            .bind_code(fixture.creator.into(), [(fixture.parameter, callback)])
+            .unwrap();
+        program.instantiate_data(fixture.tuple, &frame).unwrap()
+    })
+}
+/// Canonical metadata for reuse-boundary tests; no source or executable-body receipt is created.
+pub(in crate::value_access) fn received_test_frames() -> (Program, [CodeInstanceKey; 2]) {
+    let fixture = configured_fixture(true);
+    let program = &fixture.program;
+    let selected = program.concrete_witness(fixture.independent).unwrap();
+    let frames = input_contexts(&fixture).map(|input| {
+        let optional = program
+            .instantiate_components(
+                fixture.optional,
+                [(
+                    ValueField::Variant(true),
+                    input.component(program, ValueField::Tuple(0)).unwrap(),
+                )],
+            )
+            .unwrap();
+        program
+            .bind_instance_with_inputs(&selected, [], [(0, input), (1, optional)])
+            .unwrap()
+    });
+    (fixture.program, frames)
+}
+
+#[test]
+fn received_domain_uses_the_input_instead_of_a_same_typed_captured_environment() {
+    let fixture = configured_fixture(true);
+    let program = &fixture.program;
+    let contexts = input_contexts(&fixture);
+    let mut types = Types::default();
+    for (environment, input, expected) in [(0, 1, false), (1, 0, true)] {
+        let selected = program
+            .bind_callable_data(fixture.receiver, &contexts[environment])
+            .unwrap();
+        let optional = program
+            .instantiate_components(
+                fixture.optional,
+                [(
+                    ValueField::Variant(true),
+                    contexts[input]
+                        .component(program, ValueField::Tuple(0))
+                        .unwrap(),
+                )],
+            )
+            .unwrap();
+        let frame = program
+            .bind_instance_with_inputs(&selected, [], [(0, contexts[input].clone()), (1, optional)])
+            .unwrap();
+        assert_eq!(
+            types.supports_in(program, &frame, fixture.tuple).unwrap(),
+            !expected,
+            "a frame/type substitution describes the unrelated captured context"
+        );
+        assert_eq!(
+            types
+                .supports_input(program, &frame, 0, fixture.tuple)
+                .unwrap(),
+            expected
+        );
+        let incomplete = program.bind_instance(&selected, []).unwrap();
+        assert!(
+            types.supports(program, fixture.optional).unwrap(),
+            "absence remains representable"
+        );
+        assert!(
+            !types
+                .supports_input(program, &incomplete, 1, fixture.optional)
+                .unwrap(),
+            "a representable alternative does not supply a missing contextual input"
+        );
+        assert!(
+            types
+                .supports_input(program, &frame, 1, fixture.optional)
+                .unwrap()
+        );
+        assert!(
+            !types
+                .supports_input(program, &incomplete, 0, fixture.tuple)
+                .unwrap()
+        );
+        assert_eq!(
+            types.supports_input(
+                program,
+                &frame,
+                0,
+                program.data_type(BuiltinType::I32).unwrap()
+            ),
+            Err(INVALID)
+        );
     }
 }
 

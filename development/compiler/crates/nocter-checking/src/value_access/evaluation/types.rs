@@ -6,6 +6,8 @@ use nocter_model::{TypeId, ValueField};
 use std::collections::{BTreeMap, BTreeSet};
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+pub(in crate::value_access) use tests::received_test_frames;
 const INVALID: flow::IntegrityError = flow::IntegrityError::InconsistentTypedBody;
 type Result<T> = std::result::Result<T, flow::IntegrityError>;
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -112,6 +114,29 @@ impl Types {
     ) -> Result<bool> {
         let id = self.get_in(program, instance, data)?;
         Ok(self.shapes[id].supported)
+    }
+    /// Classify a received input from its exact entry context. An unrelated environment cannot
+    /// supply missing compound-input metadata; direct callable bindings keep their own authority.
+    pub(in crate::value_access) fn supports_input(
+        &mut self,
+        program: &Program,
+        instance: &CodeInstanceKey,
+        index: usize,
+        data: TypeId,
+    ) -> Result<bool> {
+        if let Some(actual) = instance.input_data(index) {
+            if actual.data() != data {
+                return Err(INVALID);
+            }
+            let id = self.get_instance(program, actual.clone())?;
+            Ok(self.shapes[id].supported)
+        } else if matches!(program.data_schema(data), Some(PayloadSchema::Function(_))) {
+            self.supports_in(program, instance, data)
+        } else if program.instantiate_closed_data(data).is_ok() {
+            self.supports(program, data)
+        } else {
+            Ok(false)
+        }
     }
     pub(super) fn appended(&self, from: usize) -> Vec<Type> {
         self.shapes[from..]

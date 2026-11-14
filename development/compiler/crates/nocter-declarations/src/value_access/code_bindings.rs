@@ -67,6 +67,11 @@ impl CodeInstanceKey {
     pub fn input_data(&self, index: usize) -> Option<&super::DataInstanceKey> {
         self.inputs.get(&index)
     }
+    /// Whether received compound contexts participate in this frame's canonical identity.
+    #[must_use]
+    pub fn has_compound_input_contexts(&self) -> bool {
+        !self.inputs.is_empty()
+    }
     #[must_use]
     pub const fn code(&self) -> ValueCode {
         self.code

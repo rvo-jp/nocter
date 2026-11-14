@@ -42,7 +42,8 @@ impl Discovery {
         program: &Program,
         key: CodeInstanceKey,
     ) -> Result<(), flow::IntegrityError> {
-        if key.environment().is_some()
+        if key.has_compound_input_contexts()
+            || key.environment().is_some()
             || key
                 .witnesses()
                 .values()
@@ -170,6 +171,40 @@ mod tests {
         accepted::SourceUnit,
         tests::{bound, input},
     };
+
+    #[test]
+    fn received_compound_contexts_remain_exact_under_both_discovery_factoring_modes() {
+        let (program, frames) = super::super::received_test_frames();
+        assert!(frames.iter().all(|frame| frame.environment().is_none()
+            && frame.witnesses().is_empty()
+            && frame.has_compound_input_contexts()));
+        for independent in [false, true] {
+            let mut discovery = Discovery {
+                separable: true,
+                frames: BTreeMap::new(),
+                independent: if independent {
+                    BTreeSet::from([frames[0].code()])
+                } else {
+                    BTreeSet::new()
+                },
+                plain: BTreeSet::new(),
+                exact: BTreeSet::new(),
+                pending: Vec::new(),
+            };
+            for _ in 0..2 {
+                for frame in &frames {
+                    discovery.insert(&program, frame.clone()).unwrap();
+                }
+            }
+            let actual = std::iter::from_fn(|| discovery.next()).collect::<Vec<_>>();
+            assert_eq!(actual.len(), frames.len());
+            assert_eq!(
+                actual.into_iter().collect::<BTreeSet<_>>(),
+                frames.iter().cloned().collect()
+            );
+            assert!(discovery.plain.is_empty() && discovery.frames.is_empty());
+        }
+    }
 
     #[test]
     fn a_selected_target_receiving_another_callable_preserves_joint_bindings() {

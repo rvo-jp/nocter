@@ -202,9 +202,13 @@ fn call_inputs(
     if parameters.len() != arguments.len() {
         return Err(INVALID);
     }
-    for (input, argument) in parameters.into_iter().zip(arguments) {
+    for (index, (input, argument)) in parameters.into_iter().zip(arguments).enumerate() {
         let data = input.data;
-        if !supports(program, data, domain, callee)? {
+        let supported = match callee {
+            Some(instance) => domain.supports_input(program, instance, index, data)?,
+            None => supports(program, data, domain, None)?,
+        };
+        if !supported {
             return Ok(Some(Violation {
                 site: Site::Expression(argument.value),
                 rule: Rule::UnsupportedInput(data),

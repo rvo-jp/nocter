@@ -34,7 +34,8 @@ impl Traversal {
         program: &Program,
         key: &CodeInstanceKey,
     ) -> Result<bool, flow::IntegrityError> {
-        if key.environment().is_some()
+        if key.has_compound_input_contexts()
+            || key.environment().is_some()
             || key
                 .witnesses()
                 .values()
@@ -66,6 +67,29 @@ mod tests {
     };
     use nocter_declarations::value_access::FunctionWitness;
     use nocter_model::ValueFunctionOrigin;
+
+    #[test]
+    fn fixed_target_condition_sharing_does_not_forget_received_compound_contexts() {
+        let (program, frames) = crate::value_access::evaluation::received_test_frames();
+        assert_ne!(frames[0], frames[1]);
+        assert!(frames.iter().all(|frame| frame.environment().is_none()
+            && frame.witnesses().is_empty()
+            && frame.has_compound_input_contexts()));
+        let mut traversal = Traversal {
+            fixed: BTreeSet::from([frames[0].code()]),
+            supported: BTreeSet::new(),
+            exact: BTreeSet::new(),
+            domain: evaluation::Types::default(),
+        };
+        for frame in &frames {
+            assert!(traversal.visit(&program, frame).unwrap());
+        }
+        for frame in &frames {
+            assert!(!traversal.visit(&program, frame).unwrap());
+        }
+        assert!(traversal.supported.is_empty());
+        assert_eq!(traversal.exact, frames.into());
+    }
 
     #[test]
     fn only_supported_fixed_target_conditions_share_and_missing_bodies_remain_conservative() {
