@@ -133,8 +133,8 @@ bound ABI channel. Input/result metadata queries share the instance work quota a
 exact code/input or result on failure. MIR expression production and local binding consume the
 original occurrence definitions, and operand projection uses the matching action's actual reads.
 Detached declaration-closed metadata can still select scalar snapshots; a missing contextual
-occurrence cannot fall back to a frame-wide type entry. Partial carrier roots, evaluator plans and
-general post-update environments still require integration before source formal captures can open.
+occurrence cannot fall back to a frame-wide type entry. Partial carrier roots and general post-update
+representation still require integration before source formal captures can open.
 
 `projection::requirements` demands concrete data only for the frozen input/result ABI, checked
 reachable operations and their actual resource-step payloads. Beginning an evaluation does not

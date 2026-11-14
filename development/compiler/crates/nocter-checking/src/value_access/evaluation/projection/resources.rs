@@ -7,6 +7,27 @@ use crate::value_access::flow::{
 use nocter_declarations::value_access::DataInstanceKey;
 
 impl Builder<'_, '_> {
+    pub(super) fn prepare_value_data(&mut self) -> Result<()> {
+        use crate::value_access::ValueSourceSlot;
+        let definitions = self
+            .values
+            .definitions()
+            .map(|((_, slot), payload)| {
+                let holder = match slot {
+                    ValueSourceSlot::Local(local) => Holder::Local(local),
+                    ValueSourceSlot::Expression(expression) => Holder::Expression(expression),
+                    ValueSourceSlot::Argument { .. } | ValueSourceSlot::Return => {
+                        return Err(INVALID);
+                    }
+                };
+                Ok((holder, payload.instance().clone()))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        for (holder, data) in definitions {
+            self.register_holder(holder, &data)?;
+        }
+        Ok(())
+    }
     pub(super) fn prepare_resource_data(&mut self) -> Result<()> {
         let query = self.query;
         for (point, block) in query.graph().points().iter() {

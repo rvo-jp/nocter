@@ -225,6 +225,8 @@ fn bound_callback_failures_keep_actual_sites_and_recover_the_same_request_coordi
             std::num::NonZeroU32::new(8).unwrap(),
         );
         let mut preparation = Preparation::new(context, Headers::Closed, limits.into());
+        // This test isolates execution failures; metadata work has its own bounded tests.
+        preparation.plan_work = state::WorkBudget::new(state::Limits::default().steps());
         let mut requests = Dependencies::default();
         let Err(QueryError::Computation(SourceFailure::Checking(Failure::Evaluation {
             diagnostic,

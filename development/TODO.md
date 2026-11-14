@@ -24,11 +24,11 @@ The [checking](compiler/crates/nocter-checking/README.md) and
 [target-program](compiler/crates/nocter-target-program/README.md) owners describe the implemented
 canonical metadata, original source-definition queries and ordered lifecycle specialization.
 
-Next close remaining partial carrier-root selection and evaluator expression/local
-plan data against the exact per-value keys. The component owners above describe completed ordinary
-operand/definition, shared body-channel metadata, invocation, body-ABI, lifecycle and storage scope.
-Finish remaining evaluator slot selection from checking's shared original-value and ordered
-resource-data projection; the checking owner records covered non-materializing views. Keep
+Next close remaining partial carrier-root selection and context-changing evaluator slots against
+the exact per-value keys. The component owners above describe covered ordinary operand/definition,
+evaluator slot metadata, shared body-channel metadata, invocation, body-ABI, lifecycle and storage scope.
+Keep evaluator slot selection on checking's shared original-value and ordered resource-data
+projection; the checking owner records covered non-materializing views. Keep
 execution lowering separate from source-value normalization.
 Keep preparation-time snapshots and staged returns; preserve interrupted preparation metadata
 without inventing a committed call or materialization permission. Post-update dependent environments
@@ -44,9 +44,6 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [ ] Close carrier representation coherence under the
   [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances)
   before admitting context-changing writes and retained sibling references.
-- [ ] Preserve guarded carrier source identity in the original-value graph before integrating
-  evaluator occurrence maps. A tag assertion retains the whole carrier; payload selection and
-  executable availability remain separate obligations.
 
 Qualify the same lexical closure with different captured callbacks before and after forwarding
 it with another instance, including safe/unsafe ordinary source, conditional const admission,

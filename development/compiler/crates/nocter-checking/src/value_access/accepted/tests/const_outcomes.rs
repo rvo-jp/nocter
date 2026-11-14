@@ -155,6 +155,10 @@ fn success_and_inactive_error_data_execute_and_freeze_without_error_values() {
         Datum::variant(true, Some(Datum::integer(42)))
     );
     assert_eq!(
+        super::initializers::answer(source, "GUARDED"),
+        Datum::integer(42)
+    );
+    assert_eq!(
         super::initializers::answer(source, "EMPTY"),
         Datum::variant(false, None)
     );

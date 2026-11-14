@@ -128,6 +128,7 @@ impl<'a, 'work, F: Fn(AccessCodeId) -> Option<plan::Value>> Source<'a, 'work, F>
         let query = self.checked.code(key.code()).ok_or(INVALID)?;
         let program = &self.checked.program;
         let prepared = self.checked.instantiate_prepared_data(&key, self.work)?;
+        let values = self.checked.instantiate_value_data_map(&key, self.work)?;
         let body = Builder {
             checked: self.checked,
             work: self.work,
@@ -140,6 +141,7 @@ impl<'a, 'work, F: Fn(AccessCodeId) -> Option<plan::Value>> Source<'a, 'work, F>
             keys: BTreeMap::new(),
             invocations: BTreeMap::new(),
             prepared,
+            values,
         }
         .build()?;
         let mut extension = plan::ProgramExtension::default();

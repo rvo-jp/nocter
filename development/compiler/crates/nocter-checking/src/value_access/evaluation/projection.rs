@@ -53,6 +53,14 @@ impl From<crate::value_access::ResourceDataFailure> for Failure {
         }
     }
 }
+impl From<crate::value_access::ValueDataFailure> for Failure {
+    fn from(failure: crate::value_access::ValueDataFailure) -> Self {
+        match failure {
+            crate::value_access::ValueDataFailure::Body => Self::Integrity,
+            crate::value_access::ValueDataFailure::Value { failure, .. } => failure.into(),
+        }
+    }
+}
 const INVALID: Failure = Failure::Integrity;
 type Result<T> = std::result::Result<T, Failure>;
 use super::Types;
@@ -75,6 +83,7 @@ struct Builder<'a, 'b> {
     keys: BTreeMap<Key, usize>,
     invocations: BTreeMap<AccessExpressionId, CodeInstanceKey>,
     prepared: crate::value_access::PreparedData,
+    values: crate::value_access::ValueData,
 }
 impl Builder<'_, '_> {
     fn expression(&self, id: AccessExpressionId) -> Result<super::super::ValueType> {
@@ -134,7 +143,12 @@ impl Builder<'_, '_> {
                     let data = self.prepared.get(call, index).ok_or(INVALID)?.clone();
                     self.types.get_instance(self.program, data)?
                 }
-                _ => self.types.get_in(self.program, self.instance, data)?,
+                _ => self.types.get_instance(
+                    self.program,
+                    self.program
+                        .instantiate_closed_data(data)
+                        .map_err(|_| INVALID)?,
+                )?,
             };
         self.slot_data(key, data, storage)
     }
@@ -962,6 +976,7 @@ impl Builder<'_, '_> {
         })
     }
     fn build(mut self) -> Result<plan::Plan> {
+        self.prepare_value_data()?;
         self.prepare_resource_data()?;
         let inputs = self
             .query

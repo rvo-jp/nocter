@@ -38,6 +38,10 @@ impl Builder<'_> {
                 let source = self.place(point, Referent::Place(*place), state)?;
                 ValueSource::Adapt { source }
             }
+            // Checking a tag retains this complete carrier, not a fresh or selected payload.
+            ExpressionKind::GuardView { source, .. } => ValueSource::Adapt {
+                source: self.place(point, *source, state)?,
+            },
             ExpressionKind::Boundary { source, .. }
             | ExpressionKind::AdaptFunction { source }
             | ExpressionKind::Move(Referent::Evaluated(source))

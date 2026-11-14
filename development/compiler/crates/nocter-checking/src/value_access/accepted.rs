@@ -480,6 +480,19 @@ pub(super) struct Checked {
     const_templates: Arc<super::constant::Catalog>,
 }
 impl Checked {
+    pub(super) fn instantiate_value_data_map(
+        &self,
+        frame: &nocter_declarations::value_access::CodeInstanceKey,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<super::ValueData, super::ValueDataFailure> {
+        super::results::instantiate_value_data_map(
+            &self.program,
+            &self.result_evidence,
+            self.code(frame.code()),
+            frame,
+            work,
+        )
+    }
     pub(super) fn project_resource_data<'a, 'work>(
         &'a self,
         frame: &'a nocter_declarations::value_access::CodeInstanceKey,

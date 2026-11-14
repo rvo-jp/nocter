@@ -33,6 +33,13 @@ impl ValueData {
     pub fn payloads(&self) -> impl Iterator<Item = &Payload> {
         self.operands.values().chain(self.definitions.values())
     }
+    pub(in crate::value_access) fn definitions(
+        &self,
+    ) -> impl Iterator<Item = ((flow::Location, ValueSourceSlot), &Payload)> {
+        self.definitions
+            .iter()
+            .map(|(&slot, payload)| (slot, payload))
+    }
 }
 
 pub(in crate::value_access) fn values(

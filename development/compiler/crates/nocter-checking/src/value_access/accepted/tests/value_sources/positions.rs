@@ -4,6 +4,91 @@ use crate::value_access::{InstantiationFailure, ValueSourceSelection};
 use crate::value_access::{Referent, ValueSourceBoundary, ValueSourceRead, ValueSourceSlot, flow};
 
 #[test]
+fn guarded_carriers_retain_the_actual_source_on_each_side_of_a_replacement() {
+    for carrier in ["i32?", "i32!"] {
+        let unit = accepted(&format!(
+            "func make(value: i32): {carrier} {{ value }}
+                func inspect(value: i32): i32 {{ value }}\nfunc run(): i32 {{
+                var current = make(41)\nlet before = inspect(current!)\ncurrent = make(42)
+                let after = inspect(current!)\nbefore + after\n}}"
+        ));
+        let owner = code(&unit, "run");
+        let graph = unit.value_sources(owner).unwrap();
+        let body = unit.code_body(owner).unwrap().typed().body();
+        let calls = factories(&unit, owner);
+        assert_eq!(calls.len(), 2);
+        let mut snapshots = Vec::new();
+        for (_, node) in graph.nodes() {
+            let Some(expression) = node.expression else {
+                continue;
+            };
+            let ExpressionKind::GuardView {
+                source: Referent::Place(place),
+                ..
+            } = body.expressions().get(expression).unwrap().kind
+            else {
+                continue;
+            };
+            let ValueSource::Adapt { source } = node.value else {
+                panic!("a tag assertion must retain its carrier source");
+            };
+            let ValueSource::Select { source: root, path } = &graph.node(source).unwrap().value
+            else {
+                panic!("the fixture guards an existing whole local");
+            };
+            assert!(path.is_root());
+            let slot = ValueSourceSlot::Local(body.places().get(place).unwrap().local);
+            let at = node.origin.unwrap();
+            match graph
+                .flow()
+                .unwrap()
+                .read(
+                    ValueSourceBoundary {
+                        point: at.point,
+                        action: at.action,
+                    },
+                    slot,
+                )
+                .unwrap()
+            {
+                ValueSourceRead::Value(selected) => assert_eq!(*root, selected),
+                ValueSourceRead::Incoming(_) => {
+                    let ValueSource::Merge {
+                        point,
+                        slot: selected,
+                        ..
+                    } = graph.node(*root).unwrap().value
+                    else {
+                        panic!("the guard must retain the original boundary's merge");
+                    };
+                    assert_eq!(point, at.point);
+                    assert_eq!(selected, slot);
+                }
+                ValueSourceRead::Empty => panic!("the fixture guards an initialized local"),
+            }
+            snapshots.push(reachable_calls(graph, source));
+            assert_eq!(
+                node.data,
+                body.expressions()
+                    .get(expression)
+                    .unwrap()
+                    .ty
+                    .access()
+                    .map(nocter_model::ValueAccess::data)
+            );
+        }
+        assert_eq!(
+            snapshots,
+            // Replacement retains the old root as metadata; it is not a second current value.
+            vec![
+                BTreeSet::from([calls[0]]),
+                BTreeSet::from([calls[0], calls[1]])
+            ]
+        );
+    }
+}
+
+#[test]
 fn prepared_data_exhaustion_retains_the_argument_site_and_allows_retry() {
     let unit =
         accepted("func identity(value: i32): i32 { value }\nfunc run(): i32 { identity(42) }");

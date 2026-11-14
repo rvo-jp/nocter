@@ -477,6 +477,8 @@ multiple writes within a commit do not become new source boundaries or resource 
 `flow.referent` retains the value selected by an assignment target before its write, through the
 same lexical alias authority. A repeated alias write therefore refers to the current source root,
 not the value at alias formation. An uninitialized target's metadata grants no previous payload.
+Guarded carrier views likewise retain their actual referent source before payload selection. A tag
+assertion does not replace the carrier with its payload, choose an alternative or prove availability.
 
 `Unit::instantiate_stored_data` resolves a selected source slot/component at one such boundary
 through the existing budgeted fixed point. Backedges remain sparse dependencies. Different carrier
@@ -493,7 +495,7 @@ the actual return producers. This does not assert that a diverging body returns;
 `instantiate_result_data` query still requires those producers. The evaluator's contracts, input and
 return slots, and plan result use this authority under the shared plan-work quota. Exhaustion during
 initial contract preparation retains the ordinary plan-work diagnostic rather than becoming an
-integrity failure. Ordinary evaluator expression/local occurrence data remain a separate integration task.
+integrity failure.
 
 `Unit::instantiate_value_data_map` owns ordinary operand and stored-definition metadata. It reads
 the original source graph's operand selections and final local/expression writes at each reachable
@@ -502,7 +504,11 @@ writes within one action do not become new phases. Unproduced contracts supply n
 identifies the original action and publishes no partial map; a fresh request can retry. The read-only
 `ValueData` retains actual instantiated payload contracts without adding owners or granting source
 access, materialization or executable-body permission. Target-program occurrence projection consumes
-this map directly; evaluator integration remains open.
+this map directly. Evaluator preparation registers its local/expression definitions alongside the
+ordered resource metadata through the same slot interner. One slot must have a coherent represented
+shape; conflicting contexts reject rather than selecting the first. Residual independently closed
+metadata needs no occurrence binding and cannot fall back to frame-wide type substitution. Metadata
+preparation spends plan work and allocates no runtime cells or owners.
 
 `Unit::instantiate_prepared_data` freezes preparation-time data from the original argument-slot
 definitions under one metadata quota. The typed call owns each ordinal and schema. Equal repeated
@@ -827,8 +833,8 @@ slot reject at the current qualification boundary. Place, boundary, guard, compo
 views select their metadata from the represented source slot; read/edit local bindings and forwarded
 views preserve that selection. Physical component lookup has one evaluator authority and does not
 establish active variants, initialized payloads or valid runtime index numbers. Empty arrays provide
-no element view. Remaining ordinary expression/local selection and changing partial-carrier geometry
-remain separate obligations.
+no element view. Remaining partial-carrier roots, context-changing slot geometry and post-update
+dependent environments remain separate obligations.
 `resources::Payload::instantiate` binds an existing logical schema to the declaration-owned
 `DataInstanceKey`, preserving the actual callable representation and nested captured context.
 `InstantiatedPayload` retains that complete key with its concrete root cleanup obligation. Its
