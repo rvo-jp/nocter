@@ -106,9 +106,22 @@ impl Builder<'_> {
         control: &flow::Control,
         reached: &BTreeSet<AccessFlowPointId>,
     ) -> Result<super::ValueSourceFlow> {
+        let channels = self
+            .query
+            .body
+            .inputs
+            .ordered()
+            .map(|input| {
+                Ok(super::ValueSourceInput {
+                    source: *self.inputs.get(&Slot::Local(input.local)).ok_or(INVALID)?,
+                    operation: input.operation,
+                })
+            })
+            .collect::<Result<Box<[_]>>>()?;
         Ok(super::ValueSourceFlow {
             entry: control.graph.entry(),
             inputs: std::mem::take(&mut self.inputs),
+            channels,
             points: reached
                 .iter()
                 .map(|&point| {

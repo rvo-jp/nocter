@@ -4,6 +4,84 @@ use crate::value_access::{InstantiationFailure, ValueSourceSelection};
 use crate::value_access::{Referent, ValueSourceBoundary, ValueSourceRead, ValueSourceSlot, flow};
 
 #[test]
+fn body_source_channels_preserve_typed_order_modes_and_capture_prefix_without_static_locals() {
+    let unit = accepted(
+        "static FIXED: i32 = 1\nfunc named(value: i32, edit target: i32, take owned: error): void { target = value\ndrop owned }\nfunc run(): i32 { let count = 40\nvar action = (count; value: i32): i32 { count += value\ncount + FIXED }\naction(1) }",
+    );
+    let bodies = unit
+        .bodies()
+        .map(|(id, body)| (ValueCode::Declaration(id), body))
+        .chain(
+            unit.closures()
+                .iter()
+                .map(|(&id, body)| (ValueCode::Closure(id), body.as_ref())),
+        );
+    let mut saw_environment = false;
+    let mut saw_static = false;
+    for (owner, checked) in bodies {
+        let graph = unit.value_sources(owner).unwrap();
+        let flow = graph.flow().unwrap();
+        let body = checked.typed().body();
+        let inputs = body.inputs().ordered().collect::<Vec<_>>();
+        assert_eq!(flow.channels().len(), inputs.len());
+        for (index, (channel, input)) in flow.channels().iter().zip(inputs).enumerate() {
+            let node = graph.node(channel.source).unwrap();
+            let ValueSource::Input { local, origin } = node.value else {
+                panic!("original input source")
+            };
+            assert_eq!(local, input.local);
+            assert_eq!(channel.operation, input.operation);
+            assert_eq!(node.data, Some(body.locals().get(local).unwrap().data));
+            assert_eq!(origin, body.locals().get(local).unwrap().origin);
+            assert!(origin.is_input());
+            if origin == crate::value_access::ir::LocalOrigin::Capture {
+                assert_eq!(index, 0);
+                saw_environment = true;
+            }
+            assert_eq!(
+                flow.read(
+                    ValueSourceBoundary {
+                        point: checked.graph().entry(),
+                        action: 0
+                    },
+                    ValueSourceSlot::Local(local)
+                ),
+                Some(ValueSourceRead::Value(channel.source))
+            );
+        }
+        for (id, node) in graph.nodes() {
+            if matches!(
+                node.value,
+                ValueSource::Input {
+                    origin: crate::value_access::ir::LocalOrigin::Static(_),
+                    ..
+                }
+            ) {
+                assert!(flow.channels().iter().all(|channel| channel.source != id));
+                saw_static = true;
+            }
+        }
+    }
+    assert!(saw_environment && saw_static);
+    let owner = code(&unit, "named");
+    assert_eq!(
+        unit.value_sources(owner)
+            .unwrap()
+            .flow()
+            .unwrap()
+            .channels()
+            .iter()
+            .map(|channel| channel.operation)
+            .collect::<Vec<_>>(),
+        [
+            nocter_model::ValueInputOperation::Read,
+            nocter_model::ValueInputOperation::Edit,
+            nocter_model::ValueInputOperation::Take
+        ]
+    );
+}
+
+#[test]
 fn receiver_writes_keep_array_selections_weak_and_direct_locals_strong() {
     let unit = accepted(
         "func run(): i32 { let count = 0\nvar action = (count;): i32 { count += 1\ncount }\nlet _ = action()\nvar callbacks = [action; 2]\ncallbacks[0]() }",

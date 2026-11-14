@@ -9,7 +9,8 @@ use std::collections::{BTreeMap, BTreeSet};
 mod build;
 mod positions;
 pub use positions::{
-    ValueSourceBoundary, ValueSourceCarrier, ValueSourceFlow, ValueSourceRead, ValueSourceSelection,
+    ValueSourceBoundary, ValueSourceCarrier, ValueSourceFlow, ValueSourceInput, ValueSourceRead,
+    ValueSourceSelection,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]

@@ -31,6 +31,11 @@ fn completed_body(
         BTreeMap::new(),
         BTreeMap::from([((entry, slot), vec![(0, id(2))])]),
         BTreeSet::from([entry]),
+        vec![crate::value_access::ValueSourceInput {
+            source: id(0),
+            operation: nocter_model::ValueInputOperation::Edit,
+        }]
+        .into(),
     );
     ValueSources::test(
         code,

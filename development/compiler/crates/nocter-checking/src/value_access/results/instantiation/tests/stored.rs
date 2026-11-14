@@ -131,6 +131,7 @@ fn loop_positions(
             ]),
             writes,
             BTreeSet::new(),
+            Box::new([]),
         ),
         points,
     )
@@ -176,6 +177,7 @@ fn completed_inputs_join_actual_final_contexts_and_never_choose_one_return() {
             BTreeMap::from([(left, vec![entry]), (right, vec![entry])]),
             writes,
             BTreeSet::from([left, right]),
+            Box::new([]),
         );
         let graph = ValueSources::test(
             frame.code(),

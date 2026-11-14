@@ -28,8 +28,8 @@ pub(super) use typing::deferred_equalities;
 mod value_sources;
 pub use value_sources::{
     CallValueSources, ValueSource, ValueSourceBoundary, ValueSourceCarrier, ValueSourceFlow,
-    ValueSourceId, ValueSourceNode, ValueSourceRead, ValueSourceSelection, ValueSourceSlot,
-    ValueSources,
+    ValueSourceId, ValueSourceInput, ValueSourceNode, ValueSourceRead, ValueSourceSelection,
+    ValueSourceSlot, ValueSources,
 };
 mod unproduced;
 mod values;

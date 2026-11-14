@@ -476,6 +476,11 @@ Definitions survive retirement as metadata and do not make retired owners access
 sequences. Early and ordinary returns use those same sparse boundaries; a diverging path creates
 none. These endpoints can select final input definitions without substituting argument-preparation
 snapshots. They prove no actual completion, cleanup execution, ownership or resource phase.
+`flow.channels` is a derived view of the original typed input order, including its environment
+prefix. Each `ValueSourceInput` retains only the corresponding entry source and input operation;
+the source node owns its local, role and schema. Static/global entry definitions are excluded.
+Construction uses the typed input authority directly rather than reconstructing order from names,
+arity or a sorted local map. This view grants no argument value or new input/access receipt.
 The occurrence iterators expose these reads and the final write per slot in each original action;
 multiple writes within a commit do not become new source boundaries or resource phases.
 `flow.referent` retains the value selected by an assignment target before its write, through the

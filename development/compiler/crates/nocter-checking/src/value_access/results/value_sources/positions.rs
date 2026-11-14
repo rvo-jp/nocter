@@ -39,6 +39,13 @@ pub(super) struct RootSelection {
     pub(super) source: ValueSourceId,
     pub(super) carriers: Box<[ValueSourceCarrier]>,
 }
+/// One original body input in typed input order. The source owns its local and schema;
+/// this frozen correspondence grants no input value, ownership or source access.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ValueSourceInput {
+    pub source: ValueSourceId,
+    pub operation: nocter_model::ValueInputOperation,
+}
 #[derive(Clone, Debug)]
 pub(super) struct RootSources {
     pub(super) before: RootSelection,
@@ -48,6 +55,7 @@ pub(super) struct RootSources {
 pub struct ValueSourceFlow {
     pub(super) entry: AccessFlowPointId,
     pub(super) inputs: State,
+    pub(super) channels: Box<[ValueSourceInput]>,
     pub(super) points: BTreeMap<AccessFlowPointId, usize>,
     pub(super) predecessors: BTreeMap<AccessFlowPointId, Vec<AccessFlowPointId>>,
     pub(super) writes: BTreeMap<(AccessFlowPointId, ValueSourceSlot), Vec<(usize, ValueSourceId)>>,
@@ -65,11 +73,13 @@ impl ValueSourceFlow {
         predecessors: BTreeMap<AccessFlowPointId, Vec<AccessFlowPointId>>,
         writes: BTreeMap<(AccessFlowPointId, ValueSourceSlot), Vec<(usize, ValueSourceId)>>,
         returns: BTreeSet<AccessFlowPointId>,
+        channels: Box<[ValueSourceInput]>,
     ) -> Self {
         Self {
             entry,
             points,
             inputs,
+            channels,
             predecessors,
             writes,
             reads: BTreeMap::new(),
@@ -82,6 +92,12 @@ impl ValueSourceFlow {
         &self,
     ) -> impl Iterator<Item = (ValueSourceSlot, ValueSourceId)> + '_ {
         self.inputs.iter().map(|(&slot, &source)| (slot, source))
+    }
+    /// Original body channels, including the typed environment prefix. Static/global entry
+    /// definitions are not callable inputs and do not appear here.
+    #[must_use]
+    pub fn channels(&self) -> &[ValueSourceInput] {
+        &self.channels
     }
     /// Original normal-return boundaries, after each return point's complete action sequence.
     /// This records possible source completion, not execution, cleanup or a resource-phase receipt.
