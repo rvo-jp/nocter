@@ -330,6 +330,71 @@ fn weaker_handoffs_and_invalid_adapter_backing_reject_before_execution() {
     }
 }
 #[test]
+fn taking_protection_requires_one_matched_before_effect_at_the_call_boundary() {
+    for case in 0..5 {
+        let valid = program(Op::Edit, Op::Take).unwrap();
+        let mut changed = 0;
+        let plans = valid
+            .plans
+            .into_iter()
+            .map(|(key, plan)| {
+                let mut plan = (*plan).clone();
+                plan.points = plan.points.map(|_, point| {
+                    let mut point = point.clone();
+                    for action in &mut point.actions {
+                        if !matches!(action.operation, Operation::Call { .. }) {
+                            continue;
+                        }
+                        for alternative in &mut action.alternatives {
+                            let mut before = alternative.before.to_vec();
+                            let Some(index) = before
+                                .iter()
+                                .position(|effect| matches!(effect, Effect::Invoke { .. }))
+                            else {
+                                continue;
+                            };
+                            let invoke = before[index].clone();
+                            match case {
+                                0 => {
+                                    before.remove(index);
+                                }
+                                1 => before.push(invoke),
+                                2 => {
+                                    before.remove(index);
+                                    let mut after = alternative.after.to_vec();
+                                    after.push(invoke);
+                                    alternative.after = after.into();
+                                }
+                                3 => {
+                                    let Effect::Invoke { inputs, .. } = &mut before[index] else {
+                                        unreachable!()
+                                    };
+                                    inputs[0].1 = Place::root(0);
+                                }
+                                4 => action.operation = Operation::None,
+                                _ => unreachable!(),
+                            }
+                            alternative.before = before.into();
+                            changed += 1;
+                        }
+                    }
+                    point
+                });
+                (key, plan)
+            })
+            .collect();
+        assert!(changed > 0);
+        assert!(
+            matches!(
+                Program::new(valid.types, plans, valid.statics),
+                Err(Rule::InvalidPlan)
+            ),
+            "case {case}"
+        );
+    }
+}
+
+#[test]
 fn taking_adapter_storage_failures_release_received_values_and_frames() {
     let (root, _) = code_ids();
     let program = program(Op::Edit, Op::Take).unwrap();

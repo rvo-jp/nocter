@@ -1,5 +1,6 @@
 use super::{Data, Effect, Operation, Place, Program, Rule, Storage, Terminator, Type, Value};
 use std::collections::{BTreeMap, BTreeSet};
+mod handoffs;
 type Result<T> = std::result::Result<T, Rule>;
 const INVALID: Rule = Rule::InvalidPlan;
 fn ordinary_slot(plan: &super::Plan, id: usize) -> Result<&super::Slot> {
@@ -281,7 +282,6 @@ fn validate_action(program: &Program, plan: &super::Plan, action: &super::Action
     }
     let mut guards = BTreeMap::new();
     for alternative in &action.alternatives {
-        validate_handoffs(program, plan, action, alternative)?;
         let phases = (&alternative.before, &alternative.after);
         if guards
             .insert(&alternative.owned, phases)
@@ -351,64 +351,27 @@ fn validate_action(program: &Program, plan: &super::Plan, action: &super::Action
                 }
             }
         }
+        let mut handoffs = handoffs::Handoffs::new(&action.operation);
         for step in alternative.sequence(&action.operation) {
             match step {
-                super::sequence::Step::Before(effect) | super::sequence::Step::After(effect) => {
+                super::sequence::Step::Before(effect) => {
+                    handoffs.protect(program, plan, effect)?;
                     check_effect(program, plan, effect)?;
                 }
-                super::sequence::Step::Operation(op) => operation(program, plan, op)?,
+                super::sequence::Step::Operation(op) => {
+                    handoffs.complete()?;
+                    operation(program, plan, op)?;
+                }
+                super::sequence::Step::After(effect) => {
+                    if matches!(effect, Effect::Invoke { .. }) {
+                        return Err(INVALID);
+                    }
+                    check_effect(program, plan, effect)?;
+                }
             }
         }
     }
 
-    Ok(())
-}
-fn validate_handoffs(
-    program: &Program,
-    plan: &super::Plan,
-    action: &super::Action,
-    alternative: &super::Alternative,
-) -> Result<()> {
-    let inputs = if let Operation::Call { inputs, .. } = &action.operation {
-        inputs.as_ref()
-    } else {
-        &[]
-    };
-    let mut protected = BTreeSet::new();
-    for effect in &alternative.before {
-        if let Effect::Invoke {
-            source,
-            inputs: positions,
-        } = effect
-        {
-            if !matches!(action.operation, Operation::Call { .. }) {
-                return Err(INVALID);
-            }
-            for (index, payload) in positions {
-                let index = *index;
-                let super::Input::Take(data) = inputs.get(index).ok_or(INVALID)? else {
-                    return Err(INVALID);
-                };
-                if place(program, plan, payload)? != *data
-                    || !protected.insert(index)
-                    || payload.slot != source.slot
-                    || !payload.fields.starts_with(&source.fields)
-                {
-                    return Err(INVALID);
-                }
-            }
-        }
-    }
-    if alternative
-        .after
-        .iter()
-        .any(|effect| matches!(effect, Effect::Invoke { .. }))
-        || inputs.iter().enumerate().any(|(index, input)| {
-            (matches!(input, super::Input::Take(_))) != protected.contains(&index)
-        })
-    {
-        return Err(INVALID);
-    }
     Ok(())
 }
 fn operation(program: &Program, plan: &super::Plan, op: &Operation) -> Result<()> {
