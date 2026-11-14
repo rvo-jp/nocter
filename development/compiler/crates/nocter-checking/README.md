@@ -574,11 +574,14 @@ preparation spends plan work and allocates no runtime cells or owners.
 `Unit::instantiate_prepared_data` freezes preparation-time data from the original argument-slot
 definitions under one metadata quota. The typed call owns each ordinal and schema. Equal repeated
 preparations share a key; incompatible contexts reject without publishing a partial map. The
-read-only result includes successfully prepared prefixes whose invocation never commits. Evaluator
-prepared/temporary slots and target-program payload projection consume these same keys, preserving
+read-only result selects only original preparation actions, even when the argument slot also has a
+post-call definition, and includes successfully prepared prefixes whose invocation never commits.
+Evaluator prepared/temporary slots and target-program payload projection consume these same keys, preserving
 source effects and adapter timing. The metadata creates no callee, value, access or materialization
-permission. Post-call prepared/temporary writes that change dependent contexts remain a separate qualification boundary;
-an immutable preparation snapshot does not describe a changed environment.
+permission. Materialized edit inputs have separate post-call argument definitions, while their
+frozen call bundles and preparation contracts retain the entry sources. General dependent carrier
+completion and changing evaluator slot shapes remain separate qualification boundaries; an
+immutable preparation snapshot does not describe a changed environment.
 
 Evaluator projection memoizes each committed call's actual source frame within one body plan.
 Receiver-prefix handling, owning input data and call-result slots consume that same frame; a
@@ -908,7 +911,12 @@ the earlier alias snapshot. This still supplies no physical geometry or ownershi
 Capture, function-view adaptation and component assembly use the declaration-owned canonical operations;
 array element keys must agree without selecting an arbitrary first context. Independently closed
 schemas select metadata without consulting a backend's frame-wide type cache. Original transitions
-still own before/after order, availability and guards. A failed step list restores prior data
+still own before/after order, availability and guards. Both evaluator preparation and native
+lifecycle pass their checked post-operation steps through `ResourceDataProjection::after_steps`.
+At an original committed call this invalidates entry bindings only for edited temporary inputs;
+later cleanup selects their post-call argument or owned-expression sources. Interrupted preparation
+and read inputs keep their entry metadata. No operation phase is inferred from a cleanup step's
+name. A failed step list, including post-operation selection, restores prior data
 bindings and publishes no partial list, while spent metadata work remains spent. This projection
 grants no source, layout or executable receipt. Native lifecycle schedules and evaluator whole-slot
 metadata consume this authority. Evaluator preparation registers selected whole roots, assembled

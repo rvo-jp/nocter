@@ -249,7 +249,7 @@ fn lower(
                         payloads::Projection::new(program, instance, id, at, work)?;
                     let before = projection.steps(transition.before_steps())?;
                     let mut after = completion.clone().into_iter().collect::<Vec<_>>();
-                    after.extend(projection.steps(transition.after_steps())?);
+                    after.extend(projection.after_steps(transition.after_steps())?);
                     let candidate = Draft {
                         condition: condition.clone(),
                         operation_state: transition.operation_condition().clone(),

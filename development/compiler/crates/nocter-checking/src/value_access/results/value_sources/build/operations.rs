@@ -146,6 +146,13 @@ impl Builder<'_> {
                 ArgumentAction::AccessOwnedValue => {
                     vec![(Slot::Expression(argument.value), ValuePath::default())]
                 }
+                // The frozen bundle keeps its entry snapshot; a lent materialization has
+                // a separate completed argument definition for later temporary cleanup.
+                ArgumentAction::ReserveTransfer { .. }
+                | ArgumentAction::TakeValue
+                | ArgumentAction::CopyPlace(_) => {
+                    vec![(Slot::Argument { call, index }, ValuePath::default())]
+                }
                 _ => continue,
             };
             let ambiguous = paths.len() != 1;

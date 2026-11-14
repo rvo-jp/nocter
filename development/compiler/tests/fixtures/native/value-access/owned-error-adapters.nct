@@ -16,6 +16,15 @@ func update(take action: once(take error): i32, take next: error): i32 {
     action^(next^)
 }
 func forward(take action: func(): i32): i32 { invoke(action^) }
+func lend_temporary(edit action: mut(take error): i32, take next: error): i32 {
+    action(next^)
+}
+func edited_temporary(): i32 {
+    let held = make("temporary before edit")
+    let action = (held^; take next: error): i32 { replace(held, next^)
+                                                42 }
+    lend_temporary(action^, make("temporary after edit"))
+}
 
 func read_environment(): i32 {
     let held = make("read")
@@ -67,5 +76,5 @@ func failed_environment(): i32 {
     }
 }
 func run(): i32 {
-    if read_environment() == 42 && view_chain() == 42 && updated_environment() == 42 && consumed_environment() == 42 && selected_environment(0) == 42 && selected_environment(1) == 42 && selected_environment(2) == 42 && failed_environment() == 42 { 42 } else { 0 }
+    if read_environment() == 42 && view_chain() == 42 && updated_environment() == 42 && edited_temporary() == 42 && consumed_environment() == 42 && selected_environment(0) == 42 && selected_environment(1) == 42 && selected_environment(2) == 42 && failed_environment() == 42 { 42 } else { 0 }
 }

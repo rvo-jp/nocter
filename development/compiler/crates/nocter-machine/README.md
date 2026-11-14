@@ -383,6 +383,7 @@ replacement to be disposed exactly once; native execution exercises the containe
 
 `owned-error-adapters.nct` executes read environments forwarded through formal consuming adapters,
 read-to-update-to-once views, repeated environment replacement followed by consuming completion,
+an owned callable lent as an edit temporary that replaces its error graph before final cleanup,
 and consuming bodies with partial record/retained-array cleanup. A fallible read body also returns
 a separate error graph: adapter cleanup releases its environment before the caller handles that
 failure. The original body invocation contract determines whether cleanup belongs to the body or

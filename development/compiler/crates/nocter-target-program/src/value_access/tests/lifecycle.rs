@@ -372,6 +372,63 @@ fn a_consuming_adapter_destroys_the_live_post_update_environment() {
 }
 
 #[test]
+fn a_lent_callable_temporary_is_destroyed_once_by_its_caller_after_the_edit_call() {
+    use nocter_checking::value_access::flow::resources::Holder;
+    let program = lower_source(
+        "func reset(edit target: error, take replacement: error): void { target = replacement^ }\nfunc lend(edit action: mut(take error): i32, take next: error): i32 { action(next^) }\nfunc run(take held: error, take next: error): i32 {\nlet action = (held^; take replacement: error): i32 { reset(held, replacement^)\n42 }\nlend(action^, next^)\n}",
+    );
+    let (run, root) = instance(program.instance_program(), "run");
+    let (&call, _) = root.calls().iter().next().unwrap();
+    assert_eq!(root.calls().len(), 1);
+    let temporary = Holder::Temporary { call, index: 0 };
+    let call_at = program.bodies()[&run].actions().keys().find(|&&at| {
+        matches!(operation(&program, run, at), Operation::CommitCall(selected) if *selected == call)
+    }).copied().unwrap();
+    let mut disposals = 0;
+    let mut transfers = 0;
+    for (&at, action) in program.bodies()[&run].actions() {
+        for alternative in action.alternatives() {
+            for (after, steps) in [(false, alternative.before()), (true, alternative.after())] {
+                for step in steps {
+                    match step {
+                        Step::Resource(ResourceStep::Move {
+                            destination,
+                            payload,
+                            ..
+                        }) if destination.holder() == temporary => {
+                            assert_eq!(at, call_at);
+                            assert!(!after);
+                            assert_eq!(payload.disposal(), Disposal::OwnedCapture);
+                            transfers += 1;
+                        }
+                        Step::Resource(ResourceStep::Dispose { source, payload })
+                            if source.holder() == temporary =>
+                        {
+                            assert_eq!(at.point, call_at.point);
+                            assert!(at.action > call_at.action || at == call_at && after);
+                            assert!(source.fields().is_root());
+                            assert_eq!(payload.disposal(), Disposal::OwnedCapture);
+                            disposals += 1;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!((transfers, disposals), (1, 1));
+    let (lend, _) = instance(program.instance_program(), "lend");
+    assert!(
+        !program.bodies()[&lend]
+            .actions()
+            .values()
+            .flat_map(lowering::Action::alternatives)
+            .flat_map(|alternative| alternative.before().iter().chain(alternative.after()))
+            .any(|step| matches!(step, Step::DisposeEnvironment { .. }))
+    );
+}
+
+#[test]
 fn scoped_field_replacement_retains_carrier_roots_separately_from_leaf_cleanup() {
     let program = lower_source(
         "struct Pair { first: i32\nsecond: i32 }\nfunc set(edit pair: Pair): void { pair.first = 42 }\nfunc run(): i32 { var bundle = (Pair { first: 41, second: 1 }, 0)\nset(bundle.0)\nedit pair = bundle.0\npair.first = 42\nbundle.0.first }",

@@ -42,6 +42,12 @@ impl<'a, 'work> Projection<'a, 'work> {
         })
     }
     pub(super) fn steps(&mut self, steps: &[ResourceStep]) -> Result<Vec<Step>, Failure> {
+        self.project(steps, false)
+    }
+    pub(super) fn after_steps(&mut self, steps: &[ResourceStep]) -> Result<Vec<Step>, Failure> {
+        self.project(steps, true)
+    }
+    fn project(&mut self, steps: &[ResourceStep], completed: bool) -> Result<Vec<Step>, Failure> {
         // Preflight metadata matching before the atomic data projection changes its bindings.
         let roots = steps
             .iter()
@@ -66,10 +72,12 @@ impl<'a, 'work> Projection<'a, 'work> {
                 Ok(Some((before, after, carriers)))
             })
             .collect::<Result<Vec<_>, Failure>>()?;
-        let projected = self
-            .inner
-            .steps(steps)
-            .map_err(|error| failure(self.id, self.at, error))?;
+        let projected = if completed {
+            self.inner.after_steps(steps)
+        } else {
+            self.inner.steps(steps)
+        }
+        .map_err(|error| failure(self.id, self.at, error))?;
         Ok(projected
             .into_iter()
             .zip(roots)

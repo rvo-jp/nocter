@@ -62,7 +62,7 @@ impl Builder<'_, '_> {
                         })
                         .collect::<Result<Vec<_>>>()?;
                     let before = projection.steps(transition.before_steps())?;
-                    let after = projection.steps(transition.after_steps())?;
+                    let after = projection.after_steps(transition.after_steps())?;
                     drop(projection);
                     // Slots currently have one shape. Both actual virtual roots must agree with
                     // that shape; a later write cannot silently reuse its binding-time snapshot.

@@ -56,6 +56,17 @@ pub(in crate::value_access) fn arguments(
         if !body.initialization().reachable(at.point) {
             continue;
         }
+        // This slot may also have a post-call definition. Preparation contracts belong only
+        // to the original preparation action, never to a completed edited temporary.
+        if !matches!(
+            body.graph().points().get(at.point)
+                .and_then(|point| point.actions.get(at.action))
+                .map(|action| &action.operation),
+            Some(flow::Operation::PrepareArgument { call: prepared, argument })
+                if *prepared == call && *argument == index
+        ) {
+            continue;
+        }
         let ExpressionKind::Call { arguments, .. } = &body
             .typed()
             .body()

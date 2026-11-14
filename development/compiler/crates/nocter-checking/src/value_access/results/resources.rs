@@ -6,6 +6,7 @@ use crate::value_access::flow::{
     self, Location, Operation,
     resources::{Holder, InstantiatedPayload as Payload, PayloadSite, Place, Step as ResourceStep},
 };
+use crate::value_access::{ArgumentAction, ExpressionKind};
 use nocter_constant_evaluation::state::WorkBudget;
 use nocter_declarations::value_access::{
     CodeInstanceKey, DataInstanceKey, InstanceSchema, PayloadSchema, Program,
@@ -149,15 +150,73 @@ impl<'a, 'work> ResourceDataProjection<'a, 'work> {
     /// # Errors
     /// Invalid source data or quota exhaustion publishes no partly projected step list.
     pub fn steps(&mut self, steps: &[ResourceStep]) -> Result<Vec<ResourceStep<Payload>>, Failure> {
+        self.project_steps(steps, false)
+    }
+    /// Project the checked transition's normal post-operation steps. Only this explicit phase
+    /// boundary invalidates entry snapshots of edited call temporaries; step names do not.
+    /// # Errors
+    /// Failure restores all prior projection bindings, including the preparation snapshots.
+    pub fn after_steps(
+        &mut self,
+        steps: &[ResourceStep],
+    ) -> Result<Vec<ResourceStep<Payload>>, Failure> {
+        self.project_steps(steps, true)
+    }
+    fn project_steps(
+        &mut self,
+        steps: &[ResourceStep],
+        completed: bool,
+    ) -> Result<Vec<ResourceStep<Payload>>, Failure> {
         let before = self.values.clone();
-        let result = steps
-            .iter()
-            .map(|step| self.step(step))
-            .collect::<Result<_, _>>();
+        let result = (|| {
+            if completed {
+                self.complete_operation()?;
+            }
+            steps
+                .iter()
+                .map(|step| self.step(step))
+                .collect::<Result<_, Failure>>()
+        })();
         if result.is_err() {
             self.values = before;
         }
         result
+    }
+    fn complete_operation(&mut self) -> Result<(), Failure> {
+        if let Operation::CommitCall(call) = self
+            .body
+            .graph()
+            .points()
+            .get(self.at.point)
+            .and_then(|point| point.actions.get(self.at.action))
+            .ok_or(INVALID)?
+            .operation
+        {
+            let Some(ExpressionKind::Call { arguments, .. }) = self
+                .body
+                .typed()
+                .body()
+                .expressions()
+                .get(call)
+                .map(|expression| &expression.kind)
+            else {
+                return Err(INVALID);
+            };
+            for (index, argument) in arguments.iter().enumerate() {
+                if argument.operation != nocter_model::ValueInputOperation::Edit {
+                    continue;
+                }
+                let holder = match argument.action {
+                    ArgumentAction::AccessOwnedValue => Holder::Expression(argument.value),
+                    ArgumentAction::ReserveTransfer { .. }
+                    | ArgumentAction::TakeValue
+                    | ArgumentAction::CopyPlace(_) => Holder::Temporary { call, index },
+                    _ => continue,
+                };
+                self.values.insert(holder, Binding::AfterAction);
+            }
+        }
+        Ok(())
     }
     fn step(&mut self, step: &ResourceStep) -> Result<ResourceStep<Payload>, Failure> {
         let mut source = None;

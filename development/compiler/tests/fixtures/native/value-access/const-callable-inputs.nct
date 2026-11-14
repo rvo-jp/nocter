@@ -11,6 +11,10 @@ const func edited_forward(edit action: func(i32): i32, value: i32): i32 {
     observe_read(action)
     action(value)
 }
+const func edit_temporary(take action: func(i32): i32): i32 {
+    inspect_edit(action^)
+}
+const func inspect_edit(edit action: func(i32): i32): i32 { action(1) }
 const func edit_twice(edit action: mut(i32): i32, value: i32): i32 {
     edit selected = action
     let _ = selected(value)
@@ -48,6 +52,13 @@ const func taking_read_view(): i32 {
     let item = Item { value: 41 }
     let action: once(i32): i32 = (item^; value: i32): i32 { item.value + value }
     consume(relay(action^), 1)
+}
+const func lent_temporary(): i32 {
+    let item = Item { value: 41 }
+    let action = (item^; value: i32): i32 { item.value + value }
+    let result = edit_temporary(action^)
+    let other = Item { value: 41 }
+    if result == 42 { inspect_edit((other^; value: i32): i32 { other.value + value }) } else { 0 }
 }
 const func anonymous(): i32 {
     let pass = (action: func(i32): i32, value: i32): i32 { forward(action, value) }
@@ -91,7 +102,7 @@ const func permute_unused(a: func(): void, b: func(): void, c: func(): void, d: 
 }
 const func permuting(): i32 { permute_unused(unused_alpha, unused_beta, unused_gamma, unused_delta, 0) }
 const func calculate(): i32 {
-    if reading() == 42 && editing() == 42 && taking() == 42 && taking_read_view() == 42 && anonymous() == 42 && interrupted() == 42 && permuting() == 42 { 42 } else { 0 }
+    if reading() == 42 && editing() == 42 && taking() == 42 && taking_read_view() == 42 && lent_temporary() == 42 && anonymous() == 42 && interrupted() == 42 && permuting() == 42 { 42 } else { 0 }
 }
 const CLOSED_READ: i32 = reading()
 const NAMED_APPLIED: i32 = forward(increment, 41)

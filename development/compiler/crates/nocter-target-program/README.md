@@ -194,6 +194,10 @@ query. The canonical payload authority rebuilds the full callable with that envi
 `DisposeBeforeResult` and its lifecycle step retain both completed contracts; storage interns
 both. This selects no new owner or source permission, and dependent environments with no qualified
 normal completion remain unresolved.
+Lifecycle forwards each checked transition's post-operation phase to checking's common resource
+data projection. Edited temporary cleanup therefore selects completed argument definitions instead
+of the preparation snapshot. Preparation contracts, before-operation transfers and interrupted
+prefixes retain their entry sources; this does not qualify changing storage geometry.
 Final freeze verifies each edge's environment, input and result payloads against its selected concrete body or the
 runtime contract's sole primitive value signature.
 Input locals are relative to the selected body and a fresh invocation activation; sharing a
