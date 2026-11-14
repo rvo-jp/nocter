@@ -515,6 +515,84 @@ fn fresh_receipts_resolve_retained_contexts_on_loop_reentry() {
     assert_eq!(budget.storage_used(), 0);
 }
 
+#[test]
+fn differing_guarded_contexts_need_a_fresh_receipt_before_a_typed_use() {
+    for marked in [false, true] {
+        for reverse in [false, true] {
+            for receive in [false, true] {
+                let (root, types, mut plan) = fixture(Selection::Root, false);
+                plan.points = plan.points.map(|_, point| {
+                    let mut point = point.clone();
+                    let mut actions = point.actions[..3].to_vec();
+                    if marked {
+                        actions.push(action(
+                            Operation::Literal {
+                                destination: 3,
+                                value: Value::aggregate(vec![Value::unit(), Value::integer(0)]),
+                            },
+                            &[0, 1],
+                            vec![Effect::Construct(3)],
+                        ));
+                    }
+                    let mut alternatives = vec![
+                        point.actions[3].alternatives[0].clone(),
+                        action(
+                            Operation::None,
+                            &[0, 1, 3],
+                            vec![
+                                Effect::Dispose(Place::root(1)),
+                                Effect::Dispose(Place::root(3)),
+                            ],
+                        )
+                        .alternatives[0]
+                            .clone(),
+                    ];
+                    if reverse {
+                        alternatives.reverse();
+                    }
+                    actions.push(Action {
+                        operation: Operation::None,
+                        alternatives: alternatives.into(),
+                    });
+                    if receive {
+                        actions.push(action(
+                            Operation::Literal {
+                                destination: 1,
+                                value: Value::aggregate(vec![Value::unit(), Value::integer(42)]),
+                            },
+                            &[0],
+                            vec![Effect::Construct(1)],
+                        ));
+                        actions.push(point.actions[3].clone());
+                    }
+                    point.actions = actions.into();
+                    point
+                });
+                let result = Program::new(
+                    types,
+                    BTreeMap::from([(root.into(), plan)]),
+                    BTreeMap::new(),
+                );
+                if !receive {
+                    assert!(matches!(result, Err(Rule::InvalidPlan)));
+                    continue;
+                }
+                let program = result.unwrap();
+                let mut budget = Budget::new(Limits::default());
+                let value = Executor::new(&program, &mut budget, 0)
+                    .evaluate_initializer(root)
+                    .unwrap();
+                assert_eq!(
+                    value,
+                    Value::aggregate(vec![Value::unit(), Value::integer(42)])
+                );
+                drop(value);
+                assert_eq!(budget.storage_used(), 0);
+            }
+        }
+    }
+}
+
 fn consuming_plan() -> Plan {
     let mut points = ArenaBuilder::new();
     let entry = points.insert(Point {

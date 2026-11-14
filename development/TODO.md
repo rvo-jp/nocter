@@ -75,6 +75,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Join evaluator representation states without erasing retained backing contexts. Allow a
   fresh whole-root receipt to establish a unique context before use on loop reentry, while
   unresolved reads remain rejected; verify failed-loop storage recovery.
+- [x] Use the same conservative representation join for ownership-guarded action alternatives.
+  Preserve exact guard selection and reject unresolved typed uses; qualify fresh receipts under
+  both actual ownership states and either alternative order without admitting correlated views.
 - [ ] Qualify the canonical frame's received compound-input contexts through ordinary source and
   consumer storage, cleanup and conditional const reuse. The
   [declaration authority](compiler/crates/nocter-declarations/README.md) owns the validated constructor.

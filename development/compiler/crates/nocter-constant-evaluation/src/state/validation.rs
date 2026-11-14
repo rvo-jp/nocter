@@ -319,13 +319,11 @@ fn validate_action(program: &Program, plan: &View<'_>, action: &super::Action) -
                 }
             }
         }
-        if result
-            .as_ref()
-            .is_some_and(|previous| previous != &contexts)
-        {
-            return Err(INVALID);
+        if let Some(previous) = &mut result {
+            contexts::join(plan.plan, previous, &contexts)?;
+        } else {
+            result = Some(contexts);
         }
-        result = Some(contexts);
     }
 
     result.ok_or(INVALID)

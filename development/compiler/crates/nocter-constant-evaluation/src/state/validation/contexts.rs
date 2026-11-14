@@ -29,7 +29,7 @@ pub(super) fn effect(plan: &Plan, contexts: &mut Contexts, effect: &Effect) -> R
     }
     Ok(())
 }
-fn join(plan: &Plan, current: &mut Contexts, incoming: &Contexts) -> Result<bool> {
+pub(super) fn join(plan: &Plan, current: &mut Contexts, incoming: &Contexts) -> Result<bool> {
     if Arc::ptr_eq(current, incoming) {
         return Ok(false);
     }
