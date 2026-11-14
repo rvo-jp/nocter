@@ -2,10 +2,14 @@ struct Item { value: i32 }
 const func identity(value: i32): i32 { value }
 const func increment(value: i32): i32 { value + 1 }
 const func apply(action: func(i32): i32, value: i32): i32 { action(value) }
-const func forward(action: func(i32): i32, value: i32): i32 { apply(action, value) }
+const func forward(action: func(i32): i32, value: i32): i32 {
+    read selected = action
+    apply(selected, value)
+}
 const func edit_twice(edit action: mut(i32): i32, value: i32): i32 {
-    let _ = action(value)
-    action(value)
+    edit selected = action
+    let _ = selected(value)
+    selected(value)
 }
 const func consume(take action: once(i32): i32, value: i32): i32 { action^(value) }
 const func relay(take action: once(i32): i32): once(i32): i32 { action^ }

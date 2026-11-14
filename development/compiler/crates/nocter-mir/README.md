@@ -66,7 +66,10 @@ The finished product retains only its closed runtime environment and bodies.
 Expression production and local binding select their frozen data at the original action. Operand
 reads use the same occurrence authority, and whole-slot roots preserve the selected payload rather
 than replacing it with a TypeId-wide default. Detached scalar/selector metadata must be independently
-declaration-closed; a missing contextual occurrence rejects. Partial carrier roots remain a separate
+declaration-closed; a missing contextual occurrence rejects. No MIR lookup consults the legacy
+frame-wide type map. This includes non-owning local bindings: their actual definition determines
+the alias representation. Partial input roots retain the bound input payload; other partial roots
+currently require independently closed data. General contextual partial roots remain a separate
 qualification boundary before source formal captures can open.
 Component integrity and sparse cleanup paths use the closed runtime environment's shared type
 projection, independently of source checking and without a reverse semantic-type lookup.

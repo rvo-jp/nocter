@@ -13,10 +13,12 @@ use nocter_model::{AccessExpressionId, AccessInstanceId, MirLocalId, TypeId};
 use nocter_model::{ArenaBuilder, ValueAccessMode, ValueInputOperation};
 use nocter_runtime_contract::RuntimeDataId;
 use nocter_target_program::value_access::{
-    DataEvidence, Instance, InstanceProgram, Payload, lifecycle::EnvironmentPart,
+    Instance, InstanceProgram, Payload, lifecycle::EnvironmentPart,
 };
 use nocter_target_program::value_access::{lifecycle, storage};
 use std::collections::BTreeMap;
+#[cfg(test)]
+mod tests;
 
 pub(super) struct Builder<'a> {
     pub(super) runtime: &'a nocter_runtime_contract::RuntimeEnvironment,
@@ -72,14 +74,22 @@ impl Builder<'_> {
     pub(super) fn invalid(&self) -> Failure {
         Failure::InvalidBody(self.id)
     }
-    pub(super) fn data(&self, source: TypeId) -> Result<RuntimeDataId, Failure> {
-        let payload = self
-            .instance
-            .data()
-            .get(&source)
-            .and_then(DataEvidence::payload)
-            .ok_or_else(|| self.invalid())?;
-        self.payload_data(&payload)
+    pub(super) fn closed_data(&self, source: TypeId) -> Result<RuntimeDataId, Failure> {
+        let program = self.instances.unit().program();
+        let key = program
+            .instantiate_closed_data(source)
+            .map_err(|_| self.invalid())?;
+        self.storage
+            .instance(program, &key)
+            .map_err(Failure::Storage)
+    }
+    pub(super) fn definition(&self, slot: ValueSourceSlot) -> Result<RuntimeDataId, Failure> {
+        let at = self.at.ok_or_else(|| self.invalid())?;
+        self.payload_data(
+            self.instance
+                .definition(at, slot)
+                .ok_or_else(|| self.invalid())?,
+        )
     }
     fn payload_data(&self, payload: &Payload) -> Result<RuntimeDataId, Failure> {
         self.storage
@@ -103,7 +113,7 @@ impl Builder<'_> {
             .program()
             .data_type(nocter_model::BuiltinType::Usize)
             .ok_or_else(|| self.invalid())?;
-        self.data(source)
+        self.closed_data(source)
     }
     pub(super) fn expression(&self, id: AccessExpressionId) -> Result<RuntimeDataId, Failure> {
         if let Some(at) = self.at
@@ -124,15 +134,7 @@ impl Builder<'_> {
             .ok_or_else(|| self.invalid())?;
         // Detached scalar snapshots and retained selectors can request declaration-closed
         // metadata. A missing contextual occurrence must not fall back to the frame type cache.
-        let key = self
-            .instances
-            .unit()
-            .program()
-            .instantiate_closed_data(access.data())
-            .map_err(|_| self.invalid())?;
-        self.storage
-            .instance(self.instances.unit().program(), &key)
-            .map_err(Failure::Storage)
+        self.closed_data(access.data())
     }
     pub(super) fn arguments(
         &self,
@@ -200,7 +202,7 @@ impl Builder<'_> {
                     } else if let Some(payload) = self.instance.input(local) {
                         self.payload_data(payload)?
                     } else {
-                        self.data(item.data)?
+                        self.closed_data(item.data)?
                     },
                     form(item.access().mode()),
                 )
@@ -217,7 +219,7 @@ impl Builder<'_> {
                 (
                     SlotKey::Expression(expression),
                     if partial {
-                        self.data(item.data())?
+                        self.closed_data(item.data())?
                     } else {
                         selected
                     },

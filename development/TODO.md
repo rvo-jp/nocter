@@ -30,6 +30,8 @@ evaluator slot metadata, shared body-channel metadata, invocation, body-ABI, lif
 Keep evaluator slot selection on checking's shared original-value and ordered resource-data
 projection; the checking owner records covered non-materializing views. Keep
 execution lowering separate from source-value normalization.
+MIR partial roots without a bound input must gain exact carrier receipts; do not restore the
+removed frame-wide type fallback to bypass this qualification boundary.
 Keep preparation-time snapshots and staged returns; preserve interrupted preparation metadata
 without inventing a committed call or materialization permission. Post-update dependent environments
 and prepared temporaries must follow actual call-write context rather than reuse an immutable

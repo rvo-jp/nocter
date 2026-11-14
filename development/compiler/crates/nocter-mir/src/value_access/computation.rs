@@ -6,6 +6,7 @@ use super::{
 use crate::{
     MirArithmeticCheck as Check, MirBinaryOperation as Binary, MirUnaryOperation as Unary,
 };
+use nocter_checking::value_access::ValueSourceSlot;
 use nocter_checking::value_access::flow::resources::Holder;
 use nocter_checking::value_access::{
     ArgumentAction, BoundaryAction, ExpressionKind, Referent, SelectionAction, Statement, flow,
@@ -48,7 +49,11 @@ impl Builder<'_> {
         }
     }
     fn result(&mut self, id: AccessExpressionId) -> Result<Place, Failure> {
-        self.root(Holder::Expression(id), self.expression(id)?, false)
+        self.root(
+            Holder::Expression(id),
+            self.definition(ValueSourceSlot::Expression(id))?,
+            false,
+        )
     }
     fn snapshot(
         &mut self,
@@ -107,7 +112,7 @@ impl Builder<'_> {
                     .referent_data(source)
                     .ok_or_else(|| self.invalid())?;
                 Operation::PrimaryCondition {
-                    source: self.referent(source, self.data(data)?)?,
+                    source: self.referent(source, self.closed_data(data)?)?,
                     destination,
                 }
             }
@@ -397,7 +402,7 @@ impl Builder<'_> {
                 if item.access().mode() == ValueAccessMode::Own {
                     return Ok(Box::new([]));
                 }
-                let data = self.data(item.data)?;
+                let data = self.definition(ValueSourceSlot::Local(local))?;
                 let destination = self.root(Holder::Local(local), data, false)?;
                 let source = self.value(value)?;
                 Self::alias(source, destination.slot)
