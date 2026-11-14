@@ -223,6 +223,57 @@ fn weak_receiver_updates_retain_the_previous_context_as_a_real_alternative() {
 }
 
 #[test]
+fn a_completed_carrier_changes_only_its_matched_environment_without_strengthening_source_data() {
+    use crate::value_access::flow::resources::payload;
+    let case = case(false);
+    let program = &case.program;
+    let data = program.function_data(case.before.witness()).unwrap();
+    let before = program.instantiate_function(data, &case.before).unwrap();
+    let expected = program.instantiate_function(data, &case.after).unwrap();
+    let receipt = payload(program, data)
+        .unwrap()
+        .instantiate(program, &before)
+        .unwrap();
+    let environment = expected.environment(program).unwrap().unwrap();
+    let completed = receipt.with_environment(program, &environment).unwrap();
+    assert_eq!(receipt.instance(), &before);
+    assert_eq!(completed.instance(), &expected);
+    assert_ne!(receipt.instance(), completed.instance());
+    assert_eq!(
+        completed.environment(program).unwrap().unwrap().instance(),
+        &environment
+    );
+    assert_eq!(
+        program.payload_readiness(data),
+        nocter_declarations::value_access::PayloadReadiness::Unsupported
+    );
+    let integer = program.data_type(BuiltinType::I32).unwrap();
+    let scalar = program.instantiate_closed_data(integer).unwrap();
+    assert!(receipt.with_environment(program, &scalar).is_err());
+    assert!(
+        payload(program, integer)
+            .unwrap()
+            .instantiate(program, &scalar)
+            .unwrap()
+            .with_environment(program, &environment)
+            .is_err()
+    );
+    let named = program
+        .resolve_code(program.symbols().get("first").unwrap())
+        .unwrap();
+    let data = program.function_data(named.into()).unwrap();
+    let key = program.instantiate_closed_data(data).unwrap();
+    assert!(
+        payload(program, data)
+            .unwrap()
+            .instantiate(program, &key)
+            .unwrap()
+            .with_environment(program, &environment)
+            .is_err()
+    );
+}
+
+#[test]
 fn receiver_components_rebuild_their_carrier_without_changing_an_independent_sibling() {
     let mut case = case(false);
     let parent = data(

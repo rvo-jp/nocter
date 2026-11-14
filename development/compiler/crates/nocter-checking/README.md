@@ -912,7 +912,10 @@ dependent environments remain separate obligations.
 `DataInstanceKey`, preserving the actual callable representation and nested captured context.
 `InstantiatedPayload` retains that complete key with its concrete root cleanup obligation. Its
 environment projection follows the selected value's own context, rather than a caller-wide map of
-raw source type IDs. Neither operation grants source admission, an initialized owner, Copy,
+raw source type IDs. `InstantiatedPayload::with_environment` rebuilds that actual callable through
+the same canonical witness and payload authorities, preserving code and invocation view while
+selecting a matched new environment. The old receipt remains unchanged; non-callables, code tokens
+and incompatible environment schemas reject. These operations grant no source admission, initialized owner, Copy,
 external-dependency independence or stored representation. The accepted Unit's `DataEvidence<P>`
 uses the same payload-or-unproduced distinction at both projection stages. A dead access holder is not automatic early resource destruction. A staged
 return survives evaluation/lexical cleanup, whose order is reverse actual construction/preparation. A normal return has no evaluation frames and exactly one

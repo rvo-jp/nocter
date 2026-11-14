@@ -9,6 +9,28 @@ pub struct InstantiatedPayload {
     disposal: Disposal,
 }
 impl InstantiatedPayload {
+    /// Rebuild this actual callable with one matched environment context. This retains its code
+    /// and invocation view, without changing the original receipt or granting storage/ownership.
+    /// # Errors
+    /// Rejects non-callables, code tokens, incompatible environment schemas and unresolved data.
+    pub fn with_environment(
+        &self,
+        program: &Program,
+        environment: &nocter_declarations::value_access::DataInstanceKey,
+    ) -> Result<Self> {
+        let nocter_declarations::value_access::InstanceSchema::Function(selected) =
+            self.instance.schema(program).map_err(|_| INVALID)?
+        else {
+            return Err(INVALID);
+        };
+        let selected = program
+            .bind_callable_data(selected.witness(), environment)
+            .map_err(|_| INVALID)?;
+        let instance = program
+            .instantiate_function(self.data(), &selected)
+            .map_err(|_| INVALID)?;
+        payload(program, self.data())?.instantiate(program, &instance)
+    }
     #[must_use]
     pub const fn instance(&self) -> &nocter_declarations::value_access::DataInstanceKey {
         &self.instance
