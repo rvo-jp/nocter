@@ -35,8 +35,15 @@ fn formal_environment_descriptors_preserve_views_and_pending_producers_without_p
     let captures = body
         .tuple(&[read_capture, edit_capture, read_capture])
         .unwrap();
+    let direct = body.tuple(&[formal, edited]).unwrap();
+    assert_eq!(
+        body.program().payload_readiness(direct),
+        PayloadReadiness::Unsupported
+    );
+    assert!(!body.program().owned_payload_supported(direct));
+    assert_eq!(body.program().data_copyable(direct), Some(false));
     let (producers, expected_producers) = producer_environment(&mut body, root, factory);
-    let environment = body.tuple(&[captures, producers]).unwrap();
+    let environment = body.tuple(&[captures, producers, direct]).unwrap();
     let nested = body.reserve_closure().unwrap();
     let nested_data = body.closure(nested, environment, contract.clone()).unwrap();
     body.closure(

@@ -35,7 +35,7 @@ fn received_formal_capture_modes_execute_independently() {
     let prefix = source.split("const func calculate").next().unwrap();
     let mut failures = Vec::new();
     for body in [
-        "let action = wrap(named)\naction()",
+        "let action = wrap(named)\naction() + 1",
         "let counter = changing(20)\nvar edited = wrap_edit(counter^)\nlet _ = edited(1)\nedited(21)",
         "let owned = consuming(42)\nowned^()",
         "let owned = consuming(42)\nlet taken = wrap_once(owned^)\ntaken^()",
@@ -212,6 +212,33 @@ fn formal_captures_do_not_strengthen_invocation_capabilities_or_revive_the_sourc
     let reused = source.replace(
         "(callback^;): i32 { callback() }",
         "let outer = (callback^;): i32 { callback() }\nlet _ = callback()\nouter^",
+    );
+    assert_ne!(source, reused);
+    let (sources, tree) = input(&reused);
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Flow { .. }))
+    ));
+}
+
+#[test]
+fn tuple_formation_cannot_copy_formals_or_revive_transferred_components() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/formal-captured-callbacks.nct"
+    ));
+    let copied = source.replace(
+        "let pair = (first^, second^)",
+        "let pair = (first, second^)",
+    );
+    assert_ne!(source, copied);
+    let (sources, tree) = input(&copied);
+    assert!(matches!(SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Body { failure: BodyFailure::Rejected(diagnostic), .. }))
+            if diagnostic.rule() == crate::value_access::Rule::MissingTransfer));
+    let reused = source.replace(
+        "let pair = (first^, second^)",
+        "let pair = (first^, second^)\nlet _ = first()",
     );
     assert_ne!(source, reused);
     let (sources, tree) = input(&reused);

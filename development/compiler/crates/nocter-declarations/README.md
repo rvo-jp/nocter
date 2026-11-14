@@ -386,8 +386,9 @@ Expression/initializer frame metadata grants no callable role or executable body
 nor a concrete witness proves const availability, representation, ownership, lifetime, primitive
 authority or native admission. Consumers retain those separate proofs and must use the key with
 its original declaration authority. A key is not a source/revision reuse certificate; caches remain
-scoped to their checked program and body guards. Contextual carrier projection and executable
-formal-environment admission remain integration work.
+scoped to their checked program and body guards. The
+[checking owner](../nocter-checking/README.md#context-bound-callable-captures) defines the qualified
+source scope; additional contextual carriers and changing representations still need integration.
 
 `Program::adapt_witness` is the shared concrete invocation-view operation. It validates the full
 witness, preserves captured substitutions and rejects an upgrade from a weaker supplied view.
@@ -418,8 +419,8 @@ function's inputs. Two occurrences of one lexical code can therefore retain diff
 contexts. Empty carriers retain element identity without a positive element-payload proof;
 pending producers and missing dependencies cannot be closed from their signatures. The key and
 schema grant no payload, storage layout, access, const eligibility or source-generation receipt.
-Evaluator and native consumers must qualify their contextual representations through this common
-projection before formal environments enter executable source.
+Evaluator and native consumers qualify their contextual representations through this common
+projection before extending that source scope.
 
 `CodeTemplateKey` retains concrete or validated outer-parameter witnesses for condition composition.
 `code_template` builds a code's identity parameter frame; `bind_template` uses the same exact
@@ -457,7 +458,7 @@ owner/slot code keys. A closure result may retain an existing named, lexical or 
 witness in the same authority. Result metadata grants no producer, environment, Copy or invocation
 proof; ordinary body/result closure still establishes those obligations. Callable input witness
 introduction remains separate. Environment, input/result data and inferred invocation are distinct
-schema components. `owned_payload_supported` owns the common closed payload domain for environments, tuples and arrays:
+schema components. `owned_payload_supported` identifies independently closed payload descriptors:
 closed builtin/record/tuple/array data and exact named/captured callable payloads. Formal and
 unresolved result/application witnesses supply no such payload evidence. Environment descriptors
 may retain valid formal and producer dependencies. `payload_dependencies` derives each formal's
@@ -465,10 +466,10 @@ frozen invocation view and the exact unresolved result/application witnesses fro
 canonical schema traversal used by `payload_readiness`; it adds no capture registry. Distinct
 application occurrences and invocation views remain distinct even when their signatures agree.
 The pending status is derived from that producer set, rather than stored as a second fact. Shared subtrees are visited once, while empty
-arrays introduce no payload dependency on their element. A formal remains an unsupported owned
-payload even when the descriptor also has a pending producer. Descriptor publication preserves
-those independent facts through canonical replay; source admission must establish the closed
-payload and its contextual instance before execution. Copy and recursive cleanup
+arrays introduce no payload dependency on their element. A formal descriptor alone supplies no
+owned payload, even when it also has a pending producer. Descriptor publication preserves
+those independent facts through canonical replay; source checking retains the supplying value
+operations and consumers select the exact contextual instance before execution. Copy and recursive cleanup
 follow the actual environment schema, independently of invocation. All permitted views belong to the same body-owned key.
 Tuples and closed fixed-array descriptors use that same body construction authority, including
 within a capture body. Its array constructor takes an established element TypeId and closed
@@ -480,8 +481,10 @@ construction and selection still require their ready definitions. Structural des
 retain valid result/application leaves while their producers are pending. `payload_readiness`
 distinguishes Closed, Pending and Unsupported over actual payload edges; empty arrays require no
 element payload. `owned_payload_supported` accepts only Closed. A pending descriptor is neither an
-environment, a Copy proof nor an executable payload. Formal callable components remain outside
-this structural construction domain.
+environment, a Copy proof nor an executable payload. Structural descriptors can retain a formal
+callable whose parameter contract belongs to the same authority. Tuple, array and outcome descriptor
+construction share that validation; replay preserves the formal's original owner and view. This
+does not close a concrete carrier, create an element value or widen executable array admission.
 Equal header/body array shapes intern as one type. This metadata capability does not admit
 array expressions, resource operations, evaluator array values or native storage.
 Canonical replay remaps nested tuple/array components and every closure-schema data slot with the body

@@ -125,7 +125,7 @@ impl BodyTypes {
     }
     /// Intern a structural tuple over admitted component descriptors, possibly awaiting results.
     /// # Errors
-    /// Rejects an invalid arity or a component outside this authority's closed data domain.
+    /// Rejects an invalid arity or a component outside this authority's structural descriptor domain.
     pub fn tuple(&mut self, fields: &[TypeId]) -> Result<TypeId, BodyTypeError> {
         let [first, second, remaining @ ..] = fields else {
             return Err(BodyTypeError::InvalidExtension);
@@ -542,8 +542,13 @@ fn structural_component(program: &Program, data: TypeId) -> bool {
             Some(
                 super::PayloadSchema::Optional(payload) | super::PayloadSchema::Fallible(payload),
             ) => pending.push(payload),
-            Some(super::PayloadSchema::Function(witness))
-                if !matches!(witness.origin, ValueFunctionOrigin::Parameter(_)) => {}
+            Some(super::PayloadSchema::Function(witness)) => {
+                if let ValueFunctionOrigin::Parameter(parameter) = witness.origin
+                    && program.parameter_contract(parameter).is_none()
+                {
+                    return false;
+                }
+            }
             _ => return false,
         }
     }

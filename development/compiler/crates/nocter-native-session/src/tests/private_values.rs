@@ -106,6 +106,16 @@ fn private_formal_capture_disposes_actual_owned_error_environments() {
     let package = TempPackage::new();
     execute_native_status(&image(&machine), &package.0, "formal-captured-errors", 42);
 }
+
+#[test]
+fn private_contextual_tuple_results_keep_the_actual_anonymous_input_environments() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-tuple-results.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "contextual-tuple-results", 42);
+}
 fn compile(source: &str) -> crate::NativeImage {
     let machine = machine(source);
     image(&machine)

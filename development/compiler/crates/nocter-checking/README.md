@@ -699,7 +699,7 @@ The completed environment binds directly to the selected closure without flatten
 parameter names. An alternative producer set at one position must independently resolve to one
 witness. Missing creation records, foreign creator frames, incompatible views and alternative
 contexts remain unresolved rather than borrowing current outer formal names.
-This closes metadata substitution only; per-value/component executable representation and source
+This closes metadata substitution only; per-value/component executable representation and
 additional source admission still require their separate qualification.
 
 Different concrete alternatives remain unresolved rather than selecting the first witness or
@@ -743,6 +743,15 @@ from that closed payload; computed array selection retains its Copy requirement.
 retirement stays explicit even for a finally Copy shape. Pending evaluated referents use the same
 type projection as locals rather than consulting stale expression data. No placeholder environment,
 new ownership ledger or cardinality expansion is introduced.
+
+Tuple formation can also retain valid callable-formal descriptors. Each component still passes
+ordinary value supply; an unmarked formal cannot acquire Copy and transferred inputs cannot be
+reused. After result closure, pending producers remain rejected. Concrete component keys close
+under the existing source-value and resource-data queries, preserving distinct environments at
+same-typed positions. This descriptor support does not widen homogeneous-array construction.
+`contextual-tuple-results.nct` returns such a carrier from an anonymous body, then invokes its
+selected components with different named/owned environments. Required evaluation and native
+execution must both produce 42; a callee's formal descriptor cannot replace the actual result key.
 
 The shared `structural-result-values.nct` source qualifies factory-produced named/captured values,
 distinct environments of one code, arrays, nested tuples/arrays, repetition, replacement,
@@ -1715,10 +1724,11 @@ Dormant expressions and explicit drops use those unbound hypotheses rather than 
 execution-frame type default; receiving and executed operations retain their own exact checks.
 
 `formal-captured-callbacks.nct` qualifies one lexical capture with named and owned environments,
-read/edit/take invocation, persistent state and required/native agreement at 42.
+forwarding through taking inputs/results, tuple formation and read aliases, read/edit/take
+invocation, persistent state and required/native agreement at 42.
 `formal-captured-errors.nct` executes nested owned error graph disposal through consuming adapters
 and explicit destruction in a real native process. Owned error payloads remain outside required
-evaluation. General dependent aggregate construction, context-changing carrier writes, surviving
+evaluation. Additional dependent carriers, context-changing carrier writes, surviving
 partial references, inferred captures and external dependencies still require separate qualification.
 
 ### Contextual Anonymous Contracts
@@ -1760,7 +1770,7 @@ factory inside that anonymous body retains its dependency until the common equat
 caller's actual input. `Program::function_result` independently projects the closed declared
 result through those frozen bindings to validate normal call-result agreement. No body is retyped
 and no callee-owned formal is published as a caller value.
-General callable carriers, deeper callable signatures within those inputs and inferred capture
+Additional callable input carriers, deeper callable signatures within those inputs and inferred capture
 footprints remain unqualified. The [constant-domain owner](#constant-domain-acceptance) defines
 the separately qualified formal-substitution scope.
 The shared anonymous-callable-application source covers deferred input returns, calls through

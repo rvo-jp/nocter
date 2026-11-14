@@ -1,0 +1,23 @@
+struct Item { value: i32 }
+
+const func identity(value: i32): i32 { value }
+
+const func owning(value: i32): func(i32): i32 {
+    let item = Item { value: value }
+    (item^; amount: i32): i32 { item.value + amount }
+}
+
+const func relay(take action: func(i32): i32): func(i32): i32 { action^ }
+
+const func calculate(): i32 {
+    let pair = (take action: func(i32): i32) { (relay(action^), 42) }
+    let first = pair(identity)
+    let held = owning(2)
+    let second = pair(held^)
+    read left = first.0
+    read right = second.0
+    if left(42) == 42 && right(40) == 42 && first.1 == 42 && second.1 == 42 { 42 } else { 0 }
+}
+
+const ANSWER: i32 = calculate()
+func run(): i32 { if ANSWER == 42 { calculate() } else { 0 } }

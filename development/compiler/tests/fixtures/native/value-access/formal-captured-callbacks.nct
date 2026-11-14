@@ -1,6 +1,6 @@
 struct Item { value: i32 }
 
-const func named(): i32 { 42 }
+const func named(): i32 { 41 }
 
 const func owning(value: i32): func(): i32 {
     let item = Item { value: value }
@@ -9,6 +9,15 @@ const func owning(value: i32): func(): i32 {
 
 const func wrap(take callback: func(): i32): func(): i32 {
     (callback^;): i32 { callback() }
+}
+
+const func forward(take callback: func(): i32): func(): i32 { callback^ }
+
+const func paired(take first: func(): i32, take second: func(): i32): i32 {
+    let pair = (first^, second^)
+    read left = pair.0
+    read right = pair.1
+    left() + right()
 }
 
 const func changing(seed: i32): mut(i32): i32 {
@@ -31,16 +40,17 @@ const func wrap_once(take callback: once(): i32): once(): i32 {
 }
 
 const func calculate(): i32 {
-    let first = wrap(named)
+    let first = forward(wrap(named))
     let held = owning(42)
-    let second = wrap(held^)
+    let second = forward(wrap(held^))
+    let result = paired(first^, second^)
     let counter = changing(20)
     var edited = wrap_edit(counter^)
     let initial = edited(1)
     let final = edited(21)
     let owned = consuming(42)
     let taken = wrap_once(owned^)
-    if first() == 42 && second() == 42 && initial == 21 && final == 42 { taken^() } else { 0 }
+    if result == 83 && initial == 21 && final == 42 { taken^() } else { 0 }
 }
 
 const ANSWER: i32 = calculate()

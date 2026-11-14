@@ -251,10 +251,10 @@ fn interrupted_tuple_components_use_expected_data_without_manufacturing_a_value(
 }
 
 #[test]
-fn tuple_formal_callable_contract_does_not_supply_payload_evidence() {
+fn tuple_formal_callable_contract_does_not_supply_copy_evidence() {
     let text = "func run(callback: func(): void): void { let pair = (callback, 1) }";
     let (sources, tree) = input(text);
     assert!(matches!(SourceUnit::prepare(bound(&sources, &tree)),
         Err(SourceFailure::Checking(Failure::Body { failure: crate::value_access::Failure::Rejected(error), .. }))
-        if error.rule() == crate::value_access::Rule::InvalidConstruction));
+        if error.rule() == crate::value_access::Rule::MissingTransfer));
 }

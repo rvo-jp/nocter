@@ -72,11 +72,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   Preserve separate original retirement and receipt rather than fusing
   them into a replacement solely to accommodate the evaluator.
   Independent closed-plan support does not close ordinary source or native geometry admission.
-- [x] Qualify context-bound callable captures through ordinary read/edit/take source and actual
-  owned-error cleanup. Preserve definition-only domain hypotheses without granting payload,
-  Copy or final-value evidence. Dormant expressions and explicit drops retain unbound contract
-  hypotheses rather than an unrelated execution-frame type default; absent result captures
-  must remain local rejections.
+- [x] Extend ordinary tuple formation to valid context-bound callable descriptors. Preserve
+  matched per-component code/environment keys through forwarding, taking inputs and read aliases;
+  keep Copy obligations, unresolved producers and homogeneous-array admission separate.
 - [ ] Qualify the canonical frame's received compound-input contexts through ordinary source and
   consumer storage, cleanup and conditional const reuse. The
   [declaration authority](compiler/crates/nocter-declarations/README.md) owns the validated constructor.

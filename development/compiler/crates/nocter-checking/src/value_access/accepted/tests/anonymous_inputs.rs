@@ -76,17 +76,15 @@ fn anonymous_input_signatures_do_not_grant_ownership_or_repair_conflicts_from_bo
 }
 
 #[test]
-fn dependent_anonymous_result_carriers_do_not_escape_with_an_unbound_callee_formal() {
-    let source = "func identity(value: i32): i32 { value }\nfunc relay(take action: func(i32): i32): func(i32): i32 { action^ }\nfunc run(): i32 { let pair = (take action: func(i32): i32) { (relay(action^), 42) }\nlet bundle = pair(identity)\nbundle.0(42) }";
-    let (sources, tree) = input(source);
-    match SourceUnit::prepare(bound(&sources, &tree)) {
-        Err(SourceFailure::Checking(Failure::Body {
-            failure: BodyFailure::Rejected(diagnostic),
-            ..
-        })) if diagnostic.rule() == crate::value_access::Rule::UnsupportedData => {}
-        Ok(_) => panic!("an unsupported dependent carrier escaped anonymous call checking"),
-        Err(error) => panic!("a source-local rejection is required: {error:?}"),
-    }
+fn dependent_anonymous_result_carriers_close_against_their_actual_call_inputs() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-tuple-results.nct"
+    ));
+    assert_eq!(
+        super::initializers::answer(source, "ANSWER"),
+        nocter_constant_evaluation::state::Value::integer(42)
+    );
 }
 
 #[test]

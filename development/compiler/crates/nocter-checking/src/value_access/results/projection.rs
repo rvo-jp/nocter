@@ -86,11 +86,7 @@ fn validate_payload(
             .closure(closure)
             .ok_or(Failure::InconsistentSyntax)?
             .environment();
-        if query
-            .program()
-            .payload_dependencies(environment)
-            .is_none_or(|dependencies| dependencies.has_pending_producers())
-        {
+        if !resolved_descriptor(query.program(), environment) {
             return Err(reject(
                 Rule::TypeMismatch,
                 "this owned capture has no established component payloads after callable-result resolution",
@@ -110,12 +106,21 @@ fn validate_payload(
     if matches!(
         expression.kind,
         ExpressionKind::Aggregate { .. } | ExpressionKind::Repeat { .. }
-    ) && !query.program().owned_payload_supported(access.data())
-    {
-        return Err(reject(
-            Rule::UnsupportedData,
-            "this structural value needs established component payloads; its callable result is unresolved",
-        ));
+    ) {
+        let ready = if matches!(
+            query.program().data_schema(access.data()),
+            Some(PayloadSchema::Aggregate(_))
+        ) {
+            resolved_descriptor(query.program(), access.data())
+        } else {
+            query.program().owned_payload_supported(access.data())
+        };
+        if !ready {
+            return Err(reject(
+                Rule::UnsupportedData,
+                "this structural value needs established component payloads; its callable result is unresolved",
+            ));
+        }
     }
     if let ExpressionKind::Repeat { .. } = expression.kind {
         let Some(PayloadSchema::Array(array)) = query.program().data_schema(access.data()) else {
@@ -153,6 +158,15 @@ fn validate_payload(
         };
     }
     Ok(())
+}
+
+fn resolved_descriptor(
+    program: &nocter_declarations::value_access::Program,
+    data: nocter_model::TypeId,
+) -> bool {
+    program
+        .payload_dependencies(data)
+        .is_some_and(|dependencies| !dependencies.has_pending_producers())
 }
 
 fn validate_call_result(
