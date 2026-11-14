@@ -205,6 +205,27 @@ impl Unit {
     {
         super::results::instantiate_value(&self.program, &self.result_evidence, caller, value, work)
     }
+    /// Normalize one source value's contextual data without granting storage or a source receipt.
+    /// The source schema remains semantic; the returned key retains its actual callable contexts.
+    /// # Errors
+    /// Rejects absent/ambiguous provenance, incompatible schemas, unsupported effects and work exhaustion.
+    pub fn instantiate_value_data(
+        &self,
+        caller: &nocter_declarations::value_access::CodeInstanceKey,
+        value: super::ValueSourceId,
+        source: TypeId,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<nocter_declarations::value_access::DataInstanceKey, super::InstantiationFailure>
+    {
+        super::results::instantiate_value_data(
+            &self.program,
+            &self.result_evidence,
+            caller,
+            value,
+            source,
+            work,
+        )
+    }
     /// Original sparse value definitions, scoped to this complete matched Unit.
     /// These metadata edges grant no initialization, numeric or executable proof.
     #[must_use]

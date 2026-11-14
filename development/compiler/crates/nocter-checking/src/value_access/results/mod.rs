@@ -2,7 +2,9 @@
 mod applications;
 mod instantiation;
 pub use instantiation::InstantiationFailure;
-pub(super) use instantiation::{call as instantiate_invocation, value as instantiate_value};
+pub(super) use instantiation::{
+    call as instantiate_invocation, data as instantiate_value_data, value as instantiate_value,
+};
 mod producers;
 pub use producers::{CreationRecipe, ProducerShape};
 mod projection;

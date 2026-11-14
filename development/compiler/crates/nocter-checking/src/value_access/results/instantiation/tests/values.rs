@@ -5,10 +5,10 @@ use crate::value_access::{
 };
 use nocter_model::{ValueField, ValueProjection};
 
-fn id(index: usize) -> ValueSourceId {
+pub(super) fn id(index: usize) -> ValueSourceId {
     ValueSourceId::test(index)
 }
-fn bundle(
+pub(super) fn bundle(
     callee: usize,
     arguments: &[usize],
     parameters: &[(ValueParameter, usize)],
@@ -26,7 +26,11 @@ fn bundle(
         arguments: arguments.iter().copied().map(id).collect(),
     }
 }
-fn insert_graph(evidence: &mut Evidence, graph: ValueSources, calls: &[AccessExpressionId]) {
+pub(super) fn insert_graph(
+    evidence: &mut Evidence,
+    graph: ValueSources,
+    calls: &[AccessExpressionId],
+) {
     // The public call query still requires a matched original commit. Deliberately empty legacy
     // recipes ensure that an occurrence-backed query cannot silently use a code-only fallback.
     for &call in calls {
@@ -209,7 +213,7 @@ fn original_call_bundles_feed_distinct_returned_environments_into_one_new_creati
     );
 }
 
-fn factory_nodes(
+pub(super) fn factory_nodes(
     fixture: &Fixture,
     wrapper: ValueClosure,
     wrapper_witness: FunctionWitness,

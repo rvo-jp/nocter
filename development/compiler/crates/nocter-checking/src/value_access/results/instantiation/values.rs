@@ -386,16 +386,14 @@ impl Query<'_, '_> {
         selected: &ValuePath<()>,
     ) -> Result {
         let (source, value, weak) = replacement;
-        if written.relation(selected, |(), ()| IndexRelation::Unknown) == PathRelation::Disjoint {
-            return self.read(owner, Key::Value(frame.clone(), source, selected.clone()));
-        }
-        let Some(tail) = selected.fields().strip_prefix(written.fields()) else {
-            return Ok(Fact::Unavailable);
+        let tail = match replacement_path(written, selected) {
+            ReplacementPath::Unchanged => {
+                return self.read(owner, Key::Value(frame.clone(), source, selected.clone()));
+            }
+            ReplacementPath::Supplied(tail) => tail,
+            ReplacementPath::Components => return Ok(Fact::Unavailable),
         };
-        let supplied = self.read(
-            owner,
-            Key::Value(frame.clone(), value, ValuePath::new(tail.iter().copied())),
-        )?;
+        let supplied = self.read(owner, Key::Value(frame.clone(), value, tail))?;
         if weak {
             Ok(supplied
                 .join(self.read(owner, Key::Value(frame.clone(), source, selected.clone()))?))
@@ -403,6 +401,22 @@ impl Query<'_, '_> {
             Ok(supplied)
         }
     }
+}
+enum ReplacementPath {
+    Unchanged,
+    Supplied(ValuePath<()>),
+    Components,
+}
+fn replacement_path(written: &ValuePath<()>, selected: &ValuePath<()>) -> ReplacementPath {
+    if written.relation(selected, |(), ()| IndexRelation::Unknown) == PathRelation::Disjoint {
+        return ReplacementPath::Unchanged;
+    }
+    selected
+        .fields()
+        .strip_prefix(written.fields())
+        .map_or(ReplacementPath::Components, |tail| {
+            ReplacementPath::Supplied(ValuePath::new(tail.iter().copied()))
+        })
 }
 fn same_field(field: ValueField, selected: ValueProjection<()>) -> bool {
     match (field, selected) {

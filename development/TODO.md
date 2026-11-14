@@ -30,6 +30,11 @@ one deterministic work quota and request-local failure. Keep code-summary/defini
 separate from actual committed calls, and keep opaque effects, ambiguous alternatives and
 unqualified call writes unresolved.
 
+Value-data queries now preserve returned carriers, selected components and replacement snapshots
+through that same graph. Next pair exact value references with receiving, representation and
+resource obligations at their original action/phase; a payload's TypeId alone cannot select its
+context. Preserve nominal schemas, strict alternatives, sparse arrays and deterministic retry.
+
 Carry the resulting exact keys into ordinary body data selection, receiving and cleanup rather
 than rebuilding them from a per-frame TypeId map. Preserve shared schemas, sparse loops and
 homogeneous arrays without enumerating all paths or declared elements.

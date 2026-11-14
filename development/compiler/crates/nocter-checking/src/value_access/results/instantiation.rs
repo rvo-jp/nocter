@@ -24,6 +24,7 @@ pub enum InstantiationFailure {
 enum Key {
     Witness(CodeInstanceKey, FunctionWitness),
     Result(CodeInstanceKey, ValuePath<()>),
+    DataResult(CodeInstanceKey, ValuePath<()>, TypeId),
     Call(CodeInstanceKey, ValueApplication),
     Creation(CodeInstanceKey, nocter_model::ValueClosure),
     Value(CodeInstanceKey, super::ValueSourceId, ValuePath<()>),
@@ -98,6 +99,32 @@ pub(in crate::value_access) fn value(
         ValuePath::default(),
     ))? {
         Fact::Witness(witness) => Ok(witness),
+        _ => Err(InstantiationFailure::Unresolved),
+    }
+}
+
+pub(in crate::value_access) fn data(
+    program: &Program,
+    evidence: &Evidence,
+    caller: &CodeInstanceKey,
+    value: super::ValueSourceId,
+    source: TypeId,
+    work: &mut WorkBudget,
+) -> Result<DataInstanceKey, InstantiationFailure> {
+    if evidence
+        .value_sources(caller.code())
+        .and_then(|graph| graph.node(value))
+        .is_none()
+    {
+        return Err(InstantiationFailure::Unresolved);
+    }
+    match Query::new(program, evidence, work).solve(&Key::Data(
+        caller.clone(),
+        value,
+        ValuePath::default(),
+        source,
+    ))? {
+        Fact::Data(data) => Ok(data),
         _ => Err(InstantiationFailure::Unresolved),
     }
 }
@@ -195,6 +222,9 @@ impl<'a, 'work> Query<'a, 'work> {
                 }
             }
             Key::Result(_, _) => Ok(Fact::Unavailable),
+            Key::DataResult(frame, path, target) => {
+                self.source_data_result(key, frame, path, *target)
+            }
             Key::Call(frame, site) => self.invocation(key, frame, *site),
             Key::Creation(frame, closure) => self.creation(key, frame, *closure),
             Key::Value(frame, value, path) => self.source_value(key, frame, *value, path),

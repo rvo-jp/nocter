@@ -1,0 +1,125 @@
+//! Returned carriers and sparse replacement paths retain the same canonical component keys.
+use super::super::{ReplacementPath, replacement_path};
+use super::{
+    CodeInstanceKey, Fact, Key, PayloadSchema, Query, Result, TypeId, ValueField, ValuePath,
+    ValueProjection, ValueSource, ValueSourceId,
+};
+
+impl Query<'_, '_> {
+    pub(in super::super::super) fn source_data_result(
+        &mut self,
+        owner: &Key,
+        frame: &CodeInstanceKey,
+        path: &ValuePath<()>,
+        target: TypeId,
+    ) -> Result {
+        let Some(graph) = self.evidence.value_sources(frame.code()) else {
+            return Ok(Fact::Unavailable);
+        };
+        let returned: Vec<_> = graph.returned().iter().copied().collect();
+        let mut fact = Fact::Empty;
+        for value in returned {
+            fact =
+                fact.join(self.read(owner, Key::Data(frame.clone(), value, path.clone(), target))?);
+        }
+        Ok(fact)
+    }
+    pub(super) fn source_data_transport(
+        &mut self,
+        owner: &Key,
+        frame: &CodeInstanceKey,
+        value: ValueSourceId,
+        kind: &ValueSource,
+        path: &ValuePath<()>,
+        target: TypeId,
+    ) -> Result {
+        match kind {
+            ValueSource::CallResult(site) => {
+                match self.read(owner, Key::Call(frame.clone(), *site))? {
+                    Fact::Frame(callee) => {
+                        self.read(owner, Key::DataResult(callee, path.clone(), target))
+                    }
+                    Fact::Empty => Ok(Fact::Empty),
+                    _ => Ok(Fact::Unavailable),
+                }
+            }
+            ValueSource::Index { source, .. } => self.read(
+                owner,
+                Key::Data(
+                    frame.clone(),
+                    *source,
+                    ValuePath::new([ValueProjection::Array(())]).concat(path),
+                    target,
+                ),
+            ),
+            ValueSource::Replace {
+                source,
+                value: supplied,
+                path: written,
+                weak,
+            } => {
+                let tail = match replacement_path(written, path) {
+                    ReplacementPath::Unchanged => {
+                        return self.read(
+                            owner,
+                            Key::Data(frame.clone(), *source, path.clone(), target),
+                        );
+                    }
+                    ReplacementPath::Supplied(tail) => tail,
+                    ReplacementPath::Components => {
+                        return self.source_data_components(owner, frame, value, path, target);
+                    }
+                };
+                let fact = self.read(owner, Key::Data(frame.clone(), *supplied, tail, target))?;
+                if *weak {
+                    Ok(fact.join(self.read(
+                        owner,
+                        Key::Data(frame.clone(), *source, path.clone(), target),
+                    )?))
+                } else {
+                    Ok(fact)
+                }
+            }
+            // Optional state, external dependencies and contextual call writes remain unqualified.
+            _ => Ok(Fact::Unavailable),
+        }
+    }
+    fn source_data_components(
+        &mut self,
+        owner: &Key,
+        frame: &CodeInstanceKey,
+        value: ValueSourceId,
+        path: &ValuePath<()>,
+        target: TypeId,
+    ) -> Result {
+        let fields: Vec<_> = match self.program.data_schema(target) {
+            Some(PayloadSchema::Aggregate(schema)) => schema
+                .components()
+                .map(|component| (component.field, component.data))
+                .collect(),
+            Some(PayloadSchema::Array(array)) if array.is_empty() => vec![],
+            Some(PayloadSchema::Array(array)) => vec![(ValueField::Array(0), array.element())],
+            _ => return Ok(Fact::Unavailable),
+        };
+        let mut values = Vec::new();
+        let mut pending = false;
+        for (field, data) in fields {
+            let selected = path.concat(&crate::value_access::paths::known_by(
+                &nocter_model::FieldPath::new([field]),
+                |_| (),
+            ));
+            match self.read(owner, Key::Data(frame.clone(), value, selected, data))? {
+                Fact::Data(data) => values.push((field, data)),
+                Fact::Empty => pending = true,
+                _ => return Ok(Fact::Unavailable),
+            }
+        }
+        if pending {
+            return Ok(Fact::Empty);
+        }
+        Ok(self
+            .program
+            .instantiate_components(target, values)
+            .map_or(Fact::Unavailable, Fact::Data))
+    }
+}

@@ -5,6 +5,7 @@ use super::{
 };
 use nocter_declarations::value_access::CodeInstanceKey;
 use nocter_model::{ValueField, ValueProjection};
+mod transport;
 
 impl Query<'_, '_> {
     pub(in super::super) fn source_data(
@@ -18,7 +19,10 @@ impl Query<'_, '_> {
         let Some(node) = self.source_node(frame, value, path) else {
             return Ok(Fact::Unavailable);
         };
-        if node.value == ValueSource::Empty {
+        if node.value == ValueSource::Empty
+            || matches!(node.value, ValueSource::CallResult(site)
+                if self.evidence.unproduced_origin(super::Origin::Application(site)))
+        {
             return Ok(Fact::Empty);
         }
         let Some(schema) = self.program.data_schema(target) else {
@@ -107,8 +111,9 @@ impl Query<'_, '_> {
             ValueSource::Repeat { seed } => {
                 self.source_repetition(owner, frame, seed, path, target)
             }
-            // General carrier returns, optional state and contextual writes remain unqualified.
-            _ => Ok(Fact::Unavailable),
+            value_kind => {
+                self.source_data_transport(owner, frame, value, &value_kind, path, target)
+            }
         }
     }
     fn source_aggregate(

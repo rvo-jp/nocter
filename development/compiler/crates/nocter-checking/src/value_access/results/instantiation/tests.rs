@@ -11,6 +11,7 @@ use nocter_model::{
 use std::{num::NonZeroU64, sync::Arc};
 
 mod creations;
+mod data;
 mod fixture;
 mod values;
 use fixture::*;

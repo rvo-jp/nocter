@@ -502,6 +502,16 @@ formation and application/result edges. Opaque contextual effects and unqualifie
 remain unresolved. A declaration-closed callable schema can identify context-free metadata, but
 never proves that a value exists or can be accessed.
 
+`Unit::instantiate_value_data` normalizes one original value against its receiving source schema
+through that same query and declaration authority. Returned carriers retain their selected callee
+frame and component paths. Aggregate replacement rebuilds only the affected canonical component
+keys; prior snapshots remain unchanged. Erased array writes join old and supplied contexts rather
+than asserting a selected element. Empty sources and unproduced applications publish no data key,
+even if their declared scalar schema is independently closed. The key selects contextual metadata,
+not initialized storage, source access, runtime layout or cleanup. Ordinary body payload and
+lifecycle consumers still require occurrence-sensitive integration before source formal captures
+can open.
+
 The code-summary/creation-recipe resolver remains available for original metadata fixtures and
 definition-contract reasoning without a matched value graph. Failure of an actual source-value
 query cannot fall back to that hypothesis. A matched result-code summary may close directly only when the declaration authority proves

@@ -110,6 +110,61 @@ fn repeated_element_updates_preserve_declaration_closed_callable_metadata() {
     }
     assert_eq!(count, 7);
 }
+
+#[test]
+fn original_source_values_publish_canonical_data_without_publishing_empty_sources() {
+    let unit = accepted(SOURCE);
+    let mut checked = 0;
+    for name in [
+        "captured_components",
+        "prepared_snapshot",
+        "repeated_creation",
+    ] {
+        let owner = code(&unit, name);
+        let frame = unit.program().bind_code(owner, []).unwrap();
+        let graph = unit.value_sources(owner).unwrap();
+        for (value, node) in graph.nodes() {
+            if !matches!(
+                node.value,
+                ValueSource::Aggregate(_)
+                    | ValueSource::Repeat { .. }
+                    | ValueSource::CallResult(_)
+                    | ValueSource::Replace { .. }
+            ) {
+                continue;
+            }
+            let Some(source) = node.data else {
+                continue;
+            };
+            let expected = unit.program().instantiate_closed_data(source).unwrap();
+            let mut work = nocter_constant_evaluation::state::WorkBudget::new(
+                std::num::NonZeroU64::new(10_000).unwrap(),
+            );
+            assert_eq!(
+                unit.instantiate_value_data(&frame, value, source, &mut work)
+                    .unwrap(),
+                expected
+            );
+            checked += 1;
+        }
+        let (empty, _) = graph
+            .nodes()
+            .find(|(_, node)| node.value == ValueSource::Empty)
+            .unwrap();
+        let data = unit
+            .program()
+            .data_type(nocter_model::BuiltinType::I32)
+            .unwrap();
+        let mut work = nocter_constant_evaluation::state::WorkBudget::new(
+            std::num::NonZeroU64::new(10_000).unwrap(),
+        );
+        assert_eq!(
+            unit.instantiate_value_data(&frame, empty, data, &mut work),
+            Err(crate::value_access::InstantiationFailure::Unresolved)
+        );
+    }
+    assert!(checked >= 10);
+}
 #[test]
 fn a_formation_retains_prior_definitions_without_absorbing_a_later_write() {
     let unit = accepted(SOURCE);
