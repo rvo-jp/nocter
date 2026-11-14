@@ -213,6 +213,15 @@ source identities; contextual carriers and closure environments receive local `R
 identities. Function leaves use the canonical selected function representation, so a supplied value
 and the receiving formal reuse one physical identity without relabelling their surrounding carrier.
 
+`storage::prepare` receives the instance data roots and explicit additional `DataInstanceKey` roots
+through that same interner. MIR supplies `lifecycle::Program::payload_instances`, including actual
+resource payloads and adapter-owned environments. A frame's default TypeId entry cannot replace
+those occurrence-selected keys. Requests for the supplied value and its normalized function
+representation reuse one physical identity. Geometry-only consumers can provide no additional
+roots without acquiring a dependency on lifecycle permission. Additional roots supply neither a
+source value nor an executable code instance, and a failed/missing request cannot mutate an older
+Prepared product.
+
 The iterative graph walk selects every positive child by its declaration-validated field through
 the same contextual instance authority. Function environments use their explicit environment edge,
 not a source tuple field. Intrinsic representation primitives are independently closed roots.

@@ -26,7 +26,7 @@ fn close(fixture: &ValueSourceFixture) -> InstanceProgram {
 }
 
 fn environment(instances: &InstanceProgram) -> RuntimeEnvironment {
-    storage::prepare(instances, RuntimeAbiIdentity::Arm64DarwinV1)
+    storage::prepare(instances, RuntimeAbiIdentity::Arm64DarwinV1, [])
         .unwrap()
         .into_environment()
 }
@@ -292,7 +292,7 @@ fn access_operations_do_not_change_data_layout_or_create_borrow_types() {
     let instances = close(&ValueSourceFixture::new(
         "struct Data { value: i32 }\nfunc read_input(input: Data): void {}\nfunc edit_input(edit input: Data): void {}\nfunc take_input(take input: Data): void {}\nfunc run(take input: Data): void {\nread_input(input)\nedit_input(input)\ntake_input(input^)\n}",
     ));
-    let prepared = storage::prepare(&instances, RuntimeAbiIdentity::Arm64DarwinV1).unwrap();
+    let prepared = storage::prepare(&instances, RuntimeAbiIdentity::Arm64DarwinV1, []).unwrap();
     let environment = prepared.environment();
     let layouts = layouts(environment).unwrap();
     let data = record(&instances, "Data");
@@ -344,7 +344,7 @@ fn interrupted_unproduced_callable_shapes_do_not_request_symbolic_storage() {
             .iter()
             .any(|(_, instance)| instance.data().values().any(|e| e.payload().is_none()))
     );
-    let prepared = storage::prepare(&instances, RuntimeAbiIdentity::Arm64DarwinV1).unwrap();
+    let prepared = storage::prepare(&instances, RuntimeAbiIdentity::Arm64DarwinV1, []).unwrap();
     let environment = prepared.environment();
     let layouts = layouts(environment).unwrap();
     let signature = storage::signature(&instances, &prepared, instances.root()).unwrap();
@@ -391,7 +391,7 @@ fn dependent_and_captured_source_witnesses_reach_closed_layouts() {
         "a147-owned-capture-input-operations.nct",
     ] {
         let instances = close(&ValueSourceFixture::corpus(case));
-        let prepared = storage::prepare(&instances, RuntimeAbiIdentity::Arm64DarwinV1).unwrap();
+        let prepared = storage::prepare(&instances, RuntimeAbiIdentity::Arm64DarwinV1, []).unwrap();
         let environment = prepared.environment();
         let layouts = layouts(environment).unwrap_or_else(|failure| panic!("{case}: {failure:?}"));
         for (ty, _) in environment.types().iter() {
@@ -448,7 +448,7 @@ fn zero_byte_inputs_keep_access_channels_and_wide_values_use_indirect_transport(
     let instances = close(&ValueSourceFixture::new(
         "struct Wide { first: error\nsecond: error\nthird: error }\nfunc run(first: void, edit second: void, take third: void, view: Wide, edit update: Wide, take owned: Wide, a: i32, b: i32, c: i32, d: i32, e: i32, f: i32): Wide { owned^ }",
     ));
-    let prepared = storage::prepare(&instances, RuntimeAbiIdentity::Arm64DarwinV1).unwrap();
+    let prepared = storage::prepare(&instances, RuntimeAbiIdentity::Arm64DarwinV1, []).unwrap();
     let environment = prepared.environment();
     let layouts = layouts(environment).unwrap();
     let signature = storage::signature(&instances, &prepared, instances.root()).unwrap();
@@ -530,7 +530,7 @@ fn structural_tuple_layout_uses_logical_positions_and_shared_member_padding() {
     let instances = close(&ValueSourceFixture::new(
         "func run(take value: (bool, void, i32, void)): i32 { value.2 }",
     ));
-    let prepared = storage::prepare(&instances, RuntimeAbiIdentity::Arm64DarwinV1).unwrap();
+    let prepared = storage::prepare(&instances, RuntimeAbiIdentity::Arm64DarwinV1, []).unwrap();
     let environment = prepared.environment();
     let layouts = layouts(environment).unwrap();
     let data = storage::signature(&instances, &prepared, instances.root())

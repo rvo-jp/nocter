@@ -143,6 +143,39 @@ impl Program {
     pub const fn bodies(&self) -> &BTreeMap<AccessInstanceId, Body> {
         &self.bodies
     }
+    /// Actual contextual payload roots used by the frozen schedules, without a new source grant.
+    /// Includes adapter-owned environments as well as ordinary resource obligations.
+    pub fn payload_instances(
+        &self,
+    ) -> impl Iterator<Item = nocter_declarations::value_access::DataInstanceKey> {
+        let mut keys = std::collections::BTreeSet::new();
+        for body in self.bodies.values() {
+            for action in body.actions.values() {
+                for alternative in &action.alternatives {
+                    for step in alternative.before.iter().chain(alternative.after.iter()) {
+                        match step {
+                            Step::Resource(step) => {
+                                let result = step.try_map_payloads::<std::convert::Infallible, _>(
+                                    |payload| {
+                                        keys.insert(payload.instance().clone());
+                                        Ok(())
+                                    },
+                                );
+                                match result {
+                                    Ok(_) => {}
+                                    Err(never) => match never {},
+                                }
+                            }
+                            Step::DisposeEnvironment { payload, .. } => {
+                                keys.insert(payload.instance().clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        keys.into_iter()
+    }
 }
 
 const INVALID: Failure = Failure::InvalidInstanceProgram;

@@ -109,12 +109,17 @@ pub fn signature(
     Ok(RuntimeValueSignature::new(environment, explicit, result))
 }
 
-/// Projects produced concrete data only. Code selection and access proof remain upstream.
+/// Projects instance data and explicitly requested actual payload keys through one interner.
+/// Code selection, source access and lifecycle permission remain upstream.
 ///
 /// # Errors
 /// Rejects an unresolved shape or inconsistent closed runtime environment. No partial result is
 /// published. The selected ABI supplies representation facts, not executable target admission.
-pub fn prepare(instances: &InstanceProgram, abi: RuntimeAbiIdentity) -> Result<Prepared, Failure> {
+pub fn prepare(
+    instances: &InstanceProgram,
+    abi: RuntimeAbiIdentity,
+    additional: impl IntoIterator<Item = DataInstanceKey>,
+) -> Result<Prepared, Failure> {
     let program = instances.unit().program();
     let mut shapes = shapes::Builder::new(program);
     for (_, instance) in instances.instances().iter() {
@@ -123,6 +128,9 @@ pub fn prepare(instances: &InstanceProgram, abi: RuntimeAbiIdentity) -> Result<P
                 shapes.intern(payload.instance().clone())?;
             }
         }
+    }
+    for key in additional {
+        shapes.intern(key)?;
     }
     shapes.finish(abi)
 }

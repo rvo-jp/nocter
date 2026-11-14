@@ -9,6 +9,7 @@ use nocter_test_support::ValueSourceFixture;
 use std::fmt::Write as _;
 mod captured;
 mod primitives;
+mod storage_roots;
 mod substitution;
 
 #[test]
@@ -64,6 +65,7 @@ fn zero_capture_metadata_does_not_require_a_binding_for_a_trapping_element_proje
     storage::prepare(
         &graph,
         nocter_runtime_contract::RuntimeAbiIdentity::Arm64DarwinV1,
+        [],
     )
     .unwrap();
 }
@@ -399,6 +401,7 @@ fn interrupted_structural_shapes_do_not_gain_storage_or_callee_instances() {
     storage::prepare(
         &graph,
         nocter_runtime_contract::RuntimeAbiIdentity::Arm64DarwinV1,
+        [],
     )
     .unwrap();
 }
@@ -503,6 +506,7 @@ fn data_closure_visits_shared_record_schemas_without_expanding_payload_trees() {
     let prepared = storage::prepare(
         &graph,
         nocter_runtime_contract::RuntimeAbiIdentity::Arm64DarwinV1,
+        [],
     )
     .unwrap();
     let runtime = prepared.environment();
@@ -803,6 +807,7 @@ fn empty_array_storage_has_identity_without_an_element_payload_edge() {
         let prepared = storage::prepare(
             &graph,
             nocter_runtime_contract::RuntimeAbiIdentity::Arm64DarwinV1,
+            [],
         )
         .unwrap();
         let runtime = prepared.environment();
@@ -837,6 +842,7 @@ fn nonempty_array_storage_keeps_one_homogeneous_element_and_count() {
     let prepared = storage::prepare(
         &graph,
         nocter_runtime_contract::RuntimeAbiIdentity::Arm64DarwinV1,
+        [],
     )
     .unwrap();
     let runtime = prepared.environment();

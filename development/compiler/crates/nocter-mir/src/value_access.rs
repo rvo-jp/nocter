@@ -319,7 +319,8 @@ impl Program {
     /// Rejects missing identities, inconsistent slot roles or unresolved concrete data.
     pub fn lower(program: &lifecycle::Program, abi: RuntimeAbiIdentity) -> Result<Self, Failure> {
         let storage =
-            storage::prepare(program.instance_program(), abi).map_err(Failure::Storage)?;
+            storage::prepare(program.instance_program(), abi, program.payload_instances())
+                .map_err(Failure::Storage)?;
         let bodies: BTreeMap<AccessInstanceId, Body> = program
             .bodies()
             .iter()

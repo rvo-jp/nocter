@@ -65,6 +65,7 @@ fn trusted_calls_have_positional_inputs_without_primitive_instances_or_body_loca
     storage::prepare(
         &graph,
         nocter_runtime_contract::RuntimeAbiIdentity::Arm64DarwinV1,
+        [],
     )
     .unwrap();
     let lifecycle = crate::value_access::lifecycle::Program::prepare(graph).unwrap();
