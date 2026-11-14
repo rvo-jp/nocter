@@ -1,6 +1,6 @@
 //! Sparse source writes and actual operand reads, independent of ownership and resource phases.
 use super::{State, ValueSourceId, ValueSourceSlot};
-use crate::value_access::flow;
+use crate::value_access::{Referent, flow};
 use nocter_model::{AccessExpressionId, AccessFlowPointId};
 use std::collections::BTreeMap;
 
@@ -33,6 +33,7 @@ pub struct ValueSourceFlow {
     pub(super) predecessors: BTreeMap<AccessFlowPointId, Vec<AccessFlowPointId>>,
     pub(super) writes: BTreeMap<(AccessFlowPointId, ValueSourceSlot), Vec<(usize, ValueSourceId)>>,
     pub(super) reads: BTreeMap<(flow::Location, AccessExpressionId), ValueSourceId>,
+    pub(super) referents: BTreeMap<(flow::Location, Referent), ValueSourceId>,
 }
 impl ValueSourceFlow {
     #[cfg(test)]
@@ -50,6 +51,7 @@ impl ValueSourceFlow {
             predecessors,
             writes,
             reads: BTreeMap::new(),
+            referents: BTreeMap::new(),
         }
     }
     /// Select a sparse reaching definition without allocating a point-by-slot state matrix.
@@ -100,6 +102,12 @@ impl ValueSourceFlow {
         expression: AccessExpressionId,
     ) -> Option<ValueSourceId> {
         self.reads.get(&(location, expression)).copied()
+    }
+    /// The previous selected value at an original write target, resolving lexical aliases.
+    /// Recording an uninitialized target does not make its previous value available.
+    #[must_use]
+    pub fn referent(&self, location: flow::Location, target: Referent) -> Option<ValueSourceId> {
+        self.referents.get(&(location, target)).copied()
     }
     /// Original operand occurrences, without another traversal of source operation kinds.
     pub fn operands(

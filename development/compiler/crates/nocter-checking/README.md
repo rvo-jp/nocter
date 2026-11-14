@@ -474,6 +474,9 @@ write cannot change the earlier scalar preparation's source. Staged returns reta
 Definitions survive retirement as metadata and do not make retired owners accessible.
 The occurrence iterators expose these reads and the final write per slot in each original action;
 multiple writes within a commit do not become new source boundaries or resource phases.
+`flow.referent` retains the value selected by an assignment target before its write, through the
+same lexical alias authority. A repeated alias write therefore refers to the current source root,
+not the value at alias formation. An uninitialized target's metadata grants no previous payload.
 
 `Unit::instantiate_stored_data` resolves a selected source slot/component at one such boundary
 through the existing budgeted fixed point. Backedges remain sparse dependencies. Different carrier
@@ -760,7 +763,10 @@ can project bit updates from actual ledger states without replaying source initi
 checked and instantiated obligations; projection preserves selected operations and places.
 `Step::try_map_payloads_at` supplies each obligation's `PayloadSite`: its selected source place or
 new destination holder. Capture and invocation-view adapters retain separate environment/source
-and callable/destination roles. Array transfers identify the original retained element, not the
+and callable/destination roles. Scoped replacement carries a retired obligation at the existing
+destination and a supplied obligation at its source. Equal source schemas do not identify those
+two actual values; constant cleanup requirements consume the retired obligation.
+Array transfers identify the original retained element, not the
 whole array. The type-only convenience transform delegates to this same exhaustive operation
 mapping. A site grants no availability or bounds proof and does not choose an operation phase.
 Consumers must pair it with the retained transition order: replacing a local does not make its old

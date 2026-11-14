@@ -2,6 +2,57 @@
 use super::*;
 
 #[test]
+fn scoped_replacement_maps_the_retired_destination_before_the_supplied_source() {
+    let mut locals = nocter_model::ArenaBuilder::new();
+    let destination = Holder::Local(locals.insert(())).place();
+    let source = Holder::Local(locals.insert(())).place();
+    let step = Step::ReplaceReferent {
+        destination: destination.clone(),
+        source: source.clone(),
+        retired: 7,
+        payload: 7,
+    };
+    let mut sites = Vec::new();
+    let projected = step
+        .try_map_payloads_at::<(), _>(|site, _| {
+            let PayloadSite::Source(place) = site else {
+                panic!("an existing value")
+            };
+            sites.push(place.clone());
+            Ok(if place == &destination {
+                "retired"
+            } else if place == &source {
+                "supplied"
+            } else {
+                panic!("original place")
+            })
+        })
+        .unwrap();
+    assert_eq!(sites, [destination.clone(), source.clone()]);
+    assert_eq!(
+        projected,
+        Step::ReplaceReferent {
+            destination,
+            source,
+            retired: "retired",
+            payload: "supplied"
+        }
+    );
+    let mut visited = 0;
+    assert_eq!(
+        step.try_map_payloads_at::<_, ()>(|_, _| {
+            visited += 1;
+            Err("retired payload unavailable")
+        }),
+        Err("retired payload unavailable")
+    );
+    assert_eq!(
+        visited, 1,
+        "a failed old-value projection cannot publish a replacement"
+    );
+}
+
+#[test]
 fn replacement_cleanup_and_transfer_select_different_actual_values_with_the_same_source_type() {
     let queries = queries("func first(): i32 { 41 }\nfunc second(): i32 { 42 }\nfunc work(take action: func(): i32): void {}").unwrap();
     let program = queries[0].program();

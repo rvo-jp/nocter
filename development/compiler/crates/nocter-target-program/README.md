@@ -218,6 +218,12 @@ it adds no owner state and does not change the ownership analysis's world identi
 Old cleanup precedes replacement binding, so a later use of the same holder selects the supplied
 value rather than the frame's default for that semantic type. Partial writes refer back to the
 original action's resulting definition.
+Scoped referent replacement specializes its retired destination and supplied source separately,
+then binds subsequent use to the supplied key. MIR disposal consumes the retired obligation;
+transfer consumes the supplied one. Without an intermediate transition-local binding, contextual
+retirement resolves the original assignment target's actual referent read through the source graph;
+it cannot substitute the alias binding's immutable snapshot. Missing write-target evidence rejects.
+Evaluator plans and changing partial carrier geometry remain separate qualification obligations.
 
 Capture construction, function-view adaptation and component assembly use the declaration-owned
 canonical data/witness operations. Homogeneous array assembly requires represented element keys

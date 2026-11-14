@@ -263,6 +263,7 @@ impl State {
         steps.push(Step::ReplaceReferent {
             destination: destination.clone(),
             source: source.clone(),
+            retired: payload,
             payload,
         });
         Ok(())

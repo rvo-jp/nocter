@@ -180,6 +180,9 @@ impl Builder<'_> {
         value: ValueSourceId,
         state: &mut State,
     ) -> Result<()> {
+        let previous = self.place(point, target, state)?;
+        self.referents
+            .insert((self.origin.ok_or(INVALID)?, target), previous);
         let paths = self.paths(target)?;
         let weak = paths.len() != 1;
         for (slot, path) in paths {

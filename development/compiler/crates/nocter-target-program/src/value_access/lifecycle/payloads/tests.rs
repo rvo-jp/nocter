@@ -18,6 +18,45 @@ fn instances() -> Arc<InstanceProgram> {
 
 #[test]
 fn ordered_replacement_uses_the_supplied_value_instead_of_the_frames_type_default() {
+    assert_replacement(false);
+}
+
+#[test]
+fn scoped_replacement_keeps_the_retired_payload_separate_from_the_supplied_payload() {
+    assert_replacement(true);
+}
+
+#[test]
+fn contextual_retirement_without_an_original_write_target_cannot_use_the_input_snapshot() {
+    let instances = instances();
+    let work = instances
+        .unit()
+        .program()
+        .resolve(instances.unit().program().symbols().get("work").unwrap())
+        .unwrap();
+    let (id, instance) = instances
+        .instances()
+        .iter()
+        .find(|(_, instance)| instance.key().code() == work.into())
+        .unwrap();
+    let checked = instances.body(id).unwrap();
+    let input = checked.typed().body().inputs().explicit()[0].local;
+    let data = checked.typed().body().locals().get(input).unwrap().data;
+    assert!(instance.data()[&data].payload().is_some());
+    let at = Location {
+        point: checked.graph().entry(),
+        action: 0,
+    };
+    let mut budget = WorkBudget::new(std::num::NonZeroU64::new(10_000).unwrap());
+    let mut projection = Projection::new(&instances, instance, id, at, &mut budget);
+    assert_eq!(
+        projection.retired(&Holder::Local(input).place(), data),
+        Err(INVALID)
+    );
+    assert!(projection.values.is_empty());
+}
+
+fn assert_replacement(scoped: bool) {
     let instances = instances();
     let program = instances.unit().program();
     let code = |name| {
@@ -60,35 +99,34 @@ fn ordered_replacement_uses_the_supplied_value_instead_of_the_frames_type_defaul
         .values
         .insert(Holder::Return, Binding::Value(supplied.clone()));
     let contract = nocter_checking::value_access::flow::resources::payload(program, data).unwrap();
-    let steps = [
-        ResourceStep::Dispose {
-            source: Holder::Local(local).place(),
+    let destination = Holder::Local(local).place();
+    let source = Holder::Return.place();
+    let mut steps = if scoped {
+        vec![ResourceStep::ReplaceReferent {
+            destination: destination.clone(),
+            source,
+            retired: contract,
             payload: contract,
-        },
-        ResourceStep::Move {
-            source: Holder::Return.place(),
-            destination: Holder::Local(local).place(),
-            payload: contract,
-        },
-        ResourceStep::Dispose {
-            source: Holder::Local(local).place(),
-            payload: contract,
-        },
-    ];
-    let projected = projection.steps(&steps).unwrap();
-    let [
-        Step::Resource(ResourceStep::Dispose {
-            payload: previous, ..
-        }),
-        Step::Resource(ResourceStep::Move { payload: moved, .. }),
-        Step::Resource(ResourceStep::Dispose {
-            payload: final_value,
-            ..
-        }),
-    ] = projected.as_slice()
-    else {
-        panic!("original ordered steps")
+        }]
+    } else {
+        vec![
+            ResourceStep::Dispose {
+                source: destination.clone(),
+                payload: contract,
+            },
+            ResourceStep::Move {
+                source,
+                destination: destination.clone(),
+                payload: contract,
+            },
+        ]
     };
+    steps.push(ResourceStep::Dispose {
+        source: destination,
+        payload: contract,
+    });
+    let projected = projection.steps(&steps).unwrap();
+    let (previous, moved, final_value) = replacement_payloads(&projected);
     assert_eq!(
         previous.instance(),
         &old.function_representation(program).unwrap().unwrap()
@@ -100,6 +138,33 @@ fn ordered_replacement_uses_the_supplied_value_instead_of_the_frames_type_defaul
     assert_eq!(final_value, moved);
     assert_ne!(previous, final_value);
     assert_eq!(instance.data()[&data].payload().unwrap(), *previous);
+}
+
+fn replacement_payloads(steps: &[Step]) -> (&Payload, &Payload, &Payload) {
+    match steps {
+        [
+            Step::Resource(ResourceStep::Dispose {
+                payload: previous, ..
+            }),
+            Step::Resource(ResourceStep::Move { payload: moved, .. }),
+            Step::Resource(ResourceStep::Dispose {
+                payload: final_value,
+                ..
+            }),
+        ]
+        | [
+            Step::Resource(ResourceStep::ReplaceReferent {
+                retired: previous,
+                payload: moved,
+                ..
+            }),
+            Step::Resource(ResourceStep::Dispose {
+                payload: final_value,
+                ..
+            }),
+        ] => (previous, moved, final_value),
+        _ => panic!("original replacement followed by final cleanup"),
+    }
 }
 
 #[test]

@@ -80,9 +80,11 @@ pub enum Step<P = Payload> {
     },
     /// Complete replacement through a scoped update alias. Its existing referent is initialized;
     /// the enclosing owner's completeness does not change and no alias becomes an owner.
+    /// The retired destination and supplied source have separate concrete obligations.
     ReplaceReferent {
         destination: Place,
         source: Place,
+        retired: P,
         payload: P,
     },
 }
@@ -234,10 +236,12 @@ impl<P> Step<P> {
             Self::ReplaceReferent {
                 destination,
                 source,
+                retired,
                 payload,
             } => Step::ReplaceReferent {
                 destination: destination.clone(),
                 source: source.clone(),
+                retired: map(PayloadSite::Source(destination), retired)?,
                 payload: map(PayloadSite::Source(source), payload)?,
             },
         })

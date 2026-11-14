@@ -636,14 +636,15 @@ impl Builder<'_> {
                     Step::ReplaceReferent {
                         destination,
                         source,
+                        retired,
                         payload,
                     } => {
-                        let destination = self.place(destination, self.payload_data(payload)?)?;
                         output.push(Effect::Dispose {
-                            source: destination.clone(),
-                            disposal: self.disposal(payload)?,
+                            source: self.place(destination, self.payload_data(retired)?)?,
+                            disposal: self.disposal(retired)?,
                         });
                         let source = self.place(source, self.payload_data(payload)?)?;
+                        let destination = self.place(destination, self.payload_data(payload)?)?;
                         output.push(Effect::Transfer {
                             source,
                             destination,

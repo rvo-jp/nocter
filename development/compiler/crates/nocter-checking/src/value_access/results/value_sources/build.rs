@@ -14,6 +14,7 @@ struct Builder<'a> {
     query: &'a Query,
     writes: BTreeMap<(AccessFlowPointId, Slot), Vec<(usize, ValueSourceId)>>,
     reads: BTreeMap<(flow::Location, AccessExpressionId), ValueSourceId>,
+    referents: BTreeMap<(flow::Location, Referent), ValueSourceId>,
     origin: Option<flow::Location>,
     aliases: &'a flow::Aliases,
     nodes: Vec<ValueSourceNode>,
@@ -35,6 +36,7 @@ pub(in crate::value_access::results) fn analyze(
         query,
         writes: BTreeMap::new(),
         reads: BTreeMap::new(),
+        referents: BTreeMap::new(),
         origin: None,
         aliases,
         nodes: vec![ValueSourceNode {
@@ -126,6 +128,7 @@ impl Builder<'_> {
                 .collect(),
             writes: std::mem::take(&mut self.writes),
             reads: std::mem::take(&mut self.reads),
+            referents: std::mem::take(&mut self.referents),
         })
     }
     fn close_incoming(&mut self, positions: &super::ValueSourceFlow) -> Result<()> {

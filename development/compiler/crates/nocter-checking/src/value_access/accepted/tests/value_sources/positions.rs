@@ -4,6 +4,47 @@ use crate::value_access::{InstantiationFailure, ValueSourceSelection};
 use crate::value_access::{Referent, ValueSourceBoundary, ValueSourceRead, ValueSourceSlot, flow};
 
 #[test]
+fn repeated_alias_writes_select_the_current_referent_instead_of_the_original_binding() {
+    let unit = accepted("func make(value: i32): i32 { value }
+func run(): i32 { var value = make(40)\nedit alias = value\nalias = make(41)\nalias = make(42)\nvalue }");
+    let owner = code(&unit, "run");
+    let checked = unit.code_body(owner).unwrap();
+    let graph = unit.value_sources(owner).unwrap();
+    let positions = graph.flow().unwrap();
+    let calls = factories(&unit, owner);
+    assert_eq!(calls.len(), 3);
+    let mut writes = 0;
+    for (point, block) in checked.graph().points().iter() {
+        for (action, event) in block.actions.iter().enumerate() {
+            let flow::Operation::Assign { target, .. } = event.operation else {
+                continue;
+            };
+            let previous = positions
+                .referent(flow::Location { point, action }, target)
+                .unwrap();
+            let ValueSource::Select { source, path } = &graph.node(previous).unwrap().value else {
+                panic!("actual selected root")
+            };
+            assert!(path.is_root());
+            if writes == 0 {
+                assert_eq!(reachable_calls(graph, *source), BTreeSet::from([calls[0]]));
+            } else {
+                let ValueSource::Replace {
+                    value, path, weak, ..
+                } = &graph.node(*source).unwrap().value
+                else {
+                    panic!("the previous replacement, not the alias's original binding")
+                };
+                assert!(!weak && path.is_root());
+                assert_eq!(reachable_calls(graph, *value), BTreeSet::from([calls[1]]));
+            }
+            writes += 1;
+        }
+    }
+    assert_eq!(writes, 2);
+}
+
+#[test]
 fn sparse_definition_iteration_exposes_only_the_final_write_of_an_original_action() {
     let unit = accepted(
         "func touch(edit left: i32, edit right: i32): void { left += 1\nright += 1 }

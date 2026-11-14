@@ -35,10 +35,9 @@ transition order, old-value cleanup and new-value receipt without adding provena
 world identity, a second owner registry or downstream phase inference from step names. Preserve
 shared schemas, sparse loops, homogeneous arrays and one canonical normalization authority.
 
-- [ ] Specialize scoped referent replacement's retired and supplied payloads independently. Its
-  current single schema/payload field must not select both old-context destruction and new-context
-  receipt when contextual values can change. Resolve alias-relative targets through their actual
-  source roots, not an immutable alias-binding snapshot; keep dependent source admission closed.
+- [ ] Retain scoped replacement's independent retired/supplied obligations and actual alias-root
+  selections through evaluator plans and changing partial-carrier geometry. An alias binding's
+  immutable snapshot is not a later read of its referent; keep dependent source admission closed.
 
 Qualify the same lexical closure with different captured callbacks before and after forwarding
 it with another instance, including safe/unsafe ordinary source, conditional const admission,

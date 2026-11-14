@@ -117,8 +117,10 @@ impl Requirements {
                         let payload = match step {
                             flow::resources::Step::Dispose { payload, .. }
                             | flow::resources::Step::DisposeArrayRemainder { payload, .. }
-                            | flow::resources::Step::DisposeArrayElements { payload, .. }
-                            | flow::resources::Step::ReplaceReferent { payload, .. } => *payload,
+                            | flow::resources::Step::DisposeArrayElements { payload, .. } => {
+                                *payload
+                            }
+                            flow::resources::Step::ReplaceReferent { retired, .. } => *retired,
                             flow::resources::Step::Capture { .. }
                             | flow::resources::Step::AdaptFunction { .. }
                             | flow::resources::Step::Assemble { .. }

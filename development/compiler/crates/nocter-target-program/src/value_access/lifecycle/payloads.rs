@@ -4,7 +4,10 @@ use super::{Failure, INVALID, Instance, InstanceProgram, Location, Payload, Reso
 mod tests;
 use nocter_checking::value_access::{
     ValueSourceBoundary, ValueSourceSelection, ValueSourceSlot,
-    flow::resources::{Holder, PayloadSite, Place},
+    flow::{
+        Operation,
+        resources::{Holder, PayloadSite, Place},
+    },
 };
 use nocter_constant_evaluation::state::WorkBudget;
 use nocter_declarations::value_access::{DataInstanceKey, InstanceSchema, PayloadSchema};
@@ -55,14 +58,22 @@ impl<'a, 'work> Projection<'a, 'work> {
         let mut created = None;
         let result = step.try_map_payloads_at(|site, contract| {
             let key = match site {
-                PayloadSite::Source(place) => self.source(place, contract.data())?,
+                PayloadSite::Source(place) => {
+                    if matches!(step, ResourceStep::ReplaceReferent { destination, .. } if destination == place) {
+                        self.retired(place, contract.data())?
+                    } else {
+                        self.source(place, contract.data())?
+                    }
+                }
                 PayloadSite::Destination(holder) => {
                     let key = self.destination(step, holder, contract.data(), source.as_ref())?;
                     created = Some((holder, key.clone()));
                     key
                 }
             };
-            if matches!(site, PayloadSite::Source(_)) {
+            if matches!(site, PayloadSite::Source(place)
+                if !matches!(step, ResourceStep::ReplaceReferent { source, .. } if place != source))
+            {
                 source = Some(key.clone());
             }
             contract
@@ -110,6 +121,39 @@ impl<'a, 'work> Projection<'a, 'work> {
             .program()
             .instantiate_closed_data(target)
             .ok()
+    }
+    fn retired(&mut self, place: &Place, data: TypeId) -> Result<DataInstanceKey, Failure> {
+        if let Some(key) = self.closed(data) {
+            return Ok(key);
+        }
+        if self.values.contains_key(&place.holder()) {
+            return self.source(place, data);
+        }
+        let unit = self.instances.unit();
+        let body = self.instances.body(self.id).ok_or(INVALID)?;
+        let operation = &body
+            .graph()
+            .points()
+            .get(self.at.point)
+            .and_then(|block| block.actions.get(self.at.action))
+            .ok_or(INVALID)?
+            .operation;
+        let (Operation::Assign { target, .. } | Operation::CompoundAssign { target, .. }) =
+            *operation
+        else {
+            return Err(INVALID);
+        };
+        let source = unit
+            .value_sources(self.instance.key().code())
+            .and_then(|graph| graph.flow())
+            .and_then(|flow| flow.referent(self.at, target))
+            .ok_or(INVALID)?;
+        unit.instantiate_value_data(self.instance.key(), source, data, self.work)
+            .map_err(|failure| Failure::Payload {
+                instance: self.id,
+                at: self.at,
+                failure,
+            })
     }
     fn source(&mut self, place: &Place, target: TypeId) -> Result<DataInstanceKey, Failure> {
         let program = self.instances.unit().program();
