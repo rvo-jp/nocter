@@ -86,7 +86,8 @@ impl Publication {
                             .get(*child)
                             .expect("ready child schema")
                             .copyable(),
-                        DataReference::Tuple(_)
+                        DataReference::Function(_)
+                        | DataReference::Tuple(_)
                         | DataReference::Array { .. }
                         | DataReference::Optional { .. }
                         | DataReference::Fallible(_) => {

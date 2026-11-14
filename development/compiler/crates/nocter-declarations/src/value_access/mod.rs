@@ -193,6 +193,7 @@ pub struct Parameter {
     data: TypeId,
     operation: ValueInputOperation,
     contract: Option<FunctionConstraint>,
+    components: Box<[FunctionConstraint]>,
 }
 
 impl Parameter {
@@ -984,7 +985,27 @@ fn validate_value(
             rule: DeclarationRule::RepeatedFailure,
         });
     }
-    value.visit_data(|data| validate_data(callable, position, data, records, violations));
+    let component_input = matches!(position, HeaderPosition::Parameter(_))
+        && matches!(value, ValueDefinition::Data(data) if !matches!(data, DataReference::Function(_)));
+    value.visit_data(|data| {
+        if let DataReference::Function(contract) = data
+            && component_input
+        {
+            let mut nested = false;
+            for data in contract
+                .inputs
+                .iter()
+                .map(|(_, data)| data)
+                .chain(std::iter::once(&contract.result))
+            {
+                data.visit_leaves(|leaf| nested |= matches!(leaf, DataReference::Function(_)));
+            }
+            if !nested {
+                return;
+            }
+        }
+        validate_data(callable, position, data, records, violations);
+    });
 }
 
 fn validate_data(
@@ -1006,6 +1027,7 @@ fn validate_data(
 /// One raw-leaf validity policy for callable slots and record fields, independent of readiness.
 fn data_rule(data: &DataReference, records: &records::Builder) -> Option<DeclarationRule> {
     match data {
+        DataReference::Function(_) => Some(DeclarationRule::UnsupportedCallableData),
         DataReference::Builtin(data) if !supported(*data) => {
             Some(DeclarationRule::UnsupportedDataType { data: *data })
         }

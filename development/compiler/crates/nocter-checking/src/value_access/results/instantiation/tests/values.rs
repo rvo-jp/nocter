@@ -231,7 +231,9 @@ pub(super) fn factory_nodes(
                 local: locals.insert(()),
                 origin: LocalOrigin::Parameter(match fixture.formal {
                     ValueParameter::Declaration(parameter) => parameter,
-                    ValueParameter::Closure { .. } => panic!("named parameter"),
+                    ValueParameter::Closure { .. } | ValueParameter::Component { .. } => {
+                        panic!("named parameter")
+                    }
                 }),
             },
         ),

@@ -273,10 +273,12 @@ impl HeaderPublication {
                     .get(id)
                     .expect("reserved parameter");
                 let parameter = &definition.parameters[slot.position];
+                let mut components = Vec::new();
                 let (data, contract) = publish_value(
                     &mut types,
                     ValueFunctionOrigin::Parameter(id.into()),
                     &parameter.data,
+                    &mut components,
                 );
                 (
                     id,
@@ -287,6 +289,7 @@ impl HeaderPublication {
                         data,
                         operation: parameter.operation,
                         contract,
+                        components: components.into(),
                     },
                 )
             })
@@ -295,6 +298,7 @@ impl HeaderPublication {
             &mut types,
             ValueFunctionOrigin::Result(id),
             &definition.result_data,
+            &mut Vec::new(),
         );
         self.types = types
             .commit(&self.types)
@@ -374,10 +378,41 @@ fn publish_value(
     types: &mut nocter_model::TypeTransaction,
     origin: ValueFunctionOrigin,
     definition: &ValueDefinition,
+    components: &mut Vec<FunctionConstraint>,
 ) -> (nocter_model::TypeId, Option<FunctionConstraint>) {
     let definition = match definition {
         ValueDefinition::Data(data) => {
-            return (resolved_data(types, data), None);
+            let data = super::data::resolve_reference(data, |node| {
+                Some(match node {
+                    super::data::ReferenceNode::Data(nocter_model::TypeKind::Builtin(data)) => {
+                        types.builtin(data)
+                    }
+                    super::data::ReferenceNode::Data(kind) => {
+                        types.intern(kind).expect("validated data reference")
+                    }
+                    super::data::ReferenceNode::Function(contract) => {
+                        let ValueFunctionOrigin::Parameter(
+                            nocter_model::ValueParameter::Declaration(input),
+                        ) = origin
+                        else {
+                            unreachable!("callable components require an input owner")
+                        };
+                        let parameter = nocter_model::ValueParameter::Component {
+                            input,
+                            ordinal: components.len(),
+                        };
+                        let data = functions::intern_views(
+                            types,
+                            ValueFunctionOrigin::Parameter(parameter),
+                            contract.invocation,
+                        );
+                        components.push(contract);
+                        data
+                    }
+                })
+            })
+            .expect("validated input descriptor");
+            return (data, None);
         }
         ValueDefinition::Function(definition) => definition,
     };

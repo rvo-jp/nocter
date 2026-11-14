@@ -7,6 +7,7 @@ use nocter_model::{
     SymbolTable, ValueInvocation,
 };
 
+mod callable_components;
 mod reserved_layout;
 
 #[test]

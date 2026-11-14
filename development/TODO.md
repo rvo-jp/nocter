@@ -100,6 +100,10 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   do not recover entry metadata from a raw-type default or from the closure's unrelated captures.
   Preserve matched entry/completion selection and distinguish committed reference inputs from
   frozen materialized preparation sources before widening source admission.
+- [x] Give each callable leaf of a declared compound input its own declaration-owned contract
+  identity without allocating extra physical parameters. Qualify deterministic publication,
+  separate same-signature leaves, canonical input metadata and invalid-header rejection before
+  opening source admission. Keep nested callback signatures and compound callable results separate.
 
 Qualify the same lexical closure with different captured callbacks before and after forwarding
 it with another instance, including safe/unsafe ordinary source, conditional const admission,

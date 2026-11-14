@@ -103,6 +103,12 @@ pub enum ValueFunctionOrigin {
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum ValueParameter {
     Declaration(crate::AccessParameterId),
+    /// One callable leaf in a declared compound input. The ordinal enumerates the written
+    /// descriptor's callable leaves, not physical fields or additional runtime inputs.
+    Component {
+        input: crate::AccessParameterId,
+        ordinal: usize,
+    },
     Closure {
         owner: ValueClosure,
         position: usize,

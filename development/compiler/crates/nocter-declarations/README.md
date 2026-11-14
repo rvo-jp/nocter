@@ -171,7 +171,8 @@ enumeration belongs to this same authority, independently of source projection a
 `value_access::data` owns closed data-name resolution, TypeId projection and Copy queries over
 one privately owned type authority. Callable metadata headers admit `bool`, the intrinsic integer catalog, `void`, opaque move-only
 `error`, program-extent text descriptors, closed nominal records, structural tuples, optional/fallible layers and closed array descriptors, plus flat callable
-input/result contracts.
+input/result contracts. Construction metadata also admits callable leaves inside compound input
+descriptors; ordinary source admission remains a separate checking/consumer obligation.
 `CodeKind::Primitive` is a runtime-only bodyless callable metadata role. It shares ordinary
 static function-witness publication through `is_callable`; source authorization and exact
 primitive binding remain declaration-lowering obligations, independently of witness shape.
@@ -315,6 +316,16 @@ Named witnesses are capture-free Copy values with trivial cleanup and no outside
 under their exact schema. This is not evidence about arbitrary structural callback contracts.
 Anonymous callable inputs use `ValueParameter::Closure` with the lexical closure and input position;
 header inputs use `ValueParameter::Declaration` with their actual reserved parameter slot.
+Callable leaves inside a compound header input use `ValueParameter::Component`, keyed by that
+same reserved input and the descriptor's ordered callable-leaf ordinal. They allocate no physical
+parameters. Each input owns its component contracts, published atomically with its complete
+schema through the shared iterative data-reference fold. Equal signatures retain distinct formal
+identities, including separate tuple positions; arrays retain one homogeneous element descriptor.
+These descriptors supply neither Copy nor owned-payload evidence. Canonical compound-input keys
+retain the concrete witness at each component instead of adding those witnesses to direct input
+bindings. Raw callable data at an entire input must use the existing `ValueDefinition::Function`
+form. Compound callable results, record fields and higher-order component signatures remain
+rejected before publication; source lowering does not yet admit these compound input contracts.
 `BodyTypes::closure_parameter` publishes each anonymous formal's structural signature once, before
 body checking. The completed closure signature refers to that formal descriptor. Older snapshots
 cannot acquire the new signature, and canonical replay rejects a formal without a completed owner
