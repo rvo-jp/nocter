@@ -500,8 +500,9 @@ completion entry. `ValueData` freezes both contracts as one occurrence pair, sep
 produced payload receipts under the shared metadata quota. Missing sites,
 ambiguous context and exhaustion supply no partial result. Contract metadata does not assert that
 the root is initialized, or describe old/new resource phases. Native storage interns both keys;
-source-place address projection uses the original before-root. Selecting scoped resource-step
-carriers and proving their geometry remain separate work.
+source-place address projection uses the original before-root. Native scoped replacement retains
+the matched pair for virtual-root selection. Enclosing allocation geometry and evaluator transition
+integration remain separate work.
 Guarded carrier views likewise retain their actual referent source before payload selection. A tag
 assertion does not replace the carrier with its payload, choose an alternative or prove availability.
 
@@ -843,8 +844,11 @@ remain separate integration obligations.
 `Unit::project_resource_data` owns ordered payload specialization under one concrete frame and
 original action. Its transition-local binding map contains data references for intermediate
 materializations and transfers, not owners or new world identities. Old cleanup precedes new
-binding; scoped retirement uses the original write target's actual alias-root read. Capture,
-function-view adaptation and component assembly use the declaration-owned canonical operations;
+binding; scoped retirement uses the original write target's actual alias-root read.
+`ResourceDataProjection::replacement_target` matches a scoped destination to the original update
+referent, including its alias-relative fields. A different operation, owned local or destination
+cannot select that reference-root pair. This metadata match grants no owner or layout proof.
+Capture, function-view adaptation and component assembly use the declaration-owned canonical operations;
 array element keys must agree without selecting an arbitrary first context. Independently closed
 schemas select metadata without consulting a backend's frame-wide type cache. Original transitions
 still own before/after order, availability and guards. A failed step list restores prior data

@@ -33,3 +33,52 @@ fn lifecycle_work_failure_publishes_no_partial_program_and_the_same_instances_ca
         complete.instance_program().instances().len()
     );
 }
+
+#[test]
+fn an_unmatched_replacement_is_rejected_before_projecting_its_prefix() {
+    use nocter_checking::value_access::flow::resources::{Holder, payload};
+    let instances = instances();
+    let code = instances
+        .unit()
+        .program()
+        .resolve_code(instances.unit().program().symbols().get("work").unwrap())
+        .unwrap();
+    let (id, instance) = instances
+        .instances()
+        .iter()
+        .find(|(_, instance)| instance.key().code() == code.into())
+        .unwrap();
+    let body = instances.body(id).unwrap();
+    let local = body.typed().body().inputs().explicit()[0].local;
+    let data = body.typed().body().locals().get(local).unwrap().data;
+    let payload = payload(instances.unit().program(), data).unwrap();
+    let prefix = ResourceStep::Move {
+        source: Holder::Local(local).place(),
+        destination: Holder::Return.place(),
+        payload,
+    };
+    let invalid = ResourceStep::ReplaceReferent {
+        source: Holder::Return.place(),
+        destination: Holder::Local(local).place(),
+        retired: payload,
+        payload,
+    };
+    let at = Location {
+        point: body.graph().entry(),
+        action: 0,
+    };
+    let mut work = WorkBudget::new(std::num::NonZeroU64::new(1).unwrap());
+    let mut projection = Projection::new(&instances, instance, id, at, &mut work).unwrap();
+    assert_eq!(
+        projection.steps(&[prefix.clone(), invalid]),
+        Err(Failure::InvalidInstanceProgram)
+    );
+    drop(projection);
+    assert!(
+        work.step().is_ok(),
+        "preflight failure must not start payload projection"
+    );
+    let mut work = WorkBudget::new(std::num::NonZeroU64::new(1_000).unwrap());
+    let mut projection = Projection::new(&instances, instance, id, at, &mut work).unwrap();
+    assert!(projection.steps(&[prefix]).is_ok());
+}

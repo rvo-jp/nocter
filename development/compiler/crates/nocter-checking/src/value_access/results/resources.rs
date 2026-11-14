@@ -37,6 +37,58 @@ pub struct ResourceDataProjection<'a, 'work> {
     values: BTreeMap<Holder, Binding>,
 }
 impl<'a, 'work> ResourceDataProjection<'a, 'work> {
+    /// Match a scoped replacement to its original alias-relative destination. This grants no
+    /// ownership, initialized carrier or geometry proof; it selects the frozen source root pair.
+    /// # Errors
+    /// Rejects a different operation or destination, including a source action with no write.
+    pub fn replacement_target(
+        &self,
+        destination: &Place,
+    ) -> Result<crate::value_access::Referent, Failure> {
+        let target = self.write_target()?;
+        let expected = match target {
+            crate::value_access::Referent::Evaluated(id) => Holder::Expression(id).place(),
+            crate::value_access::Referent::Place(id) => {
+                let place = self.body.typed().body().places().get(id).ok_or(INVALID)?;
+                if self
+                    .body
+                    .typed()
+                    .body()
+                    .locals()
+                    .get(place.local)
+                    .ok_or(INVALID)?
+                    .kind
+                    .access_mode()
+                    != nocter_model::ValueAccessMode::Update
+                {
+                    return Err(INVALID);
+                }
+                Holder::Local(place.local)
+                    .place()
+                    .project_path(&place.fields)
+            }
+        };
+        if expected != *destination {
+            return Err(INVALID);
+        }
+        Ok(target)
+    }
+    fn write_target(&self) -> Result<crate::value_access::Referent, Failure> {
+        let operation = &self
+            .body
+            .graph()
+            .points()
+            .get(self.at.point)
+            .and_then(|block| block.actions.get(self.at.action))
+            .ok_or(INVALID)?
+            .operation;
+        match *operation {
+            Operation::Assign { target, .. } | Operation::CompoundAssign { target, .. } => {
+                Ok(target)
+            }
+            _ => Err(INVALID),
+        }
+    }
     pub(in crate::value_access) fn new(
         program: &'a Program,
         evidence: &'a Evidence,
@@ -138,19 +190,7 @@ impl<'a, 'work> ResourceDataProjection<'a, 'work> {
         if self.values.contains_key(&place.holder()) {
             return self.source(place, data);
         }
-        let body = self.body;
-        let operation = &body
-            .graph()
-            .points()
-            .get(self.at.point)
-            .and_then(|block| block.actions.get(self.at.action))
-            .ok_or(INVALID)?
-            .operation;
-        let (Operation::Assign { target, .. } | Operation::CompoundAssign { target, .. }) =
-            *operation
-        else {
-            return Err(INVALID);
-        };
+        let target = self.write_target()?;
         let source = self
             .evidence
             .value_sources(self.frame.code())

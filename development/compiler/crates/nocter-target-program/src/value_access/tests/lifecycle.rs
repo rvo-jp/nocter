@@ -75,7 +75,12 @@ fn invocation_transfers_precede_the_body_and_adapter_cleanup_precedes_receipt() 
         }
     }
     for step in steps(&program) {
-        if let Step::Resource(step) = step {
+        let resource = match step {
+            Step::Resource(step) => Some(step),
+            Step::ScopedReplacement(replacement) => Some(replacement.operation()),
+            Step::DisposeEnvironment { .. } => None,
+        };
+        if let Some(step) = resource {
             step.try_map_payloads(|payload| {
                 assert_ne!(payload.disposal(), Disposal::FunctionEnvironment);
                 Ok::<_, ()>(payload.clone())
@@ -363,8 +368,34 @@ fn a_consuming_adapter_destroys_the_live_post_update_environment() {
             Step::Resource(ResourceStep::Receive { .. })
         ] if payload.disposal() == Disposal::OwnedError));
     }
-    assert!(
-        steps(&program)
-            .any(|step| matches!(step, Step::Resource(ResourceStep::ReplaceReferent { .. })))
+    assert!(steps(&program).any(|step| matches!(step, Step::ScopedReplacement(_))));
+}
+
+#[test]
+fn scoped_field_replacement_retains_carrier_roots_separately_from_leaf_cleanup() {
+    let program = lower_source(
+        "struct Pair { first: i32\nsecond: i32 }\nfunc set(edit pair: Pair): void { pair.first = 42 }\nfunc run(): i32 { var pair = Pair { first: 41, second: 1 }\nset(pair)\npair.first }",
     );
+    let mut replacements = 0;
+    for step in steps(&program) {
+        let Step::ScopedReplacement(replacement) = step else {
+            continue;
+        };
+        let ResourceStep::ReplaceReferent {
+            destination,
+            retired,
+            payload,
+            ..
+        } = replacement.operation()
+        else {
+            panic!("matched scoped replacement");
+        };
+        assert!(!destination.fields().is_root());
+        assert_ne!(replacement.root_before().data(), retired.data());
+        assert_eq!(replacement.root_before(), replacement.root_after());
+        assert_eq!(retired.data(), payload.data());
+        assert_eq!(retired.disposal(), Disposal::Trivial);
+        replacements += 1;
+    }
+    assert_eq!(replacements, 1);
 }

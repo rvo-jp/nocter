@@ -217,9 +217,13 @@ explicitly, rather than selecting by report order. No second CFG or runtime-stat
 [ordered resource-data projection](../nocter-checking/README.md#shared-flow-access-and-resource-validation)
 and wraps its unchanged selected steps in the native lifecycle vocabulary. It adds instance/action
 failure context, not another source-value substitution model or owner registry. The original
-transition still supplies before/after phases and ownership conditions. Scoped replacement passes
-its independent retired/supplied obligations to MIR disposal and transfer. Backend layout and
-adapter completion remain separate responsibilities.
+transition still supplies before/after phases and ownership conditions. Scoped destinations are
+matched by checking before data projection can change transition-local bindings. A match retains
+the original operation and the instance's frozen before/after root contracts in one sealed
+`ScopedReplacement`; other operations retain their resource form. MIR uses the independent retired
+and supplied obligations with their respective virtual roots for disposal and transfer. Additional
+storage roots include both contracts. Enclosing allocation geometry and adapter completion remain
+separate responsibilities; these contracts grant no mutation or layout proof.
 
 `Program::prepare_with_budget` bounds contextual metadata work across the complete lifecycle
 request. Failures retain the exact instance/action and instantiation cause and publish no draft;

@@ -23,6 +23,7 @@ pub enum EnvironmentPart {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Step {
     Resource(ResourceStep<Payload>),
+    ScopedReplacement(ScopedReplacement),
     /// End the adapter-owned carrier and dispose its selected payload exactly once.
     /// Normal return only, after the callee protects its answer and before caller receipt.
     DisposeEnvironment {
@@ -30,6 +31,28 @@ pub enum Step {
         part: EnvironmentPart,
         payload: Payload,
     },
+}
+/// A matched replacement operation with separate original reference-root contracts.
+/// These roots do not certify enclosing allocations or stable field geometry.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ScopedReplacement {
+    operation: Box<ResourceStep<Payload>>,
+    before: nocter_declarations::value_access::DataInstanceKey,
+    after: nocter_declarations::value_access::DataInstanceKey,
+}
+impl ScopedReplacement {
+    #[must_use]
+    pub fn operation(&self) -> &ResourceStep<Payload> {
+        &self.operation
+    }
+    #[must_use]
+    pub const fn root_before(&self) -> &nocter_declarations::value_access::DataInstanceKey {
+        &self.before
+    }
+    #[must_use]
+    pub const fn root_after(&self) -> &nocter_declarations::value_access::DataInstanceKey {
+        &self.after
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -153,21 +176,28 @@ impl Program {
             for action in body.actions.values() {
                 for alternative in &action.alternatives {
                     for step in alternative.before.iter().chain(alternative.after.iter()) {
-                        match step {
-                            Step::Resource(step) => {
-                                let result = step.try_map_payloads::<std::convert::Infallible, _>(
-                                    |payload| {
-                                        keys.insert(payload.instance().clone());
-                                        Ok(())
-                                    },
-                                );
-                                match result {
-                                    Ok(_) => {}
-                                    Err(never) => match never {},
-                                }
+                        let resource = match step {
+                            Step::Resource(step) => Some(step),
+                            Step::ScopedReplacement(replacement) => {
+                                keys.insert(replacement.before.clone());
+                                keys.insert(replacement.after.clone());
+                                Some(replacement.operation())
                             }
                             Step::DisposeEnvironment { payload, .. } => {
                                 keys.insert(payload.instance().clone());
+                                None
+                            }
+                        };
+                        if let Some(resource) = resource {
+                            let result = resource.try_map_payloads::<std::convert::Infallible, _>(
+                                |payload| {
+                                    keys.insert(payload.instance().clone());
+                                    Ok(())
+                                },
+                            );
+                            match result {
+                                Ok(_) => {}
+                                Err(never) => match never {},
                             }
                         }
                     }

@@ -10,6 +10,7 @@ pub(super) struct Projection<'a, 'work> {
     inner: ResourceDataProjection<'a, 'work>,
     id: AccessInstanceId,
     at: Location,
+    instance: &'a Instance,
 }
 fn failure(id: AccessInstanceId, at: Location, error: ResourceDataFailure) -> Failure {
     match error {
@@ -33,12 +34,53 @@ impl<'a, 'work> Projection<'a, 'work> {
             .unit()
             .project_resource_data(instance.key(), at, work)
             .map_err(|error| failure(id, at, error))?;
-        Ok(Self { inner, id, at })
+        Ok(Self {
+            inner,
+            id,
+            at,
+            instance,
+        })
     }
     pub(super) fn steps(&mut self, steps: &[ResourceStep]) -> Result<Vec<Step>, Failure> {
-        self.inner
+        // Preflight metadata matching before the atomic data projection changes its bindings.
+        let roots = steps
+            .iter()
+            .map(|step| {
+                let ResourceStep::ReplaceReferent { destination, .. } = step else {
+                    return Ok(None);
+                };
+                let target = self
+                    .inner
+                    .replacement_target(destination)
+                    .map_err(|error| failure(self.id, self.at, error))?;
+                let before = self
+                    .instance
+                    .referent_root(self.at, target)
+                    .ok_or(Failure::InvalidInstanceProgram)?
+                    .clone();
+                let after = self
+                    .instance
+                    .referent_root_after(self.at, target)
+                    .ok_or(Failure::InvalidInstanceProgram)?
+                    .clone();
+                Ok(Some((before, after)))
+            })
+            .collect::<Result<Vec<_>, Failure>>()?;
+        let projected = self
+            .inner
             .steps(steps)
-            .map(|steps| steps.into_iter().map(Step::Resource).collect())
-            .map_err(|error| failure(self.id, self.at, error))
+            .map_err(|error| failure(self.id, self.at, error))?;
+        Ok(projected
+            .into_iter()
+            .zip(roots)
+            .map(|(step, roots)| match roots {
+                Some((before, after)) => Step::ScopedReplacement(super::ScopedReplacement {
+                    operation: Box::new(step),
+                    before,
+                    after,
+                }),
+                None => Step::Resource(step),
+            })
+            .collect())
     }
 }

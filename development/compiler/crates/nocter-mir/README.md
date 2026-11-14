@@ -70,7 +70,9 @@ declaration-closed; a missing contextual occurrence rejects. No MIR lookup consu
 frame-wide type map. This includes non-owning local bindings: their actual definition determines
 the alias representation. Source-place address projection consumes checking's frozen reference-root
 contracts at the original action, while partial input resource roots retain the bound input payload.
-Other resource-step partial roots currently require independently closed data. General old/new
+Matched scoped replacement uses its sealed before-root for retired-leaf cleanup and its after-root
+for supplied-leaf placement, preserving the same resource path and cleanup order. An unpaired raw
+scoped replacement rejects. Other resource-step partial roots currently require independently closed data. General old/new
 carrier geometry remains a separate qualification boundary before source formal captures can open.
 Component integrity and sparse cleanup paths use the closed runtime environment's shared type
 projection, independently of source checking and without a reverse semantic-type lookup.

@@ -288,7 +288,21 @@ impl Builder<'_> {
         source: &flow::resources::Place,
         data: RuntimeDataId,
     ) -> Result<Place, Failure> {
-        let mut place = self.root(source.holder(), data, !source.fields().is_root())?;
+        self.place_with_root(source, data, None)
+    }
+    fn place_with_root(
+        &mut self,
+        source: &flow::resources::Place,
+        data: RuntimeDataId,
+        root: Option<RuntimeDataId>,
+    ) -> Result<Place, Failure> {
+        let mut place = if let Some(root) = root {
+            let mut place = self.root(source.holder(), root, false)?;
+            place.data = data;
+            place
+        } else {
+            self.root(source.holder(), data, !source.fields().is_root())?
+        };
         place.projections = source
             .fields()
             .fields()
@@ -398,6 +412,39 @@ impl Builder<'_> {
             CheckedDisposal::FunctionEnvironment => return Err(self.invalid()),
         })
     }
+    fn scoped_replacement(
+        &mut self,
+        replacement: &lifecycle::ScopedReplacement,
+    ) -> Result<[Effect; 2], Failure> {
+        let Step::ReplaceReferent {
+            destination,
+            source,
+            retired,
+            payload,
+        } = replacement.operation()
+        else {
+            return Err(self.invalid());
+        };
+        let program = self.instances.unit().program();
+        let before = self
+            .storage
+            .instance(program, replacement.root_before())
+            .map_err(Failure::Storage)?;
+        let after = self
+            .storage
+            .instance(program, replacement.root_after())
+            .map_err(Failure::Storage)?;
+        let retired = Effect::Dispose {
+            source: self.place_with_root(destination, self.payload_data(retired)?, Some(before))?,
+            disposal: self.disposal(retired)?,
+        };
+        let supplied = self.payload_data(payload)?;
+        let transfer = Effect::Transfer {
+            source: self.place(source, supplied)?,
+            destination: self.place_with_root(destination, supplied, Some(after))?,
+        };
+        Ok([retired, transfer])
+    }
     #[allow(clippy::too_many_lines)]
     fn effects(
         &mut self,
@@ -407,6 +454,9 @@ impl Builder<'_> {
         let mut output = Vec::new();
         for step in steps {
             match step {
+                lifecycle::Step::ScopedReplacement(replacement) => {
+                    output.extend(self.scoped_replacement(replacement)?);
+                }
                 lifecycle::Step::DisposeEnvironment {
                     argument,
                     part,
@@ -648,23 +698,7 @@ impl Builder<'_> {
                             destination,
                         });
                     }
-                    Step::ReplaceReferent {
-                        destination,
-                        source,
-                        retired,
-                        payload,
-                    } => {
-                        output.push(Effect::Dispose {
-                            source: self.place(destination, self.payload_data(retired)?)?,
-                            disposal: self.disposal(retired)?,
-                        });
-                        let source = self.place(source, self.payload_data(payload)?)?;
-                        let destination = self.place(destination, self.payload_data(payload)?)?;
-                        output.push(Effect::Transfer {
-                            source,
-                            destination,
-                        });
-                    }
+                    Step::ReplaceReferent { .. } => return Err(self.invalid()),
                 },
             }
         }
