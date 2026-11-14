@@ -24,8 +24,8 @@ mod required;
 mod results;
 pub use results::{
     CallValueSources, CreationRecipe, InstantiationFailure, InvocationRecipe, ProducerRelation,
-    ProducerShape, ProducerTerm, ValueSource, ValueSourceId, ValueSourceNode, ValueSourceSlot,
-    ValueSources,
+    ProducerShape, ProducerTerm, ValueSource, ValueSourceBoundary, ValueSourceFlow, ValueSourceId,
+    ValueSourceNode, ValueSourceRead, ValueSourceSelection, ValueSourceSlot, ValueSources,
 };
 mod selection;
 mod staged;

@@ -7,6 +7,8 @@ use nocter_model::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 mod build;
+mod positions;
+pub use positions::{ValueSourceBoundary, ValueSourceFlow, ValueSourceRead, ValueSourceSelection};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct ValueSourceId(usize);
@@ -20,6 +22,7 @@ impl ValueSourceId {
 pub enum ValueSourceSlot {
     Local(AccessLocalId),
     Expression(AccessExpressionId),
+    Return,
     Argument {
         call: AccessExpressionId,
         index: usize,
@@ -103,6 +106,7 @@ pub struct ValueSources {
     calls: BTreeMap<AccessExpressionId, Vec<CallValueSources>>,
     creations: BTreeMap<ValueClosure, ValueSourceId>,
     returned: BTreeSet<ValueSourceId>,
+    flow: Option<ValueSourceFlow>,
 }
 impl ValueSources {
     #[cfg(test)]
@@ -126,7 +130,20 @@ impl ValueSources {
             calls,
             creations: BTreeMap::new(),
             returned,
+            flow: None,
         }
+    }
+    #[cfg(test)]
+    pub(in crate::value_access::results) fn with_test_flow(
+        mut self,
+        flow: ValueSourceFlow,
+    ) -> Self {
+        self.flow = Some(flow);
+        self
+    }
+    #[must_use]
+    pub const fn flow(&self) -> Option<&ValueSourceFlow> {
+        self.flow.as_ref()
     }
     #[must_use]
     pub const fn owner(&self) -> ValueCode {

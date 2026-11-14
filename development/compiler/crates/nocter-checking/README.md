@@ -463,6 +463,21 @@ to predecessor definitions, including backedges, without unrolling iterations. S
 their identity vocabulary with the producer analysis. Both consume the same selected control graph
 and lexical alias authority; this graph does not repeat typing, ownership or initialization checks.
 
+`ValueSources::flow` retains sparse writes and actual operand reads at original actions.
+`ValueSourceBoundary` counts completed source actions in one control point; it is not a resource
+phase. Reaching definitions and original predecessor exits share one selection authority with the
+SSA merge builder, replacing its separate block-output state table. `flow.operand` preserves the
+actual selected read, including inserted receiving adapters and alias-root selection; an alias's
+stored binding is not a later read of its referent. Staged returns retain their own source slot.
+Definitions survive retirement as metadata and do not make retired owners accessible.
+
+`Unit::instantiate_stored_data` resolves a selected source slot/component at one such boundary
+through the existing budgeted fixed point. Backedges remain sparse dependencies. Different carrier
+contexts at a join remain unresolved while an independently identical component can still close.
+Invalid boundaries, absent inputs, ambiguity and work exhaustion publish no partial data. This
+boundary describes source definitions; pairing old cleanup, receipt and post-call updates with the
+existing ordered resource transitions remains required before lifecycle admission can widen.
+
 Input nodes retain their local role, including the complete environment input. Selections retain
 component paths rather than treating a received closure as fresh creation. Formation records retain
 their actual environment source. Committed calls retain complete prepared bundles in source order;

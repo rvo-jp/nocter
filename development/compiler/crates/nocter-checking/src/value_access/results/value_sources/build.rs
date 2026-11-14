@@ -12,6 +12,8 @@ mod operations;
 type Result<T> = std::result::Result<T, flow::IntegrityError>;
 struct Builder<'a> {
     query: &'a Query,
+    writes: BTreeMap<(AccessFlowPointId, Slot), Vec<(usize, ValueSourceId)>>,
+    reads: BTreeMap<(flow::Location, AccessExpressionId), ValueSourceId>,
     origin: Option<flow::Location>,
     aliases: &'a flow::Aliases,
     nodes: Vec<ValueSourceNode>,
@@ -19,7 +21,6 @@ struct Builder<'a> {
     incoming: BTreeMap<(AccessFlowPointId, Slot), ValueSourceId>,
     pending: Vec<(AccessFlowPointId, Slot)>,
     inputs: State,
-    outgoing: BTreeMap<AccessFlowPointId, State>,
     predecessors: BTreeMap<AccessFlowPointId, BTreeSet<AccessFlowPointId>>,
     calls: BTreeMap<AccessExpressionId, Vec<CallValueSources>>,
     creations: BTreeMap<nocter_model::ValueClosure, ValueSourceId>,
@@ -32,6 +33,8 @@ pub(in crate::value_access::results) fn analyze(
     let query = &control.typed;
     let mut builder = Builder {
         query,
+        writes: BTreeMap::new(),
+        reads: BTreeMap::new(),
         origin: None,
         aliases,
         nodes: vec![ValueSourceNode {
@@ -44,7 +47,6 @@ pub(in crate::value_access::results) fn analyze(
         incoming: BTreeMap::new(),
         pending: vec![],
         inputs: State::new(),
-        outgoing: BTreeMap::new(),
         predecessors: BTreeMap::new(),
         calls: BTreeMap::new(),
         creations: BTreeMap::new(),
@@ -78,53 +80,86 @@ pub(in crate::value_access::results) fn analyze(
             });
             builder.operation(point, &action.operation, &mut state)?;
         }
-        builder.outgoing.insert(point, state);
         for next in block.terminator.successors() {
             builder.predecessors.entry(next).or_default().insert(point);
         }
     }
     builder.origin = None;
-    while let Some((point, slot)) = builder.pending.pop() {
-        let id = builder.incoming[&(point, slot)];
-        let mut inputs = BTreeSet::new();
-        if point == control.graph.entry() {
-            inputs.insert(
-                builder
-                    .inputs
-                    .get(&slot)
-                    .copied()
-                    .unwrap_or(ValueSourceId(0)),
-            );
-        } else {
-            let predecessors = builder
-                .predecessors
-                .get(&point)
-                .cloned()
-                .unwrap_or_default();
-            for previous in predecessors {
-                let value = builder
-                    .outgoing
-                    .get(&previous)
-                    .and_then(|state| state.get(&slot))
-                    .copied();
-                inputs.insert(value.unwrap_or_else(|| builder.entry(previous, slot)));
-            }
-        }
-        builder.nodes[id.0].value = ValueSource::Merge {
-            point,
-            slot,
-            inputs,
-        };
-    }
+    let source_flow = builder.source_flow(control, &reached)?;
+    builder.close_incoming(&source_flow)?;
     Ok(ValueSources {
         owner: query.code(),
         nodes: builder.nodes.into(),
         calls: builder.calls,
         creations: builder.creations,
         returned: builder.returned,
+        flow: Some(source_flow),
     })
 }
 impl Builder<'_> {
+    fn source_flow(
+        &mut self,
+        control: &flow::Control,
+        reached: &BTreeSet<AccessFlowPointId>,
+    ) -> Result<super::ValueSourceFlow> {
+        Ok(super::ValueSourceFlow {
+            entry: control.graph.entry(),
+            inputs: std::mem::take(&mut self.inputs),
+            points: reached
+                .iter()
+                .map(|&point| {
+                    Ok((
+                        point,
+                        control
+                            .graph
+                            .points()
+                            .get(point)
+                            .ok_or(INVALID)?
+                            .actions
+                            .len(),
+                    ))
+                })
+                .collect::<Result<_>>()?,
+            predecessors: std::mem::take(&mut self.predecessors)
+                .into_iter()
+                .map(|(point, previous)| (point, previous.into_iter().collect()))
+                .collect(),
+            writes: std::mem::take(&mut self.writes),
+            reads: std::mem::take(&mut self.reads),
+        })
+    }
+    fn close_incoming(&mut self, positions: &super::ValueSourceFlow) -> Result<()> {
+        use super::{ValueSourceBoundary, ValueSourceRead};
+        while let Some((point, slot)) = self.pending.pop() {
+            let id = self.incoming[&(point, slot)];
+            let mut inputs = BTreeSet::new();
+            let boundary = ValueSourceBoundary { point, action: 0 };
+            match positions.read(boundary, slot).ok_or(INVALID)? {
+                ValueSourceRead::Empty => {
+                    inputs.insert(ValueSourceId(0));
+                }
+                ValueSourceRead::Value(value) => {
+                    inputs.insert(value);
+                }
+                ValueSourceRead::Incoming(previous) => {
+                    for previous in previous {
+                        let value = match positions.read(previous, slot).ok_or(INVALID)? {
+                            ValueSourceRead::Empty => ValueSourceId(0),
+                            ValueSourceRead::Value(value) => value,
+                            ValueSourceRead::Incoming(_) => self.entry(previous.point, slot),
+                        };
+                        inputs.insert(value);
+                    }
+                }
+            }
+            self.nodes[id.0].value = ValueSource::Merge {
+                point,
+                slot,
+                inputs,
+            };
+        }
+        Ok(())
+    }
     fn definitions(
         &mut self,
         control: &flow::Control,
@@ -143,6 +178,15 @@ impl Builder<'_> {
                 self.defined.extend(defined);
             }
         }
+        Ok(())
+    }
+    fn define(&mut self, slot: Slot, value: ValueSourceId, state: &mut State) -> Result<()> {
+        let origin = self.origin.ok_or(INVALID)?;
+        self.writes
+            .entry((origin.point, slot))
+            .or_default()
+            .push((origin.action, value));
+        state.insert(slot, value);
         Ok(())
     }
     fn push(
@@ -185,7 +229,7 @@ impl Builder<'_> {
         expression: AccessExpressionId,
         state: &State,
     ) -> Result<ValueSourceId> {
-        match self
+        let value = match self
             .query
             .body
             .expressions
@@ -205,7 +249,10 @@ impl Builder<'_> {
                 self.expression(point, expression, state)
             }
             _ => Ok(self.read(point, Slot::Expression(expression), state)),
-        }
+        }?;
+        let origin = self.origin.ok_or(INVALID)?;
+        self.reads.insert((origin, expression), value);
+        Ok(value)
     }
     fn place(
         &mut self,

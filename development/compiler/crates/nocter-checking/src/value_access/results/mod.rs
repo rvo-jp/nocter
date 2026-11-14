@@ -3,7 +3,8 @@ mod applications;
 mod instantiation;
 pub use instantiation::InstantiationFailure;
 pub(super) use instantiation::{
-    call as instantiate_invocation, data as instantiate_value_data, value as instantiate_value,
+    call as instantiate_invocation, data as instantiate_value_data,
+    stored as instantiate_stored_data, value as instantiate_value,
 };
 mod producers;
 pub use producers::{CreationRecipe, ProducerShape};
@@ -15,7 +16,8 @@ mod typing;
 pub(super) use typing::deferred_equalities;
 mod value_sources;
 pub use value_sources::{
-    CallValueSources, ValueSource, ValueSourceId, ValueSourceNode, ValueSourceSlot, ValueSources,
+    CallValueSources, ValueSource, ValueSourceBoundary, ValueSourceFlow, ValueSourceId,
+    ValueSourceNode, ValueSourceRead, ValueSourceSelection, ValueSourceSlot, ValueSources,
 };
 mod unproduced;
 

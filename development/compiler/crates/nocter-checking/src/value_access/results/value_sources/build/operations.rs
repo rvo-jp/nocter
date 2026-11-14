@@ -14,7 +14,7 @@ impl Builder<'_> {
         match *operation {
             flow::Operation::Evaluate(id) => {
                 let value = self.expression(point, id, state)?;
-                state.insert(Slot::Expression(id), value);
+                self.define(Slot::Expression(id), value, state)?;
             }
             flow::Operation::Forward { source, result, .. }
             | flow::Operation::BooleanAnswer { source, result } => {
@@ -24,11 +24,11 @@ impl Builder<'_> {
                     Some(result),
                     ValueSource::Adapt { source },
                 );
-                state.insert(Slot::Expression(result), value);
+                self.define(Slot::Expression(result), value, state)?;
             }
             flow::Operation::BooleanConstant { result, .. } => {
                 let value = self.push(self.data(result)?, Some(result), ValueSource::Opaque);
-                state.insert(Slot::Expression(result), value);
+                self.define(Slot::Expression(result), value, state)?;
             }
             flow::Operation::PrepareArgument { call, argument } => {
                 let ExpressionKind::Call { arguments, .. } =
@@ -38,18 +38,19 @@ impl Builder<'_> {
                 };
                 let source =
                     self.value(point, arguments.get(argument).ok_or(INVALID)?.value, state)?;
-                state.insert(
+                self.define(
                     Slot::Argument {
                         call,
                         index: argument,
                     },
                     source,
-                );
+                    state,
+                )?;
             }
             flow::Operation::CommitCall(call) => self.commit(point, call, state)?,
             flow::Operation::Bind { local, value } => {
                 let source = self.value(point, value, state)?;
-                state.insert(Slot::Local(local), source);
+                self.define(Slot::Local(local), source, state)?;
             }
             flow::Operation::Assign { target, value } => {
                 let value = self.value(point, value, state)?;
@@ -62,6 +63,7 @@ impl Builder<'_> {
             flow::Operation::StageReturn(id) => {
                 let value = self.value(point, id, state)?;
                 self.returned.insert(value);
+                self.define(Slot::Return, value, state)?;
             }
             // Source identities survive retirement; the existing ownership and initialization
             // products alone determine whether an old identity can still be accessed.
@@ -135,7 +137,7 @@ impl Builder<'_> {
                         path,
                     },
                 );
-                state.insert(slot, value);
+                self.define(slot, value, state)?;
             }
         }
         let value = self.push(
@@ -146,11 +148,12 @@ impl Builder<'_> {
                 call,
             }),
         );
-        state.insert(Slot::Expression(call), value);
+        self.define(Slot::Expression(call), value, state)?;
         Ok(())
     }
     fn slot_data(&self, slot: Slot) -> Result<Option<nocter_model::TypeId>> {
         match slot {
+            Slot::Return => Ok(Some(self.query.result_data())),
             Slot::Local(local) => Ok(Some(self.query.body.locals.get(local).ok_or(INVALID)?.data)),
             Slot::Expression(expression) => self.data(expression),
             Slot::Argument { call, index } => {
@@ -188,7 +191,7 @@ impl Builder<'_> {
                     path,
                 },
             );
-            state.insert(slot, value);
+            self.define(slot, value, state)?;
         }
         Ok(())
     }

@@ -226,6 +226,27 @@ impl Unit {
             work,
         )
     }
+    /// Resolve contextual data at an original source-definition boundary.
+    /// This does not choose a resource phase, validate alias access or grant a stored value.
+    /// # Errors
+    /// Rejects absent/ambiguous provenance, invalid boundaries and exhausted metadata work.
+    pub fn instantiate_stored_data(
+        &self,
+        caller: &nocter_declarations::value_access::CodeInstanceKey,
+        selected: &super::ValueSourceSelection,
+        source: TypeId,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<nocter_declarations::value_access::DataInstanceKey, super::InstantiationFailure>
+    {
+        super::results::instantiate_stored_data(
+            &self.program,
+            &self.result_evidence,
+            caller,
+            selected,
+            source,
+            work,
+        )
+    }
     /// Original sparse value definitions, scoped to this complete matched Unit.
     /// These metadata edges grant no initialization, numeric or executable proof.
     #[must_use]

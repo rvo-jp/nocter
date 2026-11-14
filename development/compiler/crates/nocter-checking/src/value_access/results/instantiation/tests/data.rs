@@ -289,7 +289,7 @@ fn an_unproduced_application_does_not_publish_even_declaration_closed_data() {
     );
 }
 
-fn replacement_nodes(
+pub(super) fn replacement_nodes(
     carrier: TypeId,
     element: Option<TypeId>,
 ) -> Vec<(Option<TypeId>, ValueSource)> {

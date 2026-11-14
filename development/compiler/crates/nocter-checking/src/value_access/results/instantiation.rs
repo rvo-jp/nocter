@@ -29,6 +29,7 @@ enum Key {
     Creation(CodeInstanceKey, nocter_model::ValueClosure),
     Value(CodeInstanceKey, super::ValueSourceId, ValuePath<()>),
     Data(CodeInstanceKey, super::ValueSourceId, ValuePath<()>, TypeId),
+    Stored(CodeInstanceKey, super::ValueSourceSelection, TypeId),
 }
 #[derive(Clone, Debug, Eq, PartialEq, Default)]
 enum Fact {
@@ -122,6 +123,24 @@ pub(in crate::value_access) fn data(
         caller.clone(),
         value,
         ValuePath::default(),
+        source,
+    ))? {
+        Fact::Data(data) => Ok(data),
+        _ => Err(InstantiationFailure::Unresolved),
+    }
+}
+
+pub(in crate::value_access) fn stored(
+    program: &Program,
+    evidence: &Evidence,
+    caller: &CodeInstanceKey,
+    selected: &super::ValueSourceSelection,
+    source: TypeId,
+    work: &mut WorkBudget,
+) -> Result<DataInstanceKey, InstantiationFailure> {
+    match Query::new(program, evidence, work).solve(&Key::Stored(
+        caller.clone(),
+        selected.clone(),
         source,
     ))? {
         Fact::Data(data) => Ok(data),
@@ -230,6 +249,9 @@ impl<'a, 'work> Query<'a, 'work> {
             Key::Value(frame, value, path) => self.source_value(key, frame, *value, path),
             Key::Data(frame, value, path, target) => {
                 self.source_data(key, frame, *value, path, *target)
+            }
+            Key::Stored(frame, selected, target) => {
+                self.source_stored_data(key, frame, selected, *target)
             }
         }
     }

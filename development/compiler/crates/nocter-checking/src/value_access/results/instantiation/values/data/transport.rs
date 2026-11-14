@@ -6,6 +6,41 @@ use super::{
 };
 
 impl Query<'_, '_> {
+    pub(in super::super::super) fn source_stored_data(
+        &mut self,
+        owner: &Key,
+        frame: &CodeInstanceKey,
+        selected: &crate::value_access::ValueSourceSelection,
+        target: TypeId,
+    ) -> Result {
+        use crate::value_access::ValueSourceRead;
+        let Some(source) = self
+            .evidence
+            .value_sources(frame.code())
+            .and_then(|graph| graph.flow())
+            .and_then(|flow| flow.read(selected.boundary, selected.slot))
+        else {
+            return Ok(Fact::Unavailable);
+        };
+        match source {
+            ValueSourceRead::Empty => Ok(Fact::Empty),
+            ValueSourceRead::Value(value) => self.read(
+                owner,
+                Key::Data(frame.clone(), value, selected.path.clone(), target),
+            ),
+            ValueSourceRead::Incoming(previous) => {
+                let mut fact = Fact::Empty;
+                for boundary in previous {
+                    let next = crate::value_access::ValueSourceSelection {
+                        boundary,
+                        ..selected.clone()
+                    };
+                    fact = fact.join(self.read(owner, Key::Stored(frame.clone(), next, target))?);
+                }
+                Ok(fact)
+            }
+        }
+    }
     pub(in super::super::super) fn source_data_result(
         &mut self,
         owner: &Key,

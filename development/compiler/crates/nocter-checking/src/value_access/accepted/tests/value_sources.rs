@@ -5,6 +5,7 @@ use crate::value_access::{
 };
 use nocter_model::{ValueApplication, ValueCode, ValuePath, ValueProjection};
 use std::collections::BTreeSet;
+mod positions;
 
 const SOURCE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -263,7 +264,7 @@ fn repetitions_retain_one_seed_source_independently_of_declared_cardinality() {
                 .count(),
             1
         );
-        graph.nodes().len()
+        (graph.nodes().len(), graph.flow().unwrap().write_count())
     };
     assert_eq!(
         count("func run(): void { let _ = [0; 1] }"),
