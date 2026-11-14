@@ -2,13 +2,16 @@
 use super::{Evidence, ProducerRelation, ProducerTerm};
 use nocter_constant_evaluation::state::WorkBudget;
 use nocter_declarations::value_access::{
-    CodeInstanceKey, ConcreteWitness, FunctionWitness, Program,
+    CodeInstanceKey, ConcreteWitness, DataInstanceKey, FunctionWitness, Program,
 };
-use nocter_model::{ValueApplication, ValueCode, ValueFunctionOrigin as Origin, ValueInvocation};
+use nocter_model::{
+    TypeId, ValueApplication, ValueCode, ValueFunctionOrigin as Origin, ValueInvocation, ValuePath,
+};
 use std::collections::{BTreeMap, BTreeSet, btree_map::Entry as MapEntry};
 mod creations;
 #[cfg(test)]
 mod tests;
+mod values;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum InstantiationFailure {
@@ -20,9 +23,11 @@ pub enum InstantiationFailure {
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum Key {
     Witness(CodeInstanceKey, FunctionWitness),
-    Result(CodeInstanceKey),
+    Result(CodeInstanceKey, ValuePath<()>),
     Call(CodeInstanceKey, ValueApplication),
     Creation(CodeInstanceKey, nocter_model::ValueClosure),
+    Value(CodeInstanceKey, super::ValueSourceId, ValuePath<()>),
+    Data(CodeInstanceKey, super::ValueSourceId, ValuePath<()>, TypeId),
 }
 #[derive(Clone, Debug, Eq, PartialEq, Default)]
 enum Fact {
@@ -30,6 +35,7 @@ enum Fact {
     Empty,
     Witness(ConcreteWitness),
     Frame(CodeInstanceKey),
+    Data(DataInstanceKey),
     Unavailable,
 }
 impl Fact {
@@ -67,34 +73,66 @@ pub(in crate::value_access) fn call(
     if evidence.invocation(site).is_none() {
         return Err(InstantiationFailure::MissingCall);
     }
-    let mut query = Query {
-        program,
-        evidence,
-        work,
-        entries: BTreeMap::new(),
-        pending: BTreeSet::new(),
-    };
-    let root = Key::Call(caller.clone(), site);
-    query.ensure(root.clone())?;
-    while let Some(key) = query.pending.pop_first() {
-        query.step()?;
-        let fact = query.evaluate(&key)?;
-        let entry = query
-            .entries
-            .get_mut(&key)
-            .ok_or(InstantiationFailure::Unresolved)?;
-        let joined = entry.fact.clone().join(fact);
-        if joined != entry.fact {
-            entry.fact = joined;
-            query.pending.extend(entry.dependents.iter().cloned());
-        }
-    }
-    match query.entries.remove(&root).map(|entry| entry.fact) {
-        Some(Fact::Frame(frame)) => Ok(frame),
+    match Query::new(program, evidence, work).solve(&Key::Call(caller.clone(), site))? {
+        Fact::Frame(frame) => Ok(frame),
         _ => Err(InstantiationFailure::Unresolved),
     }
 }
-impl Query<'_, '_> {
+pub(in crate::value_access) fn value(
+    program: &Program,
+    evidence: &Evidence,
+    caller: &CodeInstanceKey,
+    value: super::ValueSourceId,
+    work: &mut WorkBudget,
+) -> Result<ConcreteWitness, InstantiationFailure> {
+    if evidence
+        .value_sources(caller.code())
+        .and_then(|graph| graph.node(value))
+        .is_none()
+    {
+        return Err(InstantiationFailure::Unresolved);
+    }
+    match Query::new(program, evidence, work).solve(&Key::Value(
+        caller.clone(),
+        value,
+        ValuePath::default(),
+    ))? {
+        Fact::Witness(witness) => Ok(witness),
+        _ => Err(InstantiationFailure::Unresolved),
+    }
+}
+
+impl<'a, 'work> Query<'a, 'work> {
+    fn new(program: &'a Program, evidence: &'a Evidence, work: &'work mut WorkBudget) -> Self {
+        Self {
+            program,
+            evidence,
+            work,
+            entries: BTreeMap::new(),
+            pending: BTreeSet::new(),
+        }
+    }
+    fn solve(mut self, root: &Key) -> Result<Fact, InstantiationFailure> {
+        self.ensure(root.clone())?;
+        while let Some(key) = self.pending.pop_first() {
+            self.step()?;
+            let fact = self.evaluate(&key)?;
+            let entry = self
+                .entries
+                .get_mut(&key)
+                .ok_or(InstantiationFailure::Unresolved)?;
+            let joined = entry.fact.clone().join(fact);
+            if joined != entry.fact {
+                entry.fact = joined;
+                self.pending.extend(entry.dependents.iter().cloned());
+            }
+        }
+        self.entries
+            .remove(root)
+            .map(|entry| entry.fact)
+            .ok_or(InstantiationFailure::Unresolved)
+    }
+
     fn step(&mut self) -> Result<(), InstantiationFailure> {
         self.work
             .step()
@@ -137,13 +175,16 @@ impl Query<'_, '_> {
                 .adapt_witness(&witness, view)
                 .map_or(Fact::Unavailable, Fact::Witness),
             Fact::Empty | Fact::Unavailable => fact,
-            Fact::Frame(_) => Fact::Unavailable,
+            Fact::Frame(_) | Fact::Data(_) => Fact::Unavailable,
         }
     }
     fn evaluate(&mut self, key: &Key) -> Result<Fact, InstantiationFailure> {
         match key {
             Key::Witness(frame, selected) => self.witness(key, frame, *selected),
-            Key::Result(frame) => {
+            Key::Result(frame, path) if self.evidence.value_sources(frame.code()).is_some() => {
+                self.source_result(key, frame, path)
+            }
+            Key::Result(frame, path) if path.is_root() => {
                 match self
                     .evidence
                     .recipe(ProducerTerm::Result(frame.code()))
@@ -153,8 +194,13 @@ impl Query<'_, '_> {
                     _ => Ok(Fact::Unavailable),
                 }
             }
+            Key::Result(_, _) => Ok(Fact::Unavailable),
             Key::Call(frame, site) => self.invocation(key, frame, *site),
             Key::Creation(frame, closure) => self.creation(key, frame, *closure),
+            Key::Value(frame, value, path) => self.source_value(key, frame, *value, path),
+            Key::Data(frame, value, path, target) => {
+                self.source_data(key, frame, *value, path, *target)
+            }
         }
     }
     fn witness(
@@ -188,13 +234,15 @@ impl Query<'_, '_> {
         let fact = match selected.origin {
             Origin::Application(site) if frame.code() == site.owner => {
                 match self.read(owner, Key::Call(frame.clone(), site))? {
-                    Fact::Frame(callee) => self.read(owner, Key::Result(callee))?,
+                    Fact::Frame(callee) => {
+                        self.read(owner, Key::Result(callee, ValuePath::default()))?
+                    }
                     Fact::Empty => Fact::Empty,
                     _ => Fact::Unavailable,
                 }
             }
             Origin::Result(code) if frame.code() == ValueCode::Declaration(code) => {
-                self.read(owner, Key::Result(frame.clone()))?
+                self.read(owner, Key::Result(frame.clone(), ValuePath::default()))?
             }
             _ => Fact::Unavailable,
         };
@@ -209,13 +257,17 @@ impl Query<'_, '_> {
         if frame.code() != site.owner {
             return Ok(Fact::Unavailable);
         }
+        if self.evidence.value_sources(frame.code()).is_some() {
+            return self.source_invocation(owner, frame, site);
+        }
         let Some(recipe) = self.evidence.invocations.get(&site).cloned() else {
             return Ok(Fact::Unavailable);
         };
         let selected = self.union(owner, frame, &recipe.callees)?;
         let mut bindings = Vec::new();
         let mut pending = matches!(selected, Fact::Empty);
-        let mut unavailable = matches!(selected, Fact::Unavailable | Fact::Frame(_));
+        let mut unavailable =
+            matches!(selected, Fact::Unavailable | Fact::Frame(_) | Fact::Data(_));
         for (&parameter, terms) in &recipe.inputs {
             match self.union(owner, frame, terms)? {
                 Fact::Witness(witness) => bindings.push((parameter, witness)),

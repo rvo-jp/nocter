@@ -12,6 +12,7 @@ use std::{num::NonZeroU64, sync::Arc};
 
 mod creations;
 mod fixture;
+mod values;
 use fixture::*;
 
 #[test]

@@ -193,6 +193,18 @@ impl Unit {
             work,
         )
     }
+    /// Resolve a callable source value in this exact frame without granting a runtime value.
+    /// # Errors
+    /// Rejects absent/ambiguous provenance, unsupported effects and exhausted metadata work.
+    pub fn instantiate_value(
+        &self,
+        caller: &nocter_declarations::value_access::CodeInstanceKey,
+        value: super::ValueSourceId,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<nocter_declarations::value_access::ConcreteWitness, super::InstantiationFailure>
+    {
+        super::results::instantiate_value(&self.program, &self.result_evidence, caller, value, work)
+    }
     /// Original sparse value definitions, scoped to this complete matched Unit.
     /// These metadata edges grant no initialization, numeric or executable proof.
     #[must_use]

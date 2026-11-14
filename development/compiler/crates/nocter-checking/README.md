@@ -475,9 +475,9 @@ Scalar operations are opaque to this metadata graph. A call's selected edit inpu
 post-call write, distinguishing existing storage from an owned temporary; it does not assert an
 unchanged context or infer the callee's effects. Nodes retain canonical projected schemas and are scoped to
 the exact complete Unit and body. Neither graph IDs nor detached graph copies are reusable source
-receipts. Occurrence-context instantiation still uses the qualified witness/creation recipes below;
-integrating these broader value definitions into its consumers remains required before source
-formal-capture admission can open.
+receipts. Transparent receiving adapters inserted after graph construction retain their source
+value even when they have no independent Evaluate action. They cannot create an empty incoming slot
+in place of the selected prepared value.
 
 `Unit::invocation_recipe` exposes each committed-call record
 under their exact code/call identity. Callable application nodes share the same immutable record,
@@ -491,16 +491,33 @@ receipt. These relations do not establish a concrete captured frame, runtime val
 callable target, const permission or ownership. Occurrence-sensitive contextual realization still
 requires its separate qualification before formal-capture admission can open.
 
-`Unit::instantiate_invocation` resolves a concrete metadata frame from those original recipes under
-a caller-supplied deterministic `WorkBudget`. One request-local worklist joins witness/frame facts
-to a fixed point, retaining captured contexts and actual creation frames across application/result
-edges. A matched result-code summary may close directly only when the declaration authority proves
+`Unit::instantiate_invocation` resolves a concrete metadata frame under a caller-supplied
+deterministic `WorkBudget`. For matched source bodies it consumes the original sparse value graph:
+complete prepared call bundles select both the callee and its actual callable inputs. Return edges
+retain selected component paths; received environment inputs project their complete canonical data
+key rather than reopening lexical capture names. `Unit::instantiate_value` exposes callable metadata
+for one value-definition ID in that exact frame. One request-local worklist joins value, data,
+witness and frame facts to a fixed point, retaining contexts through definitions, selections,
+formation and application/result edges. Opaque contextual effects and unqualified call writes
+remain unresolved. A declaration-closed callable schema can identify context-free metadata, but
+never proves that a value exists or can be accessed.
+
+The code-summary/creation-recipe resolver remains available for original metadata fixtures and
+definition-contract reasoning without a matched value graph. Failure of an actual source-value
+query cannot fall back to that hypothesis. A matched result-code summary may close directly only when the declaration authority proves
 that concrete witness context-free; dependent environments cannot reuse the outer caller's binding
 merely because the source code agrees. Invocation adaptation delegates to
 `Program::adapt_witness`, preserving the complete capture context and rejecting view upgrades.
 
-A dependent direct closure term requires its retained creation record in that exact creator
-frame. The resolver pairs original and normalized environment schemas with the frozen producer
+A source formation assembles its complete environment from actual value sources through
+`Program::instantiate_function` and `Program::instantiate_components`, then binds that data key
+directly to the selected closure. Tuple/record positions retain distinct contexts even when their
+source types agree. Homogeneous array metadata requires all represented element contexts to agree;
+a repetition retains one seed and an empty array supplies no element context. Numeric selector
+paths provide no number, bounds or initialized-storage proof.
+
+In code-summary reasoning, a dependent direct closure term requires its retained creation record
+in that exact creator frame. The resolver pairs original and normalized environment schemas with the frozen producer
 shape, visiting shared schema/shape pairs once and charging traversed components to the same
 metadata quota. Actual function leaves retain complete occurrence contexts in the declaration-owned
 component DAG; carrier assembly preserves different contexts at two same-source-type positions.

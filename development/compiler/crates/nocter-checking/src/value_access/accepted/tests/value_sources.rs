@@ -85,6 +85,31 @@ fn factories(unit: &Unit, owner: ValueCode) -> Vec<ValueApplication> {
         })
         .collect()
 }
+
+#[test]
+fn repeated_element_updates_preserve_declaration_closed_callable_metadata() {
+    let unit = accepted(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/const-named-values.nct"
+    )));
+    let owner = code(&unit, "closure_containers");
+    let frame = unit.program().bind_code(owner, []).unwrap();
+    let graph = unit.value_sources(owner).unwrap();
+    let body = unit.code_body(owner).unwrap().typed().body();
+    let mut count = 0;
+    for (call, _) in body.expressions().iter() {
+        if graph.call(call).is_none() {
+            continue;
+        }
+        let mut work = nocter_constant_evaluation::state::WorkBudget::new(
+            std::num::NonZeroU64::new(10_000).unwrap(),
+        );
+        unit.instantiate_invocation(&frame, ValueApplication { owner, call }, &mut work)
+            .unwrap_or_else(|failure| panic!("{call:?}: {failure:?}"));
+        count += 1;
+    }
+    assert_eq!(count, 7);
+}
 #[test]
 fn a_formation_retains_prior_definitions_without_absorbing_a_later_write() {
     let unit = accepted(SOURCE);

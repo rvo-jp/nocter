@@ -95,6 +95,17 @@ impl Builder<'_> {
             )
         };
         self.calls.entry(call).or_default().push(CallValueSources {
+            kind: *kind,
+            invocation: kind.invocation(arguments).ok_or(INVALID)?,
+            parameters: arguments
+                .iter()
+                .enumerate()
+                .filter_map(|(index, arg)| {
+                    arg.binding
+                        .as_ref()
+                        .map(|binding| (binding.parameter, index))
+                })
+                .collect(),
             origin: self.origin.ok_or(INVALID)?,
             callee,
             arguments: values,

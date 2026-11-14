@@ -15,6 +15,7 @@ struct Builder<'a> {
     origin: Option<flow::Location>,
     aliases: &'a flow::Aliases,
     nodes: Vec<ValueSourceNode>,
+    defined: BTreeSet<AccessExpressionId>,
     incoming: BTreeMap<(AccessFlowPointId, Slot), ValueSourceId>,
     pending: Vec<(AccessFlowPointId, Slot)>,
     inputs: State,
@@ -39,6 +40,7 @@ pub(in crate::value_access::results) fn analyze(
             expression: None,
             value: ValueSource::Empty,
         }],
+        defined: BTreeSet::new(),
         incoming: BTreeMap::new(),
         pending: vec![],
         inputs: State::new(),
@@ -64,12 +66,9 @@ pub(in crate::value_access::results) fn analyze(
         );
         builder.inputs.insert(Slot::Local(local), id);
     }
-    let mut pending = vec![control.graph.entry()];
-    let mut reached = BTreeSet::new();
-    while let Some(point) = pending.pop() {
-        if !reached.insert(point) {
-            continue;
-        }
+    let reached = control.graph.reachable()?;
+    builder.definitions(control, &reached)?;
+    for &point in &reached {
         let block = control.graph.points().get(point).ok_or(INVALID)?;
         let mut state = State::new();
         for (index, action) in block.actions.iter().enumerate() {
@@ -82,7 +81,6 @@ pub(in crate::value_access::results) fn analyze(
         builder.outgoing.insert(point, state);
         for next in block.terminator.successors() {
             builder.predecessors.entry(next).or_default().insert(point);
-            pending.push(next);
         }
     }
     builder.origin = None;
@@ -127,6 +125,26 @@ pub(in crate::value_access::results) fn analyze(
     })
 }
 impl Builder<'_> {
+    fn definitions(
+        &mut self,
+        control: &flow::Control,
+        reached: &BTreeSet<AccessFlowPointId>,
+    ) -> Result<()> {
+        for &point in reached {
+            let block = control.graph.points().get(point).ok_or(INVALID)?;
+            for action in &block.actions {
+                let defined = match action.operation {
+                    flow::Operation::Evaluate(id) | flow::Operation::CommitCall(id) => Some(id),
+                    flow::Operation::Forward { result, .. }
+                    | flow::Operation::BooleanAnswer { result, .. }
+                    | flow::Operation::BooleanConstant { result, .. } => Some(result),
+                    _ => None,
+                };
+                self.defined.extend(defined);
+            }
+        }
+        Ok(())
+    }
     fn push(
         &mut self,
         data: Option<TypeId>,
@@ -177,6 +195,14 @@ impl Builder<'_> {
         {
             ExpressionKind::Place(place) | ExpressionKind::Move(Referent::Place(place)) => {
                 self.place(point, Referent::Place(place), state)
+            }
+            ExpressionKind::Boundary { .. }
+            | ExpressionKind::AdaptFunction { .. }
+            | ExpressionKind::Move(Referent::Evaluated(_))
+                if !state.contains_key(&Slot::Expression(expression))
+                    && !self.defined.contains(&expression) =>
+            {
+                self.expression(point, expression, state)
             }
             _ => Ok(self.read(point, Slot::Expression(expression), state)),
         }

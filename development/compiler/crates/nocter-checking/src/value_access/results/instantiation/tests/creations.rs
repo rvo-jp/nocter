@@ -292,7 +292,7 @@ fn one_creation_snapshot_keeps_two_calls_to_the_same_closure_with_different_cont
     );
 }
 
-fn mixed_environment(
+pub(super) fn mixed_environment(
     fixture: &Fixture,
     outer: ValueClosure,
     wrapper_witness: FunctionWitness,

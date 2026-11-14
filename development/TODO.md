@@ -23,12 +23,12 @@ Complete occurrence-sensitive value/capture transport under the
 The declaration-owned frame/data model and original creation-recipe resolver are the existing
 metadata authorities; their component READMEs own implemented scope.
 
-Next consume the matched sparse `ValueSources` graph to resolve received environment components
-and value-occurrence contexts under the existing deterministic work quota. Follow input roles,
-selections, value definitions, prepared call bundles, creation environments and returned values;
-do not turn a received value into fresh lexical creation or an outer free-parameter lookup.
-Keep code-summary/definition hypotheses separate from actual committed value-source resolution.
-Opaque effects, ambiguous alternatives and unqualified call writes must not supply a context.
+The matched sparse `ValueSources` graph now supplies strict callable metadata queries through
+received environment components, selected return paths, value definitions, prepared call bundles
+and new creation environments. Its component README owns the qualified scope. Continue preserving
+one deterministic work quota and request-local failure. Keep code-summary/definition hypotheses
+separate from actual committed calls, and keep opaque effects, ambiguous alternatives and
+unqualified call writes unresolved.
 
 Carry the resulting exact keys into ordinary body data selection, receiving and cleanup rather
 than rebuilding them from a per-frame TypeId map. Preserve shared schemas, sparse loops and

@@ -12,11 +12,15 @@ pub(super) struct Fixture {
     pub(super) callbacks: [FunctionWitness; 2],
     pub(super) sites: [AccessExpressionId; 3],
     pub(super) supporting: BTreeMap<ValueClosure, CreationRecipe>,
+    pub(super) array_shapes: Option<[TypeId; 2]>,
 }
 pub(super) fn fixture() -> Fixture {
     fixture_with_shape(0, false)
 }
 pub(super) fn fixture_with_shape(depth: usize, mixed_views: bool) -> Fixture {
+    fixture_with_array_shapes(depth, mixed_views, false)
+}
+pub(super) fn fixture_with_array_shapes(depth: usize, mixed_views: bool, arrays: bool) -> Fixture {
     let (sources, tree) = input(
         "func first(): i32 { 41 }\nfunc second(): i32 { 42 }\nfunc creator(take action: func(): i32): func(): i32 { first }\nfunc root(left: func(): i32, right: func(): i32): i32 { 0 }",
     );
@@ -52,6 +56,19 @@ pub(super) fn fixture_with_shape(depth: usize, mixed_views: bool) -> Fixture {
         },
     )
     .unwrap();
+    let array_shapes = arrays.then(|| {
+        let element = body
+            .program()
+            .function_data(FunctionWitness {
+                origin: Origin::Closure(wrappers[0]),
+                invocation: ValueInvocation::Read,
+            })
+            .unwrap();
+        [
+            body.array(element, 2).unwrap(),
+            body.array(element, 0).unwrap(),
+        ]
+    });
     let mut expressions = ArenaBuilder::new();
     let program = body.finish();
     let supporting = wrappers
@@ -82,6 +99,7 @@ pub(super) fn fixture_with_shape(depth: usize, mixed_views: bool) -> Fixture {
         callbacks,
         sites: std::array::from_fn(|_| expressions.insert(())),
         supporting,
+        array_shapes,
     }
 }
 pub(super) fn budget() -> WorkBudget {

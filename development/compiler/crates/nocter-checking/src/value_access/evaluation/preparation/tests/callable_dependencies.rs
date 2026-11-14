@@ -283,6 +283,8 @@ fn condition_expansion_exhaustion_is_distinct_and_the_same_request_can_recover()
         std::num::NonZeroU32::new(8).unwrap(),
     );
     let mut preparation = Preparation::new(context, Headers::Closed, limits.into());
+    // This test isolates condition work from plan construction and execution quotas.
+    preparation.plan_work = state::WorkBudget::new(state::Limits::default().steps());
     preparation.condition_work = state::WorkBudget::new(std::num::NonZeroU64::new(8).unwrap());
     let mut requests = Dependencies::default();
     let Err(QueryError::Computation(SourceFailure::Checking(Failure::Evaluation {

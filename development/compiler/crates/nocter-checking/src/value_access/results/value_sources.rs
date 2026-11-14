@@ -10,6 +10,12 @@ mod build;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct ValueSourceId(usize);
+#[cfg(test)]
+impl ValueSourceId {
+    pub(in crate::value_access::results) const fn test(index: usize) -> Self {
+        Self(index)
+    }
+}
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum ValueSourceSlot {
     Local(AccessLocalId),
@@ -81,6 +87,9 @@ pub struct ValueSourceNode {
 /// Prepared values at an actual invocation commit, in the original selected bundle order.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CallValueSources {
+    pub kind: crate::value_access::CallKind,
+    pub invocation: nocter_model::ValueInvocation,
+    pub parameters: BTreeMap<nocter_model::ValueParameter, usize>,
     pub origin: flow::Location,
     pub callee: ValueSourceId,
     pub arguments: Box<[ValueSourceId]>,
@@ -96,6 +105,29 @@ pub struct ValueSources {
     returned: BTreeSet<ValueSourceId>,
 }
 impl ValueSources {
+    #[cfg(test)]
+    pub(in crate::value_access::results) fn test(
+        owner: ValueCode,
+        nodes: Vec<(Option<TypeId>, ValueSource)>,
+        calls: BTreeMap<AccessExpressionId, Vec<CallValueSources>>,
+        returned: BTreeSet<ValueSourceId>,
+    ) -> Self {
+        Self {
+            owner,
+            nodes: nodes
+                .into_iter()
+                .map(|(data, value)| ValueSourceNode {
+                    origin: None,
+                    data,
+                    expression: None,
+                    value,
+                })
+                .collect(),
+            calls,
+            creations: BTreeMap::new(),
+            returned,
+        }
+    }
     #[must_use]
     pub const fn owner(&self) -> ValueCode {
         self.owner
