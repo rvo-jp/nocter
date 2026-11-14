@@ -1,9 +1,10 @@
 //! Frozen caller-to-body input channels and normal adapter cleanup, without target selection.
-use super::{DataEvidence, Failure, Payload};
-use nocter_checking::value_access::{BodyInput, CallKind, accepted::Unit};
+use super::{Failure, InstanceKey, Payload};
+use nocter_checking::value_access::{BodyInput, CallKind, CallValueSources, accepted::Unit};
+use nocter_constant_evaluation::state::WorkBudget;
 use nocter_model::{AccessExpressionId, AccessInstanceId, TypeId, ValueCode, ValueInputOperation};
 use nocter_runtime_contract::PrimitiveRole;
-use std::collections::BTreeMap;
+
 const INVALID: Failure = Failure::InvalidAcceptedUnit;
 
 /// Normal completion only; this does not invent unwind or cancellation cleanup guarantees.
@@ -93,102 +94,145 @@ impl Invocation {
 
 pub(super) fn bind(
     unit: &Unit,
-    data: &BTreeMap<TypeId, DataEvidence>,
+    frame: &InstanceKey,
     caller: &nocter_checking::value_access::flow::Query,
     call: AccessExpressionId,
     code: ValueCode,
     target: CallTarget,
+    work: &mut WorkBudget,
 ) -> Result<Invocation, Failure> {
-    let expression = caller
-        .typed()
-        .body()
-        .expressions()
-        .get(call)
-        .ok_or(INVALID)?;
-    let nocter_checking::value_access::ExpressionKind::Call {
-        kind, arguments, ..
-    } = &expression.kind
-    else {
-        return Err(INVALID);
-    };
-    let kind = *kind;
-    let result = data
-        .get(&expression.ty.normal().ok_or(INVALID)?.data())
-        .and_then(DataEvidence::payload)
-        .ok_or(INVALID)?;
-    let body = unit.code_body(code).map(|body| body.typed().body());
-    let expected: Vec<_> = match target {
-        CallTarget::Body(_) => body
-            .ok_or(INVALID)?
-            .inputs()
-            .explicit()
-            .iter()
-            .map(|input| input.operation)
-            .collect(),
-        CallTarget::Primitive(role) => {
-            let ValueCode::Declaration(id) = code else {
-                return Err(INVALID);
-            };
-            if unit.primitives().role(id) != Some(role) || body.is_some() {
-                return Err(INVALID);
-            }
-            role.value_signature()
-                .ok_or(INVALID)?
-                .inputs()
-                .iter()
-                .map(|input| input.operation())
-                .collect()
-        }
-    };
-    let environment_input = body.and_then(|body| body.inputs().environment());
-    let (offset, environment) = match kind {
-        CallKind::Direct => {
-            if !matches!(code, ValueCode::Declaration(_)) || environment_input.is_some() {
-                return Err(INVALID);
-            }
-            (0, Environment::None)
-        }
-        CallKind::Value => {
-            let argument = arguments.first().ok_or(INVALID)?;
-            let carrier = argument_payload(caller, data, argument)?;
-            let Some(nocter_declarations::value_access::PayloadSchema::Function(witness)) =
-                unit.program().data_schema(carrier.data())
-            else {
-                return Err(INVALID);
-            };
-            if Some(witness.origin) != code.origin()
-                || witness.invocation.operation() != argument.operation
-            {
-                return Err(INVALID);
-            }
-            (
-                1,
-                environment(unit, code, carrier, argument.operation, environment_input)?,
-            )
-        }
-    };
-    let explicit = arguments.get(offset..).ok_or(INVALID)?;
-    if explicit.len() != expected.len() {
+    if caller.typed().code() != frame.code() {
         return Err(INVALID);
     }
-    let mut inputs = Vec::new();
-    for (index, (argument, operation)) in explicit.iter().zip(expected).enumerate() {
-        if argument.operation != operation {
+    let bundles = unit
+        .value_sources(frame.code())
+        .and_then(|graph| graph.call(call))
+        .ok_or(INVALID)?;
+    let mut binding = Binding {
+        unit,
+        frame,
+        caller,
+        call,
+        code,
+        target,
+        work,
+    };
+    let mut selected = None;
+    for bundle in bundles {
+        let next = binding.bundle(bundle)?;
+        if selected.as_ref().is_some_and(|previous| previous != &next) {
+            return Err(
+                binding.failure(nocter_checking::value_access::InstantiationFailure::Unresolved)
+            );
+        }
+        selected = Some(next);
+    }
+    selected.ok_or(INVALID)
+}
+struct Binding<'a, 'work> {
+    unit: &'a Unit,
+    frame: &'a InstanceKey,
+    caller: &'a nocter_checking::value_access::flow::Query,
+    call: AccessExpressionId,
+    code: ValueCode,
+    target: CallTarget,
+    work: &'work mut WorkBudget,
+}
+impl Binding<'_, '_> {
+    fn bundle(&mut self, bundle: &CallValueSources) -> Result<Invocation, Failure> {
+        let (unit, caller, call, code, target) =
+            (self.unit, self.caller, self.call, self.code, self.target);
+        let expression = caller
+            .typed()
+            .body()
+            .expressions()
+            .get(call)
+            .ok_or(INVALID)?;
+        let nocter_checking::value_access::ExpressionKind::Call {
+            kind, arguments, ..
+        } = &expression.kind
+        else {
+            return Err(INVALID);
+        };
+        let kind = *kind;
+        if bundle.kind != kind || bundle.arguments.len() != arguments.len() {
             return Err(INVALID);
         }
-        inputs.push(InputBinding {
-            argument: offset + index,
-            operation,
-            payload: argument_payload(caller, data, argument)?,
-        });
+        let result = self.result(expression.ty.normal().ok_or(INVALID)?.data(), bundle)?;
+        let body = unit.code_body(code).map(|body| body.typed().body());
+        let expected: Vec<_> = match target {
+            CallTarget::Body(_) => body
+                .ok_or(INVALID)?
+                .inputs()
+                .explicit()
+                .iter()
+                .map(|input| input.operation)
+                .collect(),
+            CallTarget::Primitive(role) => {
+                let ValueCode::Declaration(id) = code else {
+                    return Err(INVALID);
+                };
+                if unit.primitives().role(id) != Some(role) || body.is_some() {
+                    return Err(INVALID);
+                }
+                role.value_signature()
+                    .ok_or(INVALID)?
+                    .inputs()
+                    .iter()
+                    .map(|input| input.operation())
+                    .collect()
+            }
+        };
+        let environment_input = body.and_then(|body| body.inputs().environment());
+        let (offset, environment) = match kind {
+            CallKind::Direct => {
+                if !matches!(code, ValueCode::Declaration(_)) || environment_input.is_some() {
+                    return Err(INVALID);
+                }
+                (0, Environment::None)
+            }
+            CallKind::Value => {
+                let argument = arguments.first().ok_or(INVALID)?;
+                let carrier = self.argument_payload(bundle, 0, argument)?;
+                let Some(nocter_declarations::value_access::PayloadSchema::Function(witness)) =
+                    unit.program().data_schema(carrier.data())
+                else {
+                    return Err(INVALID);
+                };
+                if Some(witness.origin) != code.origin()
+                    || witness.invocation.operation() != argument.operation
+                {
+                    return Err(INVALID);
+                }
+                (
+                    1,
+                    environment(unit, code, carrier, argument.operation, environment_input)?,
+                )
+            }
+        };
+        let explicit = arguments.get(offset..).ok_or(INVALID)?;
+        if explicit.len() != expected.len() {
+            return Err(INVALID);
+        }
+        let mut inputs = Vec::new();
+        for (index, (argument, operation)) in explicit.iter().zip(expected).enumerate() {
+            if argument.operation != operation {
+                return Err(INVALID);
+            }
+            inputs.push(InputBinding {
+                argument: offset + index,
+                operation,
+                payload: self.argument_payload(bundle, offset + index, argument)?,
+            });
+        }
+        Ok(Invocation {
+            target,
+            kind,
+            inputs: inputs.into(),
+            environment,
+            result,
+        })
     }
-    Ok(Invocation {
-        target,
-        kind,
-        inputs: inputs.into(),
-        environment,
-        result,
-    })
 }
 
 fn environment(
@@ -242,20 +286,69 @@ fn environment(
     }
 }
 
-fn argument_payload(
-    caller: &nocter_checking::value_access::flow::Query,
-    data: &BTreeMap<TypeId, DataEvidence>,
-    argument: &nocter_checking::value_access::Argument,
-) -> Result<Payload, Failure> {
-    let ty = caller
-        .typed()
-        .body()
-        .expressions()
-        .get(argument.value)
-        .ok_or(INVALID)?
-        .ty
-        .normal()
-        .ok_or(INVALID)?
-        .data();
-    data.get(&ty).and_then(DataEvidence::payload).ok_or(INVALID)
+impl Binding<'_, '_> {
+    fn failure(&self, failure: nocter_checking::value_access::InstantiationFailure) -> Failure {
+        Failure::Invocation {
+            site: nocter_model::ValueApplication {
+                owner: self.frame.code(),
+                call: self.call,
+            },
+            failure,
+        }
+    }
+    fn argument_payload(
+        &mut self,
+        bundle: &CallValueSources,
+        index: usize,
+        argument: &nocter_checking::value_access::Argument,
+    ) -> Result<Payload, Failure> {
+        let data = self
+            .caller
+            .typed()
+            .body()
+            .expressions()
+            .get(argument.value)
+            .ok_or(INVALID)?
+            .ty
+            .normal()
+            .ok_or(INVALID)?
+            .data();
+        let source = *bundle.arguments.get(index).ok_or(INVALID)?;
+        let key = self
+            .unit
+            .instantiate_value_data(self.frame, source, data, self.work)
+            .map_err(|failure| self.failure(failure))?;
+        self.payload(data, &key)
+    }
+    fn result(&mut self, data: TypeId, bundle: &CallValueSources) -> Result<Payload, Failure> {
+        let key = if let Ok(key) = self.unit.program().instantiate_closed_data(data) {
+            key
+        } else {
+            let selected = nocter_checking::value_access::ValueSourceSelection {
+                boundary: nocter_checking::value_access::ValueSourceBoundary {
+                    point: bundle.origin.point,
+                    action: bundle.origin.action.checked_add(1).ok_or(INVALID)?,
+                },
+                slot: nocter_checking::value_access::ValueSourceSlot::Expression(self.call),
+                path: nocter_model::ValuePath::default(),
+            };
+            self.unit
+                .instantiate_stored_data(self.frame, &selected, data, self.work)
+                .map_err(|failure| self.failure(failure))?
+        };
+        self.payload(data, &key)
+    }
+    fn payload(
+        &self,
+        source: TypeId,
+        key: &nocter_declarations::value_access::DataInstanceKey,
+    ) -> Result<Payload, Failure> {
+        self.unit
+            .data_evidence(source)
+            .map_err(|_| INVALID)?
+            .payload()
+            .ok_or(INVALID)?
+            .instantiate(self.unit.program(), key)
+            .map_err(|_| INVALID)
+    }
 }

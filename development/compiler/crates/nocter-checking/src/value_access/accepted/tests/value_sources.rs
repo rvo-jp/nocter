@@ -7,6 +7,37 @@ use nocter_model::{ValueApplication, ValueCode, ValuePath, ValueProjection};
 use std::collections::BTreeSet;
 mod positions;
 
+#[test]
+fn an_opaque_numeric_update_retains_its_declared_data_and_rejects_an_unrelated_schema() {
+    let unit = accepted("func run(): i32 { var value = 41\nvalue += 1\nvalue }");
+    let owner = code(&unit, "run");
+    let frame = unit.program().bind_code(owner, []).unwrap();
+    let graph = unit.value_sources(owner).unwrap();
+    let (value, _) = graph
+        .nodes()
+        .find(|(_, node)| node.value == ValueSource::Opaque && node.expression.is_none())
+        .unwrap();
+    let actual = unit
+        .program()
+        .data_type(nocter_model::BuiltinType::I32)
+        .unwrap();
+    let other = unit
+        .program()
+        .data_type(nocter_model::BuiltinType::I64)
+        .unwrap();
+    let mut work =
+        nocter_constant_evaluation::state::WorkBudget::new(std::num::NonZeroU64::new(100).unwrap());
+    assert_eq!(
+        unit.instantiate_value_data(&frame, value, actual, &mut work)
+            .unwrap(),
+        unit.program().instantiate_closed_data(actual).unwrap()
+    );
+    assert_eq!(
+        unit.instantiate_value_data(&frame, value, other, &mut work),
+        Err(crate::value_access::InstantiationFailure::Unresolved)
+    );
+}
+
 const SOURCE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../tests/fixtures/native/value-access/capture-producers.nct"

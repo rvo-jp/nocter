@@ -91,8 +91,9 @@ Only checking-reachable invocation commits create call edges. A value reference,
 or interrupted argument does not force a code instance. Construction indexes are discarded; one
 immutable instance arena is the published authority.
 
-Reached call frames come from the exact accepted Unit's original invocation/producer recipes and
+Reached call frames come from the exact accepted Unit's original prepared value sources through
 its [budgeted fixed-point resolver](../nocter-checking/README.md#shared-flow-access-and-resource-validation).
+Code-summary/definition hypotheses do not replace missing actual invocation evidence.
 `build` consumes checked invocation commits and never reconstructs a creation context from the
 projected call signature or code name. `prepare_with_budget` shares one deterministic metadata-work
 quota across all reached calls; default preparation uses the shared compiler work policy. Failure
@@ -101,9 +102,10 @@ reusable. Runtime execution work and call-depth limits are not spent or inferred
 
 The declaration-owned `Program::bind_instance` still owns complete formal/capture coverage,
 contract matching and view validation. Source permissions, original body invocation and explicit
-input operations stay frozen. `projection` now owns data substitution rather than a competing
-callee substitution path. One table maps the body's
-source data IDs to checking-owned [instantiated payload obligations](../nocter-checking/README.md#shared-flow-access-and-resource-validation)
+input operations stay frozen. Declaration-owned normalization remains shared by source-value
+queries and body projection. `projection::data` retains a frame-wide table for the remaining
+ordinary body-slot and body-ABI consumers; it does not select actual invocation arguments.
+That table maps source data IDs to checking-owned [instantiated payload obligations](../nocter-checking/README.md#shared-flow-access-and-resource-validation)
 or checked unproduced shapes. Each positive entry retains its complete `DataInstanceKey`, not just
 the selected code's raw semantic ID. The unproduced marker supplies neither a duplicate
 signature nor a payload or code instance; shape/contract lookup stays with Program. It also covers
@@ -129,6 +131,14 @@ and seed disposal retain their real bindings, while the body preserves its origi
 through native execution. Detached function metadata cannot force a phantom callee or carrier.
 
 `invocation` binds each reached call's committed prepared bundle to the selected ordered inputs.
+Argument payloads, including the callable-value carrier, normalize the bundle's actual source
+value IDs under the caller frame and the same deterministic work quota. They do not use the
+frame's default payload for a matching TypeId. Result ABI metadata can use an independently closed
+schema; a contextual result follows the original post-commit expression definition through its
+actual callee frame. Multiple retained bundles must yield the same complete edge rather than
+mixing callee, environment and argument alternatives. Source-selected construction adapters retain
+their value provenance even without an independent Evaluate action, and opaque numeric updates
+retain their typed result schema without evaluating their numbers in this graph.
 An edge retains the concrete body instance or checked primitive role, direct/value kind, explicit argument-to-input map,
 environment channel and concrete input/result obligations. A named value supplies a code token without a
 body environment; a captured value supplies its exact carrier and environment payloads to the declared body

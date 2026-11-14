@@ -491,8 +491,10 @@ post-call write, distinguishing existing storage from an owned temporary; it doe
 unchanged context or infer the callee's effects. Nodes retain canonical projected schemas and are scoped to
 the exact complete Unit and body. Neither graph IDs nor detached graph copies are reusable source
 receipts. Transparent receiving adapters inserted after graph construction retain their source
-value even when they have no independent Evaluate action. They cannot create an empty incoming slot
-in place of the selected prepared value.
+value even when they have no independent Evaluate action. Frozen structural construction adapters
+retain their actual component sources under the same rule. They cannot create an empty incoming
+slot in place of the selected prepared value. Opaque numeric updates retain the typed target's
+result schema; metadata opacity does not erase that type or execute its numeric operation.
 
 `Unit::invocation_recipe` exposes each committed-call record
 under their exact code/call identity. Callable application nodes share the same immutable record,

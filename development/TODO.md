@@ -24,10 +24,10 @@ The [checking](compiler/crates/nocter-checking/README.md) and
 [target-program](compiler/crates/nocter-target-program/README.md) owners describe the implemented
 canonical metadata, original source-definition queries and ordered lifecycle specialization.
 
-Next carry their exact per-value keys through ordinary body slots and invocation channels,
-including evaluator plan selection. Native shape preparation now accepts the actual lifecycle
-payload roots through its existing canonical interner. Keep preparation-time snapshots and staged returns. Post-update dependent environments
-and prepared temporaries must follow actual call-write context rather than reuse an immutable
+Next carry their exact per-value keys through ordinary body slots, body ABI channels and evaluator
+plan selection, using the component owners above for completed invocation/lifecycle/storage scope.
+Keep preparation-time snapshots and staged returns. Post-update dependent environments and prepared
+temporaries must follow actual call-write context rather than reuse an immutable
 pre-call bundle. Source-definition boundaries are not resource phases: preserve the existing
 transition order, old-value cleanup and new-value receipt without adding provenance to ownership
 world identity, a second owner registry or downstream phase inference from step names. Preserve

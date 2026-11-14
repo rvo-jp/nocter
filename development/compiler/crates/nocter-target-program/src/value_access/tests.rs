@@ -8,6 +8,7 @@ use nocter_model::{ValueCode, ValueFunctionOrigin, ValueInvocation};
 use nocter_test_support::ValueSourceFixture;
 use std::fmt::Write as _;
 mod captured;
+mod invocation_sources;
 mod primitives;
 mod storage_roots;
 mod substitution;

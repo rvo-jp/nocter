@@ -241,6 +241,7 @@ impl Builder<'_> {
                 self.place(point, Referent::Place(place), state)
             }
             ExpressionKind::Boundary { .. }
+            | ExpressionKind::Aggregate { .. }
             | ExpressionKind::AdaptFunction { .. }
             | ExpressionKind::Move(Referent::Evaluated(_))
                 if !state.contains_key(&Slot::Expression(expression))

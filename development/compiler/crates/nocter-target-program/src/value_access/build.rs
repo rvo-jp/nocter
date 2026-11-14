@@ -81,7 +81,7 @@ impl Builder {
                 }
                 _ => CallTarget::Body(self.intern(selected)),
             };
-            let edge = invocation::bind(unit, &data, body, call, code, target)?;
+            let edge = invocation::bind(unit, &key, body, call, code, target, work)?;
             calls.insert(call, edge);
         }
         self.instances

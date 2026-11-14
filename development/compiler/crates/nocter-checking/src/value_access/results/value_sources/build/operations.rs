@@ -57,7 +57,8 @@ impl Builder<'_> {
                 self.assign(point, target, value, state)?;
             }
             flow::Operation::CompoundAssign { target, .. } => {
-                let value = self.push(None, None, ValueSource::Opaque);
+                let data = self.query.body.referent_data(target).ok_or(INVALID)?;
+                let value = self.push(Some(data), None, ValueSource::Opaque);
                 self.assign(point, target, value, state)?;
             }
             flow::Operation::StageReturn(id) => {
