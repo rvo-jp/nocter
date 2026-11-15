@@ -29,6 +29,27 @@ const func interrupted_element(): i32 {
 const func conditional(flag: bool): i32 {
     choose([none, if flag { wrap(addition(0)) } else { wrap(addition(10)) }])
 }
+const func conditional_absence(edit order: i32, flag: bool): i32 {
+    choose([
+        if flag {
+            order = order * 10 + 1
+            none
+        } else {
+            order = order * 10 + 2
+            wrap(addition(0))
+        },
+        if true {
+            order = order * 10 + 3
+            wrap(addition(10))
+        } else { wrap(addition(10)) }
+    ])
+}
+const func conditional_presence(flag: bool): i32 {
+    choose([if flag { wrap(addition(0)) } else { none }, wrap(addition(10))])
+}
+const func conditional_chain(first: bool, second: bool): i32 {
+    choose([none, if first { wrap(addition(0)) } else if second { wrap(addition(10)) } else { wrap(addition(40)) }])
+}
 const func choose(take values: [(func(i32): i32)?; 2]): i32 {
     let fallback = values[1]^!
     let action = values[0]^ otherwise { fallback^ }
@@ -39,6 +60,12 @@ const func calculate(): i32 {
     discard_three([observed(order, 1), none, observed(order, 2)])
     if order != 12 || interrupted() != 42 || interrupted_element() != 42 { return 0 }
     if conditional(true) != 21 || conditional(false) != 31 { return 0 }
+    var condition_order: i32 = 0
+    if conditional_absence(condition_order, true) != 31 || condition_order != 13 { return 0 }
+    condition_order = 0
+    if conditional_absence(condition_order, false) != 21 || condition_order != 23 { return 0 }
+    if conditional_presence(true) != 21 || conditional_presence(false) != 31 { return 0 }
+    if conditional_chain(true, false) != 21 || conditional_chain(false, true) != 31 || conditional_chain(false, false) != 61 { return 0 }
     if discard([none, live]) != 21 || discard([live, none]) != 21 || discard([none, none]) != 21 { return 0 }
     if choose([none, wrap(live)]) + choose([wrap(live), wrap(live)]) != 42 { return 0 }
     if choose([none, wrap(addition(0))]) + choose([wrap(addition(0)), wrap(addition(40))]) != 42 { return 0 }

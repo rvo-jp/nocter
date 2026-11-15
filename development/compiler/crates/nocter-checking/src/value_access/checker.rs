@@ -321,6 +321,17 @@ impl<'a, 's> Checker<'a, 's> {
         self.origins.statements.insert(id, site);
         Ok(id)
     }
+    pub(super) fn expression_origin(
+        &self,
+        value: AccessExpressionId,
+    ) -> Result<SyntaxOrigin, Failure> {
+        let Some(&Site::Body(locator)) = self.origins.expressions.get(&value) else {
+            return Err(Failure::InconsistentSyntax);
+        };
+        self.projection
+            .resolve(locator)
+            .ok_or(Failure::InconsistentSyntax)
+    }
     pub fn emit_block(
         &mut self,
         node: NodeId,

@@ -423,6 +423,13 @@ impl Checker<'_, '_> {
             }
             self.emit_block(node, Vec::new(), Some(unit), self.ty(unit))?
         };
+        if construction.is_some() {
+            self.refine_conditional_absence(
+                [then_block, else_block],
+                branches_reachable,
+                known_condition,
+            )?;
+        }
         let ty = self.conditional_type(node, condition, then_block, else_block)?;
         if construction.is_some()
             && let Some(access) = ty.normal()

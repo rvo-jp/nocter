@@ -2337,6 +2337,13 @@ does not leave branch-specific descriptors attached to one merged result slot. S
 reclassification remains ordinary adaptation in the original value graph, retaining its result-family
 receipt. Representation-changing transport separately records both original carrier domains.
 
+When one contextual conditional branch ends in the literal `none` and the other normally supplies
+an outcome, only that literal's construction adopts the actual supplied outcome descriptor before
+branch identities are joined. Both branches' already-checked statements remain in place, and no
+foreign input witness is equated to the callable merely to type the absence. Arrays and conditional
+results share literal-absence recognition; named values retain their own type constraints. The
+shared source covers either branch order, source-ordered updates and nested `else if` results.
+
 Repetition closes its count through the common query, then prepares its seed even at zero count.
 The seed must be supplied as an ordinary value; zero does not turn a non-Copy read into an owner
 or suppress a required constant dependency. Counts above one require the declaration authority's

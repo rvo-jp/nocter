@@ -6,7 +6,7 @@ use crate::value_access::{
 };
 use nocter_declarations::value_access::{ArraySchema, PayloadReadiness, PayloadSchema};
 use nocter_model::{AccessExpressionId, TypeId, ValueAccessMode as Mode, ValueField};
-use nocter_syntax::{Keyword, NodeId, NodeKind, TokenKind};
+use nocter_syntax::NodeId;
 
 enum ArrayEntry {
     Value(AccessExpressionId),
@@ -51,10 +51,8 @@ impl Checker<'_, '_> {
         for entry in entries {
             // A literal absence has no payload/effects. Its authored context fixes the outcome
             // family; actual supplied witnesses may refine the common element before emission.
-            let unwrapped = self.unwrap(entry)?;
             if expected.is_some_and(|data| self.absence_type(data).is_some())
-                && self.kind(unwrapped)? == NodeKind::ScalarLiteral
-                && self.token(unwrapped)?.kind() == TokenKind::Keyword(Keyword::None)
+                && self.literal_absence(entry)?
             {
                 supplied.push(ArrayEntry::Absent {
                     node: entry,

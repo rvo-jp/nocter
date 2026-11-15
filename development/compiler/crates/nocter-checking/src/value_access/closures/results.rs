@@ -1,5 +1,5 @@
 //! Close an anonymous result from its own checked body; later uses cannot select its contract.
-use crate::value_access::{Failure, Rule, Site, checker::Checker, ir::Statement};
+use crate::value_access::{Failure, Rule, checker::Checker, ir::Statement};
 use crate::value_access::{annotations::Annotation, ir::Boundary};
 use nocter_diagnostics::DiagnosticNote;
 use nocter_model::{AccessBlockId, AccessExpressionId, TypeId, ValueAccess, ValueAccessMode};
@@ -80,12 +80,12 @@ impl Checker<'_, '_> {
                     equalities.extend(prepared);
                     continue;
                 }
-                let origin = self.result_candidate_origin(value)?;
+                let origin = self.expression_origin(value)?;
                 let related = DiagnosticNote::new(
                     format!("another result supplies {}", self.data_label(result)),
                     crate::value_access::source_origin(
                         self.syntax(),
-                        self.result_candidate_origin(first)?,
+                        self.expression_origin(first)?,
                     )?,
                 );
                 return self.reject_message(Rule::TypeMismatch, origin,
@@ -102,8 +102,7 @@ impl Checker<'_, '_> {
             let block = self.blocks.get(root).ok_or(Failure::InconsistentSyntax)?;
             if block.ty.normal().is_some() {
                 let value = block.result.ok_or(Failure::InconsistentSyntax)?;
-                let nocter_syntax::SyntaxOrigin::Node(origin) =
-                    self.result_candidate_origin(value)?
+                let nocter_syntax::SyntaxOrigin::Node(origin) = self.expression_origin(value)?
                 else {
                     return Err(Failure::InconsistentSyntax);
                 };
@@ -118,16 +117,5 @@ impl Checker<'_, '_> {
             }
         }
         Ok(())
-    }
-    fn result_candidate_origin(
-        &self,
-        value: AccessExpressionId,
-    ) -> Result<nocter_syntax::SyntaxOrigin, Failure> {
-        let Some(&Site::Body(locator)) = self.origins.expressions.get(&value) else {
-            return Err(Failure::InconsistentSyntax);
-        };
-        self.projection
-            .resolve(locator)
-            .ok_or(Failure::InconsistentSyntax)
     }
 }

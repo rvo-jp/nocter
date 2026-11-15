@@ -15,6 +15,55 @@ struct OwnedOutcome {
     place: nocter_model::AccessPlaceId,
 }
 impl Checker<'_, '_> {
+    pub(super) fn literal_absence(&self, node: NodeId) -> Result<bool, Failure> {
+        let node = self.unwrap(node)?;
+        Ok(self.kind(node)? == nocter_syntax::NodeKind::ScalarLiteral
+            && self.token(node)?.kind()
+                == nocter_syntax::TokenKind::Keyword(nocter_syntax::Keyword::None))
+    }
+    pub(super) fn refine_conditional_absence(
+        &mut self,
+        blocks: [nocter_model::AccessBlockId; 2],
+        reachable: bool,
+        condition: Option<bool>,
+    ) -> Result<(), Failure> {
+        let mut supplied = Vec::new();
+        for block in blocks {
+            let body = self.blocks.get(block).ok_or(Failure::InconsistentSyntax)?;
+            let Some(access) = body.ty.normal() else {
+                return Ok(());
+            };
+            let value = body.result.ok_or(Failure::InconsistentSyntax)?;
+            let nocter_syntax::SyntaxOrigin::Node(node) = self.expression_origin(value)? else {
+                return Err(Failure::InconsistentSyntax);
+            };
+            supplied.push((node, access.data(), self.literal_absence(node)?));
+        }
+        let absent = match (supplied[0].2, supplied[1].2) {
+            (true, false) => 0,
+            (false, true) => 1,
+            _ => return Ok(()),
+        };
+        let target = supplied[1 - absent].1;
+        if target == supplied[absent].1 || self.absence_type(target).is_none() {
+            return Ok(());
+        }
+        // A literal supplies no code or payload. Rebuild only its ordinary construction;
+        // retain the checked statements, source effects and the other branch's actual witness.
+        let value = self.construction_value(
+            supplied[absent].0,
+            Some(target),
+            reachable && condition != Some(absent == 1),
+        )?;
+        let ty = self.ty(value);
+        let body = self
+            .blocks
+            .get_mut(blocks[absent])
+            .ok_or(Failure::InconsistentSyntax)?;
+        body.result = Some(value);
+        body.ty = ty;
+        Ok(())
+    }
     pub(super) fn outcome_payload(&self, mut data: TypeId) -> TypeId {
         while let Some(PayloadSchema::Optional(payload) | PayloadSchema::Fallible(payload)) =
             self.program().data_schema(data)

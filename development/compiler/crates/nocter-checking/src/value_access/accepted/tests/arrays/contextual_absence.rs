@@ -103,6 +103,8 @@ fn contextual_callable_arrays_keep_authored_context_and_actual_witness_requireme
         "discard([live, other])",
         "discard([none, wrong])",
         "discard([none, if true { live } else { wrong }])",
+        "discard([if true { wrong } else { none }, live])",
+        "let values = [if true { none } else { live }, live]\ndrop values",
     ] {
         let source = format!(
             "func live(value: i32): i32 {{ value }}\nfunc other(value: i32): i32 {{ value + 1 }}\nfunc wrong(value: u64): u64 {{ value }}\nfunc discard(take values: [(func(i32): i32)?; 2]): void {{ drop values }}\nfunc run(): void {{ {body} }}"
