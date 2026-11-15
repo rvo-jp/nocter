@@ -369,10 +369,10 @@ impl<'a, 'work> ResourceDataProjection<'a, 'work> {
         let program = self.program;
         if matches!(step, ResourceStep::Transport { .. }) {
             let source = source.ok_or(INVALID)?;
-            let target = self
-                .evidence
-                .closed_domain(program, target)
-                .map_err(|_| INVALID)?;
+            let target = match self.evidence.closed_domain(program, target) {
+                Ok(key) => key,
+                Err(_) => self.stored(&holder.place(), target, true)?,
+            };
             if !source.permits_guarded_transport(program, &target) {
                 return Err(INVALID);
             }

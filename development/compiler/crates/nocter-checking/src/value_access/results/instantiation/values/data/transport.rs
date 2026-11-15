@@ -32,11 +32,15 @@ impl Query<'_, '_> {
             Fact::Data(key) => key,
             other => return Ok(other),
         };
-        let Some((_, destination)) =
-            self.evidence
-                .transport_domains(self.program, actual, destination)
-        else {
-            return Ok(Fact::Unavailable);
+        let destination = match self.evidence.closed_domain(self.program, destination) {
+            Ok(key) => key,
+            Err(_) => match self.read(
+                owner,
+                Key::Representation(frame.clone(), value, ValuePath::default(), destination),
+            )? {
+                Fact::Data(key) => key,
+                other => return Ok(other),
+            },
         };
         if !from.permits_guarded_transport(self.program, &destination) {
             return Ok(Fact::Unavailable);

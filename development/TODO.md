@@ -24,10 +24,10 @@ The [checking](compiler/crates/nocter-checking/README.md) and
 [target-program](compiler/crates/nocter-target-program/README.md) owners describe the implemented
 canonical metadata, original source-definition queries and ordered lifecycle specialization.
 
-Extend guarded transport to occurrence-bound destination domains using original supplied/receiving
+Extend guarded transport to occurrence-bound supplied domains using original supplied/receiving
 expressions and the callee's own result descriptor. Preserve shared value graphs, single-owner
-transitions, evaluator effects and separate physical layouts; broader context-dependent destinations
-retain a source-local diagnostic until occurrence selection closes.
+transitions, evaluator effects and separate physical layouts. Qualify compound and retained-alias
+contexts independently of whole-value receiving-domain selection.
 
 Continue producer-less outcome qualification with representation widening and application-specific
 empty received contexts, preserving original tag evaluation, required traps and
@@ -183,9 +183,13 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Qualify directed physical outcome transport in runtime representation metadata and MIR/Machine
   effects, preserving separate layouts, original tags and active payload offsets. Keep exact transfer
   equality and checking's positive code/environment proof separate; reject overlapping payload slots.
-- [ ] Qualify guarded widening into occurrence-bound destination domains selected from actual
-  positive producers and matched consumers. Do not recover captured environments from an ambient
+- [x] Qualify guarded widening from independently closed supplied domains into occurrence-bound
+  destination domains selected from actual positive producers and matched consumers. Do not recover captured environments from an ambient
   frame, invent code from exclusion or replace the callee's original supplied schema with its target.
+- [ ] Extend guarded transport from independently closed supplied domains to occurrence-bound
+  supplied carriers with both positive contexts and excluded alternatives. Preserve exact original
+  schemas and actual positive component instances; destination constraints cannot substitute for
+  supplied code/environment evidence or authorize context-changing storage and surviving aliases.
 - [x] Amortize physical-transport metadata comparison across shared source/destination pairs.
   Share one immutable-environment comparison authority, including exact identities, unknown/cycle
   behavior and bounded array traversal; emission consumes prepared copy/conversion decisions.

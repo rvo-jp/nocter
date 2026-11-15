@@ -2,6 +2,34 @@
 use super::*;
 
 #[test]
+fn private_contextual_outcome_widening_selects_actual_receiving_layouts() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-widened-outcome-results.nct"
+    ));
+    let machine = machine(source);
+    assert_differently_sized_transport_helper(&machine);
+    let package = TempPackage::new();
+    execute_native_status(&image(&machine), &package.0, "contextual-widening", 42);
+}
+
+#[test]
+fn private_contextual_outcome_widening_retires_actual_received_error_graphs() {
+    let machine = trusted_error_machine(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-widened-outcome-errors.nct"
+    )));
+    assert_differently_sized_transport_helper(&machine);
+    let package = TempPackage::new();
+    execute_native_status(
+        &image(&machine),
+        &package.0,
+        "contextual-widening-errors",
+        42,
+    );
+}
+
+#[test]
 fn private_closed_outcome_widening_transports_original_tags_and_payloads() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

@@ -27,9 +27,7 @@ pub(super) fn validate(
             };
             if evidence.requires_transport(program, actual, target)
                 && !(matches!(action.operation, flow::Operation::Evaluate(_))
-                    && evidence
-                        .transport_domains(program, actual, target)
-                        .is_some())
+                    && evidence.supports_transport(program, actual, target))
             {
                 return Err(crate::value_access::diagnostics::query_rejection(
                     context,

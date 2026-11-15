@@ -1,0 +1,29 @@
+const func identity(value: i32): i32 { value }
+const func addition(number: i32): func(i32): i32 {
+    (number; value: i32) { number + value }
+}
+const func wrap(take action: func(i32): i32): func(i32): i32 {
+    (action^; value: i32) { action(value) }
+}
+const func absent(): (func(i32): i32)? { none }
+const func choose(present: bool, take action: func(i32): i32): (func(i32): i32)? {
+    if present { wrap(action^) } else {
+        drop action
+        absent()
+    }
+}
+const func calculate(): i32 {
+    let first = choose(true, identity)
+    let second = choose(true, addition(20))
+    let missing_first = choose(false, identity)
+    let missing_second = choose(false, addition(30))
+    let left = first^ otherwise { return 0 }
+    let right = second^ otherwise { return 0 }
+    let _ = missing_first^ otherwise {
+        let _ = missing_second^ otherwise { return left(20) + right(2) }
+        return 0
+    }
+    0
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { calculate() }

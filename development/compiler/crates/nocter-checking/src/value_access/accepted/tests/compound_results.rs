@@ -110,38 +110,66 @@ fn closed_nested_and_fallible_transport_retains_original_contracts() {
 }
 
 #[test]
-fn context_dependent_transport_keeps_a_local_cause_until_occurrence_selection_is_qualified() {
-    let source = "func wrap(take action: func(i32): i32): func(i32): i32 { (action^; value: i32) { action(value) } }\nfunc absent(): (func(i32): i32)? { none }\nfunc choose(flag: bool, take action: func(i32): i32): (func(i32): i32)? { if flag { wrap(action^) } else { drop action\nabsent() } }";
-    assert_transport_rejected(source, "absent()");
-}
-
-fn assert_transport_rejected(runtime: &str, site: &str) {
-    let (sources, tree) = input(runtime);
-    let diagnostic = match SourceUnit::prepare(bound(&sources, &tree)) {
-        Err(SourceFailure::Checking(Failure::Body {
-            failure: BodyFailure::Rejected(diagnostic),
-            ..
-        })) => diagnostic,
-        Err(failure) => panic!("unrealized transport must have a source-backed cause: {failure:?}"),
-        Ok(_) => panic!("unrealized transport was accepted"),
+fn contextual_outcome_widening_selects_each_actual_receiving_environment() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-widened-outcome-results.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
+    let runtime = source
+        .replace("const ANSWER: i32 = calculate()", "")
+        .replace("const func", "func");
+    let unit = accepted(&runtime);
+    let program = unit.program();
+    let code = |name| {
+        program
+            .resolve(program.symbols().get(name).unwrap())
+            .unwrap()
     };
-    assert_eq!(
-        diagnostic.rule(),
-        crate::value_access::Rule::UnsupportedData
-    );
-    assert!(
-        diagnostic
-            .source()
-            .message()
-            .contains("guarded representation transport")
-    );
-    let origin = diagnostic.source().primary();
-    let selected = sources
-        .get(origin.source())
-        .unwrap()
-        .text_at(origin.span().range())
-        .unwrap();
-    assert_eq!(selected, site);
+    let caller = program.bind_code(code("calculate").into(), []).unwrap();
+    let body = named(&unit, "calculate");
+    let mut results = Vec::new();
+    for (call, expression) in body.typed().body().expressions().iter() {
+        if !matches!(expression.kind, crate::value_access::ExpressionKind::Call {
+            target: nocter_model::ValueFunctionOrigin::Declaration(target), ..
+        } if target == code("choose"))
+        {
+            continue;
+        }
+        let budget = || WorkBudget::new(NonZeroU64::new(100_000).unwrap());
+        let frame = unit
+            .instantiate_invocation(
+                &caller,
+                nocter_model::ValueApplication {
+                    owner: caller.code(),
+                    call,
+                },
+                &mut budget(),
+            )
+            .unwrap();
+        unit.instantiate_value_data_map(&frame, &mut budget())
+            .unwrap();
+        assert_resources(&unit, &frame, named(&unit, "choose"));
+        let result = unit
+            .instantiate_result_contract(&frame, &mut budget())
+            .unwrap();
+        assert_eq!(
+            unit.instantiate_result_contract(
+                &frame,
+                &mut WorkBudget::new(NonZeroU64::new(1).unwrap())
+            ),
+            Err(crate::value_access::InstantiationFailure::WorkLimit)
+        );
+        assert_eq!(
+            unit.instantiate_result_contract(&frame, &mut budget()),
+            Ok(result.clone())
+        );
+        results.push(result);
+    }
+    assert_eq!(results.len(), 4);
+    assert_ne!(results[0], results[1]);
+    assert_eq!(results[0], results[2]);
+    assert_eq!(results[1], results[3]);
 }
 
 #[test]

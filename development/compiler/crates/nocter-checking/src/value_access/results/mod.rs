@@ -248,27 +248,19 @@ impl Evidence {
         data(source)
             .zip(data(destination))
             .is_some_and(|(source, target)| {
-                self.transport_domains(query.program(), source.data(), target.data())
-                    .is_some()
+                self.supports_transport(query.program(), source.data(), target.data())
             })
     }
-    pub(in crate::value_access) fn transport_domains(
+    /// Symbolic lifecycle admission, not a concrete destination certificate. Consumers must
+    /// select the receiving instance from this occurrence's original value graph.
+    pub(in crate::value_access) fn supports_transport(
         &self,
         program: &Program,
         actual: TypeId,
         target: TypeId,
-    ) -> Option<(
-        nocter_declarations::value_access::DataInstanceKey,
-        nocter_declarations::value_access::DataInstanceKey,
-    )> {
-        if !self.requires_transport(program, actual, target) {
-            return None;
-        }
-        let source = self.closed_domain(program, actual).ok()?;
-        let destination = self.closed_domain(program, target).ok()?;
-        source
-            .permits_guarded_transport(program, &destination)
-            .then_some((source, destination))
+    ) -> bool {
+        self.requires_transport(program, actual, target)
+            && self.closed_domain(program, actual).is_ok()
     }
     pub(in crate::value_access) fn matches_payload_metadata(
         &self,

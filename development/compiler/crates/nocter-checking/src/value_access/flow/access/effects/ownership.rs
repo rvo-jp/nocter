@@ -276,11 +276,10 @@ impl Context<'_, '_> {
             resources::expression_payload(typed, id)?,
             &mut self.steps,
             |from, to| {
-                typed.result_evidence.as_ref().is_some_and(|evidence| {
-                    evidence
-                        .transport_domains(typed.program(), from, to)
-                        .is_some()
-                })
+                typed
+                    .result_evidence
+                    .as_ref()
+                    .is_some_and(|evidence| evidence.supports_transport(typed.program(), from, to))
             },
         )?;
         Ok(())

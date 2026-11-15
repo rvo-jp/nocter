@@ -187,8 +187,10 @@ with separate source/destination strides. Exact positive payloads use ordinary c
 carriers never use same-size reinterpretation. Fresh disjoint payload slots remain an upstream MIR
 requirement; this does not qualify relocation through surviving aliases. The widened-outcome fixtures
 qualify ordinary source, required values, differing-sized native helper parameters, observed tuple/
-array contents and actual error-graph movement/cleanup. Context-dependent destination selection is
-still owned by checking rather than recovered from physical layouts.
+array contents and actual error-graph movement/cleanup. The contextual widened-outcome fixtures
+also qualify distinct receiving environments of the same lexical callback wrapper, including
+retired input captures and returned error-graph owners. Checking selects each actual destination;
+physical layouts cannot reconstruct its code/environment context.
 
 The private consumer uses the common optional/fallible layouts, tag encoding and payload offsets. Stored tag
 access requests the runtime primitive's own layout, including helper-only primitive types. Frozen
