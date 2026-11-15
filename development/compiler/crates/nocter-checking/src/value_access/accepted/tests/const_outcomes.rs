@@ -63,6 +63,40 @@ fn received_loop_exit_callable_context_survives_return_to_the_caller() {
 }
 
 #[test]
+fn received_absence_selects_return_boundaries_instead_of_reachable_producers() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-return-boundaries.nct"
+    ));
+    for (parameter, binding) in [
+        ("take value", "let ignored = value^"),
+        ("value", "read ignored = value"),
+        ("edit value", "edit ignored = value"),
+    ] {
+        let source = source
+            .replace("select(take value", &format!("select({parameter}"))
+            .replace("let ignored = value^", binding);
+        assert!(source.contains(&format!("func select({parameter}:")));
+        let source = if parameter == "take value" {
+            source
+        } else {
+            source.replace("drop ignored", "")
+        };
+        assert_eq!(
+            super::initializers::answer(&source, "ANSWER"),
+            Datum::integer(42)
+        );
+    }
+    let positive = source.replace("{ none }", "{ identity }");
+    let fixture = nocter_test_support::ValueSourceFixture::new(&positive);
+    let failure = SourceUnit::prepare(fixture.syntax()).unwrap_err();
+    assert!(
+        matches!(failure, SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })
+        if diagnostic.rule() == crate::value_access::evaluation::Rule::UnresolvedContext)
+    );
+}
+
+#[test]
 fn inhabited_received_domains_keep_conflicting_loop_exits_unresolved() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

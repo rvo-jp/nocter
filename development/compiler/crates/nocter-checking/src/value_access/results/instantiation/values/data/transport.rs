@@ -1,5 +1,5 @@
 //! Returned carriers and sparse replacement paths retain the same canonical component keys.
-use super::super::{ReplacementPath, replacement_path};
+use super::super::{ReplacementPath, StoredQuery, replacement_path};
 use super::{
     CodeInstanceKey, Fact, Key, PayloadSchema, Query, Result, TypeId, ValueField, ValuePath,
     ValueProjection, ValueSource, ValueSourceId,
@@ -107,18 +107,18 @@ impl Query<'_, '_> {
                         slot: crate::value_access::ValueSourceSlot::Local(local),
                         path: path.clone(),
                     },
-                    target,
+                    StoredQuery::Data(target),
                 ),
             )?);
         }
         Ok(fact)
     }
-    pub(in super::super::super) fn source_stored_data(
+    pub(in super::super::super) fn source_stored(
         &mut self,
         owner: &Key,
         frame: &CodeInstanceKey,
         selected: &crate::value_access::ValueSourceSelection,
-        target: TypeId,
+        query: StoredQuery,
     ) -> Result {
         use crate::value_access::ValueSourceRead;
         let Some(source) = self
@@ -131,10 +131,19 @@ impl Query<'_, '_> {
         };
         match source {
             ValueSourceRead::Empty => Ok(Fact::Empty),
-            ValueSourceRead::Value(value) => self.read(
-                owner,
-                Key::Data(frame.clone(), value, selected.path.clone(), target),
-            ),
+            ValueSourceRead::Value(value) => match query {
+                StoredQuery::Value => self.read(
+                    owner,
+                    Key::Value(frame.clone(), value, selected.path.clone()),
+                ),
+                StoredQuery::Data(target) => self.read(
+                    owner,
+                    Key::Data(frame.clone(), value, selected.path.clone(), target),
+                ),
+                StoredQuery::ReturnedData(target) => {
+                    self.returned_value_data(owner, frame, value, &selected.path, target)
+                }
+            },
             ValueSourceRead::Incoming(previous) => {
                 let mut fact = Fact::Empty;
                 for boundary in previous {
@@ -147,7 +156,7 @@ impl Query<'_, '_> {
                         boundary,
                         ..selected.clone()
                     };
-                    fact = fact.join(self.read(owner, Key::Stored(frame.clone(), next, target))?);
+                    fact = fact.join(self.read(owner, Key::Stored(frame.clone(), next, query))?);
                 }
                 Ok(fact)
             }
@@ -163,39 +172,52 @@ impl Query<'_, '_> {
         let Some(graph) = self.evidence.value_sources(frame.code()) else {
             return Ok(Fact::Unavailable);
         };
+        if graph.flow().is_some() {
+            return self.source_returned(owner, frame, path, StoredQuery::ReturnedData(target));
+        }
         let returned: Vec<_> = graph.returned().iter().copied().collect();
         let mut fact = Fact::Empty;
         for value in returned {
-            let Some(original) = self
-                .source_node(frame, value, path)
-                .and_then(|node| node.data)
-                .and_then(|data| {
-                    self.program
-                        .project_data_by(data, path, |(), length| length > 0)
-                })
-            else {
-                return Ok(Fact::Unavailable);
-            };
-            let supplied = self.read(
-                owner,
-                Key::Data(frame.clone(), value, path.clone(), original),
-            )?;
-            let selected = match supplied {
-                Fact::Data(key) => {
-                    let projected = key.reproject(self.program, target).or_else(|error| {
-                        if let nocter_model::ValueCode::Declaration(code) = frame.code() {
-                            key.reproject_result(self.program, code, path, target)
-                        } else {
-                            Err(error)
-                        }
-                    });
-                    projected.map_or(Fact::Unavailable, Fact::Data)
-                }
-                other => other,
-            };
-            fact = fact.join(selected);
+            fact = fact.join(self.returned_value_data(owner, frame, value, path, target)?);
         }
         Ok(fact)
+    }
+    fn returned_value_data(
+        &mut self,
+        owner: &Key,
+        frame: &CodeInstanceKey,
+        value: ValueSourceId,
+        path: &ValuePath<()>,
+        target: TypeId,
+    ) -> Result {
+        let Some(original) = self
+            .source_node(frame, value, path)
+            .and_then(|node| node.data)
+            .and_then(|data| {
+                self.program
+                    .project_data_by(data, path, |(), length| length > 0)
+            })
+        else {
+            return Ok(Fact::Unavailable);
+        };
+        // Close the original supplied descriptor before applying the callee's result family.
+        let supplied = self.read(
+            owner,
+            Key::Data(frame.clone(), value, path.clone(), original),
+        )?;
+        Ok(match supplied {
+            Fact::Data(key) => key
+                .reproject(self.program, target)
+                .or_else(|error| {
+                    if let nocter_model::ValueCode::Declaration(code) = frame.code() {
+                        key.reproject_result(self.program, code, path, target)
+                    } else {
+                        Err(error)
+                    }
+                })
+                .map_or(Fact::Unavailable, Fact::Data),
+            other => other,
+        })
     }
     pub(super) fn source_data_transport(
         &mut self,

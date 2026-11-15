@@ -146,6 +146,75 @@ fn nested_returned_frame_control_work_failure_publishes_no_partial_selection() {
 }
 
 #[test]
+fn selected_return_data_excludes_inactive_normal_completion_boundaries() {
+    let fixture = ValueSourceFixture::new(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-return-boundaries.nct"
+    )));
+    let unit = SourceUnit::prepare(fixture.syntax()).unwrap().into_unit();
+    let program = unit.program();
+    let code = |name| {
+        program
+            .resolve(program.symbols().get(name).unwrap())
+            .unwrap()
+    };
+    let frame = program.bind_code(code("calculate").into(), []).unwrap();
+    let body = unit.code_body(frame.code()).unwrap();
+    let call = body.typed().body().expressions().iter().find_map(|(call, expression)|
+        matches!(expression.kind, ExpressionKind::Call { target: ValueFunctionOrigin::Declaration(target), .. }
+            if target == code("select"))
+            .then_some(ValueApplication { owner: frame.code(), call })).unwrap();
+    let healthy = || WorkBudget::new(nocter_constant_evaluation::state::Limits::default().steps());
+    let selected = unit
+        .instantiate_invocation(&frame, call, &mut healthy())
+        .unwrap();
+    let sources = unit.value_sources(selected.code()).unwrap();
+    assert_eq!(
+        sources.returned().len(),
+        2,
+        "both original staged return definitions survive"
+    );
+    let body = unit.code_body(selected.code()).unwrap();
+    let evidence = body.typed().result_evidence.as_ref().unwrap();
+    let result = Key::DataResult(
+        selected.clone(),
+        ValuePath::default(),
+        body.typed().result_data(),
+    );
+    let conservative = Query::new(program, evidence, &mut healthy())
+        .solve(&result)
+        .unwrap();
+    assert!(
+        matches!(conservative, Fact::Unavailable),
+        "{conservative:?}"
+    );
+    let data = unit
+        .instantiate_result_contract(&selected, &mut healthy())
+        .unwrap();
+    let InstanceSchema::Function(witness) = data.schema(program).unwrap() else {
+        panic!("callable result")
+    };
+    let invoked = unit
+        .instantiate_invocation(
+            &frame,
+            value_call(unit.code_body(frame.code()).unwrap()),
+            &mut healthy(),
+        )
+        .unwrap();
+    assert_eq!(invoked.code(), witness.code());
+    assert_eq!(invoked.environment(), witness.environment());
+    let control = unit.instantiate_control(&selected, &mut healthy()).unwrap();
+    assert!(
+        sources.returned().iter().any(|&value| sources
+            .node(value)
+            .unwrap()
+            .origin
+            .is_some_and(|origin| !control.reachable(origin.point))),
+        "an original staged return lies on an excluded normal-completion path"
+    );
+}
+
+#[test]
 fn public_loop_exit_queries_keep_one_callable_witness_and_referent_root() {
     use crate::value_access::ArgumentAction;
     let unit = Arc::new(source_unit());

@@ -1,0 +1,25 @@
+const func identity(value: i32): i32 { value }
+const func addition(number: i32): func(i32): i32 {
+    (number; value: i32) { number + value }
+}
+const func wrap(take callback: func(i32): i32): func(i32): i32 {
+    (callback^; value: i32) { callback(value) }
+}
+const func absent(): (func(i32): i32)? { none }
+const func select(take value: (func(i32): i32)?): func(i32): i32 {
+    var action = wrap(identity)
+    let ignored = value^ otherwise { return wrap(addition(40)) }
+    drop ignored
+    wrap(identity)
+}
+const func relay(take value: (func(i32): i32)?): func(i32): i32 { select(value^) }
+const func calculate(): i32 {
+    let direct = select(absent())
+    let forwarded = relay(absent())
+    if direct(2) != 42 || forwarded(2) != 42 { return 0 }
+    select(absent())(2)
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { calculate() }
+
+func positive_context(): void { let _ = select(identity) }

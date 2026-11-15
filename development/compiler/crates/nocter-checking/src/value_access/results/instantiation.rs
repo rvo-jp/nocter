@@ -32,8 +32,14 @@ enum Key {
     Value(CodeInstanceKey, super::ValueSourceId, ValuePath<()>),
     Data(CodeInstanceKey, super::ValueSourceId, ValuePath<()>, TypeId),
     Representation(CodeInstanceKey, super::ValueSourceId, ValuePath<()>, TypeId),
-    Stored(CodeInstanceKey, super::ValueSourceSelection, TypeId),
+    Stored(CodeInstanceKey, super::ValueSourceSelection, StoredQuery),
     CompletedInput(CodeInstanceKey, AccessLocalId, ValuePath<()>, TypeId),
+}
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+enum StoredQuery {
+    Value,
+    Data(TypeId),
+    ReturnedData(TypeId),
 }
 #[derive(Clone, Debug, Eq, PartialEq, Default)]
 enum Fact {
@@ -310,7 +316,11 @@ impl<'a, 'work> Query<'a, 'work> {
         selected: &super::ValueSourceSelection,
         data: TypeId,
     ) -> Result<DataInstanceKey, InstantiationFailure> {
-        match self.solve(&Key::Stored(frame.clone(), selected.clone(), data))? {
+        match self.solve(&Key::Stored(
+            frame.clone(),
+            selected.clone(),
+            StoredQuery::Data(data),
+        ))? {
             Fact::Data(data) => Ok(data),
             _ => Err(InstantiationFailure::Unresolved),
         }
@@ -423,7 +433,7 @@ impl<'a, 'work> Query<'a, 'work> {
                 self.source_representation(key, frame, *value, path, *target)
             }
             Key::Stored(frame, selected, target) => {
-                self.source_stored_data(key, frame, selected, *target)
+                self.source_stored(key, frame, selected, *target)
             }
             Key::CompletedInput(frame, local, path, target) => {
                 self.source_completed_input(key, frame, *local, path, *target)

@@ -208,15 +208,16 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   retain original tag effects, traps and exact call/resource phases.
   Carry selected predecessor evidence through recovery/result merges and partially active const
   selections; the original source graph must not join an impossible positive payload as a value.
-  Returned producer sets alone lose return-edge correspondence: use original normal-completion
-  boundaries and their staged-return definitions, not producer-origin reachability, when
-  qualifying selected result paths.
+- [x] Qualify selected normal-return boundaries and their staged source definitions for callable
+  witnesses and result data. Preserve original return-edge correspondence through stored/immediate
+  caller invocation and forwarding, close supplied descriptors before declared-result projection,
+  and qualify take/read/edit inputs, inhabited-domain rejection and actual owned-error cleanup.
 - [x] Preserve a selected loop-exit callable through returned values, stored/immediate caller
   invocation and forwarding. Qualify take/read/edit inputs, actual retired/returned error owners,
   shared original graph identity and interrupted callee-control recovery. Retain each callee
   frame's own original control without retyping bodies or using refined queries to establish
-  their own selection. Keep completed-input metadata conservative and general normal-return
-  boundary matching and value-state const guards independently qualified.
+  their own selection. Keep completed-input metadata conservative and value-state const guards
+  independently qualified.
 - [x] Preserve each sparse source merge's original predecessor boundary and supplied definition
   as one paired relation. Do not deduplicate equal definitions into an uncorrelated set or infer
   selected incoming edges merely from producer-point reachability. Qualify unchanged conservative
@@ -303,10 +304,6 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   evaluator, target storage, ABI and native execution. An empty root has no stored payload;
   retaining an inactive alternative's descriptor must not create code, cleanup or field geometry.
   Preserve original tag guards, rejected positive uses and the explicit source-retirement decision.
-- [ ] Qualify remaining instance-specific recovery, propagation and assertion continuations when
-  a received primary callable domain is empty.
-  Preserve evaluation of the original carrier/tag, required traps and alternate cleanup while
-  excluding impossible positive continuations; a guarded empty descriptor is not a callable value.
 - [ ] Close [state-conditioned const obligations](design/compiler-realization.md#state-conditioned-const-obligations)
   for optional callback absence while the represented domain remains inhabited by a runtime-only
   witness. The linked source plus `const ANSWER: i32 = inspect(produce(false)) + 31` currently

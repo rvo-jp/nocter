@@ -463,8 +463,18 @@ inhabited even under maximal callable exclusion. That invariance test supplies n
 layout or represented-domain certificate. Completed-input metadata remains a separate unrefined
 fixed point in the same query engine and budget: selected nested continuations do not yet qualify
 interprocedural nonreturning completion or changed post-call state. Completion metadata grants no
-actual normal return, initialized backing or resource receipt. General result-edge correspondence
-and value-state const guards remain separate qualification obligations.
+actual normal return, initialized backing or resource receipt. Value-state const guards remain a
+separate qualification obligation.
+
+`received-return-boundaries.nct` qualifies an early returned callable against a different callable
+created on an excluded normal-return path, including a stored result, immediate invocation and
+forwarding. Result witness and data queries select the original normal-completion endpoints, then
+follow their staged-return definitions through the existing sparse stored-source fixed point.
+The walk preserves predecessor-edge correspondence through cleanup and backedges. A producer set
+alone does not authorize a return. Data queries close each supplied leaf under its own original
+descriptor before applying the callee declaration's result-family reprojection. Metadata-only
+logical graphs without original flow retain their conservative producer relation; neither form
+proves an actual return, initialized storage or resource completion.
 
 `accepted::InstanceMetadata` binds one retained control selection to its exact accepted Unit and
 canonical frame. It shares that selection across native invocation, argument/result data and

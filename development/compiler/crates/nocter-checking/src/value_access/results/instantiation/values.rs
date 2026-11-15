@@ -1,5 +1,5 @@
 //! Exact source value paths select occurrence contexts; a source code name cannot replace them.
-use super::{Fact, InstantiationFailure, Key, Query};
+use super::{Fact, InstantiationFailure, Key, Query, StoredQuery};
 use crate::value_access::{
     CallKind, CallValueSources, ValueSource, ValueSourceId, ValueSourceNode, ir::LocalOrigin,
 };
@@ -41,10 +41,51 @@ impl Query<'_, '_> {
         let Some(graph) = self.evidence.value_sources(frame.code()) else {
             return Ok(Fact::Unavailable);
         };
+        if graph.flow().is_some() {
+            return self.source_returned(owner, frame, path, StoredQuery::Value);
+        }
         let values: Vec<_> = graph.returned().iter().copied().collect();
         let mut fact = Fact::Empty;
         for value in values {
             fact = fact.join(self.read(owner, Key::Value(frame.clone(), value, path.clone()))?);
+        }
+        Ok(fact)
+    }
+    fn source_returned(
+        &mut self,
+        owner: &Key,
+        frame: &CodeInstanceKey,
+        path: &ValuePath<()>,
+        query: StoredQuery,
+    ) -> Result {
+        let Some(boundaries) = self
+            .evidence
+            .value_sources(frame.code())
+            .and_then(|graph| graph.flow())
+            .map(|flow| flow.completions().collect::<Vec<_>>())
+        else {
+            return Ok(Fact::Unavailable);
+        };
+        let mut fact = Fact::Empty;
+        for boundary in boundaries {
+            if self
+                .control_for(frame)?
+                .is_some_and(|control| !control.reachable(boundary.point))
+            {
+                continue;
+            }
+            fact = fact.join(self.read(
+                owner,
+                Key::Stored(
+                    frame.clone(),
+                    crate::value_access::ValueSourceSelection {
+                        boundary,
+                        slot: crate::value_access::ValueSourceSlot::Return,
+                        path: path.clone(),
+                    },
+                    query,
+                ),
+            )?);
         }
         Ok(fact)
     }

@@ -7,6 +7,19 @@ fn private_selected_loop_exit_results_preserve_returned_environments_and_error_o
         env!("CARGO_MANIFEST_DIR"),
         "/../../tests/fixtures/native/value-access/received-loop-exit-results.nct"
     ));
+    assert_selected_return_contexts(source, "selected-loop-exit-results");
+}
+
+#[test]
+fn private_selected_normal_returns_preserve_callable_contexts_and_error_owners() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-return-boundaries.nct"
+    ));
+    assert_selected_return_contexts(source, "selected-normal-returns");
+}
+
+fn assert_selected_return_contexts(source: &str, name: &str) {
     let runtime = source
         .replace("const ANSWER: i32 = calculate()", "")
         .replace("const func", "func");
@@ -25,12 +38,7 @@ fn private_selected_loop_exit_results_preserve_returned_environments_and_error_o
         } else {
             source.replace("drop ignored", "")
         };
-        execute_native_status(
-            &compile(&source),
-            &package.0,
-            "selected-loop-exit-results",
-            42,
-        );
+        execute_native_status(&compile(&source), &package.0, name, 42);
     }
     let owned = runtime.replace("wrap(identity)", "wrap(initial())")
         .replace("(number; value: i32)", "(reason^, number; value: i32)")
@@ -42,7 +50,7 @@ fn private_selected_loop_exit_results_preserve_returned_environments_and_error_o
     execute_native_status(
         &image(&trusted_error_machine(&owned)),
         &package.0,
-        "selected-loop-exit-returned-errors",
+        &format!("{name}-owned-errors"),
         42,
     );
 }
