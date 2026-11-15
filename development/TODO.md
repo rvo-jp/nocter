@@ -178,6 +178,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Realize guarded represented-value transport in closed evaluator plans with explicit source
   and destination shapes, exact positive callable contexts, inactive-alternative checks, once-only
   retirement and failure/budget recovery. This alone does not admit source conversions or native ABI.
+- [x] Define directed guarded transport over runtime representation metadata without weakening exact
+  transfer equality, preserving positive runtime identities and bounded shared/MAX-array traversal.
+  This relation grants no executable conversion, source code/context proof, layout or ownership.
 - [ ] Qualify directed physical outcome transport in runtime representation metadata and MIR/Machine
   effects, preserving separate layouts, original tags and active payload offsets. Keep exact transfer
   equality and checking's positive code/environment proof separate; do not admit source conversions yet.

@@ -1,4 +1,4 @@
-//! Value-transport equivalence excludes nonexistent empty-array elements, preserving positive data.
+//! Exact value representation and directed guarded transport share one runtime graph comparison.
 use super::RuntimeEnvironment;
 use crate::{RuntimeDataId, RuntimeType, RuntimeTypeRepresentation};
 use std::collections::BTreeSet;
@@ -13,11 +13,33 @@ impl RuntimeEnvironment {
         actual: RuntimeDataId,
         expected: RuntimeDataId,
     ) -> bool {
-        let mut pending = vec![(actual, expected)];
+        self.compare_value_representation(actual, expected, false)
+    }
+    /// Check directed physical transport through excluded outcome alternatives. Positive runtime
+    /// identities remain exact. This grants no source conversion, code/context proof, byte-copy
+    /// compatibility, initialized value, layout or ownership transition.
+    #[must_use]
+    pub fn permits_guarded_value_transport(
+        &self,
+        actual: RuntimeDataId,
+        expected: RuntimeDataId,
+    ) -> bool {
+        !matches!(
+            self.types().get(actual),
+            None | Some(RuntimeType::Uninhabited)
+        ) && self.compare_value_representation(actual, expected, true)
+    }
+    fn compare_value_representation(
+        &self,
+        actual: RuntimeDataId,
+        expected: RuntimeDataId,
+        transport: bool,
+    ) -> bool {
+        let mut pending = vec![(actual, expected, false)];
         let mut seen = BTreeSet::new();
         let types = self.types();
-        while let Some((actual, expected)) = pending.pop() {
-            if !seen.insert((actual, expected)) {
+        while let Some((actual, expected, guarded)) = pending.pop() {
+            if !seen.insert((actual, expected, guarded)) {
                 continue;
             }
             let (Some(a), Some(b)) = (types.get(actual), types.get(expected)) else {
@@ -27,6 +49,7 @@ impl RuntimeEnvironment {
                 continue;
             }
             match (a, b) {
+                (RuntimeType::Uninhabited, _) if transport && guarded => {}
                 (RuntimeType::EmptyArray { .. }, RuntimeType::EmptyArray { .. }) => {}
                 (
                     RuntimeType::FixedArray {
@@ -37,9 +60,11 @@ impl RuntimeEnvironment {
                         element: b,
                         length: bl,
                     },
-                ) if al == bl => pending.push((*a, *b)),
+                ) if al == bl => pending.push((*a, *b, false)),
                 (RuntimeType::Optional(a), RuntimeType::Optional(b))
-                | (RuntimeType::Fallible(a), RuntimeType::Fallible(b)) => pending.push((*a, *b)),
+                | (RuntimeType::Fallible(a), RuntimeType::Fallible(b)) => {
+                    pending.push((*a, *b, true));
+                }
                 (RuntimeType::Aggregate, RuntimeType::Aggregate) => {
                     let (
                         Some(RuntimeTypeRepresentation::ValueAggregate { fields: a }),
@@ -60,7 +85,7 @@ impl RuntimeEnvironment {
                         {
                             return false;
                         }
-                        pending.push((a.ty(), b.ty()));
+                        pending.push((a.ty(), b.ty(), false));
                     }
                 }
                 _ => return false,
@@ -69,3 +94,6 @@ impl RuntimeEnvironment {
         true
     }
 }
+
+#[cfg(test)]
+mod tests;

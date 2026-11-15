@@ -100,11 +100,15 @@ owns contextual graph construction and its current source-admission boundary.
   inhabited zero-byte value. Outcomes may retain it as an excluded payload descriptor; it supplies
   no positive value, callable, address or stored layout. Source admission and tag proofs remain
   upstream obligations.
-- `RuntimeEnvironment::has_same_value_representation` owns value-transport comparison for MIR and
-  Machine. Empty-array element metadata does not supply a positive leaf; every represented leaf,
-  including static callable identity, remains exact. Structural tuples and outcome/array carriers
-  retain their child identities, while distinct nominal records remain distinct. This proof
-  supplies neither source conversion nor ownership and is independent of byte geometry.
+- `RuntimeEnvironment::has_same_value_representation` and `permits_guarded_value_transport` share
+  one structural comparison for MIR and Machine. The first preserves represented domains; the
+  second permits an explicitly excluded alternative to widen only beneath an outcome guard.
+  Empty-array metadata supplies no positive element; represented leaves, including static callable
+  identities, remain exact. Structural tuples and outcome/array carriers retain their children,
+  while distinct nominal records remain distinct. The directed relation rejects empty roots,
+  narrowing and unknown entries, and visits shared pairs independently of array cardinality.
+  Neither relation supplies a source conversion, code/environment proof, ownership or executable
+  layout conversion; guarded transport is distinct from same-layout copying.
 - Stored data shape does not encode a value-model input operation. RuntimeValueSignature retains
   the environment/explicit local channels independently; it introduces no borrow data type.
 - `ValueText` grants stored descriptor representation only to the exact Text primitive identity.
