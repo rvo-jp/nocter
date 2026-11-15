@@ -208,6 +208,13 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   retain original tag effects, traps and exact call/resource phases.
   Carry selected predecessor evidence through recovery/result merges and partially active const
   selections; the original source graph must not join an impossible positive payload as a value.
+- [x] Qualify a same-witness recovery join from a received callable array with distinct captured
+  payloads, both active/absent tags, partial transfers and remaining-owner/error cleanup.
+- [ ] Close contextual callable-array construction for mixed fresh absence and positive functions
+  under a foreign input contract. `choose([none, live])` currently rejects the positive `live`
+  element even when `choose` declares `[(func(i32): i32)?; 2]`; typed existing optionals work.
+  Preserve authored context, actual positive witnesses, homogeneous representation and original
+  evaluation order. Do not infer from the first element or admit an unqualified carrier layout.
 - [x] Qualify the shared checking-owned instance continuation map through optional take/read/edit
   recovery, effectful input production, required/native execution and all affected consumers.
   Preserve dormant contract checks and original commits; unknown domains must retain their branches.

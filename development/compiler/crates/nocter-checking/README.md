@@ -440,6 +440,13 @@ owned error graphs and captured callable environments. Propagation stages the ab
 before ordinary cleanup; a projected fallible `?` still rejects at its source because read/edit
 access cannot transfer the caller's error.
 
+`received-outcome-recovery-merge.nct` qualifies a recovery result that rejoins normal execution
+with the same received callable witness. A homogeneous optional-callable array supplies both
+positions; distinct captured numbers select observably different payloads on the present and
+fallback paths. Required/native execution preserves partial transfers and remaining-owner
+cleanup, including native environments owning errors. This does not admit joining unrelated
+formal witnesses or construct a homogeneous callable array from unmatched element contexts.
+
 Each original invocation input retains its positive alternatives and a separate inactive-callable
 fact in one `InputProducers` summary. Matching compound input paths propagate a constructed
 inactive outcome to its callable descendants. Joins require every observed source to exclude the

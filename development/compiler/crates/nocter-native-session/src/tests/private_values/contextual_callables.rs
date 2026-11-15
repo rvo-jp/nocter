@@ -2,6 +2,42 @@
 use super::*;
 
 #[test]
+fn private_received_recovery_merges_preserve_captured_payloads_and_error_owners() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-outcome-recovery-merge.nct"
+    ));
+    let source = source
+        .replace("const ANSWER: i32 = calculate()", "")
+        .replace("const func", "func");
+    let package = TempPackage::new();
+    execute_native_status(&compile(&source), &package.0, "received-recovery-merge", 42);
+    let source = source
+        .replace(
+            "func present(number: i32)",
+            "func present(take reason: error, number: i32)",
+        )
+        .replace("(number; value: i32)", "(reason^, number; value: i32)");
+    let source = [21, 19, 39].into_iter().fold(source, |source, number| {
+        source.replace(
+            &format!("present({number})"),
+            &format!(
+                "present(context_error(create_failure(\"held\", \"leaf\"), \"outer\"), {number})"
+            ),
+        )
+    });
+    let source = format!(
+        "primitive func create_failure(code: str, message: str): error\nprimitive func context_error(take value: error, message: str): error\n{source}"
+    );
+    execute_native_status(
+        &image(&trusted_error_machine(&source)),
+        &package.0,
+        "received-recovery-error-merge",
+        42,
+    );
+}
+
+#[test]
 fn private_received_outcome_propagation_preserves_domains_and_owned_errors() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

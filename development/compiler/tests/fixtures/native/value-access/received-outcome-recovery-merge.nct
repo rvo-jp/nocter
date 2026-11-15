@@ -1,0 +1,16 @@
+const func present(number: i32): (func(i32): i32)? {
+    (number; value: i32) { number + value }
+}
+const func choose(take values: [(func(i32): i32)?; 2]): i32 {
+    let fallback = values[1]^!
+    let action = values[0]^ otherwise { fallback^ }
+    action(1)
+}
+const func calculate(): i32 {
+    var empty = present(21)
+    let retained = empty^
+    empty = none
+    choose([empty^, retained^]) + choose([present(19), present(39)])
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { calculate() }
