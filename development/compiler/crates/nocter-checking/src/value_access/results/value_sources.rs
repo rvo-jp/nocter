@@ -154,6 +154,7 @@ pub struct ValueSources {
     creations: BTreeMap<ValueClosure, ValueSourceId>,
     returned: BTreeSet<ValueSourceId>,
     flow: Option<ValueSourceFlow>,
+    pub(in crate::value_access::results) control: Option<super::control::original::Original>,
 }
 impl ValueSources {
     #[cfg(test)]
@@ -178,6 +179,7 @@ impl ValueSources {
             creations: BTreeMap::new(),
             returned,
             flow: None,
+            control: None,
         }
     }
     #[cfg(test)]

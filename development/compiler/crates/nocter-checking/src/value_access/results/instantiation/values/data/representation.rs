@@ -130,7 +130,7 @@ impl Query<'_, '_> {
                     *source == value
                 }
                 ValueSource::Merge { .. } | ValueSource::Alternatives(_) => {
-                    self.incoming_values(frame, node).contains(&value)
+                    self.incoming_values(frame, node)?.contains(&value)
                 }
                 _ => false,
             };

@@ -36,6 +36,33 @@ fn received_absence_selects_the_actual_loop_exit_callable_context() {
 }
 
 #[test]
+fn received_loop_exit_callable_context_survives_return_to_the_caller() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-loop-exit-results.nct"
+    ));
+    for (parameter, binding) in [
+        ("take value", "let ignored = value^"),
+        ("value", "read ignored = value"),
+        ("edit value", "edit ignored = value"),
+    ] {
+        let source = source
+            .replace("select(take value", &format!("select({parameter}"))
+            .replace("let ignored = value^", binding);
+        assert!(source.contains(&format!("func select({parameter}:")));
+        let source = if parameter == "take value" {
+            source
+        } else {
+            source.replace("drop ignored", "")
+        };
+        assert_eq!(
+            super::initializers::answer(&source, "ANSWER"),
+            Datum::integer(42)
+        );
+    }
+}
+
+#[test]
 fn inhabited_received_domains_keep_conflicting_loop_exits_unresolved() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -207,7 +234,7 @@ fn received_callable_assertions_preserve_the_original_trap() {
         let fixture = nocter_test_support::ValueSourceFixture::new(&absent);
         let failure = SourceUnit::prepare(fixture.syntax()).unwrap_err();
         let SourceFailure::Checking(Failure::Evaluation { diagnostic, .. }) = failure else {
-            panic!("expected the received assertion to trap: {failure:?}");
+            panic!("expected the {parameter} assertion to trap: {failure:?}");
         };
         assert_eq!(
             diagnostic.rule(),

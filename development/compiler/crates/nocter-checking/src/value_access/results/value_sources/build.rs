@@ -91,6 +91,11 @@ pub(in crate::value_access::results) fn analyze(
     builder.origin = None;
     let source_flow = builder.source_flow(control, &reached)?;
     builder.close_incoming(&source_flow)?;
+    let original = super::super::control::original::Original::prepare(
+        query,
+        control.graph.clone(),
+        Some(&source_flow),
+    )?;
     Ok(ValueSources {
         owner: query.code(),
         nodes: builder.nodes.into(),
@@ -98,6 +103,7 @@ pub(in crate::value_access::results) fn analyze(
         creations: builder.creations,
         returned: builder.returned,
         flow: Some(source_flow),
+        control: Some(original),
     })
 }
 impl Builder<'_> {

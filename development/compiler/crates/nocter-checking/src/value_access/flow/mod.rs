@@ -190,7 +190,7 @@ pub enum IntegrityError {
 #[derive(Clone, Debug)]
 pub struct Query {
     typed: Arc<TypedQuery>,
-    graph: Graph,
+    graph: Arc<Graph>,
     numeric: numeric::Analysis,
     initialization: Initialization,
     access: access::Analysis,
@@ -212,7 +212,7 @@ impl Query {
         &self.typed
     }
     #[must_use]
-    pub const fn graph(&self) -> &Graph {
+    pub fn graph(&self) -> &Graph {
         &self.graph
     }
     /// Numeric relationships before a reached operation. These grant no access or bounds waiver.
@@ -235,7 +235,7 @@ impl Query {
 #[derive(Clone, Debug)]
 pub(super) struct Control {
     pub(super) typed: Arc<TypedQuery>,
-    pub(super) graph: Graph,
+    pub(super) graph: Arc<Graph>,
 }
 /// One lexical code index for consumers of root bodies and their captured code.
 pub(super) fn scope<'a>(
@@ -262,7 +262,7 @@ pub(super) fn scope<'a>(
 impl Control {
     pub(super) fn prepare(typed: Arc<TypedQuery>) -> Result<Self, IntegrityError> {
         super::body_inputs::layout(&typed)?;
-        let graph = build::build(typed.body())?;
+        let graph = Arc::new(build::build(typed.body())?);
         let mut control = Self { typed, graph };
         if control.typed.results_closed() {
             control.refine_outcome_domains()?;

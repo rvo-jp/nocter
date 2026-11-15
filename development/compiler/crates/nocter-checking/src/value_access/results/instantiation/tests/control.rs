@@ -85,6 +85,67 @@ fn selected_loop_exit_queries_keep_frame_boundaries_and_recover_after_work_failu
 }
 
 #[test]
+fn nested_returned_frame_control_work_failure_publishes_no_partial_selection() {
+    let fixture = ValueSourceFixture::new(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-loop-exit-results.nct"
+    )));
+    let unit = SourceUnit::prepare(fixture.syntax()).unwrap().into_unit();
+    let program = unit.program();
+    let code = |name| {
+        program
+            .resolve(program.symbols().get(name).unwrap())
+            .unwrap()
+    };
+    let caller = program.bind_code(code("calculate").into(), []).unwrap();
+    let body = unit.code_body(caller.code()).unwrap();
+    let call = body.typed().body().expressions().iter().find_map(|(call, expression)|
+        matches!(expression.kind, ExpressionKind::Call { target: ValueFunctionOrigin::Declaration(target), .. }
+            if target == code("select"))
+            .then_some(ValueApplication { owner: caller.code(), call })).unwrap();
+    let healthy = || WorkBudget::new(nocter_constant_evaluation::state::Limits::default().steps());
+    let returned_frame = unit
+        .instantiate_invocation(&caller, call, &mut healthy())
+        .unwrap();
+    let control = unit.instantiate_control(&caller, &mut healthy()).unwrap();
+    let evidence = body.typed().result_evidence.as_ref().unwrap();
+    let mut work = healthy();
+    let mut query = Query::with_control(program, evidence, &mut work, &control);
+    for steps in [1, 2] {
+        *query.work = WorkBudget::new(NonZeroU64::new(steps).unwrap());
+        assert!(matches!(
+            query.control_for(&returned_frame),
+            Err(InstantiationFailure::WorkLimit)
+        ));
+        assert!(!query.controls.contains_key(&returned_frame));
+    }
+    *query.work = healthy();
+    let selected = query.control_for(&returned_frame).unwrap().unwrap();
+    assert_eq!(selected.frame(), &returned_frame);
+    let (point, block) = unit
+        .code_body(returned_frame.code())
+        .unwrap()
+        .graph()
+        .points()
+        .iter()
+        .find(|(_, block)| {
+            matches!(
+                block.terminator,
+                crate::value_access::flow::Terminator::Branch { .. }
+            )
+        })
+        .unwrap();
+    let crate::value_access::flow::Terminator::Branch { no, .. } = block.terminator else {
+        unreachable!()
+    };
+    assert_eq!(
+        selected.terminator(point),
+        Some(crate::value_access::flow::Terminator::Jump(no))
+    );
+    assert!(query.call(&caller, value_call(body)).is_ok());
+}
+
+#[test]
 fn public_loop_exit_queries_keep_one_callable_witness_and_referent_root() {
     use crate::value_access::ArgumentAction;
     let unit = Arc::new(source_unit());

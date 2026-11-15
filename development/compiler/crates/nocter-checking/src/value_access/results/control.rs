@@ -1,10 +1,11 @@
 //! Instance-specific continuation selection over original points, never an access or value proof.
 use super::{Evidence, InstantiationFailure as Failure};
-use crate::value_access::{ExpressionKind, Referent, flow};
+use crate::value_access::flow;
 use nocter_constant_evaluation::state::WorkBudget;
 use nocter_declarations::value_access::{CodeInstanceKey, Program};
-use nocter_model::{AccessFlowPointId, ValueField};
-use std::collections::{BTreeMap, BTreeSet};
+use nocter_model::AccessFlowPointId;
+use std::{collections::BTreeMap, sync::Arc};
+pub(super) mod original;
 
 #[derive(Clone, Debug)]
 pub struct InstanceControl {
@@ -67,124 +68,22 @@ pub(in crate::value_access) fn from_graph(
     if typed.code() != frame.code() {
         return Err(Failure::WrongOwner);
     }
-    let mut points = BTreeMap::new();
-    let mut pending = BTreeSet::from([graph.entry()]);
-    while let Some(point) = pending.pop_first() {
-        if points.contains_key(&point) {
-            continue;
+    let sources = evidence.value_sources(frame.code());
+    if let Some(original) = sources.and_then(|sources| sources.control.as_ref()) {
+        if !std::ptr::eq(graph, original.graph.as_ref()) && graph != original.graph.as_ref() {
+            return Err(Failure::WrongOwner);
         }
-        work.step().map_err(|_| Failure::WorkLimit)?;
-        let block = graph.points().get(point).ok_or(Failure::Unresolved)?;
-        let mut terminator = block.terminator;
-        if let flow::Terminator::Branch { condition, no, .. } = terminator {
-            let expression = typed
-                .body()
-                .expressions()
-                .get(condition)
-                .ok_or(Failure::Unresolved)?;
-            if let ExpressionKind::PrimaryCondition { source } = expression.kind {
-                let action = block.actions.iter().position(|action| matches!(action.operation, flow::Operation::Evaluate(id) if id == condition)).ok_or(Failure::Unresolved)?;
-                if excluded(
-                    program,
-                    evidence,
-                    typed,
-                    frame,
-                    flow::Location { point, action },
-                    flow::OutcomeSource::Referent(source),
-                    work,
-                )? {
-                    terminator = flow::Terminator::Jump(no);
-                }
-            }
-        } else if let Some(source) =
-            flow::assertion_source(typed, block).map_err(|_| Failure::Unresolved)?
-            && excluded(
-                program,
-                evidence,
-                typed,
-                frame,
-                flow::Location {
-                    point,
-                    action: block.actions.len() - 1,
-                },
-                source,
-                work,
-            )?
-        {
-            terminator = flow::Terminator::Unreachable;
-        }
-        pending.extend(terminator.successors());
-        points.insert(point, terminator);
+        return original.instantiate(program, evidence, frame, work);
     }
-    Ok(InstanceControl {
-        frame: frame.clone(),
-        points,
-    })
-}
-
-fn excluded(
-    program: &Program,
-    evidence: &Evidence,
-    body: &crate::value_access::Query,
-    frame: &CodeInstanceKey,
-    at: flow::Location,
-    source: flow::OutcomeSource,
-    work: &mut WorkBudget,
-) -> Result<bool, Failure> {
-    if let flow::OutcomeSource::Value(expression) = source {
-        let source_id = evidence
-            .value_sources(frame.code())
-            .and_then(|sources| sources.flow())
-            .and_then(|flow| flow.operand(at, expression))
-            .ok_or(Failure::Unresolved)?;
-        let data = source.data(body).map_err(|_| Failure::Unresolved)?;
-        return match super::instantiate_value_data(program, evidence, frame, source_id, data, work)
-        {
-            Ok(key) => key
-                .component(program, ValueField::Variant(true))
-                .map(|primary| primary.is_uninhabited())
-                .map_err(|_| Failure::Unresolved),
-            Err(Failure::WorkLimit) => Err(Failure::WorkLimit),
-            Err(_) => Ok(false),
-        };
-    }
-    let flow::OutcomeSource::Referent(referent) = source else {
-        unreachable!()
-    };
-    let source = evidence
-        .value_sources(frame.code())
-        .and_then(|sources| sources.flow())
-        .and_then(|flow| flow.root(at, referent))
-        .ok_or(Failure::Unresolved)?;
-    let key = match super::values::root_data(
-        program,
-        body,
-        frame,
-        source,
-        referent,
-        &mut super::instantiation::Query::new(program, evidence, work),
-    ) {
-        Ok(key) => key,
-        Err(Failure::WorkLimit) => return Err(Failure::WorkLimit),
-        Err(_) => return Ok(false),
-    };
-    let selected = match referent {
-        Referent::Place(place) => key.project_path(
-            program,
-            &body
-                .body()
-                .places()
-                .get(place)
-                .ok_or(Failure::Unresolved)?
-                .fields,
-        ),
-        Referent::Evaluated(_) => Ok(key),
-    }
+    // A caller holding an original typed graph can still establish its probes. A metadata-only
+    // query without that body must retain conservative control when no frozen recipe exists.
+    let original = original::Original::prepare(
+        typed,
+        Arc::new(graph.clone()),
+        sources.and_then(super::ValueSources::flow),
+    )
     .map_err(|_| Failure::Unresolved)?;
-    Ok(selected
-        .component(program, ValueField::Variant(true))
-        .map_err(|_| Failure::Unresolved)?
-        .is_uninhabited())
+    original.instantiate(program, evidence, frame, work)
 }
 
 #[cfg(test)]

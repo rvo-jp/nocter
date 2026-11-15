@@ -17,23 +17,20 @@ mod writes;
 type Result = std::result::Result<Fact, InstantiationFailure>;
 impl Query<'_, '_> {
     fn incoming_values(
-        &self,
+        &mut self,
         frame: &CodeInstanceKey,
         node: &ValueSourceNode,
-    ) -> Vec<ValueSourceId> {
+    ) -> std::result::Result<Vec<ValueSourceId>, InstantiationFailure> {
         if let ValueSource::Merge { point, inputs, .. } = &node.value
-            && let Some(control) = self
-                .control
-                .as_deref()
-                .filter(|control| control.frame() == frame)
+            && let Some(control) = self.control_for(frame)?
         {
-            return inputs
+            return Ok(inputs
                 .iter()
                 .filter(|(boundary, _)| control.edge_reachable(boundary.point, *point))
                 .map(|(_, &value)| value)
-                .collect();
+                .collect());
         }
-        node.value.inputs().collect()
+        Ok(node.value.inputs().collect())
     }
     pub(super) fn source_result(
         &mut self,
@@ -241,7 +238,7 @@ impl Query<'_, '_> {
             }
             ValueSource::Merge { .. } | ValueSource::Alternatives(_) => {
                 let mut fact = Fact::Empty;
-                for input in self.incoming_values(frame, node) {
+                for input in self.incoming_values(frame, node)? {
                     fact = fact
                         .join(self.read(owner, Key::Value(frame.clone(), input, path.clone()))?);
                 }

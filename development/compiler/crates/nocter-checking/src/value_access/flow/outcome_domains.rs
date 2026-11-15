@@ -11,7 +11,8 @@ impl Control {
         let Some(evidence) = typed.result_evidence.as_ref() else {
             return Ok(());
         };
-        self.graph.points = self.graph.points.try_map(|_, point| {
+        let graph = Arc::make_mut(&mut self.graph);
+        graph.points = graph.points.try_map(|_, point| {
             let mut point = point.clone();
             if let Terminator::Branch { condition, no, .. } = point.terminator {
                 let expression = typed.body().expressions().get(condition).ok_or(INVALID)?;

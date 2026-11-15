@@ -440,14 +440,31 @@ the original predecessor's selected terminator, not the origin or reachability o
 `received-loop-exit-contexts.nct` qualifies a conditional whole-local replacement whose unchanged
 loop exit is excluded by a received empty callable domain. The initial producer remains reachable,
 but its context cannot pollute the surviving replacement's later invocation or cleanup. Request-local
-contextual data and stored-definition queries filter incoming edges only for their exact selected frame;
-dependencies in other frames retain conservative joins. Bound expression/drop checks also select
+contextual data and stored-definition queries filter incoming edges for each exact selected frame.
+Nested requests establish the callee's own selection from its frozen original source probes; a
+metadata-only source without those probes retains conservative joins. Bound expression/drop checks also select
 their original reachable occurrences without discarding dormant definition contracts. Value and
 preparation maps, call argument projection and ordered resource cleanup use the same metadata query.
 Take/read/edit inputs qualify required execution, and owning native execution includes actual
 retired and received error graphs. An inhabited domain still retains both possible exits; different
 captured contexts then remain unresolved. Work exhaustion clears query drafts and permits a healthy
 retry without publishing a selected value, owner or executable body.
+
+`received-loop-exit-results.nct` extends that qualification through returned functions, stored and
+immediate invocation, and a forwarding call. Required/native cases cover take/read/edit inputs;
+native cleanup includes actual retired and returned error-owning environments. Published source
+probes share the original flow graph and retain its source IDs, root types and component paths.
+They do not retain or retype another body. One control engine serves direct and nested requests,
+with request-local callee-frame caches and the existing work budget. An exhausted request publishes
+no partial callee selection, and a healthy retry can use the same original evidence.
+
+Probe preparation omits a primary domain only when the declaration authority proves it stays
+inhabited even under maximal callable exclusion. That invariance test supplies no actual value,
+layout or represented-domain certificate. Completed-input metadata remains a separate unrefined
+fixed point in the same query engine and budget: selected nested continuations do not yet qualify
+interprocedural nonreturning completion or changed post-call state. Completion metadata grants no
+actual normal return, initialized backing or resource receipt. General result-edge correspondence
+and value-state const guards remain separate qualification obligations.
 
 `accepted::InstanceMetadata` binds one retained control selection to its exact accepted Unit and
 canonical frame. It shares that selection across native invocation, argument/result data and

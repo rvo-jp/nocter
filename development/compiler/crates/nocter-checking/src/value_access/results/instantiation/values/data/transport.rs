@@ -69,6 +69,25 @@ impl Query<'_, '_> {
         path: &ValuePath<()>,
         target: TypeId,
     ) -> Result {
+        if self.refine_dependencies {
+            // Completion contracts are not selected-value receipts. Preserve their existing
+            // unrefined fixed point until interprocedural nonreturning continuations qualify.
+            let saved = std::mem::take(&mut self.completion_facts);
+            let mut baseline = Query::new(self.program, self.evidence, self.work);
+            baseline.entries = saved.entries;
+            baseline.pending = saved.pending;
+            let result = baseline.solve(&Key::CompletedInput(
+                frame.clone(),
+                local,
+                path.clone(),
+                target,
+            ));
+            self.completion_facts = super::super::super::CompletionFacts {
+                entries: baseline.entries,
+                pending: baseline.pending,
+            };
+            return result;
+        }
         let Some(boundaries) = self
             .evidence
             .value_sources(frame.code())
@@ -119,9 +138,8 @@ impl Query<'_, '_> {
             ValueSourceRead::Incoming(previous) => {
                 let mut fact = Fact::Empty;
                 for boundary in previous {
-                    if self.control.as_deref().is_some_and(|control| {
-                        control.frame() == frame
-                            && !control.edge_reachable(boundary.point, selected.boundary.point)
+                    if self.control_for(frame)?.is_some_and(|control| {
+                        !control.edge_reachable(boundary.point, selected.boundary.point)
                     }) {
                         continue;
                     }

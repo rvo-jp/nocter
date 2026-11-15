@@ -211,6 +211,12 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   Returned producer sets alone lose return-edge correspondence: use original normal-completion
   boundaries and their staged-return definitions, not producer-origin reachability, when
   qualifying selected result paths.
+- [x] Preserve a selected loop-exit callable through returned values, stored/immediate caller
+  invocation and forwarding. Qualify take/read/edit inputs, actual retired/returned error owners,
+  shared original graph identity and interrupted callee-control recovery. Retain each callee
+  frame's own original control without retyping bodies or using refined queries to establish
+  their own selection. Keep completed-input metadata conservative and general normal-return
+  boundary matching and value-state const guards independently qualified.
 - [x] Preserve each sparse source merge's original predecessor boundary and supplied definition
   as one paired relation. Do not deduplicate equal definitions into an uncorrelated set or infer
   selected incoming edges merely from producer-point reachability. Qualify unchanged conservative

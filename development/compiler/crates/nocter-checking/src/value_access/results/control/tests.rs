@@ -1,5 +1,7 @@
 //! Real source frames select continuations without changing the shared checked graph.
 use super::*;
+use crate::value_access::ExpressionKind;
+use nocter_model::ValueField;
 use nocter_model::{ValueApplication, ValueFunctionOrigin as Origin};
 use std::num::NonZeroU64;
 
@@ -15,6 +17,16 @@ fn source_unit() -> crate::value_access::accepted::Unit {
     crate::value_access::accepted::SourceUnit::prepare(fixture.syntax())
         .unwrap()
         .into_unit()
+}
+
+#[test]
+fn frozen_source_probes_share_the_published_original_graph() {
+    let unit = source_unit();
+    for (_, body) in unit.bodies() {
+        let sources = unit.value_sources(body.typed().code()).unwrap();
+        let original = sources.control.as_ref().unwrap();
+        assert!(std::ptr::eq(body.graph(), original.graph.as_ref()));
+    }
 }
 
 #[test]

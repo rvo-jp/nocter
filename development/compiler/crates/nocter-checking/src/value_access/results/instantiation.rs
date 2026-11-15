@@ -58,6 +58,11 @@ struct Entry {
     fact: Fact,
     dependents: BTreeSet<Key>,
 }
+#[derive(Default)]
+struct CompletionFacts {
+    entries: BTreeMap<Key, Entry>,
+    pending: BTreeSet<Key>,
+}
 pub(in crate::value_access) struct Query<'a, 'work> {
     program: &'a Program,
     evidence: &'a Evidence,
@@ -65,6 +70,9 @@ pub(in crate::value_access) struct Query<'a, 'work> {
     entries: BTreeMap<Key, Entry>,
     pending: BTreeSet<Key>,
     control: Option<Cow<'a, super::InstanceControl>>,
+    refine_dependencies: bool,
+    controls: BTreeMap<CodeInstanceKey, super::InstanceControl>,
+    completion_facts: CompletionFacts,
 }
 
 pub(in crate::value_access) fn call(
@@ -147,7 +155,7 @@ pub(in crate::value_access) fn result(
     source: TypeId,
     work: &mut WorkBudget,
 ) -> Result<DataInstanceKey, InstantiationFailure> {
-    match Query::new(program, evidence, work).solve(&Key::DataResult(
+    match Query::refined(program, evidence, work).solve(&Key::DataResult(
         frame.clone(),
         ValuePath::default(),
         source,
@@ -170,6 +178,15 @@ impl<'a, 'work> Query<'a, 'work> {
             entries: BTreeMap::new(),
             pending: BTreeSet::new(),
             control: None,
+            refine_dependencies: false,
+            controls: BTreeMap::new(),
+            completion_facts: CompletionFacts::default(),
+        }
+    }
+    fn refined(program: &'a Program, evidence: &'a Evidence, work: &'work mut WorkBudget) -> Self {
+        Self {
+            refine_dependencies: true,
+            ..Self::new(program, evidence, work)
         }
     }
     pub(in crate::value_access) fn with_control(
@@ -180,7 +197,7 @@ impl<'a, 'work> Query<'a, 'work> {
     ) -> Self {
         Self {
             control: Some(Cow::Borrowed(control)),
-            ..Self::new(program, evidence, work)
+            ..Self::refined(program, evidence, work)
         }
     }
     pub(in crate::value_access) fn controlled(
@@ -193,8 +210,41 @@ impl<'a, 'work> Query<'a, 'work> {
         let control = super::instantiate_control(program, evidence, body, frame, work)?;
         Ok(Self {
             control: Some(Cow::Owned(control)),
-            ..Self::new(program, evidence, work)
+            ..Self::refined(program, evidence, work)
         })
+    }
+    fn control_for(
+        &mut self,
+        frame: &CodeInstanceKey,
+    ) -> Result<Option<&super::InstanceControl>, InstantiationFailure> {
+        if let Some(control) = self
+            .control
+            .as_deref()
+            .filter(|control| control.frame() == frame)
+        {
+            return Ok(Some(control));
+        }
+        if !self.refine_dependencies {
+            return Ok(None);
+        }
+        self.work
+            .step()
+            .map_err(|_| InstantiationFailure::WorkLimit)?;
+        if !self.controls.contains_key(frame) {
+            let Some(original) = self
+                .evidence
+                .value_sources(frame.code())
+                .and_then(|sources| sources.control.as_ref())
+            else {
+                return Ok(None);
+            };
+            if !original.has_probes() {
+                return Ok(None);
+            }
+            let control = original.instantiate(self.program, self.evidence, frame, self.work)?;
+            self.controls.insert(frame.clone(), control);
+        }
+        Ok(self.controls.get(frame))
     }
     pub(in crate::value_access) fn call(
         &mut self,

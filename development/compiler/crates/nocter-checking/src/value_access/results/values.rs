@@ -156,7 +156,7 @@ pub(in crate::value_access) fn values(
     }
     Ok(values)
 }
-fn root_type(body: &crate::value_access::Query, referent: Referent) -> Option<TypeId> {
+pub(super) fn root_type(body: &crate::value_access::Query, referent: Referent) -> Option<TypeId> {
     let body = body.body();
     match referent {
         Referent::Place(place) => body

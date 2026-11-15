@@ -2,6 +2,52 @@
 use super::*;
 
 #[test]
+fn private_selected_loop_exit_results_preserve_returned_environments_and_error_owners() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-loop-exit-results.nct"
+    ));
+    let runtime = source
+        .replace("const ANSWER: i32 = calculate()", "")
+        .replace("const func", "func");
+    let package = TempPackage::new();
+    for (parameter, binding) in [
+        ("take value", "let ignored = value^"),
+        ("value", "read ignored = value"),
+        ("edit value", "edit ignored = value"),
+    ] {
+        let source = runtime
+            .replace("select(take value", &format!("select({parameter}"))
+            .replace("let ignored = value^", binding);
+        assert!(source.contains(&format!("func select({parameter}:")));
+        let source = if parameter == "take value" {
+            source
+        } else {
+            source.replace("drop ignored", "")
+        };
+        execute_native_status(
+            &compile(&source),
+            &package.0,
+            "selected-loop-exit-results",
+            42,
+        );
+    }
+    let owned = runtime.replace("wrap(identity)", "wrap(initial())")
+        .replace("(number; value: i32)", "(reason^, number; value: i32)")
+        .replace("func addition(number: i32): func(i32): i32 {",
+            "func addition(number: i32): func(i32): i32 { let reason = context_error(create_failure(\"returned\", \"leaf\"), \"outer\")");
+    let owned = format!(
+        "primitive func create_failure(code: str, message: str): error\nprimitive func context_error(take value: error, message: str): error\nfunc initial(): func(i32): i32 {{ let reason = context_error(create_failure(\"retired\", \"leaf\"), \"outer\")\n(reason^; value: i32) {{ value }} }}\n{owned}"
+    );
+    execute_native_status(
+        &image(&trusted_error_machine(&owned)),
+        &package.0,
+        "selected-loop-exit-returned-errors",
+        42,
+    );
+}
+
+#[test]
 fn private_received_loop_exits_preserve_selected_contexts_and_error_cleanup() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
