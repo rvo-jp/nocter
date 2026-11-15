@@ -425,9 +425,10 @@ impl<'a, 's> Checker<'a, 's> {
                 match witness.origin {
                     nocter_model::ValueFunctionOrigin::Closure(id) =>
                         self.program().root_label(id.owner),
-                    nocter_model::ValueFunctionOrigin::Declaration(id)
-                    | nocter_model::ValueFunctionOrigin::Result(id) =>
+                    nocter_model::ValueFunctionOrigin::Declaration(id) =>
                         self.program().code_label(id),
+                    nocter_model::ValueFunctionOrigin::Result(result) =>
+                        self.program().code_label(result.owner),
                     nocter_model::ValueFunctionOrigin::Application(application) =>
                         self.program().root_label(application.owner.root()),
                     nocter_model::ValueFunctionOrigin::Parameter(id) =>

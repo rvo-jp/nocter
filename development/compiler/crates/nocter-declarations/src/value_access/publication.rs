@@ -296,7 +296,7 @@ impl HeaderPublication {
             .collect();
         let (result, result_contract) = publish_value(
             &mut types,
-            ValueFunctionOrigin::Result(id),
+            ValueFunctionOrigin::Result(id.into()),
             &definition.result_data,
             &mut Vec::new(),
         );

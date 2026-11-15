@@ -252,8 +252,10 @@ impl Program {
                 }
             }
             ValueFunctionOrigin::Parameter(id) => self.parameter_contract(id)?.clone(),
-            ValueFunctionOrigin::Result(id) => self.codes.get(id)?.result_contract()?.clone(),
-            ValueFunctionOrigin::Application(_) => return None,
+            ValueFunctionOrigin::Result(result) if result.ordinal == 0 => {
+                self.codes.get(result.owner)?.result_contract()?.clone()
+            }
+            ValueFunctionOrigin::Result(_) | ValueFunctionOrigin::Application(_) => return None,
         };
         if !contract.invocation.can_supply(witness.invocation) {
             return None;
@@ -287,8 +289,11 @@ impl Program {
             ValueFunctionOrigin::Parameter(id) => {
                 self.parameter_contract(id)?;
             }
-            ValueFunctionOrigin::Result(id) => {
-                self.codes.get(id)?.result_contract()?;
+            ValueFunctionOrigin::Result(result) => {
+                if result.ordinal != 0 {
+                    return None;
+                }
+                self.codes.get(result.owner)?.result_contract()?;
             }
             ValueFunctionOrigin::Application(application) => {
                 if !self.has_type_root(application.owner.root()) {

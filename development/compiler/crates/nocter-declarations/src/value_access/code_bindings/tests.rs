@@ -131,7 +131,7 @@ fn instance_bindings_are_exact_canonical_contract_views_without_code_body_capabi
     ));
     assert_eq!(
         program.concrete_witness(FunctionWitness {
-            origin: ValueFunctionOrigin::Result(factory),
+            origin: ValueFunctionOrigin::Result(factory.into()),
             invocation: ValueInvocation::Read
         }),
         Err(CodeBindingError::InvalidWitness)
@@ -140,6 +140,25 @@ fn instance_bindings_are_exact_canonical_contract_views_without_code_body_capabi
         program.codes().get(plain).unwrap().compile_time(),
         CompileTimeGuarantee::RuntimeOnly
     );
+}
+#[test]
+fn unpublished_callable_result_slots_cannot_alias_the_root_contract_or_supply_a_value() {
+    let (program, [_, _, _, _, factory]) = headers();
+    for ordinal in [1, usize::MAX] {
+        let witness = FunctionWitness {
+            origin: ValueFunctionOrigin::Result(nocter_model::ValueCallableResult {
+                owner: factory,
+                ordinal,
+            }),
+            invocation: ValueInvocation::Read,
+        };
+        assert_eq!(program.function_contract(witness), None);
+        assert_eq!(program.function_data(witness), None);
+        assert_eq!(
+            program.concrete_witness(witness),
+            Err(CodeBindingError::InvalidWitness)
+        );
+    }
 }
 #[test]
 fn anonymous_binding_coverage_uses_explicit_input_positions_and_keeps_expression_roots_separate() {
@@ -329,7 +348,7 @@ fn symbolic_frames_reject_foreign_missing_duplicate_incompatible_and_nonproducer
         ))
     ));
     let result = FunctionWitness {
-        origin: ValueFunctionOrigin::Result(factory),
+        origin: ValueFunctionOrigin::Result(factory.into()),
         invocation: ValueInvocation::Read,
     };
     assert!(program.function_contract(result).is_some());

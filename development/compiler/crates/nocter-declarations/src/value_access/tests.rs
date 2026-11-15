@@ -628,7 +628,7 @@ fn callable_result_headers_publish_signatures_without_inventing_producers_or_cop
     };
     assert_eq!(
         witness.origin,
-        nocter_model::ValueFunctionOrigin::Result(id)
+        nocter_model::ValueFunctionOrigin::Result(id.into())
     );
     assert_eq!(program.data_copyable(callable.result()), Some(false));
     assert_eq!(

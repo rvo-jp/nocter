@@ -114,7 +114,7 @@ fn producer_environment(
     };
     let taken_data = body.program().function_data(taken).unwrap();
     let result_witness = FunctionWitness {
-        origin: ValueFunctionOrigin::Result(factory),
+        origin: ValueFunctionOrigin::Result(factory.into()),
         invocation: first_witness.invocation,
     };
     let result_data = body.program().function_data(result_witness).unwrap();

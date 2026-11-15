@@ -333,7 +333,9 @@ impl<'a, 'work> Query<'a, 'work> {
                     _ => Fact::Unavailable,
                 }
             }
-            Origin::Result(code) if frame.code() == ValueCode::Declaration(code) => {
+            Origin::Result(result)
+                if result.ordinal == 0 && frame.code() == ValueCode::Declaration(result.owner) =>
+            {
                 self.read(owner, Key::Result(frame.clone(), ValuePath::default()))?
             }
             _ => Fact::Unavailable,

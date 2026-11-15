@@ -123,6 +123,8 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   saved addresses, original bounds effects and actual containing-owner/cleanup metadata.
 - [x] Qualify owning callable results extracted from received tuples/arrays, preserving formal
   component identities, actual producer contexts, source retirement and remaining-container cleanup.
+- [x] Give declared callable result identities an owning declaration and leaf ordinal, preserving
+  the existing root-result domain and rejecting unpublished slots without a producer/value fallback.
 - [ ] Establish declaration-owned callable result-component contracts and deterministic publication
   without opening compound-result payload admission. Qualify separate same-signature result leaves
   and invalid-header rejection before extending producer/result realization and consumer storage.

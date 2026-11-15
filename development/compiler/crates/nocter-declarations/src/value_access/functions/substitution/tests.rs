@@ -83,7 +83,7 @@ fn substitution_never_searches_for_unbound_or_unclosed_terms_or_recurses_through
     );
     assert_eq!(symbolic.origin.code(), None);
     let result = FunctionWitness {
-        origin: ValueFunctionOrigin::Result(code),
+        origin: ValueFunctionOrigin::Result(code.into()),
         ..named
     };
     assert_eq!(

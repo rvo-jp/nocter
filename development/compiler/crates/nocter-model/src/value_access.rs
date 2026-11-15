@@ -93,9 +93,22 @@ pub enum ValueFunctionOrigin {
     Closure(ValueClosure),
     Parameter(ValueParameter),
     /// A declared callable result, closed by checking its reachable return producers.
-    Result(crate::AccessCodeId),
+    Result(ValueCallableResult),
     /// One statically selected call application, independent of source coordinates and type IDs.
     Application(ValueApplication),
+}
+
+/// One callable leaf in a declared result, in written payload-descriptor order. A result that
+/// is itself callable has the sole ordinal zero. This is neither a runtime field nor a producer.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct ValueCallableResult {
+    pub owner: crate::AccessCodeId,
+    pub ordinal: usize,
+}
+impl From<crate::AccessCodeId> for ValueCallableResult {
+    fn from(owner: crate::AccessCodeId) -> Self {
+        Self { owner, ordinal: 0 }
+    }
 }
 
 /// A formal callable input belongs to a header declaration or one lexical anonymous body.
@@ -264,7 +277,7 @@ mod tests {
         let call = ArenaBuilder::<crate::AccessExpressionId, ()>::new().insert(());
         for symbolic in [
             ValueFunctionOrigin::Parameter(parameter.into()),
-            ValueFunctionOrigin::Result(code),
+            ValueFunctionOrigin::Result(code.into()),
             ValueFunctionOrigin::Application(ValueApplication {
                 owner: ValueCode::Declaration(code),
                 call,
@@ -346,7 +359,7 @@ mod result_tests {
         let mut types = base.transaction();
         let result = types
             .intern(TypeKind::ValueFunction {
-                origin: ValueFunctionOrigin::Result(id),
+                origin: ValueFunctionOrigin::Result(id.into()),
                 invocation: ValueInvocation::Read,
             })
             .unwrap();
@@ -357,6 +370,26 @@ mod result_tests {
             })
             .unwrap();
         assert_ne!(result, named);
+        let component = types
+            .intern(TypeKind::ValueFunction {
+                origin: ValueFunctionOrigin::Result(ValueCallableResult {
+                    owner: id,
+                    ordinal: 1,
+                }),
+                invocation: ValueInvocation::Read,
+            })
+            .unwrap();
+        assert_ne!(result, component);
+        assert_ne!(named, component);
+        assert_eq!(
+            ValueFunctionOrigin::Result(ValueCallableResult {
+                owner: id,
+                ordinal: 1
+            })
+            .code(),
+            None
+        );
+        assert_eq!(types.is_concrete(component), Some(false));
         assert_eq!(types.is_concrete(result), Some(false));
         assert!(types.may_carry_storage(result));
         let projected = types.project(result).unwrap();

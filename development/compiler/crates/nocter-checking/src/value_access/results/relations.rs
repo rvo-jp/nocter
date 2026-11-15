@@ -29,10 +29,11 @@ fn values(term: FunctionWitness, known: &Solutions) -> Result<Producers, ()> {
         Origin::Declaration(_) | Origin::Closure(_) | Origin::Parameter(_) => {
             Producers::from([term])
         }
-        Origin::Result(code) => known
-            .get(&Term::Result(ValueCode::Declaration(code)))
+        Origin::Result(result) if result.ordinal == 0 => known
+            .get(&Term::Result(ValueCode::Declaration(result.owner)))
             .ok_or(())?
             .clone(),
+        Origin::Result(_) => return Err(()),
         Origin::Application(application) => known
             .get(&Term::Application(application))
             .ok_or(())?

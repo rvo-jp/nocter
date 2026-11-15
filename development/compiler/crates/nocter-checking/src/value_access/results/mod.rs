@@ -103,7 +103,9 @@ impl Evidence {
     }
     fn selected(&self, origin: ValueFunctionOrigin) -> Option<FunctionWitness> {
         match origin {
-            ValueFunctionOrigin::Result(id) => self.producers.get(&id).copied(),
+            ValueFunctionOrigin::Result(result) if result.ordinal == 0 => {
+                self.producers.get(&result.owner).copied()
+            }
             ValueFunctionOrigin::Application(application) => {
                 match self.applications.get(&application)? {
                     ApplicationEvidence::Witness(witness) => Some(*witness),
@@ -234,7 +236,7 @@ pub(super) fn close(
         .producers
         .keys()
         .copied()
-        .map(ValueFunctionOrigin::Result)
+        .map(|code| ValueFunctionOrigin::Result(code.into()))
         .chain(
             evidence
                 .applications

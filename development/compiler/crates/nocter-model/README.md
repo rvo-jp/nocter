@@ -39,6 +39,9 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
 - future function-witness keys pairing a concrete declaration, symbolic formal input or symbolic
   result family or selected call application with an invocation view; projection preserves them
   without source names or runtime layout. Applications pair caller/operation/callee identities.
+  `ValueCallableResult` identifies a result's callable leaf by declaration owner and written
+  ordinal; a result that is itself callable has the sole ordinal zero. An identity grants no
+  published contract or produced value. Declaration/checking owners qualify each supported slot.
   Formal/result/application witnesses remain nonconcrete and may carry storage; named witnesses
   are concrete capture-free leaves. Canonical body replay and result closure retain one authority
 - root/captured body code identities: `AccessCodeId` identifies reserved declarations and header
