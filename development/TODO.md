@@ -175,9 +175,12 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Distinguish a proven empty representation domain from unavailable evaluator metadata in the
   evaluator's own type vocabulary before guarded transport can use it as a conversion proof.
   Qualify inactive alternatives separately from actual values, slots and input/cleanup obligations.
-- [ ] Realize guarded represented-value transport in closed evaluator plans with explicit source
+- [x] Realize guarded represented-value transport in closed evaluator plans with explicit source
   and destination shapes, exact positive callable contexts, inactive-alternative checks, once-only
   retirement and failure/budget recovery. This alone does not admit source conversions or native ABI.
+- [ ] Qualify directed physical outcome transport in runtime representation metadata and MIR/Machine
+  effects, preserving separate layouts, original tags and active payload offsets. Keep exact transfer
+  equality and checking's positive code/environment proof separate; do not admit source conversions yet.
 - [ ] Qualify application-specific empty callable domains supplied through received optional
   inputs. A globally nonempty formal result equation is not a proof that every application
   supplies a callable; preserve the exact committed input context rather than closing its raw type.

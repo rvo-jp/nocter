@@ -561,6 +561,10 @@ impl<'a, 'budget> Executor<'a, 'budget> {
     fn effect(&mut self, frame: usize, effect: &Effect) -> Result<()> {
         match effect {
             Effect::Context { .. } => Err(Rule::InvalidPlan),
+            Effect::Transport {
+                source,
+                destination,
+            } => self.transport(frame, source, destination),
             Effect::ReplaceReferent {
                 source,
                 destination,
@@ -624,22 +628,50 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             | Effect::Replace {
                 source,
                 destination,
-            } => {
-                let value = self.read(frame, source)?;
-                self.memory
-                    .retire(&self.memory.address(&self.program, frame, source)?, false)?;
-                let destination = self.memory.address(&self.program, frame, destination)?;
-                self.memory.store(&destination, value)?;
-                if matches!(effect, Effect::Move { .. } | Effect::AdaptFunction { .. }) {
-                    self.memory.construct(&destination)?;
-                }
-                Ok(())
-            }
+            } => self.move_value(
+                frame,
+                source,
+                destination,
+                matches!(effect, Effect::Move { .. } | Effect::AdaptFunction { .. }),
+            ),
             Effect::Assemble {
                 destination,
                 fields,
             } => self.assemble(frame, *destination, fields),
         }
+    }
+    fn transport(&mut self, frame: usize, source: &Place, destination: &Place) -> Result<()> {
+        let slots = &self
+            .memory
+            .frames
+            .get(frame)
+            .ok_or(Rule::InvalidPlan)?
+            .value;
+        let from = super::validation::place_data(&self.program, slots, source)?;
+        let to = super::validation::place_data(&self.program, slots, destination)?;
+        if !super::transport::permits(&self.program, from, to, || self.budget.step())? {
+            return Err(Rule::InvalidPlan);
+        }
+        // The checked relation preserves every active logical payload. Values retain original
+        // tags and immutable graphs, so no excluded field is read or physical byte layout reused.
+        self.move_value(frame, source, destination, true)
+    }
+    fn move_value(
+        &mut self,
+        frame: usize,
+        source: &Place,
+        destination: &Place,
+        construct: bool,
+    ) -> Result<()> {
+        let value = self.read(frame, source)?;
+        self.memory
+            .retire(&self.memory.address(&self.program, frame, source)?, false)?;
+        let destination = self.memory.address(&self.program, frame, destination)?;
+        self.memory.store(&destination, value)?;
+        if construct {
+            self.memory.construct(&destination)?;
+        }
+        Ok(())
     }
     fn replace_referent(
         &mut self,

@@ -701,6 +701,15 @@ fn check_effect(program: &Program, plan: &View<'_>, effect: &Effect) -> Result<(
                 return Err(INVALID);
             }
         }
+        Effect::Transport {
+            source,
+            destination,
+        } => {
+            if !super::transport::permits(program, owned(source)?, owned(destination)?, || Ok(()))?
+            {
+                return Err(INVALID);
+            }
+        }
         Effect::AdaptFunction {
             source,
             destination,
@@ -821,7 +830,7 @@ fn check_receipt_context(
 }
 
 // Invocation permission is a producer fact; this check preserves its exact payload representation.
-fn same_function_payload(from: &Type, to: &Type) -> bool {
+pub(super) fn same_function_payload(from: &Type, to: &Type) -> bool {
     match (from, to) {
         (Type::NamedFunction(a), Type::NamedFunction(b)) => a == b,
         (

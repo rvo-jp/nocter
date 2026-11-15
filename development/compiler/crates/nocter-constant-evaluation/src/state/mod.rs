@@ -2,6 +2,7 @@
 mod budget;
 mod execution;
 mod memory;
+mod transport;
 mod validation;
 mod value;
 pub use budget::{Budget, Limits, WorkBudget};
@@ -160,6 +161,12 @@ pub enum Effect {
     },
     Construct(usize),
     Move {
+        source: Place,
+        destination: Place,
+    },
+    /// Consume one represented value into a distinct, guarded wider shape. The original tag and
+    /// active payload remain unchanged; unavailable metadata cannot establish exclusion.
+    Transport {
         source: Place,
         destination: Place,
     },

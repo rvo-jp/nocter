@@ -127,6 +127,17 @@ metadata or as the result contract of a nonreturning plan; actual slots, receive
 and owned payload effects reject it. No scalar, aggregate or callable value can inhabit that domain.
 The evaluator does not infer exclusion from missing code, unresolved metadata or a failed request.
 
+`Effect::Transport` consumes an owned value into a separately selected guarded wider shape.
+Closed-plan validation permits only explicit excluded alternatives to widen; positive callable code
+and environment identities stay exact. Unavailable metadata, narrowing and empty roots reject.
+Target completeness and directed shape matching visit shared table edges iteratively, with runtime
+work charged independently of array cardinality. Logical values store only original tags and active
+payloads, so transport shares their immutable graphs through the same retirement/receipt kernel as
+ordinary movement; it cannot inspect excluded fields or justify a physical byte copy. Tests cover
+absence, owned alternate graphs, adjacent captured environments, shared maximum-count arrays,
+double retirement and work/storage failure recovery. This does not realize checking's source
+projection or [native guarded transport](../../../design/compiler-realization.md#guarded-representation-transport).
+
 `Type::Variant` retains the primary payload identity and an optional alternate payload identity.
 An absent alternate payload differs from an alternate `Type::Unavailable`: no value validates
 against the latter, though another selected case can remain valid. `Data::Variant` and model-owned

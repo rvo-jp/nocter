@@ -941,7 +941,7 @@ two actual values; constant cleanup requirements consume the retired obligation.
 transport. The shared reclassification kernel consumes one existing owner, checks the recorded
 identities and contracts, then publishes its destination and step atomically. Function invocation
 adapters reuse that same ownership transition. Symbolic contract matching does not realize a
-conversion: ordinary source emission, concrete destination selection, evaluator effects and
+conversion: ordinary source emission, concrete destination selection, evaluator projection and
 MIR/native transport remain unqualified and fail closed at their current boundaries.
 Array transfers identify the original retained element, not the
 whole array. The type-only convenience transform delegates to this same exhaustive operation
