@@ -632,7 +632,7 @@ fn callable_result_headers_publish_signatures_without_inventing_producers_or_cop
     );
     assert_eq!(program.data_copyable(callable.result()), Some(false));
     assert_eq!(
-        callable.result_contract().unwrap().inputs[0].operation,
+        callable.result_contracts()[0].inputs[0].operation,
         ValueInputOperation::Edit
     );
     for invocation in [

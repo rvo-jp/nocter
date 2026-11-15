@@ -139,12 +139,24 @@ fn matches_code(
                         }
                 })
             })
-        && matches_value(
-            program,
-            &expected.result,
-            code.result(),
-            code.result_contract(),
-        )
+        && match &expected.result {
+            ValueDefinition::Data(data) => {
+                program.existing_result_data_reference(id, data) == Some(code.result())
+            }
+            ValueDefinition::Function(_) => {
+                matches!(
+                    program.data_schema(code.result()),
+                    Some(nocter_declarations::value_access::PayloadSchema::Function(
+                        _
+                    ))
+                ) && matches_value(
+                    program,
+                    &expected.result,
+                    code.result(),
+                    code.result_contracts().first(),
+                )
+            }
+        }
 }
 fn matches_value(
     program: &Program,

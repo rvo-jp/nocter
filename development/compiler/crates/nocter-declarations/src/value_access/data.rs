@@ -236,24 +236,57 @@ impl Program {
         data: &DataReference,
     ) -> Option<TypeId> {
         let parameter = self.parameters.get(input)?;
+        self.existing_callable_data_reference(data, &parameter.components, |ordinal| {
+            nocter_model::ValueFunctionOrigin::Parameter(nocter_model::ValueParameter::Component {
+                input,
+                ordinal,
+            })
+        })
+    }
+    /// Match a result recipe against that declaration's published callable-slot contracts.
+    /// This performs no publication and supplies no producer or runtime result.
+    #[must_use]
+    pub fn existing_result_data_reference(
+        &self,
+        owner: nocter_model::AccessCodeId,
+        data: &DataReference,
+    ) -> Option<TypeId> {
+        self.existing_callable_data_reference(
+            data,
+            self.codes.get(owner)?.result_contracts(),
+            |ordinal| {
+                nocter_model::ValueFunctionOrigin::Result(nocter_model::ValueCallableResult {
+                    owner,
+                    ordinal,
+                })
+            },
+        )
+    }
+    fn existing_callable_data_reference(
+        &self,
+        data: &DataReference,
+        contracts: &[super::FunctionConstraint],
+        origin: impl Fn(usize) -> nocter_model::ValueFunctionOrigin,
+    ) -> Option<TypeId> {
         let mut ordinal = 0;
         let resolved = resolve_reference(data, |node| match node {
             ReferenceNode::Data(TypeKind::Builtin(data)) if !supported(data) => None,
             ReferenceNode::Data(kind) => self.types.store().identity(&kind),
             ReferenceNode::Function(contract) => {
-                let component = nocter_model::ValueParameter::Component { input, ordinal };
+                let selected = origin(ordinal);
+                let expected = contracts.get(ordinal);
                 ordinal += 1;
-                (self.parameter_contract(component) == Some(&contract))
+                (expected == Some(&contract))
                     .then(|| {
                         self.function_data(super::FunctionWitness {
-                            origin: nocter_model::ValueFunctionOrigin::Parameter(component),
+                            origin: selected,
                             invocation: contract.invocation,
                         })
                     })
                     .flatten()
             }
         })?;
-        (ordinal == parameter.components.len()).then_some(resolved)
+        (ordinal == contracts.len()).then_some(resolved)
     }
     /// Structural Copy evidence for the payload, never permission to duplicate an access.
     #[must_use]

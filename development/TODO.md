@@ -24,8 +24,8 @@ The [checking](compiler/crates/nocter-checking/README.md) and
 [target-program](compiler/crates/nocter-target-program/README.md) owners describe the implemented
 canonical metadata, original source-definition queries and ordered lifecycle specialization.
 
-Next close declaration-owned callable contracts in compound result positions before source
-admission, preserving exact producer/code contexts through each consumer. Continue context-changing updates through edit input boundaries,
+Next close compound-result producer and application relations before source payload admission,
+preserving exact result-leaf, call and code contexts through each consumer. Continue context-changing updates through edit input boundaries,
 partial carrier-root selection and context-changing evaluator slots against
 the exact per-value keys. The component owners above describe covered ordinary operand/definition,
 evaluator slot metadata, shared body-channel metadata, invocation, body-ABI, lifecycle and storage scope.
@@ -125,9 +125,12 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   component identities, actual producer contexts, source retirement and remaining-container cleanup.
 - [x] Give declared callable result identities an owning declaration and leaf ordinal, preserving
   the existing root-result domain and rejecting unpublished slots without a producer/value fallback.
-- [ ] Establish declaration-owned callable result-component contracts and deterministic publication
+- [x] Establish declaration-owned callable result-component contracts and deterministic publication
   without opening compound-result payload admission. Qualify separate same-signature result leaves
   and invalid-header rejection before extending producer/result realization and consumer storage.
+- [ ] Extend original return-producer and per-call application relations to declared callable result
+  components. Keep descriptor-only or absent results distinct from produced witnesses, preserve
+  original compound paths and call frames, then qualify storage, evaluation, ABI and actual cleanup.
 
 Qualify the same lexical closure with different captured callbacks before and after forwarding
 it with another instance, including safe/unsafe ordinary source, conditional const admission,

@@ -464,13 +464,13 @@ impl<'a, 'source> Preparation<'a, 'source> {
                 } => {
                     if demand == Demand::Invoke {
                         Some((target.into(), Demand::Invoke))
-                    } else if query
+                    } else if !query
                         .program()
                         .codes()
                         .get(target)
                         .ok_or(INVALID)?
-                        .result_contract()
-                        .is_some()
+                        .result_contracts()
+                        .is_empty()
                     {
                         Some((target.into(), Demand::Types))
                     } else {

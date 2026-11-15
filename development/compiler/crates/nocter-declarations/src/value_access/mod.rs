@@ -154,7 +154,7 @@ pub struct Code {
     kind: CodeKind,
     parameters: Box<[AccessParameterId]>,
     result: TypeId,
-    result_contract: Option<FunctionConstraint>,
+    result_contracts: Box<[FunctionConstraint]>,
 }
 
 impl Code {
@@ -168,8 +168,8 @@ impl Code {
         self.kind.compile_time()
     }
     #[must_use]
-    pub const fn result_contract(&self) -> Option<&FunctionConstraint> {
-        self.result_contract.as_ref()
+    pub fn result_contracts(&self) -> &[FunctionConstraint] {
+        &self.result_contracts
     }
     #[must_use]
     pub const fn name(&self) -> Option<Symbol> {
@@ -913,6 +913,7 @@ fn validate_definition(
             id,
             HeaderPosition::Parameter(position),
             &parameter.data,
+            true,
             records,
             violations,
         );
@@ -921,6 +922,7 @@ fn validate_definition(
         id,
         HeaderPosition::Result,
         &definition.result_data,
+        definition.kind.is_callable(),
         records,
         violations,
     );
@@ -975,6 +977,7 @@ fn validate_value(
     callable: AccessCodeId,
     position: HeaderPosition,
     value: &ValueDefinition,
+    allow_components: bool,
     records: &records::Builder,
     violations: &mut Vec<DeclarationViolation>,
 ) {
@@ -985,11 +988,11 @@ fn validate_value(
             rule: DeclarationRule::RepeatedFailure,
         });
     }
-    let component_input = matches!(position, HeaderPosition::Parameter(_))
+    let component_value = allow_components
         && matches!(value, ValueDefinition::Data(data) if !matches!(data, DataReference::Function(_)));
     value.visit_data(|data| {
         if let DataReference::Function(contract) = data
-            && component_input
+            && component_value
         {
             let mut nested = false;
             for data in contract

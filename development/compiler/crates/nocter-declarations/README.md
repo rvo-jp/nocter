@@ -172,7 +172,7 @@ enumeration belongs to this same authority, independently of source projection a
 one privately owned type authority. Callable metadata headers admit `bool`, the intrinsic integer catalog, `void`, opaque move-only
 `error`, program-extent text descriptors, closed nominal records, structural tuples, optional/fallible layers and closed array descriptors, plus flat callable
 input/result contracts. Construction metadata also admits callable leaves inside compound input
-descriptors; ordinary source admission remains a separate checking/consumer obligation.
+and callable-result descriptors; ordinary source admission remains a separate checking/consumer obligation.
 `CodeKind::Primitive` is a runtime-only bodyless callable metadata role. It shares ordinary
 static function-witness publication through `is_callable`; source authorization and exact
 primitive binding remain declaration-lowering obligations, independently of witness shape.
@@ -324,8 +324,14 @@ identities, including separate tuple positions; arrays retain one homogeneous el
 These descriptors supply neither Copy nor owned-payload evidence. Canonical compound-input keys
 retain the concrete witness at each component instead of adding those witnesses to direct input
 bindings. Raw callable data at an entire input must use the existing `ValueDefinition::Function`
-form. Compound callable results, record fields and higher-order component signatures remain
-rejected before publication. Checking owns the
+form. A declared result uses one `Code::result_contracts` row, addressed by
+`ValueCallableResult`'s declaration and callable-leaf ordinal. Root callable results occupy the
+sole slot zero; compound results retain separate same-signature leaves without physical inputs.
+The same iterative reference fold publishes these types and reconciles existing input/result
+recipes under their actual owners. Metadata does not close a result's producer: it grants no
+concrete witness, Copy, payload, layout or cleanup. Initializers, record fields and higher-order
+component signatures retain their separate rejection boundary, including inside zero-array metadata.
+Checking owns the
 [qualified source input scope](../nocter-checking/README.md#context-bound-callable-captures).
 `BodyTypes::closure_parameter` publishes each anonymous formal's structural signature once, before
 body checking. The completed closure signature refers to that formal descriptor. Older snapshots

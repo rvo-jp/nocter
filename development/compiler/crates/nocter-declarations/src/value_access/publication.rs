@@ -294,12 +294,20 @@ impl HeaderPublication {
                 )
             })
             .collect();
-        let (result, result_contract) = publish_value(
+        let mut result_contracts = Vec::new();
+        let (result, root_contract) = publish_value(
             &mut types,
             ValueFunctionOrigin::Result(id.into()),
             &definition.result_data,
-            &mut Vec::new(),
+            &mut result_contracts,
         );
+        if let Some(contract) = root_contract {
+            assert!(
+                result_contracts.is_empty(),
+                "a root callable has one result contract"
+            );
+            result_contracts.push(contract);
+        }
         self.types = types
             .commit(&self.types)
             .expect("exact header type authority");
@@ -316,7 +324,7 @@ impl HeaderPublication {
                     kind: definition.kind,
                     parameters: reservation.parameters.clone(),
                     result,
-                    result_contract,
+                    result_contracts: result_contracts.into(),
                 },
             )
             .expect("define-once reserved callable");
@@ -391,21 +399,26 @@ fn publish_value(
                         types.intern(kind).expect("validated data reference")
                     }
                     super::data::ReferenceNode::Function(contract) => {
-                        let ValueFunctionOrigin::Parameter(
-                            nocter_model::ValueParameter::Declaration(input),
-                        ) = origin
-                        else {
-                            unreachable!("callable components require an input owner")
+                        let origin = match origin {
+                            ValueFunctionOrigin::Parameter(
+                                nocter_model::ValueParameter::Declaration(input),
+                            ) => ValueFunctionOrigin::Parameter(
+                                nocter_model::ValueParameter::Component {
+                                    input,
+                                    ordinal: components.len(),
+                                },
+                            ),
+                            ValueFunctionOrigin::Result(result) if result.ordinal == 0 => {
+                                ValueFunctionOrigin::Result(nocter_model::ValueCallableResult {
+                                    owner: result.owner,
+                                    ordinal: components.len(),
+                                })
+                            }
+                            _ => unreachable!(
+                                "callable components require a declaration-owned input or result"
+                            ),
                         };
-                        let parameter = nocter_model::ValueParameter::Component {
-                            input,
-                            ordinal: components.len(),
-                        };
-                        let data = functions::intern_views(
-                            types,
-                            ValueFunctionOrigin::Parameter(parameter),
-                            contract.invocation,
-                        );
+                        let data = functions::intern_views(types, origin, contract.invocation);
                         components.push(contract);
                         data
                     }

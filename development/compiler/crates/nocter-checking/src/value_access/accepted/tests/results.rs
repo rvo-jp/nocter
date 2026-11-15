@@ -137,7 +137,7 @@ fn recursive_result_proofs_and_explicit_returns_share_one_named_producer() {
             .resolve(unit.program().symbols().get("increment").unwrap())
             .unwrap();
         for (id, declaration) in unit.program().codes().iter() {
-            if declaration.result_contract().is_some() {
+            if !declaration.result_contracts().is_empty() {
                 assert_eq!(
                     unit.result_witness(id).unwrap().origin,
                     Origin::Declaration(increment)

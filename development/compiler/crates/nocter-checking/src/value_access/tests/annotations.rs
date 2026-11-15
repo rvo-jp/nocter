@@ -10,7 +10,6 @@ fn grouped_flat_callable_annotations_share_ordinary_witness_checking() {
 fn nested_callable_data_reports_missing_type_evidence_at_the_current_header() {
     for source in [
         "struct Data { action: func(): i32 }",
-        "func f(): (func(): i32)? { loop {} }",
         "func f(input: func(func(): i32): i32): void {}",
         "func f(): func(): func(): i32 { loop {} }",
     ] {
@@ -35,6 +34,47 @@ fn nested_callable_data_reports_missing_type_evidence_at_the_current_header() {
     reject(
         "func f(): void { let action: (func(): i32)? = none }",
         Rule::UnsupportedData,
+    );
+}
+
+#[test]
+fn compound_result_headers_do_not_establish_a_callable_payload_or_returned_value() {
+    use crate::value_access::InstantiationFailure;
+    use nocter_constant_evaluation::state::WorkBudget;
+    use std::num::NonZeroU64;
+    let fixture =
+        nocter_test_support::ValueSourceFixture::new("func f(): (func(): i32)? { loop {} }");
+    let unit = accepted::SourceUnit::prepare(fixture.syntax())
+        .unwrap()
+        .into_unit();
+    let program = unit.program();
+    let id = program
+        .resolve(program.symbols().get("f").unwrap())
+        .unwrap();
+    let code = program.codes().get(id).unwrap();
+    assert_eq!(code.result_contracts().len(), 1);
+    assert!(!program.owned_payload_supported(code.result()));
+    assert!(program.instantiate_closed_data(code.result()).is_err());
+    let frame = program.bind_code(id.into(), []).unwrap();
+    let mut work = WorkBudget::new(NonZeroU64::new(100_000).unwrap());
+    assert_eq!(
+        unit.instantiate_result_data(&frame, code.result(), &mut work),
+        Err(InstantiationFailure::Unresolved)
+    );
+}
+
+#[test]
+fn compound_result_value_formation_remains_outside_the_qualified_source_domain() {
+    let fixture = nocter_test_support::ValueSourceFixture::new(
+        "func identity(value: i32): i32 { value }\nfunc f(): (func(i32): i32, i32) { (identity, 0) }",
+    );
+    let failure = accepted::SourceUnit::prepare(fixture.syntax()).unwrap_err();
+    assert!(
+        matches!(
+            failure,
+            accepted::SourceFailure::Checking(accepted::Failure::Body { .. })
+        ),
+        "{failure:?}"
     );
 }
 

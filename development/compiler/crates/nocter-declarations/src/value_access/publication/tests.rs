@@ -9,6 +9,7 @@ use nocter_model::{
 
 mod callable_components;
 mod reserved_layout;
+mod result_components;
 
 #[test]
 fn selected_records_publish_transitive_schemas_without_exposing_unrelated_fields() {
@@ -196,8 +197,8 @@ fn callable_contracts_close_record_data_in_nested_callback_slots() {
     assert!(program.data_schema(callback.inputs[0].data).is_some());
     assert!(program.data_schema(callback.result).is_some());
     assert_eq!(
-        program.codes().get(run).unwrap().result_contract(),
-        Some(callback)
+        program.codes().get(run).unwrap().result_contracts(),
+        std::slice::from_ref(callback)
     );
 }
 

@@ -1762,6 +1762,10 @@ and exhausted work reject independently, followed by healthy retry. Required/nat
 agrees, and the matching error fixture executes remaining-container and returned-owner cleanup.
 Higher-order component signatures, callable record fields and compound callable results remain
 separate admission boundaries.
+Declared compound-result contracts have declaration-owned result ordinals. A diverging body can
+retain that known signature without establishing any returned value, concrete environment or
+storage representation. Forming/returning a compound callable payload remains outside this source
+scope; publishing its header is not a consumer-realization proof.
 `contextual-compound-edits.nct` additionally qualifies scalar updates through edit tuple inputs,
 forwarded updates and caller reads after completion while the callable context remains unchanged.
 The matching error fixture executes actual cleanup after both updates. Receiving/caller descriptors
