@@ -3,7 +3,9 @@ use super::*;
 use crate::value_access::{
     CodeBindingError, FunctionDefinition, FunctionWitness, HeaderPosition, PayloadSchema,
 };
-use nocter_model::{ValueCallableResult, ValueField, ValueFunctionOrigin};
+use nocter_model::{
+    ValueCallableResult, ValueField, ValueFunctionOrigin, ValuePath, ValueProjection,
+};
 
 fn callable(result: BuiltinType) -> DataReference {
     DataReference::Function(Box::new(FunctionDefinition {
@@ -67,6 +69,7 @@ fn compound_result_contracts_are_distinct_deterministic_and_not_runtime_inputs_o
             let code = program.codes().get(id).unwrap();
             assert!(code.parameters().is_empty());
             assert_eq!(code.result_contracts().len(), 2);
+            assert_result_paths(&program, id);
             roots.push(code.result());
             let first = program
                 .component(code.result(), ValueField::Tuple(0))
@@ -107,6 +110,10 @@ fn compound_result_contracts_are_distinct_deterministic_and_not_runtime_inputs_o
                 };
                 assert_eq!(program.function_contract(witness), None);
                 assert_eq!(program.function_data(witness), None);
+                assert_eq!(
+                    program.callable_result_path(ValueCallableResult { owner: id, ordinal }),
+                    None
+                );
             }
             assert_eq!(program.data_copyable(code.result()), Some(false));
             assert!(!program.owned_payload_supported(code.result()));
@@ -130,6 +137,124 @@ fn compound_result_contracts_are_distinct_deterministic_and_not_runtime_inputs_o
         orders.push(origins);
     }
     assert_eq!(orders[0], orders[1]);
+}
+
+fn assert_result_paths(program: &Program, owner: AccessCodeId) {
+    for (ordinal, path) in [
+        ValuePath::new([ValueProjection::Tuple(0)]),
+        ValuePath::new([ValueProjection::Tuple(1), ValueProjection::Array(())]),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        assert_eq!(
+            program.callable_result_path(ValueCallableResult { owner, ordinal }),
+            Some(path)
+        );
+    }
+}
+
+#[test]
+fn result_path_lookup_terminates_through_recursive_empty_nominal_schemas() {
+    let symbols = SymbolTable::from_spellings(["factory", "Node", "next"]);
+    let mut reservations = Reservations::new(symbols.clone());
+    let owner = reservations.reserve(symbols.get("factory").unwrap(), 0);
+    let node = reservations.reserve_record(symbols.get("Node").unwrap(), 1);
+    let mut builder = reservations.finish().unwrap();
+    builder
+        .define_record(
+            node,
+            false,
+            [FieldDefinition {
+                name: symbols.get("next").unwrap(),
+                data: DataReference::Array {
+                    element: Box::new(DataReference::Record(node)),
+                    length: 0,
+                },
+            }],
+        )
+        .unwrap();
+    builder
+        .define(
+            owner,
+            CodeKind::Function(CompileTimeGuarantee::Evaluatable),
+            [],
+            DataReference::Tuple(TupleData::new(
+                callable(BuiltinType::I32),
+                DataReference::Record(node),
+                [],
+            )),
+        )
+        .unwrap();
+    let program = builder.finish().unwrap();
+    assert_eq!(
+        program.callable_result_path(ValueCallableResult { owner, ordinal: 0 }),
+        Some(ValuePath::new([ValueProjection::Tuple(0)])),
+    );
+}
+
+#[test]
+fn result_descriptor_paths_preserve_outcomes_and_empty_array_metadata_without_values() {
+    for length in [None, Some(0), Some(u64::MAX)] {
+        let symbols = SymbolTable::from_spellings(["factory"]);
+        let mut reservations = Reservations::new(symbols.clone());
+        let owner = reservations.reserve(symbols.get("factory").unwrap(), 0);
+        let mut builder = reservations.finish().unwrap();
+        let (data, path) = if let Some(length) = length {
+            let data = DataReference::Optional {
+                payload: Box::new(DataReference::Fallible(Box::new(DataReference::Array {
+                    element: Box::new(callable(BuiltinType::I32)),
+                    length,
+                }))),
+                layers: std::num::NonZeroUsize::new(2).unwrap(),
+            };
+            (
+                data.into(),
+                ValuePath::new([
+                    ValueProjection::Variant(true),
+                    ValueProjection::Variant(true),
+                    ValueProjection::Variant(true),
+                    ValueProjection::Array(()),
+                ]),
+            )
+        } else {
+            (
+                crate::value_access::ValueDefinition::Function(FunctionDefinition {
+                    invocation: ValueInvocation::Read,
+                    inputs: Box::new([]),
+                    result: BuiltinType::I32.into(),
+                }),
+                ValuePath::default(),
+            )
+        };
+        builder
+            .define(
+                owner,
+                CodeKind::Function(CompileTimeGuarantee::Evaluatable),
+                [],
+                data,
+            )
+            .unwrap();
+        let mut headers = builder.into_publication();
+        let selected = ValueCallableResult { owner, ordinal: 0 };
+        assert_eq!(headers.snapshot().callable_result_path(selected), None);
+        headers.publish(owner).unwrap();
+        let program = headers.finish().unwrap();
+        let count = program.types.store().type_count();
+        assert_eq!(program.callable_result_path(selected), Some(path.clone()));
+        let root = program.codes().get(owner).unwrap().result();
+        assert_eq!(
+            program
+                .project_data_by(root, &path, |(), length| length > 0)
+                .is_some(),
+            length != Some(0)
+        );
+        assert_eq!(program.types.store().type_count(), count);
+        assert_eq!(
+            program.instantiate_closed_data(root).is_ok(),
+            length == Some(0)
+        );
+    }
 }
 
 #[test]

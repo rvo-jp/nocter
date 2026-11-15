@@ -134,6 +134,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Index the shared producer-equation algebra and selected/unproduced evidence by exact
   result leaf, preserving one whole-call invocation recipe, named/anonymous body identities,
   independent recursive relations and missing-versus-empty producer distinctions.
+- [x] Locate published callable-result identities through declaration-owned descriptor paths,
+  preserving outcome layers and homogeneous/empty-array metadata without granting values or
+  bounds. Qualify nominal-cycle termination and cardinality-independent traversal.
 - [ ] Extend original return-producer and per-call application relations to declared callable result
   components. Keep descriptor-only or absent results distinct from produced witnesses, preserve
   original compound paths and call frames, then qualify storage, evaluation, ABI and actual cleanup.

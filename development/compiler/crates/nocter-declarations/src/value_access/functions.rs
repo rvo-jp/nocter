@@ -6,6 +6,7 @@ use nocter_model::{
 };
 mod compound_inputs;
 mod patterns;
+mod result_components;
 mod substitution;
 pub use patterns::{
     FunctionDataPattern, FunctionPattern, FunctionPatternMismatch, FunctionPosition,

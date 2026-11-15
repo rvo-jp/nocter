@@ -327,6 +327,10 @@ bindings. Raw callable data at an entire input must use the existing `ValueDefin
 form. A declared result uses one `Code::result_contracts` row, addressed by
 `ValueCallableResult`'s declaration and callable-leaf ordinal. Root callable results occupy the
 sole slot zero; compound results retain separate same-signature leaves without physical inputs.
+`callable_result_path` selects an exact published result identity in that declaration's original
+descriptor. Its array selectors name homogeneous element schemas, including uninhabited zero-array
+metadata; they prove neither bounds nor an initialized element. The read-only traversal preserves
+outcome layers and visits shared schemas once, independently of array cardinality.
 The same iterative reference fold publishes these types and reconciles existing input/result
 recipes under their actual owners. Metadata does not close a result's producer: it grants no
 concrete witness, Copy, payload, layout or cleanup. Initializers, record fields and higher-order
