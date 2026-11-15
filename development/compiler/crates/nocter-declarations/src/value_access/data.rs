@@ -239,7 +239,7 @@ impl Program {
         let parameter = self.parameters.get(input)?;
         self.existing_callable_data_reference(data, &parameter.components, |ordinal| {
             nocter_model::ValueFunctionOrigin::Parameter(nocter_model::ValueParameter::Component {
-                input,
+                input: input.into(),
                 ordinal,
             })
         })

@@ -79,7 +79,7 @@ fn compound_callable_leaves_have_stable_distinct_contracts_without_extra_paramet
         assert_ne!(first, second);
         for (ordinal, data) in [first, second].into_iter().enumerate() {
             let parameter = ValueParameter::Component {
-                input: parameters[0],
+                input: parameters[0].into(),
                 ordinal,
             };
             let Some(PayloadSchema::Function(witness)) = program.data_schema(data) else {
@@ -103,7 +103,7 @@ fn compound_callable_leaves_have_stable_distinct_contracts_without_extra_paramet
         assert!(
             program
                 .parameter_contract(ValueParameter::Component {
-                    input: parameters[0],
+                    input: parameters[0].into(),
                     ordinal: 2
                 })
                 .is_none()

@@ -171,12 +171,15 @@ impl Program {
         self.parameter_contract(parameter)?;
         Some(match parameter {
             nocter_model::ValueParameter::Declaration(id)
-            | nocter_model::ValueParameter::Component { input: id, .. } => {
-                nocter_model::ValueCode::Declaration(self.parameters.get(id)?.owner())
-            }
-            nocter_model::ValueParameter::Closure { owner, .. } => {
-                nocter_model::ValueCode::Closure(owner)
-            }
+            | nocter_model::ValueParameter::Component {
+                input: nocter_model::ValueInput::Declaration(id),
+                ..
+            } => nocter_model::ValueCode::Declaration(self.parameters.get(id)?.owner()),
+            nocter_model::ValueParameter::Closure { owner, .. }
+            | nocter_model::ValueParameter::Component {
+                input: nocter_model::ValueInput::Closure { owner, .. },
+                ..
+            } => nocter_model::ValueCode::Closure(owner),
         })
     }
     #[must_use]
@@ -187,10 +190,23 @@ impl Program {
                 .symbols
                 .spelling(self.parameters.get(id)?.name())
                 .map(str::to_owned),
-            nocter_model::ValueParameter::Component { input, ordinal } => Some(format!(
+            nocter_model::ValueParameter::Component {
+                input: nocter_model::ValueInput::Declaration(input),
+                ordinal,
+            } => Some(format!(
                 "callable component {} of {}",
                 ordinal.checked_add(1)?,
                 self.symbols.spelling(self.parameters.get(input)?.name())?
+            )),
+            nocter_model::ValueParameter::Component {
+                input: nocter_model::ValueInput::Closure { owner, position },
+                ordinal,
+            } => Some(format!(
+                "callable component {} of input {} of closure {} in {}",
+                ordinal.checked_add(1)?,
+                position.checked_add(1)?,
+                owner.slot,
+                self.root_label(owner.owner)?
             )),
             nocter_model::ValueParameter::Closure { owner, position } => Some(format!(
                 "input {} of closure {} in {}",
@@ -208,10 +224,15 @@ impl Program {
     ) -> Option<&FunctionConstraint> {
         match parameter {
             nocter_model::ValueParameter::Declaration(id) => self.parameters.get(id)?.contract(),
-            nocter_model::ValueParameter::Component { input, ordinal } => {
-                self.parameters.get(input)?.components.get(ordinal)
-            }
-            nocter_model::ValueParameter::Closure { .. } => self.closure_parameters.get(&parameter),
+            nocter_model::ValueParameter::Component {
+                input: nocter_model::ValueInput::Declaration(input),
+                ordinal,
+            } => self.parameters.get(input)?.components.get(ordinal),
+            nocter_model::ValueParameter::Closure { .. }
+            | nocter_model::ValueParameter::Component {
+                input: nocter_model::ValueInput::Closure { .. },
+                ..
+            } => self.closure_parameters.get(&parameter),
         }
     }
     /// Resolve applied signature templates only; no result producer or occurrence is selected.

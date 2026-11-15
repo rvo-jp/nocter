@@ -2,6 +2,77 @@ use super::*;
 use nocter_model::{ValueClosure, ValueCode, ValueFunctionOrigin, ValueParameter};
 
 #[test]
+fn lexical_component_publication_rejects_foreign_missing_surplus_and_misordered_formals() {
+    let (header, [root, _, _]) = application_headers();
+    let mut body = header.body_types(root).unwrap();
+    let owner = body.reserve_closure().unwrap();
+    let foreign = body.reserve_closure().unwrap();
+    let integer = header.data_type(BuiltinType::I32).unwrap();
+    let void = header.data_type(BuiltinType::Void).unwrap();
+    let callback = FunctionConstraint {
+        invocation: ValueInvocation::Read,
+        inputs: Box::new([]),
+        result: integer,
+    };
+    let first = body
+        .closure_component(owner, 0, 0, callback.clone())
+        .unwrap();
+    let second = body
+        .closure_component(owner, 0, 1, callback.clone())
+        .unwrap();
+    let foreign_leaf = body
+        .closure_component(foreign, 0, 0, callback.clone())
+        .unwrap();
+    let missing = body.optional(first).unwrap();
+    let reordered = body.tuple(&[second, first]).unwrap();
+    let foreign_data = body.tuple(&[first, foreign_leaf]).unwrap();
+    let valid = body.tuple(&[first, second]).unwrap();
+    for data in [missing, reordered, foreign_data] {
+        assert_eq!(
+            body.closure(
+                owner,
+                void,
+                FunctionConstraint {
+                    invocation: ValueInvocation::Read,
+                    inputs: vec![FunctionInput {
+                        data,
+                        operation: nocter_model::ValueInputOperation::Take
+                    }]
+                    .into(),
+                    result: integer,
+                }
+            ),
+            Err(BodyTypeError::InvalidExtension)
+        );
+    }
+    let mut surplus = body.clone();
+    surplus.closure_component(owner, 0, 2, callback).unwrap();
+    let contract = FunctionConstraint {
+        invocation: ValueInvocation::Read,
+        inputs: vec![FunctionInput {
+            data: valid,
+            operation: nocter_model::ValueInputOperation::Take,
+        }]
+        .into(),
+        result: integer,
+    };
+    assert_eq!(
+        surplus.closure(owner, void, contract.clone()),
+        Err(BodyTypeError::InvalidExtension)
+    );
+    body.closure(owner, void, contract).unwrap();
+    assert!(
+        body.program()
+            .parameter_label(ValueParameter::Component {
+                input: nocter_model::ValueInput::Closure { owner, position: 0 },
+                ordinal: 1,
+            })
+            .unwrap()
+            .contains("component 2 of input 1")
+    );
+}
+
+#[test]
 fn anonymous_formal_signatures_are_lexical_snapshot_facts_without_payload_or_header_slots() {
     let (header, [root, other, _]) = application_headers();
     let mut body = header.body_types(root).unwrap();

@@ -1,0 +1,15 @@
+const func identity(value: i32): i32 { value }
+const func addition(value: i32): i32 { value + 7 }
+const func produce(present: bool): (func(i32): i32)? {
+    if present { addition } else { none }
+}
+const func calculate(present: bool): i32 {
+    let amount = 31
+    let inspect = (amount; take value: (func(i32): i32)?): i32 {
+        let action = value^ otherwise { return 11 + amount }
+        action(4) + amount
+    }
+    inspect(produce(present))
+}
+const ANSWER: i32 = calculate(false) + calculate(true) - 42
+func run(): i32 { calculate(false) + calculate(true) - 42 }

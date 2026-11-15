@@ -35,7 +35,10 @@ fn invocation_inputs_keep_constructed_absence_separate_from_unknown_and_positive
     );
     let target = code(&unit, "discard");
     let input = unit.program().codes().get(target).unwrap().parameters()[0];
-    let parameter = nocter_model::ValueParameter::Component { input, ordinal: 0 };
+    let parameter = nocter_model::ValueParameter::Component {
+        input: input.into(),
+        ordinal: 0,
+    };
     let mut inputs = Vec::new();
     for (id, expression) in named(&unit, "run").typed().body().expressions().iter() {
         if !matches!(expression.kind, ExpressionKind::Call { target: Origin::Declaration(code), .. } if code == target)

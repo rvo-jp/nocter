@@ -377,8 +377,8 @@ fn assert_input_recipe(
         panic!("expected declared callee")
     };
     let parameters = program.codes().get(owner).unwrap().parameters();
-    let component = |index| ValueParameter::Component {
-        input: parameters[index],
+    let component = |index: usize| ValueParameter::Component {
+        input: parameters[index].into(),
         ordinal: 0,
     };
     let recipe = unit.invocation_recipe(site).unwrap();

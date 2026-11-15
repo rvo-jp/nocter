@@ -127,15 +127,30 @@ impl From<ValueApplication> for ValueAppliedResult {
     }
 }
 
+/// One explicit input channel, independent of a closure's environment prefix.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum ValueInput {
+    Declaration(crate::AccessParameterId),
+    Closure {
+        owner: ValueClosure,
+        position: usize,
+    },
+}
+impl From<crate::AccessParameterId> for ValueInput {
+    fn from(input: crate::AccessParameterId) -> Self {
+        Self::Declaration(input)
+    }
+}
+
 /// A formal callable input belongs to a header declaration or one lexical anonymous body.
 /// Its position is not a runtime field, a source coordinate or a header-arena allocation.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum ValueParameter {
     Declaration(crate::AccessParameterId),
-    /// One callable leaf in a declared compound input. The ordinal enumerates the written
+    /// One callable leaf in a compound input. The ordinal enumerates the written
     /// descriptor's callable leaves, not physical fields or additional runtime inputs.
     Component {
-        input: crate::AccessParameterId,
+        input: ValueInput,
         ordinal: usize,
     },
     Closure {

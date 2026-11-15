@@ -246,11 +246,12 @@ impl Checker<'_, '_> {
             })
             .transpose()
     }
-    fn closure_input_data(
+    pub(super) fn closure_input_data(
         &mut self,
         annotation: Annotation,
         position: usize,
-        syntax: NodeId,
+        component: Option<usize>,
+        syntax: SyntaxOrigin,
     ) -> Result<nocter_model::TypeId, Failure> {
         let Annotation::Function(pattern) = annotation else {
             return annotation.data().ok_or(Failure::InconsistentSyntax);
@@ -285,7 +286,13 @@ impl Checker<'_, '_> {
             inputs,
             result,
         };
-        match self.types.closure_parameter(owner, position, contract) {
+        let data = match component {
+            Some(ordinal) => self
+                .types
+                .closure_component(owner, position, ordinal, contract),
+            None => self.types.closure_parameter(owner, position, contract),
+        };
+        match data {
             Ok(data) => Ok(data),
             Err(nocter_declarations::value_access::BodyTypeError::UnsupportedCallableSignature) => {
                 unsupported(self)
@@ -316,10 +323,13 @@ impl Checker<'_, '_> {
                 return self.reject(Rule::ShadowedName, token);
             }
             let annotation = if let Ok(ty) = self.direct(parameter, NodeKind::Type) {
-                let annotation = self.annotation(ty)?;
+                let annotation = self.closure_input_annotation(ty, index)?;
                 if selected
                     .as_ref()
-                    .is_some_and(|(_, expected)| *expected != annotation)
+                    .is_some_and(|(_, expected)| *expected != annotation && !matches!(
+                        (expected, &annotation), (Annotation::Data(actual), Annotation::Data(required))
+                            if self.program().matches_compound_input(*actual, *required)
+                    ))
                 {
                     return self.reject_message(
                         Rule::TypeMismatch,
@@ -335,7 +345,8 @@ impl Checker<'_, '_> {
             } else {
                 return self.reject_message(Rule::UnknownType, parameter, "this private closure scope needs parameter data from an expected contract or explicit annotation".into(), Vec::new());
             };
-            let data = self.closure_input_data(annotation, index, parameter)?;
+            let data =
+                self.closure_input_data(annotation, index, None, SyntaxOrigin::Node(parameter))?;
             let operation = if let Ok(operation) = self.direct(parameter, NodeKind::InputOperation)
             {
                 let explicit =

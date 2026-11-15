@@ -4,6 +4,7 @@ use nocter_model::{TypeCursor, TypeId, TypeKind, ValueCode, ValueCodeRoot, Value
 use std::collections::BTreeMap;
 mod applications;
 mod containment;
+mod inputs;
 mod resolution;
 pub use resolution::ResolvedBodyTypes;
 
@@ -76,7 +77,37 @@ impl BodyTypes {
         position: usize,
         contract: super::FunctionConstraint,
     ) -> Result<TypeId, BodyTypeError> {
-        let parameter = nocter_model::ValueParameter::Closure { owner, position };
+        self.publish_closure_parameter(
+            owner,
+            nocter_model::ValueParameter::Closure { owner, position },
+            contract,
+        )
+    }
+    /// Publish one callable leaf of an explicit compound input without adding a runtime input.
+    /// # Errors
+    /// Rejects foreign/repeated/finalized identities or unsupported callable signatures.
+    pub fn closure_component(
+        &mut self,
+        owner: nocter_model::ValueClosure,
+        position: usize,
+        ordinal: usize,
+        contract: super::FunctionConstraint,
+    ) -> Result<TypeId, BodyTypeError> {
+        self.publish_closure_parameter(
+            owner,
+            nocter_model::ValueParameter::Component {
+                input: nocter_model::ValueInput::Closure { owner, position },
+                ordinal,
+            },
+            contract,
+        )
+    }
+    fn publish_closure_parameter(
+        &mut self,
+        owner: nocter_model::ValueClosure,
+        parameter: nocter_model::ValueParameter,
+        contract: super::FunctionConstraint,
+    ) -> Result<TypeId, BodyTypeError> {
         if owner.owner != self.owner
             || self.program.closures.contains_key(&owner)
             || self.program.closure_parameters.contains_key(&parameter)
@@ -217,23 +248,7 @@ impl BodyTypes {
                     self.program.data_schema(contract.result),
                     Some(super::PayloadSchema::Function(_))
                 ))
-            || contract.inputs.iter().enumerate().any(|(position, input)| {
-                !ordinary(input.data) && !matches!(self.program.data_schema(input.data),
-                    Some(super::PayloadSchema::Function(super::FunctionWitness {
-                        origin: ValueFunctionOrigin::Parameter(nocter_model::ValueParameter::Closure { owner, position: actual }), ..
-                    })) if owner == id && actual == position)
-            })
-            || self.program.closure_parameters.range(
-                nocter_model::ValueParameter::Closure { owner: id, position: 0 }..=
-                nocter_model::ValueParameter::Closure { owner: id, position: usize::MAX }
-            ).any(|(&parameter, declared)| {
-                let nocter_model::ValueParameter::Closure { owner, position } = parameter else { return true; };
-                owner == id && contract.inputs.get(position).is_none_or(|input| {
-                    self.program.function_data(super::FunctionWitness {
-                        origin: ValueFunctionOrigin::Parameter(parameter), invocation: declared.invocation,
-                    }) != Some(input.data)
-                })
-            })
+            || !inputs::validate(&self.program, id, &contract.inputs)
         {
             return Err(BodyTypeError::InvalidExtension);
         }
@@ -405,22 +420,8 @@ impl Program {
                 }
             }
             for (&parameter, contract) in &body.closure_parameters {
-                let nocter_model::ValueParameter::Closure {
-                    owner: closure,
-                    position,
-                } = parameter
-                else {
-                    return Err(BodyTypeError::InvalidExtension);
-                };
-                let input = body
-                    .closure(closure)
-                    .and_then(|schema| schema.contract.inputs.get(position))
-                    .ok_or(BodyTypeError::InvalidExtension)?;
-                let witness = super::FunctionWitness {
-                    origin: ValueFunctionOrigin::Parameter(parameter),
-                    invocation: contract.invocation,
-                };
-                if closure.owner != owner || body.function_data(witness) != Some(input.data) {
+                let closure = inputs::owner(parameter).ok_or(BodyTypeError::InvalidExtension)?;
+                if closure.owner != owner || body.closure(closure).is_none() {
                     return Err(BodyTypeError::InvalidExtension);
                 }
                 let project = |data| {
@@ -436,7 +437,7 @@ impl Program {
                 }
             }
             for (&id, schema) in &body.closures {
-                if id.owner != owner {
+                if id.owner != owner || !inputs::validate(body, id, &schema.contract.inputs) {
                     return Err(BodyTypeError::InvalidExtension);
                 }
                 let project = |data| {
@@ -535,13 +536,10 @@ fn replay_types(
     for (source, kind) in body.types.store().iter_from(prefix.type_count()) {
         let valid = match kind {
             TypeKind::ValueFunction {
-                origin:
-                    ValueFunctionOrigin::Parameter(
-                        parameter @ nocter_model::ValueParameter::Closure { owner: closure, .. },
-                    ),
+                origin: ValueFunctionOrigin::Parameter(parameter),
                 invocation,
             } => {
-                closure.owner == owner
+                inputs::owner(*parameter).is_some_and(|closure| closure.owner == owner)
                     && body
                         .parameter_contract(*parameter)
                         .is_some_and(|contract| contract.invocation.can_supply(*invocation))

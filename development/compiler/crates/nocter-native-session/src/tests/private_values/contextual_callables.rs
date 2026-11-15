@@ -2,6 +2,42 @@
 use super::*;
 
 #[test]
+fn private_captured_nullable_inputs_preserve_input_modes_and_environment_storage() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/captured-compound-inputs.nct"
+    ));
+    let runtime = source
+        .replace(
+            "const ANSWER: i32 = calculate(false) + calculate(true) - 42",
+            "",
+        )
+        .replace("const func", "func");
+    let package = TempPackage::new();
+    for (parameter, binding) in [
+        ("take value", "let action = value^"),
+        ("value", "read action = value"),
+        ("edit value", "edit action = value"),
+    ] {
+        let source = runtime
+            .replace("take value", parameter)
+            .replace("let action = value^", binding);
+        execute_native_status(&compile(&source), &package.0, "captured-nullable-input", 42);
+        let owned = source.replace("if present { addition }", "if present { callback() }");
+        assert_ne!(owned, source);
+        let owned = format!(
+            "primitive func create_failure(code: str, message: str): error\nprimitive func context_error(take value: error, message: str): error\nfunc callback(): func(i32): i32 {{ let reason = context_error(create_failure(\"callback\", \"leaf\"), \"outer\")\n(reason^; value: i32) {{ value + 7 }} }}\n{owned}"
+        );
+        execute_native_status(
+            &image(&trusted_error_machine(&owned)),
+            &package.0,
+            "captured-nullable-owned-input",
+            42,
+        );
+    }
+}
+
+#[test]
 fn private_selected_loop_exit_results_preserve_returned_environments_and_error_owners() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

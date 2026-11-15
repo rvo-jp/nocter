@@ -1,5 +1,33 @@
 //! Definition-owned const products, symbolic call edges and concrete closure boundaries.
 use super::*;
+
+#[test]
+fn captured_input_conditions_check_explicit_input_after_the_environment_prefix() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/captured-compound-inputs.nct"
+    ))
+    .replace("const func addition", "func addition");
+    let absent = source.replace(
+        "const ANSWER: i32 = calculate(false) + calculate(true) - 42",
+        "const ANSWER: i32 = calculate(false)",
+    );
+    assert_eq!(
+        super::initializers::answer(&absent, "ANSWER"),
+        nocter_constant_evaluation::state::Value::integer(42)
+    );
+    let present = absent.replace(
+        "const ANSWER: i32 = calculate(false)",
+        "const ANSWER: i32 = calculate(true)",
+    );
+    let (sources, tree) = input(&present);
+    let result = SourceUnit::prepare(bound(&sources, &tree));
+    let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) = result else {
+        panic!("an active runtime callback must retain its source violation: {result:?}");
+    };
+    assert!(matches!(diagnostic.rule(), Rule::RuntimeCall(_)));
+    assert!(!diagnostic.source().notes().is_empty());
+}
 use crate::value_access::constant::Rule;
 use nocter_model::CompileTimeGuarantee;
 

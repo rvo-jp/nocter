@@ -404,7 +404,7 @@ fn publish_value(
                                 nocter_model::ValueParameter::Declaration(input),
                             ) => ValueFunctionOrigin::Parameter(
                                 nocter_model::ValueParameter::Component {
-                                    input,
+                                    input: input.into(),
                                     ordinal: components.len(),
                                 },
                             ),

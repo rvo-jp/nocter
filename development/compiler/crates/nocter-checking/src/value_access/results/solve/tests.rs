@@ -16,9 +16,9 @@ fn captured_parameter_scope_rejects_uncaptured_foreign_and_stronger_views() {
             .resolve(program.symbols().get(name).unwrap())
             .unwrap()
     };
-    let parameter = |name, index| FunctionWitness {
+    let parameter = |name, index: usize| FunctionWitness {
         origin: Origin::Parameter(ValueParameter::Component {
-            input: program.codes().get(code(name)).unwrap().parameters()[index],
+            input: program.codes().get(code(name)).unwrap().parameters()[index].into(),
             ordinal: 0,
         }),
         invocation: ValueInvocation::Take,

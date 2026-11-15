@@ -316,10 +316,16 @@ Named witnesses are capture-free Copy values with trivial cleanup and no outside
 under their exact schema. This is not evidence about arbitrary structural callback contracts.
 Anonymous callable inputs use `ValueParameter::Closure` with the lexical closure and input position;
 header inputs use `ValueParameter::Declaration` with their actual reserved parameter slot.
-Callable leaves inside a compound header input use `ValueParameter::Component`, keyed by that
-same reserved input and the descriptor's ordered callable-leaf ordinal. They allocate no physical
-parameters. Each input owns its component contracts, published atomically with its complete
-schema through the shared iterative data-reference fold. Equal signatures retain distinct formal
+Callable leaves inside a compound input use `ValueParameter::Component`, keyed by `ValueInput`
+(the reserved header parameter or the lexical closure and explicit input position) and the
+descriptor's ordered callable-leaf ordinal. They allocate no physical parameters. Header inputs
+own their component contracts, published atomically with their complete schema through the shared
+iterative data-reference fold. Lexical components use the existing body-owned formal-contract
+registry; closure publication and canonical replay validate every lexical formal against its exact
+input position and ordinal, rejecting foreign, missing and surplus formals. Shared subgraphs are
+summarized once; exact code/result dependencies in internal compound schemas retain their identity
+without expanding their logical paths. Arrays contribute one homogeneous element schema, regardless
+of cardinality. The environment prefix is not an explicit input position. Equal signatures retain distinct formal
 identities, including separate tuple positions; arrays retain one homogeneous element descriptor.
 These descriptors supply neither Copy nor owned-payload evidence. Canonical compound-input keys
 retain the concrete witness at each component instead of adding those witnesses to direct input

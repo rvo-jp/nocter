@@ -73,12 +73,33 @@ impl Checker<'_, '_> {
         ty: &nocter_declaration_lowering::access_declarations::TypeSyntax,
         metadata_only: bool,
     ) -> Result<TypeId, Failure> {
+        self.annotation_data_in(ty, metadata_only, &mut None)
+    }
+    fn annotation_data_in(
+        &mut self,
+        ty: &nocter_declaration_lowering::access_declarations::TypeSyntax,
+        metadata_only: bool,
+        input: &mut Option<(usize, usize)>,
+    ) -> Result<TypeId, Failure> {
         use nocter_declaration_lowering::access_declarations::TypeSyntax;
         match ty {
-            TypeSyntax::Callable(contract) => self.reject(Rule::UnsupportedData, contract.head),
+            TypeSyntax::Callable(contract) => {
+                let Some((position, ordinal)) = input else {
+                    return self.reject(Rule::UnsupportedData, contract.head);
+                };
+                let pattern = self.callable_annotation(contract)?;
+                let data = self.closure_input_data(
+                    Annotation::Function(pattern),
+                    *position,
+                    Some(*ordinal),
+                    nocter_syntax::SyntaxOrigin::Token(contract.head),
+                )?;
+                *ordinal += 1;
+                Ok(data)
+            }
             TypeSyntax::Named(path) => self.annotation_data_path(path, metadata_only),
             TypeSyntax::Optional { payload, layers } => {
-                let mut payload = self.annotation_data(payload, metadata_only)?;
+                let mut payload = self.annotation_data_in(payload, metadata_only, input)?;
                 for _ in 0..layers.get() {
                     payload = self
                         .types
@@ -88,7 +109,7 @@ impl Checker<'_, '_> {
                 Ok(payload)
             }
             TypeSyntax::Fallible { payload, marker } => {
-                let payload = self.annotation_data(payload, metadata_only)?;
+                let payload = self.annotation_data_in(payload, metadata_only, input)?;
                 match self.types.fallible(payload) {
                     Ok(data) => Ok(data),
                     Err(nocter_declarations::value_access::BodyTypeError::RepeatedFailure) => self
@@ -104,7 +125,8 @@ impl Checker<'_, '_> {
             }
             TypeSyntax::Array { element, length } => {
                 let length = self.required_length(*length)?;
-                let element = self.annotation_data(element, metadata_only || length == 0)?;
+                let element =
+                    self.annotation_data_in(element, metadata_only || length == 0, input)?;
                 self.types
                     .array(element, length)
                     .map_err(|_| Failure::InconsistentSyntax)
@@ -112,7 +134,7 @@ impl Checker<'_, '_> {
             TypeSyntax::Tuple(fields) => {
                 let fields = fields
                     .iter()
-                    .map(|field| self.annotation_data(field, metadata_only))
+                    .map(|field| self.annotation_data_in(field, metadata_only, input))
                     .collect::<Result<Vec<_>, _>>()?;
                 self.types
                     .tuple(&fields)
@@ -127,6 +149,21 @@ impl Checker<'_, '_> {
                 .callable_annotation(&contract)
                 .map(Annotation::Function),
             data => self.annotation_data(&data, false).map(Annotation::Data),
+        }
+    }
+    pub(super) fn closure_input_annotation(
+        &mut self,
+        node: NodeId,
+        position: usize,
+    ) -> Result<Annotation, Failure> {
+        use nocter_declaration_lowering::access_declarations::{TypeSyntax, project_type_syntax};
+        match project_type_syntax(self.syntax(), node).map_err(|_| Failure::InconsistentSyntax)? {
+            TypeSyntax::Callable(contract) => self
+                .callable_annotation(&contract)
+                .map(Annotation::Function),
+            data => self
+                .annotation_data_in(&data, false, &mut Some((position, 0)))
+                .map(Annotation::Data),
         }
     }
     pub fn contextual_type(&self, data: TypeId) -> Result<Annotation, Failure> {

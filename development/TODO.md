@@ -329,10 +329,13 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   bodies without changing represented domains. Require actual callee/input source lineage and
   read-protected bodies or elementary owned/update bodies without mutation/sibling calls;
   keep written/unknown inputs conservatively rejected.
-- [ ] Admit nullable callable parameters in captured signatures before qualifying their entry
-  conditions. Ordinary typing currently rejects `(amount; take value: (func(i32): i32)?): i32`
-  at the nested `func` with UnsupportedData. Preserve the capture-environment input prefix and
-  explicit received-compound contexts when unifying named/captured input metadata.
+- [x] Qualify explicit callable components in captured input signatures through source typing,
+  canonical formal publication, received frame contexts, required evaluation and native storage.
+  Share declared/lexical component identities, preserve the environment input prefix and distinct
+  same-signature leaves, and reject foreign, surplus or misordered lexical formals.
+- [ ] Extend contextual compound annotations and nested callback signatures through the owning
+  annotation/declaration authority. Infer lexical input contracts without retaining another input's
+  formal identities; keep selected values' code/environment evidence and final serialization separate.
 - [ ] Extend [state-conditioned const obligations](design/compiler-realization.md#state-conditioned-const-obligations)
   beyond direct stable nullable inputs with named runtime-only callbacks. Qualify changing inputs,
   unavailable captured bodies, general nested/indexed component predicates and guarded cleanup.

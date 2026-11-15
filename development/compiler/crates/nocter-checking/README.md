@@ -287,8 +287,18 @@ contract declared by the selected function. Scoped aliases retain the ordinary a
 An anonymous implementation receives available data and result constraints directly; nested
 callable results close from the checked returned values. Anonymous callable inputs with ordinary
 signature data publish their own lexical formal identities before body checking. Explicit and
-contextual signatures share this path; they never inherit another declaration's formal identity.
-Deeper callable positions within those input signatures still reject locally. Callable data in unsupported carrier/header positions still rejects
+contextual direct-callable signatures share this path; they never inherit another declaration's
+formal identity. Explicit compound input annotations publish lexical identities for callable
+leaves through the same annotation shape walker. Outcomes, tuple positions and homogeneous array
+schemas retain their own leaf ordinals. The existing received-input frame contexts carry actual
+supplier metadata independently of the environment prefix; no new substitution or capture registry
+is introduced. `captured-compound-inputs.nct` qualifies nullable inputs through take/read/edit
+operations in required evaluation. Stable entry-absence conditions retain the full ordered input
+ordinal after the environment prefix, including an active runtime callback's original failure.
+Native execution qualifies both tags and actual error-owning callback environments in all three
+input modes; the callee's owned captures remain independent of the receiving closure's captures.
+Deeper callable positions within callback signatures and contextual compound annotations remain
+outside this source boundary. Callable data in unsupported carrier/header positions still rejects
 through the local/header diagnostic owner. Parsing a constant/static callable annotation does not
 grant final serialization or runtime initialization.
 
