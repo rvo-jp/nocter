@@ -33,6 +33,7 @@ fn guarded(callee: AccessCodeId, operation: Op) -> Plan {
     plan.initializer = false;
     plan.conditions = vec![InputCondition {
         input: 0,
+        fields: Box::new([]),
         cause: Site {
             code: callee.into(),
             point: plan.entry,
@@ -117,6 +118,111 @@ fn program(present: bool, plan: Plan) -> Program {
         BTreeMap::new(),
     )
     .unwrap()
+}
+
+fn compound_program(
+    other: bool,
+    present: bool,
+    operation: Op,
+    fields: &[usize],
+) -> Result<Program, Rule> {
+    let (root, target) = code_ids();
+    let frame = CodeInstance {
+        source: target.into(),
+        instance: 7,
+    };
+    let mut body = guarded(target, operation);
+    Arc::make_mut(&mut body.slots)[2].data = 4;
+    body.conditions[0].fields = fields.into();
+    let mut caller = caller(frame, present, operation);
+    Arc::make_mut(&mut caller.slots)[2].data = 4;
+    caller.points = caller.points.map(|_, point| {
+        let mut point = point.clone();
+        if operation == Op::Take {
+            let Operation::Call { inputs, .. } = &mut point.actions[1].operation else {
+                unreachable!()
+            };
+            inputs[0] = Input::Take(4);
+        }
+        point.actions[0].operation = Operation::Literal {
+            destination: 2,
+            value: Value::aggregate(vec![
+                Value::integer(0),
+                Value::aggregate(vec![
+                    Value::variant(other, other.then(Value::unit)),
+                    Value::variant(present, present.then(Value::unit)),
+                    Value::integer(42),
+                ]),
+            ]),
+        };
+        point
+    });
+    Program::new(
+        [
+            Type::Integer(BuiltinType::I32),
+            Type::NamedFunction(target),
+            Type::Variant {
+                primary: 1,
+                alternate: None,
+            },
+            Type::Record(vec![2, 2, 0].into()),
+            Type::Record(vec![0, 3].into()),
+        ],
+        BTreeMap::from([(root.into(), caller), (frame, body)]),
+        BTreeMap::new(),
+    )
+}
+
+#[test]
+fn compound_conditions_select_exact_nested_fields_through_owned_and_alias_inputs() {
+    let (root, target) = code_ids();
+    for operation in [Op::Read, Op::Edit, Op::Take] {
+        for other in [false, true] {
+            let absent = compound_program(other, false, operation, &[1, 1])
+                .unwrap_or_else(|failure| panic!("{operation:?}, sibling {other}: {failure:?}"));
+            let present = compound_program(other, true, operation, &[1, 1]).unwrap();
+            let mut budget = Budget::new(Limits::default());
+            assert_eq!(
+                Executor::new(&absent, &mut budget, 0)
+                    .evaluate_initializer(root)
+                    .unwrap(),
+                Value::integer(42)
+            );
+            let error = Executor::new(&present, &mut budget, 0)
+                .evaluate_initializer(root)
+                .unwrap_err();
+            assert_eq!(error.rule, Rule::InputConditionFailed);
+            assert_eq!(error.instance.as_deref().unwrap().source, target.into());
+            assert_eq!(budget.storage_used(), 0);
+            assert_eq!(
+                Executor::new(&absent, &mut budget, 0)
+                    .evaluate_initializer(root)
+                    .unwrap(),
+                Value::integer(42)
+            );
+        }
+    }
+}
+
+#[test]
+fn compound_condition_validation_rejects_unknown_fields_scalar_targets_and_tag_selection() {
+    for fields in [vec![2], vec![0], vec![1, 1, 0]] {
+        assert!(matches!(
+            compound_program(false, false, Op::Read, &fields),
+            Err(Rule::InvalidPlan)
+        ));
+    }
+    let (root, target) = code_ids();
+    let program = compound_program(false, false, Op::Read, &[1, 1]).unwrap();
+    let limits =
+        CompileTimeEvaluationLimits::new(NonZeroU64::new(4).unwrap(), NonZeroU32::new(8).unwrap());
+    let mut budget = Budget::new(limits);
+    let error = Executor::new(&program, &mut budget, 0)
+        .evaluate_initializer(root)
+        .unwrap_err();
+    assert_eq!(error.rule, Rule::StepLimit);
+    assert_eq!(error.site.unwrap().code, target.into());
+    assert_eq!(budget.storage_used(), 0);
 }
 
 #[test]

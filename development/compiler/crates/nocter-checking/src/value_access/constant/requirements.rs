@@ -196,7 +196,12 @@ impl Requirements {
                         rule,
                     });
                     if let (Some(violation), Some(calls)) = (violation, calls.as_deref_mut()) {
-                        if calls.defer_invocation(&self.body, *id, *input_resource, violation)? {
+                        if calls.defer_invocation(
+                            &self.body,
+                            *id,
+                            input_resource.as_ref(),
+                            violation,
+                        )? {
                             None
                         } else {
                             Some(violation)
@@ -441,9 +446,9 @@ impl Requirements {
         self.clauses.iter().filter_map(|clause| match clause {
             Clause::Invocation {
                 expression,
-                input_resource: Some(guards::InputResource::Stable(local)),
+                input_resource: Some(input),
                 ..
-            } => Some((*expression, *local)),
+            } if input.stable => Some((*expression, input.local())),
             _ => None,
         })
     }
@@ -456,7 +461,7 @@ impl Requirements {
             } => Some(CallEdge {
                 expression: *expression,
                 template,
-                input_resource: input_resource.map(guards::InputResource::local),
+                input_resource: input_resource.as_ref().map(guards::InputResource::local),
             }),
             _ => None,
         })
@@ -474,7 +479,7 @@ impl Requirements {
                     ..
                 } => Some((
                     *expression,
-                    input_resource.map(guards::InputResource::local),
+                    input_resource.as_ref().map(guards::InputResource::local),
                 )),
                 _ => None,
             })

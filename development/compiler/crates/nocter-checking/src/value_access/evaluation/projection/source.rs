@@ -160,6 +160,7 @@ impl<'a, 'work, F: Fn(AccessCodeId) -> Option<plan::Value>> Source<'a, 'work, F>
             }
             Ok(plan::InputCondition {
                 input: condition.input,
+                fields: condition.fields.clone(),
                 cause: plan::Site { code: key.code(), point: condition.cause.point, action: condition.cause.action },
             })
         }).collect::<super::Result<_>>()?;

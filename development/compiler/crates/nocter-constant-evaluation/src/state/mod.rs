@@ -354,6 +354,8 @@ pub struct Point {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct InputCondition {
     pub input: usize,
+    /// Static record/tuple fields within the input. No index evaluation or tag selection occurs.
+    pub fields: Box<[usize]>,
     pub cause: Site,
 }
 #[derive(Clone, Debug)]

@@ -2,6 +2,61 @@
 use super::*;
 
 #[test]
+fn private_guarded_tuple_components_preserve_sibling_independence_and_actual_captures() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/value-guarded-compound-outcomes.nct"
+    ));
+    let runtime = source.replace("const func", "func");
+    let package = TempPackage::new();
+    for nested in [false, true] {
+        let (source, value) = if nested {
+            (
+                runtime
+                    .replace(
+                        "take values: ((func(i32): i32)?, (func(i32): i32)?, i32)",
+                        "take values: (i32, ((func(i32): i32)?, (func(i32): i32)?, i32))",
+                    )
+                    .replace("values.1^", "values.1.1^")
+                    .replace("values.2", "values.1.2")
+                    .replace(
+                        "inspect((produce(true), produce(false), 42))",
+                        "inspect((9, (produce(true), produce(false), 42)))",
+                    )
+                    .replace(
+                        "inspect((produce(false), produce(true), 0))",
+                        "inspect((9, (produce(false), produce(true), 0)))",
+                    ),
+                "values.1.1",
+            )
+        } else {
+            (runtime.clone(), "values.1")
+        };
+        for (parameter, extraction) in [
+            ("take values", format!("let action = {value}^")),
+            ("values", format!("read action = {value}")),
+            ("edit values", format!("edit action = {value}")),
+        ] {
+            let source = source
+                .replace("inspect(take values", &format!("inspect({parameter}"))
+                .replace(&format!("let action = {value}^"), &extraction);
+            execute_native_status(&compile(&source), &package.0, "guarded-tuple-inputs", 42);
+            let owned = source.replace("if present { runtime }", "if present { make() }");
+            assert_ne!(owned, source);
+            let owned = format!(
+                "primitive func create_failure(code: str, message: str): error\nprimitive func context_error(take value: error, message: str): error\nfunc make(): func(i32): i32 {{ let reason = context_error(create_failure(\"tuple\", \"leaf\"), \"outer\")\n(reason^; value: i32) {{ runtime(value) }} }}\n{owned}"
+            );
+            execute_native_status(
+                &image(&trusted_error_machine(&owned)),
+                &package.0,
+                "guarded-tuple-errors",
+                42,
+            );
+        }
+    }
+}
+
+#[test]
 fn private_guarded_captured_callbacks_remain_valid_for_both_tags_and_owned_environments() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

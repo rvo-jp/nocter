@@ -195,7 +195,16 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             self.site = Some(condition.cause);
             self.tick()?;
             let &(slot, _) = plan.inputs.get(condition.input).ok_or(Rule::InvalidPlan)?;
-            let value = self.read(frame, &Place::root(slot))?;
+            for _ in &condition.fields {
+                self.tick()?;
+            }
+            let value = self.read(
+                frame,
+                &Place {
+                    slot,
+                    fields: (&*condition.fields).into(),
+                },
+            )?;
             if !matches!(
                 value.data(),
                 Data::Variant {

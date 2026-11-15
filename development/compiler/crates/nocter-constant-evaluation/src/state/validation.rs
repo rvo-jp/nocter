@@ -282,8 +282,15 @@ fn validate_plan(program: &Program, code: super::CodeInstance, plan: &super::Pla
     for condition in &plan.conditions {
         let &(slot, _) = plan.inputs.get(condition.input).ok_or(INVALID)?;
         let source = plan.slots.get(slot).ok_or(INVALID)?;
+        let mut data = source.data;
+        for &field in &condition.fields {
+            let Some(Type::Record(fields)) = program.types.get(data) else {
+                return Err(INVALID);
+            };
+            data = *fields.get(field).ok_or(INVALID)?;
+        }
         if !matches!(
-            program.types.get(source.data),
+            program.types.get(data),
             Some(Type::Variant {
                 alternate: None,
                 ..

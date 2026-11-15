@@ -556,6 +556,18 @@ valid for both tags, including callback environments that own errors. Changing i
 component/index guards, context-dependent boundaries and guarded cleanup retain the separate
 [state-conditioned obligations](../../../design/compiler-realization.md#state-conditioned-const-obligations).
 
+`value-guarded-compound-outcomes.nct` extends entry-absence conditions to fixed tuple components,
+including nested tuples. Attribution summarizes shared schemas once and rejects ambiguous paths.
+The actual callee must follow the exact original tuple fields and primary selection, through each
+reachable merge; a same-signature sibling or merely identical representation supplies no proof.
+Source traversal retains only the remaining expected path length per original node, avoiding
+path expansion across loops. The evaluator validates the selected component's optional type and
+checks that component on every invocation, charging work for each field. Read/edit/take cases
+preserve independent sibling tags, original assertion traps and actual call traces. Named and
+captured runtime-only callbacks retain their positive domains. Written inputs and array/tag-selected
+outer paths remain outside this qualified predicate scope; ordinary runtime execution and cleanup
+remain separate consumers.
+
 `received-compound-outcome-control.nct` qualifies the same continuation selection at a tuple
 component through take/read/edit inputs. A neighboring live callable and scalar field retain their
 independent domains and offsets. Only the selected empty primary continuation is excluded; the

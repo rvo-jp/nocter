@@ -4,10 +4,11 @@ use nocter_declarations::value_access::CodeInstanceKey;
 use nocter_model::{AccessExpressionId, ValueClosure};
 
 /// An unresolved invocation capability guarded by the stable absence of its original input.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub(in crate::value_access) struct InvocationCondition {
     pub expression: AccessExpressionId,
     pub input: usize,
+    pub fields: Box<[usize]>,
     pub cause: flow::Location,
     pub violation: Violation,
 }
@@ -52,12 +53,13 @@ impl BoundContext<'_, '_> {
         &mut self,
         body: &flow::Query,
         expression: AccessExpressionId,
-        resource: Option<super::guards::InputResource>,
+        resource: Option<&super::guards::InputResource>,
         violation: Violation,
     ) -> Result<bool, BoundCheckFailure> {
-        let Some(super::guards::InputResource::Stable(local)) = resource else {
+        let Some(resource) = resource.filter(|resource| resource.stable) else {
             return Ok(false);
         };
+        let local = resource.local;
         let target = match violation.rule() {
             super::super::Rule::RuntimeCall(target) => nocter_model::ValueCode::Declaration(target),
             super::super::Rule::CapturedCall(target) => nocter_model::ValueCode::Closure(target),
@@ -69,12 +71,18 @@ impl BoundContext<'_, '_> {
         if frame.code() != target {
             return Err(super::INVALID.into());
         }
-        if !super::guards::derives_from_input(body, &self.control, expression, local, self.work)
-            .map_err(|failure| BoundCheckFailure::Invocation {
-                expression,
-                failure,
-            })?
-        {
+        if !super::guards::derives_from_input(
+            body,
+            &self.control,
+            expression,
+            local,
+            &resource.fields,
+            self.work,
+        )
+        .map_err(|failure| BoundCheckFailure::Invocation {
+            expression,
+            failure,
+        })? {
             return Ok(false);
         }
         let evidence = self.query.result_evidence.as_ref().ok_or(super::INVALID)?;
@@ -123,6 +131,7 @@ impl BoundContext<'_, '_> {
             InvocationCondition {
                 expression,
                 input,
+                fields: resource.fields.clone(),
                 cause,
                 violation,
             },

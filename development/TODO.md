@@ -346,8 +346,13 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Qualify direct stable nullable guards for unavailable captured invocations. Link independently
   closed lexical call boundaries with their actual environment prefix and explicit received contexts;
   preserve intrinsic environment operations, active-body causes, per-invocation checks and work retry.
+- [x] Qualify stable fixed tuple-component input-absence conditions through original source
+  attribution, exact selected callee paths, evaluator validation/execution and required/native
+  consumers. Preserve same-signature sibling independence, alias inputs, per-path work, original
+  causes, traps and healthy retry; ambiguous or changing paths cannot grant permission.
 - [ ] Extend [state-conditioned const obligations](design/compiler-realization.md#state-conditioned-const-obligations)
-  beyond direct stable nullable inputs with independently linkable callbacks. Qualify changing inputs,
+  beyond stable nullable inputs and fixed tuple components with independently linkable callbacks.
+  Qualify changing inputs,
   general nested/indexed component predicates, context-dependent boundaries and guarded cleanup.
   Retain exact-body/occurrence references and revalidate invalidated predicates; preserve fixed
   forbidden definitions, runtime validity, original source causes and healthy work-failure retry.
