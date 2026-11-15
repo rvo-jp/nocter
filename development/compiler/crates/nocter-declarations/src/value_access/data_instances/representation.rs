@@ -10,14 +10,26 @@ impl DataInstanceKey {
     /// backing. Structural input constraints can name the same represented value differently.
     #[must_use]
     pub fn has_same_representation(&self, program: &Program, other: &Self) -> bool {
-        let mut pending = vec![(self.clone(), other.clone())];
+        self.compare_representation(program, other, false)
+    }
+    /// Check directed structural transport, permitting an excluded outcome alternative to enter
+    /// a wider represented carrier. This is neither byte-copy compatibility nor an executed
+    /// conversion: consumers must preserve tags, move active payloads and retire the source once.
+    /// Empty roots, missing contexts and changed positive code/environment identities reject.
+    #[must_use]
+    pub fn permits_guarded_transport(&self, program: &Program, target: &Self) -> bool {
+        !self.is_uninhabited() && self.compare_representation(program, target, true)
+    }
+    fn compare_representation(&self, program: &Program, other: &Self, transport: bool) -> bool {
+        let mut pending = vec![(self.clone(), other.clone(), false)];
         let mut seen = std::collections::BTreeSet::new();
-        while let Some((left, right)) = pending.pop() {
+        while let Some((left, right, guarded)) = pending.pop() {
             if !seen.insert((
                 left.data,
                 Arc::as_ptr(&left.context),
                 right.data,
                 Arc::as_ptr(&right.context),
+                guarded,
             )) {
                 continue;
             }
@@ -25,9 +37,21 @@ impl DataInstanceKey {
                 return false;
             };
             match (a, b) {
+                (InstanceSchema::Uninhabited, _)
+                    if transport
+                        && guarded
+                        && program.matches_uninhabited_metadata_with(
+                            left.data,
+                            right.data,
+                            |_| true,
+                        ) => {}
                 (InstanceSchema::Uninhabited, InstanceSchema::Uninhabited)
-                    if program
-                        .matches_uninhabited_metadata_with(left.data, right.data, |_| true) => {}
+                    if !transport
+                        && program.matches_uninhabited_metadata_with(
+                            left.data,
+                            right.data,
+                            |_| true,
+                        ) => {}
                 (InstanceSchema::Builtin(a), InstanceSchema::Builtin(b)) if a == b => {}
                 (InstanceSchema::Function(a), InstanceSchema::Function(b)) if a == b => {}
                 (InstanceSchema::Aggregate(a), InstanceSchema::Aggregate(b)) => {
@@ -50,7 +74,7 @@ impl DataInstanceKey {
                         ) else {
                             return false;
                         };
-                        pending.push((a, b));
+                        pending.push((a, b, false));
                     }
                 }
                 (InstanceSchema::Array(a), InstanceSchema::Array(b))
@@ -64,7 +88,7 @@ impl DataInstanceKey {
                         ) else {
                             return false;
                         };
-                        pending.push((a, b));
+                        pending.push((a, b, false));
                     }
                 }
                 (InstanceSchema::Optional(_), InstanceSchema::Optional(_))
@@ -79,7 +103,7 @@ impl DataInstanceKey {
                         ) else {
                             return false;
                         };
-                        pending.push((a, b));
+                        pending.push((a, b, true));
                     }
                 }
                 _ => return false,

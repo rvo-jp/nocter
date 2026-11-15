@@ -23,6 +23,22 @@ const GUARDED: &str = include_str!(concat!(
 ));
 
 #[test]
+fn unqualified_outcome_widening_remains_closed_until_value_transport_is_realized() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/widened-outcome-results.nct"
+    ));
+    let runtime = source
+        .replace("const ANSWER: i32 = calculate()", "")
+        .replace("const func", "func");
+    let (sources, tree) = input(&runtime);
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Integrity(_)))
+    ));
+}
+
+#[test]
 fn producerless_optional_results_preserve_the_completed_carrier() {
     let source = PRODUCERLESS;
     let unit = accepted(

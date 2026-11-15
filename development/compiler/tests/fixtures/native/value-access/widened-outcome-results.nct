@@ -1,0 +1,16 @@
+const func owning(number: i32): func(i32): i32 {
+    (number; amount: i32) { number + amount }
+}
+const func absent(): (func(i32): i32)? { none }
+const func choose(present: bool): (func(i32): i32)? {
+    if present { owning(40) } else { absent() }
+}
+const func calculate(): i32 {
+    let value = choose(true)
+    let action = value^ otherwise { return 0 }
+    let missing = choose(false)
+    let _ = missing^ otherwise { return action(2) }
+    0
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { calculate() }

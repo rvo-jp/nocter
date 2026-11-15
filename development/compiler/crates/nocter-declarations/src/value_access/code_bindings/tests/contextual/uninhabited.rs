@@ -4,6 +4,99 @@ use crate::value_access::{DataInstanceKey, InstanceSchema};
 use nocter_model::ValueField;
 
 #[test]
+fn guarded_transport_is_directed_and_preserves_positive_callable_contexts() {
+    let (headers, [creator, _, plain, _, _]) = headers();
+    let formal = headers.codes().get(creator).unwrap().parameters()[0].into();
+    let formal_data = headers
+        .function_data(FunctionWitness {
+            origin: ValueFunctionOrigin::Parameter(formal),
+            invocation: ValueInvocation::Read,
+        })
+        .unwrap();
+    let void = headers.data_type(BuiltinType::Void).unwrap();
+    let integer = headers.data_type(BuiltinType::I32).unwrap();
+    let mut body = headers.body_types(creator).unwrap();
+    let contract = FunctionConstraint {
+        invocation: ValueInvocation::Read,
+        inputs: Box::new([]),
+        result: void,
+    };
+    let captured = body.reserve_closure().unwrap();
+    let data = body
+        .closure(captured, formal_data, contract.clone())
+        .unwrap();
+    let other = body.reserve_closure().unwrap();
+    body.closure(other, void, contract).unwrap();
+    let callbacks = [
+        FunctionWitness::from(plain),
+        FunctionWitness {
+            origin: ValueFunctionOrigin::Closure(other),
+            invocation: ValueInvocation::Read,
+        },
+    ];
+    let optional = body.optional(data).unwrap();
+    let fallible = body.fallible(data).unwrap();
+    let array = body.array(optional, u64::MAX).unwrap();
+    let wrong = body.optional(integer).unwrap();
+    let program = body.finish();
+    let keys = callbacks.map(|callback| {
+        let frame = program
+            .bind_code(creator.into(), [(formal, callback)])
+            .unwrap();
+        program.instantiate_data(data, &frame).unwrap()
+    });
+    assert_ne!(keys[0], keys[1]);
+    let empty = program.instantiate_uninhabited_data(data).unwrap();
+    assert!(!empty.permits_guarded_transport(&program, &keys[0]));
+    assert!(!empty.permits_guarded_transport(&program, &empty));
+    assert!(!keys[0].permits_guarded_transport(&program, &keys[1]));
+    let wrap = |key| {
+        program
+            .instantiate_components(optional, [(ValueField::Variant(true), key)])
+            .unwrap()
+    };
+    let absent = wrap(empty.clone());
+    let present = keys.map(wrap);
+    assert!(absent.permits_guarded_transport(&program, &present[0]));
+    assert!(!present[0].permits_guarded_transport(&program, &absent));
+    assert!(!present[0].permits_guarded_transport(&program, &present[1]));
+    assert!(!absent.has_same_representation(&program, &present[0]));
+    assert!(present[0].permits_guarded_transport(&program, &present[0]));
+    let wrong = program.instantiate_closed_data(wrong).unwrap();
+    assert!(!absent.permits_guarded_transport(&program, &wrong));
+    let error = program
+        .instantiate_closed_data(program.data_type(BuiltinType::Error).unwrap())
+        .unwrap();
+    let failure = |key| {
+        program
+            .instantiate_components(
+                fallible,
+                [
+                    (ValueField::Variant(true), key),
+                    (ValueField::Variant(false), error.clone()),
+                ],
+            )
+            .unwrap()
+    };
+    let failed = failure(empty);
+    let completed = failure(
+        present[0]
+            .component(&program, ValueField::Variant(true))
+            .unwrap(),
+    );
+    assert!(failed.permits_guarded_transport(&program, &completed));
+    assert!(!completed.permits_guarded_transport(&program, &failed));
+    let wrap_array = |key| {
+        program
+            .instantiate_components(array, [(ValueField::Array(0), key)])
+            .unwrap()
+    };
+    assert!(
+        wrap_array(absent).permits_guarded_transport(&program, &wrap_array(present[0].clone()))
+    );
+}
+
+#[test]
 fn domain_instantiation_shares_the_canonical_fold_without_turning_missing_evidence_into_emptiness()
 {
     let (headers, [run, _, plain, wrong, factory]) = headers();

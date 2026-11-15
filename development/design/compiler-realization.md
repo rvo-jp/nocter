@@ -205,6 +205,30 @@ Keep original bounds effects and old/new destruction observable. These are compi
 obligations, not a request for user annotations, a second owner registry or a permanent ban on
 context-changing updates. Unsupported cases remain explicitly unqualified until those proofs close.
 
+#### Guarded Representation Transport
+
+Representation equality and directed value transport are distinct relations over the canonical
+data-instance graph. Exact equality preserves represented alternatives, callable code/environment
+and nominal identity. A directed transport may widen an explicitly excluded outcome alternative
+into a compatible represented alternative; the reverse direction cannot discard a possible value.
+Unknown metadata is neither exclusion nor a transport proof. An empty root has no transferable value.
+Required product components remain actual values, while original outcome tags guard alternative
+components. Homogeneous arrays retain one element/count descriptor regardless of cardinality.
+
+A transport relation grants no Copy, initialization, source conversion, byte-copy compatibility,
+stable address, geometry or executable effect. Preserve both original source and destination
+contracts through resource projection, evaluator plans, ABI and native lowering. Move only the
+active alternative under its original tag, construct the matching destination tag and transfer
+the original resource obligation once. Excluded alternatives supply no function code, field or
+cleanup. Different payload offsets and containing sizes must use their own selected contracts;
+an equal signature or sufficient destination capacity cannot justify copying the source geometry.
+
+Qualify absence-only forwarding into an inhabited callable result with distinct payload widths,
+actual fallible error-graph movement, nested products/outcomes, calls, cleanup and failed requests
+before widening ordinary source admission. Runtime reinterpretation and metadata relabelling must
+not substitute for the required transfer. The declaration authority owns the shared structural
+comparison; consumers retain their existing ownership, presence, plan and physical-layout proofs.
+
 #### Temporal Evaluator Slot Contexts
 
 A logical slot identifies storage and its existing ownership role; it does not establish one

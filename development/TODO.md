@@ -155,6 +155,16 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   produces a callable. Reconcile guarded representation widening through original resource,
   evaluator, ABI and storage channels; equal signatures or byte geometry alone cannot transport
   the smaller absence-only representation into a larger represented carrier.
+- [x] Define directed guarded representation compatibility alongside exact representation
+  equality in the declaration authority. Reject empty roots, narrowing and changed positive
+  callable contexts; preserve nominal identities and cardinality-independent array traversal.
+- [ ] Realize guarded representation transport through original source/destination contracts,
+  const plans and MIR/native effects before accepting `widened-outcome-results.nct`. Retain both
+  representations: widening is not reinterpretation or byte-copy compatibility. Move only active
+  payloads under original tags and retire the source obligation once, including actual error graphs.
+- [ ] Replace the generic typed-body integrity failure on unqualified outcome widening with an
+  appropriate source-local cause while completing its transport path. A known unsupported source
+  conversion must not be reported as unexplained compiler corruption.
 - [ ] Qualify application-specific empty callable domains supplied through received optional
   inputs. A globally nonempty formal result equation is not a proof that every application
   supplies a callable; preserve the exact committed input context rather than closing its raw type.

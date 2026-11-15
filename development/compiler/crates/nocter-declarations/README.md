@@ -434,6 +434,12 @@ Inhabited function leaves retain complete selected witnesses; carriers retain on
 so two fields of the identical source type can keep different captured substitutions. Context-free
 children are omitted canonically. Equality and ordering walk shared graphs iteratively rather than
 expanding repeated subtrees or array cardinality.
+`has_same_representation` and `permits_guarded_transport` share that structural comparison. The
+second relation is directed and permits only compatible excluded alternatives to widen; positive
+callable contexts and nominal identities remain exact, and an empty root has no transferable value.
+This metadata relation does not implement conversion or relax byte-copy equality. The
+[guarded transport contract](../../../design/compiler-realization.md#guarded-representation-transport)
+owns the remaining integrated obligations before source admission.
 `instantiate_data` uses the same binding normalization and frozen witness resolution as code
 frames; it discards irrelevant input bindings. `function_representation` explicitly selects the
 actual callable leaf's code/environment key while leaving its containing carrier unchanged. `InstanceSchema` exposes the canonical carrier
