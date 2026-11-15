@@ -10,6 +10,18 @@ mod tests;
 pub enum FunctionDataPattern {
     Data(TypeId),
     Function(Box<FunctionPattern>),
+    Optional(Box<Self>),
+    Fallible(Box<Self>),
+    Tuple(Box<[Self]>),
+    Array { element: Box<Self>, length: u64 },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FunctionStructure {
+    Optional,
+    Fallible,
+    Tuple(usize),
+    Array(u64),
 }
 pub type FunctionPattern = FunctionConstraint<FunctionDataPattern>;
 
@@ -18,6 +30,7 @@ pub type FunctionPattern = FunctionConstraint<FunctionDataPattern>;
 pub enum FunctionPosition {
     Input(usize),
     Result,
+    Component(nocter_model::ValueProjection<()>),
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FunctionPatternMismatch {
@@ -144,6 +157,122 @@ impl Program {
                 path.pop();
                 matched
             }
+            compound => {
+                path.push(position);
+                let matched = self.match_compound_pattern(actual, compound, path);
+                path.pop();
+                matched
+            }
         }
+    }
+
+    /// Match data constraints without allocating schemas or substituting their callable leaves.
+    /// # Errors
+    /// Reports the original structural/contract path of an incompatible or unavailable schema.
+    pub fn constrain_data_pattern(
+        &self,
+        actual: TypeId,
+        expected: &FunctionDataPattern,
+    ) -> Result<TypeId, FunctionPatternMismatch> {
+        let mut path = Vec::new();
+        self.match_compound_pattern(actual, expected, &mut path)
+    }
+
+    fn match_compound_pattern(
+        &self,
+        actual: TypeId,
+        expected: &FunctionDataPattern,
+        path: &mut Vec<FunctionPosition>,
+    ) -> Result<TypeId, FunctionPatternMismatch> {
+        use nocter_model::ValueProjection;
+        let failure = |mismatch| FunctionPatternMismatch {
+            path: path.clone().into(),
+            mismatch,
+        };
+        if !self.signature_data_known(actual) {
+            return Err(failure(FunctionMismatch::Integrity));
+        }
+        let (structure, children) =
+            match expected {
+                FunctionDataPattern::Data(data) => {
+                    if !self.signature_data_known(*data) {
+                        return Err(failure(FunctionMismatch::Integrity));
+                    }
+                    return if actual == *data {
+                        Ok(actual)
+                    } else {
+                        Err(failure(FunctionMismatch::Data {
+                            actual,
+                            expected: *data,
+                        }))
+                    };
+                }
+                FunctionDataPattern::Function(contract) => {
+                    return self.match_function_pattern(actual, contract, true, path);
+                }
+                FunctionDataPattern::Optional(payload) => (
+                    FunctionStructure::Optional,
+                    match self.data_schema(actual) {
+                        Some(PayloadSchema::Optional(data)) => {
+                            Some(vec![(ValueProjection::Variant(true), data, &**payload)])
+                        }
+                        _ => None,
+                    },
+                ),
+                FunctionDataPattern::Fallible(payload) => (
+                    FunctionStructure::Fallible,
+                    match self.data_schema(actual) {
+                        Some(PayloadSchema::Fallible(data)) => {
+                            Some(vec![(ValueProjection::Variant(true), data, &**payload)])
+                        }
+                        _ => None,
+                    },
+                ),
+                FunctionDataPattern::Tuple(fields) => (
+                    FunctionStructure::Tuple(fields.len()),
+                    match self.data_schema(actual) {
+                        Some(PayloadSchema::Aggregate(schema)) => match schema.form() {
+                            crate::value_access::AggregateForm::Tuple(data)
+                                if data.len() == fields.len() =>
+                            {
+                                Some(
+                                    data.iter()
+                                        .copied()
+                                        .zip(fields.iter())
+                                        .enumerate()
+                                        .map(|(index, (data, expected))| {
+                                            (ValueProjection::Tuple(index), data, expected)
+                                        })
+                                        .collect(),
+                                )
+                            }
+                            _ => None,
+                        },
+                        _ => None,
+                    },
+                ),
+                FunctionDataPattern::Array { element, length } => (
+                    FunctionStructure::Array(*length),
+                    match self.data_schema(actual) {
+                        Some(PayloadSchema::Array(array)) if array.length() == *length => Some(
+                            vec![(ValueProjection::Array(()), array.element(), &**element)],
+                        ),
+                        _ => None,
+                    },
+                ),
+            };
+        let children = children.ok_or_else(|| {
+            failure(FunctionMismatch::Structure {
+                actual,
+                expected: structure,
+            })
+        })?;
+        for (component, data, expected) in children {
+            path.push(FunctionPosition::Component(component));
+            let matched = self.match_compound_pattern(data, expected, path);
+            path.pop();
+            matched?;
+        }
+        Ok(actual)
     }
 }

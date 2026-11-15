@@ -31,7 +31,8 @@ pub use code_bindings::{
 };
 pub use functions::{
     FunctionConstraint, FunctionDataPattern, FunctionDefinition, FunctionInput, FunctionMismatch,
-    FunctionPattern, FunctionPatternMismatch, FunctionPosition, FunctionWitness, ValueDefinition,
+    FunctionPattern, FunctionPatternMismatch, FunctionPosition, FunctionStructure, FunctionWitness,
+    ValueDefinition,
 };
 mod namespace;
 pub use namespace::{Namespace, QualifiedNameError, ScopeBindingError, ScopeId};

@@ -306,9 +306,12 @@ annotation validates exact input operations, data and result, then selects a per
 adapter policy belong here; consumers cannot substitute another declaration with an equal
 signature. `FunctionConstraint<Data>` uses the same ordered contract shape for normalized data
 identities and recursive `FunctionPattern` annotation constraints. Pattern leaves require exact
-`TypeId` equality; callable nodes constrain an already selected witness. Matching resolves the
-pattern against that witness's own input/result facts and delegates exact contract checking to
-`constrain_function`. It creates no type, code or environment identity. Only the outer invocation
+`TypeId` equality; callable nodes constrain an already selected witness. Structural pattern nodes
+retain optional/fallible payloads, ordered tuple fields and homogeneous arrays without manufacturing
+callable data identities. Matching resolves each node against the selected witness's own facts,
+retains every original code/environment identity and delegates exact outer contract checking to
+`constrain_function`. Shape/leaf failures retain the original component path and array cardinality.
+Pattern matching creates no type, code or environment identity. Only the outer invocation
 view can adapt; nested callable contracts remain invariant. Failures retain their input/result
 path independently of source coordinates. Normalized contextual contracts retain exact data
 identities rather than expanding those identities into anonymous structural signatures.
@@ -325,8 +328,8 @@ registry; closure publication and canonical replay validate every lexical formal
 input position and ordinal, rejecting foreign, missing and surplus formals. Shared subgraphs are
 summarized once; exact code/result dependencies in internal compound schemas retain their identity
 without expanding their logical paths. Arrays contribute one homogeneous element schema, regardless
-of cardinality. The environment prefix is not an explicit input position. Equal signatures retain distinct formal
-identities, including separate tuple positions; arrays retain one homogeneous element descriptor.
+of cardinality. The environment prefix is not an explicit input position. Equal signatures retain
+distinct formal identities, including separate tuple positions.
 These descriptors supply neither Copy nor owned-payload evidence. Canonical compound-input keys
 retain the concrete witness at each component instead of adding those witnesses to direct input
 bindings. Raw callable data at an entire input must use the existing `ValueDefinition::Function`
@@ -361,7 +364,11 @@ component signatures retain their separate rejection boundary, including inside 
 Checking owns the
 [qualified source input scope](../nocter-checking/README.md#context-bound-callable-captures).
 `BodyTypes::closure_parameter` publishes each anonymous formal's structural signature once, before
-body checking. The completed closure signature refers to that formal descriptor. Older snapshots
+body checking; compound leaves use `closure_component` under the same registry. A signature may
+retain a reserved nominal identity without demanding its payload header. Contract matching and
+lexical-formal validation preserve that distinction, including an unstored zero-array element.
+Neither operation establishes an input value, payload layout or invocation availability.
+The completed closure signature refers to its own formal descriptors. Older snapshots
 cannot acquire the new signature, and canonical replay rejects a formal without a completed owner
 or the matching input position. Formal signature publication supplies no owned environment.
 Only ordinary input/result data within these anonymous input signatures is currently qualified.

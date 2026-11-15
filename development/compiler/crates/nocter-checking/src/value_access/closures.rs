@@ -221,30 +221,62 @@ impl Checker<'_, '_> {
             }
             Some(result)
         } else {
+            if expected.is_some_and(|contract| {
+                !matches!(
+                    contract.result,
+                    FunctionDataPattern::Data(_) | FunctionDataPattern::Function(_)
+                )
+            }) {
+                return self.reject_message(Rule::UnknownType, node, "this compound callable result constraint needs qualified returned-value inference".into(), Vec::new());
+            }
             expected.map(|contract| match &contract.result {
                 FunctionDataPattern::Data(data) => Annotation::Data(*data),
                 FunctionDataPattern::Function(pattern) => Annotation::Function((**pattern).clone()),
+                _ => unreachable!("compound result constraints were rejected"),
             })
         };
         Ok(result)
     }
-    fn selected_closure_input(
-        &self,
-        expected: Option<&FunctionPattern>,
-        index: usize,
-    ) -> Result<Option<(ValueInputOperation, Annotation)>, Failure> {
-        expected
-            .map(|contract| {
-                let input = &contract.inputs[index];
-                let annotation = match &input.data {
-                    FunctionDataPattern::Data(data) => self.contextual_type(*data)?,
-                    FunctionDataPattern::Function(pattern) => {
-                        Annotation::Function((**pattern).clone())
-                    }
-                };
-                Ok((input.operation, annotation))
-            })
-            .transpose()
+    fn closure_pattern_input(
+        &mut self,
+        pattern: &FunctionDataPattern,
+        position: usize,
+        ordinal: &mut usize,
+        syntax: SyntaxOrigin,
+    ) -> Result<nocter_model::TypeId, Failure> {
+        let data = match pattern {
+            FunctionDataPattern::Data(data) => return Ok(*data),
+            FunctionDataPattern::Function(pattern) => {
+                let data = self.closure_input_data(
+                    Annotation::Function((**pattern).clone()),
+                    position,
+                    Some(*ordinal),
+                    syntax,
+                )?;
+                *ordinal += 1;
+                return Ok(data);
+            }
+            FunctionDataPattern::Optional(payload) => {
+                let payload = self.closure_pattern_input(payload, position, ordinal, syntax)?;
+                self.types.optional(payload)
+            }
+            FunctionDataPattern::Fallible(payload) => {
+                let payload = self.closure_pattern_input(payload, position, ordinal, syntax)?;
+                self.types.fallible(payload)
+            }
+            FunctionDataPattern::Tuple(fields) => {
+                let fields = fields
+                    .iter()
+                    .map(|field| self.closure_pattern_input(field, position, ordinal, syntax))
+                    .collect::<Result<Vec<_>, _>>()?;
+                self.types.tuple(&fields)
+            }
+            FunctionDataPattern::Array { element, length } => {
+                let element = self.closure_pattern_input(element, position, ordinal, syntax)?;
+                self.types.array(element, *length)
+            }
+        };
+        data.map_err(|_| Failure::InconsistentSyntax)
     }
     pub(super) fn closure_input_data(
         &mut self,
@@ -260,9 +292,8 @@ impl Checker<'_, '_> {
             checker.reject_message(Rule::UnknownType, syntax,
             "this anonymous callable input needs established ordinary signature data; deeper callable input/result witnesses are not qualified yet".into(), Vec::new())
         };
-        let result = match pattern.result {
-            FunctionDataPattern::Data(data) => data,
-            FunctionDataPattern::Function(_) => return unsupported(self),
+        let FunctionDataPattern::Data(result) = pattern.result else {
+            return unsupported(self);
         };
         let inputs = pattern
             .inputs
@@ -272,7 +303,7 @@ impl Checker<'_, '_> {
                     data,
                     operation: input.operation,
                 }),
-                FunctionDataPattern::Function(_) => Err(()),
+                _ => Err(()),
             })
             .collect::<Result<Box<[_]>, _>>();
         let Ok(inputs) = inputs else {
@@ -316,7 +347,7 @@ impl Checker<'_, '_> {
             );
         }
         for (index, parameter) in parameters_syntax.into_iter().enumerate() {
-            let selected = self.selected_closure_input(expected, index)?;
+            let selected = expected.map(|contract| &contract.inputs[index]);
             let token = self.token(parameter)?;
             let name = self.text(token)?.to_owned();
             if self.shadows_name(&name, token)? {
@@ -324,13 +355,25 @@ impl Checker<'_, '_> {
             }
             let annotation = if let Ok(ty) = self.direct(parameter, NodeKind::Type) {
                 let annotation = self.closure_input_annotation(ty, index)?;
-                if selected
-                    .as_ref()
-                    .is_some_and(|(_, expected)| *expected != annotation && !matches!(
-                        (expected, &annotation), (Annotation::Data(actual), Annotation::Data(required))
-                            if self.program().matches_compound_input(*actual, *required)
-                    ))
-                {
+                if selected.is_some_and(|selected| match (&annotation, &selected.data) {
+                    (Annotation::Data(actual), FunctionDataPattern::Data(required)) => {
+                        *actual != *required
+                            && !self.program().matches_compound_input(*required, *actual)
+                    }
+                    (Annotation::Data(actual), pattern) => self
+                        .program()
+                        .constrain_data_pattern(*actual, pattern)
+                        .is_err(),
+                    (Annotation::Function(actual), FunctionDataPattern::Function(required)) => {
+                        actual != &**required
+                    }
+                    (Annotation::Function(actual), FunctionDataPattern::Data(required)) => {
+                        self.contextual_type(*required).map_or(true, |expected| {
+                            expected != Annotation::Function(actual.clone())
+                        })
+                    }
+                    _ => true,
+                }) {
                     return self.reject_message(
                         Rule::TypeMismatch,
                         ty,
@@ -340,8 +383,19 @@ impl Checker<'_, '_> {
                     );
                 }
                 annotation
-            } else if let Some((_, annotation)) = &selected {
-                annotation.clone()
+            } else if let Some(selected) = selected {
+                match &selected.data {
+                    FunctionDataPattern::Data(data) => self.contextual_type(*data)?,
+                    FunctionDataPattern::Function(pattern) => {
+                        Annotation::Function((**pattern).clone())
+                    }
+                    compound => Annotation::Data(self.closure_pattern_input(
+                        compound,
+                        index,
+                        &mut 0,
+                        SyntaxOrigin::Node(parameter),
+                    )?),
+                }
             } else {
                 return self.reject_message(Rule::UnknownType, parameter, "this private closure scope needs parameter data from an expected contract or explicit annotation".into(), Vec::new());
             };
@@ -357,7 +411,7 @@ impl Checker<'_, '_> {
                     };
                 if selected
                     .as_ref()
-                    .is_some_and(|(operation, _)| *operation != explicit)
+                    .is_some_and(|selected| selected.operation != explicit)
                 {
                     return self.reject_message(Rule::TypeMismatch, operation, "the explicit parameter operation does not match the selected callable contract".into(), Vec::new());
                 }
@@ -365,7 +419,7 @@ impl Checker<'_, '_> {
             } else {
                 selected
                     .as_ref()
-                    .map_or(ValueInputOperation::Read, |(operation, _)| *operation)
+                    .map_or(ValueInputOperation::Read, |selected| selected.operation)
             };
             let local = self.locals.insert(Local {
                 data,

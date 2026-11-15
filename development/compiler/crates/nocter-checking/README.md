@@ -297,8 +297,20 @@ operations in required evaluation. Stable entry-absence conditions retain the fu
 ordinal after the environment prefix, including an active runtime callback's original failure.
 Native execution qualifies both tags and actual error-owning callback environments in all three
 input modes; the callee's owned captures remain independent of the receiving closure's captures.
-Deeper callable positions within callback signatures and contextual compound annotations remain
-outside this source boundary. Callable data in unsupported carrier/header positions still rejects
+Selected local callable annotations can also infer compound input shapes. The inferred lexical
+formals are published under the new closure's own explicit input positions. Structural constraints
+never copy another function's formal IDs into that body. `contextual-compound-constraints.nct`
+qualifies take/read/edit nullable inputs, separate tuple leaves, homogeneous and empty arrays, and
+constraints on already selected named input/result contracts. Fallible inferred inputs retain
+ordinary runtime recovery and actual error cleanup; they gain no additional required-const domain.
+Nested invocation contracts remain invariant;
+only the outer function view can adapt. Empty-array constraints propagate metadata-only header
+lookup through adjacent nominal fields and callable signature data. Reserved type identities can
+match without requiring those unstored payload headers; this grants no value or invocation layout.
+Source annotation entry points reject repeated failure layers at the original marker, before a
+compound constraint can become an inconsistent body product. Deeper callable positions within callback signatures,
+contextual completion from exact compound data and anonymous compound callable result constraints
+remain outside this source boundary. Callable data in unsupported carrier/header positions still rejects
 through the local/header diagnostic owner. Parsing a constant/static callable annotation does not
 grant final serialization or runtime initialization.
 

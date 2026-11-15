@@ -10,6 +10,7 @@ mod result_components;
 mod substitution;
 pub use patterns::{
     FunctionDataPattern, FunctionPattern, FunctionPatternMismatch, FunctionPosition,
+    FunctionStructure,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -39,6 +40,14 @@ pub struct FunctionConstraint<Data = TypeId> {
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FunctionMismatch {
+    Data {
+        actual: TypeId,
+        expected: TypeId,
+    },
+    Structure {
+        actual: TypeId,
+        expected: FunctionStructure,
+    },
     NotFunction,
     Invocation {
         actual: ValueInvocation,
@@ -135,6 +144,12 @@ pub(super) fn intern_views(
 }
 
 impl Program {
+    /// Signature identity does not require a reserved nominal payload to be complete.
+    /// This proves neither an input value nor its ABI layout or invocation availability.
+    pub(super) fn signature_data_known(&self, data: TypeId) -> bool {
+        self.data_schema(data).is_some() || self.record_identity(data).is_some()
+    }
+
     /// The result template selected at this call. It constrains a result, never proves a producer.
     #[must_use]
     pub fn application_template(
@@ -352,11 +367,11 @@ impl Program {
         let PayloadSchema::Function(witness) = schema else {
             return Err(FunctionMismatch::NotFunction);
         };
-        if self.data_schema(expected.result).is_none()
+        if !self.signature_data_known(expected.result)
             || expected
                 .inputs
                 .iter()
-                .any(|input| self.data_schema(input.data).is_none())
+                .any(|input| !self.signature_data_known(input.data))
         {
             return Err(FunctionMismatch::Integrity);
         }

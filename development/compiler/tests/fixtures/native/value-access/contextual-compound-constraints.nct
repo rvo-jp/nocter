@@ -1,0 +1,56 @@
+const func first(value: i32): i32 { value + 1 }
+const func addition(value: i32): i32 { value + 7 }
+const func inspect(take value: (func(i32): i32)?): i32 {
+    let action = value^ otherwise { return 42 }
+    action(35)
+}
+const func produce(): (func(i32): i32)? { addition }
+const func calculate(): i32 {
+    let amount = 31
+    let take_input: func(take (func(i32): i32)?): i32 = (amount; value) {
+        let action = value^ otherwise { return 11 + amount }
+        action(4) + amount
+    }
+    let read_input: func((func(i32): i32)?): i32 = (amount; value) {
+        read action = value otherwise { return 11 + amount }
+        action(4) + amount
+    }
+    let edit_input: func(edit (func(i32): i32)?): i32 = (amount; value) {
+        edit action = value otherwise { return 11 + amount }
+        action(4) + amount
+    }
+    let pair_input: func(take (func(i32): i32, func(i32): i32)): i32 = (amount; pair) {
+        pair.0(0) + pair.1(3) + amount
+    }
+    let array_input: func(take [func(i32): i32; 2]): i32 = (amount; items) {
+        items[1](4) + amount
+    }
+    let empty_input: func(take [func(i32): i32; 0]): i32 = (amount; items) {
+        drop items
+        amount + 11
+    }
+    let named: func(take (func(i32): i32)?): i32 = inspect
+    let factory: func(): (func(i32): i32)? = produce
+    let product = factory() otherwise { return 0 }
+    if product(4) + amount != 42 { return 0 }
+    if take_input(none) != 42 || take_input(addition) != 42 { return 0 }
+    if read_input(none) != 42 || read_input(addition) != 42 { return 0 }
+    if edit_input(none) != 42 || edit_input(addition) != 42 { return 0 }
+    if pair_input((first, addition)) != 42 { return 0 }
+    if array_input([addition, addition]) != 42 { return 0 }
+    if empty_input([addition; 0]) != 42 { return 0 }
+    if named(none) != 42 || named(addition) != 42 { return 0 }
+    42
+}
+func contextual_failure(): i32 {
+    let amount = 31
+    let apply: func(take (func(i32): i32)!): i32 = (amount; value) {
+        let action = value^ catch reason { return 11 + amount }
+        action(4) + amount
+    }
+    apply(addition)
+}
+const ANSWER: i32 = calculate()
+func run(): i32 {
+    if calculate() == 42 && contextual_failure() == 42 { 42 } else { 0 }
+}

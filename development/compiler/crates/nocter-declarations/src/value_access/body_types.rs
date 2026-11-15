@@ -114,11 +114,11 @@ impl BodyTypes {
         {
             return Err(BodyTypeError::InvalidExtension);
         }
-        if !ordinary_data(&self.program, contract.result)
+        if !signature_data(&self.program, contract.result)
             || contract
                 .inputs
                 .iter()
-                .any(|input| !ordinary_data(&self.program, input.data))
+                .any(|input| !signature_data(&self.program, input.data))
         {
             return Err(BodyTypeError::UnsupportedCallableSignature);
         }
@@ -511,6 +511,12 @@ fn structural_component(program: &Program, data: TypeId) -> bool {
         }
     }
     true
+}
+
+// A named signature can retain a reserved nominal identity without demanding its payload.
+// Actual parameter values, invocation and ABI geometry require their independent readiness.
+fn signature_data(program: &Program, data: TypeId) -> bool {
+    program.record_identity(data).is_some() || ordinary_data(program, data)
 }
 
 fn ordinary_data(program: &Program, data: TypeId) -> bool {

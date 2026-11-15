@@ -8,6 +8,13 @@ impl Checker<'_, '_> {
         &mut self,
         contract: &CallableTypeSyntax,
     ) -> Result<FunctionPattern, Failure> {
+        self.callable_annotation_in(contract, false)
+    }
+    pub(super) fn callable_annotation_in(
+        &mut self,
+        contract: &CallableTypeSyntax,
+        metadata_only: bool,
+    ) -> Result<FunctionPattern, Failure> {
         Ok(FunctionPattern {
             invocation: contract.invocation,
             inputs: contract
@@ -16,21 +23,69 @@ impl Checker<'_, '_> {
                 .map(|(operation, ty)| {
                     Ok(FunctionInput {
                         operation: *operation,
-                        data: self.callable_data_pattern(ty)?,
+                        data: self.callable_data_pattern(ty, metadata_only)?,
                     })
                 })
                 .collect::<Result<_, Failure>>()?,
-            result: self.callable_data_pattern(&contract.result)?,
+            result: self.callable_data_pattern(&contract.result, metadata_only)?,
         })
     }
-    fn callable_data_pattern(&mut self, ty: &TypeSyntax) -> Result<FunctionDataPattern, Failure> {
+    fn callable_data_pattern(
+        &mut self,
+        ty: &TypeSyntax,
+        metadata_only: bool,
+    ) -> Result<FunctionDataPattern, Failure> {
+        if !contains_callable(ty) {
+            return self
+                .annotation_data(ty, metadata_only)
+                .map(FunctionDataPattern::Data);
+        }
+        Ok(match ty {
+            TypeSyntax::Callable(contract) => FunctionDataPattern::Function(Box::new(
+                self.callable_annotation_in(contract, metadata_only)?,
+            )),
+            TypeSyntax::Optional { payload, layers } => {
+                let mut pattern = self.callable_data_pattern(payload, metadata_only)?;
+                for _ in 0..layers.get() {
+                    pattern = FunctionDataPattern::Optional(Box::new(pattern));
+                }
+                pattern
+            }
+            TypeSyntax::Fallible { payload, .. } => FunctionDataPattern::Fallible(Box::new(
+                self.callable_data_pattern(payload, metadata_only)?,
+            )),
+            TypeSyntax::Array { element, length } => {
+                let length = self.required_length(*length)?;
+                FunctionDataPattern::Array {
+                    element: Box::new(
+                        self.callable_data_pattern(element, metadata_only || length == 0)?,
+                    ),
+                    length,
+                }
+            }
+            TypeSyntax::Tuple(fields) => FunctionDataPattern::Tuple(
+                fields
+                    .iter()
+                    .map(|field| self.callable_data_pattern(field, metadata_only))
+                    .collect::<Result<_, _>>()?,
+            ),
+            TypeSyntax::Named(_) => unreachable!("ordinary data has no callable pattern"),
+        })
+    }
+}
+
+fn contains_callable(ty: &TypeSyntax) -> bool {
+    let mut pending = vec![ty];
+    while let Some(ty) = pending.pop() {
         match ty {
-            TypeSyntax::Callable(contract) => Ok(FunctionDataPattern::Function(Box::new(
-                self.callable_annotation(contract)?,
-            ))),
-            data => self
-                .annotation_data(data, false)
-                .map(FunctionDataPattern::Data),
+            TypeSyntax::Callable(_) => return true,
+            TypeSyntax::Optional { payload, .. } | TypeSyntax::Fallible { payload, .. } => {
+                pending.push(payload);
+            }
+            TypeSyntax::Array { element, .. } => pending.push(element),
+            TypeSyntax::Tuple(fields) => pending.extend(fields),
+            TypeSyntax::Named(_) => {}
         }
     }
+    false
 }

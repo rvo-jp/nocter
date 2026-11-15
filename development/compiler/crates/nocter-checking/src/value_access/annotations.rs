@@ -87,7 +87,7 @@ impl Checker<'_, '_> {
                 let Some((position, ordinal)) = input else {
                     return self.reject(Rule::UnsupportedData, contract.head);
                 };
-                let pattern = self.callable_annotation(contract)?;
+                let pattern = self.callable_annotation_in(contract, metadata_only)?;
                 let data = self.closure_input_data(
                     Annotation::Function(pattern),
                     *position,
@@ -112,14 +112,9 @@ impl Checker<'_, '_> {
                 let payload = self.annotation_data_in(payload, metadata_only, input)?;
                 match self.types.fallible(payload) {
                     Ok(data) => Ok(data),
-                    Err(nocter_declarations::value_access::BodyTypeError::RepeatedFailure) => self
-                        .reject_message(
-                        Rule::TypeMismatch,
-                        *marker,
-                        "one uninterrupted outcome chain cannot contain multiple failure layers"
-                            .into(),
-                        Vec::new(),
-                    ),
+                    Err(nocter_declarations::value_access::BodyTypeError::RepeatedFailure) => {
+                        self.reject_repeated_failure(*marker)
+                    }
                     Err(_) => Err(Failure::InconsistentSyntax),
                 }
             }
@@ -142,9 +137,47 @@ impl Checker<'_, '_> {
             }
         }
     }
-    pub fn annotation(&mut self, node: NodeId) -> Result<Annotation, Failure> {
+    fn reject_repeated_failure<T>(&self, marker: SyntaxToken) -> Result<T, Failure> {
+        self.reject_message(
+            Rule::TypeMismatch,
+            marker,
+            "one uninterrupted outcome chain cannot contain multiple failure layers".into(),
+            Vec::new(),
+        )
+    }
+    fn annotation_syntax(
+        &self,
+        node: NodeId,
+    ) -> Result<nocter_declaration_lowering::access_declarations::TypeSyntax, Failure> {
         use nocter_declaration_lowering::access_declarations::{TypeSyntax, project_type_syntax};
-        match project_type_syntax(self.syntax(), node).map_err(|_| Failure::InconsistentSyntax)? {
+        let ty =
+            project_type_syntax(self.syntax(), node).map_err(|_| Failure::InconsistentSyntax)?;
+        let mut pending = vec![(&ty, false)];
+        while let Some((ty, failure)) = pending.pop() {
+            match ty {
+                TypeSyntax::Fallible { payload, marker } => {
+                    if failure {
+                        return self.reject_repeated_failure(*marker);
+                    }
+                    pending.push((payload, true));
+                }
+                TypeSyntax::Optional { payload, .. } => pending.push((payload, failure)),
+                TypeSyntax::Tuple(fields) => {
+                    pending.extend(fields.iter().rev().map(|field| (field, false)));
+                }
+                TypeSyntax::Array { element, .. } => pending.push((element, false)),
+                TypeSyntax::Callable(contract) => {
+                    pending.push((&contract.result, false));
+                    pending.extend(contract.inputs.iter().rev().map(|(_, data)| (data, false)));
+                }
+                TypeSyntax::Named(_) => {}
+            }
+        }
+        Ok(ty)
+    }
+    pub fn annotation(&mut self, node: NodeId) -> Result<Annotation, Failure> {
+        use nocter_declaration_lowering::access_declarations::TypeSyntax;
+        match self.annotation_syntax(node)? {
             TypeSyntax::Callable(contract) => self
                 .callable_annotation(&contract)
                 .map(Annotation::Function),
@@ -156,8 +189,8 @@ impl Checker<'_, '_> {
         node: NodeId,
         position: usize,
     ) -> Result<Annotation, Failure> {
-        use nocter_declaration_lowering::access_declarations::{TypeSyntax, project_type_syntax};
-        match project_type_syntax(self.syntax(), node).map_err(|_| Failure::InconsistentSyntax)? {
+        use nocter_declaration_lowering::access_declarations::TypeSyntax;
+        match self.annotation_syntax(node)? {
             TypeSyntax::Callable(contract) => self
                 .callable_annotation(&contract)
                 .map(Annotation::Function),
@@ -234,6 +267,18 @@ impl Checker<'_, '_> {
                             write!(message, "callable input {} -> ", index + 1)
                         }
                         FunctionPosition::Result => write!(message, "callable result -> "),
+                        FunctionPosition::Component(component) => match component {
+                            nocter_model::ValueProjection::Tuple(index) => {
+                                write!(message, "tuple field {} -> ", index + 1)
+                            }
+                            nocter_model::ValueProjection::Array(()) => {
+                                write!(message, "array element -> ")
+                            }
+                            nocter_model::ValueProjection::Variant(true) => {
+                                write!(message, "primary payload -> ")
+                            }
+                            _ => return Err(Failure::InconsistentSyntax),
+                        },
                     }
                     .expect("writing into a string");
                 }
@@ -252,6 +297,24 @@ impl Checker<'_, '_> {
     }
     fn function_mismatch_message(&self, mismatch: FunctionMismatch) -> Result<String, Failure> {
         Ok(match mismatch {
+            FunctionMismatch::Data { actual, expected } => format!(
+                "component requires {}; the selected witness supplies {}",
+                self.data_label(expected),
+                self.data_label(actual)
+            ),
+            FunctionMismatch::Structure { actual, expected } => {
+                use nocter_declarations::value_access::FunctionStructure;
+                let expected = match expected {
+                    FunctionStructure::Optional => "an optional value".to_owned(),
+                    FunctionStructure::Fallible => "a fallible value".to_owned(),
+                    FunctionStructure::Tuple(length) => format!("a tuple with {length} fields"),
+                    FunctionStructure::Array(length) => format!("an array with {length} elements"),
+                };
+                format!(
+                    "component requires {expected}; the selected witness supplies {}",
+                    self.data_label(actual)
+                )
+            }
             FunctionMismatch::NotFunction => {
                 "this annotation needs a selected callable witness".to_owned()
             }

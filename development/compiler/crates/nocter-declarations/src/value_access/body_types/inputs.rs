@@ -99,10 +99,13 @@ struct Shape {
 }
 
 fn children(program: &Program, data: TypeId) -> Option<Vec<TypeId>> {
+    // Header records cannot contain lexical input formals. Identity alone suffices here;
+    // a zero array must not require its unstored nominal element's payload header.
+    if program.record_identity(data).is_some() {
+        return Some(vec![]);
+    }
     Some(match program.data_schema(data)? {
-        PayloadSchema::Aggregate(schema) if program.record_identity(data).is_none() => {
-            schema.components().map(|field| field.data).collect()
-        }
+        PayloadSchema::Aggregate(schema) => schema.components().map(|field| field.data).collect(),
         PayloadSchema::Array(array) => vec![array.element()],
         PayloadSchema::Optional(payload) | PayloadSchema::Fallible(payload) => vec![payload],
         _ => vec![],
@@ -126,7 +129,7 @@ fn summarize(program: &Program, root: TypeId, shapes: &mut BTreeMap<TypeId, Shap
             leaves: Some(0),
             formal: false,
         };
-        if let PayloadSchema::Function(witness) = program.data_schema(data)? {
+        if let Some(PayloadSchema::Function(witness)) = program.data_schema(data) {
             shape.leaves = Some(1);
             shape.formal = matches!(witness.origin, ValueFunctionOrigin::Parameter(_));
         }

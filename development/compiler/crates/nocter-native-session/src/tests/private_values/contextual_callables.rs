@@ -2,6 +2,38 @@
 use super::*;
 
 #[test]
+fn private_contextual_compound_constraints_preserve_inferred_inputs_and_actual_error_cleanup() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-compound-constraints.nct"
+    ));
+    let runtime = source
+        .replace("const ANSWER: i32 = calculate()", "")
+        .replace("const func", "func");
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(&runtime),
+        &package.0,
+        "contextual-compound-inputs",
+        42,
+    );
+    let owned = runtime.replace(
+        "    apply(addition)",
+        "    if apply(addition) == 42 && apply(failed()) == 42 { 42 } else { 0 }",
+    );
+    assert_ne!(owned, runtime);
+    let owned = format!(
+        "primitive func create_failure(code: str, message: str): error\nprimitive func context_error(take value: error, message: str): error\nfunc failed(): (func(i32): i32)! {{ throw context_error(create_failure(\"failed\", \"leaf\"), \"outer\") }}\n{owned}"
+    );
+    execute_native_status(
+        &image(&trusted_error_machine(&owned)),
+        &package.0,
+        "contextual-compound-failure",
+        42,
+    );
+}
+
+#[test]
 fn private_captured_nullable_inputs_preserve_input_modes_and_environment_storage() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

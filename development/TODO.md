@@ -333,9 +333,15 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   canonical formal publication, received frame contexts, required evaluation and native storage.
   Share declared/lexical component identities, preserve the environment input prefix and distinct
   same-signature leaves, and reject foreign, surplus or misordered lexical formals.
-- [ ] Extend contextual compound annotations and nested callback signatures through the owning
-  annotation/declaration authority. Infer lexical input contracts without retaining another input's
-  formal identities; keep selected values' code/environment evidence and final serialization separate.
+- [x] Qualify structural callable constraints through optional/fallible, tuple and homogeneous
+  array input shapes. Infer lexical input contracts from selected local annotations, retain
+  distinct component identities and actual code/environment contexts, and diagnose mismatches
+  at the supplied value without adapting nested invocation contracts. Preserve metadata-only
+  header lookup below empty array constraints, including adjacent nominal fields and callable
+  signature data, without introducing a required-count/header cycle.
+- [ ] Extend contextual completion from already selected compound data identities and qualify
+  anonymous compound callable result constraints. Re-own lexical input formals rather than retaining
+  another input's identities; preserve returned producer evidence and final serialization gates.
 - [ ] Extend [state-conditioned const obligations](design/compiler-realization.md#state-conditioned-const-obligations)
   beyond direct stable nullable inputs with named runtime-only callbacks. Qualify changing inputs,
   unavailable captured bodies, general nested/indexed component predicates and guarded cleanup.
