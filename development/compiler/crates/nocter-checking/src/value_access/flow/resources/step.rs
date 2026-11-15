@@ -16,6 +16,14 @@ pub enum Step<P = Payload> {
         from: P,
         payload: P,
     },
+    /// Move one existing value into another represented carrier. Both contracts remain explicit;
+    /// this is not a byte-copy or a second ownership acquisition.
+    Transport {
+        source: Place,
+        destination: Holder,
+        from: P,
+        payload: P,
+    },
     /// Transfer listed component obligations into one structural value; no second value is constructed.
     Assemble {
         destination: Holder,
@@ -134,6 +142,17 @@ impl<P> Step<P> {
                 from,
                 payload,
             } => Step::AdaptFunction {
+                source: source.clone(),
+                destination: *destination,
+                from: map(PayloadSite::Source(source), from)?,
+                payload: map(PayloadSite::Destination(*destination), payload)?,
+            },
+            Self::Transport {
+                source,
+                destination,
+                from,
+                payload,
+            } => Step::Transport {
                 source: source.clone(),
                 destination: *destination,
                 from: map(PayloadSite::Source(source), from)?,

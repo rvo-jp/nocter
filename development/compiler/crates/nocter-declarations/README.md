@@ -338,6 +338,11 @@ identities remain exact. It grants no element value or Copy evidence to the elem
 independently proved empty domain and the same callable contract. One empty side cannot substitute
 a produced callable. Concrete data-instance comparison uses that rule only after both keys have
 explicit empty domains; it does not infer emptiness from missing code or a matching signature.
+`matches_guarded_transport_metadata` uses the same contract traversal for directed symbolic
+transport: an independently excluded source callable can widen beneath an outcome guard, while
+narrowing, unknown sources and differing signatures reject. This remains a symbolic contract
+check; concrete contexts and executed transfer require the
+[guarded transport contract](../../../design/compiler-realization.md#guarded-representation-transport).
 `BodyTypes::application` publishes independent applied-result templates and rebuilds their
 containing structural types in one atomic extension. These are descriptors of one original call,
 not extra invocations or concrete results. Empty arrays publish no applied element template;

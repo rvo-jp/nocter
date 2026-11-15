@@ -937,6 +937,12 @@ new destination holder. Capture and invocation-view adapters retain separate env
 and callable/destination roles. Scoped replacement carries a retired obligation at the existing
 destination and a supplied obligation at its source. Equal source schemas do not identify those
 two actual values; constant cleanup requirements consume the retired obligation.
+`Step::Transport` retains separate source and destination contracts for represented-value
+transport. The shared reclassification kernel consumes one existing owner, checks the recorded
+identities and contracts, then publishes its destination and step atomically. Function invocation
+adapters reuse that same ownership transition. Symbolic contract matching does not realize a
+conversion: ordinary source emission, concrete destination selection, evaluator effects and
+MIR/native transport remain unqualified and fail closed at their current boundaries.
 Array transfers identify the original retained element, not the
 whole array. The type-only convenience transform delegates to this same exhaustive operation
 mapping. A site grants no availability or bounds proof and does not choose an operation phase.

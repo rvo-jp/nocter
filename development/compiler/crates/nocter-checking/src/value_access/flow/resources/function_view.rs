@@ -10,19 +10,16 @@ impl State {
         payload: Payload,
         steps: &mut Vec<Step>,
     ) -> Result<()> {
-        let mut staged = self.clone();
-        let from = staged.take(program, source)?;
-        if !program.function_adapter(from.data(), payload.data()) {
-            return Err(INVALID);
-        }
-        staged.insert(destination, payload, false)?;
-        *self = staged;
-        steps.push(Step::AdaptFunction {
-            source: source.clone(),
-            destination,
-            from,
-            payload,
-        });
-        Ok(())
+        self.reclassify(program, source, destination, payload, steps, |from| {
+            if !program.function_adapter(from.data(), payload.data()) {
+                return Err(INVALID);
+            }
+            Ok(Step::AdaptFunction {
+                source: source.clone(),
+                destination,
+                from,
+                payload,
+            })
+        })
     }
 }

@@ -2,6 +2,54 @@
 use super::*;
 
 #[test]
+fn representation_transport_keeps_source_and_destination_contract_roles() {
+    let mut locals = nocter_model::ArenaBuilder::new();
+    let source = Holder::Local(locals.insert(())).place();
+    let destination = Holder::Return;
+    let step = Step::Transport {
+        source: source.clone(),
+        destination,
+        from: 7,
+        payload: 7,
+    };
+    let mut sites = Vec::new();
+    let mapped = step
+        .try_map_payloads_at::<(), _>(|site, _| {
+            sites.push(match site {
+                PayloadSite::Source(place) => (Some(place.clone()), None),
+                PayloadSite::Destination(holder) => (None, Some(holder)),
+            });
+            Ok(match site {
+                PayloadSite::Source(_) => "source",
+                PayloadSite::Destination(_) => "destination",
+            })
+        })
+        .unwrap();
+    assert_eq!(
+        sites,
+        [(Some(source.clone()), None), (None, Some(destination))]
+    );
+    assert_eq!(
+        mapped,
+        Step::Transport {
+            source: source.clone(),
+            destination,
+            from: "source",
+            payload: "destination"
+        }
+    );
+    let mut visited = 0;
+    assert_eq!(
+        step.try_map_payloads_at::<_, ()>(|_, _| {
+            visited += 1;
+            Err("source unavailable")
+        }),
+        Err("source unavailable")
+    );
+    assert_eq!(visited, 1);
+}
+
+#[test]
 fn scoped_replacement_maps_the_retired_destination_before_the_supplied_source() {
     let mut locals = nocter_model::ArenaBuilder::new();
     let destination = Holder::Local(locals.insert(())).place();

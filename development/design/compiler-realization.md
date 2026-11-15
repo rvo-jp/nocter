@@ -229,6 +229,15 @@ before widening ordinary source admission. Runtime reinterpretation and metadata
 not substitute for the required transfer. The declaration authority owns the shared structural
 comparison; consumers retain their existing ownership, presence, plan and physical-layout proofs.
 
+Keep a transport's original value source distinct from its newly represented destination in the
+shared value graph. A caller's destination constraint cannot replace a callee's original result
+descriptor when resolving the supplied value. Select destination callable contexts only from
+actual positive producers and matched consumer/result constraints; absence contributes no code or
+captured environment. Preserve exact source keys even when a destination uses a wider domain.
+Metadata joins may select a represented domain containing an excluded alternative, but cannot
+merge different positive callable contexts or turn an empty/pending witness fact into a function.
+Retain the existing work budgets, fixed-point dependencies and atomic failed-request behavior.
+
 #### Temporal Evaluator Slot Contexts
 
 A logical slot identifies storage and its existing ownership role; it does not establish one

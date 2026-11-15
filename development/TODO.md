@@ -162,6 +162,10 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   const plans and MIR/native effects before accepting `widened-outcome-results.nct`. Retain both
   representations: widening is not reinterpretation or byte-copy compatibility. Move only active
   payloads under original tags and retire the source obligation once, including actual error graphs.
+- [x] Qualify directed symbolic outcome-contract matching and a single-owner reclassification
+  record with separate source/destination payload roles, atomic failures and original identity
+  checks. Reuse the ownership transition for function adapters; keep unimplemented value transport
+  closed in metadata specialization, evaluator projection and MIR lowering.
 - [ ] Replace the generic typed-body integrity failure on unqualified outcome widening with an
   appropriate source-local cause while completing its transport path. A known unsupported source
   conversion must not be reported as unexplained compiler corruption.

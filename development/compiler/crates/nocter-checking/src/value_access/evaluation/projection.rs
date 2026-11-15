@@ -464,6 +464,7 @@ impl Builder<'_, '_> {
                     destination: plan::Place::root(self.holder(*destination)?),
                 }
             }
+            Step::Transport { .. } => return Err(INVALID),
             Step::Capture {
                 source,
                 destination,

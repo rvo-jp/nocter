@@ -106,6 +106,7 @@ fn payload<P>(step: &Step<P>) -> Option<&P> {
         Step::ReplaceReferent { retired, .. } => Some(retired),
         Step::Capture { .. }
         | Step::AdaptFunction { .. }
+        | Step::Transport { .. }
         | Step::Assemble { .. }
         | Step::Construct { .. }
         | Step::Receive { .. }

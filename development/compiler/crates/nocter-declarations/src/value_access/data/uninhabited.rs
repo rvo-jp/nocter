@@ -20,28 +20,50 @@ impl Program {
         expected: TypeId,
         uninhabited: impl Fn(crate::value_access::FunctionWitness) -> bool,
     ) -> bool {
-        let mut pending = vec![(actual, expected, false)];
+        self.matches_empty_constraints(actual, expected, uninhabited, false)
+    }
+    /// Compare directed symbolic transport contracts. Only an independently excluded source
+    /// callable beneath an outcome can enter a different compatible target contract. This
+    /// grants no concrete context, initialized value, byte-copy or executable conversion.
+    #[must_use]
+    pub fn matches_guarded_transport_metadata(
+        &self,
+        actual: TypeId,
+        expected: TypeId,
+        uninhabited: impl Fn(crate::value_access::FunctionWitness) -> bool,
+    ) -> bool {
+        self.matches_empty_constraints(actual, expected, uninhabited, true)
+    }
+    fn matches_empty_constraints(
+        &self,
+        actual: TypeId,
+        expected: TypeId,
+        uninhabited: impl Fn(crate::value_access::FunctionWitness) -> bool,
+        transport: bool,
+    ) -> bool {
+        let mut pending = vec![(actual, expected, false, false)];
         let mut seen = BTreeSet::new();
-        while let Some((actual, expected, metadata)) = pending.pop() {
+        while let Some((actual, expected, metadata, guarded)) = pending.pop() {
             let (Some(a), Some(b)) = (self.data_schema(actual), self.data_schema(expected)) else {
                 return false;
             };
             if actual == expected {
                 continue;
             }
-            if !seen.insert((actual, expected, metadata)) {
+            if !seen.insert((actual, expected, metadata, guarded)) {
                 continue;
             }
             match (a, b) {
                 (PayloadSchema::Function(a), PayloadSchema::Function(b))
                     if ((metadata && (descriptor(a.origin) || descriptor(b.origin)))
-                        || (uninhabited(a) && uninhabited(b)))
+                        || (uninhabited(a)
+                            && ((transport && guarded) || (!transport && uninhabited(b)))))
                         && self
                             .function_contract(a)
                             .zip(self.function_contract(b))
                             .is_some_and(|(a, b)| a == b) => {}
                 (PayloadSchema::Array(a), PayloadSchema::Array(b)) if a.length() == b.length() => {
-                    pending.push((a.element(), b.element(), metadata || a.is_empty()));
+                    pending.push((a.element(), b.element(), metadata || a.is_empty(), guarded));
                 }
                 (PayloadSchema::Aggregate(a), PayloadSchema::Aggregate(b)) => {
                     use crate::value_access::AggregateForm;
@@ -56,12 +78,12 @@ impl Program {
                         a.iter()
                             .copied()
                             .zip(b.iter().copied())
-                            .map(|(a, b)| (a, b, metadata)),
+                            .map(|(a, b)| (a, b, metadata, guarded)),
                     );
                 }
                 (PayloadSchema::Optional(a), PayloadSchema::Optional(b))
                 | (PayloadSchema::Fallible(a), PayloadSchema::Fallible(b)) => {
-                    pending.push((a, b, metadata));
+                    pending.push((a, b, metadata, true));
                 }
                 _ => return false,
             }

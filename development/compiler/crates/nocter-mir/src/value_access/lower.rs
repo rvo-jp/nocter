@@ -843,7 +843,9 @@ impl Builder<'_> {
                             destination,
                         });
                     }
-                    Step::ReplaceReferent { .. } => return Err(self.invalid()),
+                    Step::Transport { .. } | Step::ReplaceReferent { .. } => {
+                        return Err(self.invalid());
+                    }
                 },
             }
         }

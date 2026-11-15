@@ -16,6 +16,100 @@ fn an_uninhabited_representation_cannot_become_an_owned_payload() {
 }
 
 #[test]
+fn representation_reclassification_moves_one_owner_and_rejects_partial_publication() {
+    let queries = queries("func work(take value: error?, take occupied: error?): void {}").unwrap();
+    let query = &queries[0];
+    let program = query.program();
+    let inputs = query.body().inputs().explicit();
+    let source = Holder::Local(inputs[0].local).place();
+    let occupied = Holder::Local(inputs[1].local);
+    let owned = payload(
+        program,
+        query.body().locals().get(inputs[0].local).unwrap().data,
+    )
+    .unwrap();
+    let mut state = State::entry(query).unwrap();
+    let before = state.clone();
+    let mut steps = Vec::new();
+    assert!(
+        state
+            .reclassify(
+                program,
+                &source,
+                Holder::Return,
+                owned,
+                &mut steps,
+                |_| Err(INVALID)
+            )
+            .is_err()
+    );
+    assert_eq!(state, before);
+    assert!(steps.is_empty());
+    let record = |from| {
+        Ok(Step::Transport {
+            source: source.clone(),
+            destination: Holder::Return,
+            from,
+            payload: owned,
+        })
+    };
+    assert!(
+        state
+            .reclassify(program, &source, occupied, owned, &mut steps, |from| Ok(
+                Step::Transport {
+                    source: source.clone(),
+                    destination: occupied,
+                    from,
+                    payload: owned
+                }
+            ))
+            .is_err()
+    );
+    assert_eq!(state, before);
+    assert!(steps.is_empty());
+    for invalid in [
+        Step::Construct {
+            destination: Holder::Return,
+            payload: owned,
+        },
+        Step::Transport {
+            source: occupied.place(),
+            destination: Holder::Return,
+            from: owned,
+            payload: owned,
+        },
+    ] {
+        assert!(
+            state
+                .reclassify(program, &source, Holder::Return, owned, &mut steps, |_| Ok(
+                    invalid
+                ))
+                .is_err()
+        );
+        assert_eq!(state, before);
+        assert!(steps.is_empty());
+    }
+    state
+        .reclassify(program, &source, Holder::Return, owned, &mut steps, record)
+        .unwrap();
+    assert!(!state.contains(source.holder()));
+    assert!(state.contains(occupied));
+    assert!(state.contains(Holder::Return));
+    assert!(
+        matches!(steps.as_slice(), [Step::Transport { from, payload, .. }] if *from == owned && *payload == owned)
+    );
+    let after = state.clone();
+    let prior = steps.clone();
+    assert!(
+        state
+            .reclassify(program, &source, Holder::Return, owned, &mut steps, record)
+            .is_err()
+    );
+    assert_eq!(state, after);
+    assert_eq!(steps, prior);
+}
+
+#[test]
 fn ownership_mutants_cannot_duplicate_destroy_twice_or_escape_without_a_return_holder() {
     let queries = queries("func run(take value: error): error { value^ }\n").unwrap();
     let query = &queries[0];

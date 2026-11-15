@@ -64,6 +64,19 @@ fn empty_descriptor_matching_checks_signatures_and_preserves_inhabited_identity(
         .collect::<Vec<_>>();
     assert!(keys[0].has_same_representation(&program, &keys[1]));
     assert!(!keys[0].has_same_representation(&program, &keys[2]));
+    assert!(!program.matches_guarded_transport_metadata(leaves[0], leaves[1], empty));
+    let mut body = program.body_types(ids[0]).unwrap();
+    let outcomes = leaves
+        .iter()
+        .map(|&leaf| body.optional(leaf).unwrap())
+        .collect::<Vec<_>>();
+    let program = body.finish();
+    let source_empty = |witness: crate::value_access::FunctionWitness| matches!(witness.origin, ValueFunctionOrigin::Result(result) if result.owner == ids[0]);
+    assert!(program.matches_guarded_transport_metadata(outcomes[0], outcomes[1], source_empty));
+    assert!(!program.matches_guarded_transport_metadata(outcomes[1], outcomes[0], source_empty));
+    assert!(!program.matches_guarded_transport_metadata(outcomes[0], outcomes[2], source_empty));
+    assert!(!program.matches_guarded_transport_metadata(outcomes[0], outcomes[1], |_| false));
+    assert!(!program.matches_guarded_transport_metadata(leaves[0], leaves[1], source_empty));
     assert_eq!(program.data_copyable(data[0]), Some(true));
     assert_eq!(program.data_copyable(leaves[0]), Some(false));
 }
