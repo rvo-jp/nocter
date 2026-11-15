@@ -158,8 +158,7 @@ impl Builder<'_, '_> {
     fn slot_data(&mut self, key: Key, data: usize, storage: plan::Storage) -> Result<usize> {
         if let Some(&slot) = self.keys.get(&key) {
             let existing = self.slots.get(slot).ok_or(INVALID)?;
-            let temporal =
-                storage == plan::Storage::Owned && matches!(key, Key::Resource(Holder::Local(_)));
+            let temporal = matches!(key, Key::Resource(Holder::Local(_)));
             if existing.storage != storage || (existing.data != data && !temporal) {
                 return Err(INVALID);
             }
@@ -963,8 +962,13 @@ impl Builder<'_, '_> {
                         })
                         .collect::<Result<_>>()?;
                     let (mut before, mut completion) = self.source_contexts(&projected)?;
-                    before.extend(self.effects(transition.before_steps(), &projected.before)?);
-                    let mut after = self.effects(transition.after_steps(), &projected.after)?;
+                    before.extend(self.effects(
+                        transition.before_steps(),
+                        &projected.before,
+                        &projected.roots,
+                    )?);
+                    let mut after =
+                        self.effects(transition.after_steps(), &projected.after, &projected.roots)?;
                     after.append(&mut completion);
                     alternatives.push(plan::Alternative {
                         owned,

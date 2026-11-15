@@ -146,7 +146,7 @@ impl Ownership {
         );
         Ok(())
     }
-    pub(super) fn can_release(&self, path: &Path, partial: bool) -> bool {
+    pub(in crate::state) fn can_release(&self, path: &Path, partial: bool) -> bool {
         !self
             .holes
             .keys()

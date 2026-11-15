@@ -173,8 +173,16 @@ fn owner_registration_retains_one_slot_and_never_relabels_its_initial_context() 
             .slot_data(key, second, plan::Storage::Alias)
             .is_err()
     );
+    let key = Key::Resource(Holder::Local(alias));
+    let slot = builder.slot_data(key, first, plan::Storage::Alias).unwrap();
+    assert_eq!(
+        builder
+            .slot_data(key, second, plan::Storage::Alias)
+            .unwrap(),
+        slot
+    );
+    assert_eq!(builder.slots[slot].data, first);
     for (key, storage) in [
-        (Key::Resource(Holder::Local(alias)), plan::Storage::Alias),
         (
             Key::Resource(Holder::Expression(expression)),
             plan::Storage::Owned,

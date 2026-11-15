@@ -20,13 +20,18 @@ const func calculate(): i32 {
     var pair = (wrap(addition(20)), 2)
     read sibling = pair.1
     let first = pair.0(20)
-    pair.0 = wrap(subtraction(50))
-    let second = pair.0(8)
+    edit selected = pair.0
+    selected = wrap(subtraction(50))
+    let second = selected(8)
+    selected = wrap(addition(1))
+    let intermediate = selected(41)
+    selected = wrap(subtraction(50))
+    let restored = selected(8)
     let saved = pair.0^
     pair.0 = wrap(addition(1))
     let third = pair.0(41)
     let preserved = saved(8)
-    if first == 40 && second == 42 && third == 42 && preserved == 42 && sibling == 2 { 42 } else { 0 }
+    if first == 40 && second == 42 && intermediate == 42 && restored == 42 && third == 42 && preserved == 42 && sibling == 2 { 42 } else { 0 }
 }
 
 const ANSWER: i32 = calculate()

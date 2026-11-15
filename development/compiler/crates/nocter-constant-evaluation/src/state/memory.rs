@@ -69,12 +69,12 @@ impl Ord for Path {
         (**self).cmp(&**other)
     }
 }
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub(super) enum Root {
     Local { frame: usize, slot: usize },
     Static(nocter_model::ValueStatic),
 }
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq)]
 pub(super) struct Address {
     pub root: Root,
     pub fields: Path,
@@ -93,7 +93,7 @@ pub(super) struct Frame {
 impl Frame {
     pub fn set_context(&mut self, storage: &Storage, slot: usize, data: usize) -> Result<()> {
         let initial = self.slots.get(slot).ok_or(Rule::InvalidPlan)?;
-        if initial.storage != SlotStorage::Owned {
+        if initial.storage == SlotStorage::Auxiliary {
             return Err(Rule::InvalidPlan);
         }
         if initial.data == data {

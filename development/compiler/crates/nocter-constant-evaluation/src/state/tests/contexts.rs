@@ -2,6 +2,7 @@
 use super::*;
 mod components;
 mod joins;
+mod referents;
 
 #[derive(Clone, Copy)]
 enum Selection {

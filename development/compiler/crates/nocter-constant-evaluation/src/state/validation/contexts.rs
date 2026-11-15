@@ -15,8 +15,21 @@ pub(super) fn effect(plan: &Plan, contexts: &mut Contexts, effect: &Effect) -> R
         Effect::MoveRoot {
             destination, data, ..
         } => (destination.slot, *data),
+        Effect::ReplaceReferent {
+            destination,
+            owner,
+            owner_data,
+            view_data,
+            ..
+        } => {
+            set(plan, contexts, owner.slot, *owner_data)?;
+            return set(plan, contexts, destination.slot, *view_data);
+        }
         _ => return Ok(()),
     };
+    set(plan, contexts, destination, data)
+}
+fn set(plan: &Plan, contexts: &mut Contexts, destination: usize, data: usize) -> Result<()> {
     let initial = plan.slots.get(destination).ok_or(INVALID)?.data;
     let unchanged = contexts
         .get(&destination)

@@ -196,6 +196,15 @@ pub enum Effect {
         source: Place,
         destination: Place,
     },
+    /// Replace through an existing alias with a matched owning selection. Execution verifies
+    /// address equality; the two resulting contracts do not create another owner or reference.
+    ReplaceReferent {
+        source: Place,
+        destination: Place,
+        owner: Place,
+        owner_data: usize,
+        view_data: usize,
+    },
     /// Replace a whole owned root and retain the supplied representation for subsequent uses.
     /// The source must carry this exact data; this is not a reinterpretation of the old value.
     ReplaceRoot {

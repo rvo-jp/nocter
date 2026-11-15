@@ -561,6 +561,13 @@ impl<'a, 'budget> Executor<'a, 'budget> {
     fn effect(&mut self, frame: usize, effect: &Effect) -> Result<()> {
         match effect {
             Effect::Context { .. } => Err(Rule::InvalidPlan),
+            Effect::ReplaceReferent {
+                source,
+                destination,
+                owner,
+                owner_data,
+                view_data,
+            } => self.replace_referent(frame, source, destination, owner, *owner_data, *view_data),
             Effect::ReplaceRoot {
                 source,
                 destination,
@@ -633,6 +640,36 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                 fields,
             } => self.assemble(frame, *destination, fields),
         }
+    }
+    fn replace_referent(
+        &mut self,
+        frame: usize,
+        source: &Place,
+        destination: &Place,
+        owner: &Place,
+        owner_data: usize,
+        view_data: usize,
+    ) -> Result<()> {
+        let target = self.memory.address(&self.program, frame, destination)?;
+        if target != self.memory.address(&self.program, frame, owner)? {
+            return Err(Rule::InvalidPlan);
+        }
+        if self.memory.frames[frame]
+            .owned
+            .get(&owner.slot)
+            .is_none_or(|state| !state.can_release(&target.fields, false))
+        {
+            return Err(Rule::InvalidPlan);
+        }
+        // Require the existing selected value before changing either representation.
+        // The receipt keeps its owner's initialized state and the alias's exact address.
+        self.memory.read(&target)?;
+        let source = self.memory.address(&self.program, frame, source)?;
+        let value = self.memory.read(&source)?;
+        self.memory.frames[frame].set_context(&self.memory.storage, owner.slot, owner_data)?;
+        self.memory.frames[frame].set_context(&self.memory.storage, destination.slot, view_data)?;
+        self.memory.retire(&source, false)?;
+        self.memory.store(&target, value)
     }
     fn assemble(
         &mut self,

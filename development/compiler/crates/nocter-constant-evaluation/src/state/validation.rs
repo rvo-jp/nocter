@@ -646,16 +646,9 @@ fn check_effect(program: &Program, plan: &View<'_>, effect: &Effect) -> Result<(
     let owned = |p: &Place| owned_place(program, plan, p);
     match effect {
         Effect::Context { .. } => return Err(INVALID),
-        Effect::ReplaceRoot {
-            source,
-            destination,
-            data: received,
-        } => check_root_receipt(program, plan, source, &Place::root(*destination), *received)?,
-        Effect::MoveRoot {
-            source,
-            destination,
-            data: received,
-        } => check_root_receipt(program, plan, source, destination, *received)?,
+        Effect::ReplaceRoot { .. } | Effect::MoveRoot { .. } | Effect::ReplaceReferent { .. } => {
+            check_typed_receipt(program, plan, effect)?;
+        }
         Effect::MoveArrayElement {
             array,
             selected,
@@ -735,6 +728,57 @@ fn check_effect(program: &Program, plan: &View<'_>, effect: &Effect) -> Result<(
     Ok(())
 }
 
+fn check_typed_receipt(program: &Program, plan: &View<'_>, effect: &Effect) -> Result<()> {
+    match effect {
+        Effect::ReplaceRoot {
+            source,
+            destination,
+            data: received,
+        } => check_root_receipt(program, plan, source, &Place::root(*destination), *received),
+        Effect::MoveRoot {
+            source,
+            destination,
+            data: received,
+        } => check_root_receipt(program, plan, source, destination, *received),
+        Effect::ReplaceReferent {
+            source,
+            destination,
+            owner,
+            owner_data,
+            view_data,
+        } => check_referent_receipt(
+            program,
+            plan,
+            source,
+            destination,
+            owner,
+            *owner_data,
+            *view_data,
+        ),
+        _ => Err(INVALID),
+    }
+}
+
+fn check_referent_receipt(
+    program: &Program,
+    plan: &View<'_>,
+    source: &Place,
+    destination: &Place,
+    owner: &Place,
+    owner_data: usize,
+    view_data: usize,
+) -> Result<()> {
+    check_root_receipt(program, plan, source, owner, owner_data)?;
+    if definition(plan, destination.slot)?.storage != Storage::Alias
+        || source.slot == destination.slot
+        || place(program, plan, destination)? != owned_place(program, plan, owner)?
+        || owned_place(program, plan, source)?
+            != project_data(program, &plan.slots, destination, view_data)?
+    {
+        return Err(INVALID);
+    }
+    check_receipt_context(program, plan, destination, view_data)
+}
 fn check_root_receipt(
     program: &Program,
     plan: &View<'_>,
@@ -750,6 +794,14 @@ fn check_root_receipt(
     {
         return Err(INVALID);
     }
+    check_receipt_context(program, plan, destination, received)
+}
+fn check_receipt_context(
+    program: &Program,
+    plan: &View<'_>,
+    destination: &Place,
+    received: usize,
+) -> Result<()> {
     let initial = definition(plan, destination.slot)?.data;
     if let Some(candidates) = plan.slots.contexts.get(&destination.slot) {
         for &before in candidates.iter() {

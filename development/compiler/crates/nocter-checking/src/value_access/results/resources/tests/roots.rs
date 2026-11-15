@@ -1,6 +1,12 @@
 //! Partial roots retain their original container context without creating a value or owner.
 use super::*;
 
+fn representation(program: &Program, key: &DataInstanceKey) -> DataInstanceKey {
+    key.function_representation(program)
+        .unwrap()
+        .unwrap_or_else(|| key.clone())
+}
+
 fn fixture() -> (Unit, CodeInstanceKey) {
     let source = ValueSourceFixture::new(
         "func first(): i32 { 42 }\nfunc work(take action: func(): i32): i32 { let pair = (action^, 1)\nlet selected = pair.0^\nselected() + pair.1 - 1 }",
@@ -51,11 +57,6 @@ fn partial_roots_preserve_operations_and_match_the_selected_callable_representat
         .chain(projection.after_steps_with_roots(&after).unwrap())
         .collect::<Vec<_>>();
     let program = unit.program();
-    let representation = |key: &DataInstanceKey| {
-        key.function_representation(program)
-            .unwrap()
-            .unwrap_or_else(|| key.clone())
-    };
     let mut covered = 0;
     for (original, selected) in before.iter().chain(&after).zip(&projected) {
         assert_eq!(
@@ -80,7 +81,10 @@ fn partial_roots_preserve_operations_and_match_the_selected_callable_representat
             .unwrap();
         // A formal leaf retains its semantic type; its selected callable has the named key.
         assert_ne!(leaf.data(), payload.instance().data());
-        assert_eq!(representation(&leaf), representation(payload.instance()));
+        assert_eq!(
+            representation(program, &leaf),
+            representation(program, payload.instance())
+        );
         assert!(selected.root(&Holder::Return.place()).is_none());
         covered += 1;
     }
@@ -134,12 +138,8 @@ fn partial_destination_contracts_retain_the_original_parent_and_selected_receipt
         .unwrap();
     let frame = program.bind_code(code.into(), []).unwrap();
     let body = unit.code_body(frame.code()).unwrap();
-    let representation = |key: &DataInstanceKey| {
-        key.function_representation(program)
-            .unwrap()
-            .unwrap_or_else(|| key.clone())
-    };
     let mut covered = 0;
+    let mut alias_covered = 0;
     for (point, block) in body.graph().points().iter() {
         for action in 0..block.actions.len() {
             let at = Location { point, action };
@@ -156,6 +156,15 @@ fn partial_destination_contracts_retain_the_original_parent_and_selected_receipt
                             .unwrap(),
                     );
                 for step in selected {
+                    if let ResourceStep::ReplaceReferent {
+                        destination,
+                        payload,
+                        ..
+                    } = step.operation()
+                    {
+                        assert_alias_carriers(&mut projection, program, destination, payload);
+                        alias_covered += 1;
+                    }
                     let Some(roots) = step.destination_roots() else {
                         continue;
                     };
@@ -182,17 +191,57 @@ fn partial_destination_contracts_retain_the_original_parent_and_selected_receipt
                     );
                     assert_eq!(
                         representation(
+                            program,
                             &roots
                                 .after()
                                 .component(program, ValueField::Tuple(0))
                                 .unwrap()
                         ),
-                        representation(payload.instance())
+                        representation(program, payload.instance())
                     );
                     covered += 1;
                 }
             }
         }
     }
-    assert_eq!(covered, 2);
+    assert_eq!(covered, 1);
+    assert_eq!(alias_covered, 3);
+}
+
+fn assert_alias_carriers(
+    projection: &mut ResourceDataProjection<'_, '_>,
+    program: &Program,
+    destination: &Place,
+    payload: &Payload,
+) {
+    let (_, carriers) = projection.replacement_carriers(destination).unwrap();
+    let [before] = carriers.before() else {
+        panic!("one original owner");
+    };
+    let [after] = carriers.after().unwrap() else {
+        panic!("one completed owner");
+    };
+    assert_eq!(before.selection().slot, after.selection().slot);
+    assert_eq!(before.selection().path, after.selection().path);
+    assert_ne!(before.instance(), after.instance());
+    assert_eq!(
+        before
+            .instance()
+            .component(program, ValueField::Tuple(1))
+            .unwrap(),
+        after
+            .instance()
+            .component(program, ValueField::Tuple(1))
+            .unwrap()
+    );
+    assert_eq!(
+        representation(
+            program,
+            &after
+                .instance()
+                .component(program, ValueField::Tuple(0))
+                .unwrap()
+        ),
+        representation(program, payload.instance())
+    );
 }

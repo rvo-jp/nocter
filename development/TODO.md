@@ -24,7 +24,7 @@ The [checking](compiler/crates/nocter-checking/README.md) and
 [target-program](compiler/crates/nocter-target-program/README.md) owners describe the implemented
 canonical metadata, original source-definition queries and ordered lifecycle specialization.
 
-Next qualify context-changing updates through local edit aliases and edit input boundaries,
+Next qualify context-changing updates through evaluated local edit aliases and edit input boundaries,
 using original entry/completion channels. Continue closing partial carrier-root selection and context-changing evaluator slots against
 the exact per-value keys. The component owners above describe covered ordinary operand/definition,
 evaluator slot metadata, shared body-channel metadata, invocation, body-ABI, lifecycle and storage scope.
@@ -116,6 +116,10 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   with independent per-element state, original bounds effects and actual remaining-owner cleanup.
 - [x] Qualify compound edit preparations through produced tuples/arrays and explicit owning
   transfers, preserving temporary completion, source retirement and actual post-call cleanup.
+- [x] Qualify structural context-changing partial writes through local edit aliases with one
+  owning local carrier, preserving sibling views, subsequent reads and actual cleanup contracts.
+- [ ] Extend local alias replacement receipts to evaluated singleton-array components, preserving
+  saved addresses, original bounds effects and actual containing-owner/cleanup metadata.
 
 Qualify the same lexical closure with different captured callbacks before and after forwarding
 it with another instance, including safe/unsafe ordinary source, conditional const admission,

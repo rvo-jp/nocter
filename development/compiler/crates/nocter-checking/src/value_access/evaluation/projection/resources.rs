@@ -11,10 +11,10 @@ use nocter_declarations::value_access::DataInstanceKey;
 pub(super) struct Projected {
     pub(super) before: Vec<crate::value_access::ResourceDataStep>,
     pub(super) after: Vec<crate::value_access::ResourceDataStep>,
-    roots: Vec<Roots>,
+    pub(super) roots: Vec<Roots>,
 }
-struct Roots {
-    holder: Holder,
+pub(super) struct Roots {
+    destination: crate::value_access::flow::resources::Place,
     before: DataInstanceKey,
     after: DataInstanceKey,
     carriers: crate::value_access::ReferentCarrierContracts,
@@ -68,7 +68,7 @@ impl Builder<'_, '_> {
                             let (target, carriers) =
                                 projection.replacement_carriers(destination)?;
                             Ok(Roots {
-                                holder: destination.holder(),
+                                destination: destination.clone(),
                                 before: self.values.root(at, target).ok_or(INVALID)?.clone(),
                                 after: self.values.root_after(at, target).ok_or(INVALID)?.clone(),
                                 carriers,
@@ -78,12 +78,12 @@ impl Builder<'_, '_> {
                     let before = projection.steps_with_roots(transition.before_steps())?;
                     let after = projection.after_steps_with_roots(transition.after_steps())?;
                     drop(projection);
-                    // Reference views remain fixed. Owning-local metadata may observe multiple
-                    // contexts, but source-boundary constraints must still match the actual plan.
+                    // Locals may observe multiple referent contexts, but source-boundary
+                    // constraints and actual receipts must still match the plan's exact phases.
                     // Registration supplies no initialized value or enclosing-allocation geometry.
                     for root in &roots {
-                        self.register_holder(root.holder, &root.before)?;
-                        self.register_holder(root.holder, &root.after)?;
+                        self.register_holder(root.destination.holder(), &root.before)?;
+                        self.register_holder(root.destination.holder(), &root.after)?;
                         for carrier in root
                             .carriers
                             .before()
@@ -137,8 +137,8 @@ impl Builder<'_, '_> {
         let mut entry = Vec::new();
         let mut completion = Vec::new();
         for root in &projected.roots {
-            entry.push(self.root_context(root.holder, &root.before)?);
-            completion.push(self.root_context(root.holder, &root.after)?);
+            entry.push(self.root_context(root.destination.holder(), &root.before)?);
+            completion.push(self.root_context(root.destination.holder(), &root.after)?);
             for carrier in root.carriers.before() {
                 entry.push(
                     self.root_context(
@@ -162,6 +162,7 @@ impl Builder<'_, '_> {
         &mut self,
         original: &[Step],
         projected: &[crate::value_access::ResourceDataStep],
+        roots: &[Roots],
     ) -> Result<Vec<plan::Effect>> {
         if original.len() != projected.len() {
             return Err(INVALID);
@@ -239,6 +240,14 @@ impl Builder<'_, '_> {
                 ..
             } = projected
             {
+                let mut matched = roots.iter().filter(|root| root.destination == *destination);
+                let root = matched.next().ok_or(INVALID)?;
+                if matched.next().is_some() {
+                    return Err(INVALID);
+                }
+                if root.before != root.after {
+                    effect = self.referent_receipt(&effect, root)?;
+                }
                 after.push(plan::Effect::Context {
                     place: self.resource(destination)?,
                     data: self
@@ -251,6 +260,63 @@ impl Builder<'_, '_> {
             effects.extend(after);
         }
         Ok(effects)
+    }
+    fn referent_receipt(&mut self, effect: &plan::Effect, root: &Roots) -> Result<plan::Effect> {
+        let plan::Effect::Replace {
+            source,
+            destination,
+        } = effect
+        else {
+            return Err(INVALID);
+        };
+        let [before] = root.carriers.before() else {
+            return Err(INVALID);
+        };
+        let [after] = root.carriers.after().ok_or(INVALID)? else {
+            return Err(INVALID);
+        };
+        if before.selection().slot != after.selection().slot
+            || before.selection().path != after.selection().path
+        {
+            return Err(INVALID);
+        }
+        let owner = source_holder(before.selection().slot)?;
+        if self.holder_contract(owner)?.1 != plan::Storage::Owned {
+            return Err(INVALID);
+        }
+        // These original carrier coordinates are structural. Evaluated array coordinates need
+        // their retained numeric receipt; never manufacture an index from metadata's unit key.
+        let fields = before
+            .selection()
+            .path
+            .fields()
+            .iter()
+            .map(|field| {
+                Ok(plan::Projection::Field(match *field {
+                    nocter_model::ValueProjection::Record(id) => {
+                        self.component_position(nocter_model::ValueField::Record(id))?
+                    }
+                    nocter_model::ValueProjection::Tuple(index) => index,
+                    nocter_model::ValueProjection::Variant(primary) => usize::from(!primary),
+                    nocter_model::ValueProjection::Array(()) => return Err(INVALID),
+                }))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        Ok(plan::Effect::ReplaceReferent {
+            source: source.clone(),
+            destination: destination.clone(),
+            owner: plan::Place {
+                slot: self.holder(owner)?,
+                fields: fields
+                    .into_iter()
+                    .chain(destination.fields.iter().copied())
+                    .collect(),
+            },
+            owner_data: self
+                .types
+                .get_instance(self.program, after.instance().clone())?,
+            view_data: self.types.get_instance(self.program, root.after.clone())?,
+        })
     }
     fn resource_data(&mut self, step: &Step<InstantiatedPayload>) -> Result<()> {
         step.try_map_payloads_at::<super::Failure, ()>(|site, payload| {

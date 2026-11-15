@@ -201,8 +201,14 @@ a partial destination requires its existing container owner and an exactly retir
 The selected source type must match the new destination component, while every unselected
 component retains its exact type. Compatibility traverses the selected path iteratively and
 does not expand array cardinality. Retirement and receipt remain separate
-ordered effects. Storage roles and owning-slot identities remain unchanged. Ordered validation
-propagates representation contexts through operations and control edges. Different incoming
+ordered effects. Storage roles and owning-slot identities remain unchanged.
+`ReplaceReferent` additionally carries a matched owning selection and the resulting owner/view
+contracts. The selected source must match both received projections, and unselected components of
+each contract remain exact. Execution checks canonical address equality and initialized owning
+coverage before updating the existing value and that alias's view. Other saved aliases retain their
+own contracts; equal payload geometry cannot repair a stale callable view. The receipt creates no
+owner or reference. Storage failures release both contextual entries with the invocation frame.
+Ordered validation propagates representation contexts through operations and control edges. Different incoming
 contexts, including ownership-guarded action outputs, retain the union of their existing data-type
 identities. A selected component can close when every candidate projects to the same data type;
 each candidate must also satisfy every field and evaluated-index bound on the path. Different
@@ -225,7 +231,7 @@ They neither change representation nor prove a live value, access or ownership. 
 them in the common sequence; they add no execution step or payload operation.
 
 These independent closed-plan cases grant no new source admission. Checking's ordinary projection
-retains exact entry metadata while registering possible owning-local contexts, then emits ordered
+retains exact entry metadata while registering possible owning/referent contexts for locals, then emits ordered
 receipts and constraints from the original concrete resource steps. Registration alone cannot
 authorize a context change. General changing partial writes, external inputs/aliases, correlated alternative
 contexts and native address/geometry coherence remain obligations of the

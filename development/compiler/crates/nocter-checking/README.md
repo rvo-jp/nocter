@@ -1805,8 +1805,13 @@ reference survives the replacement. A still-used read reference prevents the ove
 graph cleanup across those changes. These whole-owner cases do not establish stable offsets
 for retained component references, partial writes, joins or changing backedges.
 `contextual-component-replacement.nct` additionally qualifies same-geometry partial replacement
-and restoration while a disjoint sibling reference survives. Calls and a saved transferred owner
-retain their actual contexts in required and native execution. The matching error fixture executes
+and restoration while a disjoint sibling reference survives, including repeated writes through
+one local edit alias. Original carrier selections match its actual containing owner. The evaluator
+retains the alias's entry view and changes its current referent contract only with an actual checked
+receipt, validating both the owning container and the alias without adding ownership state.
+This projection requires one owning local carrier and structural component coordinates; evaluated
+array coordinates still require their retained numeric evidence. Calls and a saved transferred
+owner retain their actual contexts in required and native execution. The matching error fixture executes
 retired, saved and received graph cleanup. A native negative case changes the initial environment
 size and must reject shifted sibling geometry before an executable can be published. General
 relocation and changing offsets remain unqualified.

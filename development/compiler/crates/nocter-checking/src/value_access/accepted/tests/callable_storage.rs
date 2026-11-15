@@ -4,6 +4,50 @@ use super::*;
 use nocter_constant_evaluation::state::Value;
 
 #[test]
+fn contextual_component_alias_writes_preserve_the_actual_containing_owner() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-component-replacement.nct"
+    ));
+    let runtime = source
+        .replace("const ANSWER: i32 = calculate()", "")
+        .replace("if ANSWER == 42 { calculate() } else { 0 }", "calculate()")
+        .replace("const func", "func");
+    accepted(&runtime);
+    assert_eq!(answer(source, "ANSWER"), Value::integer(42));
+}
+
+#[test]
+fn contextual_alias_writes_require_update_authority_and_exclusive_access() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-component-replacement.nct"
+    ));
+    for (index, changed) in [
+        source.replace("edit selected =", "read selected ="),
+        source.replace(
+            "let second = selected(8)",
+            "read held = selected\nselected = wrap(addition(1))\nlet second = held(8)",
+        ),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        assert_ne!(changed, source);
+        let (sources, tree) = input(&changed);
+        let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+        assert!(
+            matches!(
+                (index, &failure),
+                (0, SourceFailure::Checking(Failure::Body { .. }))
+                    | (1, SourceFailure::Checking(Failure::Flow { .. }))
+            ),
+            "{failure:?}"
+        );
+    }
+}
+
+#[test]
 fn mutable_array_inputs_preserve_selected_callback_state_across_forwarded_calls() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
