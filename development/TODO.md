@@ -157,6 +157,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   Qualify original tag guards and rejected positive uses before opening producer-less source results.
 - [x] Qualify excluded-outcome runtime descriptors, canonical target interning and physical layouts
   without a positive child or field geometry. Reject empty roots/slots and construction of excluded tags.
+- [x] Extend the declaration-owned data-instance fold to validated callable domains, preserving
+  typed leaf keys, empty alternatives, shared schemas and positive witness checks. Reuse that one
+  fold for ordinary witness instantiation instead of adding a checking-only structural normalizer.
 - [ ] Eliminate tags for singleton represented outcomes after qualifying ABI, addressability,
   guarded transport and context-changing storage. Derive this from the canonical representation
   domain rather than a second source-presence analysis or a geometry-only assumption.

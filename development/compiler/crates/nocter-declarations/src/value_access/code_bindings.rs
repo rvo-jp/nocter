@@ -456,8 +456,9 @@ impl Program {
             ConcreteWitness::with_invocation,
             |witness| self.validate_concrete(witness),
         )?;
-        self.build_data_instance(data, |selected| {
+        self.build_data_instance(data, |_, selected| {
             self.resolve_bindings(selected, |parameter| witnesses.get(&parameter))
+                .map(Some)
         })
     }
     /// Bind exactly the free callable dependencies of one frozen owned environment.

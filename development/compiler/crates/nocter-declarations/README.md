@@ -466,6 +466,15 @@ This metadata capability supplies no source admission or initialization/tag proo
 inactive-alternative layout, lifecycle transport and ordinary producer-less callable outcomes
 require separate integrated qualification.
 
+`instantiate_callable_domains` uses the same iterative data-instance fold as ordinary witness
+instantiation. Its resolver supplies a concrete callable or explicitly selects an empty domain;
+missing evidence must remain an error. The fold retains each requested semantic leaf identity
+and checks positive code, signatures, invocation views and environments through the ordinary
+function constructor. Shared schemas resolve once and array cardinality never expands the graph.
+This descriptor-level resolver is not an occurrence selector: distinct values with the same
+lexical callable type still require their original source/component contexts. It grants no
+owner, source acceptance, active-variant proof or payload materialization.
+
 `CodeTemplateKey` retains concrete or validated outer-parameter witnesses for condition composition.
 `code_template` builds a code's identity parameter frame; `bind_template` uses the same exact
 coverage, signature and view-normalization routine as concrete `bind_code`. Its one-step `resolve`

@@ -148,7 +148,7 @@ impl Program {
     pub(in super::super) fn build_data_instance(
         &self,
         root: TypeId,
-        resolve: impl Fn(FunctionWitness) -> Result<ConcreteWitness, CodeBindingError>,
+        resolve: impl Fn(TypeId, FunctionWitness) -> Result<Option<ConcreteWitness>, CodeBindingError>,
     ) -> Result<DataInstanceKey, CodeBindingError> {
         let mut pending = vec![(root, false)];
         let mut active = BTreeSet::new();
@@ -161,8 +161,11 @@ impl Program {
                 .data_schema(data)
                 .ok_or(CodeBindingError::InvalidWitness)?;
             if let PayloadSchema::Function(witness) = schema {
-                let actual = resolve(witness)?;
-                completed.insert(data, self.instantiate_function(data, &actual)?);
+                let key = match resolve(data, witness)? {
+                    Some(actual) => self.instantiate_function(data, &actual)?,
+                    None => self.instantiate_uninhabited_data(data)?,
+                };
+                completed.insert(data, key);
                 continue;
             }
             let fields = self.instance_fields(data)?;

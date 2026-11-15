@@ -4,6 +4,84 @@ use crate::value_access::{DataInstanceKey, InstanceSchema};
 use nocter_model::ValueField;
 
 #[test]
+fn domain_instantiation_shares_the_canonical_fold_without_turning_missing_evidence_into_emptiness()
+{
+    let (headers, [run, _, plain, wrong, factory]) = headers();
+    let parameter = headers.codes().get(run).unwrap().parameters()[0].into();
+    let formal = headers
+        .function_data(FunctionWitness {
+            origin: ValueFunctionOrigin::Parameter(parameter),
+            invocation: nocter_model::ValueInvocation::Read,
+        })
+        .unwrap();
+    let pending = headers.codes().get(factory).unwrap().result();
+    let mut body = headers.body_types(run).unwrap();
+    let optional = body.optional(pending).unwrap();
+    let array = body.array(formal, u64::MAX).unwrap();
+    let empty = body.array(pending, 0).unwrap();
+    let root = body.tuple(&[optional, array, empty, formal]).unwrap();
+    let program = body.finish();
+    let callback = program.concrete_witness(plain.into()).unwrap();
+    let visits = std::cell::RefCell::new(std::collections::BTreeSet::new());
+    let result = program
+        .instantiate_callable_domains(root, |data, witness| {
+            assert!(
+                visits.borrow_mut().insert(data),
+                "shared schema leaves resolve once"
+            );
+            match witness.origin {
+                ValueFunctionOrigin::Parameter(selected) if selected == parameter => {
+                    Ok(Some(callback.clone()))
+                }
+                ValueFunctionOrigin::Result(_) => Ok(None),
+                _ => Err(CodeBindingError::InvalidWitness),
+            }
+        })
+        .unwrap();
+    assert_eq!(visits.into_inner().len(), 2);
+    assert_eq!(result.data(), root);
+    assert!(!result.is_uninhabited());
+    assert!(
+        result
+            .component(&program, ValueField::Tuple(0))
+            .unwrap()
+            .component(&program, ValueField::Variant(true))
+            .unwrap()
+            .is_uninhabited()
+    );
+    let positive = result
+        .component(&program, ValueField::Tuple(1))
+        .unwrap()
+        .component(&program, ValueField::Array(u64::MAX - 1))
+        .unwrap();
+    assert!(
+        matches!(positive.schema(&program), Ok(InstanceSchema::Function(actual)) if actual == callback)
+    );
+    assert!(
+        program
+            .instantiate_callable_domains(root, |_, _| Err(CodeBindingError::InvalidWitness))
+            .is_err()
+    );
+    let wrong = program.concrete_witness(wrong.into()).unwrap();
+    assert!(
+        program
+            .instantiate_callable_domains(formal, |_, _| Ok(Some(wrong.clone())))
+            .is_err()
+    );
+    let retry = program
+        .instantiate_callable_domains(root, |data, _| {
+            if data == pending {
+                Ok(None)
+            } else {
+                Ok(Some(callback.clone()))
+            }
+        })
+        .unwrap();
+    assert_eq!(retry, result);
+    assert!(program.instantiate_closed_data(root).is_err());
+}
+
+#[test]
 fn empty_domains_preserve_types_without_providing_callable_code_or_a_positive_component() {
     let (program, [_, _, plain, _, factory]) = headers();
     let pending = program.codes().get(factory).unwrap().result();

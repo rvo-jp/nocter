@@ -149,6 +149,22 @@ impl DataInstanceKey {
     }
 }
 impl Program {
+    /// Instantiate one structural domain from callable-leaf witnesses or explicit empty domains.
+    /// `None` selects an empty domain; unresolved metadata must return an error. The fold retains
+    /// each requested semantic identity and validates every supplied witness's code and contract.
+    /// This grants no source receipt, ownership, layout or executable admission.
+    /// # Errors
+    /// Rejects unknown/cyclic schemas, missing dependencies and invalid witnesses.
+    pub fn instantiate_callable_domains(
+        &self,
+        data: TypeId,
+        resolve: impl Fn(
+            TypeId,
+            super::FunctionWitness,
+        ) -> Result<Option<ConcreteWitness>, CodeBindingError>,
+    ) -> Result<DataInstanceKey, CodeBindingError> {
+        self.build_data_instance(data, resolve)
+    }
     /// Select the empty represented domain of an existing semantic descriptor.
     /// This is metadata only: it creates no value, concrete callable, owner or target layout.
     /// # Errors
