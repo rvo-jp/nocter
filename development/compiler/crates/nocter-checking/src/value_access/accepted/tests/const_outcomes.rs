@@ -3,6 +3,45 @@ use crate::value_access::accepted::{Failure, SourceFailure, SourceUnit};
 use nocter_constant_evaluation::state::Value as Datum;
 
 #[test]
+fn received_callable_assertions_preserve_the_original_trap() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-outcome-assertions.nct"
+    ));
+    for (parameter, binding, site) in [
+        ("take value", "let action = value^!", "value^!"),
+        ("value", "read action = value!", "value!"),
+        ("edit value", "edit action = value!", "value!"),
+    ] {
+        let present = source
+            .replace("take value", parameter)
+            .replace("let action = value^!", binding);
+        assert_eq!(
+            super::initializers::answer(&present, "ANSWER"),
+            Datum::integer(42)
+        );
+        let absent = present.replace("inspect(present())", "inspect(absent())");
+        let fixture = nocter_test_support::ValueSourceFixture::new(&absent);
+        let failure = SourceUnit::prepare(fixture.syntax()).unwrap_err();
+        let SourceFailure::Checking(Failure::Evaluation { diagnostic, .. }) = failure else {
+            panic!("expected the received assertion to trap: {failure:?}");
+        };
+        assert_eq!(
+            diagnostic.rule(),
+            crate::value_access::evaluation::Rule::Execution(
+                nocter_constant_evaluation::state::Rule::InactiveVariant
+            )
+        );
+        assert_eq!(
+            fixture
+                .syntax()
+                .text_at(diagnostic.source().primary().span().range()),
+            Some(site)
+        );
+    }
+}
+
+#[test]
 fn outcome_representation_closes_each_ordinary_source_seam() {
     for (source, expected) in [
         (

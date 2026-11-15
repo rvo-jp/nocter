@@ -2,6 +2,43 @@
 use super::*;
 
 #[test]
+fn private_received_callable_assertions_preserve_traps_and_positive_inputs() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-outcome-assertions.nct"
+    ));
+    let source = source
+        .replace("const ANSWER: i32 = calculate()", "")
+        .replace("const func", "func");
+    let package = TempPackage::new();
+    for (index, (parameter, binding)) in [
+        ("take value", "let action = value^!"),
+        ("value", "read action = value!"),
+        ("edit value", "edit action = value!"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let present = source
+            .replace("take value", parameter)
+            .replace("let action = value^!", binding);
+        execute_native_status(
+            &compile(&present),
+            &package.0,
+            &format!("received-assertion-present-{index}"),
+            42,
+        );
+        let absent = present.replace("inspect(present())", "inspect(absent())");
+        execute_native_signal(
+            &compile(&absent),
+            &package.0,
+            &format!("received-assertion-absent-{index}"),
+            5,
+        );
+    }
+}
+
+#[test]
 fn private_received_outcome_control_keeps_each_input_domain() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

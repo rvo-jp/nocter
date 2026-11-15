@@ -1,0 +1,10 @@
+const func live(): i32 { 42 }
+const func absent(): (func(): i32)? { none }
+const func present(): (func(): i32)? { live }
+const func inspect(take value: (func(): i32)?): i32 {
+    let action = value^!
+    action()
+}
+const func calculate(): i32 { inspect(present()) }
+const ANSWER: i32 = calculate()
+func run(): i32 { calculate() }

@@ -85,12 +85,28 @@ pub(in crate::value_access) fn from_graph(
                     typed,
                     frame,
                     flow::Location { point, action },
-                    source,
+                    flow::OutcomeSource::Referent(source),
                     work,
                 )? {
                     terminator = flow::Terminator::Jump(no);
                 }
             }
+        } else if let Some(source) =
+            flow::assertion_source(typed, block).map_err(|_| Failure::Unresolved)?
+            && excluded(
+                program,
+                evidence,
+                typed,
+                frame,
+                flow::Location {
+                    point,
+                    action: block.actions.len() - 1,
+                },
+                source,
+                work,
+            )?
+        {
+            terminator = flow::Terminator::Unreachable;
         }
         pending.extend(terminator.successors());
         points.insert(point, terminator);
@@ -107,9 +123,29 @@ fn excluded(
     body: &crate::value_access::Query,
     frame: &CodeInstanceKey,
     at: flow::Location,
-    referent: Referent,
+    source: flow::OutcomeSource,
     work: &mut WorkBudget,
 ) -> Result<bool, Failure> {
+    if let flow::OutcomeSource::Value(expression) = source {
+        let source_id = evidence
+            .value_sources(frame.code())
+            .and_then(|sources| sources.flow())
+            .and_then(|flow| flow.operand(at, expression))
+            .ok_or(Failure::Unresolved)?;
+        let data = source.data(body).map_err(|_| Failure::Unresolved)?;
+        return match super::instantiate_value_data(program, evidence, frame, source_id, data, work)
+        {
+            Ok(key) => key
+                .component(program, ValueField::Variant(true))
+                .map(|primary| primary.is_uninhabited())
+                .map_err(|_| Failure::Unresolved),
+            Err(Failure::WorkLimit) => Err(Failure::WorkLimit),
+            Err(_) => Ok(false),
+        };
+    }
+    let flow::OutcomeSource::Referent(referent) = source else {
+        unreachable!()
+    };
     let source = evidence
         .value_sources(frame.code())
         .and_then(|sources| sources.flow())

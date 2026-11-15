@@ -8,6 +8,7 @@ pub(super) mod call_writes;
 mod initialization;
 mod numeric;
 mod outcome_domains;
+pub(in crate::value_access) use outcome_domains::{OutcomeSource, assertion_source};
 mod projection;
 pub mod resources;
 #[cfg(test)]

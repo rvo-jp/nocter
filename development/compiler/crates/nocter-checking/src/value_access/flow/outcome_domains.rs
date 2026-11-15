@@ -1,6 +1,7 @@
 //! Refine original outcome control from proved inactive values without removing source effects.
 use super::{Control, IntegrityError, Operation, Point, Terminator};
-use crate::value_access::{ExpressionKind, Query, results::Evidence};
+use crate::value_access::{ExpressionKind, Query, Referent};
+use nocter_model::{AccessExpressionId, TypeId};
 use std::sync::Arc;
 const INVALID: IntegrityError = IntegrityError::InconsistentTypedBody;
 
@@ -20,8 +21,8 @@ impl Control {
                         point.terminator = Terminator::Jump(no);
                     }
                 }
-            } else if matches!(point.terminator, Terminator::Jump(_))
-                && excluded_assertion(typed, evidence, &point)?
+            } else if let Some(source) = assertion_source(typed, &point)?
+                && evidence.excludes_primary(typed.program(), source.data(typed)?)
             {
                 point.terminator = Terminator::Unreachable;
             }
@@ -34,34 +35,50 @@ impl Control {
     }
 }
 
-fn excluded_assertion(
+#[derive(Clone, Copy, Debug)]
+pub(in crate::value_access) enum OutcomeSource {
+    Value(AccessExpressionId),
+    Referent(Referent),
+}
+impl OutcomeSource {
+    pub(in crate::value_access) fn data(self, typed: &Query) -> Result<TypeId, IntegrityError> {
+        match self {
+            Self::Value(source) => typed
+                .body()
+                .expressions()
+                .get(source)
+                .ok_or(INVALID)?
+                .ty
+                .access()
+                .map(nocter_model::ValueAccess::data)
+                .ok_or(INVALID),
+            Self::Referent(source) => typed.body().referent_data(source).ok_or(INVALID),
+        }
+    }
+}
+
+/// The check is the last original action and has a distinct normal continuation.
+pub(in crate::value_access) fn assertion_source(
     typed: &Query,
-    evidence: &Evidence,
     point: &Point,
-) -> Result<bool, IntegrityError> {
+) -> Result<Option<OutcomeSource>, IntegrityError> {
+    if !matches!(point.terminator, Terminator::Jump(_)) {
+        return Ok(None);
+    }
     let Some(super::Action {
         operation: Operation::Evaluate(id),
         ..
     }) = point.actions.last()
     else {
-        return Ok(false);
+        return Ok(None);
     };
     let expression = typed.body().expressions().get(*id).ok_or(INVALID)?;
-    let data = match expression.kind {
-        ExpressionKind::RequirePrimary { source } => typed
-            .body()
-            .expressions()
-            .get(source)
-            .ok_or(INVALID)?
-            .ty
-            .access()
-            .ok_or(INVALID)?
-            .data(),
+    Ok(match expression.kind {
+        ExpressionKind::RequirePrimary { source } => Some(OutcomeSource::Value(source)),
         ExpressionKind::GuardView {
             source,
             primary: true,
-        } => typed.body().referent_data(source).ok_or(INVALID)?,
-        _ => return Ok(false),
-    };
-    Ok(evidence.excludes_primary(typed.program(), data))
+        } => Some(OutcomeSource::Referent(source)),
+        _ => None,
+    })
 }

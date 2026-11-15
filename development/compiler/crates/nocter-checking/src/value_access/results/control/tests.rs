@@ -18,6 +18,74 @@ fn source_unit() -> crate::value_access::accepted::Unit {
 }
 
 #[test]
+fn received_assertions_keep_the_original_check_and_exclude_only_its_continuation() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-outcome-assertions.nct"
+    ));
+    for absent in [false, true] {
+        let source = source
+            .replace("const ANSWER: i32 = calculate()", "")
+            .replace("const func", "func");
+        let source = if absent {
+            source.replace("inspect(present())", "inspect(absent())")
+        } else {
+            source
+        };
+        let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+        let unit = crate::value_access::accepted::SourceUnit::prepare(fixture.syntax())
+            .unwrap()
+            .into_unit();
+        let program = unit.program();
+        let code = |name| {
+            program
+                .resolve(program.symbols().get(name).unwrap())
+                .unwrap()
+        };
+        let root = program.bind_code(code("calculate").into(), []).unwrap();
+        let body = unit.code_body(code("inspect").into()).unwrap();
+        let call = unit.code_body(root.code()).unwrap().typed().body().expressions().iter().find_map(|(call, expression)| matches!(expression.kind, ExpressionKind::Call { target: Origin::Declaration(target), .. } if target == code("inspect")).then_some(call)).unwrap();
+        let mut work = WorkBudget::new(NonZeroU64::new(100_000).unwrap());
+        let frame = unit
+            .instantiate_invocation(
+                &root,
+                ValueApplication {
+                    owner: root.code(),
+                    call,
+                },
+                &mut work,
+            )
+            .unwrap();
+        let selected = unit.instantiate_control(&frame, &mut work).unwrap();
+        let (point, check) = body
+            .graph()
+            .points()
+            .iter()
+            .find(|(_, point)| {
+                flow::assertion_source(body.typed(), point)
+                    .unwrap()
+                    .is_some()
+            })
+            .unwrap();
+        let flow::Terminator::Jump(next) = check.terminator else {
+            unreachable!()
+        };
+        assert_eq!(
+            selected.terminator(point),
+            Some(if absent {
+                flow::Terminator::Unreachable
+            } else {
+                check.terminator
+            })
+        );
+        assert_eq!(selected.reachable(next), !absent);
+        assert!(
+            matches!(check.actions.last().unwrap().operation, flow::Operation::Evaluate(id) if matches!(body.typed().body().expressions().get(id).unwrap().kind, ExpressionKind::RequirePrimary { .. }))
+        );
+    }
+}
+
+#[test]
 fn empty_and_positive_received_domains_select_distinct_original_continuations() {
     let unit = source_unit();
     let program = unit.program();

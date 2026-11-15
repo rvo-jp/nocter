@@ -425,9 +425,13 @@ clause results retain the control map so a missing call edge is accepted only wi
 unreachable commit. Dormant source contracts keep their separate definition-time checks.
 Representation-based branch pruning does not infer a tag from an unknown domain or from the
 absence of positive producer candidates. Optional recovery with an early-return fallback is
-qualified for take/read/edit inputs, including effectful input creation. Per-instance assertion
-continuations, recovery/result joins and partially active const selections remain separate
-qualification obligations.
+qualified for take/read/edit inputs, including effectful input creation. Take/read/edit assertions
+also retain their original check while excluding an impossible normal continuation. Definition
+and instance refinement share `flow::assertion_source`; value checks resolve their original
+operand snapshot, while read/edit checks resolve the selected referent. Required execution reports
+the original `!` as an inactive-variant trap, and native execution preserves the safety trap and
+inhabited counterparts. Recovery/result joins and partially active const selections remain
+separate qualification obligations.
 
 Each original invocation input retains its positive alternatives and a separate inactive-callable
 fact in one `InputProducers` summary. Matching compound input paths propagate a constructed

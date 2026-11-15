@@ -258,6 +258,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   a received primary callable domain is empty.
   Preserve evaluation of the original carrier/tag, required traps and alternate cleanup while
   excluding impossible positive continuations; a guarded empty descriptor is not a callable value.
+- [x] Qualify received take/read/edit assertions through original const trap diagnostics and
+  native safety traps. Share assertion-source recognition with definition-level flow refinement;
+  preserve whole-carrier evaluation and exclude only the impossible normal continuation.
 - [x] Qualify value/read/edit recovery and value propagation of excluded primary callable
   domains through the shared original flow graph, const obligations and native error cleanup.
 - [x] Qualify value/read/edit assertions of excluded primary callable domains through original
