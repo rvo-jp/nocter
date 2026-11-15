@@ -27,29 +27,8 @@ fn selected_loop_exit_queries_keep_frame_boundaries_and_recover_after_work_failu
             .resolve(program.symbols().get(name).unwrap())
             .unwrap()
     };
-    let root = program.bind_code(code("contexts").into(), []).unwrap();
     let healthy = || WorkBudget::new(nocter_constant_evaluation::state::Limits::default().steps());
-    let frames = unit
-        .code_body(root.code())
-        .unwrap()
-        .typed()
-        .body()
-        .expressions()
-        .iter()
-        .filter_map(|(call, expression)| {
-            matches!(expression.kind,
-            ExpressionKind::Call { target: ValueFunctionOrigin::Declaration(target), .. }
-                if target == code("choose"))
-            .then_some(ValueApplication {
-                owner: root.code(),
-                call,
-            })
-        })
-        .map(|site| {
-            unit.instantiate_invocation(&root, site, &mut healthy())
-                .unwrap()
-        })
-        .collect::<Vec<_>>();
+    let frames = received_frames(&unit);
     let [empty, positive] = frames.as_slice() else {
         panic!("two original received contexts")
     };
@@ -103,6 +82,90 @@ fn selected_loop_exit_queries_keep_frame_boundaries_and_recover_after_work_failu
             .all(|bundle| control.reachable(bundle.origin.point))
     );
     assert_work_recovery(program, evidence, empty, positive, call, &control, selected);
+}
+
+#[test]
+fn public_loop_exit_queries_keep_one_callable_witness_and_referent_root() {
+    use crate::value_access::ArgumentAction;
+    let unit = Arc::new(source_unit());
+    let frame = received_frames(&unit).remove(0);
+    let body = unit.code_body(frame.code()).unwrap();
+    let call = value_call(body);
+    let graph = unit.value_sources(frame.code()).unwrap();
+    let [bundle] = graph.call(call.call).unwrap() else {
+        panic!("one original call bundle")
+    };
+    let ExpressionKind::Call { arguments, .. } = &body
+        .typed()
+        .body()
+        .expressions()
+        .get(call.call)
+        .unwrap()
+        .kind
+    else {
+        panic!("call")
+    };
+    let ArgumentAction::ReserveRead(referent) = arguments[0].action else {
+        panic!("a read receiver")
+    };
+    let healthy = || WorkBudget::new(nocter_constant_evaluation::state::Limits::default().steps());
+    let target = unit
+        .instantiate_invocation(&frame, call, &mut healthy())
+        .unwrap();
+    let value = unit.instantiate_value(&frame, bundle.callee, &mut healthy());
+    let root = unit.instantiate_referent_root_data(&frame, bundle.origin, referent, &mut healthy());
+    let after =
+        unit.instantiate_referent_root_data_after(&frame, bundle.origin, referent, &mut healthy());
+    assert!(
+        value.is_ok() && root.is_ok() && after.is_ok(),
+        "witness: {value:?}; referent: {root:?}; after: {after:?}"
+    );
+    let value = value.unwrap();
+    let root = root.unwrap();
+    assert_eq!(after.unwrap(), root);
+    let InstanceSchema::Function(backing) = root.schema(unit.program()).unwrap() else {
+        panic!("callable root")
+    };
+    assert_eq!(value.code(), target.code());
+    assert_eq!(value.environment(), target.environment());
+    assert_eq!(backing.code(), value.code());
+    assert_eq!(backing.environment(), value.environment());
+    let metadata = unit.instance_metadata(&frame, &mut healthy()).unwrap();
+    assert_eq!(
+        metadata.value(bundle.callee, &mut healthy()).unwrap(),
+        value
+    );
+}
+
+fn received_frames(unit: &crate::value_access::accepted::Unit) -> Vec<CodeInstanceKey> {
+    let program = unit.program();
+    let code = |name| {
+        program
+            .resolve(program.symbols().get(name).unwrap())
+            .unwrap()
+    };
+    let root = program.bind_code(code("contexts").into(), []).unwrap();
+    let healthy = || WorkBudget::new(nocter_constant_evaluation::state::Limits::default().steps());
+    unit.code_body(root.code())
+        .unwrap()
+        .typed()
+        .body()
+        .expressions()
+        .iter()
+        .filter_map(|(call, expression)| {
+            matches!(expression.kind,
+            ExpressionKind::Call { target: ValueFunctionOrigin::Declaration(target), .. }
+                if target == code("choose"))
+            .then_some(ValueApplication {
+                owner: root.code(),
+                call,
+            })
+        })
+        .map(|site| {
+            unit.instantiate_invocation(&root, site, &mut healthy())
+                .unwrap()
+        })
+        .collect::<Vec<_>>()
 }
 
 fn value_call(body: &crate::value_access::flow::Query) -> ValueApplication {

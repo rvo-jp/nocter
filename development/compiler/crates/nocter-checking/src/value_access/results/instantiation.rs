@@ -89,28 +89,15 @@ pub(in crate::value_access) fn call_with_control(
     }
     Query::with_control(program, evidence, work, control).call(caller, site)
 }
-pub(in crate::value_access) fn value(
+#[cfg(test)]
+fn value(
     program: &Program,
     evidence: &Evidence,
     caller: &CodeInstanceKey,
     value: super::ValueSourceId,
     work: &mut WorkBudget,
 ) -> Result<ConcreteWitness, InstantiationFailure> {
-    if evidence
-        .value_sources(caller.code())
-        .and_then(|graph| graph.node(value))
-        .is_none()
-    {
-        return Err(InstantiationFailure::Unresolved);
-    }
-    match Query::new(program, evidence, work).solve(&Key::Value(
-        caller.clone(),
-        value,
-        ValuePath::default(),
-    ))? {
-        Fact::Witness(witness) => Ok(witness),
-        _ => Err(InstantiationFailure::Unresolved),
-    }
+    Query::new(program, evidence, work).value(caller, value)
 }
 
 pub(in crate::value_access) fn data(
@@ -222,6 +209,24 @@ impl<'a, 'work> Query<'a, 'work> {
         }
         match self.solve(&Key::Call(caller.clone(), site))? {
             Fact::Frame(frame) => Ok(frame),
+            _ => Err(InstantiationFailure::Unresolved),
+        }
+    }
+    pub(in crate::value_access) fn value(
+        &mut self,
+        caller: &CodeInstanceKey,
+        value: super::ValueSourceId,
+    ) -> Result<ConcreteWitness, InstantiationFailure> {
+        if self
+            .evidence
+            .value_sources(caller.code())
+            .and_then(|graph| graph.node(value))
+            .is_none()
+        {
+            return Err(InstantiationFailure::Unresolved);
+        }
+        match self.solve(&Key::Value(caller.clone(), value, ValuePath::default()))? {
+            Fact::Witness(witness) => Ok(witness),
             _ => Err(InstantiationFailure::Unresolved),
         }
     }

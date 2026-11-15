@@ -424,7 +424,14 @@ impl Unit {
         work: &mut nocter_constant_evaluation::state::WorkBudget,
     ) -> Result<nocter_declarations::value_access::ConcreteWitness, super::InstantiationFailure>
     {
-        super::results::instantiate_value(&self.program, &self.result_evidence, caller, value, work)
+        super::results::InstantiationQuery::controlled(
+            &self.program,
+            &self.result_evidence,
+            self.code_body(caller.code()),
+            caller,
+            work,
+        )?
+        .value(caller, value)
     }
     /// Normalize one source value's contextual data without granting storage or a source receipt.
     /// The source schema remains semantic; the returned key retains its actual callable contexts.

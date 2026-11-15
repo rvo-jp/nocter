@@ -5,7 +5,7 @@ use crate::value_access::{
     ValueSourceId, ValueSourceSelection, flow, results,
 };
 use nocter_constant_evaluation::state::WorkBudget;
-use nocter_declarations::value_access::{CodeInstanceKey, DataInstanceKey};
+use nocter_declarations::value_access::{CodeInstanceKey, ConcreteWitness, DataInstanceKey};
 use nocter_model::{TypeId, ValueApplication};
 use std::sync::Arc;
 
@@ -62,6 +62,16 @@ impl InstanceMetadata {
         work: &mut WorkBudget,
     ) -> Result<CodeInstanceKey, InstantiationFailure> {
         self.query(work).call(self.control.frame(), site)
+    }
+    /// Resolve a callable witness without granting an initialized value or executable body.
+    /// # Errors
+    /// Rejects missing sources, ambiguous contexts and exhausted work.
+    pub fn value(
+        &self,
+        source: ValueSourceId,
+        work: &mut WorkBudget,
+    ) -> Result<ConcreteWitness, InstantiationFailure> {
+        self.query(work).value(self.control.frame(), source)
     }
     /// Select contextual data without granting an initialized value, access or storage.
     /// # Errors

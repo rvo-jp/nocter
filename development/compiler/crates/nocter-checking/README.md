@@ -457,6 +457,13 @@ Evaluator projection and bound const checks borrow their already selected contro
 same query engine. Metadata sharing spends the existing work quota and grants no runtime value,
 layout, source access or executable body.
 
+Concrete callable-witness queries and original reference-root queries before/after an operation
+consume the same selected-frame data query. They retain the chosen code/environment through a
+read alias or explicit transfer after the qualified loop exit. An independently closed root still
+needs no additional control work. Control discovery keeps its unrefined root query, so establishing
+the selection cannot recursively depend on itself. These root keys establish neither a surviving
+reference nor initialized backing, stable geometry or a completed resource phase.
+
 `received-outcome-propagation.nct` qualifies optional propagation through take/read/edit inputs,
 including absent and positive applications of the same body in required/native execution.
 `received-failure-propagation.nct` qualifies runtime failure propagation and recovery with actual

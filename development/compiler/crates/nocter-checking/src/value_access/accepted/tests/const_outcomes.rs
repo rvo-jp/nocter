@@ -21,10 +21,17 @@ fn received_absence_selects_the_actual_loop_exit_callable_context() {
         } else {
             source.replace("drop ignored", "")
         };
-        assert_eq!(
-            super::initializers::answer(&source, "ANSWER"),
-            Datum::integer(42)
-        );
+        for receiver in [
+            "action(2)",
+            "read retained = action\n    retained(2)",
+            "let retained = action^\n    retained(2)",
+        ] {
+            let source = source.replace("    action(2)", &format!("    {receiver}"));
+            assert_eq!(
+                super::initializers::answer(&source, "ANSWER"),
+                Datum::integer(42)
+            );
+        }
     }
 }
 

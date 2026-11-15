@@ -24,12 +24,19 @@ fn private_received_loop_exits_preserve_selected_contexts_and_error_cleanup() {
         } else {
             source.replace("drop ignored", "")
         };
-        execute_native_status(
-            &compile(&source),
-            &package.0,
-            "received-loop-exit-contexts",
-            42,
-        );
+        for receiver in [
+            "action(2)",
+            "read retained = action\n    retained(2)",
+            "let retained = action^\n    retained(2)",
+        ] {
+            let source = source.replace("    action(2)", &format!("    {receiver}"));
+            execute_native_status(
+                &compile(&source),
+                &package.0,
+                "received-loop-exit-contexts",
+                42,
+            );
+        }
     }
     let owned = runtime.replace("wrap(identity)", "wrap(initial())")
         .replace("(number; value: i32)", "(reason^, number; value: i32)")
@@ -38,12 +45,19 @@ fn private_received_loop_exits_preserve_selected_contexts_and_error_cleanup() {
     let owned = format!(
         "primitive func create_failure(code: str, message: str): error\nprimitive func context_error(take value: error, message: str): error\nfunc initial(): func(i32): i32 {{ let reason = context_error(create_failure(\"retired\", \"leaf\"), \"outer\")\n(reason^; value: i32) {{ value }} }}\n{owned}"
     );
-    execute_native_status(
-        &image(&trusted_error_machine(&owned)),
-        &package.0,
-        "received-loop-exit-error-cleanup",
-        42,
-    );
+    for receiver in [
+        "action(2)",
+        "read retained = action\n    retained(2)",
+        "let retained = action^\n    retained(2)",
+    ] {
+        let source = owned.replace("    action(2)", &format!("    {receiver}"));
+        execute_native_status(
+            &image(&trusted_error_machine(&source)),
+            &package.0,
+            "received-loop-exit-error-cleanup",
+            42,
+        );
+    }
 }
 
 #[test]

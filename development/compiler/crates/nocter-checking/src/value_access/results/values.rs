@@ -179,14 +179,7 @@ pub(in crate::value_access) fn root(
     let source = root_flow(evidence, body, frame)?
         .root(at, referent)
         .ok_or(InstantiationFailure::Unresolved)?;
-    root_data(
-        program,
-        body.typed(),
-        frame,
-        source,
-        referent,
-        &mut super::instantiation::Query::new(program, evidence, work),
-    )
+    selected_root_data(program, evidence, body, frame, source, referent, work)
 }
 pub(in crate::value_access) fn root_after(
     program: &Program,
@@ -200,14 +193,23 @@ pub(in crate::value_access) fn root_after(
     let source = root_flow(evidence, body, frame)?
         .root_after(at, referent)
         .ok_or(InstantiationFailure::Unresolved)?;
-    root_data(
-        program,
-        body.typed(),
-        frame,
-        source,
-        referent,
-        &mut super::instantiation::Query::new(program, evidence, work),
-    )
+    selected_root_data(program, evidence, body, frame, source, referent, work)
+}
+fn selected_root_data(
+    program: &Program,
+    evidence: &Evidence,
+    body: &flow::Query,
+    frame: &CodeInstanceKey,
+    source: ValueSourceId,
+    referent: Referent,
+    work: &mut WorkBudget,
+) -> Result<DataInstanceKey, InstantiationFailure> {
+    let data = root_type(body.typed(), referent).ok_or(InstantiationFailure::Unresolved)?;
+    if let Ok(key) = program.instantiate_closed_data(data) {
+        return Ok(key);
+    }
+    super::instantiation::Query::controlled(program, evidence, Some(body), frame, work)?
+        .data(frame, source, data)
 }
 pub(super) fn root_flow<'a>(
     evidence: &'a Evidence,

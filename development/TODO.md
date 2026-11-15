@@ -220,7 +220,7 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   is excluded; do not let that old context pollute the surviving replacement/call/cleanup.
   Qualify `received-loop-exit-contexts.nct` through required/native execution, actual retired
   and received error ownership, unknown-domain rejection and request work-failure recovery.
-- [ ] Reconcile the remaining concrete-witness and referent-root query entry points with selected
+- [x] Reconcile the remaining concrete-witness and referent-root query entry points with selected
   contextual data/stored-definition queries. A read alias or transfer after a qualified loop exit
   must keep one chosen code/environment and backing contract. Preserve the unrefined query used
   to establish control and keep general returned/completed-input paths separately qualified.

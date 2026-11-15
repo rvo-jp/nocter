@@ -20,7 +20,6 @@ pub(super) use instantiation::{
     call as instantiate_invocation, call_with_control as instantiate_controlled_invocation,
     completed_input as instantiate_source_completed_input_data, data as instantiate_value_data,
     result as instantiate_result_data, stored as instantiate_stored_data,
-    value as instantiate_value,
 };
 mod producers;
 pub use producers::{CreationRecipe, InputProducers, ProducerShape};
