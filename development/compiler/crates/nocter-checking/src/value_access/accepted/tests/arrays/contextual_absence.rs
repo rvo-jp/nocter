@@ -105,6 +105,8 @@ fn contextual_callable_arrays_keep_authored_context_and_actual_witness_requireme
         "discard([none, if true { live } else { wrong }])",
         "discard([if true { wrong } else { none }, live])",
         "discard([if true { return\nnone } else { wrong }, live])",
+        "discard([if 1 { none } else { none }, live])",
+        "discard([if true { none } else { let ignored = wrong(true)\nnone }, live])",
         "let values = [if true { none } else { live }, live]\ndrop values",
     ] {
         let source = format!(

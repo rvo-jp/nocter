@@ -64,6 +64,21 @@ const func conditional_absence(edit order: i32, flag: bool): i32 {
 const func conditional_presence(flag: bool): i32 {
     choose([if flag { wrap(addition(0)) } else { none }, wrap(addition(10))])
 }
+const func conditional_empty(edit order: i32, flag: bool): i32 {
+    discard([if flag {
+        order = order * 10 + 1
+        none
+    } else if true {
+        order = order * 10 + 2
+        none
+    } else { none }, wrap(addition(10))])
+}
+const func conditional_empty_last(flag: bool): i32 {
+    discard([wrap(addition(0)), if flag { none } else { none }])
+}
+const func conditional_empty_all(flag: bool): i32 {
+    discard([if flag { none } else { none }, if flag { none } else { none }])
+}
 const func conditional_chain(first: bool, second: bool): i32 {
     choose([none, if first { wrap(addition(0)) } else if second { wrap(addition(10)) } else { wrap(addition(40)) }])
 }
@@ -84,6 +99,12 @@ const func calculate(): i32 {
     condition_order = 0
     if conditional_absence(condition_order, false) != 21 || condition_order != 23 { return 0 }
     if conditional_presence(true) != 21 || conditional_presence(false) != 31 { return 0 }
+    condition_order = 0
+    if conditional_empty(condition_order, true) != 21 || condition_order != 1 { return 0 }
+    condition_order = 0
+    if conditional_empty(condition_order, false) != 21 || condition_order != 2 { return 0 }
+    if conditional_empty_last(true) != 21 || conditional_empty_last(false) != 21 { return 0 }
+    if conditional_empty_all(true) != 21 || conditional_empty_all(false) != 21 { return 0 }
     if conditional_chain(true, false) != 21 || conditional_chain(false, true) != 31 || conditional_chain(false, false) != 61 { return 0 }
     if discard([none, live]) != 21 || discard([live, none]) != 21 || discard([none, none]) != 21 { return 0 }
     if choose([none, wrap(live)]) + choose([wrap(live), wrap(live)]) != 42 { return 0 }

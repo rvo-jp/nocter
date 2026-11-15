@@ -49,10 +49,10 @@ impl Checker<'_, '_> {
         let mut supplied = Vec::new();
         let mut continues = true;
         for entry in entries {
-            // A literal absence has no payload/effects. Its authored context fixes the outcome
-            // family; actual supplied witnesses may refine the common element before emission.
+            // Absence-only construction contributes no callable witness. Check it once the
+            // other entries establish the element; aggregate fields still retain source order.
             if expected.is_some_and(|data| self.absence_type(data).is_some())
-                && self.literal_absence(entry)?
+                && self.absence_construction(entry)?
             {
                 supplied.push(ArrayEntry::Absent {
                     node: entry,

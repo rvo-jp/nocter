@@ -27,6 +27,38 @@ impl Checker<'_, '_> {
             && self.token(node)?.kind()
                 == nocter_syntax::TokenKind::Keyword(nocter_syntax::Keyword::None))
     }
+    /// Only syntax that constructs literal absence on every branch. This is a construction
+    /// inference request, not a tag fact about named values, calls or runtime reachability.
+    pub(super) fn absence_construction(&self, node: NodeId) -> Result<bool, Failure> {
+        use nocter_syntax::NodeKind;
+        let mut pending = vec![node];
+        while let Some(node) = pending.pop() {
+            let node = self.unwrap(node)?;
+            if self.literal_absence(node)? {
+                continue;
+            }
+            match self.kind(node)? {
+                NodeKind::IfExpression => {
+                    let Ok(alternative) = self.direct(node, NodeKind::ElseClause) else {
+                        return Ok(false);
+                    };
+                    pending.push(self.direct(node, NodeKind::Block)?);
+                    pending.push(self.first_child(alternative)?);
+                }
+                NodeKind::Block => {
+                    let Ok(sequence) = self.direct(node, NodeKind::ExecutableSequence) else {
+                        return Ok(false);
+                    };
+                    let Ok(result) = self.direct(sequence, NodeKind::BodyResult) else {
+                        return Ok(false);
+                    };
+                    pending.push(self.first_child(result)?);
+                }
+                _ => return Ok(false),
+            }
+        }
+        Ok(true)
+    }
     pub(super) fn refine_conditional_absence(
         &mut self,
         blocks: [nocter_model::AccessBlockId; 2],
