@@ -187,6 +187,7 @@ impl Builder<'_> {
                 slot,
                 inputs,
             };
+            self.nodes[id.0].data = slot.data(self.query)?;
         }
         Ok(())
     }
@@ -321,6 +322,7 @@ impl Builder<'_> {
         state: &State,
     ) -> Result<(ValueSourceId, super::positions::RootSelection)> {
         let paths = self.paths(place)?;
+        let data = self.query.body.referent_data(place).ok_or(INVALID)?;
         let suffix = match place {
             Referent::Place(id) => crate::value_access::paths::known_by(
                 &self.query.body.places.get(id).ok_or(INVALID)?.fields,
@@ -357,7 +359,7 @@ impl Builder<'_> {
                     },
                 )
             });
-            let selected = self.push(None, None, ValueSource::Select { source, path });
+            let selected = self.push(Some(data), None, ValueSource::Select { source, path });
             values.insert(selected);
             roots.insert(root.unwrap_or(selected));
         }
@@ -369,7 +371,7 @@ impl Builder<'_> {
         let value = if values.len() == 1 {
             *values.first().ok_or(INVALID)?
         } else {
-            self.push(None, None, ValueSource::Alternatives(values))
+            self.push(Some(data), None, ValueSource::Alternatives(values))
         };
         Ok((
             value,

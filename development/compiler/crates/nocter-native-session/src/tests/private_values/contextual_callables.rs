@@ -2,6 +2,51 @@
 use super::*;
 
 #[test]
+fn private_received_outcomes_dispose_forwarded_failure_and_capture_owners() {
+    let machine = trusted_error_machine(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-excluded-outcome-errors.nct"
+    )));
+    let package = TempPackage::new();
+    execute_native_status(&image(&machine), &package.0, "received-outcome-errors", 42);
+}
+
+#[test]
+fn private_received_outcomes_preserve_empty_and_positive_input_domains() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-excluded-outcome-inputs.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "received-outcome-inputs", 42);
+    let conditional = source
+        .replace(
+            "forward(absent())",
+            "forward(if flag { absent() } else { absent() })",
+        )
+        .replace("func calculate():", "func calculate(flag: bool):")
+        .replace("= calculate()", "= calculate(true)")
+        .replace("{ calculate() }", "{ calculate(false) }");
+    assert_ne!(conditional, source);
+    execute_native_status(
+        &compile(&conditional),
+        &package.0,
+        "received-outcome-merge",
+        42,
+    );
+    for condition in ["true", "false"] {
+        let fixed = conditional.replace("if flag", &format!("if {condition}"));
+        assert_ne!(fixed, conditional);
+        execute_native_status(
+            &compile(&fixed),
+            &package.0,
+            &format!("received-outcome-fixed-{condition}"),
+            42,
+        );
+    }
+}
+
+#[test]
 fn private_contextual_carrier_widening_preserves_positive_supplied_contexts() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

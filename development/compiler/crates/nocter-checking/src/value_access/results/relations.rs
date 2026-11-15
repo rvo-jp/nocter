@@ -28,6 +28,25 @@ pub(super) type Solutions = BTreeMap<Term, Producers>;
 
 /// An empty positive solution is not proof of emptiness when an opaque target could return code.
 pub(super) fn closed_empty(root: Term, relations: &Relations, known: &Solutions) -> bool {
+    prove_empty(root, known, |term| relations.get(&term))
+}
+/// Keep original body equations as the emptiness proof while substituting this call's inputs.
+pub(super) fn closed_empty_application(
+    root: Term,
+    originals: &Relations,
+    applications: &Relations,
+    known: &Solutions,
+) -> bool {
+    prove_empty(root, known, |term| match term {
+        Term::Result { .. } => originals.get(&term),
+        Term::Application(_) => applications.get(&term),
+    })
+}
+fn prove_empty<'a>(
+    root: Term,
+    known: &Solutions,
+    relation: impl Fn(Term) -> Option<&'a Relation>,
+) -> bool {
     let mut pending = vec![root];
     let mut seen = std::collections::BTreeSet::new();
     while let Some(term) = pending.pop() {
@@ -37,7 +56,7 @@ pub(super) fn closed_empty(root: Term, relations: &Relations, known: &Solutions)
         if !known.get(&term).is_some_and(Producers::is_empty) {
             return false;
         }
-        match relations.get(&term) {
+        match relation(term) {
             Some(Relation::Union(inputs)) => {
                 for witness in inputs {
                     let term = match witness.origin {
@@ -69,10 +88,40 @@ pub(super) fn closed_empty(root: Term, relations: &Relations, known: &Solutions)
                         let Some(code) = selected.origin.code() else {
                             return false;
                         };
-                        pending.push(Term::Result {
+                        let result = Term::Result {
                             code,
                             ordinal: application.ordinal,
-                        });
+                        };
+                        let Some(producers) = known.get(&result) else {
+                            return false;
+                        };
+                        if producers.is_empty() {
+                            pending.push(result);
+                            continue;
+                        }
+                        // A nonempty formal summary may receive no callable in this application.
+                        // Require actual producer relations; a missing/empty input set is unknown.
+                        for producer in producers {
+                            let Origin::Parameter(parameter) = producer.origin else {
+                                return false;
+                            };
+                            let Some(actuals) = invocation.inputs.get(&parameter) else {
+                                return false;
+                            };
+                            if actuals.is_empty() {
+                                return false;
+                            }
+                            for actual in actuals {
+                                pending.push(match actual.origin {
+                                    Origin::Result(result) => Term::Result {
+                                        code: result.owner.into(),
+                                        ordinal: result.ordinal,
+                                    },
+                                    Origin::Application(result) => Term::Application(result),
+                                    _ => return false,
+                                });
+                            }
+                        }
                     }
                 }
             }

@@ -58,7 +58,6 @@ impl Query<'_, '_> {
         &mut self,
         owner: &Key,
         frame: &CodeInstanceKey,
-        value: super::ValueSourceId,
         kind: &ValueSource,
         selected: &ValuePath<()>,
         target: TypeId,
@@ -82,10 +81,10 @@ impl Query<'_, '_> {
                 if self.program.matches_compound_input(data.data(), target)
                     || self.program.matches_compound_input(target, data.data()) =>
             {
-                // Completion belongs to the receiving input descriptor. Preserve that original
-                // channel, then reproject its actual components into the caller's descriptor.
-                // Leaf instantiation still checks exact code/contracts; no write is weakened.
-                self.source_data_components(owner, frame, value, selected, target)?
+                // Keep the completed input's exact contexts and empty alternatives. The canonical
+                // reprojection changes only its descriptor; no write or positive witness is added.
+                data.reproject(self.program, target)
+                    .map_or(Fact::Unavailable, Fact::Data)
             }
             Fact::Empty => Fact::Empty,
             _ => Fact::Unavailable,

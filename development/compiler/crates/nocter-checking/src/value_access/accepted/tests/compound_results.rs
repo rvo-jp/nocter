@@ -547,30 +547,6 @@ fn assert_resource_contexts(unit: &Unit, caller: &CodeInstanceKey) {
     assert_resources(unit, caller, body);
 }
 
-fn assert_resources(unit: &Unit, caller: &CodeInstanceKey, body: &flow::Query) {
-    for (point, block) in body.graph().points().iter() {
-        for (action, operation) in block.actions.iter().enumerate() {
-            let at = crate::value_access::flow::Location { point, action };
-            for transition in body.access().resources().at(at) {
-                let mut work = WorkBudget::new(NonZeroU64::new(100_000).unwrap());
-                unit.project_resource_data(caller, at, &mut work)
-                    .and_then(|mut projection| {
-                        projection.steps(transition.before_steps())?;
-                        projection.after_steps(transition.after_steps())
-                    })
-                    .unwrap_or_else(|failure| {
-                        panic!(
-                            "{at:?} {:?} before {:?} after {:?}: {failure:?}",
-                            operation.operation,
-                            transition.before_steps(),
-                            transition.after_steps()
-                        )
-                    });
-            }
-        }
-    }
-}
-
 fn assert_outcome_contracts(unit: &Unit) {
     for (id, body) in unit.bodies() {
         if let Ok(frame) = unit.program().bind_code(body.typed().code(), []) {

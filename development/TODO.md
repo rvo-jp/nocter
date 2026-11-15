@@ -197,6 +197,15 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [ ] Qualify application-specific empty callable domains supplied through received optional
   inputs. A globally nonempty formal result equation is not a proof that every application
   supplies a callable; preserve the exact committed input context rather than closing its raw type.
+- [x] Qualify received excluded/positive outcome metadata through taking inputs, whole-outcome
+  return/forwarding, original selection/merge contracts, required/native execution and actual
+  error/capture cleanup. Keep missing inputs, unknown producers and positive callable values separate.
+- [ ] Extend received-domain qualification to direct `none` input construction and instance-specific
+  control/positive-use pruning. A source-wide formal contract cannot determine every application's
+  active callable domain; retain original tag effects, traps and exact call/resource phases.
+- [x] Qualify statically pruned and ordinary conditional outcome inputs through original commit
+  recipes and supplied/formal domain reprojection. Preserve dormant descriptor checks separately
+  from committed empty-domain and original merge evidence; retained source effects remain intact.
 - [x] Define canonical uninhabited representation metadata independently of unknown descriptors,
   concrete callable witnesses and actual owner availability. Normalize required product children,
   retain inactive outcome alternatives and reject an uninhabited environment/input as a received value.

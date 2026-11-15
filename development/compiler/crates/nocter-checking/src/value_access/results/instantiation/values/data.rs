@@ -62,7 +62,9 @@ impl Query<'_, '_> {
                         if self.program.matches_compound_input(key.data(), target)
                             || self.program.matches_compound_input(target, key.data()) =>
                     {
-                        self.source_data_components(owner, frame, value, path, target)
+                        Ok(key
+                            .reproject(self.program, target)
+                            .map_or(Fact::Unavailable, Fact::Data))
                     }
                     _ => Ok(Fact::Unavailable),
                 }

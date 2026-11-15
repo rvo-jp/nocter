@@ -3,6 +3,129 @@ use super::initializers::answer;
 use super::*;
 use nocter_constant_evaluation::state::Value;
 
+const RECEIVED_OUTCOMES: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../tests/fixtures/native/value-access/received-excluded-outcome-inputs.nct"
+));
+
+#[test]
+fn received_outcome_inputs_preserve_application_specific_empty_domains() {
+    use crate::value_access::{ExpressionKind, InstantiationFailure};
+    use nocter_constant_evaluation::state::WorkBudget;
+    use nocter_model::{ValueApplication, ValueField, ValueFunctionOrigin};
+    use std::num::NonZeroU64;
+    let source = RECEIVED_OUTCOMES;
+    let runtime = source
+        .replace("const ANSWER: i32 = calculate()", "")
+        .replace("const func", "func");
+    let unit = accepted(&runtime);
+    let program = unit.program();
+    let code = |name| {
+        program
+            .resolve(program.symbols().get(name).unwrap())
+            .unwrap()
+    };
+    let caller = program.bind_code(code("calculate").into(), []).unwrap();
+    let forward = named(&unit, "forward");
+    let local = forward
+        .typed()
+        .body()
+        .inputs()
+        .ordered()
+        .next()
+        .unwrap()
+        .local;
+    let incomplete = program.bind_code(code("forward").into(), []).unwrap();
+    let budget = || WorkBudget::new(NonZeroU64::new(100_000).unwrap());
+    assert_eq!(
+        unit.instantiate_input_data(&incomplete, local, &mut budget()),
+        Err(InstantiationFailure::Unresolved)
+    );
+    let mut empty = Vec::new();
+    for (call, expression) in named(&unit, "calculate")
+        .typed()
+        .body()
+        .expressions()
+        .iter()
+    {
+        let ExpressionKind::Call {
+            target: ValueFunctionOrigin::Declaration(target),
+            ..
+        } = expression.kind
+        else {
+            continue;
+        };
+        let frame = unit
+            .instantiate_invocation(
+                &caller,
+                ValueApplication {
+                    owner: caller.code(),
+                    call,
+                },
+                &mut budget(),
+            )
+            .unwrap_or_else(|failure| {
+                panic!(
+                    "{} invocation: {failure:?}",
+                    program.code_label(target).unwrap()
+                )
+            });
+        if target != code("forward") {
+            continue;
+        }
+        let received = frame.input_data(0).unwrap();
+        assert!(
+            !received.is_uninhabited(),
+            "the carrier is an actual received value"
+        );
+        assert_eq!(
+            unit.instantiate_input_data(&frame, local, &mut budget())
+                .unwrap(),
+            *received
+        );
+        let result = unit
+            .instantiate_result_contract(&frame, &mut budget())
+            .unwrap();
+        let excluded = |key: &nocter_declarations::value_access::DataInstanceKey| {
+            key.component(program, ValueField::Variant(true))
+                .unwrap()
+                .is_uninhabited()
+        };
+        assert_eq!(excluded(&result), excluded(received));
+        unit.instantiate_value_data_map(&frame, &mut budget())
+            .unwrap();
+        assert_resources(&unit, &frame, forward);
+        empty.push(excluded(received));
+    }
+    assert_eq!(empty, [true, false]);
+    unit.instantiate_prepared_data(&caller, &mut budget())
+        .unwrap();
+    unit.instantiate_value_data_map(&caller, &mut budget())
+        .unwrap();
+    assert_resources(&unit, &caller, named(&unit, "calculate"));
+}
+
+#[test]
+fn received_outcome_inputs_execute_through_required_forwarding_and_merges() {
+    let source = RECEIVED_OUTCOMES;
+    assert_eq!(answer(source, "ANSWER"), Value::integer(42));
+    let conditional = source
+        .replace(
+            "forward(absent())",
+            "forward(if flag { absent() } else { absent() })",
+        )
+        .replace("func calculate():", "func calculate(flag: bool):")
+        .replace("= calculate()", "= calculate(true)")
+        .replace("{ calculate() }", "{ calculate(false) }");
+    assert_ne!(conditional, source);
+    assert_eq!(answer(&conditional, "ANSWER"), Value::integer(42));
+    for condition in ["true", "false"] {
+        let fixed = conditional.replace("if flag", &format!("if {condition}"));
+        assert_ne!(fixed, conditional);
+        assert_eq!(answer(&fixed, "ANSWER"), Value::integer(42));
+    }
+}
+
 #[test]
 fn compound_input_results_preserve_selected_component_witnesses_and_actual_values() {
     let source = include_str!(concat!(

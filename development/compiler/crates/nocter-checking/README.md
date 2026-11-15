@@ -1774,7 +1774,14 @@ Declared compound inputs retain a distinct formal contract at each callable leaf
 checks the whole structural contract while preserving the supplied value's semantic identity.
 Original argument sources close the received `CodeInstanceKey.inputs`; forwarding reprojects each
 matched component into the next input's descriptor rather than flattening it into direct callable
-bindings. Header reuse reconciles component contracts under their original reserved input owner.
+bindings. Binding first closes the original supplied schema, then uses canonical reprojection to
+retain its exact positive contexts and excluded alternatives under the formal descriptor. Selected
+places and slot merges retain their original typed contracts; a receiving type cannot fill in a
+missing source contract. Completed input reprojection uses the same canonical operation.
+At a fresh transport into a matching formal input constraint, reprojection preserves the supplied
+domain instead of guessing a positive destination context. Fixed code/environment destinations
+retain their independent receiving-instance proof.
+Header reuse reconciles component contracts under their original reserved input owner.
 `contextual-compound-inputs.nct` qualifies reading and taking tuples, forwarding, two independently
 selected callable leaves, singleton arrays and zero-count arrays through required/native execution.
 It distinguishes nested callable contexts and repeated calls with the same context but different
@@ -1790,6 +1797,18 @@ Exact result realization still requires the original received compound context. 
 and exhausted work reject independently, followed by healthy retry. Required/native execution
 agrees, and the matching error fixture executes remaining-container and returned-owner cleanup.
 Higher-order component signatures and callable record fields remain separate admission boundaries.
+`received-excluded-outcome-inputs.nct` qualifies separately received absent and positive callable
+domains through taking inputs, whole-outcome return/forwarding, nested calls, original resource
+projection, required evaluation and native execution. A missing input context remains unresolved.
+Per-call empty-result proof substitutes actual nonempty producer relations into the formal result
+summary and checks the original result equations. Reached applications reuse the original commit
+recipe; only dormant type applications construct a descriptor-only recipe. An empty input set alone
+proves nothing. This
+does not feed substituted calls back into the global positive result summaries. Only an original
+named result's outcome guard admits this excluded leaf; ordinary callable results still require a
+positive producer. The matching error fixture executes actual forwarded failure and capture-owner
+cleanup. Direct input construction and instance-specific positive continuations retain
+separate qualification obligations.
 Declared compound-result contracts have declaration-owned result ordinals. A diverging body can
 retain that known signature without establishing any returned value, concrete environment or
 storage representation; publishing its header is not a consumer-realization proof.

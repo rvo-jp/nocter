@@ -111,11 +111,21 @@ impl Query<'_, '_> {
             else {
                 return Ok(Fact::Unavailable);
             };
+            let Some(actual) = self
+                .source_node(frame, *value, &ValuePath::default())
+                .and_then(|node| node.data)
+                .filter(|actual| self.program.matches_compound_input(*actual, data))
+            else {
+                return Ok(Fact::Unavailable);
+            };
             match self.read(
                 owner,
-                Key::Data(frame.clone(), *value, ValuePath::default(), data),
+                Key::Data(frame.clone(), *value, ValuePath::default(), actual),
             )? {
-                Fact::Data(data) => inputs.push((index, data)),
+                Fact::Data(supplied) => match supplied.reproject(self.program, data) {
+                    Ok(received) => inputs.push((index, received)),
+                    Err(_) => unavailable = true,
+                },
                 Fact::Empty => pending = true,
                 _ => unavailable = true,
             }

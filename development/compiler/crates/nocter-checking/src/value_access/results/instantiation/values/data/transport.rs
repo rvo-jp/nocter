@@ -34,6 +34,12 @@ impl Query<'_, '_> {
         };
         let destination = match self.evidence.closed_domain(self.program, destination) {
             Ok(key) => key,
+            Err(_) if self.program.matches_compound_input(actual, destination) => {
+                match from.reproject(self.program, destination) {
+                    Ok(key) => key,
+                    Err(_) => return Ok(Fact::Unavailable),
+                }
+            }
             Err(_) => match self.read(
                 owner,
                 Key::Representation(frame.clone(), value, ValuePath::default(), destination),
@@ -205,7 +211,7 @@ impl Query<'_, '_> {
                     self.source_data_components(owner, frame, value, path, target)
                 }
                 ReplacementPath::Supplied(_) => {
-                    self.source_call_write_data(owner, frame, value, kind, path, target)
+                    self.source_call_write_data(owner, frame, kind, path, target)
                 }
             },
             // Optional state and externally dependent whole-input writes remain unqualified.

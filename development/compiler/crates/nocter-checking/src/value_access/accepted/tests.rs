@@ -44,6 +44,36 @@ fn named<'a>(unit: &'a Unit, name: &str) -> &'a flow::Query {
         .unwrap()
         .1
 }
+fn assert_resources(
+    unit: &Unit,
+    caller: &nocter_declarations::value_access::CodeInstanceKey,
+    body: &flow::Query,
+) {
+    use nocter_constant_evaluation::state::WorkBudget;
+    use std::num::NonZeroU64;
+    for (point, block) in body.graph().points().iter() {
+        for (action, operation) in block.actions.iter().enumerate() {
+            let at = crate::value_access::flow::Location { point, action };
+            for transition in body.access().resources().at(at) {
+                let mut work = WorkBudget::new(NonZeroU64::new(100_000).unwrap());
+                unit.project_resource_data(caller, at, &mut work)
+                    .and_then(|mut projection| {
+                        projection.steps(transition.before_steps())?;
+                        projection.after_steps(transition.after_steps())
+                    })
+                    .unwrap_or_else(|failure| {
+                        panic!(
+                            "{at:?} {:?} before {:?} after {:?}: {failure:?}",
+                            operation.operation,
+                            transition.before_steps(),
+                            transition.after_steps()
+                        )
+                    });
+            }
+        }
+    }
+}
+
 #[test]
 fn corpus_is_validated_by_the_complete_production_boundary() {
     let root =

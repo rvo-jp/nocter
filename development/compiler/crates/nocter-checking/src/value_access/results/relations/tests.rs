@@ -178,6 +178,84 @@ fn an_application_relation_cannot_be_attached_to_a_body_result_term() {
 }
 
 #[test]
+fn empty_input_substitution_needs_actual_producers_and_original_result_equations() {
+    let mut codes = ArenaBuilder::<AccessCodeId, ()>::new();
+    let absent = codes.insert(());
+    let forward = codes.insert(());
+    let parameter = ValueParameter::Closure {
+        owner: ValueClosure {
+            owner: forward.into(),
+            slot: 0,
+        },
+        position: 0,
+    };
+    let supplied = FunctionWitness {
+        origin: Origin::Result(ValueCallableResult {
+            owner: absent,
+            ordinal: 0,
+        }),
+        invocation: ValueInvocation::Read,
+    };
+    let absent_result = Term::Result {
+        code: absent.into(),
+        ordinal: 0,
+    };
+    let formal_result = Term::Result {
+        code: forward.into(),
+        ordinal: 0,
+    };
+    let application = Term::Application(
+        ValueApplication {
+            owner: forward.into(),
+            call: ArenaBuilder::<AccessExpressionId, ()>::new().insert(()),
+        }
+        .into(),
+    );
+    let originals = Relations::from([
+        (absent_result, Relation::Union(Producers::new())),
+        (
+            formal_result,
+            Relation::Union(Producers::from([FunctionWitness {
+                origin: Origin::Parameter(parameter),
+                invocation: ValueInvocation::Read,
+            }])),
+        ),
+    ]);
+    for inputs in [
+        Inputs::from([(parameter, Producers::from([supplied]))]),
+        Inputs::from([(parameter, Producers::new())]),
+        Inputs::new(),
+    ] {
+        let has_actual = inputs
+            .get(&parameter)
+            .is_some_and(|values| !values.is_empty());
+        let mut applications = originals.clone();
+        applications.insert(
+            application,
+            Relation::Apply(Arc::new(InvocationRecipe {
+                callees: Producers::from([forward.into()]),
+                inputs,
+            })),
+        );
+        let known = solve(&applications).unwrap();
+        assert!(known[&application].is_empty());
+        assert!(!known[&formal_result].is_empty());
+        assert_eq!(
+            closed_empty_application(application, &originals, &applications, &known),
+            has_actual
+        );
+        let mut missing = originals.clone();
+        missing.remove(&absent_result);
+        assert!(!closed_empty_application(
+            application,
+            &missing,
+            &applications,
+            &known
+        ));
+    }
+}
+
+#[test]
 fn closed_empty_proof_requires_known_call_targets_and_complete_equations() {
     let mut codes = ArenaBuilder::<AccessCodeId, ()>::new();
     let maker = codes.insert(());

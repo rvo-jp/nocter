@@ -1,0 +1,16 @@
+const func addition(number: i32): func(i32): i32 {
+    (number; value: i32) { number + value }
+}
+const func absent(): (func(i32): i32)? { none }
+const func present(number: i32): (func(i32): i32)? { addition(number) }
+const func discard(take value: (func(i32): i32)?): i32 {
+    drop value
+    21
+}
+const func forward(take value: (func(i32): i32)?): (func(i32): i32)? { value^ }
+const func relay(take value: (func(i32): i32)?): i32 { discard(value^) }
+const func calculate(): i32 {
+    discard(forward(absent())) + relay(forward(present(20)))
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { calculate() }

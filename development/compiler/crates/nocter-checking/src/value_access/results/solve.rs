@@ -69,7 +69,28 @@ pub(super) fn solve(
             .or_insert_with(|| Relation::Union(Producers::new()));
     }
     let solved = relations::solve(&equations).map_err(|()| INVALID)?;
-    for (&origin, producers) in &solved {
+    close_results(context, &controls, &equations, &solved, &mut evidence)?;
+    close_applications(
+        context,
+        &controls,
+        &committed,
+        &solved,
+        &equations,
+        &mut evidence,
+    )?;
+    // Keep the original source-flow equations, rather than rebuilding provenance from the
+    // selected code summary after result/type projection. The accepted Unit retains their bodies.
+    evidence.recipes = equations;
+    Ok(evidence)
+}
+fn close_results(
+    context: &DeclarationContext<'_>,
+    controls: &BTreeMap<nocter_model::ValueCode, &flow::Control>,
+    equations: &Relations,
+    solved: &Solutions,
+    evidence: &mut Evidence,
+) -> Result<(), accepted::Failure> {
+    for (&origin, producers) in solved {
         let Term::Result {
             code: nocter_model::ValueCode::Declaration(id),
             ordinal,
@@ -82,8 +103,7 @@ pub(super) fn solve(
             .ok_or(INVALID)?
             .typed;
         let result = nocter_model::ValueCallableResult { owner: id, ordinal };
-        if producers.is_empty()
-            && empty_outcome_result(query.program(), result, &equations, &solved)
+        if producers.is_empty() && empty_outcome_result(query.program(), result, equations, solved)
         {
             evidence.uninhabited_results.insert(result);
             continue;
@@ -115,11 +135,7 @@ pub(super) fn solve(
             witness,
         );
     }
-    close_applications(context, &controls, &committed, &solved, &mut evidence)?;
-    // Keep the original source-flow equations, rather than rebuilding provenance from the
-    // selected code summary after result/type projection. The accepted Unit retains their bodies.
-    evidence.recipes = equations;
-    Ok(evidence)
+    Ok(())
 }
 fn single(producers: &Producers) -> Option<FunctionWitness> {
     (producers.len() == 1).then(|| *producers.first().expect("one witness"))
@@ -131,24 +147,22 @@ fn empty_outcome_result(
     equations: &Relations,
     solved: &Solutions,
 ) -> bool {
-    program.callable_result_path(result).is_some_and(|path| {
-        path.fields()
-            .iter()
-            .any(|field| matches!(field, nocter_model::ValueProjection::Variant(true)))
-    }) && relations::closed_empty(
-        Term::Result {
-            code: result.owner.into(),
-            ordinal: result.ordinal,
-        },
-        equations,
-        solved,
-    )
+    guarded_result(program, result)
+        && relations::closed_empty(
+            Term::Result {
+                code: result.owner.into(),
+                ordinal: result.ordinal,
+            },
+            equations,
+            solved,
+        )
 }
 fn close_applications(
     context: &DeclarationContext<'_>,
     controls: &BTreeMap<nocter_model::ValueCode, &flow::Control>,
     committed: &BTreeSet<nocter_model::ValueAppliedResult>,
     summaries: &Solutions,
+    originals: &Relations,
     evidence: &mut Evidence,
 ) -> Result<(), accepted::Failure> {
     let mut equations = summaries
@@ -176,14 +190,19 @@ fn close_applications(
             if result.created.is_empty() {
                 continue;
             }
-            let inputs = super::producers::application_inputs(query, id)
-                .map_err(accepted::Failure::Integrity)?;
-            let invocation = Arc::new(InvocationRecipe {
-                callees: BTreeSet::from([
-                    super::applications::callee(query, id).map_err(accepted::Failure::Integrity)?
-                ]),
-                inputs,
-            });
+            let site = nocter_model::ValueApplication {
+                owner: query.code(),
+                call: id,
+            };
+            let invocation = match evidence.invocations.get(&site) {
+                Some(invocation) => invocation.clone(),
+                None => Arc::new(InvocationRecipe {
+                    callees: BTreeSet::from([super::applications::callee(query, id)
+                        .map_err(accepted::Failure::Integrity)?]),
+                    inputs: super::producers::application_inputs(query, id)
+                        .map_err(accepted::Failure::Integrity)?,
+                }),
+            };
             for application in result.created {
                 equations.insert(
                     Term::Application(application),
@@ -193,7 +212,7 @@ fn close_applications(
         }
     }
     let solved = relations::solve(&equations).map_err(|()| INVALID)?;
-    for (origin, producers) in solved {
+    for (&origin, producers) in &solved {
         let Term::Application(application) = origin else {
             continue;
         };
@@ -206,14 +225,16 @@ fn close_applications(
             continue;
         }
         if producers.is_empty()
-            && evidence.recognizes_empty_application(query.program(), application)
+            && (evidence.recognizes_empty_application(query.program(), application)
+                || (guarded_result_application(query.program(), application)
+                    && relations::closed_empty_application(origin, originals, &equations, &solved)))
         {
             evidence
                 .applications
                 .insert(application, ApplicationEvidence::Uninhabited);
             continue;
         }
-        let witness = single(&producers).ok_or_else(|| reject(context, query, Some(site.call),
+        let witness = single(producers).ok_or_else(|| reject(context, query, Some(site.call),
             "this callable result application has no single established witness; an unknown-shaped input cannot supply a dependent result witness"))?;
         if let Origin::Parameter(parameter) = witness.origin
             && query.program().parameter_owner(parameter) != Some(site.owner)
@@ -225,6 +246,29 @@ fn close_applications(
             .insert(application, ApplicationEvidence::Witness(witness));
     }
     Ok(())
+}
+fn guarded_result(
+    program: &nocter_declarations::value_access::Program,
+    result: nocter_model::ValueCallableResult,
+) -> bool {
+    program.callable_result_path(result).is_some_and(|path| {
+        path.fields()
+            .iter()
+            .any(|field| matches!(field, nocter_model::ValueProjection::Variant(true)))
+    })
+}
+fn guarded_result_application(
+    program: &nocter_declarations::value_access::Program,
+    application: nocter_model::ValueAppliedResult,
+) -> bool {
+    let Some(FunctionWitness {
+        origin: Origin::Result(result),
+        ..
+    }) = program.application_template(application)
+    else {
+        return false;
+    };
+    guarded_result(program, result)
 }
 pub(super) fn prove_equalities(
     context: &DeclarationContext<'_>,
