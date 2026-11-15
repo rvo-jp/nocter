@@ -294,6 +294,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Retain definition-owned attribution of direct nullable invocation witnesses to their exact
   input roots, excluding these potential state guards from flat coverage. Qualify distinct
   same-signature inputs, ordinary-boolean/fixed-target exclusions and runtime/const boundaries.
+- [x] Qualify uninvoked runtime-only function values across read/take and direct/optional input
+  boundaries, independently of declaration order. Forming or passing the value must not demand
+  its body or create an initializer cycle; whole-unit checking still validates that body later.
 - [x] Qualify received empty/positive callable domains through dynamically indexed compound
   array inputs. Preserve evaluated-index bounds effects, selected sibling access, take/read/edit
   projections, sparse remaining-owner cleanup and actual captured-error environments.

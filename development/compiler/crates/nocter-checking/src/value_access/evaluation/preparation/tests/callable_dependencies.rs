@@ -194,9 +194,20 @@ fn an_unavailable_bound_closure_retains_its_local_fixed_operation_cause() {
 
 #[test]
 fn an_unused_runtime_callback_body_does_not_create_a_required_value_cycle() {
-    assert_answer_42(
-        "func deferred(value: i32): i32 { let _ = ANSWER\nvalue }\nconst func ignore(action: func(i32): i32): i32 { 42 }\nconst ANSWER: i32 = ignore(deferred)",
-    );
+    for operation in ["", "take "] {
+        for outcome in ["func(i32): i32", "(func(i32): i32)?"] {
+            let declarations = format!(
+                "func deferred(value: i32): i32 {{ let _ = ANSWER\nvalue }}\nconst func ignore({operation}action: {outcome}): i32 {{ 42 }}"
+            );
+            let initializer = "const ANSWER: i32 = ignore(deferred)";
+            for source in [
+                format!("{declarations}\n{initializer}"),
+                format!("{initializer}\n{declarations}"),
+            ] {
+                assert_answer_42(&source);
+            }
+        }
+    }
 }
 
 #[test]
