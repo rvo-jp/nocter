@@ -252,6 +252,10 @@ impl Types {
             if self.ids.contains_key(&data) {
                 continue;
             }
+            if matches!(&data, ShapeKey::Instance(key) if key.is_uninhabited()) {
+                self.insert(data, Type::Unavailable, false);
+                continue;
+            }
             let Some(schema) = program.data_schema(data.data()) else {
                 if !metadata_only || program.record_identity(data.data()).is_none() {
                     return Err(INVALID);

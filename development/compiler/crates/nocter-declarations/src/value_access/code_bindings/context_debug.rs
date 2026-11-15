@@ -71,6 +71,7 @@ fn format(root: Node<'_>, name: &str, formatter: &mut fmt::Formatter<'_>) -> fmt
             Node::Data(key) => {
                 let context = match &*key.context {
                     Context::Closed => "Closed".to_owned(),
+                    Context::Uninhabited => "Uninhabited".to_owned(),
                     Context::Function(witness) => {
                         format!("Function({})", graph.intern(Node::Callable(witness)))
                     }

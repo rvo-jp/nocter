@@ -62,7 +62,10 @@ impl Program {
             let target = expected
                 .get(&index)
                 .ok_or(InputBindingError::Unexpected(index))?;
-            if data.data() != *target || self.validate_data_instance(&data).is_err() {
+            if data.is_uninhabited()
+                || data.data() != *target
+                || self.validate_data_instance(&data).is_err()
+            {
                 return Err(InputBindingError::Schema(index));
             }
             if values.insert(index, data).is_some() {

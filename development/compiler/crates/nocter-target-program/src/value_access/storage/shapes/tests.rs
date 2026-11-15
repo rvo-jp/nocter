@@ -12,6 +12,24 @@ struct Fixture {
     empty: TypeId,
     wrapper: FunctionWitness,
 }
+
+#[test]
+fn uninhabited_metadata_is_not_a_materialized_callable_or_backing() {
+    let fixture = fixture();
+    let program = &fixture.program;
+    let empty = program
+        .instantiate_uninhabited_data(fixture.captured)
+        .unwrap();
+    let mut builder = Builder::new(program);
+    assert!(matches!(
+        builder.intern(empty),
+        Err(Failure::InvalidPayload(_))
+    ));
+    assert!(builder.ids.is_empty());
+    assert!(builder.pending.is_empty());
+    assert_eq!(builder.next, 0);
+    assert!(builder.intern(fixture.keys[0].clone()).is_ok());
+}
 fn fixture() -> Fixture {
     let source = ValueSourceFixture::new(
         "func plain(): i32 { 41 }\nfunc creator(take action: func(): i32): i32 { action() }",

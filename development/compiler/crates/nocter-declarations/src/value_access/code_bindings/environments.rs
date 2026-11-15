@@ -19,7 +19,8 @@ impl Program {
         let Origin::Closure(code) = selected.origin else {
             return Err(CodeBindingError::InvalidWitness);
         };
-        if self.function_data(selected).is_none()
+        if environment.is_uninhabited()
+            || self.function_data(selected).is_none()
             || self
                 .closure(code)
                 .ok_or(CodeBindingError::UnknownCode)?
@@ -93,7 +94,7 @@ impl Program {
                 continue;
             }
             match &*key.context {
-                Context::Closed => {}
+                Context::Closed | Context::Uninhabited => {}
                 Context::Components(children) => pending.extend(children.values()),
                 Context::Function(actual) => {
                     let Some(PayloadSchema::Function(wanted)) = self.data_schema(key.data()) else {
@@ -174,6 +175,7 @@ impl<'a> Validation<'a> {
                             .ok_or(CodeBindingError::UnknownCode)?
                             .environment()
                         || environment.is_context_free()
+                        || environment.is_uninhabited()
                     {
                         return Err(CodeBindingError::InvalidWitness);
                     }
@@ -200,6 +202,7 @@ impl Validation<'_> {
             }
             match &*key.context {
                 Context::Closed => return Err(CodeBindingError::InvalidWitness),
+                Context::Uninhabited => {}
                 Context::Function(actual) => {
                     self.program
                         .constrain_instance_function(key.data(), actual.witness())?;

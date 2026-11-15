@@ -80,6 +80,9 @@ impl<'a> Builder<'a> {
     fn normalized(&self, key: DataInstanceKey) -> Result<DataInstanceKey, Failure> {
         let source = key.data();
         let invalid = || Failure::InvalidPayload(source);
+        if key.is_uninhabited() {
+            return Err(invalid());
+        }
         Ok(key
             .function_representation(self.program)
             .map_err(|_| invalid())?
@@ -195,6 +198,7 @@ impl<'a> Builder<'a> {
     fn shape(&mut self, id: RuntimeDataId, key: &DataInstanceKey) -> Result<RuntimeType, Failure> {
         let invalid = || Failure::InvalidPayload(key.data());
         Ok(match key.schema(self.program).map_err(|_| invalid())? {
+            InstanceSchema::Uninhabited => return Err(invalid()),
             InstanceSchema::Array(array) if array.is_empty() => RuntimeType::EmptyArray {
                 // Metadata only: no element binding, payload or geometry is manufactured.
                 element: RuntimeDataId::Source(array.element()),

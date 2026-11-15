@@ -63,7 +63,7 @@ impl Payload {
         program: &Program,
         instance: &nocter_declarations::value_access::DataInstanceKey,
     ) -> Result<InstantiatedPayload> {
-        if self.data != instance.data() {
+        if instance.is_uninhabited() || self.data != instance.data() {
             return Err(INVALID);
         }
         let instance = instance.clone();

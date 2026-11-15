@@ -2,6 +2,20 @@ use super::*;
 use crate::value_access::tests::queries;
 
 #[test]
+fn an_uninhabited_representation_cannot_become_an_owned_payload() {
+    let queries = queries("func run(value: i32): i32 { value }").unwrap();
+    let program = queries[0].program();
+    let data = program.data_type(BuiltinType::I32).unwrap();
+    let empty = program.instantiate_uninhabited_data(data).unwrap();
+    assert!(
+        payload(program, data)
+            .unwrap()
+            .instantiate(program, &empty)
+            .is_err()
+    );
+}
+
+#[test]
 fn ownership_mutants_cannot_duplicate_destroy_twice_or_escape_without_a_return_holder() {
     let queries = queries("func run(take value: error): error { value^ }\n").unwrap();
     let query = &queries[0];

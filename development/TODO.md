@@ -147,6 +147,14 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   including bodies whose reachable returns are all absent or failed. A valid inactive outcome
   must not require an invented function code; distinguish this from uncommitted applications,
   unresolved recursion and missing context for a genuinely produced callable value.
+- [x] Define canonical uninhabited representation metadata independently of unknown descriptors,
+  concrete callable witnesses and actual owner availability. Normalize required product children,
+  retain inactive outcome alternatives and reject an uninhabited environment/input as a received value.
+  Qualify metadata classification and fail-closed owned-value/storage boundaries.
+- [ ] Transport inhabited outcomes with uninhabited alternatives through guarded lifecycle,
+  evaluator, target storage, ABI and native execution. An empty root has no stored payload;
+  retaining an inactive alternative's descriptor must not create code, cleanup or field geometry.
+  Qualify original tag guards and rejected positive uses before opening producer-less source results.
 - [x] Qualify compound returns with empty-array callable descriptors, including mixtures with
   inhabited result leaves, ordinal gaps and forwarding between declaration-owned descriptors.
   Uninhabited metadata must neither create an element equation nor require a concrete producer.

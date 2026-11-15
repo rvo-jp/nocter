@@ -124,6 +124,17 @@ impl Program {
         if supplied.len() != expected.len() {
             return Err(CodeBindingError::InvalidWitness);
         }
+        let uninhabited = match self
+            .data_schema(data)
+            .ok_or(CodeBindingError::InvalidWitness)?
+        {
+            PayloadSchema::Optional(_) => false,
+            PayloadSchema::Fallible(_) => supplied.values().all(DataInstanceKey::is_uninhabited),
+            _ => supplied.values().any(DataInstanceKey::is_uninhabited),
+        };
+        if uninhabited {
+            return self.instantiate_uninhabited_data(data);
+        }
         supplied.retain(|_, child| !child.is_context_free());
         Ok(DataInstanceKey {
             data,

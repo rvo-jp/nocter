@@ -49,13 +49,16 @@ fn compare(root: Pending<'_>) -> Ordering {
                     continue;
                 }
                 match (&*left.context, &*right.context) {
-                    (Context::Closed, Context::Closed) => Ordering::Equal,
+                    (Context::Closed, Context::Closed)
+                    | (Context::Uninhabited, Context::Uninhabited) => Ordering::Equal,
                     (Context::Closed, _) | (Context::Function(_), Context::Components(_)) => {
                         Ordering::Less
                     }
                     (_, Context::Closed) | (Context::Components(_), Context::Function(_)) => {
                         Ordering::Greater
                     }
+                    (Context::Uninhabited, _) => Ordering::Less,
+                    (_, Context::Uninhabited) => Ordering::Greater,
                     (Context::Function(left), Context::Function(right)) => {
                         pending.push(Pending::Witness(left, right));
                         Ordering::Equal

@@ -5,3 +5,4 @@ use fixture::*;
 mod bindings;
 mod data;
 mod inputs;
+mod uninhabited;

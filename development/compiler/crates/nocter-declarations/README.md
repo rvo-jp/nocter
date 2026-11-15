@@ -426,7 +426,7 @@ Formal resolution and producer-frame realization use this same operation; adapta
 ownership, body capability or representation evidence.
 
 `DataInstanceKey` pairs an unchanged semantic TypeId with a canonical shared component-context DAG.
-Function leaves retain complete selected witnesses; carriers retain only contextual child edges,
+Inhabited function leaves retain complete selected witnesses; carriers retain only contextual child edges,
 so two fields of the identical source type can keep different captured substitutions. Context-free
 children are omitted canonically. Equality and ordering walk shared graphs iteratively rather than
 expanding repeated subtrees or array cardinality.
@@ -451,6 +451,20 @@ pending producers and missing dependencies cannot be closed from their signature
 schema grant no payload, storage layout, access, const eligibility or source-generation receipt.
 Evaluator and native consumers qualify their contextual representations through this common
 projection before extending that source scope.
+
+`instantiate_uninhabited_data` selects an empty representation domain for an existing semantic
+descriptor. `InstanceSchema::Uninhabited` supplies neither a concrete function nor a positive
+component, and remains distinct from an independently closed or unresolved descriptor. Required
+tuple/record fields and positive arrays propagate an empty child domain to the whole product;
+zero arrays remain inhabited. Optional data retains its absence alternative; fallible data remains
+inhabited when either alternative is inhabited. Complete component metadata is still required:
+omitting a child is not an empty-domain proof. Normalization retains the original semantic TypeId.
+An empty root cannot become a concrete closure environment or received input. The evaluator
+classifies it as unavailable value data, while an optional containing that domain can still
+represent absence. Owned-payload conversion and native materialization reject an empty root.
+This metadata capability supplies no source admission or initialization/tag proof. Guarded
+inactive-alternative layout, lifecycle transport and ordinary producer-less callable outcomes
+require separate integrated qualification.
 
 `CodeTemplateKey` retains concrete or validated outer-parameter witnesses for condition composition.
 `code_template` builds a code's identity parameter frame; `bind_template` uses the same exact

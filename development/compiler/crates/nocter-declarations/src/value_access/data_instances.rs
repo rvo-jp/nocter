@@ -16,12 +16,15 @@ pub struct DataInstanceKey {
 #[derive(Debug)]
 pub(super) enum Context {
     Closed,
+    Uninhabited,
     Function(ConcreteWitness),
     Components(BTreeMap<ValueField, DataInstanceKey>),
 }
-/// One canonical schema with a resolved callable value; carrier children retain semantic `TypeId`s.
+/// One canonical representation domain; inhabited callable leaves retain complete witnesses.
 #[derive(Clone, Debug)]
 pub enum InstanceSchema<'a> {
+    /// This semantic descriptor has no represented values in the selected specialization.
+    Uninhabited,
     Builtin(BuiltinType),
     Aggregate(AggregateSchema<'a>),
     Array(ArraySchema),
@@ -34,10 +37,15 @@ impl DataInstanceKey {
     pub const fn data(&self) -> TypeId {
         self.data
     }
-    /// Whether representation selection needs any captured/formal substitution.
+    /// Whether the declared descriptor alone selects this representation domain.
     #[must_use]
     pub fn is_context_free(&self) -> bool {
         matches!(&*self.context, Context::Closed)
+    }
+    /// An empty represented domain, not missing metadata or a currently uninitialized owner.
+    #[must_use]
+    pub fn is_uninhabited(&self) -> bool {
+        matches!(&*self.context, Context::Uninhabited)
     }
     /// Select the actual function leaf's representation key without relabelling its carrier.
     /// The original instance retains its semantic identity; only the selected callable changes.
@@ -59,6 +67,12 @@ impl DataInstanceKey {
     /// # Errors
     /// Rejects a missing schema or unresolved callable dependency.
     pub fn schema<'a>(&self, program: &'a Program) -> Result<InstanceSchema<'a>, CodeBindingError> {
+        if self.is_uninhabited() {
+            program
+                .data_schema(self.data)
+                .ok_or(CodeBindingError::InvalidWitness)?;
+            return Ok(InstanceSchema::Uninhabited);
+        }
         Ok(
             match program
                 .data_schema(self.data)
@@ -73,7 +87,9 @@ impl DataInstanceKey {
                     InstanceSchema::Function(match &*self.context {
                         Context::Closed => program.concrete_witness(witness)?,
                         Context::Function(selected) => selected.clone(),
-                        Context::Components(_) => return Err(CodeBindingError::InvalidWitness),
+                        Context::Components(_) | Context::Uninhabited => {
+                            return Err(CodeBindingError::InvalidWitness);
+                        }
                     })
                 }
             },
@@ -89,6 +105,9 @@ impl DataInstanceKey {
         program: &Program,
         field: ValueField,
     ) -> Result<Self, CodeBindingError> {
+        if self.is_uninhabited() {
+            return Err(CodeBindingError::InvalidWitness);
+        }
         let data = program
             .component(self.data, field)
             .ok_or(CodeBindingError::InvalidWitness)?
@@ -130,6 +149,21 @@ impl DataInstanceKey {
     }
 }
 impl Program {
+    /// Select the empty represented domain of an existing semantic descriptor.
+    /// This is metadata only: it creates no value, concrete callable, owner or target layout.
+    /// # Errors
+    /// Rejects an unknown or unavailable semantic descriptor.
+    pub fn instantiate_uninhabited_data(
+        &self,
+        data: TypeId,
+    ) -> Result<DataInstanceKey, CodeBindingError> {
+        self.data_schema(data)
+            .ok_or(CodeBindingError::InvalidWitness)?;
+        Ok(DataInstanceKey {
+            data,
+            context: Arc::new(Context::Uninhabited),
+        })
+    }
     /// Select the complete environment input of one existing code frame.
     /// Source/body guards and ownership remain separate from this metadata projection.
     /// # Errors
