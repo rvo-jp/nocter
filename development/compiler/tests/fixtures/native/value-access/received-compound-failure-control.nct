@@ -1,0 +1,39 @@
+primitive func create_failure(code: str, message: str): error
+primitive func context_error(take value: error, message: str): error
+func addition(number: i32, code: str): func(i32): i32 {
+    let reason = context_error(create_failure(code, "leaf"), "outer")
+    (reason^, number; value: i32) { number + value }
+}
+func failed(): (func(i32): i32)! {
+    throw context_error(create_failure("failed", "leaf"), "outer")
+}
+func present(number: i32): (func(i32): i32)! { addition(number, "captured") }
+func adjacent(): func(i32): i32 { addition(100, "adjacent") }
+func propagate(take value: ((func(i32): i32)!, func(i32): i32, i32)): i32! {
+    if value.2 != 7 { return 0 }
+    let action = value.0^?
+    action(2)
+}
+func recover(take value: i32!): i32 { value^ catch reason { return 11 } }
+func inspect(take value: ((func(i32): i32)!, func(i32): i32, i32)): i32 {
+    if value.2 != 7 { return 0 }
+    let action = value.0^ catch reason { return 11 }
+    action(2)
+}
+func inspect_read(value: ((func(i32): i32)!, func(i32): i32, i32)): i32 {
+    if value.2 != 7 { return 0 }
+    read action = value.0 catch reason { return 11 }
+    action(2)
+}
+func inspect_edit(edit value: ((func(i32): i32)!, func(i32): i32, i32)): i32 {
+    if value.2 != 7 { return 0 }
+    edit action = value.0 catch reason { return 11 }
+    action(2)
+}
+func run(): i32 {
+    if inspect((failed(), adjacent(), 7)) != 11 || inspect((present(29), adjacent(), 7)) != 31 { return 0 }
+    if inspect_read((failed(), adjacent(), 7)) != 11 || inspect_read((present(29), adjacent(), 7)) != 31 { return 0 }
+    if inspect_edit((failed(), adjacent(), 7)) != 11 || inspect_edit((present(29), adjacent(), 7)) != 31 { return 0 }
+    if recover(propagate((failed(), adjacent(), 7))) != 11 || recover(propagate((present(29), adjacent(), 7))) != 31 { return 0 }
+    42
+}

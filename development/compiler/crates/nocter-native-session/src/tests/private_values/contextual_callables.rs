@@ -43,6 +43,21 @@ fn private_contextual_absent_callable_arrays_preserve_supplied_environments_and_
 }
 
 #[test]
+fn private_compound_received_failures_preserve_staged_and_adjacent_error_owners() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-compound-failure-control.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &image(&trusted_error_machine(source)),
+        &package.0,
+        "compound-received-failure-control",
+        42,
+    );
+}
+
+#[test]
 fn private_compound_received_assertions_keep_the_original_traps() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

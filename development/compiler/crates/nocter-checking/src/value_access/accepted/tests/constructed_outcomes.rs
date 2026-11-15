@@ -4,6 +4,17 @@ use super::*;
 use nocter_constant_evaluation::state::Value;
 
 #[test]
+fn compound_received_failure_domains_preserve_their_source_ownership_contracts() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-compound-failure-control.nct"
+    ));
+    let fixture = nocter_test_support::ValueSourceFixture::new(source);
+    SourceUnit::prepare_with_primitive_authority(fixture.syntax(), &super::primitives::authority())
+        .unwrap();
+}
+
+#[test]
 fn compound_received_optional_domains_preserve_adjacent_live_components() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

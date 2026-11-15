@@ -285,6 +285,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   a received primary callable domain is empty.
   Preserve evaluation of the original carrier/tag, required traps and alternate cleanup while
   excluding impossible positive continuations; a guarded empty descriptor is not a callable value.
+- [x] Qualify received fallible callable components with adjacent live owners through owned
+  propagation and take/read/edit recovery. Preserve staged error ownership, borrowed-failure
+  restrictions, independent input metadata and actual error/capture cleanup in native execution.
 - [x] Qualify optional propagation and assertions on received compound-input components.
   Preserve take/read/edit operations, staged absence, inactive-variant diagnostics and native
   traps, independent neighboring callable/scalar metadata and actual remaining-owner cleanup.

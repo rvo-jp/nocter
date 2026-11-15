@@ -3,6 +3,33 @@ use crate::value_access::accepted::{Failure, SourceFailure, SourceUnit};
 use nocter_constant_evaluation::state::Value as Datum;
 
 #[test]
+fn compound_fallible_projection_cannot_transfer_the_callers_error() {
+    for (parameter, binding) in [("value", "read action"), ("edit value", "edit action")] {
+        let source = format!(
+            "func inspect({parameter}: ((func(i32): i32)!, func(i32): i32, i32)): i32! {{ {binding} = value.0?\naction(2) }}"
+        );
+        let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+        let Err(SourceFailure::Checking(Failure::Body {
+            failure: crate::value_access::Failure::Rejected(diagnostic),
+            ..
+        })) = SourceUnit::prepare(fixture.syntax())
+        else {
+            panic!("component projection cannot transfer its caller's error")
+        };
+        assert_eq!(
+            diagnostic.rule(),
+            crate::value_access::Rule::MissingTransfer
+        );
+        assert_eq!(
+            fixture
+                .syntax()
+                .text_at(diagnostic.source().primary().span().range()),
+            Some("value.0?")
+        );
+    }
+}
+
+#[test]
 fn compound_received_assertions_report_the_original_component_check() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

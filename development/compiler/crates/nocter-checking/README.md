@@ -448,6 +448,12 @@ The same source qualifies optional propagation and assertions of the selected co
 three input operations. Propagation stages absence before cleaning remaining components; failed
 assertions retain the original component-check diagnostic and native safety trap rather than
 requiring an impossible callable or running recoverable cleanup.
+`received-compound-failure-control.nct` qualifies owned failure propagation and take/read/edit
+recovery at a tuple component with a neighboring live callable and scalar field. Native execution
+uses actual nested error graphs in failure payloads and callable environments. Propagation stages
+the error before remaining-container cleanup; borrowed recovery leaves the caller's error owned by
+the caller. Read/edit `?` still rejects at the component expression because it would transfer that
+error. These runtime error cases do not extend the required evaluator's live-error domain.
 `received-nested-outcome-control.nct` qualifies two optional layers through take/read/edit
 inputs. Outer absence and present-inner-absence share one canonical received representation, but
 their original outer tag test remains intact. Only the inner impossible callable continuation is
