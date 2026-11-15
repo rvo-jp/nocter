@@ -7,6 +7,13 @@ pub(super) fn checked(text: &str) -> crate::value_access::accepted::Checked {
     checked_without(text, &[])
 }
 fn checked_without(text: &str, omitted: &[&str]) -> crate::value_access::accepted::Checked {
+    checked_scope(text, omitted, None)
+}
+fn checked_scope(
+    text: &str,
+    omitted: &[&str],
+    invoked: Option<&[&str]>,
+) -> crate::value_access::accepted::Checked {
     let source = ValueSourceFixture::new(text);
     let declarations =
         nocter_declaration_lowering::access_declarations::Query::prepare(source.syntax()).unwrap();
@@ -32,7 +39,22 @@ fn checked_without(text: &str, omitted: &[&str]) -> crate::value_access::accepte
             )
         })
         .collect();
-    crate::value_access::accepted::check_queries(&context, queries).unwrap()
+    if let Some(names) = invoked {
+        let invoked = names
+            .iter()
+            .map(|name| {
+                context
+                    .program()
+                    .resolve_code(context.program().symbols().get(name).unwrap())
+                    .unwrap()
+                    .into()
+            })
+            .collect();
+        let resolved = crate::value_access::accepted::resolve_queries(&context, queries).unwrap();
+        crate::value_access::accepted::admit_resolved(&context, resolved, Some(&invoked)).unwrap()
+    } else {
+        crate::value_access::accepted::check_queries(&context, queries).unwrap()
+    }
 }
 fn copy_extension(extension: &plan::ProgramExtension) -> plan::ProgramExtension {
     plan::ProgramExtension {
@@ -71,6 +93,42 @@ callback(35) }",
         .find(|(key, _)| key.source == target.into())
         .unwrap();
     assert_eq!(contract.inputs.len(), 1);
+    assert!(!extension.plans.contains_key(&linked));
+    program.extend(extension).unwrap();
+    assert!(matches!(
+        source.load(linked),
+        Err(plan::Rule::UnavailablePlan)
+    ));
+}
+
+#[test]
+fn linking_a_scoped_out_captured_body_preserves_its_environment_without_an_executable_plan() {
+    let checked = checked_scope(
+        "func run(): i32 { let offset = 7\nlet callback = (offset; value: i32) { value + offset }\ncallback(35) }",
+        &[],
+        Some(&["run"]),
+    );
+    let root = checked
+        .program
+        .resolve_code(checked.program.symbols().get("run").unwrap())
+        .unwrap();
+    let mut work = plan::WorkBudget::new(plan::Limits::default().steps());
+    let (mut program, mut source) =
+        Source::prepare(&checked, root.into(), BTreeMap::new(), |_| None, &mut work).unwrap();
+    let extension = source.load(root.into()).unwrap();
+    assert_eq!(extension.plans.len(), 1);
+    let (&linked, contract) = extension
+        .contracts
+        .iter()
+        .find(|(key, _)| matches!(key.source, nocter_model::ValueCode::Closure(_)))
+        .unwrap();
+    assert!(checked.code(linked.source).is_none());
+    assert_eq!(contract.inputs.len(), 2);
+    assert_eq!(
+        contract.inputs[0].operation,
+        nocter_model::ValueInputOperation::Read
+    );
+    assert!(contract.environment_backing);
     assert!(!extension.plans.contains_key(&linked));
     program.extend(extension).unwrap();
     assert!(matches!(

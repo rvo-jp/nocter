@@ -1,0 +1,13 @@
+func runtime(value: i32): i32 { value + 7 }
+const func make(): func(i32): i32 {
+    let offset = 7
+    (offset; value: i32) { runtime(value) + offset }
+}
+const func produce(present: bool): (func(i32): i32)? {
+    if present { make() } else { none }
+}
+const func inspect(take value: (func(i32): i32)?): i32 {
+    let action = value^ otherwise { return 42 }
+    action(28)
+}
+func run(): i32 { inspect(produce(false)) + inspect(produce(true)) - 42 }

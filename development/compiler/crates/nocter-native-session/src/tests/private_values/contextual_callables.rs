@@ -2,6 +2,42 @@
 use super::*;
 
 #[test]
+fn private_guarded_captured_callbacks_remain_valid_for_both_tags_and_owned_environments() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/value-guarded-captured-outcomes.nct"
+    ));
+    let runtime = source.replace("const func", "func");
+    let package = TempPackage::new();
+    for (parameter, extraction) in [
+        ("take value", "let action = value^"),
+        ("value", "read action = value"),
+        ("edit value", "edit action = value"),
+    ] {
+        let source = runtime
+            .replace("inspect(take value", &format!("inspect({parameter}"))
+            .replace("let action = value^", extraction);
+        execute_native_status(
+            &compile(&source),
+            &package.0,
+            "guarded-captured-outcomes",
+            42,
+        );
+        let owned = source.replace("    let offset = 7", "    let reason = context_error(create_failure(\"captured\", \"leaf\"), \"outer\")\n    let offset = 7").replace("(offset; value: i32)", "(reason^, offset; value: i32)");
+        assert_ne!(owned, source);
+        let owned = format!(
+            "primitive func create_failure(code: str, message: str): error\nprimitive func context_error(take value: error, message: str): error\n{owned}"
+        );
+        execute_native_status(
+            &image(&trusted_error_machine(&owned)),
+            &package.0,
+            "guarded-captured-errors",
+            42,
+        );
+    }
+}
+
+#[test]
 fn private_contextual_compound_constraints_preserve_inferred_inputs_and_actual_error_cleanup() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

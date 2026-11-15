@@ -134,13 +134,36 @@ pub(in crate::value_access) fn boundary(
             ),
         });
     }
-    let nocter_model::ValueCode::Declaration(code) = frame.code() else {
-        return Err(InstantiationFailure::Unresolved);
+    let (contract, environment) = match frame.code() {
+        nocter_model::ValueCode::Declaration(code) => (
+            program
+                .function_contract(code.into())
+                .ok_or(InstantiationFailure::Unresolved)?,
+            None,
+        ),
+        nocter_model::ValueCode::Closure(code) => {
+            work.step().map_err(|_| InstantiationFailure::WorkLimit)?;
+            let contract = program
+                .closure(code)
+                .ok_or(InstantiationFailure::Unresolved)?
+                .contract()
+                .clone();
+            let data = program
+                .instantiate_environment(frame)
+                .map_err(|_| InstantiationFailure::Unresolved)?
+                .ok_or(InstantiationFailure::Unresolved)?;
+            let operation = contract.invocation.operation();
+            (
+                contract,
+                Some(nocter_declarations::value_access::FunctionInput { data, operation }),
+            )
+        }
+        nocter_model::ValueCode::Expression(_) => return Err(InstantiationFailure::Unresolved),
     };
-    let contract = program
-        .function_contract(code.into())
-        .ok_or(InstantiationFailure::Unresolved)?;
-    let inputs = contract
+    let environment_backing = environment
+        .as_ref()
+        .is_some_and(|input| input.operation != nocter_model::ValueInputOperation::Take);
+    let explicit = contract
         .inputs
         .iter()
         .enumerate()
@@ -159,16 +182,18 @@ pub(in crate::value_access) fn boundary(
                 operation: channel.operation,
             })
         })
-        .collect::<Result<_, InstantiationFailure>>()?;
-    // A declaration can describe the boundary without describing any returned producer.
-    // Context-dependent result families still require their original body evidence.
+        .collect::<Result<Vec<_>, InstantiationFailure>>()?;
+    // Metadata can describe a boundary without describing any returned producer.
+    // Explicit ordinals exclude the environment prefix. Context-dependent result families
+    // still require their original body evidence; linking grants no executable body.
+    let inputs = environment.into_iter().chain(explicit).collect();
     let result = program
         .instantiate_closed_data(contract.result)
         .map_err(|_| InstantiationFailure::Unresolved)?;
     Ok(CallBoundary {
         inputs,
         result,
-        environment_backing: false,
+        environment_backing,
     })
 }
 #[cfg(test)]

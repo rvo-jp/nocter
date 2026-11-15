@@ -309,8 +309,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   a failed attempt must neither lose a linked boundary nor mark a missing global as published.
 - [x] Separate evaluator call-boundary linking from body realization using the shared body-channel
   metadata authority. Preserve full body-derived input/result contexts when present; without a
-  body, admit only declaration-owned named boundaries whose keys can close independently of
-  return producers. A linked boundary grants no const capability or executable implementation.
+  body, admit only declaration/lexical boundaries whose keys and capture environment can close
+  independently of return producers. A linked boundary grants no const capability or executable
+  implementation.
 - [x] Retain required-const admission as a sealed exact checked-root product and require it for
   production evaluator preparation. Body availability, linked boundaries and metadata projection
   alone must not authorize evaluation. Preserve existing condition proofs, budgets and diagnostics.
@@ -342,9 +343,12 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [ ] Extend contextual completion from already selected compound data identities and qualify
   anonymous compound callable result constraints. Re-own lexical input formals rather than retaining
   another input's identities; preserve returned producer evidence and final serialization gates.
+- [x] Qualify direct stable nullable guards for unavailable captured invocations. Link independently
+  closed lexical call boundaries with their actual environment prefix and explicit received contexts;
+  preserve intrinsic environment operations, active-body causes, per-invocation checks and work retry.
 - [ ] Extend [state-conditioned const obligations](design/compiler-realization.md#state-conditioned-const-obligations)
-  beyond direct stable nullable inputs with named runtime-only callbacks. Qualify changing inputs,
-  unavailable captured bodies, general nested/indexed component predicates and guarded cleanup.
+  beyond direct stable nullable inputs with independently linkable callbacks. Qualify changing inputs,
+  general nested/indexed component predicates, context-dependent boundaries and guarded cleanup.
   Retain exact-body/occurrence references and revalidate invalidated predicates; preserve fixed
   forbidden definitions, runtime validity, original source causes and healthy work-failure retry.
   Do not turn an observed tag into an uninhabited representation or execute unsupported bodies.

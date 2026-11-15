@@ -535,21 +535,25 @@ classification; transfer and retirement still change availability under the reso
 Missing source correspondence stays unproved. This classification proves neither an actual tag
 nor initialized backing.
 
-`value-guarded-callable-outcomes.nct` qualifies required evaluation of stable direct nullable
-inputs whose represented domain contains a named runtime-only callback. Take/read/edit inputs
-and forwarding keep that positive domain while the evaluator checks actual entry absence.
+`value-guarded-callable-outcomes.nct` and `value-guarded-captured-outcomes.nct` qualify required
+evaluation of stable direct nullable inputs whose represented domain contains a named runtime-only
+callback or an unavailable captured body. Take/read/edit inputs and forwarding keep that positive
+domain while the evaluator checks actual entry absence.
 The actual callee must trace through the original input's projections/adapters and selected sparse
 merges. Opaque calls, replacements and independent constructions supply no lineage proof. Read
 inputs retain source access protection; owned/update inputs additionally exclude mutation and
 sibling calls until general alias/callee interference is qualified. Bound admission retains the
 exact frame, original clause and cause; projection verifies that cause against its original call
-operation. Only independently linkable call boundaries can defer an invocation capability. Other data, preparation and cleanup obligations remain mandatory.
-An active input reports the original runtime-call violation with its actual evaluation trace,
-before body operations. Each invocation rechecks its value, including absent and present calls
+operation. Only independently linkable call boundaries can defer an invocation capability. Other
+data, preparation and cleanup obligations remain mandatory. An active input reports its original
+runtime-only or unavailable captured-call violation with the actual evaluation trace, before body
+operations. Each invocation rechecks its value, including absent and present calls
 sharing one canonical frame. Original absence assertions still trap at their source. Direct or
 alias-mediated input writes retain the conservative rejection; unrelated writes do not invalidate
-the proof. Ordinary runtime execution remains valid for both tags. Unavailable captured bodies,
-changing inputs, general component/index guards and guarded cleanup retain the separate
+the proof. An unavailable captured callback retains its own invocation cause and the underlying
+original body cause, together with the actual invocation trace. Ordinary runtime execution remains
+valid for both tags, including callback environments that own errors. Changing inputs, general
+component/index guards, context-dependent boundaries and guarded cleanup retain the separate
 [state-conditioned obligations](../../../design/compiler-realization.md#state-conditioned-const-obligations).
 
 `received-compound-outcome-control.nct` qualifies the same continuation selection at a tuple
@@ -764,10 +768,12 @@ never caches the truth of an earlier invocation's state predicate.
 
 The evaluator's call-boundary projection uses this same body-channel authority. A retained body
 supplies its full ordered inputs, including the capture environment, and its qualified result
-context. Without that body, a named declaration can supply only a boundary whose received input
-keys and independently closed result are available from declaration metadata. Body-dependent
-result families and missing captured bodies remain unresolved. Linking that boundary grants no
-const capability or executable implementation; loading a missing body reports `UnavailablePlan`.
+context. Without that body, declaration or lexical metadata can supply only a boundary whose
+received inputs, exact capture environment and independently closed result are available. The
+lexical environment keeps its intrinsic read/edit/take operation and backing flag before explicit
+inputs; received compound ordinals still exclude that prefix. Missing environment contexts and
+body-dependent result families remain unresolved. Linking that boundary grants no const capability
+or executable implementation; loading a missing body reports `UnavailablePlan`.
 
 One evaluator request caches only complete boundaries by canonical code frame, sharing them
 between call operations, result slots and program linking. Failed boundary work publishes no cache

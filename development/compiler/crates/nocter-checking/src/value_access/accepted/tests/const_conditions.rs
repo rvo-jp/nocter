@@ -2,6 +2,117 @@
 use super::*;
 
 #[test]
+fn stable_absence_can_discharge_an_unavailable_captured_body_without_executing_it() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/value-guarded-captured-outcomes.nct"
+    ));
+    let source = format!(
+        "{source}\nconst func forward(take value: (func(i32): i32)?): i32 {{ inspect(value^) }}"
+    );
+    for (parameter, extraction) in [
+        ("take value", "let action = value^"),
+        ("value", "read action = value"),
+        ("edit value", "edit action = value"),
+    ] {
+        let source = source
+            .replace("inspect(take value", &format!("inspect({parameter}"))
+            .replace("let action = value^", extraction);
+        accepted(&source);
+        for target in ["inspect", "forward"] {
+            let required = format!(
+                "{source}\nconst ANSWER: i32 = {target}(produce(false)) + {target}(produce(false)) - 42"
+            );
+            assert_eq!(
+                super::initializers::answer(&required, "ANSWER"),
+                nocter_constant_evaluation::state::Value::integer(42)
+            );
+            for calls in [
+                format!("{target}(produce(true))"),
+                format!("{target}(produce(false)) + {target}(produce(true)) - 42"),
+            ] {
+                let rejected = format!("{source}\nconst ANSWER: i32 = {calls}");
+                let fixture = nocter_test_support::ValueSourceFixture::new(&rejected);
+                let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+                    SourceUnit::prepare(fixture.syntax())
+                else {
+                    panic!("an active unavailable captured body must reject")
+                };
+                assert!(matches!(diagnostic.rule(), Rule::CapturedCall(_)));
+                assert_eq!(
+                    fixture
+                        .syntax()
+                        .text_at(diagnostic.source().primary().span().range()),
+                    Some("action(28)")
+                );
+                assert!(diagnostic.source().notes().iter().any(|note| {
+                    fixture.syntax().text_at(note.origin().span().range()) == Some("runtime(value)")
+                }));
+                let active = format!("{target}(produce(true))");
+                let absent = format!("{target}(produce(false))");
+                assert!(diagnostic.source().notes().iter().any(|note| {
+                    fixture.syntax().text_at(note.origin().span().range()) == Some(active.as_str())
+                }));
+                assert!(!diagnostic.source().notes().iter().any(|note| {
+                    fixture.syntax().text_at(note.origin().span().range()) == Some(absent.as_str())
+                }));
+            }
+            let permitted = format!("{source}\nconst ANSWER: i32 = {target}(produce(true))")
+                .replace("func runtime(", "const func runtime(");
+            assert_eq!(
+                super::initializers::answer(&permitted, "ANSWER"),
+                nocter_constant_evaluation::state::Value::integer(42)
+            );
+        }
+    }
+}
+
+#[test]
+fn guarded_captured_boundaries_preserve_update_and_consuming_environment_operations() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/value-guarded-captured-outcomes.nct"
+    ));
+    let updating = source
+        .replace("func(i32): i32", "mut(i32): i32")
+        .replace(
+            "{ runtime(value) + offset }",
+            "{ offset += 0\nruntime(value) + offset }",
+        )
+        .replace("let action = value^", "var action = value^");
+    let taking = source
+        .replace("func(i32): i32", "once(i32): i32")
+        .replace("let offset = 7", "let token = Token { offset: 7 }")
+        .replace(
+            "(offset; value: i32) { runtime(value) + offset }",
+            "(token^; value: i32) { let owned = token^\nruntime(value) + owned.offset }",
+        )
+        .replace("action(28)", "action^(28)");
+    let taking = format!("struct Token {{ offset: i32 }}\n{taking}");
+    for source in [updating, taking] {
+        accepted(&source);
+        let absent = format!("{source}\nconst ANSWER: i32 = inspect(produce(false))");
+        assert_eq!(
+            super::initializers::answer(&absent, "ANSWER"),
+            nocter_constant_evaluation::state::Value::integer(42)
+        );
+        let present = format!("{source}\nconst ANSWER: i32 = inspect(produce(true))");
+        let fixture = nocter_test_support::ValueSourceFixture::new(&present);
+        let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+            SourceUnit::prepare(fixture.syntax())
+        else {
+            panic!("an active captured body must remain unavailable")
+        };
+        assert!(matches!(diagnostic.rule(), Rule::CapturedCall(_)));
+        let permitted = present.replace("func runtime(", "const func runtime(");
+        assert_eq!(
+            super::initializers::answer(&permitted, "ANSWER"),
+            nocter_constant_evaluation::state::Value::integer(42)
+        );
+    }
+}
+
+#[test]
 fn captured_input_conditions_check_explicit_input_after_the_environment_prefix() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

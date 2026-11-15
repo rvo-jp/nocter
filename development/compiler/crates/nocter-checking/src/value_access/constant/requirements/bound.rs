@@ -55,17 +55,18 @@ impl BoundContext<'_, '_> {
         resource: Option<super::guards::InputResource>,
         violation: Violation,
     ) -> Result<bool, BoundCheckFailure> {
-        let (
-            Some(super::guards::InputResource::Stable(local)),
-            super::super::Rule::RuntimeCall(target),
-        ) = (resource, violation.rule())
-        else {
+        let Some(super::guards::InputResource::Stable(local)) = resource else {
             return Ok(false);
+        };
+        let target = match violation.rule() {
+            super::super::Rule::RuntimeCall(target) => nocter_model::ValueCode::Declaration(target),
+            super::super::Rule::CapturedCall(target) => nocter_model::ValueCode::Closure(target),
+            _ => return Ok(false),
         };
         let Some(frame) = self.calls.get(&expression).and_then(Option::as_ref) else {
             return Err(super::INVALID.into());
         };
-        if frame.code() != target.into() {
+        if frame.code() != target {
             return Err(super::INVALID.into());
         }
         if !super::guards::derives_from_input(body, &self.control, expression, local, self.work)
