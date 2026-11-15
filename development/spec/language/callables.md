@@ -203,16 +203,18 @@ value or a marked eligible owning source; the result signature cannot substitute
 Receiving and forwarding the value follows ordinary value supply, and reading an owning result keeps
 it alive for the selected operation.
 
-In the bounded private fragment, reachable return producers establish one named code witness or
-one of the function's own input witnesses, possibly through other such results. Explicit and
-block-final returns participate in the same relation. Each call substitutes its selected actual
+For each callable leaf in a result, reachable return producers establish one named/captured code
+witness or one of the function's own input witnesses, possibly through other such results.
+Separate tuple positions and homogeneous array-element descriptors have independent relations;
+equal callable signatures do not merge those relations. Explicit and block-final returns
+participate in the same relation. Each call substitutes its selected actual
 witnesses into that relation; two calls to the same factory can therefore return distinct code
 witnesses. Their identical result signatures cannot conflate those identities.
 
-Different reachable return witnesses are incompatible within one function's unspecialized
-contract. A recursive relation needs an established code or input witness and cannot choose one
-from its signature. A taking callback may transfer its environment into the returned value;
-a read callback cannot deliver an owning result without separate Copy evidence, regardless of
+Different reachable return witnesses for the same result leaf are incompatible within one
+function's unspecialized contract. A recursive relation needs an established code or input witness
+and cannot choose one from its signature. A taking callback may transfer its environment into the
+returned value; a read callback cannot deliver an owning result without separate Copy evidence, regardless of
 a currently known caller. The relation preserves invocation views and ordinary value supply.
 
 ```text

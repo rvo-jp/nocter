@@ -1,0 +1,46 @@
+func addition(value: i32): i32 { value + 20 }
+func subtraction(value: i32): i32 { 50 - value }
+func pair(): (func(i32): i32, func(i32): i32) {
+    (addition, subtraction)
+}
+func forward(): (func(i32): i32, func(i32): i32) { pair() }
+primitive func create_failure(code: str, message: str): error
+primitive func context_error(take value: error, message: str): error
+func increasing(value: i32): func(i32): i32 {
+    let reason = context_error(create_failure("increasing", "leaf"), "outer")
+    (reason^, value; amount: i32): i32 { value + amount }
+}
+func decreasing(value: i32): func(i32): i32 {
+    let reason = context_error(create_failure("decreasing", "leaf"), "outer")
+    (reason^, value; amount: i32): i32 { value - amount }
+}
+func wrap(take action: func(i32): i32): func(i32): i32 {
+    (action^; value: i32): i32 { action(value) }
+}
+func pack(take left: func(i32): i32, take right: func(i32): i32): (func(i32): i32, func(i32): i32) {
+    (left^, right^)
+}
+func relay(take callbacks: (func(i32): i32, func(i32): i32)): (func(i32): i32, func(i32): i32) {
+    callbacks^
+}
+func recursive(take callbacks: (func(i32): i32, func(i32): i32), depth: i32): (func(i32): i32, func(i32): i32) {
+    if depth > 0 { return recursive(callbacks^, depth - 1) }
+    callbacks^
+}
+func actions(value: i32): [func(i32): i32; 2] {
+    [wrap(increasing(value)), wrap(increasing(value + 1))]
+}
+func nested(value: i32): (i32, [func(i32): i32; 2]) { (value, actions(value)) }
+func calculate(): i32 {
+    let callbacks = forward()
+    let owning = relay(pack(wrap(increasing(20)), wrap(decreasing(50))))
+    let another = recursive(pack(wrap(decreasing(60)), wrap(increasing(1))), 2)
+    let factory = pack
+    let through_value = factory(wrap(increasing(2)), wrap(decreasing(60)))
+    let list = nested(20)
+    let selected = list.1[1]^
+    let before = owning.0(22)
+    let saved = owning.0^
+    if callbacks.0(22) == 42 && callbacks.1(8) == 42 && before == 42 && saved(22) == 42 && owning.1(8) == 42 && another.0(18) == 42 && another.1(41) == 42 && through_value.0(40) == 42 && through_value.1(18) == 42 && list.0 == 20 && list.1[0](22) == 42 && selected(21) == 42 { 42 } else { 0 }
+}
+func run(): i32 { calculate() }

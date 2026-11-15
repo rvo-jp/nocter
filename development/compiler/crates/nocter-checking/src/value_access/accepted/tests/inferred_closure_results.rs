@@ -180,7 +180,7 @@ fn transported_results_do_not_merge_distinct_code_witnesses() {
         .resolve(unit.program().symbols().get("left").unwrap())
         .unwrap();
     assert_eq!(
-        unit.result_witness(forward).unwrap().origin,
+        unit.result_witness(forward.into()).unwrap().origin,
         nocter_model::ValueFunctionOrigin::Declaration(left)
     );
 }

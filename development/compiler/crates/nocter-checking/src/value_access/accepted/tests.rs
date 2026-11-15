@@ -289,6 +289,7 @@ fn literal_control_does_not_invent_normal_loop_exits() {
 
 mod callable_storage;
 mod callbacks;
+mod compound_results;
 mod construction;
 mod creation_recipes;
 mod functions;

@@ -2,7 +2,7 @@
 use super::{INVALID, Producers};
 use crate::value_access::flow::IntegrityError;
 use nocter_declarations::value_access::{FunctionWitness, PayloadSchema, Program};
-use nocter_model::{TypeId, ValueApplication, ValueField, ValueFunctionOrigin, ValueProjection};
+use nocter_model::{TypeId, ValueAppliedResult, ValueField, ValueFunctionOrigin, ValueProjection};
 use std::collections::{BTreeMap, BTreeSet};
 #[cfg(test)]
 mod tests;
@@ -85,7 +85,7 @@ impl Store {
     pub(super) fn selected<I: Copy>(&self, facts: Facts, fields: &[ValueProjection<I>]) -> Facts {
         select(&self.nodes, facts, fields)
     }
-    pub(super) fn applications(&self, facts: Facts) -> BTreeSet<ValueApplication> {
+    pub(super) fn applications(&self, facts: Facts) -> BTreeSet<ValueAppliedResult> {
         let mut pending = vec![facts];
         let mut seen = BTreeSet::new();
         let mut applications = BTreeSet::new();
@@ -98,9 +98,7 @@ impl Store {
                 node.producers
                     .iter()
                     .filter_map(|witness| match witness.origin {
-                        ValueFunctionOrigin::Application(result) if result.ordinal == 0 => {
-                            Some(result.application)
-                        }
+                        ValueFunctionOrigin::Application(result) => Some(result),
                         _ => None,
                     }),
             );

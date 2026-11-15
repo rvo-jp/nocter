@@ -72,7 +72,7 @@ fn distinct_applications_keep_inputs_even_when_their_result_types_project_to_one
     };
     assert_eq!(
         returned,
-        &BTreeSet::from([unit.result_witness(maker).unwrap()])
+        &BTreeSet::from([unit.result_witness(maker.into()).unwrap()])
     );
 }
 

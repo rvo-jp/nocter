@@ -28,7 +28,9 @@ fn result_relations_close_before_body_resource_acceptance() {
         .unwrap();
     for name in ["make", "forward"] {
         let query = named(&unit, name);
-        let witness = unit.result_witness(query.typed().source_owner()).unwrap();
+        let witness = unit
+            .result_witness(query.typed().source_owner().into())
+            .unwrap();
         assert_eq!(witness.origin, Origin::Declaration(increment));
         assert!(query.typed().results_closed());
         assert_eq!(
@@ -139,7 +141,7 @@ fn recursive_result_proofs_and_explicit_returns_share_one_named_producer() {
         for (id, declaration) in unit.program().codes().iter() {
             if !declaration.result_contracts().is_empty() {
                 assert_eq!(
-                    unit.result_witness(id).unwrap().origin,
+                    unit.result_witness(id.into()).unwrap().origin,
                     Origin::Declaration(increment)
                 );
             }

@@ -29,15 +29,15 @@ fn application_creation_keeps_its_own_call_template_and_declared_view() {
     assert_eq!(calls.len(), 2);
     let first = call_result(&query, calls[0]).unwrap().unwrap();
     let second = call_result(&query, calls[1]).unwrap().unwrap();
-    let first_key = first.created.unwrap();
-    let second_key = second.created.unwrap();
-    assert_eq!(first_key.owner, query.code());
-    assert_eq!(first_key.call, calls[0]);
-    assert_eq!(second_key.owner, query.code());
-    assert_eq!(second_key.call, calls[1]);
+    let first_key = first.created.first().copied().unwrap();
+    let second_key = second.created.first().copied().unwrap();
+    assert_eq!(first_key.application.owner, query.code());
+    assert_eq!(first_key.application.call, calls[0]);
+    assert_eq!(second_key.application.owner, query.code());
+    assert_eq!(second_key.application.call, calls[1]);
     assert_ne!(
-        query.program().application_template(first_key.into()),
-        query.program().application_template(second_key.into())
+        query.program().application_template(first_key),
+        query.program().application_template(second_key)
     );
     assert_ne!(first.data, second.data);
     query.body.expressions = query.body.expressions.map(|id, expression| {
@@ -59,11 +59,11 @@ fn application_creation_keeps_its_own_call_template_and_declared_view() {
         })
         .unwrap();
     let created = call_result(nested, call).unwrap().unwrap();
-    let application = created.created.unwrap();
+    let application = created.created.first().copied().unwrap();
     let edited = nested
         .program()
         .function_data(FunctionWitness {
-            origin: ValueFunctionOrigin::Application(application.into()),
+            origin: ValueFunctionOrigin::Application(application),
             invocation: ValueInvocation::Edit,
         })
         .unwrap();

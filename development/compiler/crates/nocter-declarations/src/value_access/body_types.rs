@@ -1,10 +1,8 @@
 //! Owner-scoped body type construction and canonical replay over one immutable header prefix.
 use super::{Program, TypeScope};
-use nocter_model::{
-    AccessExpressionId, TypeCursor, TypeId, TypeKind, ValueApplication, ValueCode, ValueCodeRoot,
-    ValueFunctionOrigin,
-};
+use nocter_model::{TypeCursor, TypeId, TypeKind, ValueCode, ValueCodeRoot, ValueFunctionOrigin};
 use std::collections::BTreeMap;
+mod applications;
 mod containment;
 mod resolution;
 pub use resolution::ResolvedBodyTypes;
@@ -261,47 +259,6 @@ impl BodyTypes {
     #[must_use]
     pub const fn program(&self) -> &Program {
         &self.program
-    }
-    /// Intern all permitted views before a selected call result enters body typing.
-    /// # Errors
-    /// Rejects a non-factory callee or an inconsistent semantic type extension.
-    pub fn application(
-        &mut self,
-        owner: ValueCode,
-        call: AccessExpressionId,
-        callee: impl Into<super::FunctionWitness>,
-    ) -> Result<TypeId, BodyTypeError> {
-        if owner.root() != self.owner {
-            return Err(BodyTypeError::InvalidApplication);
-        }
-        let result = self
-            .program
-            .function_contract(callee.into())
-            .ok_or(BodyTypeError::InvalidApplication)?
-            .result;
-        let Some(super::PayloadSchema::Function(template)) = self.program.data_schema(result)
-        else {
-            return Err(BodyTypeError::InvalidApplication);
-        };
-        let application = nocter_model::ValueAppliedResult::from(ValueApplication { owner, call });
-        if self
-            .program
-            .application_template(application)
-            .is_some_and(|previous| previous != template)
-        {
-            return Err(BodyTypeError::InvalidApplication);
-        }
-        let mut types = self.program.types.transaction();
-        let selected = super::functions::intern_views(
-            &mut types,
-            ValueFunctionOrigin::Application(application),
-            template.invocation,
-        );
-        self.program.types = types
-            .commit(&self.program.types)
-            .map_err(|_| BodyTypeError::InvalidExtension)?;
-        self.program.applications.insert(application, template);
-        Ok(selected)
     }
     #[must_use]
     pub fn finish(self) -> Program {

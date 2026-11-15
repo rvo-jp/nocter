@@ -166,13 +166,13 @@ impl Unit {
         self.program.static_declaration(id)?;
         self.initializers.get(&id.initializer).map(Arc::as_ref)
     }
-    /// The named/captured-code or own-input witness established for a callable result in this bounded unit.
+    /// The named/captured-code or own-input witness established for one exact result leaf.
     #[must_use]
     pub fn result_witness(
         &self,
-        callable: AccessCodeId,
+        result: nocter_model::ValueCallableResult,
     ) -> Option<nocter_declarations::value_access::FunctionWitness> {
-        self.result_evidence.producer(callable)
+        self.result_evidence.producer(result)
     }
     /// Select original body-input metadata, preserving the complete capture input.
     /// This selects no input order, operation, runtime value or ownership permission.

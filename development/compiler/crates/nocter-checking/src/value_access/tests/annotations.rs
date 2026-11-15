@@ -64,9 +64,9 @@ fn compound_result_headers_do_not_establish_a_callable_payload_or_returned_value
 }
 
 #[test]
-fn compound_result_value_formation_remains_outside_the_qualified_source_domain() {
+fn compound_result_values_must_match_each_declared_callable_contract() {
     let fixture = nocter_test_support::ValueSourceFixture::new(
-        "func identity(value: i32): i32 { value }\nfunc f(): (func(i32): i32, i32) { (identity, 0) }",
+        "func identity(value: i32): i32 { value }\nfunc f(): (func(bool): i32, i32) { (identity, 0) }",
     );
     let failure = accepted::SourceUnit::prepare(fixture.syntax()).unwrap_err();
     assert!(

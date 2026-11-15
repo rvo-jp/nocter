@@ -34,23 +34,16 @@ pub(super) fn solve(
             }
         }
         referenced_applications.extend(report.referenced_applications);
-        if matches!(
-            control
-                .typed
-                .program()
-                .data_schema(control.typed.result_data()),
-            Some(PayloadSchema::Function(_))
-        ) {
+        if !report.returned.is_empty() {
             evidence
                 .bodies
                 .insert(&control.typed.source)
                 .map_err(|_| INVALID)?;
+        }
+        for (ordinal, returned) in report.returned {
             equations.insert(
-                Term::Result {
-                    code: id,
-                    ordinal: 0,
-                },
-                Relation::Union(report.returned.into_iter().map(|(w, _)| w).collect()),
+                Term::Result { code: id, ordinal },
+                Relation::Union(returned.into_iter().map(|(w, _)| w).collect()),
             );
         }
         for (call, invocation) in report.calls {
@@ -62,20 +55,17 @@ pub(super) fn solve(
             committed.insert(application);
             let invocation = evidence
                 .invocations
-                .get(&application)
+                .get(&application.application)
                 .ok_or(INVALID)?
                 .clone();
-            equations.insert(
-                Term::Application(application.into()),
-                Relation::Apply(invocation),
-            );
+            equations.insert(Term::Application(application), Relation::Apply(invocation));
         }
     }
     // A received capture or transported result carries this exact family. A committed factory adds
     // producer facts here; an absent origin is an empty equation, not a signature-derived anchor.
     for application in referenced_applications {
         equations
-            .entry(Term::Application(application.into()))
+            .entry(Term::Application(application))
             .or_insert_with(|| Relation::Union(Producers::new()));
     }
     let solved = relations::solve(&equations).map_err(|()| INVALID)?;
@@ -130,7 +120,7 @@ fn single(producers: &Producers) -> Option<FunctionWitness> {
 fn close_applications(
     context: &DeclarationContext<'_>,
     controls: &BTreeMap<nocter_model::ValueCode, &flow::Control>,
-    committed: &BTreeSet<nocter_model::ValueApplication>,
+    committed: &BTreeSet<nocter_model::ValueAppliedResult>,
     summaries: &Solutions,
     evidence: &mut Evidence,
 ) -> Result<(), accepted::Failure> {
@@ -156,19 +146,23 @@ fn close_applications(
             else {
                 continue;
             };
-            let Some(application) = result.created else {
+            if result.created.is_empty() {
                 continue;
-            };
+            }
             let inputs = super::producers::application_inputs(query, id)
                 .map_err(accepted::Failure::Integrity)?;
-            equations.insert(
-                Term::Application(application.into()),
-                Relation::Apply(Arc::new(InvocationRecipe {
-                    callees: BTreeSet::from([super::applications::callee(query, id)
-                        .map_err(accepted::Failure::Integrity)?]),
-                    inputs,
-                })),
-            );
+            let invocation = Arc::new(InvocationRecipe {
+                callees: BTreeSet::from([
+                    super::applications::callee(query, id).map_err(accepted::Failure::Integrity)?
+                ]),
+                inputs,
+            });
+            for application in result.created {
+                equations.insert(
+                    Term::Application(application),
+                    Relation::Apply(invocation.clone()),
+                );
+            }
         }
     }
     let solved = relations::solve(&equations).map_err(|()| INVALID)?;
@@ -178,7 +172,7 @@ fn close_applications(
         };
         let site = application.application;
         let query = &controls.get(&site.owner).ok_or(INVALID)?.typed;
-        if producers.is_empty() && !committed.contains(&site) {
+        if producers.is_empty() && !committed.contains(&application) {
             evidence
                 .applications
                 .insert(application, ApplicationEvidence::Unproduced);

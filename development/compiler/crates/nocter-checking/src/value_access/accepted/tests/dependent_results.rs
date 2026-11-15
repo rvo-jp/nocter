@@ -68,7 +68,9 @@ fn separate_applications_retain_distinct_witnesses_in_one_canonical_unit() {
 fn generic_returned_environments_keep_transfer_and_symbolic_cleanup() {
     let unit = accepted(&source_case("a129-dependent-result-once-transfer.nct"));
     let relay = named(&unit, "relay");
-    let witness = unit.result_witness(relay.typed().source_owner()).unwrap();
+    let witness = unit
+        .result_witness(relay.typed().source_owner().into())
+        .unwrap();
     let Origin::Parameter(parameter) = witness.origin else {
         panic!("formal result")
     };
@@ -115,7 +117,9 @@ fn mutual_result_relations_substitute_the_selected_formal_positions() {
     let unit = accepted(&source_case("a126-dependent-result-permutation.nct"));
     for (name, parameter) in [("first", "a"), ("second", "y")] {
         let body = named(&unit, name);
-        let witness = unit.result_witness(body.typed().source_owner()).unwrap();
+        let witness = unit
+            .result_witness(body.typed().source_owner().into())
+            .unwrap();
         let Origin::Parameter(id) = witness.origin else {
             panic!("formal result")
         };

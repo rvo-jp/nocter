@@ -1,0 +1,46 @@
+const func addition(value: i32): i32 { value + 20 }
+const func subtraction(value: i32): i32 { 50 - value }
+const func pair(): (func(i32): i32, func(i32): i32) {
+    (addition, subtraction)
+}
+const func forward(): (func(i32): i32, func(i32): i32) { pair() }
+struct Item { value: i32 }
+const func increasing(value: i32): func(i32): i32 {
+    let item = Item { value: value }
+    (item^; amount: i32): i32 { item.value + amount }
+}
+const func decreasing(value: i32): func(i32): i32 {
+    let item = Item { value: value }
+    (item^; amount: i32): i32 { item.value - amount }
+}
+const func wrap(take action: func(i32): i32): func(i32): i32 {
+    (action^; value: i32): i32 { action(value) }
+}
+const func pack(take left: func(i32): i32, take right: func(i32): i32): (func(i32): i32, func(i32): i32) {
+    (left^, right^)
+}
+const func relay(take callbacks: (func(i32): i32, func(i32): i32)): (func(i32): i32, func(i32): i32) {
+    callbacks^
+}
+const func recursive(take callbacks: (func(i32): i32, func(i32): i32), depth: i32): (func(i32): i32, func(i32): i32) {
+    if depth > 0 { return recursive(callbacks^, depth - 1) }
+    callbacks^
+}
+const func actions(value: i32): [func(i32): i32; 2] {
+    [wrap(increasing(value)), wrap(increasing(value + 1))]
+}
+const func nested(value: i32): (i32, [func(i32): i32; 2]) { (value, actions(value)) }
+const func calculate(): i32 {
+    let callbacks = forward()
+    let owning = relay(pack(wrap(increasing(20)), wrap(decreasing(50))))
+    let another = recursive(pack(wrap(decreasing(60)), wrap(increasing(1))), 2)
+    let factory = pack
+    let through_value = factory(wrap(increasing(2)), wrap(decreasing(60)))
+    let list = nested(20)
+    let selected = list.1[1]^
+    let before = owning.0(22)
+    let saved = owning.0^
+    if callbacks.0(22) == 42 && callbacks.1(8) == 42 && before == 42 && saved(22) == 42 && owning.1(8) == 42 && another.0(18) == 42 && another.1(41) == 42 && through_value.0(40) == 42 && through_value.1(18) == 42 && list.0 == 20 && list.1[0](22) == 42 && selected(21) == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { calculate() }

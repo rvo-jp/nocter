@@ -44,8 +44,8 @@ use super::{Failure, Query, accepted, flow};
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::{FunctionWitness, PayloadSchema, Program};
 use nocter_model::{
-    AccessCodeId, AccessExpressionId, TypeId, ValueApplication, ValueAppliedResult,
-    ValueCallableResult, ValueFunctionOrigin,
+    AccessExpressionId, TypeId, ValueApplication, ValueAppliedResult, ValueCallableResult,
+    ValueFunctionOrigin,
 };
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -89,8 +89,8 @@ impl Evidence {
     pub(super) fn recipe(&self, term: ProducerTerm) -> Option<&ProducerRelation> {
         self.recipes.get(&term)
     }
-    pub(super) fn producer(&self, callable: AccessCodeId) -> Option<FunctionWitness> {
-        self.producers.get(&callable.into()).copied()
+    pub(super) fn producer(&self, result: ValueCallableResult) -> Option<FunctionWitness> {
+        self.producers.get(&result).copied()
     }
     pub(super) fn verify<'a, 'source>(
         &'a self,

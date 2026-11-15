@@ -124,7 +124,7 @@ fn recursive_return_anchors_come_from_real_returns_not_absent_arguments() {
     let factory = named(&unit, "factory").typed().source_owner();
     let increment = named(&unit, "increment").typed().source_owner();
     assert_eq!(
-        unit.result_witness(factory).unwrap().origin,
+        unit.result_witness(factory.into()).unwrap().origin,
         nocter_model::ValueFunctionOrigin::Declaration(increment)
     );
 }

@@ -113,8 +113,8 @@ additional actual keys through one canonical authority. No per-frame source-type
 present. `Prepared::instance` also requires that exact key for lookup; the storage table cannot
 reconstruct an occurrence from a code frame and raw source type. Transitive components remain in
 the canonical data graph rather than a flattened inventory.
-The declaration authority's `DataInstanceKey::has_same_representation` checks received explicit
-input channels against their supplying payloads without equating their source descriptors.
+The declaration authority's `DataInstanceKey::has_same_representation` checks explicit input and
+returned-result channels against their supplying payloads without equating their source descriptors.
 It follows actual logical components and preserves nominal and selected callable code/environment
 identity. Empty-array element metadata supplies no represented element. Native storage interns
 resolved structural tuples, positive arrays and outcome carriers by their actual child identities;
@@ -207,8 +207,10 @@ Lifecycle forwards each checked transition's post-operation phase to checking's 
 data projection. Edited temporary cleanup therefore selects completed argument definitions instead
 of the preparation snapshot. Preparation contracts, before-operation transfers and interrupted
 prefixes retain their entry sources; this does not qualify changing storage geometry.
-Final freeze verifies each edge's environment, input and result payloads against its selected concrete body or the
-runtime contract's sole primitive value signature.
+Final freeze verifies each edge's environment, input and result payloads against its selected
+concrete body or the runtime contract's sole primitive value signature. Compound returns preserve
+the body's and caller's original contracts while comparing their actual component representations;
+equal callable signatures or geometry cannot substitute another code/environment context.
 Input locals are relative to the selected body and a fresh invocation activation; sharing a
 static instance never shares runtime environment values, owner state or storage between calls.
 

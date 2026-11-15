@@ -291,7 +291,15 @@ impl Checker<'_, '_> {
         let result = if matches!(
             self.program().data_schema(contract.result),
             Some(PayloadSchema::Function(_))
-        ) {
+        ) || self
+            .program()
+            .payload_dependencies(contract.result)
+            .is_some_and(|dependencies| {
+                dependencies
+                    .producers()
+                    .iter()
+                    .any(|witness| matches!(witness.origin, ValueFunctionOrigin::Result(_)))
+            }) {
             self.types
                 .application(self.code, self.expressions.next_id(), selected.witness)
                 .map_err(|_| Failure::InconsistentSyntax)?

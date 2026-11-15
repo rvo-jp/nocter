@@ -1,13 +1,16 @@
 //! Distinguish a newly reserved factory application from transport of a selected result descriptor.
 use crate::value_access::{ExpressionKind, Query, flow};
-use nocter_declarations::value_access::{FunctionWitness, PayloadSchema};
-use nocter_model::{AccessExpressionId, TypeId, ValueApplication, ValueFunctionOrigin};
+use nocter_declarations::value_access::{FunctionWitness, PayloadSchema, Program};
+use nocter_model::{
+    AccessExpressionId, TypeId, ValueApplication, ValueAppliedResult, ValueFunctionOrigin,
+};
+use std::collections::BTreeSet;
 #[cfg(test)]
 mod tests;
 
 pub(super) struct CallResult {
     pub(super) data: TypeId,
-    pub(super) created: Option<ValueApplication>,
+    pub(super) created: BTreeSet<ValueAppliedResult>,
 }
 const INVALID: flow::IntegrityError = flow::IntegrityError::InconsistentTypedBody;
 
@@ -29,35 +32,21 @@ pub(super) fn call_result(
     };
     let data = access.data();
     let invocation = kind.invocation(arguments).ok_or(INVALID)?;
-    if let Some(PayloadSchema::Function(FunctionWitness {
-        origin: ValueFunctionOrigin::Application(application),
-        invocation: result_invocation,
-    })) = query.program().data_schema(data)
-        && application.ordinal == 0
-        && application.application.owner == query.code()
-        && application.application.call == id
-    {
-        let template = query
-            .program()
-            .application_template(application)
-            .ok_or(INVALID)?;
-        let result = query
-            .program()
-            .function_contract(FunctionWitness {
-                origin: *target,
-                invocation,
-            })
-            .ok_or(INVALID)?
-            .result;
-        if !matches!(query.program().data_schema(result), Some(PayloadSchema::Function(actual)) if actual == template)
-            || result_invocation != template.invocation
-        {
-            return Err(INVALID);
-        }
-        return Ok(Some(CallResult {
-            data,
-            created: Some(application.application),
-        }));
+    let template = query
+        .program()
+        .function_contract(FunctionWitness {
+            origin: *target,
+            invocation,
+        })
+        .ok_or(INVALID)?
+        .result;
+    let site = ValueApplication {
+        owner: query.code(),
+        call: id,
+    };
+    let created = created_results(query.program(), data, template, site)?;
+    if !created.is_empty() {
+        return Ok(Some(CallResult { data, created }));
     }
     let result = query
         .program()
@@ -80,8 +69,64 @@ pub(super) fn call_result(
     }
     Ok(Some(CallResult {
         data,
-        created: None,
+        created: BTreeSet::new(),
     }))
+}
+
+fn created_results(
+    program: &Program,
+    data: TypeId,
+    template: TypeId,
+    site: ValueApplication,
+) -> Result<BTreeSet<ValueAppliedResult>, flow::IntegrityError> {
+    let mut pending = vec![(data, template)];
+    let mut seen = BTreeSet::new();
+    let mut created = BTreeSet::new();
+    while let Some((actual, expected)) = pending.pop() {
+        if actual == expected || !seen.insert((actual, expected)) {
+            continue;
+        }
+        match (program.data_schema(actual), program.data_schema(expected)) {
+            (Some(PayloadSchema::Function(actual)), Some(PayloadSchema::Function(expected))) => {
+                let ValueFunctionOrigin::Application(result) = actual.origin else {
+                    // Anonymous direct-input results can already have been substituted.
+                    return Ok(BTreeSet::new());
+                };
+                if result.application != site {
+                    return Ok(BTreeSet::new());
+                }
+                if program.application_template(result) != Some(expected)
+                    || actual.invocation != expected.invocation
+                {
+                    return Err(INVALID);
+                }
+                created.insert(result);
+            }
+            (Some(PayloadSchema::Aggregate(actual)), Some(PayloadSchema::Aggregate(expected))) => {
+                use nocter_declarations::value_access::AggregateForm;
+                let (AggregateForm::Tuple(actual), AggregateForm::Tuple(expected)) =
+                    (actual.form(), expected.form())
+                else {
+                    return Err(INVALID);
+                };
+                if actual.len() != expected.len() {
+                    return Err(INVALID);
+                }
+                pending.extend(actual.iter().copied().zip(expected.iter().copied()));
+            }
+            (Some(PayloadSchema::Array(actual)), Some(PayloadSchema::Array(expected)))
+                if actual.length() == expected.length() =>
+            {
+                pending.push((actual.element(), expected.element()));
+            }
+            (Some(PayloadSchema::Optional(actual)), Some(PayloadSchema::Optional(expected)))
+            | (Some(PayloadSchema::Fallible(actual)), Some(PayloadSchema::Fallible(expected))) => {
+                pending.push((actual, expected));
+            }
+            _ => return Err(INVALID),
+        }
+    }
+    Ok(created)
 }
 
 pub(super) fn callee(

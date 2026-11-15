@@ -24,9 +24,10 @@ impl Checker<'_, '_> {
                 Some(PayloadSchema::Function(witness))
                     if matches!(
                         witness.origin,
-                        nocter_model::ValueFunctionOrigin::Parameter(
-                            nocter_model::ValueParameter::Component { .. }
-                        )
+                        nocter_model::ValueFunctionOrigin::Result(_)
+                            | nocter_model::ValueFunctionOrigin::Parameter(
+                                nocter_model::ValueParameter::Component { .. }
+                            )
                     ) =>
                 {
                     let contract = self

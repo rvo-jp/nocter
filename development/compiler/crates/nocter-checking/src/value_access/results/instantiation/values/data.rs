@@ -63,7 +63,10 @@ impl Query<'_, '_> {
             ValueSource::Input { local, origin } => {
                 match self.projected_input_data(frame, local, origin, path) {
                     Some(key) if key.data() == target => Ok(Fact::Data(key)),
-                    Some(key) if self.program.matches_compound_input(key.data(), target) => {
+                    Some(key)
+                        if self.program.matches_compound_input(key.data(), target)
+                            || self.program.matches_compound_input(target, key.data()) =>
+                    {
                         self.source_data_components(owner, frame, value, path, target)
                     }
                     _ => Ok(Fact::Unavailable),

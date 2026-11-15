@@ -327,25 +327,41 @@ impl<'a, 'work> Query<'a, 'work> {
             return Ok(Fact::Witness(witness));
         }
         let fact = match selected.origin {
-            Origin::Application(result)
-                if result.ordinal == 0 && frame.code() == result.application.owner =>
-            {
+            Origin::Application(result) if frame.code() == result.application.owner => {
                 match self.read(owner, Key::Call(frame.clone(), result.application))? {
-                    Fact::Frame(callee) => {
-                        self.read(owner, Key::Result(callee, ValuePath::default()))?
-                    }
+                    Fact::Frame(callee) => self.result_leaf(owner, &callee, result.ordinal)?,
                     Fact::Empty => Fact::Empty,
                     _ => Fact::Unavailable,
                 }
             }
-            Origin::Result(result)
-                if result.ordinal == 0 && frame.code() == ValueCode::Declaration(result.owner) =>
-            {
-                self.read(owner, Key::Result(frame.clone(), ValuePath::default()))?
+            Origin::Result(result) if frame.code() == ValueCode::Declaration(result.owner) => {
+                self.result_leaf(owner, frame, result.ordinal)?
             }
             _ => Fact::Unavailable,
         };
         Ok(self.adapt(fact, selected.invocation))
+    }
+    fn result_leaf(
+        &mut self,
+        owner: &Key,
+        frame: &CodeInstanceKey,
+        ordinal: usize,
+    ) -> Result<Fact, InstantiationFailure> {
+        let path = match frame.code() {
+            ValueCode::Declaration(code) => {
+                self.program
+                    .callable_result_path(nocter_model::ValueCallableResult {
+                        owner: code,
+                        ordinal,
+                    })
+            }
+            ValueCode::Closure(_) if ordinal == 0 => Some(ValuePath::default()),
+            ValueCode::Closure(_) | ValueCode::Expression(_) => None,
+        };
+        let Some(path) = path else {
+            return Ok(Fact::Unavailable);
+        };
+        self.read(owner, Key::Result(frame.clone(), path))
     }
     fn invocation(
         &mut self,

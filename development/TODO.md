@@ -24,8 +24,8 @@ The [checking](compiler/crates/nocter-checking/README.md) and
 [target-program](compiler/crates/nocter-target-program/README.md) owners describe the implemented
 canonical metadata, original source-definition queries and ordered lifecycle specialization.
 
-Next close compound-result producer and application relations before source payload admission,
-preserving exact result-leaf, call and code contexts through each consumer. Continue context-changing updates through edit input boundaries,
+Next qualify remaining empty-array and outcome callable-result components, preserving exact
+result-leaf, call and code contexts through each consumer. Continue context-changing updates through edit input boundaries,
 partial carrier-root selection and context-changing evaluator slots against
 the exact per-value keys. The component owners above describe covered ordinary operand/definition,
 evaluator slot metadata, shared body-channel metadata, invocation, body-ABI, lifecycle and storage scope.
@@ -137,9 +137,15 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Locate published callable-result identities through declaration-owned descriptor paths,
   preserving outcome layers and homogeneous/empty-array metadata without granting values or
   bounds. Qualify nominal-cycle termination and cardinality-independent traversal.
-- [ ] Extend original return-producer and per-call application relations to declared callable result
-  components. Keep descriptor-only or absent results distinct from produced witnesses, preserve
-  original compound paths and call frames, then qualify storage, evaluation, ABI and actual cleanup.
+- [x] Qualify declared callable tuple and positive-array results through original return paths,
+  per-leaf producer/application relations, direct/function-value calls, taking and recursive
+  forwarding, exact result queries, required evaluation, native ABI and actual cleanup. Preserve
+  existing anonymous-carrier relations and reject missing/foreign/swapped concrete contexts.
+- [ ] Qualify callable-result components through optional/fallible carriers, preserving absent
+  and unproduced alternatives independently of actual returned functions and their cleanup.
+- [ ] Qualify compound returns with empty-array callable descriptors, including mixtures with
+  inhabited result leaves, ordinal gaps and forwarding between declaration-owned descriptors.
+  Uninhabited metadata must neither create an element equation nor require a concrete producer.
 
 Qualify the same lexical closure with different captured callbacks before and after forwarding
 it with another instance, including safe/unsafe ordinary source, conditional const admission,

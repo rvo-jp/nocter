@@ -1,5 +1,6 @@
 //! Logical producer structure is independent of runtime payloads and source capture admission.
 use super::*;
+use nocter_model::ValueApplication;
 use nocter_model::{AccessCodeId, AccessExpressionId, ArenaBuilder, ValueInvocation};
 
 fn applications() -> [FunctionWitness; 2] {

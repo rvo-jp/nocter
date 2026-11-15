@@ -2,24 +2,25 @@
 //! A conditional's provisional type is not evidence that its named branch can execute.
 use crate::value_access::{CallKind, ExpressionKind, Query, flow};
 use nocter_declarations::value_access::{FunctionWitness, PayloadSchema};
-use nocter_model::{AccessExpressionId, ValueApplication, ValueFunctionOrigin};
+use nocter_model::{AccessExpressionId, ValueAppliedResult, ValueFunctionOrigin};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) type Producers = BTreeSet<FunctionWitness>;
 pub(super) type Inputs = BTreeMap<nocter_model::ValueParameter, Producers>;
 pub(super) struct Report {
-    pub(super) returned: Vec<(FunctionWitness, AccessExpressionId)>,
-    pub(super) applications: BTreeSet<ValueApplication>,
+    pub(super) returned: BTreeMap<usize, Vec<(FunctionWitness, AccessExpressionId)>>,
+    pub(super) applications: BTreeSet<ValueAppliedResult>,
     pub(super) calls: BTreeMap<AccessExpressionId, super::relations::InvocationRecipe>,
     pub(super) creations: BTreeMap<nocter_model::ValueClosure, CreationRecipe>,
     /// Received or transported leaves retain their original relation, never a signature-derived
     /// concrete anchor. An uncommitted origin can therefore remain genuinely empty.
-    pub(super) referenced_applications: BTreeSet<ValueApplication>,
+    pub(super) referenced_applications: BTreeSet<ValueAppliedResult>,
 }
 use super::value_sources::ValueSourceSlot as Key;
 
 mod creations;
 mod facts;
+mod returns;
 use creations::Creations;
 pub use creations::{CreationRecipe, ProducerShape};
 use facts::{Facts, Store};
@@ -32,7 +33,7 @@ pub(super) fn analyze(control: &flow::Control) -> Result<Report, flow::Integrity
     let (initial, mut referenced_applications) = received_inputs(query, &mut facts)?;
     let mut entries = BTreeMap::from([(control.graph.entry(), initial)]);
     let mut pending = BTreeSet::from([control.graph.entry()]);
-    let mut returned = BTreeSet::new();
+    let mut returned = returns::Returns::new(query)?;
     let mut applications = BTreeSet::new();
     let mut calls = BTreeMap::new();
     let mut creations = Creations::default();
@@ -94,11 +95,7 @@ pub(super) fn analyze(control: &flow::Control) -> Result<Report, flow::Integrity
                     assign(query, target, value, &mut state, &mut facts, &aliases)?;
                 }
                 flow::Operation::StageReturn(id) => {
-                    returned.extend(
-                        value(query, id, &state, &mut facts, &aliases)?
-                            .into_iter()
-                            .map(|witness| (witness, id)),
-                    );
+                    returned.stage(query, id, &state, &mut facts, &aliases)?;
                 }
                 // Code/type witness facts do not end when an owner is moved or dropped.
                 // Initialization and access validation independently reject unavailable values.
@@ -118,7 +115,7 @@ pub(super) fn analyze(control: &flow::Control) -> Result<Report, flow::Integrity
         }
     }
     Ok(Report {
-        returned: returned.into_iter().collect(),
+        returned: returned.finish(),
         applications,
         calls,
         creations: creations.finish(query.code, facts),
@@ -144,7 +141,7 @@ fn prepared_argument(
 fn received_inputs(
     query: &Query,
     facts: &mut Store,
-) -> Result<(State, BTreeSet<ValueApplication>), flow::IntegrityError> {
+) -> Result<(State, BTreeSet<ValueAppliedResult>), flow::IntegrityError> {
     let mut initial = State::new();
     let mut applications = BTreeSet::new();
     for (local, value) in query.body.locals.iter() {
@@ -237,9 +234,9 @@ fn commit(
     query: &Query,
     id: AccessExpressionId,
     state: &mut State,
-    applications: &mut BTreeSet<ValueApplication>,
+    applications: &mut BTreeSet<ValueAppliedResult>,
     calls: &mut BTreeMap<AccessExpressionId, super::relations::InvocationRecipe>,
-    references: &mut BTreeSet<ValueApplication>,
+    references: &mut BTreeSet<ValueAppliedResult>,
     store: &mut Store,
 ) -> Result<(), flow::IntegrityError> {
     let expression = query.body.expressions.get(id).ok_or(INVALID)?;
@@ -302,17 +299,10 @@ fn commit(
     let Some(result) = super::applications::call_result(query, id)? else {
         return Ok(());
     };
-    let Some(application) = result.created else {
-        let facts = store.received(query.program(), result.data, true)?;
-        references.extend(store.applications(facts));
-        state.insert(Key::Expression(id), facts);
-        return Ok(());
-    };
-    applications.insert(application);
-    let Some(PayloadSchema::Function(witness)) = query.program().data_schema(result.data) else {
-        return Err(INVALID);
-    };
-    state.insert(Key::Expression(id), store.single(witness));
+    applications.extend(result.created);
+    let received = store.received(query.program(), result.data, true)?;
+    references.extend(store.applications(received));
+    state.insert(Key::Expression(id), received);
 
     Ok(())
 }
@@ -386,20 +376,6 @@ fn forward(
     };
     let facts = shape(query, source, state, false, store, aliases)?;
     store.retag(query.program(), facts, access.data(), target)
-}
-fn value(
-    query: &Query,
-    id: AccessExpressionId,
-    state: &State,
-    store: &mut Store,
-    aliases: &flow::Aliases,
-) -> Result<Producers, flow::IntegrityError> {
-    let expression = query.body.expressions.get(id).ok_or(INVALID)?;
-    if expression.ty.access().is_none() {
-        return Ok(Producers::new());
-    }
-    let facts = shape(query, id, state, false, store, aliases)?;
-    Ok(store.producers(facts))
 }
 enum Projection {
     Boundary {

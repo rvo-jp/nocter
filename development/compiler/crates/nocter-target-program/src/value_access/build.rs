@@ -206,7 +206,13 @@ fn validate_body_edge(
         (None, super::Environment::None | super::Environment::CodeToken { .. }) => {}
         _ => return Err(invalid),
     }
-    if callee.result().payload().ok_or(invalid)? != call.result() {
+    if !callee
+        .result()
+        .payload()
+        .ok_or(invalid)?
+        .instance()
+        .has_same_representation(unit.program(), call.result().instance())
+    {
         return Err(invalid);
     }
     let inputs = body.body().inputs().explicit();

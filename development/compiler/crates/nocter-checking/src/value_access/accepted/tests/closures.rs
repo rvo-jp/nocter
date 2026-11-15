@@ -490,7 +490,7 @@ fn returned_environments_keep_their_code_schema_and_input_supply_stays_static() 
     );
     let make = named(&unit, "make").typed().source_owner();
     assert!(matches!(
-        unit.result_witness(make).unwrap().origin,
+        unit.result_witness(make.into()).unwrap().origin,
         nocter_model::ValueFunctionOrigin::Closure(_)
     ));
     assert!(

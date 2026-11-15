@@ -417,12 +417,14 @@ Return-summary terms pair the named or anonymous code identity with a callable-r
 application terms pair that ordinal with the original whole call. Applications consume the actual
 callee's matching leaf summary and frozen inputs, never a first-result fallback. A callee returned
 by another application resolves through those same equations. Result templates never supply return
-producers. Recursive substitution uses formal
-IDs and finite application nodes rather than expanding witness names. Unanchored recursion and
+producers. Recursive substitution uses formal IDs and finite application nodes rather than
+expanding witness names. Unanchored recursion and
 heterogeneous return relations reject.
-The equation algebra supports independent component results, including empty producer sets and
-recursive leaf relations. Source result publication and payload admission remain separate: the
-currently qualified source producer path still emits only root-callable result equations.
+Original staged return facts select each declared callable component through the declaration-owned
+result path. Independent component equations share the call's original invocation recipe; they
+retain empty producer sets and recursive leaf relations without expanding homogeneous arrays.
+An empty array's element descriptor does not establish an element return producer. Source result
+publication, original produced facts and concrete payload realization remain separate obligations.
 The established summaries then instantiate every typed call application through its frozen
 actual bindings, retaining known types even on interruption. A missing producer for an application
 without a reachable commit closes as explicit Unproduced evidence, preserving the structural
@@ -1765,12 +1767,19 @@ applications retain descriptor equations without manufacturing committed calls o
 Exact result realization still requires the original received compound context. Missing context
 and exhausted work reject independently, followed by healthy retry. Required/native execution
 agrees, and the matching error fixture executes remaining-container and returned-owner cleanup.
-Higher-order component signatures, callable record fields and compound callable results remain
-separate admission boundaries.
+Higher-order component signatures and callable record fields remain separate admission boundaries.
 Declared compound-result contracts have declaration-owned result ordinals. A diverging body can
 retain that known signature without establishing any returned value, concrete environment or
-storage representation. Forming/returning a compound callable payload remains outside this source
-scope; publishing its header is not a consumer-realization proof.
+storage representation; publishing its header is not a consumer-realization proof.
+`contextual-compound-results.nct` qualifies independently witnessed tuple results, positive-length
+callable-array results and nested tuple/array results through direct/function-value calls, taking
+inputs, anchored recursive forwarding and partial extraction. Different nested callback contexts
+retain their actual original return sources. Receiving descriptors can be reprojected into the
+caller's concrete result shape only through actual component evidence; a matching signature cannot
+substitute another static callable. Required/native execution agrees, and the matching error fixture
+executes returned-owner and remaining-container cleanup. Missing transfer/input context, retired
+source use, wrong concrete targets and exhausted work reject; healthy retry remains possible.
+Compound results through outcomes and uninhabited element descriptors require separate qualification.
 `contextual-compound-edits.nct` additionally qualifies scalar updates through edit tuple inputs,
 forwarded updates and caller reads after completion while the callable context remains unchanged.
 The matching error fixture executes actual cleanup after both updates. Receiving/caller descriptors
