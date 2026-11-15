@@ -14,7 +14,7 @@ enum Clause {
         template: Option<Result<CallTemplate, flow::IntegrityError>>,
         // An input schema may permit this witness's payload to be absent. This attribution
         // grants no tag, initialization, source-value lineage or const eligibility proof.
-        input_resource: Option<nocter_model::AccessLocalId>,
+        input_resource: Option<guards::InputResource>,
     },
     Inputs(AccessExpressionId),
     Data(expressions::Condition),
@@ -86,6 +86,7 @@ impl Requirements {
         let mut domain = evaluation::Types::default();
         let mut expression_data = expressions::collect(&body, &mut domain)?;
         let mut clauses = Vec::new();
+        let input_writes = guards::writes(&body);
         let mut excluded_calls = std::collections::BTreeSet::new();
         let identity = program
             .code_template(body.typed().code())
@@ -115,7 +116,7 @@ impl Requirements {
                 clauses.push(Clause::Invocation {
                     expression: id,
                     template,
-                    input_resource: guards::input_resource(&body, *target)?,
+                    input_resource: guards::input_resource(&body, *target, input_writes.as_ref())?,
                 });
             }
         }
@@ -416,7 +417,20 @@ impl Requirements {
                 expression,
                 input_resource: Some(input),
                 ..
-            } => Some((*expression, *input)),
+            } => Some((*expression, input.local())),
+            _ => None,
+        })
+    }
+    #[cfg(test)]
+    pub(in crate::value_access) fn stable_invocation_inputs(
+        &self,
+    ) -> impl Iterator<Item = (AccessExpressionId, nocter_model::AccessLocalId)> + '_ {
+        self.clauses.iter().filter_map(|clause| match clause {
+            Clause::Invocation {
+                expression,
+                input_resource: Some(guards::InputResource::Stable(local)),
+                ..
+            } => Some((*expression, *local)),
             _ => None,
         })
     }
@@ -429,7 +443,7 @@ impl Requirements {
             } => Some(CallEdge {
                 expression: *expression,
                 template,
-                input_resource: *input_resource,
+                input_resource: input_resource.map(guards::InputResource::local),
             }),
             _ => None,
         })
@@ -445,7 +459,10 @@ impl Requirements {
                     expression,
                     input_resource,
                     ..
-                } => Some((*expression, *input_resource)),
+                } => Some((
+                    *expression,
+                    input_resource.map(guards::InputResource::local),
+                )),
                 _ => None,
             })
             .map(|(id, resource)| {

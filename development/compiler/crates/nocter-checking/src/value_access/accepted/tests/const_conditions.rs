@@ -73,6 +73,55 @@ fn invocation_resource_attribution_matches_original_nullable_input_witnesses() {
 }
 
 #[test]
+fn nullable_input_stability_uses_original_alias_and_call_write_correspondence() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/value-guarded-callable-outcomes.nct"
+    ));
+    let source = format!(
+        "{source}\nconst func no_change(edit value: (func(i32): i32)?): void {{}}\nconst func increment(edit number: i32): void {{ number += 1 }}\nconst func changed(edit value: (func(i32): i32)?): i32 {{ no_change(value)\nread action = value otherwise {{ return 11 }}\naction(35) }}\nconst func aliased(edit value: (func(i32): i32)?): i32 {{ edit alias = value\nno_change(alias)\nread action = value otherwise {{ return 11 }}\naction(35) }}\nconst func unrelated(value: (func(i32): i32)?): i32 {{ var number = 0\nincrement(number)\nread action = value otherwise {{ return 11 }}\naction(35) }}"
+    );
+    let unit = accepted(&source);
+    for (name, stable) in [
+        ("inspect", true),
+        ("changed", false),
+        ("aliased", false),
+        ("unrelated", true),
+    ] {
+        let body = named(&unit, name);
+        let requirements = unit.const_requirements(body.typed().code()).unwrap();
+        assert_eq!(
+            requirements.invocation_input_resources().count(),
+            1,
+            "{name}"
+        );
+        assert_eq!(
+            requirements.stable_invocation_inputs().count(),
+            usize::from(stable),
+            "{name}"
+        );
+    }
+    for (parameter, extraction) in [
+        ("value", "read action = value"),
+        ("edit value", "edit action = value"),
+    ] {
+        let source = source
+            .replace("inspect(take value", &format!("inspect({parameter}"))
+            .replace("let action = value^", extraction);
+        assert!(source.contains(&format!("func inspect({parameter}:")));
+        let unit = accepted(&source);
+        let body = named(&unit, "inspect");
+        assert_eq!(
+            unit.const_requirements(body.typed().code())
+                .unwrap()
+                .stable_invocation_inputs()
+                .count(),
+            1
+        );
+    }
+}
+
+#[test]
 fn const_requirements_share_the_exact_body_and_keep_capability_conditional() {
     use nocter_declarations::value_access::FunctionWitness;
     let source = "func runtime(value: i32): i32 { value }\nconst func apply(action: func(i32): i32, value: i32): i32 { action(value) }\nconst func ignore(action: func(i32): i32): i32 { 42 }\nfunc run(): i32 { let local = (): i32 { 42 }\ndrop local\napply(runtime, 41) }";

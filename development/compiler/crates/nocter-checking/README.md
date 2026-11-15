@@ -504,7 +504,14 @@ obligation. The clause remains the owner of its input attribution. These guarded
 supply flat conjunctive coverage or a closed-root proof; unresolved guards preserve conservative
 failure reporting and exact bound checks. A clause reference supplies neither an observed tag nor
 the identity/state of a supplied value. Applied state predicates still require original occurrence
-correspondence, and this metadata grants no const permission. `value-guarded-callable-outcomes.nct` qualifies absent/present ordinary
+correspondence, and this metadata grants no const permission.
+The clause also classifies its input as stable or unproved from the canonical source-definition
+writes. The analysis retains only written input locals, once per checked body. Direct and
+alias-mediated edit calls invalidate the proof, even when their final metadata happens to match;
+writes to unrelated locals do not. Take/read/edit extraction can retain this source-definition
+classification; transfer and retirement still change availability under the resource model.
+Missing source correspondence stays unproved. This classification proves neither an actual tag
+nor initialized backing, and ordinary const admission still discharges its existing obligations. `value-guarded-callable-outcomes.nct` qualifies absent/present ordinary
 runtime use of a runtime-only callback, with const-capable controls in checking. Required uses of
 the represented runtime witness remain outside qualified value-state discharge, even when its
 particular tag is absent; the [state-conditioned obligations](../../../design/compiler-realization.md#state-conditioned-const-obligations)
