@@ -73,6 +73,7 @@ fn tuple_repacking_retains_the_original_receipt_and_all_disjoint_siblings() {
             destination,
             before,
             preserved,
+            ..
         } = effect
         else {
             unreachable!()
@@ -82,6 +83,70 @@ fn tuple_repacking_retains_the_original_receipt_and_all_disjoint_siblings() {
             1 => preserved[0].1.root = *before,
             2 => source.slot = destination.slot,
             3 => *before = RuntimeDataId::Instance(u32::MAX),
+            _ => unreachable!(),
+        }
+        assert!(
+            validate::program(&changed).is_err(),
+            "corruption {corruption}"
+        );
+    }
+}
+
+#[test]
+fn sparse_tuple_repacking_never_snapshots_a_missing_subtree_or_its_parent() {
+    let program = lower(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-component-growth-holes.nct"
+    )));
+    let effect = program
+        .bodies
+        .values()
+        .flat_map(|body| body.actions.values())
+        .flat_map(|action| &action.alternatives)
+        .flat_map(|alternative| alternative.before.iter().chain(&alternative.after))
+        .find(|effect| matches!(effect, Effect::Repack { missing, .. } if !missing.is_empty()))
+        .unwrap();
+    let Effect::Repack {
+        missing, preserved, ..
+    } = effect
+    else {
+        unreachable!()
+    };
+    let field = |index| Projection::Field(nocter_model::ValueField::Tuple(index));
+    assert_eq!(missing.as_ref(), &[Box::from([field(1), field(0)])]);
+    let paths = preserved
+        .iter()
+        .map(|(source, _)| source.projections.clone())
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(
+        paths,
+        std::collections::BTreeSet::from([Box::from([field(1), field(1)]), Box::from([field(2)])])
+    );
+    for corruption in 0..6 {
+        let mut changed = program.clone();
+        let effect = changed
+            .bodies
+            .values_mut()
+            .flat_map(|body| body.actions.values_mut())
+            .flat_map(|action| &mut action.alternatives)
+            .flat_map(|alternative| alternative.before.iter_mut().chain(&mut alternative.after))
+            .find(|effect| matches!(effect, Effect::Repack { missing, .. } if !missing.is_empty()))
+            .unwrap();
+        let Effect::Repack { missing, .. } = effect else {
+            unreachable!()
+        };
+        match corruption {
+            0 => *missing = Box::new([]),
+            1 => *missing = vec![missing[0].clone(), missing[0].clone()].into(),
+            2 => *missing = vec![Box::from([field(1)]), missing[0].clone()].into(),
+            3 => *missing = vec![Box::from([field(0)])].into(),
+            4 => *missing = vec![Box::from([field(99)])].into(),
+            5 => {
+                *missing = vec![Box::from([Projection::Field(
+                    nocter_model::ValueField::Array(0),
+                )])]
+                .into();
+            }
             _ => unreachable!(),
         }
         assert!(

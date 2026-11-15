@@ -1,0 +1,42 @@
+struct Item { value: i32 }
+
+const func identity(value: i32): i32 { value }
+
+const func addition(value: i32): func(i32): i32 {
+    let item = Item { value: value }
+    (item^; amount: i32): i32 { item.value + amount }
+}
+
+const func subtraction(value: i32): func(i32): i32 {
+    let item = Item { value: value }
+    (item^; amount: i32): i32 { item.value - amount }
+}
+
+const func wrap(take callback: func(i32): i32): func(i32): i32 {
+    (callback^; amount: i32): i32 { callback(amount) }
+}
+
+const func calculate(): i32 {
+    var pair = (wrap(identity), (wrap(addition(2)), 2), 3)
+    let saved_sibling = pair.1.0^
+    let empty = pair.0(42)
+    pair.0 = wrap(addition(20))
+    let small_sibling = pair.1.1
+    let first = pair.0(20)
+    pair.0 = wrap(subtraction(50))
+    let second = pair.0(8)
+    let saved = pair.0^
+    pair.0 = wrap(addition(1))
+    let third = pair.0(41)
+    let preserved = saved(8)
+    pair.0 = wrap(identity)
+    let large_sibling = pair.1.1
+    let shrunk = pair.0(42)
+    let held = saved_sibling(40)
+    pair.1.0 = saved_sibling^
+    let restored = pair.1.0(40)
+    if held == 42 && restored == 42 && pair.2 == 3 && small_sibling == 2 && large_sibling == 2 && pair.1.1 == 2 && empty == 42 && first == 40 && second == 42 && third == 42 && preserved == 42 && shrunk == 42 { 42 } else { 0 }
+}
+
+const ANSWER: i32 = calculate()
+func run(): i32 { if ANSWER == 42 { calculate() } else { 0 } }

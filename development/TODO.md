@@ -74,9 +74,14 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Qualify tuple-component representation growth/shrinkage without retained addresses, with
   original retirement/receipt, initialized sibling relocation, nested tuple paths, saved instances
   and native owned-error cleanup. Keep other missing siblings and live aliases separate.
-- [ ] Extend tuple relocation to sparse missing sibling subtrees, preserving only initialized
+- [x] Extend tuple relocation to sparse missing sibling subtrees, preserving only initialized
   storage at its original resource phase. Keep the existing ownership ledger, saved owners and
   exact old/new contexts; do not load a whole sibling that contains a transferred field.
+- [ ] Qualify representation-changing indexed receipts through owned singleton arrays without
+  surviving addresses. Preserve the original evaluated selection, bounds effects and separate
+  retirement/receipt; a unique logical coordinate does not stabilize pre-existing pointers.
+- [ ] Extend relocation's initialized-subtree selection to remaining array/range holes and
+  context-dependent alternatives, preserving sparse source coordinates without element expansion.
 - [x] Qualify same-geometry contextual callable component replacement and restoration with a
   surviving disjoint sibling reference. Carry each partial receipt's original containing roots
   into MIR and physical geometry checks without fusing separate retirement/receipt operations.

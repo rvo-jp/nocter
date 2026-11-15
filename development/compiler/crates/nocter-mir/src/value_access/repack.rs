@@ -1,15 +1,34 @@
 //! Structural complement of one tuple destination; ownership and address freedom are separate.
 use super::{Place, Projection};
 use nocter_model::ValueField;
-use nocter_runtime_contract::{RuntimeDataId, RuntimeEnvironment, RuntimeTypeRepresentation};
+use nocter_runtime_contract::{
+    RuntimeDataId, RuntimeEnvironment, RuntimeTypeRepresentation, RuntimeValueFieldRepresentation,
+};
 
 pub(super) fn preserved(
     runtime: &RuntimeEnvironment,
     before: RuntimeDataId,
     destination: &Place,
+    missing: &[Box<[Projection]>],
 ) -> Option<Box<[(Place, Place)]>> {
     if destination.projections.is_empty() {
         return None;
+    }
+    for (index, path) in missing.iter().enumerate() {
+        if path.is_empty()
+            || path.starts_with(&destination.projections)
+            || destination.projections.starts_with(path)
+            || index > 0 && (missing[index - 1] >= *path || path.starts_with(&missing[index - 1]))
+        {
+            return None;
+        }
+        let mut data = before;
+        for projection in path {
+            let Projection::Field(field @ ValueField::Tuple(_)) = projection else {
+                return None;
+            };
+            data = runtime.value_field(data, *field)?;
+        }
     }
     let mut left = before;
     let mut right = destination.root;
@@ -19,23 +38,12 @@ pub(super) fn preserved(
         let Projection::Field(ValueField::Tuple(selected)) = projection else {
             return None;
         };
-        let (
-            Some(RuntimeTypeRepresentation::ValueAggregate { fields: old }),
-            Some(RuntimeTypeRepresentation::ValueAggregate { fields: new }),
-        ) = (
-            runtime.type_representations().get(left),
-            runtime.type_representations().get(right),
-        )
-        else {
-            return None;
-        };
+        let old = tuple_fields(runtime, left)?;
+        let new = tuple_fields(runtime, right)?;
         if old.len() != new.len() || *selected >= old.len() {
             return None;
         }
         for (index, (old, new)) in old.iter().zip(new).enumerate() {
-            if old.field() != ValueField::Tuple(index) || new.field() != old.field() {
-                return None;
-            }
             if index == *selected {
                 continue;
             }
@@ -60,5 +68,61 @@ pub(super) fn preserved(
         right = new[*selected].ty();
         prefix.push(*projection);
     }
-    (right == destination.data).then(|| retained.into())
+    if right != destination.data {
+        return None;
+    }
+    initialized(runtime, retained, missing)
+}
+
+/// Split only ancestors of actual holes; shared schema branches without holes stay opaque.
+fn initialized(
+    runtime: &RuntimeEnvironment,
+    mut pending: Vec<(Place, Place)>,
+    missing: &[Box<[Projection]>],
+) -> Option<Box<[(Place, Place)]>> {
+    let mut retained = Vec::new();
+    while let Some((source, target)) = pending.pop() {
+        let index = missing.partition_point(|hole| hole.as_ref() < source.projections.as_ref());
+        match missing.get(index) {
+            Some(hole) if hole.as_ref() == source.projections.as_ref() => continue,
+            Some(hole) if hole.starts_with(&source.projections) => {}
+            _ => {
+                retained.push((source, target));
+                continue;
+            }
+        }
+        for field in tuple_fields(runtime, source.data)? {
+            let mut path = source.projections.to_vec();
+            path.push(Projection::Field(field.field()));
+            pending.push((
+                Place {
+                    projections: path.clone().into(),
+                    data: field.ty(),
+                    ..source.clone()
+                },
+                Place {
+                    projections: path.into(),
+                    data: field.ty(),
+                    ..target.clone()
+                },
+            ));
+        }
+    }
+    Some(retained.into())
+}
+
+fn tuple_fields(
+    runtime: &RuntimeEnvironment,
+    data: RuntimeDataId,
+) -> Option<&[RuntimeValueFieldRepresentation]> {
+    let RuntimeTypeRepresentation::ValueAggregate { fields } =
+        runtime.type_representations().get(data)?
+    else {
+        return None;
+    };
+    fields
+        .iter()
+        .enumerate()
+        .all(|(index, field)| field.field() == ValueField::Tuple(index))
+        .then_some(fields)
 }

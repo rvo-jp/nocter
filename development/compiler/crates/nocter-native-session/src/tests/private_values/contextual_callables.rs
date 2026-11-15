@@ -1491,6 +1491,47 @@ fn private_contextual_callable_replacement_disposes_retired_received_and_saved_e
 }
 
 #[test]
+fn private_contextual_component_growth_preserves_sparse_holes_and_restores_saved_owners() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-component-growth-holes.nct"
+    ));
+    let package = TempPackage::new();
+    for scenario in 0..3 {
+        let source = if scenario == 1 {
+            source
+                .replace(
+                    "let saved_sibling = pair.1.0^",
+                    "let saved_sibling = pair.1.0^\n    let saved_last = pair.2^",
+                )
+                .replace("let restored =", "pair.2 = saved_last^\n    let restored =")
+        } else if scenario == 2 {
+            let mut changed = source
+                .replace(
+                    "var pair = (wrap(identity),",
+                    "var pair = ((wrap(identity), 7),",
+                )
+                .replace("pair.0(", "pair.0.0(")
+                .replace("pair.0^", "pair.0.0^")
+                .replace(
+                    "let empty =",
+                    "let saved_target = pair.0.1^\n    let empty =",
+                )
+                .replace("if held ==", "if saved_target == 7 && held ==");
+            for value in ["addition(20)", "subtraction(50)", "addition(1)", "identity"] {
+                let original = format!("pair.0 = wrap({value})");
+                assert!(changed.contains(&original));
+                changed = changed.replace(&original, &format!("pair.0 = (wrap({value}), 7)"));
+            }
+            changed
+        } else {
+            source.to_owned()
+        };
+        execute_native_status(&compile(&source), &package.0, "component-growth-holes", 42);
+    }
+}
+
+#[test]
 fn private_contextual_component_growth_preserves_siblings_and_saved_instances() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -1541,7 +1582,8 @@ fn private_contextual_component_growth_moves_owned_siblings_and_disposes_actual_
 }
 
 #[test]
-fn private_contextual_component_growth_keeps_missing_siblings_unqualified() {
+fn private_contextual_component_growth_moves_only_initialized_siblings_and_preserves_saved_errors()
+{
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../tests/fixtures/native/value-access/contextual-component-growth-errors.nct"
@@ -1553,6 +1595,31 @@ fn private_contextual_component_growth_keeps_missing_siblings_unqualified() {
         )
         .replace("inspect(pair.2.0)", "inspect(saved_sibling)");
     assert_ne!(changed, source);
+    let package = TempPackage::new();
+    execute_native_status(
+        &image(&trusted_error_machine(&changed)),
+        &package.0,
+        "component-growth-saved-error",
+        42,
+    );
+}
+
+#[test]
+fn private_contextual_component_growth_does_not_load_an_unqualified_array_hole() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-component-growth-errors.nct"
+    ));
+    let original = "(context_error(create_failure(\"sibling\", \"leaf\"), \"outer\"), 2)";
+    let replacement = "([context_error(create_failure(\"sibling\", \"leaf\"), \"outer\")], 2)";
+    assert!(source.contains(original));
+    let changed = source
+        .replace(original, replacement)
+        .replace(
+            "let empty =",
+            "let saved_sibling = pair.2.0[0]^\n    let empty =",
+        )
+        .replace("inspect(pair.2.0)", "inspect(saved_sibling)");
     let unit = trusted_error_unit(&changed);
     assert!(matches!(
         machine_unit(unit),

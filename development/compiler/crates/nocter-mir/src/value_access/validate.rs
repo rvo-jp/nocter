@@ -252,6 +252,7 @@ impl Context<'_> {
         source: &Place,
         destination: &Place,
         before: nocter_runtime_contract::RuntimeDataId,
+        missing: &[Box<[Projection]>],
         preserved: &[(Place, Place)],
     ) -> Result<(), Failure> {
         self.place(source)?;
@@ -272,7 +273,7 @@ impl Context<'_> {
                 .has_same_value_representation(source.data, destination.data),
         )?;
         self.require(
-            super::repack::preserved(&self.program.runtime, before, destination)
+            super::repack::preserved(&self.program.runtime, before, destination, missing)
                 .is_some_and(|expected| expected.as_ref() == preserved),
         )?;
         for (source, target) in preserved {
@@ -345,8 +346,9 @@ impl Context<'_> {
                 source,
                 destination,
                 before,
+                missing,
                 preserved,
-            } => self.repack(source, destination, *before, preserved),
+            } => self.repack(source, destination, *before, missing, preserved),
             Effect::Reinterpret {
                 source,
                 destination,

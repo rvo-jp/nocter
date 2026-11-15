@@ -2241,8 +2241,11 @@ for retained component references, partial writes, general joins or changing bac
 restoration with changing environment sizes, calls, saved instances and initialized sibling values.
 Native cases include nested tuple destinations, an expired sibling view and an owning error-graph
 sibling in addition to retired/received captures. The [MIR owner](../nocter-mir/README.md) defines
-the relocation proof and exact preserved-subtree boundary. Other missing siblings and live
-addresses do not acquire that permission.
+the relocation proof and exact preserved-subtree boundary.
+`contextual-component-growth-holes.nct` additionally qualifies multiple missing tuple fields,
+saved-owner restoration and replacement of a partially retired subtree. Native execution also
+preserves a separately saved error graph while relocating its remaining siblings. Live addresses,
+array holes and disagreeing alternative contexts do not acquire that permission.
 `contextual-component-replacement.nct` additionally qualifies same-geometry partial replacement
 and restoration while a disjoint sibling reference survives, including repeated writes through
 one local edit alias. Original carrier selections match its actual containing owner. The evaluator

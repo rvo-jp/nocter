@@ -525,16 +525,14 @@ impl Builder<'_> {
         {
             return Ok(None);
         }
-        let mut matched = false;
+        let mut matched = None;
         for transition in self.checked.access().resources().at(at) {
             if !transition.steps().iter().any(|step| {
-                matches!(step,
-                Step::Move { source, destination, .. }
+                matches!(step, Step::Move { source, destination, .. }
                     if source == supplied && destination == target)
             }) {
                 continue;
             }
-            matched = true;
             let condition = transition.condition();
             let Some((_, missing)) = condition
                 .owned()
@@ -542,25 +540,45 @@ impl Builder<'_> {
             else {
                 return Ok(None);
             };
-            if missing
-                .iter()
-                .any(|missing| missing.value() != Some(target.fields()))
-            {
+            let mut holes = BTreeSet::new();
+            for missing in missing {
+                let Some(path) = missing.value() else {
+                    return Ok(None);
+                };
+                if target.fields().is_prefix_of(path) {
+                    continue;
+                }
+                if path.is_prefix_of(target.fields()) {
+                    return Ok(None);
+                }
+                let Some(path) = path.concrete() else {
+                    return Ok(None);
+                };
+                holes.insert(
+                    path.fields()
+                        .iter()
+                        .copied()
+                        .map(Projection::Field)
+                        .collect::<Box<[_]>>(),
+                );
+            }
+            let holes = holes.into_iter().collect::<Box<[_]>>();
+            if matched.as_ref().is_some_and(|previous| previous != &holes) {
                 return Ok(None);
             }
+            matched = Some(holes);
         }
-        if !matched {
-            return Err(self.invalid());
-        }
+        let missing = matched.ok_or_else(|| self.invalid())?;
         Ok(
-            super::repack::preserved(self.runtime, before, destination).map(|preserved| {
-                Effect::Repack {
+            super::repack::preserved(self.runtime, before, destination, &missing).map(
+                |preserved| Effect::Repack {
                     source: source.clone(),
                     destination: destination.clone(),
                     before,
+                    missing,
                     preserved,
-                }
-            }),
+                },
+            ),
         )
     }
     fn scoped_replacement(
