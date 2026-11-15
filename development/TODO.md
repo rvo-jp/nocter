@@ -24,10 +24,10 @@ The [checking](compiler/crates/nocter-checking/README.md) and
 [target-program](compiler/crates/nocter-target-program/README.md) owners describe the implemented
 canonical metadata, original source-definition queries and ordered lifecycle specialization.
 
-Extend guarded transport to occurrence-bound supplied domains using original supplied/receiving
-expressions and the callee's own result descriptor. Preserve shared value graphs, single-owner
-transitions, evaluator effects and separate physical layouts. Qualify compound and retained-alias
-contexts independently of whole-value receiving-domain selection.
+Extend guarded transport through application-specific received outcome contexts using original
+supplied/receiving expressions and the callee's own result descriptor. Preserve shared value graphs,
+single-owner transitions, evaluator effects and separate physical layouts. Qualify retained-alias
+contexts independently of whole-value carrier transport.
 
 Continue producer-less outcome qualification with representation widening and application-specific
 empty received contexts, preserving original tag evaluation, required traps and
@@ -184,10 +184,11 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   effects, preserving separate layouts, original tags and active payload offsets. Keep exact transfer
   equality and checking's positive code/environment proof separate; reject overlapping payload slots.
 - [x] Qualify guarded widening from independently closed supplied domains into occurrence-bound
-  destination domains selected from actual positive producers and matched consumers. Do not recover captured environments from an ambient
+  destination domains selected from actual positive producers and matched consumers. Do not recover
+  captured environments from an ambient
   frame, invent code from exclusion or replace the callee's original supplied schema with its target.
-- [ ] Extend guarded transport from independently closed supplied domains to occurrence-bound
-  supplied carriers with both positive contexts and excluded alternatives. Preserve exact original
+- [x] Extend guarded transport from independently closed supplied domains to occurrence-bound
+  supplied tuple/array carriers with both positive contexts and excluded alternatives. Preserve exact original
   schemas and actual positive component instances; destination constraints cannot substitute for
   supplied code/environment evidence or authorize context-changing storage and surviving aliases.
 - [x] Amortize physical-transport metadata comparison across shared source/destination pairs.

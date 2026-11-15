@@ -2,6 +2,23 @@
 use super::*;
 
 #[test]
+fn private_contextual_carrier_widening_preserves_positive_supplied_contexts() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-widened-outcome-carriers.nct"
+    ));
+    let machine = machine(source);
+    assert_differently_sized_transport_helper(&machine);
+    let package = TempPackage::new();
+    execute_native_status(
+        &image(&machine),
+        &package.0,
+        "contextual-carrier-widening",
+        42,
+    );
+}
+
+#[test]
 fn private_contextual_outcome_widening_selects_actual_receiving_layouts() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

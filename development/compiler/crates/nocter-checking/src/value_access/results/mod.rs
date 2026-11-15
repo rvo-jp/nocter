@@ -221,6 +221,8 @@ impl Evidence {
             }
         })
     }
+    /// Classify a symbolic lifecycle operation. Concrete consumers must independently select
+    /// original supplied/receiving instances and validate their directed representation relation.
     pub(in crate::value_access) fn requires_transport(
         &self,
         program: &Program,
@@ -248,19 +250,8 @@ impl Evidence {
         data(source)
             .zip(data(destination))
             .is_some_and(|(source, target)| {
-                self.supports_transport(query.program(), source.data(), target.data())
+                self.requires_transport(query.program(), source.data(), target.data())
             })
-    }
-    /// Symbolic lifecycle admission, not a concrete destination certificate. Consumers must
-    /// select the receiving instance from this occurrence's original value graph.
-    pub(in crate::value_access) fn supports_transport(
-        &self,
-        program: &Program,
-        actual: TypeId,
-        target: TypeId,
-    ) -> bool {
-        self.requires_transport(program, actual, target)
-            && self.closed_domain(program, actual).is_ok()
     }
     pub(in crate::value_access) fn matches_payload_metadata(
         &self,

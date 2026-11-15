@@ -615,8 +615,8 @@ these paths prove neither equal indices, bounds nor saved-address identity.
 `ValueSource::Transport` retains a distinct receiving node and its original supplied source.
 Representation realization first closes that source against its own schema, then selects the
 destination domain independently or from the original receiving value's consumers in the same
-canonical frame. `Evidence::supports_transport` classifies the symbolic lifecycle operation for an
-independently closed source; concrete realization still checks directed compatibility against the
+canonical frame. `Evidence::requires_transport` classifies the symbolic lifecycle operation;
+concrete realization still checks directed compatibility against the
 actual receiving instance. Consumer constraints retain their original producing paths and budgeted
 fixed point; absence cannot choose a code/environment context. Callable-value
 queries continue through the supplied source; an excluded alternative contributes no positive
@@ -1830,8 +1830,8 @@ shape, distinct from unresolved `Unavailable` descriptors. The matching error fi
 failure-only results, exact forwarding and disposal of actual owned error graphs.
 Extracting an excluded callable and application-specific emptiness through received inputs remain
 separate obligations. After outcome refinement, `results::admission` checks reachable taking,
-forwarding and return boundaries. Taking conversions with independently closed supplied domains
-emit an explicit transport; receiving domains may depend on the actual committed callback inputs.
+forwarding and return boundaries. Taking conversions emit an explicit transport; both supplied and
+receiving domains may depend on the actual committed callback inputs.
 Other known widening boundaries report `UnsupportedData` at
 the supplied expression. Unknown metadata establishes no conversion. Direct destination construction
 of `none` remains supported without moving an existing smaller representation.
@@ -1844,8 +1844,12 @@ original tags survive the single-owner transition; matching signatures or equal 
 replace it. `contextual-widened-outcome-results.nct` qualifies the same lexical receiving closure
 with distinct callback environments in separate applications, required evaluation, exact resource
 projection and native layouts. The matching error fixture qualifies failure forwarding, retired
-input captures and returned capture cleanup. Occurrence-dependent supplied domains remain a
-separate admission boundary; a receiving constraint never rewrites the original supplied schema.
+input captures and returned capture cleanup. `contextual-widened-outcome-carriers.nct` extends
+transport to supplied tuples and tuple-array carriers with adjacent positive callback contexts,
+partial extraction and differing field offsets/strides. The error fixture also qualifies failure
+carriers with supplied captured owners, inactive success payloads and remaining-container cleanup.
+Different positive environments cannot be widened to agree; a receiving constraint never rewrites
+the original supplied schema. Changing external/aliased storage remains a separate boundary.
 `producerless-outcome-guards.nct` qualifies value/read/edit recovery and value propagation when
 the primary domain is empty. Checking refines only the impossible outgoing edge of the original
 tag condition; every source action, tag read and action identity remains intact. Original value

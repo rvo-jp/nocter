@@ -279,7 +279,7 @@ impl Context<'_, '_> {
                 typed
                     .result_evidence
                     .as_ref()
-                    .is_some_and(|evidence| evidence.supports_transport(typed.program(), from, to))
+                    .is_some_and(|evidence| evidence.requires_transport(typed.program(), from, to))
             },
         )?;
         Ok(())

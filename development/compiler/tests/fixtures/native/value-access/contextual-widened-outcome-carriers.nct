@@ -1,0 +1,60 @@
+const func identity(value: i32): i32 { value }
+const func addition(number: i32): func(i32): i32 {
+    (number; value: i32) { number + value }
+}
+const func wrap(take action: func(i32): i32): func(i32): i32 {
+    (action^; value: i32) { action(value) }
+}
+const func absent(): (func(i32): i32)? { none }
+const func empty_pair(take action: func(i32): i32): (func(i32): i32, (func(i32): i32)?) {
+    (wrap(action^), absent())
+}
+const func full_pair(take action: func(i32): i32): (func(i32): i32, (func(i32): i32)?) {
+    (wrap(action^), wrap(identity))
+}
+const func choose(present: bool, take action: func(i32): i32): (func(i32): i32, (func(i32): i32)?) {
+    if present { full_pair(action^) } else { empty_pair(action^) }
+}
+const func empty_array(take first: func(i32): i32, take second: func(i32): i32): [(func(i32): i32, (func(i32): i32)?); 2] {
+    [empty_pair(first^), empty_pair(second^)]
+}
+const func full_array(take first: func(i32): i32, take second: func(i32): i32): [(func(i32): i32, (func(i32): i32)?); 2] {
+    [full_pair(first^), full_pair(second^)]
+}
+const func choose_array(present: bool, take first: func(i32): i32, take second: func(i32): i32): [(func(i32): i32, (func(i32): i32)?); 2] {
+    if present { full_array(first^, second^) } else { empty_array(first^, second^) }
+}
+const func tuples(): i32 {
+    let first = choose(false, identity)
+    let second = choose(false, addition(20))
+    let present = choose(true, addition(100))
+    let active = present.1^ otherwise { return 0 }
+    if active(7) != 7 { return 0 }
+    let left = first.0^
+    let right = second.0^
+    let _ = first.1^ otherwise {
+        let _ = second.1^ otherwise { return left(20) + right(2) }
+        return 0
+    }
+    0
+}
+const func arrays(): i32 {
+    let first = choose_array(false, identity, identity)
+    let second = choose_array(false, addition(20), addition(30))
+    let present = choose_array(true, addition(100), addition(200))
+    let active = present[0].1^ otherwise { return 0 }
+    let next = present[1].1^ otherwise { return 0 }
+    if active(7) != 7 || next(8) != 8 { return 0 }
+    let left = first[1].0^
+    let right = second[1].0^
+    let _ = first[0].1^ otherwise {
+        let _ = second[1].1^ otherwise { return left(10) + right(2) }
+        return 0
+    }
+    0
+}
+const func calculate(): i32 {
+    if tuples() == 42 { arrays() } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { calculate() }

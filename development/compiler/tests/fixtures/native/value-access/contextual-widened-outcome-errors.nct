@@ -20,7 +20,7 @@ func choose(fail: bool, take action: func(i32): i32): (func(i32): i32)! {
 func forward(fail: bool, take action: func(i32): i32): (func(i32): i32)! {
     choose(fail, action^)?
 }
-func run(): i32 {
+func outcomes(): i32 {
     let discarded = choose(true, owning(30))
     drop discarded
     let left_value = forward(false, identity)
@@ -31,3 +31,29 @@ func run(): i32 {
     let _ = failure^ catch reason { return left(20) + right(2) }
     0
 }
+func failed_pair(take action: func(i32): i32): (func(i32): i32, (func(i32): i32)!) {
+    (wrap(action^), failed())
+}
+func success_pair(take action: func(i32): i32): (func(i32): i32, (func(i32): i32)!) {
+    (wrap(action^), wrap(identity))
+}
+func choose_pair(fail: bool, take action: func(i32): i32): (func(i32): i32, (func(i32): i32)!) {
+    if fail { failed_pair(action^) } else { success_pair(action^) }
+}
+func carriers(): i32 {
+    let discarded = choose_pair(true, owning(30))
+    drop discarded
+    let first = choose_pair(true, identity)
+    let second = choose_pair(true, owning(20))
+    let success = choose_pair(false, owning(100))
+    let active = success.1^!
+    if active(7) != 7 { return 0 }
+    let left = first.0^
+    let right = second.0^
+    let _ = first.1^ catch first_reason {
+        let _ = second.1^ catch second_reason { return left(20) + right(2) }
+        return 0
+    }
+    0
+}
+func run(): i32 { if outcomes() == 42 { carriers() } else { 0 } }

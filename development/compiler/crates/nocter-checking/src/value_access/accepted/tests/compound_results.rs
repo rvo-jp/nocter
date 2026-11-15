@@ -110,6 +110,34 @@ fn closed_nested_and_fallible_transport_retains_original_contracts() {
 }
 
 #[test]
+fn contextual_carrier_widening_preserves_original_positive_supplied_components() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-widened-outcome-carriers.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
+}
+
+#[test]
+fn contextual_carrier_widening_rejects_different_positive_supplied_environments() {
+    let original = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-widened-outcome-carriers.nct"
+    ));
+    let changed = original.replace(
+        "(wrap(action^), absent())",
+        "drop action\n(wrap(identity), absent())",
+    );
+    assert_ne!(changed, original);
+    let (sources, tree) = input(&changed);
+    assert!(!tree.has_errors());
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Evaluation { .. }))
+    ));
+}
+
+#[test]
 fn contextual_outcome_widening_selects_each_actual_receiving_environment() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
