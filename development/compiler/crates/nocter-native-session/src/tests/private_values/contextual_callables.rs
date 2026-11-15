@@ -43,6 +43,21 @@ fn private_contextual_absent_callable_arrays_preserve_supplied_environments_and_
 }
 
 #[test]
+fn private_optional_runtime_callbacks_preserve_absent_and_present_execution() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/value-guarded-callable-outcomes.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "optional-runtime-callbacks",
+        42,
+    );
+}
+
+#[test]
 fn private_indexed_empty_received_domains_keep_bounds_traps() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

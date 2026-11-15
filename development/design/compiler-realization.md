@@ -129,6 +129,36 @@ nontrivial cleanup enter evaluation. Symbolic generic/witness/resource-existence
 exported products use the same checked program; no new source annotations or parallel instance/type
 authority can substitute for those proofs. Final callable serialization remains a separate boundary.
 
+### State-Conditioned Const Obligations
+
+Keep logical resource presence separate from represented callable domains. A nullable value may be
+absent while its canonical representation still contains a runtime-only callable witness. The
+[value-guarded callback source](../compiler/tests/fixtures/native/value-access/value-guarded-callable-outcomes.nct)
+qualifies both ordinary runtime paths. Requiring `inspect(produce(false))` as a constant currently
+retains the represented witness's invocation obligation; observing absence alone is not an existing
+admission certificate. Do not manufacture an uninhabited representation to bypass that obligation.
+
+Definition-owned invocation clauses can attribute a direct nullable callable witness to its original
+input schema. This attribution supplies neither a tag fact nor source-value lineage, initialized
+storage, an escaping-root guarantee or const permission. Match original witness identity and input
+position; equal signatures do not identify a resource. General nested, indexed, captured and
+forwarded state predicates require their own qualification rather than an arbitrary root default.
+
+Before opening value-dependent admission, retain exact-body obligation references through bound
+admission and the evaluator plan. Establish the required resource predicate when its state becomes
+available, before the affected unsupported operation, and revalidate facts invalidated by writes or
+transfers. Keep these checks on the existing evaluator's typed storage and original operations;
+introduce no source-control interpreter or speculative execution of an unavailable body. Link an
+unavailable callable's validated boundary without demanding that body merely to represent its value.
+A boundary or a schema attribution cannot supply an executable implementation.
+
+Preserve fixed forbidden-definition checks and ordinary runtime calls whose const condition is
+false. An ordinary user boolean branch is not by itself a resource-existence certificate. Qualify
+absence, active unavailable invocation, forwarding/capture paths and cleanup independently before
+expanding admission. A shared positive witness/data key cannot cache one request's observed tag as a
+universal fact. Diagnostics must retain the original obligation, supplying argument and call path;
+failed condition/plan work publishes no partial permission and must support healthy retry.
+
 ### Captured Callable Instances
 
 A callable's selected source code and invocation view do not identify the substitutions captured

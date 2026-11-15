@@ -1,0 +1,12 @@
+func runtime(value: i32): i32 { value + 7 }
+const func produce(present: bool): (func(i32): i32)? {
+    if present { runtime } else { none }
+}
+const func inspect(take value: (func(i32): i32)?): i32 {
+    let action = value^ otherwise { return 11 }
+    action(35)
+}
+func run(): i32 {
+    if inspect(produce(false)) != 11 { return 0 }
+    inspect(produce(true))
+}

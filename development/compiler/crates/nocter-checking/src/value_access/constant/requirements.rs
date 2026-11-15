@@ -12,6 +12,9 @@ enum Clause {
         // An interrupted call has no callee edge. Unresolved producer/view metadata is retained
         // as unavailable edge metadata, never permission to strengthen an ordinary runtime body.
         template: Option<Result<CallTemplate, flow::IntegrityError>>,
+        // An input schema may permit this witness's payload to be absent. This attribution
+        // grants no tag, initialization, source-value lineage or const eligibility proof.
+        input_resource: Option<nocter_model::AccessLocalId>,
     },
     Inputs(AccessExpressionId),
     Data(expressions::Condition),
@@ -47,6 +50,7 @@ mod bound;
 mod cleanup;
 mod drops;
 mod expressions;
+mod guards;
 use bound::BoundContext;
 pub(in crate::value_access) use bound::{BoundCheck, BoundCheckFailure};
 
@@ -100,6 +104,7 @@ impl Requirements {
                 clauses.push(Clause::Invocation {
                     expression: id,
                     template,
+                    input_resource: guards::input_resource(&body, *target)?,
                 });
             }
         }
@@ -234,7 +239,12 @@ impl Requirements {
                 Clause::Invocation {
                     expression,
                     template,
+                    input_resource,
                 } => {
+                    // A flat conjunction does not discharge a possible resource-state guard.
+                    if input_resource.is_some() {
+                        return Ok(false);
+                    }
                     let ExpressionKind::Call {
                         target,
                         kind,
@@ -385,11 +395,26 @@ impl Requirements {
     pub(super) fn data_conditions(&self) -> impl Iterator<Item = Violation> + '_ {
         self.clauses.iter().filter_map(Clause::data_condition)
     }
+    /// Definition-owned schema attributions, not permission to defer a failed obligation.
+    #[cfg(test)]
+    pub(in crate::value_access) fn invocation_input_resources(
+        &self,
+    ) -> impl Iterator<Item = (AccessExpressionId, nocter_model::AccessLocalId)> + '_ {
+        self.clauses.iter().filter_map(|clause| match clause {
+            Clause::Invocation {
+                expression,
+                input_resource: Some(input),
+                ..
+            } => Some((*expression, *input)),
+            _ => None,
+        })
+    }
     pub(in crate::value_access) fn completed_calls(&self) -> impl Iterator<Item = CallEdge<'_>> {
         self.clauses.iter().filter_map(|clause| match clause {
             Clause::Invocation {
                 expression,
                 template: Some(template),
+                ..
             } => Some(CallEdge {
                 expression: *expression,
                 template,
@@ -439,6 +464,7 @@ impl Requirements {
             let Clause::Invocation {
                 expression: id,
                 template: Some(template),
+                ..
             } = clause
             else {
                 continue;

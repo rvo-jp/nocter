@@ -439,6 +439,15 @@ including absent and positive applications of the same body in required/native e
 owned error graphs and captured callable environments. Propagation stages the absence/error
 before ordinary cleanup; a projected fallible `?` still rejects at its source because read/edit
 access cannot transfer the caller's error.
+Invocation clauses retain the original direct nullable input associated with a parameter-selected
+callable witness. This definition-owned schema attribution supplies no tag or const permission;
+it is excluded from the flat conjunctive coverage claim. Bound checks retain their current
+fail-closed obligations. `value-guarded-callable-outcomes.nct` qualifies absent/present ordinary
+runtime use of a runtime-only callback, with const-capable controls in checking. Required uses of
+the represented runtime witness remain outside qualified value-state discharge, even when its
+particular tag is absent; the [state-conditioned obligations](../../../design/compiler-realization.md#state-conditioned-const-obligations)
+own that remaining realization boundary.
+
 `received-compound-outcome-control.nct` qualifies the same continuation selection at a tuple
 component through take/read/edit inputs. A neighboring live callable and scalar field retain their
 independent domains and offsets. Only the selected empty primary continuation is excluded; the

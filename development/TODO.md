@@ -285,6 +285,15 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   a received primary callable domain is empty.
   Preserve evaluation of the original carrier/tag, required traps and alternate cleanup while
   excluding impossible positive continuations; a guarded empty descriptor is not a callable value.
+- [ ] Close [state-conditioned const obligations](design/compiler-realization.md#state-conditioned-const-obligations)
+  for optional callback absence while the represented domain remains inhabited by a runtime-only
+  witness. The linked source plus `const ANSWER: i32 = inspect(produce(false)) + 31` currently
+  rejects with RuntimeCall. Retain exact-body guards through bound admission and evaluator plans;
+  preserve fixed forbidden definitions, runtime validity, original source causes and healthy retry.
+  Do not convert an observed tag into an uninhabited representation or execute unsupported bodies.
+- [x] Retain definition-owned attribution of direct nullable invocation witnesses to their exact
+  input roots, excluding these potential state guards from flat coverage. Qualify distinct
+  same-signature inputs, ordinary-boolean/fixed-target exclusions and runtime/const boundaries.
 - [x] Qualify received empty/positive callable domains through dynamically indexed compound
   array inputs. Preserve evaluated-index bounds effects, selected sibling access, take/read/edit
   projections, sparse remaining-owner cleanup and actual captured-error environments.

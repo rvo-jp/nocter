@@ -6,6 +6,67 @@ use nocter_model::CompileTimeGuarantee;
 const FORWARDING: &str = "const func identity(value: i32): i32 { value }\nconst func apply(action: func(i32): i32, value: i32): i32 { action(value) }\nconst func forward(action: func(i32): i32, value: i32): i32 { apply(action, value) }\nconst func anonymous(): i32 { let pass = (action: func(i32): i32, value: i32): i32 { forward(action, value) }\npass(identity, 42) }\nconst func interrupted(): i32 { forward(identity, if true { return 42 } else { return 0 }) }\nconst ANSWER: i32 = if anonymous() == 42 && interrupted() == 42 { 42 } else { 0 }";
 
 #[test]
+fn optional_runtime_witnesses_keep_their_unqualified_const_obligation() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/value-guarded-callable-outcomes.nct"
+    ));
+    accepted(source);
+    for present in [false, true] {
+        let required = format!("{source}\nconst ANSWER: i32 = inspect(produce({present})) + 31");
+        let fixture = nocter_test_support::ValueSourceFixture::new(&required);
+        let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+            SourceUnit::prepare(fixture.syntax())
+        else {
+            panic!("tag state alone is not a closed const-guard proof")
+        };
+        assert!(matches!(diagnostic.rule(), Rule::RuntimeCall(_)));
+        let permitted = required.replace("func runtime(", "const func runtime(");
+        assert_eq!(
+            super::initializers::answer(&permitted, "ANSWER"),
+            nocter_constant_evaluation::state::Value::integer(if present { 73 } else { 42 })
+        );
+    }
+}
+
+#[test]
+fn invocation_resource_attribution_matches_original_nullable_input_witnesses() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/value-guarded-callable-outcomes.nct"
+    ));
+    let source = format!(
+        "{source}\nconst func plain(action: func(i32): i32, flag: bool): i32 {{ if flag {{ action(35) }} else {{ 11 }} }}\nfunc fixed(take value: (func(i32): i32)?): i32 {{ runtime(35) }}\nconst func second(take other: (func(i32): i32)?, take value: (func(i32): i32)?): i32 {{ let action = value^ otherwise {{ return 11 }}\naction(35) }}"
+    );
+    let unit = accepted(&source);
+    for (name, input) in [
+        ("inspect", Some(0)),
+        ("second", Some(1)),
+        ("plain", None),
+        ("fixed", None),
+    ] {
+        let body = named(&unit, name);
+        let requirements = unit.const_requirements(body.typed().code()).unwrap();
+        let attributed: Vec<_> = requirements.invocation_input_resources().collect();
+        if let Some(input) = input {
+            let [(call, local)] = attributed.as_slice() else {
+                panic!("one exact nullable input: {name}")
+            };
+            assert_eq!(*local, body.typed().body().inputs().explicit()[input].local);
+            assert!(matches!(
+                body.typed().body().expressions().get(*call).unwrap().kind,
+                crate::value_access::ExpressionKind::Call {
+                    target: nocter_model::ValueFunctionOrigin::Parameter(_),
+                    ..
+                }
+            ));
+        } else {
+            assert!(attributed.is_empty(), "{name}");
+        }
+    }
+}
+
+#[test]
 fn const_requirements_share_the_exact_body_and_keep_capability_conditional() {
     use nocter_declarations::value_access::FunctionWitness;
     let source = "func runtime(value: i32): i32 { value }\nconst func apply(action: func(i32): i32, value: i32): i32 { action(value) }\nconst func ignore(action: func(i32): i32): i32 { 42 }\nfunc run(): i32 { let local = (): i32 { 42 }\ndrop local\napply(runtime, 41) }";
