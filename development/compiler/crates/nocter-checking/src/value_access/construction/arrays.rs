@@ -6,7 +6,12 @@ use crate::value_access::{
 };
 use nocter_declarations::value_access::{ArraySchema, PayloadReadiness, PayloadSchema};
 use nocter_model::{AccessExpressionId, TypeId, ValueAccessMode as Mode, ValueField};
-use nocter_syntax::NodeId;
+use nocter_syntax::{Keyword, NodeId, NodeKind, TokenKind};
+
+enum ArrayEntry {
+    Value(AccessExpressionId),
+    Absent { node: NodeId, reachable: bool },
+}
 
 impl Checker<'_, '_> {
     fn array_element(&self, node: NodeId, data: TypeId) -> Result<(), Failure> {
@@ -41,9 +46,22 @@ impl Checker<'_, '_> {
         }
         let expected = context.map(|(_, array)| array.element());
         let mut element = None;
-        let mut fields = Vec::new();
+        let mut supplied = Vec::new();
         let mut continues = true;
-        for (index, entry) in entries.into_iter().enumerate() {
+        for entry in entries {
+            // A literal absence has no payload/effects. Its authored context fixes the outcome
+            // family; actual supplied witnesses may refine the common element before emission.
+            let unwrapped = self.unwrap(entry)?;
+            if expected.is_some_and(|data| self.absence_type(data).is_some())
+                && self.kind(unwrapped)? == NodeKind::ScalarLiteral
+                && self.token(unwrapped)?.kind() == TokenKind::Keyword(Keyword::None)
+            {
+                supplied.push(ArrayEntry::Absent {
+                    node: entry,
+                    reachable: reachable && continues,
+                });
+                continue;
+            }
             // Inference has no first-element coercion: only an authored context constrains entries.
             let mut value = self.construction_value(entry, expected, reachable && continues)?;
             let Some(data) = self
@@ -69,12 +87,7 @@ impl Checker<'_, '_> {
                 value = self.boundary(entry, value, Boundary::Value(data))?;
             }
             continues &= self.ty(value).may_complete();
-            fields.push(FieldValue {
-                field: ValueField::Array(
-                    u64::try_from(index).map_err(|_| Failure::InconsistentSyntax)?,
-                ),
-                value,
-            });
+            supplied.push(ArrayEntry::Value(value));
         }
         let Some(element) = element.or(expected) else {
             return self.reject_message(
@@ -84,6 +97,7 @@ impl Checker<'_, '_> {
                 Vec::new(),
             );
         };
+        let fields = self.array_fields(supplied, element)?;
         let data = match context {
             Some((data, array)) if array.element() == element => data,
             _ => self
@@ -98,6 +112,31 @@ impl Checker<'_, '_> {
                 fields: fields.into(),
             },
         )
+    }
+    fn array_fields(
+        &mut self,
+        supplied: Vec<ArrayEntry>,
+        element: TypeId,
+    ) -> Result<Vec<FieldValue>, Failure> {
+        supplied
+            .into_iter()
+            .enumerate()
+            .map(|(index, entry)| {
+                let value = match entry {
+                    ArrayEntry::Value(value) => value,
+                    ArrayEntry::Absent { node, reachable } => {
+                        self.array_element(node, element)?;
+                        self.construction_value(node, Some(element), reachable)?
+                    }
+                };
+                Ok(FieldValue {
+                    field: ValueField::Array(
+                        u64::try_from(index).map_err(|_| Failure::InconsistentSyntax)?,
+                    ),
+                    value,
+                })
+            })
+            .collect()
     }
     pub(in crate::value_access) fn array_repetition(
         &mut self,

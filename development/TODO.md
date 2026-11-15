@@ -210,11 +210,15 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   selections; the original source graph must not join an impossible positive payload as a value.
 - [x] Qualify a same-witness recovery join from a received callable array with distinct captured
   payloads, both active/absent tags, partial transfers and remaining-owner/error cleanup.
-- [ ] Close contextual callable-array construction for mixed fresh absence and positive functions
-  under a foreign input contract. `choose([none, live])` currently rejects the positive `live`
-  element even when `choose` declares `[(func(i32): i32)?; 2]`; typed existing optionals work.
-  Preserve authored context, actual positive witnesses, homogeneous representation and original
-  evaluation order. Do not infer from the first element or admit an unqualified carrier layout.
+- [x] Close contextual callable-array construction for mixed literal absence and positive
+  functions under a foreign input contract. Preserve authored context, actual witnesses,
+  homogeneous representation, distinct captured environments, ordered effects and interrupted
+  argument cleanup through required/native execution. Uncontextualized absence and incompatible
+  positive witnesses still reject; all-absent lists invent no code or Copy evidence.
+- [ ] Carry callable constraints through conditional elements under a contextual array boundary.
+  `discard([none, if true { return 42 } else { live }])` still rejects the known `live` witness
+  against the receiving formal identity. Preserve dormant signature checks, interrupted formation
+  and real source receipts rather than binding a formal witness from an unreachable value.
 - [x] Qualify the shared checking-owned instance continuation map through optional take/read/edit
   recovery, effectful input production, required/native execution and all affected consumers.
   Preserve dormant contract checks and original commits; unknown domains must retain their branches.

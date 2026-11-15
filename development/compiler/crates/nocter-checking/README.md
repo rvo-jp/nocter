@@ -2309,6 +2309,16 @@ owned environments. Structural formal contracts alone supply no such evidence. N
 captured state through tuple components and dynamic array selection; the evaluator's narrower
 callable domain is defined above.
 
+With an authored outcome-element context, listed literal `none` entries wait until the other
+supplied entries establish the common element data, then use that data for ordinary absence
+construction. An all-absent list keeps its authored element contract without inventing a callable.
+Each nonliteral is still checked against the original context; no first-element coercion is
+introduced. Final aggregate fields retain source order, including effectful entries and prefixes
+prepared before a later argument exits. `contextual-absent-callable-arrays.nct` qualifies named and
+captured functions, distinct nested environments at the same lexical code, all-absent arrays,
+partial transfers and actual owned-error cleanup through required/native consumers. Unknown
+contexts, incompatible signatures and distinct positive witnesses remain separate from absence.
+
 Repetition closes its count through the common query, then prepares its seed even at zero count.
 The seed must be supplied as an ordinary value; zero does not turn a non-Copy read into an owner
 or suppress a required constant dependency. Counts above one require the declaration authority's

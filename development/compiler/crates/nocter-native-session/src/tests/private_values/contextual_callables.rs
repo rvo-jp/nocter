@@ -2,6 +2,47 @@
 use super::*;
 
 #[test]
+fn private_contextual_absent_callable_arrays_preserve_supplied_environments_and_order() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-absent-callable-arrays.nct"
+    ));
+    let source = source
+        .replace("const ANSWER: i32 = calculate()", "")
+        .replace("const func", "func");
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(&source),
+        &package.0,
+        "contextual-absent-callable-arrays",
+        42,
+    );
+    let source = source
+        .replace(
+            "func addition(number: i32)",
+            "func addition(take reason: error, number: i32)",
+        )
+        .replace("(number; value: i32)", "(reason^, number; value: i32)");
+    let source = [0, 40].into_iter().fold(source, |source, number| {
+        source.replace(
+            &format!("addition({number})"),
+            &format!(
+                "addition(context_error(create_failure(\"held\", \"leaf\"), \"outer\"), {number})"
+            ),
+        )
+    });
+    let source = format!(
+        "primitive func create_failure(code: str, message: str): error\nprimitive func context_error(take value: error, message: str): error\n{source}"
+    );
+    execute_native_status(
+        &image(&trusted_error_machine(&source)),
+        &package.0,
+        "contextual-absent-owned-error-arrays",
+        42,
+    );
+}
+
+#[test]
 fn private_received_recovery_merges_preserve_captured_payloads_and_error_owners() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

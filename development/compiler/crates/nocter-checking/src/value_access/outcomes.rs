@@ -23,7 +23,7 @@ impl Checker<'_, '_> {
         }
         data
     }
-    fn absence_type(&self, mut data: TypeId) -> Option<TypeId> {
+    pub(super) fn absence_type(&self, mut data: TypeId) -> Option<TypeId> {
         while let Some(PayloadSchema::Fallible(payload)) = self.program().data_schema(data) {
             data = payload;
         }
