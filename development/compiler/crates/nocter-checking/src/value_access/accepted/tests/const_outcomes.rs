@@ -3,6 +3,42 @@ use crate::value_access::accepted::{Failure, SourceFailure, SourceUnit};
 use nocter_constant_evaluation::state::Value as Datum;
 
 #[test]
+fn compound_received_assertions_report_the_original_component_check() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-compound-outcome-control.nct"
+    ));
+    for (name, site) in [
+        ("asserted", "value.0^!"),
+        ("asserted_read", "value.0!"),
+        ("asserted_edit", "value.0!"),
+    ] {
+        let absent = source.replace(
+            &format!("{name}((present(29), addition(100), 7))"),
+            &format!("{name}((absent(), addition(100), 7))"),
+        );
+        assert_ne!(absent, source);
+        let fixture = nocter_test_support::ValueSourceFixture::new(&absent);
+        let failure = SourceUnit::prepare(fixture.syntax()).unwrap_err();
+        let SourceFailure::Checking(Failure::Evaluation { diagnostic, .. }) = failure else {
+            panic!("expected the received component assertion to trap: {failure:?}");
+        };
+        assert_eq!(
+            diagnostic.rule(),
+            crate::value_access::evaluation::Rule::Execution(
+                nocter_constant_evaluation::state::Rule::InactiveVariant
+            )
+        );
+        assert_eq!(
+            fixture
+                .syntax()
+                .text_at(diagnostic.source().primary().span().range()),
+            Some(site)
+        );
+    }
+}
+
+#[test]
 fn received_optional_propagation_preserves_absence_and_positive_calls() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

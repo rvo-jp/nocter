@@ -43,6 +43,31 @@ fn private_contextual_absent_callable_arrays_preserve_supplied_environments_and_
 }
 
 #[test]
+fn private_compound_received_assertions_keep_the_original_traps() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-compound-outcome-control.nct"
+    ));
+    let source = source
+        .replace("const ANSWER: i32 = calculate()", "")
+        .replace("const func", "func");
+    let package = TempPackage::new();
+    for name in ["asserted", "asserted_read", "asserted_edit"] {
+        let absent = source.replace(
+            &format!("{name}((present(29), addition(100), 7))"),
+            &format!("{name}((absent(), addition(100), 7))"),
+        );
+        assert_ne!(absent, source);
+        execute_native_signal(
+            &compile(&absent),
+            &package.0,
+            &format!("compound-{name}-absent"),
+            5,
+        );
+    }
+}
+
+#[test]
 fn private_compound_received_outcomes_keep_adjacent_owners_and_scalar_offsets() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

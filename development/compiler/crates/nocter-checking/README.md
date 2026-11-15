@@ -444,6 +444,10 @@ component through take/read/edit inputs. A neighboring live callable and scalar 
 independent domains and offsets. Only the selected empty primary continuation is excluded; the
 ordinary scalar condition and inhabited counterpart keep their branches. Distinct fallback/callback
 answers, required execution and native error-owning environments qualify remaining-container cleanup.
+The same source qualifies optional propagation and assertions of the selected component for all
+three input operations. Propagation stages absence before cleaning remaining components; failed
+assertions retain the original component-check diagnostic and native safety trap rather than
+requiring an impossible callable or running recoverable cleanup.
 `received-nested-outcome-control.nct` qualifies two optional layers through take/read/edit
 inputs. Outer absence and present-inner-absence share one canonical received representation, but
 their original outer tag test remains intact. Only the inner impossible callable continuation is
