@@ -32,6 +32,47 @@ fn private_producerless_outcomes_dispose_actual_failure_graphs() {
 }
 
 #[test]
+fn private_producerless_outcome_guards_preserve_recovery_and_propagation() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/producerless-outcome-guards.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "producerless-outcome-guards",
+        42,
+    );
+    let present = source.replace(
+        "const func absent(): (func(): i32)? { none }",
+        "const func live(): i32 { 7 }\nconst func absent(): (func(): i32)? { live }",
+    );
+    assert_ne!(source, present);
+    execute_native_status(
+        &compile(&present),
+        &package.0,
+        "inhabited-outcome-guards",
+        0,
+    );
+}
+
+#[test]
+fn private_producerless_outcome_guards_preserve_actual_error_cleanup() {
+    let machine = trusted_error_machine(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/producerless-outcome-guards-errors.nct"
+    )));
+    let package = TempPackage::new();
+    execute_native_status(
+        &image(&machine),
+        &package.0,
+        "producerless-outcome-guards-errors",
+        42,
+    );
+}
+
+#[test]
 fn private_outcome_results_preserve_callable_values_and_absence() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

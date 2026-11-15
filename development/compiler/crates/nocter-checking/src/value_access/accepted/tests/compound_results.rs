@@ -17,6 +17,10 @@ const PRODUCERLESS: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../tests/fixtures/native/value-access/producerless-outcome-results.nct"
 ));
+const GUARDED: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../tests/fixtures/native/value-access/producerless-outcome-guards.nct"
+));
 
 #[test]
 fn producerless_optional_results_preserve_the_completed_carrier() {
@@ -28,6 +32,60 @@ fn producerless_optional_results_preserve_the_completed_carrier() {
     );
     assert_outcome_contracts(&unit);
     assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
+}
+
+#[test]
+fn producerless_optional_recovery_keeps_only_the_reachable_alternate() {
+    let source = GUARDED;
+    let unit = accepted(
+        &source
+            .replace("const ANSWER: i32 = calculate()", "")
+            .replace("const func", "func"),
+    );
+    assert_outcome_contracts(&unit);
+    assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
+    let present = source.replace(
+        "const func absent(): (func(): i32)? { none }",
+        "const func live(): i32 { 7 }\nconst func absent(): (func(): i32)? { live }",
+    );
+    assert_ne!(source, present);
+    assert_eq!(answer(&present, "ANSWER"), Datum::integer(0));
+}
+
+#[test]
+fn excluded_primary_domains_do_not_excuse_invalid_source_supply() {
+    let missing_transfer = GUARDED.replace(
+        "let action = result^ otherwise",
+        "let action = result otherwise",
+    );
+    assert_ne!(missing_transfer, GUARDED);
+    let (sources, tree) = input(&missing_transfer);
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Body { .. }))
+    ));
+    let source = "func absent(): (func(): i32)? { none }\nfunc run(): i32 { let result = absent()\ndrop result\nread action = result otherwise { return 42 }\naction() }";
+    let (sources, tree) = input(source);
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Flow { .. }))
+    ));
+}
+
+#[test]
+fn producerless_fallible_recovery_preserves_actual_alternate_cleanup() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/producerless-outcome-guards-errors.nct"
+    ));
+    let (sources, tree) = input(source);
+    let unit = SourceUnit::prepare_with_primitive_authority(
+        bound(&sources, &tree),
+        &super::primitives::authority(),
+    )
+    .unwrap()
+    .into_unit();
+    assert_outcome_contracts(&unit);
 }
 
 #[test]

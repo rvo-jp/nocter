@@ -1805,6 +1805,17 @@ shape without treating unresolved descriptors as empty. The matching error fixtu
 failure-only results, exact forwarding and disposal of actual owned error graphs.
 This does not qualify extracting an excluded callable, widening an absence-only carrier into a
 carrier with a produced callable, or application-specific emptiness through received inputs.
+`producerless-outcome-guards.nct` qualifies value/read/edit recovery and value propagation when
+the primary domain is empty. Checking refines only the impossible outgoing edge of the original
+tag condition; every source action, tag read and action identity remains intact. Original value
+sources are then derived from that same graph. Required body discovery follows its reached call
+channels instead of demanding code for a dormant excluded invocation. Const requirements omit
+only an excluded target with no reached call, or an empty-domain data operation with no operand
+or definition occurrence; fixed forbidden operations in dormant source remain checked. A positive
+producer with the same signature keeps its ordinary call and result. The matching error fixture
+qualifies value propagation, named/discarded recovery and read recovery with actual error-graph
+cleanup. Missing transfers and use of a dropped carrier still reject. Assertions and representation
+widening retain their separate qualification boundaries.
 `contextual-compound-edits.nct` additionally qualifies scalar updates through edit tuple inputs,
 forwarded updates and caller reads after completion while the callable context remains unchanged.
 The matching error fixture executes actual cleanup after both updates. Receiving/caller descriptors

@@ -1,0 +1,33 @@
+primitive func create_failure(code: str, message: str): error
+primitive func context_error(take value: error, message: str): error
+func failed(): (func(): i32)! {
+    throw context_error(create_failure("failed", "leaf"), "outer")
+}
+func propagated(): i32! {
+    let result = failed()
+    let action = result^?
+    action()
+}
+func recovered(): i32 {
+    let result = failed()
+    let action = result^ catch reason { return 42 }
+    action()
+}
+func suppressed(): i32 {
+    let result = failed()
+    let action = result^ catch _ { return 42 }
+    action()
+}
+func observed(): i32 {
+    let result = failed()
+    read action = result catch reason { return 42 }
+    action()
+}
+func run(): i32 {
+    let result = propagated()
+    let _ = result^ catch reason {
+        if recovered() == 42 && suppressed() == 42 && observed() == 42 { return 42 }
+        return 0
+    }
+    0
+}

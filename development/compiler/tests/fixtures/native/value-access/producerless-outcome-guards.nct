@@ -1,0 +1,30 @@
+const func absent(): (func(): i32)? { none }
+const func recovered_value(): i32 {
+    let result = absent()
+    let action = result^ otherwise { return 42 }
+    action()
+}
+const func recovered_read(): i32 {
+    let result = absent()
+    read action = result otherwise { return 42 }
+    action()
+}
+const func recovered_edit(): i32 {
+    var result = absent()
+    edit action = result otherwise { return 42 }
+    action()
+}
+const func propagated(): i32? {
+    let result = absent()
+    let action = result^?
+    action()
+}
+const func recovered_propagation(): i32 {
+    let result = propagated()
+    result^ otherwise { return 42 }
+}
+const func calculate(): i32 {
+    if recovered_value() == 42 && recovered_read() == 42 && recovered_edit() == 42 && recovered_propagation() == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { calculate() }

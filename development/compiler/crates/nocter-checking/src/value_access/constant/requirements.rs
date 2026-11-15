@@ -71,6 +71,7 @@ impl Requirements {
         let mut domain = evaluation::Types::default();
         let mut expression_data = expressions::collect(&body, &mut domain)?;
         let mut clauses = Vec::new();
+        let mut excluded_calls = std::collections::BTreeSet::new();
         let identity = program
             .code_template(body.typed().code())
             .map_err(|_| INVALID);
@@ -82,6 +83,10 @@ impl Requirements {
                 arguments,
             } = &expression.kind
             {
+                if excluded_call(&body, id, *target, *kind, arguments) {
+                    excluded_calls.insert(id);
+                    continue;
+                }
                 let template = instances::completed(arguments).then(|| {
                     identity
                         .as_ref()
@@ -104,7 +109,9 @@ impl Requirements {
                 .map(Clause::Drop),
         );
         for (id, expression) in typed.expressions().iter() {
-            if matches!(expression.kind, ExpressionKind::Call { .. }) {
+            if matches!(expression.kind, ExpressionKind::Call { .. })
+                && !excluded_calls.contains(&id)
+            {
                 clauses.push(Clause::Inputs(id));
             }
             if let Some(condition) = expression_data.remove(&id) {
@@ -456,4 +463,35 @@ impl Requirements {
         }
         Ok(calls)
     }
+}
+
+/// A proved empty target has no invocation obligation outside the reached call channels.
+fn excluded_call(
+    body: &flow::Query,
+    id: AccessExpressionId,
+    target: nocter_model::ValueFunctionOrigin,
+    kind: crate::value_access::CallKind,
+    arguments: &[crate::value_access::Argument],
+) -> bool {
+    let query = body.typed();
+    let Some(evidence) = &query.result_evidence else {
+        return false;
+    };
+    let Some(sources) = evidence.value_sources(query.code()) else {
+        return false;
+    };
+    let Some(invocation) = kind.invocation(arguments) else {
+        return false;
+    };
+    let Some(data) =
+        query
+            .program()
+            .function_data(nocter_declarations::value_access::FunctionWitness {
+                origin: target,
+                invocation,
+            })
+    else {
+        return false;
+    };
+    sources.call(id).is_none() && evidence.empty_domain(query.program(), data)
 }

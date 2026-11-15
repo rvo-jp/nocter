@@ -24,8 +24,8 @@ The [checking](compiler/crates/nocter-checking/README.md) and
 [target-program](compiler/crates/nocter-target-program/README.md) owners describe the implemented
 canonical metadata, original source-definition queries and ordered lifecycle specialization.
 
-Continue producer-less outcome qualification with recovery, propagation and assertions, preserving
-original tag evaluation, unreachable primary continuations and actual alternate cleanup. Then
+Continue producer-less outcome qualification with assertions, preserving original tag evaluation
+and required traps without inventing positive continuations. Then
 qualify representation widening and application-specific empty received contexts while preserving
 exact result-leaf, call and code contexts through each consumer. Continue context-changing updates through edit input boundaries,
 partial carrier-root selection and context-changing evaluator slots against
@@ -170,6 +170,8 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [ ] Qualify recovery, propagation and assertions when the primary callable domain is empty.
   Preserve evaluation of the original carrier/tag, required traps and alternate cleanup while
   excluding impossible positive continuations; a guarded empty descriptor is not a callable value.
+- [x] Qualify value/read/edit recovery and value propagation of excluded primary callable
+  domains through the shared original flow graph, const obligations and native error cleanup.
 - [x] Qualify excluded-outcome runtime descriptors, canonical target interning and physical layouts
   without a positive child or field geometry. Reject empty roots/slots and construction of excluded tags.
 - [x] Extend the declaration-owned data-instance fold to validated callable domains, preserving

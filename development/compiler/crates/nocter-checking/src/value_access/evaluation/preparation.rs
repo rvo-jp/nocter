@@ -514,8 +514,15 @@ impl<'a, 'source> Preparation<'a, 'source> {
                 callable: query.code().source_owner(),
                 failure,
             })?;
+            let sources = query
+                .result_evidence
+                .as_ref()
+                .and_then(|evidence| evidence.value_sources(key.code()))
+                .ok_or(INVALID)?;
             for (id, expression) in query.body().expressions().iter() {
-                if !crate::value_access::instances::is_completed_call(&expression.kind) {
+                if sources.call(id).is_none()
+                    || !crate::value_access::instances::is_completed_call(&expression.kind)
+                {
                     continue;
                 }
                 let site = bound.expression_origin(id).ok_or(INVALID)?;

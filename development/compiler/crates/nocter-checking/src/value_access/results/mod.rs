@@ -188,6 +188,29 @@ impl Evidence {
             Some(ApplicationEvidence::Uncommitted)
         )
     }
+    pub(in crate::value_access) fn excludes_primary(
+        &self,
+        program: &Program,
+        data: TypeId,
+    ) -> bool {
+        let Some(PayloadSchema::Optional(primary) | PayloadSchema::Fallible(primary)) =
+            program.data_schema(data)
+        else {
+            return false;
+        };
+        self.empty_domain(program, primary)
+    }
+    pub(in crate::value_access) fn empty_domain(&self, program: &Program, data: TypeId) -> bool {
+        program
+            .instantiate_callable_domains(data, |_, witness| {
+                if self.uninhabited_origin(witness.origin) {
+                    Ok(None)
+                } else {
+                    program.concrete_witness(witness).map(Some)
+                }
+            })
+            .is_ok_and(|key| key.is_uninhabited())
+    }
     pub(in crate::value_access) fn matches_payload_metadata(
         &self,
         program: &Program,
@@ -337,6 +360,9 @@ pub(super) fn close(
             }
         })?;
         seal(query);
+        control
+            .refine_outcome_domains()
+            .map_err(accepted::Failure::Integrity)?;
     }
     // Source definitions depend on resolved receiving actions, not provisional PendingValue
     // plans. The original control/action identities and value relationships stay unchanged.
