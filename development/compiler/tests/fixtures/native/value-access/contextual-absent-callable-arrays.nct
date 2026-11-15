@@ -26,6 +26,23 @@ const func interrupted_element(): i32 {
     discard([none, if true { return 42 } else { live }])
     0
 }
+const func interrupted_absence(flag: bool): i32 {
+    discard_three([wrap(addition(0)), if flag {
+        return 42
+        none
+    } else { wrap(addition(10)) }, none])
+    0
+}
+const func interrupted_both(flag: bool): i32 {
+    discard_three([wrap(addition(0)), if flag {
+        return 42
+        none
+    } else {
+        return 42
+        wrap(addition(10))
+    }, none])
+    0
+}
 const func conditional(flag: bool): i32 {
     choose([none, if flag { wrap(addition(0)) } else { wrap(addition(10)) }])
 }
@@ -59,6 +76,8 @@ const func calculate(): i32 {
     var order: i32 = 0
     discard_three([observed(order, 1), none, observed(order, 2)])
     if order != 12 || interrupted() != 42 || interrupted_element() != 42 { return 0 }
+    if interrupted_absence(true) != 42 || interrupted_absence(false) != 0 { return 0 }
+    if interrupted_both(true) != 42 || interrupted_both(false) != 42 { return 0 }
     if conditional(true) != 21 || conditional(false) != 31 { return 0 }
     var condition_order: i32 = 0
     if conditional_absence(condition_order, true) != 31 || condition_order != 13 { return 0 }

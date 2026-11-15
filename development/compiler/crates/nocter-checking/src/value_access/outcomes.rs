@@ -8,6 +8,12 @@ use nocter_declarations::value_access::PayloadSchema;
 use nocter_model::{AccessExpressionId, FieldPath, TypeId, ValueAccessMode as Mode, ValueField};
 use nocter_syntax::NodeId;
 mod recovery;
+struct ConditionalResult {
+    node: NodeId,
+    data: TypeId,
+    literal_absence: bool,
+    completes: bool,
+}
 struct OwnedOutcome {
     source: AccessExpressionId,
     payload: TypeId,
@@ -30,32 +36,42 @@ impl Checker<'_, '_> {
         let mut supplied = Vec::new();
         for block in blocks {
             let body = self.blocks.get(block).ok_or(Failure::InconsistentSyntax)?;
-            let Some(access) = body.ty.normal() else {
+            let Some(access) = body.ty.access() else {
                 return Ok(());
             };
             let value = body.result.ok_or(Failure::InconsistentSyntax)?;
             let nocter_syntax::SyntaxOrigin::Node(node) = self.expression_origin(value)? else {
                 return Err(Failure::InconsistentSyntax);
             };
-            supplied.push((node, access.data(), self.literal_absence(node)?));
+            supplied.push(ConditionalResult {
+                node,
+                data: access.data(),
+                literal_absence: self.literal_absence(node)?,
+                completes: body.ty.may_complete(),
+            });
         }
-        let absent = match (supplied[0].2, supplied[1].2) {
+        let absent = match (supplied[0].literal_absence, supplied[1].literal_absence) {
             (true, false) => 0,
             (false, true) => 1,
             _ => return Ok(()),
         };
-        let target = supplied[1 - absent].1;
-        if target == supplied[absent].1 || self.absence_type(target).is_none() {
+        let target = supplied[1 - absent].data;
+        if target == supplied[absent].data || self.absence_type(target).is_none() {
             return Ok(());
         }
         // A literal supplies no code or payload. Rebuild only its ordinary construction;
-        // retain the checked statements, source effects and the other branch's actual witness.
+        // retain the checked statements, source effects and the other branch's known descriptor.
+        let selected = match condition {
+            Some(true) => absent == 0,
+            Some(false) => absent == 1,
+            None => true,
+        };
         let value = self.construction_value(
-            supplied[absent].0,
+            supplied[absent].node,
             Some(target),
-            reachable && condition != Some(absent == 1),
+            reachable && selected && supplied[absent].completes,
         )?;
-        let ty = self.ty(value);
+        let ty = self.ty(value).with_continuation(supplied[absent].completes);
         let body = self
             .blocks
             .get_mut(blocks[absent])

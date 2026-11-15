@@ -219,6 +219,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   Preserve actual branch witnesses, statically selected application descriptors, runtime-selected
   captured environments, dormant signature checks and interrupted formation through required/native
   consumers. Keep exact local/parameter identities separate from construction constraints.
+- [x] Preserve contextual conditional absence refinement when an earlier statement prevents
+  the literal result from being produced. Keep known branch shapes separate from normal value
+  receipts, retain the earlier exit and reject incompatible dormant signatures.
 - [x] Qualify conditional array elements that select literal absence versus an actual callable,
   including nested else-if branches. Preserve the authored optional shape, actual callable
   environment, static witness agreement and source-ordered cleanup through required/native execution.
