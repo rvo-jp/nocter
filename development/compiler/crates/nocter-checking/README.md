@@ -1818,6 +1818,13 @@ shape without treating unresolved descriptors as empty. The matching error fixtu
 failure-only results, exact forwarding and disposal of actual owned error graphs.
 This does not qualify extracting an excluded callable, widening an absence-only carrier into a
 carrier with a produced callable, or application-specific emptiness through received inputs.
+After outcome refinement, `results::admission` checks reachable original taking, forwarding and
+return boundaries before ownership and source-value projection. A taking boundary retains its
+supplied expression separately from the receiving expression's constraint. A proven
+excluded-to-represented outcome change reports `UnsupportedData` at that supplied expression
+until guarded transport is realized. It cannot pass as descriptor equality or fall through to an
+unexplained ownership integrity failure. Unknown metadata does not establish such a conversion;
+constructing `none` directly in the destination representation remains supported.
 `producerless-outcome-guards.nct` qualifies value/read/edit recovery and value propagation when
 the primary domain is empty. Checking refines only the impossible outgoing edge of the original
 tag condition; every source action, tag read and action identity remains intact. Original value

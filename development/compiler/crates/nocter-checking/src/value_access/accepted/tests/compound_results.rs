@@ -46,11 +46,59 @@ fn unqualified_outcome_widening_remains_closed_until_value_transport_is_realized
     let runtime = source
         .replace("const ANSWER: i32 = calculate()", "")
         .replace("const func", "func");
-    let (sources, tree) = input(&runtime);
-    assert!(matches!(
-        SourceUnit::prepare(bound(&sources, &tree)),
-        Err(SourceFailure::Checking(Failure::Integrity(_)))
-    ));
+    assert_transport_rejected(&runtime, "absent()");
+    let constructed = source.replace("else { absent() }", "else { none }");
+    assert_eq!(answer(&constructed, "ANSWER"), Datum::integer(42));
+}
+
+#[test]
+fn unrealized_nested_and_fallible_transport_keeps_the_original_source_cause() {
+    let common = "func owning(number: i32): func(i32): i32 { (number; amount: i32) { number + amount } }\nfunc absent(): (func(i32): i32)? { none }\n";
+    for (body, site) in [
+        (
+            "func choose(flag: bool): ((func(i32): i32)?, i32) { if flag { (owning(40), 1) } else { (absent(), 1) } }",
+            "absent()",
+        ),
+        (
+            "func choose(flag: bool): (func(i32): i32)? { if flag { return owning(40) }\nreturn absent() }",
+            "absent()",
+        ),
+        (
+            "func failed(take cause: error): (func(i32): i32)! { throw cause^ }\nfunc choose(flag: bool, take cause: error): (func(i32): i32)! { if flag { drop cause\nowning(40) } else { failed(cause^) } }",
+            "failed(cause^)",
+        ),
+    ] {
+        assert_transport_rejected(&format!("{common}{body}"), site);
+    }
+}
+
+fn assert_transport_rejected(runtime: &str, site: &str) {
+    let (sources, tree) = input(runtime);
+    let diagnostic = match SourceUnit::prepare(bound(&sources, &tree)) {
+        Err(SourceFailure::Checking(Failure::Body {
+            failure: BodyFailure::Rejected(diagnostic),
+            ..
+        })) => diagnostic,
+        Err(failure) => panic!("unrealized transport must have a source-backed cause: {failure:?}"),
+        Ok(_) => panic!("unrealized transport was accepted"),
+    };
+    assert_eq!(
+        diagnostic.rule(),
+        crate::value_access::Rule::UnsupportedData
+    );
+    assert!(
+        diagnostic
+            .source()
+            .message()
+            .contains("guarded representation transport")
+    );
+    let origin = diagnostic.source().primary();
+    let selected = sources
+        .get(origin.source())
+        .unwrap()
+        .text_at(origin.span().range())
+        .unwrap();
+    assert_eq!(selected, site);
 }
 
 #[test]

@@ -1,4 +1,5 @@
 //! One closure of callable result producers, followed by identity-only body projection.
+mod admission;
 mod applications;
 mod carriers;
 mod channels;
@@ -367,9 +368,14 @@ pub(super) fn close(
     // Source definitions depend on resolved receiving actions, not provisional PendingValue
     // plans. The original control/action identities and value relationships stay unchanged.
     let mut completed = (*evidence).clone();
-    for (&owner, control) in
-        &flow::scope(controls.values()).map_err(accepted::Failure::Integrity)?
-    {
+    let scope = flow::scope(controls.values()).map_err(accepted::Failure::Integrity)?;
+    for (&owner, control) in &scope {
+        admission::validate(context, control, &evidence).map_err(|failure| {
+            accepted::Failure::Body {
+                callable: control.typed.source_owner(),
+                failure,
+            }
+        })?;
         let aliases =
             flow::Aliases::prepare(&control.typed).map_err(accepted::Failure::Integrity)?;
         let graph =

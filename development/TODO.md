@@ -169,9 +169,12 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Qualify exact descriptor reprojection from supplied component instances, preserving distinct
   captured environments beside excluded outcome alternatives through forwarding, partial extraction,
   required/native execution and remaining-container cleanup. Keep representation widening separate.
-- [ ] Replace the generic typed-body integrity failure on unqualified outcome widening with an
-  appropriate source-local cause while completing its transport path. A known unsupported source
-  conversion must not be reported as unexplained compiler corruption.
+- [x] Replace the generic typed-body integrity failure on unqualified outcome widening with an
+  appropriate source-local cause at the original taking/forwarding/return boundary. Qualify
+  optional, nested tuple and failed-result cases while preserving direct destination construction.
+- [ ] Distinguish a proven empty representation domain from unavailable evaluator metadata in the
+  evaluator's own type vocabulary before guarded transport can use it as a conversion proof.
+  Qualify inactive alternatives separately from actual values, slots and input/cleanup obligations.
 - [ ] Qualify application-specific empty callable domains supplied through received optional
   inputs. A globally nonempty formal result equation is not a proof that every application
   supplies a callable; preserve the exact committed input context rather than closing its raw type.
