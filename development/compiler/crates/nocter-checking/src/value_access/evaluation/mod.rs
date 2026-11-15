@@ -48,6 +48,10 @@ impl Rule {
                 DiagnosticCode::E0323,
                 "required constant evaluation has no matched implementation for this call",
             ),
+            Self::Execution(state::Rule::InputConditionFailed) => (
+                DiagnosticCode::E0323,
+                "required constant evaluation did not satisfy an input-state condition",
+            ),
             Self::Execution(state::Rule::PlanWorkLimit) => (
                 DiagnosticCode::E0322,
                 "required constant preparation exhausted its plan-work budget",
@@ -188,6 +192,7 @@ fn plan_failure(
         projection::Failure::WorkLimit => {}
     }
     let error = state::Error {
+        instance: None,
         rule: state::Rule::PlanWorkLimit,
         site: None,
         code,

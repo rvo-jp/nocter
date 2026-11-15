@@ -74,6 +74,16 @@ boundary rejects noninteger builtin identities even when no value or operation u
 Unsigned negation arrives as checked zero subtraction, while signed negation retains its unary
 operation. Pointer-size entries use the qualified target profile, independently of host size.
 
+A plan may retain input-absence conditions independently of its invocation signature. Each
+condition selects a real input ordinal with optional representation and a causal operation in
+that exact plan. Linking rejects invalid inputs, non-optional data and foreign/out-of-range
+causes. After binding the actual inputs, execution checks absence before the original body
+operations and charges the operation budget. It preserves the original action indices and does
+not alter the represented domain. A failed condition reports its original cause and exact code
+instance, refunds failed frames and supplies no body or permission. Compiler-side stability and
+conditional-eligibility qualification remain separate obligations; a linked condition alone
+cannot establish that later writes preserve its predicate.
+
 `CallContract` owns each instance's invocation boundary independently of its body: ordered input
 data and operations, result data, initializer role and captured-environment adapter support.
 `Program::new` derives every boundary from its supplied plans. `Program::linked` can retain a

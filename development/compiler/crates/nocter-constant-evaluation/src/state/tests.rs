@@ -9,6 +9,7 @@ mod captured_values;
 mod contexts;
 mod empty_domains;
 mod expression_roots;
+mod input_conditions;
 mod lexical_codes;
 mod named_functions;
 mod transport;
@@ -48,6 +49,7 @@ pub(super) fn literal() -> Plan {
         ]
         .into(),
         statics: Box::new([]),
+        conditions: Box::new([]),
         environment_backing: None,
         inputs: Box::new([]),
         result: 0,
@@ -141,6 +143,7 @@ fn exhausted_work_is_not_replenished_by_another_closed_request() {
     let loop_plan = Plan {
         slots: Vec::new().into(),
         statics: Box::new([]),
+        conditions: Box::new([]),
         environment_backing: None,
         inputs: Box::new([]),
         result: 0,

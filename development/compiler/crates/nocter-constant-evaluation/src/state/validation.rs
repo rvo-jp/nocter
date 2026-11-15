@@ -239,7 +239,7 @@ pub(super) fn validate_added(
             nocter_model::ValueCode::Closure(_) if plan.initializer => return Err(INVALID),
             _ => {}
         }
-        validate_plan(program, plan)?;
+        validate_plan(program, code, plan)?;
         if let Some(backing) = plan.environment_backing {
             let &(input, operation) = plan.inputs.first().ok_or(INVALID)?;
             let source = plan.slots.get(input).ok_or(INVALID)?;
@@ -255,7 +255,7 @@ pub(super) fn validate_added(
     }
     Ok(())
 }
-fn validate_plan(program: &Program, plan: &super::Plan) -> Result<()> {
+fn validate_plan(program: &Program, code: super::CodeInstance, plan: &super::Plan) -> Result<()> {
     if plan.slots.iter().any(|slot| {
         program
             .types
@@ -276,6 +276,24 @@ fn validate_plan(program: &Program, plan: &super::Plan) -> Result<()> {
             Storage::Alias
         };
         if data.storage != storage || !inputs.insert(slot) {
+            return Err(INVALID);
+        }
+    }
+    for condition in &plan.conditions {
+        let &(slot, _) = plan.inputs.get(condition.input).ok_or(INVALID)?;
+        let source = plan.slots.get(slot).ok_or(INVALID)?;
+        if !matches!(
+            program.types.get(source.data),
+            Some(Type::Variant {
+                alternate: None,
+                ..
+            })
+        ) || condition.cause.code != code.source
+            || plan
+                .points
+                .get(condition.cause.point)
+                .is_none_or(|point| condition.cause.action >= point.actions.len())
+        {
             return Err(INVALID);
         }
     }

@@ -317,6 +317,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Retain nullable-input invocation/body obligations as guarded terms referring to their exact
   definition-owned clauses. Preserve guards through witness substitution and conservative failure
   reporting; a guarded term cannot supply flat coverage or permission to execute a runtime-only witness.
+- [x] Add validated evaluator input-absence conditions with exact original causes and failing
+  instance context. Evaluate conditions against bound input values before body operations without
+  shifting original action IDs, changing represented domains or granting an unavailable body.
 - [ ] Close [state-conditioned const obligations](design/compiler-realization.md#state-conditioned-const-obligations)
   for optional callback absence while the represented domain remains inhabited by a runtime-only
   witness. The linked source plus `const ANSWER: i32 = inspect(produce(false)) + 31` currently

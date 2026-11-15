@@ -116,6 +116,7 @@ fn independent_copies(owner: AccessCodeId) -> Program {
                 slots: slots.into(),
                 inputs: Box::new([]),
                 statics: Box::new([]),
+                conditions: Box::new([]),
                 environment_backing: None,
                 result: 3,
                 initializer: true,

@@ -715,7 +715,10 @@ substitute a different body or requested root after proving eligibility. The clo
 proof and full bound traversal construct the same product under their existing quotas and local
 causes. Lower-level frozen-plan projection remains private to the projection module and its tests;
 body discovery, linked contracts and projection metadata alone do not authorize required evaluation.
-The product currently records fully discharged roots; it grants no pending value-state guard.
+The product currently records fully discharged roots; it grants no pending value-state guard. The
+[state evaluator](../nocter-constant-evaluation/README.md#stateful-value-plans) supports validated
+input-absence conditions; ordinary projection currently emits none. Source stability, exact
+obligation matching and conditional body admission must qualify before that support is used.
 
 The evaluator's call-boundary projection uses this same body-channel authority. A retained body
 supplies its full ordered inputs, including the capture environment, and its qualified result

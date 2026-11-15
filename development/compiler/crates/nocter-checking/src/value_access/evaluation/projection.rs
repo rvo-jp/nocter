@@ -1056,6 +1056,7 @@ impl Builder<'_, '_> {
         let statics = self.static_views();
         let environment_backing = self.environment_backing()?;
         Ok(plan::Plan {
+            conditions: Box::new([]),
             environment_backing,
             statics,
             inputs,

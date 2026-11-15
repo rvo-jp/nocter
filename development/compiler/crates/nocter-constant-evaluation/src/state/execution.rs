@@ -9,6 +9,7 @@ use nocter_model::{ConstantValue, ValueCode, ValueCodeRoot, ValueInputOperation}
 pub enum Rule {
     InvalidPlan,
     UnavailablePlan,
+    InputConditionFailed,
     PlanWorkLimit,
     ArithmeticFailure,
     IndexOutOfBounds,
@@ -22,6 +23,8 @@ pub enum Rule {
 pub struct Error {
     pub rule: Rule,
     pub site: Option<Site>,
+    /// Matched frame for the failed original operation, when that context is available.
+    pub instance: Option<Box<super::CodeInstance>>,
     pub code: ValueCodeRoot,
     pub trace: Box<[Site]>,
 }
@@ -35,6 +38,7 @@ pub struct Executor<'a, 'budget> {
     memory: Memory,
     site: Option<Site>,
     failed_site: Option<Site>,
+    failed_instance: Option<super::CodeInstance>,
     trace: Vec<Site>,
 }
 #[derive(Clone, Copy)]
@@ -82,6 +86,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             memory,
             site: None,
             failed_site: None,
+            failed_instance: None,
             trace: Vec::new(),
         }
     }
@@ -94,6 +99,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         let code = code.into();
         self.site = None;
         self.failed_site = None;
+        self.failed_instance = None;
         self.trace.clear();
         let result = if self
             .program
@@ -108,6 +114,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         result.map_err(|rule| Error {
             rule,
             site: self.failed_site.or(self.site),
+            instance: self.failed_instance.map(Box::new),
             code,
             trace: self.trace.clone().into(),
         })
@@ -162,7 +169,15 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         let index = self.memory.frames.len();
         self.memory.frames.push(frame);
         let saved = self.site;
-        let result = self.run(code.source, &plan, index);
+        let result = self
+            .conditions(code, &plan, index)
+            .and_then(|()| self.run(code.source, &plan, index));
+        if result.is_err()
+            && self.failed_instance.is_none()
+            && self.site.is_some_and(|site| site.code == code.source)
+        {
+            self.failed_instance = Some(code);
+        }
         if result.is_err() && self.failed_site.is_none() {
             self.failed_site = self.site;
         }
@@ -174,6 +189,26 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         self.site = saved;
         self.memory.frames.pop();
         result
+    }
+    fn conditions(&mut self, code: super::CodeInstance, plan: &Plan, frame: usize) -> Result<()> {
+        for condition in &plan.conditions {
+            self.site = Some(condition.cause);
+            self.tick()?;
+            let &(slot, _) = plan.inputs.get(condition.input).ok_or(Rule::InvalidPlan)?;
+            let value = self.read(frame, &Place::root(slot))?;
+            if !matches!(
+                value.data(),
+                Data::Variant {
+                    primary: false,
+                    payload: None
+                }
+            ) {
+                self.failed_site = Some(condition.cause);
+                self.failed_instance = Some(code);
+                return Err(Rule::InputConditionFailed);
+            }
+        }
+        Ok(())
     }
     fn bind_inputs(
         &self,

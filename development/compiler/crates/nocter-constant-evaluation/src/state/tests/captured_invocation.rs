@@ -41,6 +41,7 @@ fn plan(
             .collect::<Vec<_>>()
             .into(),
         inputs: input.map(|operation| (0, operation)).into_iter().collect(),
+        conditions: Box::new([]),
         environment_backing: backing,
         statics: Box::new([]),
         result,

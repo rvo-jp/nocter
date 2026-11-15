@@ -349,8 +349,16 @@ pub struct Point {
     pub actions: Box<[Action]>,
     pub terminator: Terminator,
 }
+/// A required absence check on one bound input, with its original causal operation.
+/// This is executable state validation, not a represented-domain or body-availability proof.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct InputCondition {
+    pub input: usize,
+    pub cause: Site,
+}
 #[derive(Clone, Debug)]
 pub struct Plan {
+    pub conditions: Box<[InputCondition]>,
     pub slots: Arc<[Slot]>,
     pub inputs: Box<[(usize, nocter_model::ValueInputOperation)]>,
     /// Stable auxiliary storage for a taking view of this captured read/edit body.

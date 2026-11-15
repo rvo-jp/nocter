@@ -87,6 +87,7 @@ fn fixture(retire: bool, stale: bool) -> (AccessCodeId, Vec<Type>, Plan) {
         .into(),
         inputs: Box::new([]),
         statics: Box::new([]),
+        conditions: Box::new([]),
         environment_backing: None,
         result: output,
         initializer: true,
