@@ -183,7 +183,7 @@ fn constructed_absence_keeps_each_original_positive_environment_instance() {
             .replace("const ANSWER: i32 = calculate()", "")
             .replace("const func", "func"),
     );
-    let variants: [(&str, &[ValueField]); 4] = [
+    let variants: [(&str, &[ValueField]); 5] = [
         ("forward", &[]),
         ("forward_pair", &[ValueField::Tuple(0)]),
         (
@@ -191,6 +191,7 @@ fn constructed_absence_keeps_each_original_positive_environment_instance() {
             &[ValueField::Array(0), ValueField::Tuple(0)],
         ),
         ("forward_outcome", &[ValueField::Variant(true)]),
+        ("forward_mixed", &[ValueField::Tuple(0)]),
     ];
     for (owner, fields) in variants {
         let contexts = inactive_contexts(&unit, owner, fields);
@@ -282,20 +283,77 @@ fn inactive_contexts(
             })
             .unwrap();
         assert!(selected.has_same_representation(program, input));
-        assert!(
-            unit.invocation_recipe(ValueApplication {
-                owner: environment.code(),
-                call
-            })
-            .unwrap()
-            .inputs
-            .values()
-            .all(crate::value_access::InputProducers::excludes_active_callable)
-        );
+        let site = ValueApplication {
+            owner: environment.code(),
+            call,
+        };
+        assert_input_recipe(unit, site, &outer, &inner, &result);
         assert_resources(unit, &environment, body);
         contexts.push(result);
     }
     contexts
+}
+
+fn assert_input_recipe(
+    unit: &Unit,
+    site: nocter_model::ValueApplication,
+    outer: &nocter_declarations::value_access::CodeInstanceKey,
+    inner: &nocter_declarations::value_access::CodeInstanceKey,
+    result: &nocter_declarations::value_access::DataInstanceKey,
+) {
+    use crate::value_access::{ProducerRelation, ProducerTerm};
+    use nocter_declarations::value_access::FunctionWitness;
+    use nocter_model::{
+        ValueAppliedResult, ValueCode, ValueField, ValueFunctionOrigin, ValueInvocation,
+        ValueParameter,
+    };
+    let program = unit.program();
+    let ValueCode::Declaration(owner) = inner.code() else {
+        panic!("expected declared callee")
+    };
+    let parameters = program.codes().get(owner).unwrap().parameters();
+    let component = |index| ValueParameter::Component {
+        input: parameters[index],
+        ordinal: 0,
+    };
+    let recipe = unit.invocation_recipe(site).unwrap();
+    assert!(recipe.inputs[&component(0)].excludes_active_callable());
+    assert_eq!(
+        recipe
+            .inputs
+            .values()
+            .filter(|input| input.excludes_active_callable())
+            .count(),
+        1
+    );
+    if let Some(second) = inner.input_data(1) {
+        assert_eq!(outer.input_data(1), Some(second));
+        assert!(
+            result
+                .component(program, ValueField::Tuple(1))
+                .unwrap()
+                .has_same_representation(program, second)
+        );
+        assert_eq!(
+            recipe.inputs[&component(1)].producers(),
+            &std::collections::BTreeSet::from([FunctionWitness {
+                origin: ValueFunctionOrigin::Parameter(component(1)),
+                invocation: ValueInvocation::Read
+            }])
+        );
+        let [first, second] = [0, 1].map(|ordinal| {
+            unit.producer_relation(ProducerTerm::Application(ValueAppliedResult {
+                application: site,
+                ordinal,
+            }))
+            .unwrap()
+        });
+        let (ProducerRelation::Apply(first), ProducerRelation::Apply(second)) = (first, second)
+        else {
+            panic!("expected original applied results")
+        };
+        assert!(std::sync::Arc::ptr_eq(first, second));
+    }
 }
 
 #[test]

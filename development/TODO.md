@@ -206,8 +206,12 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [ ] Extend received-domain qualification to instance-specific control/positive-use pruning.
   A source-wide formal contract cannot determine every application's active callable domain;
   retain original tag effects, traps and exact call/resource phases.
-- [ ] Qualify mixed independently sourced callable result leaves through captured environments
-  and remaining compound carriers. Preserve each original input/result family and exact instance:
+- [x] Qualify mixed independently sourced tuple result leaves through captured environments.
+  Preserve one original invocation recipe, each input/result family and actual swapped contexts
+  through required/native execution and owned-error cleanup; reject uncaptured/foreign parameters
+  and stronger invocation views without using signatures as scope or value evidence.
+- [ ] Extend mixed independently sourced result qualification to nested outcome/array carriers.
+  Preserve each original input/result family, homogeneous element constraints and exact instance:
   active-value exclusion cannot erase positive domains or supply an unknown/foreign context.
 - [x] Qualify constructor-backed exclusion through tuple, positive tuple-array and nested
   success/optional results. Preserve each context at a shared lexical descriptor, array homogeneity,

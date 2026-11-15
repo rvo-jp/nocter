@@ -133,10 +133,7 @@ fn close_results(
             };
             return Err(reject(context, query, None, &message));
         };
-        if let Origin::Parameter(parameter) = witness.origin
-            && query.program().parameter_owner(parameter)
-                != Some(nocter_model::ValueCode::Declaration(id))
-        {
+        if !parameter_in_scope(query.program(), id.into(), witness) {
             return Err(INVALID);
         }
         evidence
@@ -253,9 +250,7 @@ fn close_applications(
         }
         let witness = single(producers).ok_or_else(|| reject(context, query, Some(site.call),
             "this callable result application has no single established witness; an unknown-shaped input cannot supply a dependent result witness"))?;
-        if let Origin::Parameter(parameter) = witness.origin
-            && query.program().parameter_owner(parameter) != Some(site.owner)
-        {
+        if !parameter_in_scope(query.program(), site.owner, witness) {
             return Err(INVALID);
         }
         evidence
@@ -263,6 +258,34 @@ fn close_applications(
             .insert(application, CallableEvidence::Witness(witness));
     }
     Ok(())
+}
+/// Symbolic scope admits a declared capture dependency, never a concrete environment or value.
+fn parameter_in_scope(
+    program: &nocter_declarations::value_access::Program,
+    owner: nocter_model::ValueCode,
+    witness: FunctionWitness,
+) -> bool {
+    let Origin::Parameter(parameter) = witness.origin else {
+        return true;
+    };
+    if program.function_contract(witness).is_none() {
+        return false;
+    }
+    if program.parameter_owner(parameter) == Some(owner) {
+        return true;
+    }
+    let nocter_model::ValueCode::Closure(closure) = owner else {
+        return false;
+    };
+    program
+        .closure(closure)
+        .and_then(|closure| program.payload_dependencies(closure.environment()))
+        .is_some_and(|dependencies| {
+            dependencies.parameters().iter().any(|captured| {
+                captured.origin == witness.origin
+                    && captured.invocation.can_supply(witness.invocation)
+            })
+        })
 }
 fn guarded_result(
     program: &nocter_declarations::value_access::Program,
@@ -355,3 +378,6 @@ fn describe_witness(
         _ => Err(INVALID),
     }
 }
+
+#[cfg(test)]
+mod tests;

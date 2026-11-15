@@ -49,6 +49,17 @@ const func forward_outcome(take value: (func(i32): i32)?, nested: bool): ((func(
         task^()
     } else { value^ }
 }
+const func forward_mixed(take first: (func(i32): i32)?, take second: (func(i32): i32)?, nested: bool): ((func(i32): i32)?, (func(i32): i32)?) {
+    if nested {
+        let task = (first^, second^;) {
+            let received = forward_mixed(none, second^, false)
+            let retained = received.1^
+            drop received
+            (first^, retained^)
+        }
+        task^()
+    } else { (first^, second^) }
+}
 const func calculate(): i32 {
     let first = forward(wrap(identity), true)
     drop first
@@ -81,6 +92,19 @@ const func calculate(): i32 {
     if first_outcome_action(2) != 2 || second_outcome_action(2) != 22 { return 0 }
     drop first_outcome_action
     drop second_outcome_action
+    let first_mixed = forward_mixed(wrap(identity), wrap(addition(20)), true)
+    let second_mixed = forward_mixed(wrap(addition(20)), wrap(identity), true)
+    let first_mixed_left = first_mixed.0^!
+    let first_mixed_right = first_mixed.1^!
+    let second_mixed_left = second_mixed.0^!
+    let second_mixed_right = second_mixed.1^!
+    drop first_mixed
+    drop second_mixed
+    if first_mixed_left(2) != 2 || first_mixed_right(2) != 22 || second_mixed_left(2) != 22 || second_mixed_right(2) != 2 { return 0 }
+    drop first_mixed_left
+    drop first_mixed_right
+    drop second_mixed_left
+    drop second_mixed_right
     42
 }
 const ANSWER: i32 = calculate()

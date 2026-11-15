@@ -423,6 +423,12 @@ unknowns rather than inventing constructor facts. Positive result solving does n
 exclusion as a witness. A separate proof over the original return/application equations may use it
 to exclude an active callable; it does not prove an empty physical representation.
 
+Symbolic result scope admits a callable parameter owned by the current declaration or retained
+by the current closure's declared environment dependencies. Capture scope preserves the original
+parameter identity and may weaken its invocation view; an uncaptured sibling, foreign parameter or
+stronger view cannot enter through a matching signature. This scope check supplies neither an
+actual environment nor an initialized value: those still require the original per-instance inputs.
+
 `results::applications` classifies each selected call result once. A newly reserved callable result
 application must match its caller/call key, the selected callee's result template and declared result
 invocation. A callable result of a named, anonymous or returned callee gets its own application;
@@ -1857,8 +1863,11 @@ optional payloads inside a success/failure carrier. Tests retain each original i
 input fact separately from its positive physical domain, compare distinct contexts at the same
 lexical result descriptor, read adjacent scalar fields, transfer/invoke active callable components
 and clean only the remaining container. Native error variants retain and dispose actual owned
-error environments while inactive alternatives create no owner. Generic signature matching still
-cannot create a result context. Remaining compound result carriers and instance-specific received
+error environments while inactive alternatives create no owner. Mixed tuple results preserve two
+independent input families, including a recursive call with a constructed inactive first input and
+a positive captured second input. Both result leaves share one original invocation recipe; swapped
+actual environments remain distinct through extraction, invocation and disposal. Generic signature
+matching still cannot create a result context. Remaining compound result carriers and instance-specific received
 primary continuations retain separate qualification obligations.
 Declared compound-result contracts have declaration-owned result ordinals. A diverging body can
 retain that known signature without establishing any returned value, concrete environment or
