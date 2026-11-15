@@ -129,12 +129,7 @@ impl Builder<'_> {
         source: MachineAddressId,
         target: MachineAddressId,
     ) -> Result<(), Failure> {
-        if self
-            .context
-            .program
-            .runtime()
-            .has_same_value_representation(pair.0, pair.1)
-        {
+        if self.context.transports.copies.contains(&pair) {
             let from = self.context.layouts.get(pair.0).ok_or_else(Self::invalid)?;
             let to = self.context.layouts.get(pair.1).ok_or_else(Self::invalid)?;
             if from.size() != to.size() || from.alignment() != to.alignment() {
@@ -152,6 +147,7 @@ impl Builder<'_> {
         let helper = self
             .context
             .transports
+            .helpers
             .get(&pair)
             .ok_or_else(Self::invalid)?
             .function;

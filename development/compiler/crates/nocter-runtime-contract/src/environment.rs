@@ -1,4 +1,5 @@
 mod data_compatibility;
+pub use data_compatibility::ValueRepresentationRelations;
 use std::collections::BTreeSet;
 
 use crate::RuntimeDataId;

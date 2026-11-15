@@ -186,9 +186,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [ ] Qualify guarded widening into occurrence-bound destination domains selected from actual
   positive producers and matched consumers. Do not recover captured environments from an ambient
   frame, invent code from exclusion or replace the callee's original supplied schema with its target.
-- [ ] Amortize physical-transport metadata comparison across shared source/destination pairs.
-  Helper discovery and emission currently re-walk child subgraphs; preserve one runtime comparison
-  authority, exact identities, unknown/cycle behavior and bounded array traversal when sharing results.
+- [x] Amortize physical-transport metadata comparison across shared source/destination pairs.
+  Share one immutable-environment comparison authority, including exact identities, unknown/cycle
+  behavior and bounded array traversal; emission consumes prepared copy/conversion decisions.
 - [ ] Qualify application-specific empty callable domains supplied through received optional
   inputs. A globally nonempty formal result equation is not a proof that every application
   supplies a callable; preserve the exact committed input context rather than closing its raw type.

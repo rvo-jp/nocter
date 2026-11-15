@@ -1,97 +1,176 @@
 //! Exact value representation and directed guarded transport share one runtime graph comparison.
 use super::RuntimeEnvironment;
 use crate::{RuntimeDataId, RuntimeType, RuntimeTypeRepresentation};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct Key {
+    actual: RuntimeDataId,
+    expected: RuntimeDataId,
+    guarded: bool,
+    transport: bool,
+}
+impl Key {
+    fn child(self, actual: RuntimeDataId, expected: RuntimeDataId, guarded: bool) -> Self {
+        Self {
+            actual,
+            expected,
+            guarded,
+            ..self
+        }
+    }
+}
+
+/// Shared comparison obligations scoped to one immutable runtime environment. This is neither
+/// value availability, a source/code-context certificate nor permission to reuse bytes or owners.
+pub struct ValueRepresentationRelations<'a> {
+    environment: &'a RuntimeEnvironment,
+    known: BTreeSet<Key>,
+    parents: BTreeMap<Key, BTreeSet<Key>>,
+    failed: BTreeSet<Key>,
+}
 impl RuntimeEnvironment {
-    /// Operations can transport structural values whose empty-array element descriptors differ.
-    /// Empty metadata supplies no element payload. All positive leaves, including static code
-    /// tokens, retain their exact runtime identities; physical geometry is not this proof.
+    /// Start shared metadata comparisons against this exact immutable environment.
+    #[must_use]
+    pub fn value_relations(&self) -> ValueRepresentationRelations<'_> {
+        ValueRepresentationRelations {
+            environment: self,
+            known: BTreeSet::new(),
+            parents: BTreeMap::new(),
+            failed: BTreeSet::new(),
+        }
+    }
+    /// Compare exact represented domains, ignoring only nonexistent empty-array elements.
     #[must_use]
     pub fn has_same_value_representation(
         &self,
         actual: RuntimeDataId,
         expected: RuntimeDataId,
     ) -> bool {
-        self.compare_value_representation(actual, expected, false)
+        self.value_relations()
+            .has_same_value_representation(actual, expected)
     }
-    /// Check directed physical transport through excluded outcome alternatives. Positive runtime
-    /// identities remain exact. This grants no source conversion, code/context proof, byte-copy
-    /// compatibility, initialized value, layout or ownership transition.
+    /// Check directed excluded-alternative transport, not copying, layout or source admission.
     #[must_use]
     pub fn permits_guarded_value_transport(
         &self,
         actual: RuntimeDataId,
         expected: RuntimeDataId,
     ) -> bool {
-        !matches!(
-            self.types().get(actual),
-            None | Some(RuntimeType::Uninhabited)
-        ) && self.compare_value_representation(actual, expected, true)
+        self.value_relations()
+            .permits_guarded_value_transport(actual, expected)
     }
-    fn compare_value_representation(
-        &self,
+}
+impl ValueRepresentationRelations<'_> {
+    /// Preserve represented domains and every positive runtime identity.
+    pub fn has_same_value_representation(
+        &mut self,
         actual: RuntimeDataId,
         expected: RuntimeDataId,
-        transport: bool,
     ) -> bool {
-        let mut pending = vec![(actual, expected, false)];
-        let mut seen = BTreeSet::new();
-        let types = self.types();
-        while let Some((actual, expected, guarded)) = pending.pop() {
-            if !seen.insert((actual, expected, guarded)) {
+        self.compare(Key {
+            actual,
+            expected,
+            guarded: false,
+            transport: false,
+        })
+    }
+    /// Permit only guarded excluded alternatives to widen. Empty roots and narrowing reject.
+    pub fn permits_guarded_value_transport(
+        &mut self,
+        actual: RuntimeDataId,
+        expected: RuntimeDataId,
+    ) -> bool {
+        !matches!(
+            self.environment.types().get(actual),
+            None | Some(RuntimeType::Uninhabited)
+        ) && self.compare(Key {
+            actual,
+            expected,
+            guarded: false,
+            transport: true,
+        })
+    }
+    fn compare(&mut self, root: Key) -> bool {
+        let mut pending = vec![root];
+        let mut failed = Vec::new();
+        while let Some(key) = pending.pop() {
+            if !self.known.insert(key) {
                 continue;
             }
-            let (Some(a), Some(b)) = (types.get(actual), types.get(expected)) else {
-                return false;
+            let Some(children) = self.requirements(key) else {
+                failed.push(key);
+                continue;
             };
-            if actual == expected {
-                continue;
-            }
-            match (a, b) {
-                (RuntimeType::Uninhabited, _) if transport && guarded => {}
-                (RuntimeType::EmptyArray { .. }, RuntimeType::EmptyArray { .. }) => {}
-                (
-                    RuntimeType::FixedArray {
-                        element: a,
-                        length: al,
-                    },
-                    RuntimeType::FixedArray {
-                        element: b,
-                        length: bl,
-                    },
-                ) if al == bl => pending.push((*a, *b, false)),
-                (RuntimeType::Optional(a), RuntimeType::Optional(b))
-                | (RuntimeType::Fallible(a), RuntimeType::Fallible(b)) => {
-                    pending.push((*a, *b, true));
+            for child in children {
+                self.parents.entry(child).or_default().insert(key);
+                if self.failed.contains(&child) {
+                    failed.push(key);
                 }
-                (RuntimeType::Aggregate, RuntimeType::Aggregate) => {
-                    let (
-                        Some(RuntimeTypeRepresentation::ValueAggregate { fields: a }),
-                        Some(RuntimeTypeRepresentation::ValueAggregate { fields: b }),
-                    ) = (
-                        self.type_representations().get(actual),
-                        self.type_representations().get(expected),
-                    )
-                    else {
-                        return false;
-                    };
-                    if a.len() < 2 || a.len() != b.len() {
-                        return false;
-                    }
-                    for (a, b) in a.iter().zip(b.iter()) {
-                        if a.field() != b.field()
-                            || !matches!(a.field(), nocter_model::ValueField::Tuple(_))
-                        {
-                            return false;
-                        }
-                        pending.push((a.ty(), b.ty(), false));
-                    }
-                }
-                _ => return false,
+                pending.push(child);
             }
         }
-        true
+        // All obligations are conjunctions. Failure propagates through every dependent parent,
+        // including cycles; nodes outside that closure satisfy the same coinductive comparison.
+        while let Some(key) = failed.pop() {
+            if !self.failed.insert(key) {
+                continue;
+            }
+            if let Some(parents) = self.parents.get(&key) {
+                failed.extend(parents);
+            }
+        }
+        !self.failed.contains(&root)
+    }
+    fn requirements(&self, key: Key) -> Option<Vec<Key>> {
+        let environment = self.environment;
+        let a = environment.types().get(key.actual)?;
+        let b = environment.types().get(key.expected)?;
+        if key.actual == key.expected {
+            return Some(Vec::new());
+        }
+        match (a, b) {
+            (RuntimeType::Uninhabited, _) if key.transport && key.guarded => Some(Vec::new()),
+            (RuntimeType::EmptyArray { .. }, RuntimeType::EmptyArray { .. }) => Some(Vec::new()),
+            (
+                RuntimeType::FixedArray {
+                    element: a,
+                    length: al,
+                },
+                RuntimeType::FixedArray {
+                    element: b,
+                    length: bl,
+                },
+            ) if al == bl => Some(vec![key.child(*a, *b, false)]),
+            (RuntimeType::Optional(a), RuntimeType::Optional(b))
+            | (RuntimeType::Fallible(a), RuntimeType::Fallible(b)) => {
+                Some(vec![key.child(*a, *b, true)])
+            }
+            (RuntimeType::Aggregate, RuntimeType::Aggregate) => {
+                let (
+                    Some(RuntimeTypeRepresentation::ValueAggregate { fields: a }),
+                    Some(RuntimeTypeRepresentation::ValueAggregate { fields: b }),
+                ) = (
+                    environment.type_representations().get(key.actual),
+                    environment.type_representations().get(key.expected),
+                )
+                else {
+                    return None;
+                };
+                if a.len() < 2 || a.len() != b.len() {
+                    return None;
+                }
+                a.iter()
+                    .zip(b.iter())
+                    .map(|(a, b)| {
+                        (a.field() == b.field()
+                            && matches!(a.field(), nocter_model::ValueField::Tuple(_)))
+                        .then(|| key.child(a.ty(), b.ty(), false))
+                    })
+                    .collect()
+            }
+            _ => None,
+        }
     }
 }
 

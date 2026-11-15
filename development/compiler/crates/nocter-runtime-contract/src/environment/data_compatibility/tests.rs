@@ -5,7 +5,7 @@ use crate::{
     RuntimeTypeTableBuilder, RuntimeValueFieldRepresentation,
 };
 use nocter_model::ValueField;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[test]
 fn guarded_transport_widens_only_excluded_alternatives_and_preserves_positive_runtime_identity() {
@@ -29,6 +29,91 @@ fn guarded_transport_widens_only_excluded_alternatives_and_preserves_positive_ru
         );
     }
     assert!(runtime.has_same_value_representation(Id::Instance(1), Id::Instance(1)));
+}
+
+#[test]
+fn shared_queries_reuse_failed_and_successful_obligations_without_mixing_comparison_modes() {
+    let (runtime, left, right) = fixture();
+    let mut relations = runtime.value_relations();
+    assert!(relations.permits_guarded_value_transport(left, right));
+    assert!(!relations.has_same_value_representation(left, right));
+    let known = relations.known.len();
+    let edges: usize = relations.parents.values().map(BTreeSet::len).sum();
+    assert!(
+        known < 120,
+        "shared obligations must not expand the binary schema tree"
+    );
+    for _ in 0..3 {
+        for (source, target) in
+            std::iter::once((3, 4)).chain((0..48).map(|level| (10 + level * 2, 11 + level * 2)))
+        {
+            assert!(
+                relations
+                    .permits_guarded_value_transport(Id::Instance(source), Id::Instance(target))
+            );
+            assert!(
+                !relations
+                    .has_same_value_representation(Id::Instance(source), Id::Instance(target))
+            );
+        }
+    }
+    assert_eq!(relations.known.len(), known);
+    assert_eq!(
+        relations.parents.values().map(BTreeSet::len).sum::<usize>(),
+        edges
+    );
+    assert!(!relations.permits_guarded_value_transport(Id::Instance(0), Id::Instance(1)));
+    assert!(!relations.permits_guarded_value_transport(Id::Instance(0), Id::Instance(0)));
+    assert!(relations.has_same_value_representation(Id::Instance(0), Id::Instance(0)));
+    assert!(!relations.has_same_value_representation(Id::Instance(999), Id::Instance(999)));
+}
+
+#[test]
+fn cyclic_metadata_propagates_late_failures_without_poisoning_valid_cycles() {
+    let mut types = RuntimeTypeTableBuilder::new();
+    for index in 0..4 {
+        types.insert(Id::Instance(index), Ty::Aggregate).unwrap();
+    }
+    for index in [4, 5] {
+        types
+            .insert(
+                Id::Instance(index),
+                Ty::StaticCallable { environment: None },
+            )
+            .unwrap();
+    }
+    let mut representations = BTreeMap::new();
+    for (id, next, callable) in [(0, 0, 4), (1, 1, 4), (2, 3, 4), (3, 2, 5)] {
+        representations.insert(
+            Id::Instance(id),
+            Representation::ValueAggregate {
+                fields: [next, callable]
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, data)| {
+                        RuntimeValueFieldRepresentation::new(
+                            ValueField::Tuple(index),
+                            Id::Instance(data),
+                        )
+                    })
+                    .collect(),
+            },
+        );
+    }
+    let runtime = RuntimeEnvironment::new(
+        types.finish().unwrap(),
+        RuntimeTypeRepresentationTable::new(representations),
+        RuntimeAbiIdentity::Arm64DarwinV1,
+    )
+    .unwrap();
+    let mut relations = runtime.value_relations();
+    for _ in 0..3 {
+        assert!(relations.has_same_value_representation(Id::Instance(0), Id::Instance(1)));
+        assert!(!relations.has_same_value_representation(Id::Instance(0), Id::Instance(2)));
+        assert!(!relations.has_same_value_representation(Id::Instance(0), Id::Instance(3)));
+        assert!(relations.permits_guarded_value_transport(Id::Instance(0), Id::Instance(1)));
+        assert!(!relations.permits_guarded_value_transport(Id::Instance(0), Id::Instance(2)));
+    }
 }
 
 fn fixture() -> (RuntimeEnvironment, Id, Id) {

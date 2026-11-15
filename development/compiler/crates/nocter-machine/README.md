@@ -177,6 +177,9 @@ native path. These cases retain the original tags and checked lifecycle; extract
 callable and occurrence-dependent widening remain separate qualification boundaries.
 
 Guarded `Transport` effects generate shared two-address helpers per source/destination type pair.
+Helper discovery shares the runtime environment's comparison obligations across child pairs and
+records exact-copy versus conversion decisions. Emission consumes those decisions without
+re-expanding representation subgraphs.
 Outcome helpers read the original tag, trap an excluded branch without creating its payload address,
 move the active payload between independently selected offsets and write the matching destination
 tag. Tuple helpers retain each field's offsets; array helpers use the common countdown traversal

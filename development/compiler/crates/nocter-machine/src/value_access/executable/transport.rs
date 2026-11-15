@@ -33,6 +33,10 @@ pub(super) struct Helper {
     pub(super) function: MachineFunctionId,
     pub(super) plan: Plan,
 }
+pub(super) struct Prepared {
+    pub(super) helpers: BTreeMap<Pair, Helper>,
+    pub(super) copies: BTreeSet<Pair>,
+}
 impl Plan {
     fn children(&self) -> Vec<Pair> {
         match self {
@@ -56,7 +60,7 @@ pub(super) fn prepare(
     program: &mir::Program,
     layouts: &MachineLayoutPlan,
     first: usize,
-) -> Result<BTreeMap<Pair, Helper>, Failure> {
+) -> Result<Prepared, Failure> {
     let mut pending: Vec<_> = program
         .bodies()
         .values()
@@ -76,27 +80,24 @@ pub(super) fn prepare(
         .collect();
     let mut seen = BTreeSet::new();
     let mut plans = BTreeMap::new();
+    let mut copies = BTreeSet::new();
+    let mut relations = program.runtime().value_relations();
     while let Some(pair) = pending.pop() {
         if !seen.insert(pair) {
             continue;
         }
-        if !program
-            .runtime()
-            .permits_guarded_value_transport(pair.0, pair.1)
-        {
+        if !relations.permits_guarded_value_transport(pair.0, pair.1) {
             return Err(Failure::InvalidRoot);
         }
-        if program
-            .runtime()
-            .has_same_value_representation(pair.0, pair.1)
-        {
+        if relations.has_same_value_representation(pair.0, pair.1) {
+            copies.insert(pair);
             continue;
         }
         let plan = select(program, layouts, pair)?;
         pending.extend(plan.children());
         plans.insert(pair, plan);
     }
-    Ok(plans
+    let helpers = plans
         .into_iter()
         .enumerate()
         .map(|(index, (pair, plan))| {
@@ -108,7 +109,8 @@ pub(super) fn prepare(
                 },
             )
         })
-        .collect())
+        .collect();
+    Ok(Prepared { helpers, copies })
 }
 
 fn select(

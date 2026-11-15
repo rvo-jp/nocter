@@ -107,6 +107,10 @@ owns contextual graph construction and its current source-admission boundary.
   identities, remain exact. Structural tuples and outcome/array carriers retain their children,
   while distinct nominal records remain distinct. The directed relation rejects empty roots,
   narrowing and unknown entries, and visits shared pairs independently of array cardinality.
+  `value_relations()` retains those comparison obligations for one immutable environment. Each
+  pair/mode/guard obligation is expanded once; failures propagate through dependent parents,
+  including cycles, before a result is returned. Repeated child queries reuse that result without
+  mixing exact equality with directed transport or a guarded child with a root value.
   Neither relation supplies a source conversion, code/environment proof, ownership or executable
   layout conversion; guarded transport is distinct from same-layout copying.
 - Stored data shape does not encode a value-model input operation. RuntimeValueSignature retains

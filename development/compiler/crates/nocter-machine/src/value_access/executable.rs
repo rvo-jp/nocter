@@ -22,7 +22,7 @@ struct Context<'a> {
     functions: BTreeMap<AccessInstanceId, MachineFunctionId>,
     abis: BTreeMap<AccessInstanceId, MachineCallableAbi>,
     cleanup: BTreeMap<RuntimeDataId, MachineFunctionId>,
-    transports: BTreeMap<transport::Pair, transport::Helper>,
+    transports: transport::Prepared,
     primitives: BTreeMap<nocter_runtime_contract::PrimitiveRole, crate::MachinePrimitiveTarget>,
 }
 
@@ -120,7 +120,7 @@ pub(super) fn program(program: &mir::Program) -> Result<MachineProgram, Failure>
     for (&data, &id) in &context.cleanup {
         values.push(body::cleanup(&context, data, id)?);
     }
-    for (&pair, helper) in &context.transports {
+    for (&pair, helper) in &context.transports.helpers {
         values.push(body::transport(&context, pair, helper)?);
     }
     let entry = *context
