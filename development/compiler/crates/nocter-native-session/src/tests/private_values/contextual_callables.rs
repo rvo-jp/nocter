@@ -113,6 +113,21 @@ fn private_excluded_callable_assertions_keep_the_required_traps() {
 }
 
 #[test]
+fn private_excluded_result_components_preserve_adjacent_callable_contexts() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-excluded-result-components.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "contextual-excluded-components",
+        42,
+    );
+}
+
+#[test]
 fn private_outcome_results_preserve_callable_values_and_absence() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

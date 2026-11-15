@@ -445,6 +445,11 @@ callable contexts and nominal identities remain exact, and an empty root has no 
 This metadata relation does not implement conversion or relax byte-copy equality. The
 [guarded transport contract](../../../design/compiler-realization.md#guarded-representation-transport)
 owns the remaining integrated obligations before source admission.
+`reproject` selects an equivalent existing declaration descriptor from the supplied instance,
+preserving each occurrence’s actual code, environment and empty domain. It rebuilds through the
+same canonical component constructors and visits shared context/descriptor pairs once, including
+homogeneous arrays independently of their cardinality. It neither adapts callable invocation views
+nor widens an outcome representation; a missing positive context cannot be supplied by the target.
 `instantiate_data` uses the same binding normalization and frozen witness resolution as code
 frames; it discards irrelevant input bindings. `function_representation` explicitly selects the
 actual callable leaf's code/environment key while leaving its containing carrier unchanged. `InstanceSchema` exposes the canonical carrier

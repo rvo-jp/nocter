@@ -73,6 +73,80 @@ fn budget(units: u64) -> WorkBudget {
 }
 
 #[test]
+fn descriptor_reception_preserves_supplied_contexts_beside_excluded_components() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-excluded-result-components.nct"
+    ));
+    let runtime = source
+        .replace("const ANSWER: i32 = calculate()", "")
+        .replace("const func", "func");
+    let source = ValueSourceFixture::new(&runtime);
+    let unit = SourceUnit::prepare(source.syntax()).unwrap().into_unit();
+    let program = unit.program();
+    let code = |name| {
+        program
+            .resolve(program.symbols().get(name).unwrap())
+            .unwrap()
+    };
+    let relay = code("relay");
+    let bundle = code("bundle");
+    let input = program.codes().get(relay).unwrap().parameters()[0].into();
+    let body = unit.code_body(relay.into()).unwrap();
+    let at = body
+        .graph()
+        .points()
+        .iter()
+        .find_map(|(point, block)| {
+            block
+                .actions
+                .iter()
+                .position(|action| matches!(action.operation, Operation::StageReturn(_)))
+                .map(|action| Location { point, action })
+        })
+        .unwrap();
+    let call = body.typed().body().expressions().iter().find_map(|(id, expression)| matches!(expression.kind, ExpressionKind::Call { target: nocter_model::ValueFunctionOrigin::Declaration(target), .. } if target == bundle).then_some(id)).unwrap();
+    let target = body.typed().result_data();
+    let callable = program
+        .component(target, ValueField::Tuple(1))
+        .unwrap()
+        .data;
+    let Some(PayloadSchema::Function(witness)) = program.data_schema(callable) else {
+        panic!("contextual callable");
+    };
+    assert!(
+        program.concrete_witness(witness).is_err(),
+        "the receiving descriptor cannot manufacture the supplied environment"
+    );
+    let mut contexts = Vec::new();
+    for name in ["identity", "increment"] {
+        let frame = program
+            .bind_code(relay.into(), [(input, code(name).into())])
+            .unwrap();
+        let called = unit
+            .instantiate_invocation(
+                &frame,
+                nocter_model::ValueApplication {
+                    owner: relay.into(),
+                    call,
+                },
+                &mut budget(100_000),
+            )
+            .unwrap();
+        let supplied = unit
+            .instantiate_result_contract(&called, &mut budget(100_000))
+            .unwrap();
+        let mut work = budget(100_000);
+        let projection = unit.project_resource_data(&frame, at, &mut work).unwrap();
+        let received = projection.receiving(supplied.clone(), target).unwrap();
+        assert_eq!(received.data(), target);
+        assert!(supplied.has_same_representation(program, &received));
+        contexts.push(received);
+    }
+    assert_ne!(contexts[0], contexts[1]);
+}
+
+#[test]
 fn an_invalid_original_action_cannot_construct_a_resource_data_projection() {
     let fixture = Fixture::new();
     let mut work = budget(1_000);

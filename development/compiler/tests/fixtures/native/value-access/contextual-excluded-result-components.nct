@@ -1,0 +1,21 @@
+const func identity(value: i32): i32 { value }
+const func increment(value: i32): i32 { value + 1 }
+const func wrap(take action: func(i32): i32): func(i32): i32 {
+    (action^; value: i32) { action(value) }
+}
+const func absent(): (func(i32): i32)? { none }
+const func bundle(take action: func(i32): i32): ((func(i32): i32)?, func(i32): i32) {
+    (absent(), wrap(action^))
+}
+const func relay(take action: func(i32): i32): ((func(i32): i32)?, func(i32): i32) { bundle(action^) }
+const func calculate(): i32 {
+    let values = relay(identity)
+    let another = relay(increment)
+    let missing = values.0^
+    drop missing
+    let other_missing = another.0^
+    drop other_missing
+    if values.1(42) == 42 && another.1(41) == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { calculate() }

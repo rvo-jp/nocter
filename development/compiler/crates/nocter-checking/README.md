@@ -1789,6 +1789,11 @@ caller's concrete result shape only through actual component evidence; a matchin
 substitute another static callable. Required/native execution agrees, and the matching error fixture
 executes returned-owner and remaining-container cleanup. Missing transfer/input context, retired
 source use, wrong concrete targets and exhausted work reject; healthy retry remains possible.
+`contextual-excluded-result-components.nct` qualifies a returned tuple with an absence-only
+callable alternative beside a captured callable. Exact descriptor reception preserves the supplied
+component instances rather than reconstructing positive environments from the target descriptor.
+Forwarding, two distinct captured callbacks, partial extraction, remaining-container cleanup and
+required/native execution retain those separate contexts. This does not widen a represented outcome.
 `empty-compound-results.nct` qualifies standalone and mixed empty-array results, declaration-to-
 declaration forwarding, preserved result-ordinal gaps and adjacent context-bound callable values.
 Empty-array element signatures are checked without adding producer equations or element values.

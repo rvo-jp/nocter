@@ -166,6 +166,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   record with separate source/destination payload roles, atomic failures and original identity
   checks. Reuse the ownership transition for function adapters; keep unimplemented value transport
   closed in metadata specialization, evaluator projection and MIR lowering.
+- [x] Qualify exact descriptor reprojection from supplied component instances, preserving distinct
+  captured environments beside excluded outcome alternatives through forwarding, partial extraction,
+  required/native execution and remaining-container cleanup. Keep representation widening separate.
 - [ ] Replace the generic typed-body integrity failure on unqualified outcome widening with an
   appropriate source-local cause while completing its transport path. A known unsupported source
   conversion must not be reported as unexplained compiler corruption.

@@ -23,6 +23,21 @@ const GUARDED: &str = include_str!(concat!(
 ));
 
 #[test]
+fn excluded_result_components_preserve_adjacent_contextual_callable_instances() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-excluded-result-components.nct"
+    ));
+    let unit = accepted(
+        &source
+            .replace("const ANSWER: i32 = calculate()", "")
+            .replace("const func", "func"),
+    );
+    assert_outcome_contracts(&unit);
+    assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
+}
+
+#[test]
 fn unqualified_outcome_widening_remains_closed_until_value_transport_is_realized() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
