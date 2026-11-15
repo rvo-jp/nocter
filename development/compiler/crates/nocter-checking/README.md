@@ -406,6 +406,14 @@ No provisional result/application signature supplies a return anchor. These are 
 not an owner, availability or numerical-disjointness proof. Moves and drops remain subject to the
 separate initialization/access/resource validation.
 
+The same interned producer nodes retain original constructed outcome tags. Missing facts remain
+distinct from a described unknown value; an unknown child or weak update cannot preserve another
+path's known tag as a certificate. Joins keep a tag only when the incoming descriptions agree.
+Outcome retagging preserves that fact, and strong updates retain earlier immutable snapshots.
+`ProducerShape::primary_at` exposes it at an original creation/component path. It proves neither
+an initialized value nor a represented callable domain, code witness, cleanup or const eligibility.
+The positive producer equations do not use an empty witness set as a tag fact.
+
 `results::applications` classifies each selected call result once. A newly reserved callable result
 application must match its caller/call key, the selected callee's result template and declared result
 invocation. A callable result of a named, anonymous or returned callee gets its own application;

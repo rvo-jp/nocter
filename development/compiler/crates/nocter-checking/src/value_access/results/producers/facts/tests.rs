@@ -20,6 +20,47 @@ fn applications() -> [FunctionWitness; 2] {
 }
 
 #[test]
+fn explicit_tags_do_not_survive_unknown_paths_or_weak_updates_as_certificates() {
+    let mut store = Store::default();
+    let unknown = Store::unknown();
+    let absent = store.outcome(BTreeMap::new());
+    let present = store.outcome(BTreeMap::from([(ValueField::Variant(true), unknown)]));
+    assert_eq!(store.nodes[absent.0].tag.primary(), Some(false));
+    assert_eq!(store.nodes[present.0].tag.primary(), Some(true));
+    for other in [unknown, present] {
+        let merged = store.join(absent, other);
+        assert_eq!(store.nodes[merged.0].tag.primary(), None);
+        assert_eq!(merged, store.join(other, absent));
+    }
+    let product = store.aggregate(BTreeMap::from([(ValueField::Tuple(0), absent)]));
+    let merged = store.join(product, unknown);
+    let selected = store.selected(merged, &[ValueField::Tuple(0)]);
+    assert_eq!(store.nodes[selected.0].tag.primary(), None);
+    let weak = store.update(unknown, &[ValueField::Array(0)], absent, false);
+    let selected = store.selected(weak, &[ValueField::Array(0)]);
+    assert_eq!(store.nodes[selected.0].tag.primary(), None);
+    let exact = store.update(product, &[ValueField::Tuple(0)], present, false);
+    assert_eq!(
+        store.nodes[store.selected(exact, &[ValueField::Tuple(0)]).0]
+            .tag
+            .primary(),
+        Some(true)
+    );
+    assert_eq!(
+        store.nodes[store.selected(product, &[ValueField::Tuple(0)]).0]
+            .tag
+            .primary(),
+        Some(false)
+    );
+    assert_eq!(
+        store.nodes[store.selected(product, &[ValueField::Tuple(1)]).0]
+            .tag
+            .primary(),
+        None
+    );
+}
+
+#[test]
 fn deep_shared_join_is_iterative_and_does_not_expand_the_logical_value_tree() {
     const DEPTH: usize = 4096;
     let [first, second] = applications();

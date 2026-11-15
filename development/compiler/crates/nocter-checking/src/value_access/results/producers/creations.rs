@@ -79,6 +79,13 @@ impl ProducerShape {
         let root = facts::select(&self.nodes, self.root, fields.fields());
         &self.nodes[root.0].producers
     }
+    /// An original construction's selected tag, only when every joined source agrees.
+    /// This supplies no initialized value, represented domain, ownership or callable witness.
+    #[must_use]
+    pub fn primary_at(&self, fields: &FieldPath) -> Option<bool> {
+        let root = facts::select(&self.nodes, self.root, fields.fields());
+        self.nodes[root.0].tag.primary()
+    }
 }
 
 /// The environment schema and actual producer snapshot at a reached closure-formation operation.

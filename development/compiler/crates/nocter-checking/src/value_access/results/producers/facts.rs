@@ -9,10 +9,38 @@ mod tests;
 
 #[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
 pub(super) struct Facts(pub(super) usize);
+impl Facts {
+    const UNKNOWN: Self = Self(1);
+}
+#[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
+pub(super) enum Tag {
+    #[default]
+    NoFacts,
+    Unknown,
+    Primary,
+    Alternate,
+}
+impl Tag {
+    fn join(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::NoFacts, value) | (value, Self::NoFacts) => value,
+            (left, right) if left == right => left,
+            _ => Self::Unknown,
+        }
+    }
+    pub(super) fn primary(self) -> Option<bool> {
+        match self {
+            Self::Primary => Some(true),
+            Self::Alternate => Some(false),
+            Self::NoFacts | Self::Unknown => None,
+        }
+    }
+}
 #[derive(Clone, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
 pub(super) struct Node {
     pub(super) producers: Producers,
     children: BTreeMap<ValueField, Facts>,
+    pub(super) tag: Tag,
 }
 /// Analysis-local interning gives structural equality without walking expanded shared values.
 /// Arrays have one conservative element summary, never one fact node per numeric element.
@@ -22,9 +50,13 @@ pub(super) struct Store {
 }
 impl Default for Store {
     fn default() -> Self {
+        let unknown = Node {
+            tag: Tag::Unknown,
+            ..Node::default()
+        };
         Self {
-            nodes: vec![Node::default()],
-            ids: BTreeMap::from([(Node::default(), Facts(0))]),
+            nodes: vec![Node::default(), unknown.clone()],
+            ids: BTreeMap::from([(Node::default(), Facts(0)), (unknown, Facts::UNKNOWN)]),
         }
     }
 }
@@ -42,11 +74,14 @@ pub(super) fn select<I: Copy>(
     fields: &[ValueProjection<I>],
 ) -> Facts {
     for &selected in fields {
+        if facts == Facts::default() {
+            return facts;
+        }
         facts = nodes[facts.0]
             .children
             .get(&field(selected))
             .copied()
-            .unwrap_or_default();
+            .unwrap_or(Facts::UNKNOWN);
     }
     facts
 }
@@ -67,12 +102,29 @@ impl Store {
     pub(super) fn single(&mut self, witness: FunctionWitness) -> Facts {
         self.intern(Node {
             producers: Producers::from([witness]),
+            tag: Tag::Unknown,
             ..Node::default()
         })
     }
     pub(super) fn aggregate(&mut self, children: BTreeMap<ValueField, Facts>) -> Facts {
         self.intern(Node {
             children,
+            tag: Tag::Unknown,
+            ..Node::default()
+        })
+    }
+    pub(super) const fn unknown() -> Facts {
+        Facts::UNKNOWN
+    }
+    pub(super) fn outcome(&mut self, children: BTreeMap<ValueField, Facts>) -> Facts {
+        let tag = if children.contains_key(&ValueField::Variant(true)) {
+            Tag::Primary
+        } else {
+            Tag::Alternate
+        };
+        self.intern(Node {
+            children,
+            tag,
             ..Node::default()
         })
     }
@@ -121,14 +173,21 @@ impl Store {
             }
             let a = self.nodes[left.0].clone();
             let b = self.nodes[right.0].clone();
-            let missing: Vec<_> = a
+            let children: BTreeMap<_, _> = a
                 .children
-                .iter()
-                .filter_map(|(field, &a)| {
-                    let &b = b.children.get(field)?;
-                    let key = pair(a, b);
-                    (!done.contains_key(&key)).then_some(key)
+                .keys()
+                .chain(b.children.keys())
+                .copied()
+                .map(|field| {
+                    let a = a.children.get(&field).copied().unwrap_or(Facts::UNKNOWN);
+                    let b = b.children.get(&field).copied().unwrap_or(Facts::UNKNOWN);
+                    (field, pair(a, b))
                 })
+                .collect();
+            let missing: Vec<_> = children
+                .values()
+                .copied()
+                .filter(|key| !done.contains_key(key))
                 .collect();
             if !missing.is_empty() {
                 pending.push((left, right));
@@ -136,14 +195,12 @@ impl Store {
                 continue;
             }
             let mut result = a;
+            result.tag = result.tag.join(b.tag);
             result.producers.extend(b.producers);
-            for (field, b) in b.children {
-                let value = result
-                    .children
-                    .get(&field)
-                    .map_or(b, |&a| done[&pair(a, b)]);
-                result.children.insert(field, value);
-            }
+            result.children = children
+                .into_iter()
+                .map(|(field, key)| (field, done[&key]))
+                .collect();
             let id = self.intern(result);
             done.insert((left, right), id);
         }
@@ -163,7 +220,15 @@ impl Store {
             weak |= matches!(selected, ValueProjection::Array(_));
             let selected = field(selected);
             let node = self.nodes[current.0].clone();
-            current = node.children.get(&selected).copied().unwrap_or_default();
+            current =
+                node.children
+                    .get(&selected)
+                    .copied()
+                    .unwrap_or(if current == Facts::default() {
+                        Facts::default()
+                    } else {
+                        Facts::UNKNOWN
+                    });
             parents.push((node, selected));
         }
         let mut result = if weak {
@@ -269,6 +334,34 @@ impl Store {
         }
         Ok(inputs)
     }
+    fn adapt_leaf(
+        &mut self,
+        node: Node,
+        invocation: nocter_model::ValueInvocation,
+    ) -> Result<Facts, IntegrityError> {
+        if !node.children.is_empty() {
+            return Err(INVALID);
+        }
+        let producers = node
+            .producers
+            .into_iter()
+            .map(|witness| {
+                if !witness.invocation.can_supply(invocation) {
+                    return Err(INVALID);
+                }
+                Ok(FunctionWitness {
+                    invocation,
+                    ..witness
+                })
+            })
+            .collect::<Result<Producers, _>>()?;
+        let id = self.intern(Node {
+            producers,
+            tag: Tag::Unknown,
+            ..Node::default()
+        });
+        Ok(id)
+    }
     /// Retag actual structural occurrences through a checked boundary, retaining their producers.
     pub(super) fn retag(
         &mut self,
@@ -291,26 +384,7 @@ impl Store {
             let node = self.nodes[facts.0].clone();
             match (program.data_schema(source), program.data_schema(target)) {
                 (Some(PayloadSchema::Function(_)), Some(PayloadSchema::Function(view))) => {
-                    if !node.children.is_empty() {
-                        return Err(INVALID);
-                    }
-                    let producers = node
-                        .producers
-                        .into_iter()
-                        .map(|witness| {
-                            if !witness.invocation.can_supply(view.invocation) {
-                                return Err(INVALID);
-                            }
-                            Ok(FunctionWitness {
-                                invocation: view.invocation,
-                                ..witness
-                            })
-                        })
-                        .collect::<Result<Producers, _>>()?;
-                    let id = self.intern(Node {
-                        producers,
-                        ..Node::default()
-                    });
+                    let id = self.adapt_leaf(node, view.invocation)?;
                     done.insert(key, id);
                 }
                 (Some(PayloadSchema::Array(a)), Some(PayloadSchema::Array(b)))
@@ -332,7 +406,11 @@ impl Store {
                     if let Some(&payload) = done.get(&child) {
                         let mut children = node.children;
                         children.insert(primary, payload);
-                        let id = self.aggregate(children);
+                        let id = self.intern(Node {
+                            children,
+                            tag: node.tag,
+                            ..Node::default()
+                        });
                         done.insert(key, id);
                     } else {
                         pending.extend([key, child]);

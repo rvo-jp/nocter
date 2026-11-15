@@ -29,6 +29,36 @@ fn application(unit: &Unit, owner: &str, call: AccessExpressionId) -> ProducerTe
 }
 
 #[test]
+fn captured_construction_tags_keep_unknowns_joins_and_earlier_snapshots_separate() {
+    use nocter_model::FieldPath;
+    let unit = accepted(
+        "func none_case(): func(): i32 { let value: i32? = none\n(value;): i32 { 42 } }\nfunc some_case(): func(): i32 { let value: i32? = 1\n(value;): i32 { 42 } }\nfunc mixed_case(flag: bool): func(): i32 { let value: i32? = if flag { none } else { 1 }\n(value;): i32 { 42 } }\nfunc received_case(value: i32?): func(): i32 { (value;): i32 { 42 } }\nfunc snapshots(): void { var value: i32? = none\nlet first = (value;): i32 { 42 }\nvalue = 1\nlet second = (value;): i32 { 42 }\ndrop first\ndrop second }",
+    );
+    for (name, expected) in [
+        ("none_case", vec![Some(false)]),
+        ("some_case", vec![Some(true)]),
+        ("mixed_case", vec![None]),
+        ("received_case", vec![None]),
+        ("snapshots", vec![Some(false), Some(true)]),
+    ] {
+        let owner = code(&unit, name).into();
+        let mut actual = Vec::new();
+        for (id, expression) in named(&unit, name).typed().body().expressions().iter() {
+            let ExpressionKind::Closure { closure, .. } = expression.kind else {
+                continue;
+            };
+            let recipe = unit.creation_recipe(closure).unwrap();
+            assert_eq!(recipe.owner, owner);
+            assert_eq!(recipe.expression, id);
+            let path = FieldPath::default();
+            assert!(recipe.producers.producers_at(&path).is_empty());
+            actual.push(recipe.producers.primary_at(&path));
+        }
+        assert_eq!(actual, expected, "{name}");
+    }
+}
+
+#[test]
 fn distinct_applications_keep_inputs_even_when_their_result_types_project_to_one_closure() {
     let unit = accepted(
         "func first(): i32 { 41 }\nfunc second(): i32 { 42 }\nfunc make(action: func(): i32): func(): i32 { let n = 42\n(n;): i32 { n } }\nfunc run(): i32 { let left = make(first)\nlet right = make(second)\nleft() + right() }",

@@ -535,6 +535,11 @@ fn evaluate(
                     .into_values()
                     .fold(Facts::default(), |all, next| store.join(all, next));
                 Ok(store.array(element))
+            } else if matches!(
+                query.program().data_schema(data),
+                Some(PayloadSchema::Optional(_) | PayloadSchema::Fallible(_))
+            ) {
+                Ok(store.outcome(children))
             } else {
                 Ok(store.aggregate(children))
             }
@@ -558,6 +563,6 @@ fn evaluate(
         | ExpressionKind::AdaptFunction { .. }
         | ExpressionKind::Index { .. }
         | ExpressionKind::Select { .. } => shape(query, id, state, true, store, aliases),
-        _ => Ok(Facts::default()),
+        _ => Ok(Store::unknown()),
     }
 }

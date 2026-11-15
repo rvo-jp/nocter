@@ -207,6 +207,12 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   treating an empty producer set as proof. Extend received-domain qualification to instance-specific
   control/positive-use pruning. A source-wide formal contract cannot determine every application's
   active callable domain; retain original tag effects, traps and exact call/resource phases.
+- [x] Retain explicit constructed outcome tags in the shared producer fact DAG, separating missing
+  facts from described unknowns. Qualify source creation snapshots, conservative joins/weak updates
+  and bounded shared-schema traversal without granting ownership, code or represented-domain facts.
+- [ ] Retain explicit active-callable absence in each original invocation input summary alongside
+  its positive producer alternatives. Merge only matching original inputs, distinguish missing/empty
+  alternatives from a constructed exclusion, and keep represented-domain selection and ownership separate.
 - [x] Qualify statically pruned and ordinary conditional outcome inputs through original commit
   recipes and supplied/formal domain reprojection. Preserve dormant descriptor checks separately
   from committed empty-domain and original merge evidence; retained source effects remain intact.
