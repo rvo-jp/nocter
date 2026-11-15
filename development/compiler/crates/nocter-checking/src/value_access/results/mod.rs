@@ -44,7 +44,8 @@ use super::{Failure, Query, accepted, flow};
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::{FunctionWitness, PayloadSchema, Program};
 use nocter_model::{
-    AccessCodeId, AccessExpressionId, TypeId, ValueApplication, ValueFunctionOrigin,
+    AccessCodeId, AccessExpressionId, TypeId, ValueApplication, ValueAppliedResult,
+    ValueCallableResult, ValueFunctionOrigin,
 };
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -57,11 +58,11 @@ pub(super) struct Equality {
 }
 #[derive(Clone, Debug, Default)]
 pub(super) struct Evidence {
-    producers: BTreeMap<AccessCodeId, FunctionWitness>,
+    producers: BTreeMap<ValueCallableResult, FunctionWitness>,
     recipes: relations::Relations,
     invocations: BTreeMap<ValueApplication, Arc<InvocationRecipe>>,
     creations: BTreeMap<nocter_model::ValueClosure, CreationRecipe>,
-    applications: BTreeMap<ValueApplication, ApplicationEvidence>,
+    applications: BTreeMap<ValueAppliedResult, ApplicationEvidence>,
     bodies: nocter_declaration_lowering::access_declarations::BodySources,
     value_sources: BTreeMap<nocter_model::ValueCode, ValueSources>,
 }
@@ -89,7 +90,7 @@ impl Evidence {
         self.recipes.get(&term)
     }
     pub(super) fn producer(&self, callable: AccessCodeId) -> Option<FunctionWitness> {
-        self.producers.get(&callable).copied()
+        self.producers.get(&callable.into()).copied()
     }
     pub(super) fn verify<'a, 'source>(
         &'a self,
@@ -103,15 +104,11 @@ impl Evidence {
     }
     fn selected(&self, origin: ValueFunctionOrigin) -> Option<FunctionWitness> {
         match origin {
-            ValueFunctionOrigin::Result(result) if result.ordinal == 0 => {
-                self.producers.get(&result.owner).copied()
-            }
-            ValueFunctionOrigin::Application(result) if result.ordinal == 0 => {
-                match self.applications.get(&result.application)? {
-                    ApplicationEvidence::Witness(witness) => Some(*witness),
-                    ApplicationEvidence::Unproduced => None,
-                }
-            }
+            ValueFunctionOrigin::Result(result) => self.producers.get(&result).copied(),
+            ValueFunctionOrigin::Application(result) => match self.applications.get(&result)? {
+                ApplicationEvidence::Witness(witness) => Some(*witness),
+                ApplicationEvidence::Unproduced => None,
+            },
             _ => None,
         }
     }
@@ -169,7 +166,7 @@ impl Evidence {
     }
     fn unproduced_origin(&self, origin: ValueFunctionOrigin) -> bool {
         matches!(origin, ValueFunctionOrigin::Application(application)
-            if application.ordinal == 0 && matches!(self.applications.get(&application.application), Some(ApplicationEvidence::Unproduced)))
+            if matches!(self.applications.get(&application), Some(ApplicationEvidence::Unproduced)))
     }
     pub(super) fn unproduced(&self, program: &Program, data: TypeId) -> bool {
         let mut pending = vec![data];
@@ -236,13 +233,13 @@ pub(super) fn close(
         .producers
         .keys()
         .copied()
-        .map(|code| ValueFunctionOrigin::Result(code.into()))
+        .map(ValueFunctionOrigin::Result)
         .chain(
             evidence
                 .applications
                 .keys()
                 .copied()
-                .map(|application| ValueFunctionOrigin::Application(application.into())),
+                .map(ValueFunctionOrigin::Application),
         )
     {
         for invocation in [

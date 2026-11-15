@@ -1,5 +1,160 @@
 use super::*;
-use nocter_model::{AccessCodeId, AccessExpressionId, ArenaBuilder, ValueClosure, ValueParameter};
+use nocter_model::{
+    AccessCodeId, AccessExpressionId, ArenaBuilder, ValueApplication, ValueCallableResult,
+    ValueClosure, ValueParameter,
+};
+
+#[test]
+fn selected_and_unproduced_evidence_belongs_to_the_exact_result_leaf() {
+    use super::super::{ApplicationEvidence, Evidence};
+    let mut codes = ArenaBuilder::<AccessCodeId, ()>::new();
+    let maker = codes.insert(());
+    let witnesses = [codes.insert(()), codes.insert(())].map(FunctionWitness::from);
+    let application = ValueApplication {
+        owner: maker.into(),
+        call: ArenaBuilder::<AccessExpressionId, ()>::new().insert(()),
+    };
+    let mut evidence = Evidence::default();
+    for (ordinal, witness) in witnesses.into_iter().enumerate() {
+        evidence.producers.insert(
+            ValueCallableResult {
+                owner: maker,
+                ordinal,
+            },
+            witness,
+        );
+        evidence.applications.insert(
+            ValueAppliedResult {
+                application,
+                ordinal,
+            },
+            ApplicationEvidence::Witness(witness),
+        );
+    }
+    let absent = ValueAppliedResult {
+        application,
+        ordinal: 2,
+    };
+    assert!(evidence.selected(Origin::Application(absent)).is_none());
+    assert!(!evidence.unproduced_origin(Origin::Application(absent)));
+    evidence
+        .applications
+        .insert(absent, ApplicationEvidence::Unproduced);
+    assert!(evidence.unproduced_origin(Origin::Application(absent)));
+    assert!(evidence.selected(Origin::Application(absent)).is_none());
+    assert!(
+        evidence
+            .selected(Origin::Result(ValueCallableResult {
+                owner: maker,
+                ordinal: 2
+            }))
+            .is_none()
+    );
+    for (ordinal, witness) in witnesses.into_iter().enumerate() {
+        let result = Origin::Result(ValueCallableResult {
+            owner: maker,
+            ordinal,
+        });
+        let applied = Origin::Application(ValueAppliedResult {
+            application,
+            ordinal,
+        });
+        assert_eq!(evidence.selected(result), Some(witness));
+        assert_eq!(evidence.selected(applied), Some(witness));
+        assert!(!evidence.unproduced_origin(applied));
+    }
+}
+
+#[test]
+fn result_leaves_of_one_call_use_independent_equations_and_never_fall_back_to_the_root() {
+    let mut codes = ArenaBuilder::<AccessCodeId, ()>::new();
+    let maker = codes.insert(());
+    let first = FunctionWitness::from(codes.insert(()));
+    let second = FunctionWitness::from(codes.insert(()));
+    let application = ValueApplication {
+        owner: maker.into(),
+        call: ArenaBuilder::<AccessExpressionId, ()>::new().insert(()),
+    };
+    let invocation = Arc::new(InvocationRecipe {
+        callees: Producers::from([maker.into()]),
+        inputs: Inputs::new(),
+    });
+    let mut equations = Relations::new();
+    for ordinal in 0..3 {
+        equations.insert(
+            Term::Result {
+                code: maker.into(),
+                ordinal,
+            },
+            Relation::Union(Producers::new()),
+        );
+        equations.insert(
+            Term::Application(ValueAppliedResult {
+                application,
+                ordinal,
+            }),
+            Relation::Apply(invocation.clone()),
+        );
+    }
+    let forwarding = FunctionWitness {
+        origin: Origin::Result(ValueCallableResult {
+            owner: maker,
+            ordinal: 1,
+        }),
+        invocation: ValueInvocation::Read,
+    };
+    equations.insert(
+        Term::Result {
+            code: maker.into(),
+            ordinal: 0,
+        },
+        Relation::Union(Producers::from([first])),
+    );
+    equations.insert(
+        Term::Result {
+            code: maker.into(),
+            ordinal: 1,
+        },
+        Relation::Union(Producers::from([second, forwarding])),
+    );
+    let known = solve(&equations).unwrap();
+    for (ordinal, expected) in [
+        Producers::from([first]),
+        Producers::from([second]),
+        Producers::new(),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        assert_eq!(
+            known[&Term::Application(ValueAppliedResult {
+                application,
+                ordinal
+            })],
+            expected
+        );
+    }
+    equations.remove(&Term::Result {
+        code: maker.into(),
+        ordinal: 1,
+    });
+    assert!(solve(&equations).is_err());
+}
+
+#[test]
+fn an_application_relation_cannot_be_attached_to_a_body_result_term() {
+    let code = ArenaBuilder::<AccessCodeId, ()>::new().insert(()).into();
+    assert!(
+        solve(&Relations::from([(
+            Term::Result { code, ordinal: 0 },
+            Relation::Apply(Arc::new(InvocationRecipe {
+                callees: Producers::new(),
+                inputs: Inputs::new(),
+            })),
+        )]))
+        .is_err()
+    );
+}
 
 #[test]
 fn returned_callees_and_input_results_use_real_return_summaries_without_signature_anchors() {
@@ -38,15 +193,21 @@ fn returned_callees_and_input_results_use_real_return_summaries_without_signatur
     };
     let mut equations = Relations::from([
         (
-            Term::Result(ValueCode::Declaration(maker)),
+            Term::Result {
+                code: ValueCode::Declaration(maker),
+                ordinal: 0,
+            },
             Relation::Union(Producers::from([captured])),
         ),
         (
-            Term::Result(ValueCode::Closure(closure)),
+            Term::Result {
+                code: ValueCode::Closure(closure),
+                ordinal: 0,
+            },
             Relation::Union(Producers::new()),
         ),
         (
-            Term::Application(make),
+            Term::Application(make.into()),
             Relation::Apply(Arc::new(InvocationRecipe {
                 callees: Producers::from([maker.into()]),
                 inputs: Inputs::new(),
@@ -55,7 +216,7 @@ fn returned_callees_and_input_results_use_real_return_summaries_without_signatur
     ]);
     for (application, actual) in [(first, identity), (second, other)] {
         equations.insert(
-            Term::Application(application),
+            Term::Application(application.into()),
             Relation::Apply(Arc::new(InvocationRecipe {
                 callees: Producers::from([FunctionWitness {
                     origin: Origin::Application(make.into()),
@@ -66,16 +227,19 @@ fn returned_callees_and_input_results_use_real_return_summaries_without_signatur
         );
     }
     let empty = solve(&equations).unwrap();
-    assert!(empty[&Term::Application(first)].is_empty());
-    assert!(empty[&Term::Application(second)].is_empty());
+    assert!(empty[&Term::Application(first.into())].is_empty());
+    assert!(empty[&Term::Application(second.into())].is_empty());
     equations.insert(
-        Term::Result(ValueCode::Closure(closure)),
+        Term::Result {
+            code: ValueCode::Closure(closure),
+            ordinal: 0,
+        },
         Relation::Union(Producers::from([formal])),
     );
     let known = solve(&equations).unwrap();
     for (application, code) in [(first, identity), (second, other)] {
         assert_eq!(
-            known[&Term::Application(application)],
+            known[&Term::Application(application.into())],
             Producers::from([FunctionWitness {
                 origin: Origin::Declaration(code),
                 invocation: ValueInvocation::Take,

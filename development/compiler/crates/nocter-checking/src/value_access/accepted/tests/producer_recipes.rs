@@ -19,10 +19,13 @@ fn call(unit: &Unit, owner: &str, callee: &str) -> AccessExpressionId {
     }).unwrap()
 }
 fn application(unit: &Unit, owner: &str, call: AccessExpressionId) -> ProducerTerm {
-    ProducerTerm::Application(ValueApplication {
-        owner: code(unit, owner).into(),
-        call,
-    })
+    ProducerTerm::Application(
+        ValueApplication {
+            owner: code(unit, owner).into(),
+            call,
+        }
+        .into(),
+    )
 }
 
 #[test]
@@ -61,9 +64,10 @@ fn distinct_applications_keep_inputs_even_when_their_result_types_project_to_one
             BTreeSet::from([FunctionWitness::from(code(&unit, name))])
         );
     }
-    let Some(ProducerRelation::Union(returned)) =
-        unit.producer_relation(ProducerTerm::Result(maker.into()))
-    else {
+    let Some(ProducerRelation::Union(returned)) = unit.producer_relation(ProducerTerm::Result {
+        code: maker.into(),
+        ordinal: 0,
+    }) else {
         panic!("source return recipe");
     };
     assert_eq!(
@@ -157,7 +161,7 @@ fn forwarded_application_keeps_its_original_producer_term_after_selected_code_pr
     assert_eq!(origin.application.call, inner);
     assert_eq!(origin.application.owner, code(&unit, "run").into());
     assert!(
-        matches!(unit.producer_relation(ProducerTerm::Application(origin.application)), Some(ProducerRelation::Apply(recipe)) if recipe.callees == BTreeSet::from([FunctionWitness::from(code(&unit, "make"))]))
+        matches!(unit.producer_relation(ProducerTerm::Application(origin)), Some(ProducerRelation::Apply(recipe)) if recipe.callees == BTreeSet::from([FunctionWitness::from(code(&unit, "make"))]))
     );
     let expression = named(&unit, "run")
         .typed()
@@ -218,7 +222,7 @@ fn scalar_result_calls_retain_original_callable_argument_and_receiver_producers(
         call: consumer,
     };
     assert!(
-        unit.producer_relation(ProducerTerm::Application(site))
+        unit.producer_relation(ProducerTerm::Application(site.into()))
             .is_none()
     );
     let recipe = unit.invocation_recipe(site).unwrap();
@@ -269,7 +273,7 @@ fn an_interrupted_call_has_neither_a_committed_invocation_recipe_nor_a_producer_
         call: outer,
     };
     assert!(unit.invocation_recipe(site).is_none());
-    assert!(unit.producer_relation(ProducerTerm::Application(site)).is_none_or(|relation| matches!(relation, ProducerRelation::Union(producers) if producers.is_empty())));
+    assert!(unit.producer_relation(ProducerTerm::Application(site.into())).is_none_or(|relation| matches!(relation, ProducerRelation::Union(producers) if producers.is_empty())));
 }
 
 #[test]

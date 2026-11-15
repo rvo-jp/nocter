@@ -270,7 +270,10 @@ impl<'a, 'work> Query<'a, 'work> {
             Key::Result(frame, path) if path.is_root() => {
                 match self
                     .evidence
-                    .recipe(ProducerTerm::Result(frame.code()))
+                    .recipe(ProducerTerm::Result {
+                        code: frame.code(),
+                        ordinal: 0,
+                    })
                     .cloned()
                 {
                     Some(ProducerRelation::Union(terms)) => self.union(key, frame, &terms),

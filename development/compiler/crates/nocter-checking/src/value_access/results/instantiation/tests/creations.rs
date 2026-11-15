@@ -211,42 +211,7 @@ fn one_creation_snapshot_keeps_two_calls_to_the_same_closure_with_different_cont
         owner: frame.code(),
         call,
     });
-    let mut evidence = Evidence {
-        creations: fixture.supporting.clone(),
-        ..Evidence::default()
-    };
-    for (site, callback) in sites[..2].iter().zip(fixture.callbacks) {
-        evidence.invocations.insert(
-            *site,
-            Arc::new(InvocationRecipe {
-                callees: BTreeSet::from([fixture.creator.into()]),
-                inputs: BTreeMap::from([(fixture.formal, BTreeSet::from([callback]))]),
-            }),
-        );
-    }
-    evidence.recipes.insert(
-        ProducerTerm::Result(fixture.creator.into()),
-        ProducerRelation::Union(BTreeSet::from([wrapper_witness])),
-    );
-    let mut outer_recipe = creation(&fixture, []);
-    outer_recipe.producers =
-        ProducerShape::test_components(sites[..2].iter().enumerate().map(|(position, &site)| {
-            (
-                ValueField::Tuple(position),
-                FunctionWitness {
-                    origin: Origin::Application(site.into()),
-                    invocation: ValueInvocation::Read,
-                },
-            )
-        }));
-    evidence.creations.insert(outer, outer_recipe);
-    evidence.invocations.insert(
-        sites[2],
-        Arc::new(InvocationRecipe {
-            callees: BTreeSet::from([fixture.captured]),
-            inputs: BTreeMap::new(),
-        }),
-    );
+    let mut evidence = snapshot_evidence(&fixture, outer, wrapper_witness, sites);
     assert_eq!(wrapper_recipe.owner, frame.code());
     let (environment, expected_leaves) = mixed_environment(&fixture, outer, wrapper_witness);
     let expected = program
@@ -290,6 +255,54 @@ fn one_creation_snapshot_keeps_two_calls_to_the_same_closure_with_different_cont
         call(program, &evidence, &frame, sites[2], &mut budget()),
         Err(InstantiationFailure::Unresolved)
     );
+}
+
+fn snapshot_evidence(
+    fixture: &Fixture,
+    outer: ValueClosure,
+    wrapper_witness: FunctionWitness,
+    sites: [ValueApplication; 3],
+) -> Evidence {
+    let mut evidence = Evidence {
+        creations: fixture.supporting.clone(),
+        ..Evidence::default()
+    };
+    for (site, callback) in sites[..2].iter().zip(fixture.callbacks) {
+        evidence.invocations.insert(
+            *site,
+            Arc::new(InvocationRecipe {
+                callees: BTreeSet::from([fixture.creator.into()]),
+                inputs: BTreeMap::from([(fixture.formal, BTreeSet::from([callback]))]),
+            }),
+        );
+    }
+    evidence.recipes.insert(
+        ProducerTerm::Result {
+            code: fixture.creator.into(),
+            ordinal: 0,
+        },
+        ProducerRelation::Union(BTreeSet::from([wrapper_witness])),
+    );
+    let mut outer_recipe = creation(fixture, []);
+    outer_recipe.producers =
+        ProducerShape::test_components(sites[..2].iter().enumerate().map(|(position, &site)| {
+            (
+                ValueField::Tuple(position),
+                FunctionWitness {
+                    origin: Origin::Application(site.into()),
+                    invocation: ValueInvocation::Read,
+                },
+            )
+        }));
+    evidence.creations.insert(outer, outer_recipe);
+    evidence.invocations.insert(
+        sites[2],
+        Arc::new(InvocationRecipe {
+            callees: BTreeSet::from([fixture.captured]),
+            inputs: BTreeMap::new(),
+        }),
+    );
+    evidence
 }
 
 pub(super) fn mixed_environment(

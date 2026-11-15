@@ -1,13 +1,15 @@
 //! Finite positive witness equations; call applications consume actual code return summaries.
 use super::producers::{Inputs, Producers};
 use nocter_declarations::value_access::FunctionWitness;
-use nocter_model::{ValueApplication, ValueCode, ValueFunctionOrigin as Origin, ValueInvocation};
+use nocter_model::{ValueAppliedResult, ValueCode, ValueFunctionOrigin as Origin, ValueInvocation};
 use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Term {
-    Result(ValueCode),
-    Application(ValueApplication),
+    /// One callable leaf of the original named or anonymous body's result descriptor.
+    Result { code: ValueCode, ordinal: usize },
+    /// The corresponding result leaf of one whole call, not an additional invocation.
+    Application(ValueAppliedResult),
 }
 /// One reached source call's original callee and formal-to-producer alternatives.
 /// These sets select neither a correlated joint frame nor a concrete runtime value.
@@ -29,15 +31,14 @@ fn values(term: FunctionWitness, known: &Solutions) -> Result<Producers, ()> {
         Origin::Declaration(_) | Origin::Closure(_) | Origin::Parameter(_) => {
             Producers::from([term])
         }
-        Origin::Result(result) if result.ordinal == 0 => known
-            .get(&Term::Result(ValueCode::Declaration(result.owner)))
+        Origin::Result(result) => known
+            .get(&Term::Result {
+                code: ValueCode::Declaration(result.owner),
+                ordinal: result.ordinal,
+            })
             .ok_or(())?
             .clone(),
-        Origin::Application(result) if result.ordinal == 0 => known
-            .get(&Term::Application(result.application))
-            .ok_or(())?
-            .clone(),
-        Origin::Result(_) | Origin::Application(_) => return Err(()),
+        Origin::Application(result) => known.get(&Term::Application(result)).ok_or(())?.clone(),
     };
     selected
         .into_iter()
@@ -72,13 +73,22 @@ pub(super) fn solve(relations: &Relations) -> Result<Solutions, ()> {
                     }
                 }
                 Relation::Apply(invocation) => {
+                    let Term::Application(application) = term else {
+                        return Err(());
+                    };
                     let InvocationRecipe { callees, inputs } = invocation.as_ref();
                     for callee in callees {
                         for selected in values(*callee, &known)? {
                             let Some(code) = selected.origin.code() else {
                                 continue;
                             };
-                            for &result in known.get(&Term::Result(code)).ok_or(())? {
+                            for &result in known
+                                .get(&Term::Result {
+                                    code,
+                                    ordinal: application.ordinal,
+                                })
+                                .ok_or(())?
+                            {
                                 if let Origin::Parameter(parameter) = result.origin {
                                     if let Some(actuals) = inputs.get(&parameter) {
                                         for &actual in actuals {

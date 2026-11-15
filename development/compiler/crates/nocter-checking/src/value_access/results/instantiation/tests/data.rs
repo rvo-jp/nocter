@@ -282,7 +282,7 @@ fn an_unproduced_application_does_not_publish_even_declaration_closed_data() {
     insert_graph(&mut evidence, graph, &[]);
     evidence
         .applications
-        .insert(site, ApplicationEvidence::Unproduced);
+        .insert(site.into(), ApplicationEvidence::Unproduced);
     assert_eq!(
         data(program, &evidence, &frame, id(0), source, &mut budget()),
         Err(InstantiationFailure::Unresolved)

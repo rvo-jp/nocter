@@ -46,7 +46,10 @@ pub(super) fn solve(
                 .insert(&control.typed.source)
                 .map_err(|_| INVALID)?;
             equations.insert(
-                Term::Result(id),
+                Term::Result {
+                    code: id,
+                    ordinal: 0,
+                },
                 Relation::Union(report.returned.into_iter().map(|(w, _)| w).collect()),
             );
         }
@@ -62,19 +65,26 @@ pub(super) fn solve(
                 .get(&application)
                 .ok_or(INVALID)?
                 .clone();
-            equations.insert(Term::Application(application), Relation::Apply(invocation));
+            equations.insert(
+                Term::Application(application.into()),
+                Relation::Apply(invocation),
+            );
         }
     }
     // A received capture or transported result carries this exact family. A committed factory adds
     // producer facts here; an absent origin is an empty equation, not a signature-derived anchor.
     for application in referenced_applications {
         equations
-            .entry(Term::Application(application))
+            .entry(Term::Application(application.into()))
             .or_insert_with(|| Relation::Union(Producers::new()));
     }
     let solved = relations::solve(&equations).map_err(|()| INVALID)?;
     for (&origin, producers) in &solved {
-        let Term::Result(nocter_model::ValueCode::Declaration(id)) = origin else {
+        let Term::Result {
+            code: nocter_model::ValueCode::Declaration(id),
+            ordinal,
+        } = origin
+        else {
             continue;
         };
         let query = &controls
@@ -103,7 +113,10 @@ pub(super) fn solve(
         {
             return Err(INVALID);
         }
-        evidence.producers.insert(id, witness);
+        evidence.producers.insert(
+            nocter_model::ValueCallableResult { owner: id, ordinal },
+            witness,
+        );
     }
     close_applications(context, &controls, &committed, &solved, &mut evidence)?;
     // Keep the original source-flow equations, rather than rebuilding provenance from the
@@ -124,7 +137,7 @@ fn close_applications(
     let mut equations = summaries
         .iter()
         .map(|(&term, producers)| {
-            let producers = if matches!(term, Term::Result(_)) {
+            let producers = if matches!(term, Term::Result { .. }) {
                 producers.clone()
             } else {
                 Producers::new()
@@ -149,7 +162,7 @@ fn close_applications(
             let inputs = super::producers::application_inputs(query, id)
                 .map_err(accepted::Failure::Integrity)?;
             equations.insert(
-                Term::Application(application),
+                Term::Application(application.into()),
                 Relation::Apply(Arc::new(InvocationRecipe {
                     callees: BTreeSet::from([super::applications::callee(query, id)
                         .map_err(accepted::Failure::Integrity)?]),
@@ -163,17 +176,18 @@ fn close_applications(
         let Term::Application(application) = origin else {
             continue;
         };
-        let query = &controls.get(&application.owner).ok_or(INVALID)?.typed;
-        if producers.is_empty() && !committed.contains(&application) {
+        let site = application.application;
+        let query = &controls.get(&site.owner).ok_or(INVALID)?.typed;
+        if producers.is_empty() && !committed.contains(&site) {
             evidence
                 .applications
                 .insert(application, ApplicationEvidence::Unproduced);
             continue;
         }
-        let witness = single(&producers).ok_or_else(|| reject(context, query, Some(application.call),
+        let witness = single(&producers).ok_or_else(|| reject(context, query, Some(site.call),
             "this callable result application has no single established witness; an unknown-shaped input cannot supply a dependent result witness"))?;
         if let Origin::Parameter(parameter) = witness.origin
-            && query.program().parameter_owner(parameter) != Some(application.owner)
+            && query.program().parameter_owner(parameter) != Some(site.owner)
         {
             return Err(INVALID);
         }

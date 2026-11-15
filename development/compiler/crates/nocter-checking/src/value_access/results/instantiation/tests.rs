@@ -90,10 +90,13 @@ fn returned_closure_uses_its_actual_creation_frame_instead_of_the_outer_frames_b
         call: fixture.sites[1],
     };
     let mut evidence = Evidence::default();
+    evidence.applications.insert(
+        factory.into(),
+        ApplicationEvidence::Witness(fixture.captured),
+    );
     evidence
-        .applications
-        .insert(factory, ApplicationEvidence::Witness(fixture.captured));
-    evidence.producers.insert(fixture.creator, fixture.captured);
+        .producers
+        .insert(fixture.creator.into(), fixture.captured);
     let Origin::Closure(closure) = fixture.captured.origin else {
         unreachable!()
     };
@@ -108,7 +111,10 @@ fn returned_closure_uses_its_actual_creation_frame_instead_of_the_outer_frames_b
         ),
     );
     evidence.recipes.insert(
-        ProducerTerm::Result(fixture.creator.into()),
+        ProducerTerm::Result {
+            code: fixture.creator.into(),
+            ordinal: 0,
+        },
         ProducerRelation::Union(BTreeSet::from([fixture.captured])),
     );
     evidence.invocations.insert(

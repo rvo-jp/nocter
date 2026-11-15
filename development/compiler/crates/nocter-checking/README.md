@@ -413,11 +413,16 @@ a structural carrier transports its existing leaf relations. It cannot borrow an
 application. Committed calls propagate actual returned callable leaves and symbolic references
 through the same sparse producer facts. Missing source applications remain empty premises.
 `results::relations` owns one finite positive-equation solver for unions and selected applications.
-Return-summary terms use the named or anonymous code identity; applications consume the actual
-callee's summary and frozen inputs. A callee returned by another application resolves through those
-same equations. Result templates never supply return producers. Recursive substitution uses formal
+Return-summary terms pair the named or anonymous code identity with a callable-result leaf ordinal;
+application terms pair that ordinal with the original whole call. Applications consume the actual
+callee's matching leaf summary and frozen inputs, never a first-result fallback. A callee returned
+by another application resolves through those same equations. Result templates never supply return
+producers. Recursive substitution uses formal
 IDs and finite application nodes rather than expanding witness names. Unanchored recursion and
 heterogeneous return relations reject.
+The equation algebra supports independent component results, including empty producer sets and
+recursive leaf relations. Source result publication and payload admission remain separate: the
+currently qualified source producer path still emits only root-callable result equations.
 The established summaries then instantiate every typed call application through its frozen
 actual bindings, retaining known types even on interruption. A missing producer for an application
 without a reachable commit closes as explicit Unproduced evidence, preserving the structural
