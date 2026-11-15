@@ -43,6 +43,46 @@ fn private_contextual_absent_callable_arrays_preserve_supplied_environments_and_
 }
 
 #[test]
+fn private_compound_received_outcomes_keep_adjacent_owners_and_scalar_offsets() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-compound-outcome-control.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "compound-received-outcomes",
+        42,
+    );
+    let source = source
+        .replace("const ANSWER: i32 = calculate()", "")
+        .replace("const func", "func")
+        .replace(
+            "func addition(number: i32)",
+            "func addition(take reason: error, number: i32)",
+        )
+        .replace("(number; value: i32)", "(reason^, number; value: i32)")
+        .replace(
+            "addition(number)",
+            "addition(context_error(create_failure(\"held\", \"leaf\"), \"outer\"), number)",
+        )
+        .replace(
+            "addition(100)",
+            "addition(context_error(create_failure(\"adjacent\", \"leaf\"), \"outer\"), 100)",
+        );
+    let source = format!(
+        "primitive func create_failure(code: str, message: str): error\nprimitive func context_error(take value: error, message: str): error\n{source}"
+    );
+    execute_native_status(
+        &image(&trusted_error_machine(&source)),
+        &package.0,
+        "compound-received-error-environments",
+        42,
+    );
+}
+
+#[test]
 fn private_nested_received_outcomes_preserve_layers_and_owned_environment_cleanup() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

@@ -439,6 +439,11 @@ including absent and positive applications of the same body in required/native e
 owned error graphs and captured callable environments. Propagation stages the absence/error
 before ordinary cleanup; a projected fallible `?` still rejects at its source because read/edit
 access cannot transfer the caller's error.
+`received-compound-outcome-control.nct` qualifies the same continuation selection at a tuple
+component through take/read/edit inputs. A neighboring live callable and scalar field retain their
+independent domains and offsets. Only the selected empty primary continuation is excluded; the
+ordinary scalar condition and inhabited counterpart keep their branches. Distinct fallback/callback
+answers, required execution and native error-owning environments qualify remaining-container cleanup.
 `received-nested-outcome-control.nct` qualifies two optional layers through take/read/edit
 inputs. Outer absence and present-inner-absence share one canonical received representation, but
 their original outer tag test remains intact. Only the inner impossible callable continuation is
