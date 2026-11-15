@@ -368,10 +368,9 @@ impl Checker<'_, '_> {
         self.require_data(condition, self.data(BuiltinType::Bool), condition_node)?;
         let branches_reachable = reachable && self.ty(condition).may_complete();
         let known_condition = self.normal_boolean(condition);
-        // A terminating condition never reaches either branch's outgoing value boundary.
-        // Still type-check each branch's own declarations, operations and explicit returns.
+        // A terminating condition never reaches either branch's exact outgoing value boundary.
+        // Retain construction shape for dormant declarations/operations without a value receipt.
         let expected = expected.filter(|_| self.ty(condition).may_complete());
-        let construction = construction.filter(|_| self.ty(condition).may_complete());
         let alternative = self.direct(node, NodeKind::ElseClause).ok();
         let [then_block, else_block] = if alternative.is_some() {
             self.conditional_blocks(

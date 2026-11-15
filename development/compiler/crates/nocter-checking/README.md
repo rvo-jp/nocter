@@ -2343,8 +2343,10 @@ When one contextual conditional branch recursively constructs only literal absen
 value-bearing branch against the authored constraint first, then use its known outcome descriptor
 as the absence-only branch's construction context. Each branch body is checked once; the original
 graph retains its condition and source-ordered statements. No foreign input witness is equated to
-the callable merely to type the absence. Interrupted branches retain their lack of normal completion:
-known shape supplies no runtime payload or callable receipt. `construction::absence` owns the
+the callable merely to type the absence. Interrupted branches retain their lack of normal completion.
+A condition that cannot complete drops exact outgoing value boundaries but retains construction
+shape for dormant branch checks; it supplies no runtime payload or callable receipt.
+`construction::absence` owns the
 memoized syntax-only query shared by arrays and conditional results, discarded with the body builder. It neither
 infers named-value tags nor replaces producer evidence. The shared source covers either branch order,
 nested absence-only branches, source-ordered updates, `else if` results and earlier returns in one or

@@ -219,6 +219,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   Preserve actual branch witnesses, statically selected application descriptors, runtime-selected
   captured environments, dormant signature checks and interrupted formation through required/native
   consumers. Keep exact local/parameter identities separate from construction constraints.
+- [x] Retain contextual construction shape when a conditional's condition cannot complete.
+  Check dormant branch contracts without inventing a produced value or committed call, and
+  preserve cleanup of already prepared callable prefixes through required/native execution.
 - [x] Close conditional branch context selection for recursively absence-only results.
   Choose the supplied descriptor before checking the absence-only branch once, retaining
   source effects, interrupted shapes and dormant checks without rechecking bodies or binding
