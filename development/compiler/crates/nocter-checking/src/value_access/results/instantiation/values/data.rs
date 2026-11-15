@@ -34,11 +34,12 @@ impl Query<'_, '_> {
         if matches!(schema, PayloadSchema::Function(_)) {
             return self.source_function_data(owner, frame, value, path, target);
         }
-        if let ValueSource::Merge { ref inputs, .. } | ValueSource::Alternatives(ref inputs) =
-            node.value
-        {
+        if matches!(
+            node.value,
+            ValueSource::Merge { .. } | ValueSource::Alternatives(_)
+        ) {
             let mut fact = Fact::Empty;
-            for &input in inputs {
+            for input in node.value.inputs() {
                 fact = fact
                     .join(self.read(owner, Key::Data(frame.clone(), input, path.clone(), target))?);
             }

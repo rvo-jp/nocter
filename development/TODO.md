@@ -208,6 +208,10 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   retain original tag effects, traps and exact call/resource phases.
   Carry selected predecessor evidence through recovery/result merges and partially active const
   selections; the original source graph must not join an impossible positive payload as a value.
+- [x] Preserve each sparse source merge's original predecessor boundary and supplied definition
+  as one paired relation. Do not deduplicate equal definitions into an uncorrelated set or infer
+  selected incoming edges merely from producer-point reachability. Qualify unchanged conservative
+  consumers, branch joins, shared incoming definitions and anchored loop backedges.
 - [x] Qualify a same-witness recovery join from a received callable array with distinct captured
   payloads, both active/absent tags, partial transfers and remaining-owner/error cleanup.
 - [x] Close contextual callable-array construction for mixed literal absence and positive

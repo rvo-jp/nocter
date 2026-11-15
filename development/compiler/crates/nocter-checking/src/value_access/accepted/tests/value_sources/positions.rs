@@ -4,6 +4,67 @@ use crate::value_access::{InstantiationFailure, ValueSourceSelection};
 use crate::value_access::{Referent, ValueSourceBoundary, ValueSourceRead, ValueSourceSlot, flow};
 
 #[test]
+fn sparse_merges_pair_each_original_predecessor_with_its_reaching_definition() {
+    for source in [
+        "func run(flag: bool): i32 { var value = 40\nif flag { value = 41 } else { value = 42 }\nvalue }",
+        "func run(flag: bool): i32 { var value = 40\nwhile flag { value = 42 }\nvalue }",
+        "func run(flag: bool): i32 { var value = 42\nif flag { let _ = value } else { let _ = value }\nvalue }",
+    ] {
+        let unit = accepted(source);
+        let owner = code(&unit, "run");
+        let sources = unit.value_sources(owner).unwrap();
+        let positions = sources.flow().unwrap();
+        let graph = unit.code_body(owner).unwrap().graph();
+        let mut joins = 0;
+        for (_, node) in sources.nodes() {
+            let ValueSource::Merge {
+                point,
+                slot,
+                inputs,
+            } = &node.value
+            else {
+                continue;
+            };
+            let predecessors = graph
+                .points()
+                .iter()
+                .filter(|(_, block)| block.terminator.successors().contains(point))
+                .map(|(point, block)| ValueSourceBoundary {
+                    point,
+                    action: block.actions.len(),
+                })
+                .collect::<BTreeSet<_>>();
+            assert_ne!(
+                *point,
+                graph.entry(),
+                "entry values are not predecessor edges"
+            );
+            assert_eq!(
+                inputs.keys().copied().collect::<BTreeSet<_>>(),
+                predecessors
+            );
+            joins += usize::from(inputs.len() > 1);
+            for (&boundary, &value) in inputs {
+                match positions.read(boundary, *slot).unwrap() {
+                    ValueSourceRead::Value(expected) => assert_eq!(value, expected),
+                    ValueSourceRead::Empty => {
+                        assert_eq!(sources.node(value).unwrap().value, ValueSource::Empty);
+                    }
+                    ValueSourceRead::Incoming(_) => {
+                        assert!(matches!(
+                            sources.node(value).unwrap().value,
+                            ValueSource::Merge { point, slot: selected, .. }
+                                if point == boundary.point && selected == *slot
+                        ));
+                    }
+                }
+            }
+        }
+        assert!(joins > 0, "the source must exercise a real control join");
+    }
+}
+
+#[test]
 fn committed_reference_inputs_use_current_referents_while_materialized_inputs_keep_preparation() {
     use crate::value_access::ArgumentAction;
     let unit = accepted(

@@ -41,7 +41,8 @@ fn has_primary_construction(
         if !seen.insert(id) {
             continue;
         }
-        match &graph.node(id).unwrap().value {
+        let value = &graph.node(id).unwrap().value;
+        match value {
             ValueSource::Aggregate(fields)
                 if fields
                     .iter()
@@ -50,8 +51,8 @@ fn has_primary_construction(
                 return true;
             }
             ValueSource::Adapt { source } => pending.push(*source),
-            ValueSource::Merge { inputs, .. } | ValueSource::Alternatives(inputs) => {
-                pending.extend(inputs);
+            ValueSource::Merge { .. } | ValueSource::Alternatives(_) => {
+                pending.extend(value.inputs());
             }
             _ => {}
         }

@@ -220,9 +220,9 @@ impl Query<'_, '_> {
             ValueSource::Input { local, origin } => {
                 self.source_input(frame, node.data, local, origin, path)
             }
-            ValueSource::Merge { inputs, .. } | ValueSource::Alternatives(inputs) => {
+            ValueSource::Merge { .. } | ValueSource::Alternatives(_) => {
                 let mut fact = Fact::Empty;
-                for input in inputs {
+                for input in node.value.inputs() {
                     fact = fact
                         .join(self.read(owner, Key::Value(frame.clone(), input, path.clone()))?);
                 }

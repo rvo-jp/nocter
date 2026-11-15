@@ -69,9 +69,7 @@ fn formation(
 }
 fn edges(value: &ValueSource) -> Vec<ValueSourceId> {
     match value {
-        ValueSource::Merge { inputs, .. } | ValueSource::Alternatives(inputs) => {
-            inputs.iter().copied().collect()
-        }
+        ValueSource::Merge { .. } | ValueSource::Alternatives(_) => value.inputs().collect(),
         ValueSource::Select { source, .. }
         | ValueSource::Adapt { source }
         | ValueSource::Transport { source }

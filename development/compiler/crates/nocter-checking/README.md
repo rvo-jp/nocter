@@ -431,7 +431,11 @@ and instance refinement share `flow::assertion_source`; value checks resolve the
 operand snapshot, while read/edit checks resolve the selected referent. Required execution reports
 the original `!` as an inactive-variant trap, and native execution preserves the safety trap and
 inhabited counterparts. Recovery/result joins and partially active const selections remain
-separate qualification obligations.
+separate qualification obligations. Each sparse source merge retains its original predecessor
+endpoint paired with the incoming definition; equal incoming values do not erase edge identity.
+Entry values use direct adaptation, and an absent reaching definition stays empty. Conservative
+consumers enumerate every possible input through this one relation. Selecting an edge must use
+the original predecessor's selected terminator, not the origin or reachability of its producer.
 
 `received-outcome-propagation.nct` qualifies optional propagation through take/read/edit inputs,
 including absent and positive applications of the same body in required/native execution.

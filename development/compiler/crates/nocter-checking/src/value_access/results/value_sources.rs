@@ -64,7 +64,8 @@ pub enum ValueSource {
     Merge {
         point: AccessFlowPointId,
         slot: ValueSourceSlot,
-        inputs: BTreeSet<ValueSourceId>,
+        /// Actual predecessor endpoints paired with their selected source definitions.
+        inputs: BTreeMap<ValueSourceBoundary, ValueSourceId>,
     },
     Select {
         source: ValueSourceId,
@@ -109,6 +110,22 @@ pub enum ValueSource {
     },
     /// Scalar operations and context effects not interpreted by this metadata graph.
     Opaque,
+}
+impl ValueSource {
+    /// Possible incoming values, retaining predecessor correspondence in the owning merge.
+    /// Enumerating these values does not select a control edge or prove value availability.
+    pub fn inputs(&self) -> impl Iterator<Item = ValueSourceId> + '_ {
+        let (incoming, alternatives) = match self {
+            Self::Merge { inputs, .. } => (Some(inputs), None),
+            Self::Alternatives(inputs) => (None, Some(inputs)),
+            _ => (None, None),
+        };
+        incoming
+            .into_iter()
+            .flat_map(BTreeMap::values)
+            .chain(alternatives.into_iter().flat_map(BTreeSet::iter))
+            .copied()
+    }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ValueSourceNode {

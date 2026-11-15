@@ -129,8 +129,8 @@ impl Query<'_, '_> {
                 ValueSource::Adapt { source } | ValueSource::Transport { source } => {
                     *source == value
                 }
-                ValueSource::Merge { inputs, .. } | ValueSource::Alternatives(inputs) => {
-                    inputs.contains(&value)
+                ValueSource::Merge { .. } | ValueSource::Alternatives(_) => {
+                    node.value.inputs().any(|input| input == value)
                 }
                 _ => false,
             };

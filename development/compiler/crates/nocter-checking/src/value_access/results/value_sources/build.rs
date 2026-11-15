@@ -162,31 +162,28 @@ impl Builder<'_> {
         use super::{ValueSourceBoundary, ValueSourceRead};
         while let Some((point, slot)) = self.pending.pop() {
             let id = self.incoming[&(point, slot)];
-            let mut inputs = BTreeSet::new();
             let boundary = ValueSourceBoundary { point, action: 0 };
-            match positions.read(boundary, slot).ok_or(INVALID)? {
-                ValueSourceRead::Empty => {
-                    inputs.insert(ValueSourceId(0));
-                }
-                ValueSourceRead::Value(value) => {
-                    inputs.insert(value);
-                }
+            let value = match positions.read(boundary, slot).ok_or(INVALID)? {
+                ValueSourceRead::Empty => ValueSource::Empty,
+                ValueSourceRead::Value(source) => ValueSource::Adapt { source },
                 ValueSourceRead::Incoming(previous) => {
+                    let mut inputs = BTreeMap::new();
                     for previous in previous {
                         let value = match positions.read(previous, slot).ok_or(INVALID)? {
                             ValueSourceRead::Empty => ValueSourceId(0),
                             ValueSourceRead::Value(value) => value,
                             ValueSourceRead::Incoming(_) => self.entry(previous.point, slot),
                         };
-                        inputs.insert(value);
+                        inputs.insert(previous, value);
+                    }
+                    ValueSource::Merge {
+                        point,
+                        slot,
+                        inputs,
                     }
                 }
-            }
-            self.nodes[id.0].value = ValueSource::Merge {
-                point,
-                slot,
-                inputs,
             };
+            self.nodes[id.0].value = value;
             self.nodes[id.0].data = slot.data(self.query)?;
         }
         Ok(())
