@@ -731,7 +731,9 @@ or retains a proved-unproduced application's contract. During that same traversa
 the resolved data and source access. Unproduced supplies close explicitly without choosing Copy
 or move. `results::unproduced` rejects any reached evaluation, input preparation, forwarding,
 binding, value consumption or call commit using this absent data. This proof runs before
-initialization over the same graph. Schema cleanup projection rejects result/application keys;
+initialization over the same graph. Schema cleanup projection rejects unguarded result/application
+roots; outcome-guarded obligations still require concrete or explicitly excluded component data
+when consumers specialize them. These obligations supply no positive function value. Separately,
 the accepted Unit's `DataEvidence` distinguishes payloads from unproduced structural shapes.
 Positive tuple/array payload edges propagate an unproduced component; a zero array has no such
 element edge. The marker adds no duplicate signature: the existing Program remains the shape and
@@ -1814,8 +1816,16 @@ only an excluded target with no reached call, or an empty-domain data operation 
 or definition occurrence; fixed forbidden operations in dormant source remain checked. A positive
 producer with the same signature keeps its ordinary call and result. The matching error fixture
 qualifies value propagation, named/discarded recovery and read recovery with actual error-graph
-cleanup. Missing transfers and use of a dropped carrier still reject. Assertions and representation
-widening retain their separate qualification boundaries.
+cleanup. Missing transfers and use of a dropped carrier still reject. Representation widening
+retains its separate qualification boundary.
+`flow::outcome_domains` also refines an assertion's impossible continuation. Initial control
+construction gives each owning/scoped variant check a separate continuation point. Domain closure
+can mark that existing outgoing edge unreachable while preserving the original check, its action
+identity, preparation effects and non-unwinding trap. Source actions are never truncated or moved
+to new identities during refinement. Required execution of excluded callable assertions reports
+the original inactive-variant failure and source span for value/read/edit forms. Native qualification
+covers those assertions for absence and actual owned failure graphs, with prior exits preserved;
+inhabited counterparts retain their ordinary result.
 `contextual-compound-edits.nct` additionally qualifies scalar updates through edit tuple inputs,
 forwarded updates and caller reads after completion while the callable context remains unchanged.
 The matching error fixture executes actual cleanup after both updates. Receiving/caller descriptors

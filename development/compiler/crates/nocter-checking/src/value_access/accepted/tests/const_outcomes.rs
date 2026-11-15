@@ -62,6 +62,45 @@ fn success_propagation_does_not_materialize_its_impossible_error_case() {
 }
 
 #[test]
+fn excluded_callable_assertions_preserve_the_original_trap() {
+    for (binding, site) in [
+        ("let action = value^!", "value^!"),
+        ("read action = value!", "value!"),
+        ("edit action = value!", "value!"),
+    ] {
+        let source = format!(
+            "const func absent(): (func(): i32)? {{ none }}\nconst func calculate(): i32 {{ var value = absent()\n{binding}\naction() }}\nconst VALUE: i32 = calculate()"
+        );
+        let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+        let failure = SourceUnit::prepare(fixture.syntax()).unwrap_err();
+        let SourceFailure::Checking(Failure::Evaluation { diagnostic, .. }) = failure else {
+            panic!("expected original assertion failure: {failure:?}");
+        };
+        assert_eq!(
+            diagnostic.rule(),
+            crate::value_access::evaluation::Rule::Execution(
+                nocter_constant_evaluation::state::Rule::InactiveVariant
+            )
+        );
+        assert_eq!(
+            fixture
+                .syntax()
+                .text_at(diagnostic.source().primary().span().range()),
+            Some(site)
+        );
+        let present = source.replace(
+            "const func absent(): (func(): i32)? { none }",
+            "const func live(): i32 { 7 }\nconst func absent(): (func(): i32)? { live }",
+        );
+        assert_ne!(source, present);
+        assert_eq!(
+            super::initializers::answer(&present, "VALUE"),
+            Datum::integer(7)
+        );
+    }
+}
+
+#[test]
 fn an_uninhabited_projection_still_performs_its_variant_assertion() {
     let fixture = nocter_test_support::ValueSourceFixture::new(
         "const func fail(): i32! { let value: error? = none\nthrow value^! }\nconst VALUE: i32! = fail()",

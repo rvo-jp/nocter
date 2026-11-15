@@ -24,9 +24,8 @@ The [checking](compiler/crates/nocter-checking/README.md) and
 [target-program](compiler/crates/nocter-target-program/README.md) owners describe the implemented
 canonical metadata, original source-definition queries and ordered lifecycle specialization.
 
-Continue producer-less outcome qualification with assertions, preserving original tag evaluation
-and required traps without inventing positive continuations. Then
-qualify representation widening and application-specific empty received contexts while preserving
+Continue producer-less outcome qualification with representation widening and application-specific
+empty received contexts, preserving original tag evaluation, required traps and
 exact result-leaf, call and code contexts through each consumer. Continue context-changing updates through edit input boundaries,
 partial carrier-root selection and context-changing evaluator slots against
 the exact per-value keys. The component owners above describe covered ordinary operand/definition,
@@ -172,6 +171,10 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   excluding impossible positive continuations; a guarded empty descriptor is not a callable value.
 - [x] Qualify value/read/edit recovery and value propagation of excluded primary callable
   domains through the shared original flow graph, const obligations and native error cleanup.
+- [x] Qualify value/read/edit assertions of excluded primary callable domains through original
+  const trap diagnostics and actual native safety traps, preserving earlier exits and inhabited
+  counterparts. Represent check continuations in the original graph before domain refinement;
+  do not truncate actions, move identities or invent a positive payload after a guaranteed trap.
 - [x] Qualify excluded-outcome runtime descriptors, canonical target interning and physical layouts
   without a positive child or field geometry. Reject empty roots/slots and construction of excluded tags.
 - [x] Extend the declaration-owned data-instance fold to validated callable domains, preserving

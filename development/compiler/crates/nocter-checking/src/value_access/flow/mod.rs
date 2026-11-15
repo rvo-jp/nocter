@@ -7,6 +7,7 @@ mod build;
 pub(super) mod call_writes;
 mod initialization;
 mod numeric;
+mod outcome_domains;
 mod projection;
 pub mod resources;
 #[cfg(test)]
@@ -258,37 +259,6 @@ pub(super) fn scope<'a>(
     Ok(scope)
 }
 impl Control {
-    /// Refine proved-impossible outcome edges while preserving every original action and ID.
-    pub(super) fn refine_outcome_domains(&mut self) -> Result<(), IntegrityError> {
-        let typed = &self.typed;
-        let Some(evidence) = typed.result_evidence.as_ref() else {
-            return Ok(());
-        };
-        self.graph.points = self.graph.points.try_map(|_, point| {
-            let mut point = point.clone();
-            if let Terminator::Branch { condition, no, .. } = point.terminator {
-                let expression = typed
-                    .body()
-                    .expressions()
-                    .get(condition)
-                    .ok_or(IntegrityError::InconsistentTypedBody)?;
-                if let super::ExpressionKind::PrimaryCondition { source } = expression.kind {
-                    let data = typed
-                        .body()
-                        .referent_data(source)
-                        .ok_or(IntegrityError::InconsistentTypedBody)?;
-                    if evidence.excludes_primary(typed.program(), data) {
-                        point.terminator = Terminator::Jump(no);
-                    }
-                }
-            }
-            Ok(point)
-        })?;
-        for nested in Arc::make_mut(&mut self.typed).closures.values_mut() {
-            nested.refine_outcome_domains()?;
-        }
-        Ok(())
-    }
     pub(super) fn prepare(typed: Arc<TypedQuery>) -> Result<Self, IntegrityError> {
         super::body_inputs::layout(&typed)?;
         let graph = build::build(typed.body())?;

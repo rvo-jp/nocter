@@ -487,10 +487,27 @@ impl Builder<'_> {
             | ExpressionKind::GuardView { .. }
             | ExpressionKind::PrimaryCondition { .. } => Some(entry),
         };
-        if let Some(point) = end {
-            self.action(point, origin, Operation::Evaluate(id))?;
+        end.map(|point| self.complete_expression(id, point))
+            .transpose()
+    }
+    fn complete_expression(
+        &mut self,
+        id: AccessExpressionId,
+        point: AccessFlowPointId,
+    ) -> Result<AccessFlowPointId> {
+        self.action(point, Origin::Expression(id), Operation::Evaluate(id))?;
+        if matches!(
+            self.body.expressions().get(id).ok_or(INVALID)?.kind,
+            ExpressionKind::RequirePrimary { .. } | ExpressionKind::GuardView { .. }
+        ) {
+            // The check may terminate without unwinding. Keep its continuation distinct so
+            // later domain refinement never removes/reorders the original check or effects.
+            let continuation = self.point();
+            self.terminate(point, Terminator::Jump(continuation))?;
+            Ok(continuation)
+        } else {
+            Ok(point)
         }
-        Ok(end)
     }
     fn selection_chain(
         &mut self,

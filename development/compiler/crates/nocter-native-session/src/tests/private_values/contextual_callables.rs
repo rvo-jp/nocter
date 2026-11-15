@@ -73,6 +73,46 @@ fn private_producerless_outcome_guards_preserve_actual_error_cleanup() {
 }
 
 #[test]
+fn private_excluded_callable_assertions_keep_the_required_traps() {
+    let package = TempPackage::new();
+    for (index, binding) in [
+        "let action = value^!",
+        "read action = value!",
+        "edit action = value!",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let source = format!(
+            "func absent(): (func(): i32)? {{ none }}\nfunc run(): i32 {{ var value = absent()\n{binding}\naction() }}"
+        );
+        execute_native_signal(
+            &compile(&source),
+            &package.0,
+            &format!("excluded-optional-assertion-{index}"),
+            5,
+        );
+        let source = format!(
+            "primitive func create_failure(code: str, message: str): error\nprimitive func context_error(take value: error, message: str): error\nfunc failed(): (func(): i32)! {{ throw context_error(create_failure(\"failed\", \"leaf\"), \"outer\") }}\nfunc run(): i32 {{ var value = failed()\n{binding}\naction() }}"
+        );
+        let machine = trusted_error_machine(&source);
+        execute_native_signal(
+            &image(&machine),
+            &package.0,
+            &format!("excluded-failure-assertion-{index}"),
+            5,
+        );
+    }
+    let source = "func absent(): (func(): i32)? { none }\nfunc run(): i32 { let value = absent()\nlet action = (if true { return 42 } else { value^ })!\naction() }";
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "exit-before-excluded-assertion",
+        42,
+    );
+}
+
+#[test]
 fn private_outcome_results_preserve_callable_values_and_absence() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
