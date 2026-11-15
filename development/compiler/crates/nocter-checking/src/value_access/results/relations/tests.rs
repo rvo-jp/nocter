@@ -36,11 +36,18 @@ fn selected_and_unproduced_evidence_belongs_to_the_exact_result_leaf() {
         ordinal: 2,
     };
     assert!(evidence.selected(Origin::Application(absent)).is_none());
-    assert!(!evidence.unproduced_origin(Origin::Application(absent)));
+    assert!(!evidence.has_no_callable_value(Origin::Application(absent)));
     evidence
         .applications
-        .insert(absent, ApplicationEvidence::Unproduced);
-    assert!(evidence.unproduced_origin(Origin::Application(absent)));
+        .insert(absent, ApplicationEvidence::Uncommitted);
+    assert!(evidence.has_no_callable_value(Origin::Application(absent)));
+    assert!(!evidence.uninhabited_origin(Origin::Application(absent)));
+    evidence
+        .applications
+        .insert(absent, ApplicationEvidence::Uninhabited);
+    assert!(evidence.has_no_callable_value(Origin::Application(absent)));
+    assert!(evidence.uninhabited_origin(Origin::Application(absent)));
+    assert!(!evidence.uncommitted_application(application));
     assert!(evidence.selected(Origin::Application(absent)).is_none());
     assert!(
         evidence
@@ -50,6 +57,20 @@ fn selected_and_unproduced_evidence_belongs_to_the_exact_result_leaf() {
             }))
             .is_none()
     );
+    let mut expressions = ArenaBuilder::<AccessExpressionId, ()>::new();
+    expressions.insert(());
+    let other_call = ValueApplication {
+        owner: maker.into(),
+        call: expressions.insert(()),
+    };
+    evidence
+        .applications
+        .insert(other_call.into(), ApplicationEvidence::Uncommitted);
+    assert!(evidence.uncommitted_application(other_call));
+    evidence
+        .applications
+        .insert(other_call.into(), ApplicationEvidence::Uninhabited);
+    assert!(!evidence.uncommitted_application(other_call));
     for (ordinal, witness) in witnesses.into_iter().enumerate() {
         let result = Origin::Result(ValueCallableResult {
             owner: maker,
@@ -61,7 +82,7 @@ fn selected_and_unproduced_evidence_belongs_to_the_exact_result_leaf() {
         });
         assert_eq!(evidence.selected(result), Some(witness));
         assert_eq!(evidence.selected(applied), Some(witness));
-        assert!(!evidence.unproduced_origin(applied));
+        assert!(!evidence.has_no_callable_value(applied));
     }
 }
 
@@ -154,6 +175,57 @@ fn an_application_relation_cannot_be_attached_to_a_body_result_term() {
         )]))
         .is_err()
     );
+}
+
+#[test]
+fn closed_empty_proof_requires_known_call_targets_and_complete_equations() {
+    let mut codes = ArenaBuilder::<AccessCodeId, ()>::new();
+    let maker = codes.insert(());
+    let owner = codes.insert(());
+    let application = ValueApplication {
+        owner: owner.into(),
+        call: ArenaBuilder::<AccessExpressionId, ()>::new().insert(()),
+    };
+    let result = Term::Result {
+        code: maker.into(),
+        ordinal: 0,
+    };
+    let applied = Term::Application(application.into());
+    let mut equations = Relations::from([
+        (result, Relation::Union(Producers::new())),
+        (
+            applied,
+            Relation::Apply(Arc::new(InvocationRecipe {
+                callees: Producers::from([maker.into()]),
+                inputs: Inputs::new(),
+            })),
+        ),
+    ]);
+    let known = solve(&equations).unwrap();
+    assert!(closed_empty(result, &equations, &known));
+    assert!(closed_empty(applied, &equations, &known));
+    equations.remove(&result);
+    assert!(!closed_empty(applied, &equations, &known));
+    let parameter = ValueParameter::Closure {
+        owner: ValueClosure {
+            owner: owner.into(),
+            slot: 0,
+        },
+        position: 0,
+    };
+    equations.insert(
+        applied,
+        Relation::Apply(Arc::new(InvocationRecipe {
+            callees: Producers::from([FunctionWitness {
+                origin: Origin::Parameter(parameter),
+                invocation: ValueInvocation::Read,
+            }]),
+            inputs: Inputs::new(),
+        })),
+    );
+    let known = solve(&equations).unwrap();
+    assert!(known[&applied].is_empty());
+    assert!(!closed_empty(applied, &equations, &known));
 }
 
 #[test]

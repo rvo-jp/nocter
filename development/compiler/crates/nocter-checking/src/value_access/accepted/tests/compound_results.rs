@@ -13,6 +13,38 @@ const OUTCOMES: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../tests/fixtures/native/value-access/contextual-outcome-results.nct"
 ));
+const PRODUCERLESS: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../tests/fixtures/native/value-access/producerless-outcome-results.nct"
+));
+
+#[test]
+fn producerless_optional_results_preserve_the_completed_carrier() {
+    let source = PRODUCERLESS;
+    let unit = accepted(
+        &source
+            .replace("const ANSWER: i32 = calculate()", "")
+            .replace("const func", "func"),
+    );
+    assert_outcome_contracts(&unit);
+    assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
+}
+
+#[test]
+fn producerless_fallible_results_preserve_actual_error_carriers() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/producerless-outcome-results-errors.nct"
+    ));
+    let (sources, tree) = input(source);
+    let unit = SourceUnit::prepare_with_primitive_authority(
+        bound(&sources, &tree),
+        &super::primitives::authority(),
+    )
+    .unwrap()
+    .into_unit();
+    assert_outcome_contracts(&unit);
+}
 
 #[test]
 fn optional_callable_results_preserve_present_and_absent_returns() {
@@ -22,59 +54,37 @@ fn optional_callable_results_preserve_present_and_absent_returns() {
             .replace("const ANSWER: i32 = calculate()", "")
             .replace("const func", "func"),
     );
-    for (id, body) in unit.bodies() {
-        if let Ok(frame) = unit.program().bind_code(body.typed().code(), []) {
-            unit.instantiate_value_data_map(
-                &frame,
-                &mut WorkBudget::new(NonZeroU64::new(100_000).unwrap()),
-            )
-            .unwrap_or_else(|failure| {
-                panic!(
-                    "{} values: {failure:?}",
-                    unit.program().code_label(id).unwrap()
-                )
-            });
-            assert_resources(&unit, &frame, body);
-            unit.instantiate_result_contract(
-                &frame,
-                &mut WorkBudget::new(NonZeroU64::new(100_000).unwrap()),
-            )
-            .unwrap_or_else(|failure| {
-                panic!(
-                    "{} result: {failure:?}",
-                    unit.program().code_label(id).unwrap()
-                )
-            });
-        }
-    }
+    assert_outcome_contracts(&unit);
     assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
 }
 
 #[test]
 fn outcome_result_metadata_preserves_quotas_and_healthy_retry() {
     use crate::value_access::InstantiationFailure;
-    let unit = accepted(
-        &OUTCOMES
-            .replace("const ANSWER: i32 = calculate()", "")
-            .replace("const func", "func"),
-    );
-    let code = unit
-        .program()
-        .resolve(unit.program().symbols().get("choose_owned").unwrap())
-        .unwrap();
-    let frame = unit.program().bind_code(code.into(), []).unwrap();
-    let budget = |units| WorkBudget::new(NonZeroU64::new(units).unwrap());
-    let expected = unit
-        .instantiate_result_contract(&frame, &mut budget(100_000))
-        .unwrap();
-    assert_eq!(
-        unit.instantiate_result_contract(&frame, &mut budget(1)),
-        Err(InstantiationFailure::WorkLimit)
-    );
-    assert_eq!(
-        unit.instantiate_result_contract(&frame, &mut budget(100_000)),
-        Ok(expected)
-    );
+    for (source, name) in [(OUTCOMES, "choose_owned"), (PRODUCERLESS, "forward")] {
+        let unit = accepted(
+            &source
+                .replace("const ANSWER: i32 = calculate()", "")
+                .replace("const func", "func"),
+        );
+        let code = unit
+            .program()
+            .resolve(unit.program().symbols().get(name).unwrap())
+            .unwrap();
+        let frame = unit.program().bind_code(code.into(), []).unwrap();
+        let budget = |units| WorkBudget::new(NonZeroU64::new(units).unwrap());
+        let expected = unit
+            .instantiate_result_contract(&frame, &mut budget(100_000))
+            .unwrap();
+        assert_eq!(
+            unit.instantiate_result_contract(&frame, &mut budget(1)),
+            Err(InstantiationFailure::WorkLimit)
+        );
+        assert_eq!(
+            unit.instantiate_result_contract(&frame, &mut budget(100_000)),
+            Ok(expected)
+        );
+    }
 }
 
 #[test]
@@ -93,8 +103,7 @@ fn outcome_result_representations_do_not_grant_transfers_code_identity_or_const_
             "func forward(present: bool): (func(bool): i32)?",
         ),
         OUTCOMES.replace("const func identity(", "func identity("),
-        "func absent(): (func(i32): i32)? { none }\nfunc run(): void { let value = absent() }"
-            .to_owned(),
+        "func unresolved(): func(): i32 { unresolved() }".to_owned(),
     ]
     .into_iter()
     .enumerate()
@@ -322,6 +331,34 @@ fn assert_resources(unit: &Unit, caller: &CodeInstanceKey, body: &flow::Query) {
                         )
                     });
             }
+        }
+    }
+}
+
+fn assert_outcome_contracts(unit: &Unit) {
+    for (id, body) in unit.bodies() {
+        if let Ok(frame) = unit.program().bind_code(body.typed().code(), []) {
+            unit.instantiate_value_data_map(
+                &frame,
+                &mut WorkBudget::new(NonZeroU64::new(100_000).unwrap()),
+            )
+            .unwrap_or_else(|failure| {
+                panic!(
+                    "{} values: {failure:?}",
+                    unit.program().code_label(id).unwrap()
+                )
+            });
+            assert_resources(unit, &frame, body);
+            unit.instantiate_result_contract(
+                &frame,
+                &mut WorkBudget::new(NonZeroU64::new(100_000).unwrap()),
+            )
+            .unwrap_or_else(|failure| {
+                panic!(
+                    "{} result: {failure:?}",
+                    unit.program().code_label(id).unwrap()
+                )
+            });
         }
     }
 }

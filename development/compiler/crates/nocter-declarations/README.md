@@ -334,6 +334,10 @@ outcome layers and visits shared schemas once, independently of array cardinalit
 `matches_uninhabited_metadata` compares declaration-owned data contracts while permitting
 signature-equivalent callable descriptors only below an empty array. Positive leaves and nominal
 identities remain exact. It grants no element value or Copy evidence to the element itself.
+`matches_uninhabited_metadata_with` additionally reconciles callable leaves when both have an
+independently proved empty domain and the same callable contract. One empty side cannot substitute
+a produced callable. Concrete data-instance comparison uses that rule only after both keys have
+explicit empty domains; it does not infer emptiness from missing code or a matching signature.
 `BodyTypes::application` publishes independent applied-result templates and rebuilds their
 containing structural types in one atomic extension. These are descriptors of one original call,
 not extra invocations or concrete results. Empty arrays publish no applied element template;

@@ -200,12 +200,21 @@ impl Context<'_, '_> {
                     .iter()
                     .map(|field| (field.field, Holder::Expression(field.value).place()))
                     .collect::<Vec<_>>();
-                self.world.resources.assemble(
+                let typed = self.typed;
+                self.world.resources.assemble_with(
                     self.typed.program(),
                     Holder::Expression(id),
                     resources::expression_payload(self.typed, id)?,
                     &fields,
                     &mut self.steps,
+                    |actual, expected| {
+                        typed
+                            .result_evidence
+                            .as_ref()
+                            .map_or(actual == expected, |evidence| {
+                                evidence.matches_payload_metadata(typed.program(), actual, expected)
+                            })
+                    },
                 )?;
             }
             ExpressionKind::Repeat { seed } => self.repeat_ownership(id, seed)?,

@@ -59,6 +59,7 @@ pub(super) struct Equality {
 #[derive(Clone, Debug, Default)]
 pub(super) struct Evidence {
     producers: BTreeMap<ValueCallableResult, FunctionWitness>,
+    uninhabited_results: std::collections::BTreeSet<ValueCallableResult>,
     recipes: relations::Relations,
     invocations: BTreeMap<ValueApplication, Arc<InvocationRecipe>>,
     creations: BTreeMap<nocter_model::ValueClosure, CreationRecipe>,
@@ -70,7 +71,9 @@ pub(super) struct Evidence {
 enum ApplicationEvidence {
     Witness(FunctionWitness),
     /// The structural contract is known, but no reachable invocation produces this value.
-    Unproduced,
+    Uncommitted,
+    /// The call can complete, but this leaf has no represented callable values.
+    Uninhabited,
 }
 pub(super) struct Verified<'a, 'source> {
     pub(super) evidence: &'a Evidence,
@@ -107,13 +110,13 @@ impl Evidence {
             ValueFunctionOrigin::Result(result) => self.producers.get(&result).copied(),
             ValueFunctionOrigin::Application(result) => match self.applications.get(&result)? {
                 ApplicationEvidence::Witness(witness) => Some(*witness),
-                ApplicationEvidence::Unproduced => None,
+                ApplicationEvidence::Uncommitted | ApplicationEvidence::Uninhabited => None,
             },
             _ => None,
         }
     }
     fn origin(&self, origin: ValueFunctionOrigin) -> Result<ValueFunctionOrigin, Failure> {
-        if self.unproduced_origin(origin) {
+        if self.has_no_callable_value(origin) {
             return Ok(origin);
         }
         match origin {
@@ -127,7 +130,7 @@ impl Evidence {
         }
     }
     fn witness(&self, witness: FunctionWitness) -> Result<FunctionWitness, Failure> {
-        if self.unproduced_origin(witness.origin) {
+        if self.has_no_callable_value(witness.origin) {
             return Ok(witness);
         }
         let Some(producer) = self.selected(witness.origin) else {
@@ -164,9 +167,61 @@ impl Evidence {
             _ => Ok(data),
         }
     }
-    fn unproduced_origin(&self, origin: ValueFunctionOrigin) -> bool {
-        matches!(origin, ValueFunctionOrigin::Application(application)
-            if matches!(self.applications.get(&application), Some(ApplicationEvidence::Unproduced)))
+    fn has_no_callable_value(&self, origin: ValueFunctionOrigin) -> bool {
+        self.uninhabited_origin(origin)
+            || matches!(origin, ValueFunctionOrigin::Application(application)
+            if matches!(self.applications.get(&application), Some(ApplicationEvidence::Uncommitted)))
+    }
+    fn uninhabited_origin(&self, origin: ValueFunctionOrigin) -> bool {
+        match origin {
+            ValueFunctionOrigin::Result(result) => self.uninhabited_results.contains(&result),
+            ValueFunctionOrigin::Application(result) => matches!(
+                self.applications.get(&result),
+                Some(ApplicationEvidence::Uninhabited)
+            ),
+            _ => false,
+        }
+    }
+    fn uncommitted_application(&self, site: ValueApplication) -> bool {
+        matches!(
+            self.applications.get(&site.into()),
+            Some(ApplicationEvidence::Uncommitted)
+        )
+    }
+    pub(in crate::value_access) fn matches_payload_metadata(
+        &self,
+        program: &Program,
+        actual: TypeId,
+        expected: TypeId,
+    ) -> bool {
+        program.matches_uninhabited_metadata_with(actual, expected, |witness| {
+            self.uninhabited_origin(witness.origin)
+        })
+    }
+    fn recognizes_empty_application(
+        &self,
+        program: &Program,
+        application: ValueAppliedResult,
+    ) -> bool {
+        let mut origin = ValueFunctionOrigin::Application(application);
+        let mut seen = std::collections::BTreeSet::new();
+        loop {
+            if !seen.insert(origin) {
+                return false;
+            }
+            match origin {
+                ValueFunctionOrigin::Application(application) => {
+                    let Some(template) = program.application_template(application) else {
+                        return false;
+                    };
+                    origin = template.origin;
+                }
+                ValueFunctionOrigin::Result(result) => {
+                    return self.uninhabited_results.contains(&result);
+                }
+                _ => return false,
+            }
+        }
     }
     pub(super) fn unproduced(&self, program: &Program, data: TypeId) -> bool {
         let mut pending = vec![data];
@@ -177,7 +232,7 @@ impl Evidence {
             }
             match program.data_schema(data) {
                 Some(PayloadSchema::Function(witness))
-                    if self.unproduced_origin(witness.origin) =>
+                    if self.has_no_callable_value(witness.origin) =>
                 {
                     return true;
                 }
@@ -248,7 +303,7 @@ pub(super) fn close(
             nocter_model::ValueInvocation::Take,
         ] {
             let source = FunctionWitness { origin, invocation };
-            if program.function_data(source).is_some() && !evidence.unproduced_origin(origin) {
+            if program.function_data(source).is_some() && !evidence.has_no_callable_value(origin) {
                 witnesses.insert(
                     source,
                     evidence.witness(source).map_err(|_| {

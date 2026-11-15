@@ -377,11 +377,15 @@ impl State {
         Ok(())
     }
     pub fn returned(&self, program: &Program, data: TypeId) -> bool {
+        self.returned_with(data, |actual, expected| {
+            program.matches_uninhabited_metadata(actual, expected)
+        })
+    }
+    pub fn returned_with(&self, data: TypeId, compatible: impl Fn(TypeId, TypeId) -> bool) -> bool {
         self.frames.is_empty()
             && self.owned.len() == 1
             && self.owned.get(&Holder::Return).is_some_and(|value| {
-                program.matches_uninhabited_metadata(value.payload.data(), data)
-                    && value.missing.is_empty()
+                compatible(value.payload.data(), data) && value.missing.is_empty()
             })
     }
 }

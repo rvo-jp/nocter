@@ -79,6 +79,7 @@ fn component_support(schema: &PayloadSchema<'_>, mut values: impl Iterator<Item 
 /// Children already retain exact callable code/environment and domain classification.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum StructuralShape {
+    Uninhabited,
     Tuple(Box<[usize]>),
     Array { element: usize, length: u64 },
     Optional(usize),
@@ -253,7 +254,12 @@ impl Types {
                 continue;
             }
             if matches!(&data, ShapeKey::Instance(key) if key.is_uninhabited()) {
-                self.insert(data, Type::Unavailable, false);
+                if let Some(&id) = self.structures.get(&StructuralShape::Uninhabited) {
+                    self.ids.insert(data, id);
+                } else {
+                    let id = self.insert(data, Type::Unavailable, false);
+                    self.structures.insert(StructuralShape::Uninhabited, id);
+                }
                 continue;
             }
             let Some(schema) = program.data_schema(data.data()) else {

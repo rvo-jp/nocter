@@ -26,6 +26,62 @@ pub enum Relation {
 pub(super) type Relations = BTreeMap<Term, Relation>;
 pub(super) type Solutions = BTreeMap<Term, Producers>;
 
+/// An empty positive solution is not proof of emptiness when an opaque target could return code.
+pub(super) fn closed_empty(root: Term, relations: &Relations, known: &Solutions) -> bool {
+    let mut pending = vec![root];
+    let mut seen = std::collections::BTreeSet::new();
+    while let Some(term) = pending.pop() {
+        if !seen.insert(term) {
+            continue;
+        }
+        if !known.get(&term).is_some_and(Producers::is_empty) {
+            return false;
+        }
+        match relations.get(&term) {
+            Some(Relation::Union(inputs)) => {
+                for witness in inputs {
+                    let term = match witness.origin {
+                        Origin::Result(result) => Term::Result {
+                            code: result.owner.into(),
+                            ordinal: result.ordinal,
+                        },
+                        Origin::Application(result) => Term::Application(result),
+                        _ => return false,
+                    };
+                    pending.push(term);
+                }
+            }
+            Some(Relation::Apply(invocation)) => {
+                let Term::Application(application) = term else {
+                    return false;
+                };
+                if invocation.callees.is_empty() {
+                    return false;
+                }
+                for callee in &invocation.callees {
+                    let Ok(selected) = values(*callee, known) else {
+                        return false;
+                    };
+                    if selected.is_empty() {
+                        return false;
+                    }
+                    for selected in selected {
+                        let Some(code) = selected.origin.code() else {
+                            return false;
+                        };
+                        pending.push(Term::Result {
+                            code,
+                            ordinal: application.ordinal,
+                        });
+                    }
+                }
+            }
+            None => return false,
+        }
+    }
+    true
+}
+
 fn values(term: FunctionWitness, known: &Solutions) -> Result<Producers, ()> {
     let selected = match term.origin {
         Origin::Declaration(_) | Origin::Closure(_) | Origin::Parameter(_) => {

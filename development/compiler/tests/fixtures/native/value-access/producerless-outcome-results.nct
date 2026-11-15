@@ -1,0 +1,15 @@
+const func absent(): (func(): i32)? { none }
+const func forward(): (func(): i32)? { absent() }
+const func nested(): (func(): i32)?? {
+    let value = absent()
+    value^
+}
+const func calculate(): i32 {
+    let value = forward()
+    drop value
+    let deep = nested()
+    drop deep
+    42
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { calculate() }

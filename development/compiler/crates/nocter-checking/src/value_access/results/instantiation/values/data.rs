@@ -21,7 +21,7 @@ impl Query<'_, '_> {
         };
         if node.value == ValueSource::Empty
             || matches!(node.value, ValueSource::CallResult(site)
-                if self.evidence.unproduced_origin(super::Origin::Application(site.into())))
+                if self.evidence.uncommitted_application(site))
         {
             return Ok(Fact::Empty);
         }

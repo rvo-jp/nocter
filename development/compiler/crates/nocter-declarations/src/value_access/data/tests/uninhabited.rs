@@ -38,7 +38,7 @@ fn empty_descriptor_matching_checks_signatures_and_preserves_inhabited_identity(
         assert!(!program.matches_uninhabited_metadata(data[0], *other));
     }
     assert!(!program.matches_uninhabited_metadata(data[3], data[4]));
-    let leaves = ids[..2]
+    let leaves = ids[..3]
         .iter()
         .map(|&owner| {
             program
@@ -50,6 +50,20 @@ fn empty_descriptor_matching_checks_signatures_and_preserves_inhabited_identity(
         })
         .collect::<Vec<_>>();
     assert!(!program.matches_uninhabited_metadata(leaves[0], leaves[1]));
+    let empty = |witness: crate::value_access::FunctionWitness| matches!(witness.origin, ValueFunctionOrigin::Result(result) if ids[..3].contains(&result.owner));
+    assert!(program.matches_uninhabited_metadata_with(leaves[0], leaves[1], empty));
+    assert!(!program.matches_uninhabited_metadata_with(leaves[0], leaves[2], empty));
+    assert!(
+        !program.matches_uninhabited_metadata_with(leaves[0], leaves[1], |witness| {
+            matches!(witness.origin, ValueFunctionOrigin::Result(result) if result.owner == ids[0])
+        })
+    );
+    let keys = leaves
+        .iter()
+        .map(|&leaf| program.instantiate_uninhabited_data(leaf).unwrap())
+        .collect::<Vec<_>>();
+    assert!(keys[0].has_same_representation(&program, &keys[1]));
+    assert!(!keys[0].has_same_representation(&program, &keys[2]));
     assert_eq!(program.data_copyable(data[0]), Some(true));
     assert_eq!(program.data_copyable(leaves[0]), Some(false));
 }

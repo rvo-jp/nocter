@@ -142,9 +142,7 @@ impl Query<'_, '_> {
             return Ok(Fact::Unavailable);
         };
         if let ValueSource::CallResult(site) = node.value
-            && self
-                .evidence
-                .unproduced_origin(Origin::Application(site.into()))
+            && self.evidence.uncommitted_application(site)
         {
             return Ok(Fact::Empty);
         }
@@ -327,10 +325,7 @@ impl Query<'_, '_> {
                 }
             }
             ValueSource::CallResult(site) => {
-                if self
-                    .evidence
-                    .unproduced_origin(Origin::Application(site.into()))
-                {
+                if self.evidence.uncommitted_application(site) {
                     Fact::Empty
                 } else {
                     match self.read(owner, Key::Call(frame.clone(), site))? {

@@ -2,6 +2,36 @@
 use super::*;
 
 #[test]
+fn private_producerless_outcomes_preserve_absence_without_callable_payloads() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/producerless-outcome-results.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "producerless-outcome-results",
+        42,
+    );
+}
+
+#[test]
+fn private_producerless_outcomes_dispose_actual_failure_graphs() {
+    let machine = trusted_error_machine(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/producerless-outcome-results-errors.nct"
+    )));
+    let package = TempPackage::new();
+    execute_native_status(
+        &image(&machine),
+        &package.0,
+        "producerless-outcome-errors",
+        42,
+    );
+}
+
+#[test]
 fn private_outcome_results_preserve_callable_values_and_absence() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

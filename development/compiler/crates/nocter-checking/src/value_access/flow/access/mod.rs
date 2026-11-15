@@ -195,10 +195,18 @@ pub(super) fn analyze(
         }
         for world in worlds {
             if block.terminator == Terminator::Return {
-                if !world
-                    .resources
-                    .returned(typed.program(), typed.result_data())
-                {
+                let returned = if let Some(evidence) = &typed.result_evidence {
+                    world
+                        .resources
+                        .returned_with(typed.result_data(), |actual, expected| {
+                            evidence.matches_payload_metadata(typed.program(), actual, expected)
+                        })
+                } else {
+                    world
+                        .resources
+                        .returned(typed.program(), typed.result_data())
+                };
+                if !returned {
                     return Err(INVALID);
                 }
             } else {

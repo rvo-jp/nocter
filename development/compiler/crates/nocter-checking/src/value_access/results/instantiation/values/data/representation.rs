@@ -36,7 +36,16 @@ impl Query<'_, '_> {
                 if values.iter().any(|(selected, _)| *selected == field) {
                     continue;
                 }
-                if let Ok(key) = self.program.instantiate_closed_data(data) {
+                if let Ok(key) = self
+                    .program
+                    .instantiate_callable_domains(data, |_, witness| {
+                        if self.evidence.uninhabited_origin(witness.origin) {
+                            Ok(None)
+                        } else {
+                            frame.resolve(self.program, witness).map(Some)
+                        }
+                    })
+                {
                     values.push((field, key));
                     continue;
                 }

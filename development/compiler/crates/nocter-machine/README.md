@@ -170,8 +170,11 @@ all retained-index cleanup cases.
 An explicitly uninhabited primary retains no layout, addressable field or ABI value class.
 Optional/fallible layout requests skip that excluded edge while preserving the outer tag and any
 inhabited alternate. An inhabited zero-byte unit still has its own selectable field. Requesting
-an empty domain as a stored root rejects. These runtime-layout contracts do not qualify ordinary
-producer-less callable outcomes; checking and lifecycle must retain the original guarded paths.
+an empty domain as a stored root rejects. Cleanup discovery skips an optional's excluded primary
+instead of requesting a helper for nonexistent data. The producer-less outcome fixtures qualify
+absence-only/nested optional returns and actual failure-only error-graph cleanup through the common
+native path. These cases retain the original tags and checked lifecycle; extracting an excluded
+callable or widening its carrier remains a separate qualification boundary.
 
 The private consumer uses the common optional/fallible layouts, tag encoding and payload offsets. Stored tag
 access requests the runtime primitive's own layout, including helper-only primitive types. Frozen

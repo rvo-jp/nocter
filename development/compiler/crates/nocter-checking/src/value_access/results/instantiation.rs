@@ -320,7 +320,7 @@ impl<'a, 'work> Query<'a, 'work> {
                 .resolve(self.program, selected)
                 .map_or(Fact::Unavailable, Fact::Witness));
         }
-        if self.evidence.unproduced_origin(selected.origin) {
+        if self.evidence.has_no_callable_value(selected.origin) {
             return Ok(Fact::Empty);
         }
         // A matched source summary plus a context-free concrete-witness proof needs no creation

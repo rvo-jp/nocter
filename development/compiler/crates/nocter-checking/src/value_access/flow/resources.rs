@@ -273,10 +273,10 @@ pub fn payload(program: &Program, data: TypeId) -> Result<Payload> {
     // An aggregate or capture descriptor cannot hide an unadmitted descendant. Validate shared
     // schemas once before granting even the root cleanup obligation.
     let mut seen = std::collections::BTreeSet::new();
-    let mut pending = vec![data];
+    let mut pending = vec![(data, false)];
     let mut disposal = None;
-    while let Some(current) = pending.pop() {
-        if !seen.insert(current) {
+    while let Some((current, guarded)) = pending.pop() {
+        if !seen.insert((current, guarded)) {
             continue;
         }
         let selected = match program.data_schema(current).ok_or(INVALID)? {
@@ -292,31 +292,41 @@ pub fn payload(program: &Program, data: TypeId) -> Result<Payload> {
             }
             PayloadSchema::Builtin(BuiltinType::Error) => Disposal::OwnedError,
             PayloadSchema::Optional(payload) => {
-                pending.push(payload);
+                pending.push((payload, true));
                 Disposal::Aggregate
             }
             PayloadSchema::Fallible(payload) => {
-                pending.push(payload);
-                pending.push(program.data_type(BuiltinType::Error).ok_or(INVALID)?);
+                pending.push((payload, true));
+                pending.push((program.data_type(BuiltinType::Error).ok_or(INVALID)?, true));
                 Disposal::Aggregate
             }
             PayloadSchema::Aggregate(schema) => {
-                pending.extend(schema.components().map(|component| component.data));
+                pending.extend(
+                    schema
+                        .components()
+                        .map(|component| (component.data, guarded)),
+                );
                 Disposal::Aggregate
             }
             PayloadSchema::Array(array) => {
                 if !array.is_empty() {
-                    pending.push(array.element());
+                    pending.push((array.element(), guarded));
                 }
                 Disposal::Aggregate
             }
             PayloadSchema::Function(witness) => match witness.origin {
                 nocter_model::ValueFunctionOrigin::Closure(id) => {
-                    pending.push(program.closure(id).ok_or(INVALID)?.environment());
+                    pending.push((program.closure(id).ok_or(INVALID)?.environment(), guarded));
                     Disposal::OwnedCapture
                 }
                 nocter_model::ValueFunctionOrigin::Declaration(_) => Disposal::Trivial,
                 nocter_model::ValueFunctionOrigin::Parameter(_) => Disposal::FunctionEnvironment,
+                nocter_model::ValueFunctionOrigin::Result(_)
+                | nocter_model::ValueFunctionOrigin::Application(_)
+                    if guarded =>
+                {
+                    Disposal::FunctionEnvironment
+                }
                 nocter_model::ValueFunctionOrigin::Result(_)
                 | nocter_model::ValueFunctionOrigin::Application(_) => return Err(INVALID),
             },

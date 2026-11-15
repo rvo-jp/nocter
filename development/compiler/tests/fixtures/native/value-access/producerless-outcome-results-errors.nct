@@ -1,0 +1,13 @@
+primitive func create_failure(code: str, message: str): error
+primitive func context_error(take value: error, message: str): error
+func failed(): (func(): i32)! {
+    throw context_error(create_failure("failed", "leaf"), "outer")
+}
+func forward(): (func(): i32)! { failed() }
+func run(): i32 {
+    let first = failed()
+    drop first
+    let second = forward()
+    drop second
+    42
+}

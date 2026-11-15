@@ -5,7 +5,7 @@ use nocter_constant_evaluation::state::Limits;
 use nocter_model::PackageIdentity;
 use nocter_runtime_contract::PrimitiveRole;
 
-fn authority() -> declarations::PrimitiveAuthority {
+pub(super) fn authority() -> declarations::PrimitiveAuthority {
     let package = PackageIdentity::new("test:standard");
     let module = ModuleIdentity::new(package.clone(), ["error"]);
     let toolchain = ToolchainInput::new(

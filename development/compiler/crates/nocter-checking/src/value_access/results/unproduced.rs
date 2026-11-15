@@ -36,7 +36,7 @@ pub(in crate::value_access) fn validate(
                     else {
                         return Err(invalid);
                     };
-                    if evidence.unproduced_origin(target) {
+                    if evidence.has_no_callable_value(target) {
                         return Err(invalid);
                     }
                 }

@@ -81,6 +81,13 @@ pub(super) fn solve(
             .get(&nocter_model::ValueCode::Declaration(id))
             .ok_or(INVALID)?
             .typed;
+        let result = nocter_model::ValueCallableResult { owner: id, ordinal };
+        if producers.is_empty()
+            && empty_outcome_result(query.program(), result, &equations, &solved)
+        {
+            evidence.uninhabited_results.insert(result);
+            continue;
+        }
         let Some(witness) = single(producers) else {
             let message = if producers.is_empty() {
                 "callable result has no established code or input producer; recursive forwarding needs a reachable return anchor".to_owned()
@@ -116,6 +123,26 @@ pub(super) fn solve(
 }
 fn single(producers: &Producers) -> Option<FunctionWitness> {
     (producers.len() == 1).then(|| *producers.first().expect("one witness"))
+}
+/// Only an original outcome guard can retain a closed empty callable leaf without a value.
+fn empty_outcome_result(
+    program: &nocter_declarations::value_access::Program,
+    result: nocter_model::ValueCallableResult,
+    equations: &Relations,
+    solved: &Solutions,
+) -> bool {
+    program.callable_result_path(result).is_some_and(|path| {
+        path.fields()
+            .iter()
+            .any(|field| matches!(field, nocter_model::ValueProjection::Variant(true)))
+    }) && relations::closed_empty(
+        Term::Result {
+            code: result.owner.into(),
+            ordinal: result.ordinal,
+        },
+        equations,
+        solved,
+    )
 }
 fn close_applications(
     context: &DeclarationContext<'_>,
@@ -175,7 +202,15 @@ fn close_applications(
         if producers.is_empty() && !committed.contains(&application) {
             evidence
                 .applications
-                .insert(application, ApplicationEvidence::Unproduced);
+                .insert(application, ApplicationEvidence::Uncommitted);
+            continue;
+        }
+        if producers.is_empty()
+            && evidence.recognizes_empty_application(query.program(), application)
+        {
+            evidence
+                .applications
+                .insert(application, ApplicationEvidence::Uninhabited);
             continue;
         }
         let witness = single(&producers).ok_or_else(|| reject(context, query, Some(site.call),

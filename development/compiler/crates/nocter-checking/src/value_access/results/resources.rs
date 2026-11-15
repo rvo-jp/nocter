@@ -446,6 +446,20 @@ impl<'a, 'work> ResourceDataProjection<'a, 'work> {
             return Ok(source);
         }
         let program = self.program;
+        if self
+            .evidence
+            .matches_payload_metadata(program, source.data(), target)
+            && let Ok(key) = program.instantiate_callable_domains(target, |_, witness| {
+                if self.evidence.uninhabited_origin(witness.origin) {
+                    Ok(None)
+                } else {
+                    program.concrete_witness(witness).map(Some)
+                }
+            })
+            && source.has_same_representation(program, &key)
+        {
+            return Ok(key);
+        }
         match source.schema(program).map_err(|_| INVALID)? {
             InstanceSchema::Function(actual) => program
                 .instantiate_function(target, &actual)

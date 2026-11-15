@@ -24,8 +24,10 @@ The [checking](compiler/crates/nocter-checking/README.md) and
 [target-program](compiler/crates/nocter-target-program/README.md) owners describe the implemented
 canonical metadata, original source-definition queries and ordered lifecycle specialization.
 
-Next qualify outcome callable-result components with no positive producer, preserving exact
-result-leaf, call and code contexts through each consumer. Continue context-changing updates through edit input boundaries,
+Continue producer-less outcome qualification with recovery, propagation and assertions, preserving
+original tag evaluation, unreachable primary continuations and actual alternate cleanup. Then
+qualify representation widening and application-specific empty received contexts while preserving
+exact result-leaf, call and code contexts through each consumer. Continue context-changing updates through edit input boundaries,
 partial carrier-root selection and context-changing evaluator slots against
 the exact per-value keys. The component owners above describe covered ordinary operand/definition,
 evaluator slot metadata, shared body-channel metadata, invocation, body-ABI, lifecycle and storage scope.
@@ -147,6 +149,16 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   including bodies whose reachable returns are all absent or failed. A valid inactive outcome
   must not require an invented function code; distinguish this from uncommitted applications,
   unresolved recursion and missing context for a genuinely produced callable value.
+- [x] Qualify closed absence-only and failure-only result domains through ordinary source,
+  exact declaration/application identities, forwarding, nested optional construction, required
+  evaluation, original resource phases and native execution with actual error-graph cleanup.
+- [ ] Qualify forwarding an excluded callable alternative into an outcome whose other return
+  produces a callable. Reconcile guarded representation widening through original resource,
+  evaluator, ABI and storage channels; equal signatures or byte geometry alone cannot transport
+  the smaller absence-only representation into a larger represented carrier.
+- [ ] Qualify application-specific empty callable domains supplied through received optional
+  inputs. A globally nonempty formal result equation is not a proof that every application
+  supplies a callable; preserve the exact committed input context rather than closing its raw type.
 - [x] Define canonical uninhabited representation metadata independently of unknown descriptors,
   concrete callable witnesses and actual owner availability. Normalize required product children,
   retain inactive outcome alternatives and reject an uninhabited environment/input as a received value.
@@ -155,6 +167,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   evaluator, target storage, ABI and native execution. An empty root has no stored payload;
   retaining an inactive alternative's descriptor must not create code, cleanup or field geometry.
   Qualify original tag guards and rejected positive uses before opening producer-less source results.
+- [ ] Qualify recovery, propagation and assertions when the primary callable domain is empty.
+  Preserve evaluation of the original carrier/tag, required traps and alternate cleanup while
+  excluding impossible positive continuations; a guarded empty descriptor is not a callable value.
 - [x] Qualify excluded-outcome runtime descriptors, canonical target interning and physical layouts
   without a positive child or field geometry. Reject empty roots/slots and construction of excluded tags.
 - [x] Extend the declaration-owned data-instance fold to validated callable domains, preserving

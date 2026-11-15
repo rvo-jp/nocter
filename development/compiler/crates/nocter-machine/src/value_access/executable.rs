@@ -228,7 +228,17 @@ fn needs_cleanup(
             Some(RuntimeType::StaticCallable {
                 environment: Some(environment),
             }) => vec![*environment],
-            Some(RuntimeType::Optional(payload)) => vec![*payload],
+            Some(RuntimeType::Optional(payload)) => {
+                // An excluded primary is metadata, not a child requiring value cleanup.
+                if matches!(
+                    program.runtime().types().get(*payload),
+                    Some(RuntimeType::Uninhabited)
+                ) {
+                    Vec::new()
+                } else {
+                    vec![*payload]
+                }
+            }
             Some(RuntimeType::Aggregate) => {
                 let Some(RuntimeTypeRepresentation::ValueAggregate { fields }) =
                     program.runtime().type_representations().get(data)

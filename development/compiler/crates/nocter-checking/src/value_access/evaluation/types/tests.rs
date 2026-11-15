@@ -31,6 +31,14 @@ fn uninhabited_metadata_has_no_value_but_preserves_optional_absence() {
         .unwrap();
     let mut types = Types::default();
     let id = types.get_instance(program, empty.clone()).unwrap();
+    let integer = program
+        .instantiate_uninhabited_data(program.data_type(BuiltinType::I32).unwrap())
+        .unwrap();
+    assert_eq!(types.get_instance(program, integer).unwrap(), id);
+    let unresolved = types.get(program, fixture.formal).unwrap();
+    assert_ne!(unresolved, id);
+    assert!(types.supports_contract(program, fixture.formal).unwrap());
+    assert!(!types.supports(program, fixture.formal).unwrap());
     assert_eq!(types.appended(0)[id], Type::Unavailable);
     assert!(!types.supports_instance(program, empty.clone()).unwrap());
     let optional = program

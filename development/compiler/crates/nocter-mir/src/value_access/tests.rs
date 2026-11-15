@@ -28,39 +28,24 @@ fn operations(body: &Body) -> impl Iterator<Item = &Operation> {
 
 #[test]
 fn excluded_outcome_alternatives_cannot_be_constructed_or_registered_as_stored_values() {
-    use nocter_runtime_contract::{RuntimeEnvironment, RuntimeTypeTableBuilder};
-    let mut program =
-        lower("func absent(): i32? { none }\nfunc run(): i32 { let value = absent()\n42 }");
+    let program = lower(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/producerless-outcome-results.nct"
+    )));
+    let empty = program
+        .runtime
+        .types()
+        .iter()
+        .find_map(|(id, kind)| matches!(kind, RuntimeType::Uninhabited).then_some(id))
+        .unwrap();
     let optional = program
         .runtime
         .types()
         .iter()
-        .find_map(|(id, kind)| matches!(kind, RuntimeType::Optional(_)).then_some(id))
+        .find_map(|(id, kind)| {
+            matches!(kind, RuntimeType::Optional(payload) if *payload == empty).then_some(id)
+        })
         .unwrap();
-    let empty = (0..u32::MAX)
-        .map(RuntimeDataId::Instance)
-        .find(|id| program.runtime.types().get(*id).is_none())
-        .unwrap();
-    let mut types = RuntimeTypeTableBuilder::new();
-    for (id, kind) in program.runtime.types().iter() {
-        types
-            .insert(
-                id,
-                if id == optional {
-                    RuntimeType::Optional(empty)
-                } else {
-                    kind.clone()
-                },
-            )
-            .unwrap();
-    }
-    types.insert(empty, RuntimeType::Uninhabited).unwrap();
-    program.runtime = RuntimeEnvironment::new(
-        types.finish().unwrap(),
-        program.runtime.type_representations().clone(),
-        program.runtime.abi(),
-    )
-    .unwrap();
     validate::program(&program).unwrap();
     let mut bad_tag = program.clone();
     let primary = bad_tag

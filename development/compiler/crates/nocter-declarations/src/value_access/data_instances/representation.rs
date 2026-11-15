@@ -26,7 +26,8 @@ impl DataInstanceKey {
             };
             match (a, b) {
                 (InstanceSchema::Uninhabited, InstanceSchema::Uninhabited)
-                    if left.data == right.data => {}
+                    if program
+                        .matches_uninhabited_metadata_with(left.data, right.data, |_| true) => {}
                 (InstanceSchema::Builtin(a), InstanceSchema::Builtin(b)) if a == b => {}
                 (InstanceSchema::Function(a), InstanceSchema::Function(b)) if a == b => {}
                 (InstanceSchema::Aggregate(a), InstanceSchema::Aggregate(b)) => {

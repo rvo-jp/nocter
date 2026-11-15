@@ -86,7 +86,7 @@ fn validate_payload(
             .closure(closure)
             .ok_or(Failure::InconsistentSyntax)?
             .environment();
-        if !resolved_descriptor(query.program(), environment) {
+        if !resolved_descriptor(query, environment) {
             return Err(reject(
                 Rule::TypeMismatch,
                 "this owned capture has no established component payloads after callable-result resolution",
@@ -107,7 +107,7 @@ fn validate_payload(
         expression.kind,
         ExpressionKind::Aggregate { .. } | ExpressionKind::Repeat { .. }
     ) {
-        let ready = resolved_descriptor(query.program(), access.data());
+        let ready = resolved_descriptor(query, access.data());
         if !ready {
             return Err(reject(
                 Rule::UnsupportedData,
@@ -153,13 +153,18 @@ fn validate_payload(
     Ok(())
 }
 
-fn resolved_descriptor(
-    program: &nocter_declarations::value_access::Program,
-    data: nocter_model::TypeId,
-) -> bool {
-    program
+fn resolved_descriptor(query: &Query, data: nocter_model::TypeId) -> bool {
+    query
+        .program()
         .payload_dependencies(data)
-        .is_some_and(|dependencies| !dependencies.has_pending_producers())
+        .is_some_and(|dependencies| {
+            dependencies.producers().iter().all(|witness| {
+                query
+                    .result_evidence
+                    .as_ref()
+                    .is_some_and(|evidence| evidence.uninhabited_origin(witness.origin))
+            })
+        })
 }
 
 fn validate_call_result(

@@ -1,4 +1,4 @@
-//! Empty-array descriptors retain contracts without inventing positive callable identities.
+//! Excluded descriptors retain contracts without inventing positive callable identities.
 use super::{PayloadSchema, Program};
 use nocter_model::{TypeId, ValueFunctionOrigin};
 use std::collections::BTreeSet;
@@ -9,6 +9,17 @@ impl Program {
     /// concrete code, source conversion, ownership or layout permission.
     #[must_use]
     pub fn matches_uninhabited_metadata(&self, actual: TypeId, expected: TypeId) -> bool {
+        self.matches_uninhabited_metadata_with(actual, expected, |_| false)
+    }
+    /// Extend metadata comparison with an independently established empty-domain proof for both
+    /// callable leaves. Contracts and nominal identities remain exact; no value or layout is granted.
+    #[must_use]
+    pub fn matches_uninhabited_metadata_with(
+        &self,
+        actual: TypeId,
+        expected: TypeId,
+        uninhabited: impl Fn(crate::value_access::FunctionWitness) -> bool,
+    ) -> bool {
         let mut pending = vec![(actual, expected, false)];
         let mut seen = BTreeSet::new();
         while let Some((actual, expected, metadata)) = pending.pop() {
@@ -23,8 +34,8 @@ impl Program {
             }
             match (a, b) {
                 (PayloadSchema::Function(a), PayloadSchema::Function(b))
-                    if metadata
-                        && (descriptor(a.origin) || descriptor(b.origin))
+                    if ((metadata && (descriptor(a.origin) || descriptor(b.origin)))
+                        || (uninhabited(a) && uninhabited(b)))
                         && self
                             .function_contract(a)
                             .zip(self.function_contract(b))
