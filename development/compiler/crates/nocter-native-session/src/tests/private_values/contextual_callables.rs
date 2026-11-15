@@ -2,6 +2,31 @@
 use super::*;
 
 #[test]
+fn private_compound_input_results_keep_selected_callbacks_after_container_cleanup() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-compound-input-results.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "compound-input-results", 42);
+}
+
+#[test]
+fn private_compound_input_results_dispose_remaining_and_returned_error_graphs() {
+    let machine = trusted_error_machine(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-compound-input-results-errors.nct"
+    )));
+    let package = TempPackage::new();
+    execute_native_status(
+        &image(&machine),
+        &package.0,
+        "compound-input-results-errors",
+        42,
+    );
+}
+
+#[test]
 fn private_mutable_array_inputs_keep_independent_selected_state() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

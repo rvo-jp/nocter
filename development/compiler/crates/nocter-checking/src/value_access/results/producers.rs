@@ -286,6 +286,19 @@ fn commit(
             );
         }
     }
+    for (index, data) in query
+        .program()
+        .compound_input_contracts(selected)
+        .map_err(|_| INVALID)?
+    {
+        let index = index + usize::from(*kind == CallKind::Value);
+        let supplied = *state
+            .get(&Key::Argument { call: id, index })
+            .ok_or(INVALID)?;
+        for (parameter, producers) in store.input_producers(query.program(), data, supplied)? {
+            inputs.entry(parameter).or_default().extend(producers);
+        }
+    }
     let Some(result) = super::applications::call_result(query, id)? else {
         return Ok(());
     };
@@ -302,6 +315,41 @@ fn commit(
     state.insert(Key::Expression(id), store.single(witness));
 
     Ok(())
+}
+
+/// Type applications retain formal descriptor equations even when no invocation commits. This
+/// does not turn a typed argument into a produced value or an actual received frame context.
+pub(super) fn application_inputs(
+    query: &Query,
+    id: AccessExpressionId,
+) -> Result<Inputs, flow::IntegrityError> {
+    let ExpressionKind::Call {
+        arguments, kind, ..
+    } = &query.body.expressions.get(id).ok_or(INVALID)?.kind
+    else {
+        return Err(INVALID);
+    };
+    let selected = super::applications::callee(query, id)?;
+    let mut inputs: Inputs = arguments
+        .iter()
+        .filter_map(|argument| argument.binding.as_ref())
+        .map(|binding| (binding.parameter, Producers::from([binding.witness])))
+        .collect();
+    let mut store = Store::default();
+    for (index, data) in query
+        .program()
+        .compound_input_contracts(selected)
+        .map_err(|_| INVALID)?
+    {
+        let index = index + usize::from(*kind == CallKind::Value);
+        let argument = arguments.get(index).ok_or(INVALID)?;
+        let actual = expression_data(query, argument.value)?;
+        let actual = store.received(query.program(), actual, true)?;
+        for (parameter, producers) in store.input_producers(query.program(), data, actual)? {
+            inputs.entry(parameter).or_default().extend(producers);
+        }
+    }
+    Ok(inputs)
 }
 
 const INVALID: flow::IntegrityError = flow::IntegrityError::InconsistentTypedBody;

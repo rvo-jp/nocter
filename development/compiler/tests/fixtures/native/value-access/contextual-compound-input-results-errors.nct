@@ -1,0 +1,38 @@
+primitive func create_failure(code: str, message: str): error
+primitive func context_error(take value: error, message: str): error
+
+func addition(value: i32): func(i32): i32 {
+    let reason = context_error(create_failure("addition", "leaf"), "outer")
+    (reason^, value; amount: i32): i32 { value + amount }
+}
+func subtraction(value: i32): func(i32): i32 {
+    let reason = context_error(create_failure("subtraction", "leaf"), "outer")
+    (reason^, value; amount: i32): i32 { value - amount }
+}
+func wrap(take callback: func(i32): i32): func(i32): i32 {
+    (callback^; amount: i32): i32 { callback(amount) }
+}
+func named_first(value: i32): i32 { value + 3 }
+func named_second(value: i32): i32 { 50 - value }
+func select(take pair: (func(i32): i32, i32)): func(i32): i32 { pair.0^ }
+func forward(take pair: (func(i32): i32, i32)): func(i32): i32 { select(pair^) }
+func select_second(take pair: (func(i32): i32, func(i32): i32)): func(i32): i32 { pair.1^ }
+func recursive(take pair: (func(i32): i32, i32), depth: i32): func(i32): i32 {
+    if depth > 0 { return recursive(pair^, depth - 1) }
+    select(pair^)
+}
+func select_array(take actions: [func(i32): i32; 2], index: usize): func(i32): i32 {
+    actions[index]^
+}
+func run(): i32 {
+    let first = select((wrap(addition(20)), 0))
+    let second = forward((wrap(subtraction(50)), 0))
+    let third = select_array([wrap(addition(20)), wrap(addition(21))], 1)
+    let fourth = select_array([wrap(subtraction(50)), wrap(subtraction(60))], 0)
+    let fifth = select_second((wrap(addition(3)), wrap(subtraction(50))))
+    let sixth = select_second((named_first, named_second))
+    let seventh = recursive((wrap(subtraction(50)), 0), 2)
+    let extractor = select_array
+    let eighth = extractor([wrap(subtraction(50)), wrap(subtraction(60))], 1)
+    if first(22) == 42 && second(8) == 42 && third(21) == 42 && fourth(8) == 42 && fifth(8) == 42 && sixth(8) == 42 && seventh(8) == 42 && eighth(18) == 42 { 42 } else { 0 }
+}

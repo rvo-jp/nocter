@@ -4,6 +4,131 @@ use super::*;
 use nocter_constant_evaluation::state::Value;
 
 #[test]
+fn compound_input_results_preserve_selected_component_witnesses_and_actual_values() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-compound-input-results.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Value::integer(42));
+}
+
+#[test]
+fn compound_input_results_require_the_original_received_context_and_recover_after_failure() {
+    use crate::value_access::{ExpressionKind, InstantiationFailure};
+    use nocter_constant_evaluation::state::WorkBudget;
+    use nocter_model::{ValueApplication, ValueFunctionOrigin};
+    use std::{collections::BTreeSet, num::NonZeroU64};
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-compound-input-results.nct"
+    ));
+    let unit = accepted(source);
+    let program = unit.program();
+    let code = |name| {
+        program
+            .resolve(program.symbols().get(name).unwrap())
+            .unwrap()
+    };
+    let caller = program.bind_code(code("calculate").into(), []).unwrap();
+    let mut contexts = BTreeSet::new();
+    let mut calls = 0;
+    let budget = |units| WorkBudget::new(NonZeroU64::new(units).unwrap());
+    for (call, expression) in unit
+        .code_body(caller.code())
+        .unwrap()
+        .typed()
+        .body()
+        .expressions()
+        .iter()
+    {
+        let ExpressionKind::Call {
+            target: ValueFunctionOrigin::Declaration(target),
+            ..
+        } = expression.kind
+        else {
+            continue;
+        };
+        if target != code("select_array") {
+            continue;
+        }
+        calls += 1;
+        let selected = unit
+            .instantiate_invocation(
+                &caller,
+                ValueApplication {
+                    owner: caller.code(),
+                    call,
+                },
+                &mut budget(100_000),
+            )
+            .unwrap();
+        assert!(selected.witnesses().is_empty());
+        assert!(selected.has_compound_input_contexts());
+        assert!(selected.input_data(0).is_some());
+        assert!(selected.input_data(1).is_none());
+        let incomplete = program.bind_code(selected.code(), []).unwrap();
+        assert_eq!(
+            unit.instantiate_result_contract(&incomplete, &mut budget(100_000)),
+            Err(InstantiationFailure::Unresolved)
+        );
+        assert_eq!(
+            unit.instantiate_result_contract(&selected, &mut budget(1)),
+            Err(InstantiationFailure::WorkLimit)
+        );
+        let result = unit
+            .instantiate_result_contract(&selected, &mut budget(100_000))
+            .unwrap();
+        assert!(result.function_representation(program).unwrap().is_some());
+        contexts.insert(selected);
+    }
+    assert_eq!(
+        calls, 3,
+        "direct calls and the named function value share the same receiving contracts"
+    );
+    assert_eq!(
+        contexts.len(),
+        2,
+        "same code and direct bindings retain distinct received compound contexts"
+    );
+}
+
+#[test]
+fn compound_input_results_preserve_transfer_access_and_const_obligations() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-compound-input-results.nct"
+    ));
+    for (index, changed) in [
+        source.replace("{ pair.0^ }", "{ pair.0 }"),
+        source.replace("take actions:", "actions:"),
+        source.replace(
+            "{ select(pair^) }",
+            "{ let result = select(pair^)\nlet _ = pair.1\nresult^ }",
+        ),
+        format!("func runtime(value: i32): i32 {{ value + 20 }}\n{source}").replace(
+            "let first = select((wrap(addition(20)), 0))",
+            "let first = select((runtime, 0))",
+        ),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        assert_ne!(changed, source);
+        let (sources, tree) = input(&changed);
+        let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+        assert!(
+            matches!(
+                (index, &failure),
+                (0 | 1, SourceFailure::Checking(Failure::Body { .. }))
+                    | (2, SourceFailure::Checking(Failure::Flow { .. }))
+                    | (3, SourceFailure::Checking(Failure::Const { .. }))
+            ),
+            "case {index}: {failure:?}"
+        );
+    }
+}
+
+#[test]
 fn contextual_component_alias_writes_preserve_the_actual_containing_owner() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

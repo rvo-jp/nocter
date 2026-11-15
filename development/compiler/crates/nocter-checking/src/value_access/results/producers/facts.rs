@@ -231,6 +231,44 @@ impl Store {
         }
         Ok(done[&data])
     }
+    /// Match formal component identities to original supplied producer alternatives. These
+    /// equations are not exact frame bindings, contextual payloads or correlated call evidence.
+    pub(super) fn input_producers(
+        &mut self,
+        program: &Program,
+        data: TypeId,
+        actual: Facts,
+    ) -> Result<super::Inputs, IntegrityError> {
+        let formal = self.received(program, data, true)?;
+        let mut pending = vec![(formal, actual)];
+        let mut seen = BTreeSet::new();
+        let mut inputs = super::Inputs::new();
+        while let Some((formal, actual)) = pending.pop() {
+            if !seen.insert((formal, actual)) {
+                continue;
+            }
+            let formal = &self.nodes[formal.0];
+            let actual = &self.nodes[actual.0];
+            for witness in &formal.producers {
+                if let ValueFunctionOrigin::Parameter(
+                    parameter @ nocter_model::ValueParameter::Component { .. },
+                ) = witness.origin
+                {
+                    inputs
+                        .entry(parameter)
+                        .or_default()
+                        .extend(actual.producers.iter().copied());
+                }
+            }
+            pending.extend(formal.children.iter().map(|(field, &formal)| {
+                (
+                    formal,
+                    actual.children.get(field).copied().unwrap_or_default(),
+                )
+            }));
+        }
+        Ok(inputs)
+    }
     /// Retag actual structural occurrences through a checked boundary, retaining their producers.
     pub(super) fn retag(
         &mut self,

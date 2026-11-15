@@ -1751,6 +1751,15 @@ selected callable leaves, singleton arrays and zero-count arrays through require
 It distinguishes nested callable contexts and repeated calls with the same context but different
 values. The matching error fixture executes actual received-container and discarded-seed cleanup.
 Missing transfers, moved-source reuse, runtime-only invocation and changed header contracts reject.
+`contextual-compound-input-results.nct` qualifies owning callable results selected from received
+tuples and arrays, including direct/function-value calls, anchored recursive forwarding,
+independent same-signature tuple leaves and different
+received callback contexts at the same array-selection function. Symbolic producer equations match
+declaration-owned component identities against the original structural producer facts; type-only
+applications retain descriptor equations without manufacturing committed calls or input values.
+Exact result realization still requires the original received compound context. Missing context
+and exhausted work reject independently, followed by healthy retry. Required/native execution
+agrees, and the matching error fixture executes remaining-container and returned-owner cleanup.
 Higher-order component signatures, callable record fields and compound callable results remain
 separate admission boundaries.
 `contextual-compound-edits.nct` additionally qualifies scalar updates through edit tuple inputs,

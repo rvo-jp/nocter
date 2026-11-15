@@ -135,7 +135,7 @@ fn close_applications(
     for control in controls.values() {
         let query = &control.typed;
         for (id, expression) in query.body.expressions.iter() {
-            let ExpressionKind::Call { arguments, .. } = &expression.kind else {
+            let ExpressionKind::Call { .. } = &expression.kind else {
                 continue;
             };
             let Some(result) = super::applications::call_result(query, id)
@@ -146,11 +146,8 @@ fn close_applications(
             let Some(application) = result.created else {
                 continue;
             };
-            let inputs = arguments
-                .iter()
-                .filter_map(|argument| argument.binding.as_ref())
-                .map(|binding| (binding.parameter, Producers::from([binding.witness])))
-                .collect();
+            let inputs = super::producers::application_inputs(query, id)
+                .map_err(accepted::Failure::Integrity)?;
             equations.insert(
                 Term::Application(application),
                 Relation::Apply(Arc::new(InvocationRecipe {
