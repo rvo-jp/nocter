@@ -52,7 +52,8 @@ pub(in crate::value_access) fn arguments(
     let mut prepared = PreparedData {
         arguments: BTreeMap::new(),
     };
-    let mut resolution = super::super::instantiation::Query::new(program, evidence, work);
+    let mut resolution =
+        super::super::instantiation::Query::with_control(program, evidence, work, &control);
     for ((at, slot), source) in sources.definitions() {
         let ValueSourceSlot::Argument { call, index } = slot else {
             continue;

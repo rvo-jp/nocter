@@ -34,10 +34,11 @@ fn explicit_drop_selects_the_original_local_before_retirement_and_recovers_from_
         )
         .unwrap();
     let healthy = || WorkBudget::new(Limits::default().steps());
+    let plain_control = unit.instantiate_control(&plain, &mut healthy()).unwrap();
     let mut domain = evaluation::Types::default();
     assert!(
         condition
-            .supports(body, &plain, &mut healthy(), &mut domain)
+            .supports(body, &plain, &plain_control, &mut healthy(), &mut domain)
             .unwrap()
     );
     let run = unit.code_body(code("run").into()).unwrap();
@@ -58,31 +59,40 @@ fn explicit_drop_selects_the_original_local_before_retirement_and_recovers_from_
             &mut WorkBudget::new(Limits::default().steps()),
         )
         .unwrap();
+    let captured_control = unit
+        .instantiate_control(&captured, &mut WorkBudget::new(Limits::default().steps()))
+        .unwrap();
     assert!(
         !condition
-            .supports(body, &captured, &mut healthy(), &mut domain)
+            .supports(
+                body,
+                &captured,
+                &captured_control,
+                &mut healthy(),
+                &mut domain
+            )
             .unwrap()
     );
     let mut exhausted = WorkBudget::new(NonZeroU64::new(1).unwrap());
     exhausted.step().unwrap();
     assert!(
-        matches!(condition.supports(body, &plain, &mut exhausted, &mut domain),
+        matches!(condition.supports(body, &plain, &plain_control, &mut exhausted, &mut domain),
         Err(BoundCheckFailure::Data { at: actual, failure: InstantiationFailure::WorkLimit }) if actual == at)
     );
     assert!(
         condition
-            .supports(body, &plain, &mut healthy(), &mut domain)
+            .supports(body, &plain, &plain_control, &mut healthy(), &mut domain)
             .unwrap()
     );
     let mut invalid = condition.clone();
     invalid.selections[0].action = usize::MAX;
     assert!(matches!(
-        invalid.supports(body, &plain, &mut healthy(), &mut domain),
+        invalid.supports(body, &plain, &plain_control, &mut healthy(), &mut domain),
         Err(BoundCheckFailure::Integrity(_))
     ));
     let wrong = program.bind_code(code("first").into(), []).unwrap();
     assert!(matches!(
-        condition.supports(body, &wrong, &mut healthy(), &mut domain),
+        condition.supports(body, &wrong, &plain_control, &mut healthy(), &mut domain),
         Err(BoundCheckFailure::Integrity(_))
     ));
 }
@@ -111,6 +121,9 @@ fn dormant_drop_preserves_its_contract_without_inventing_a_source_occurrence() {
             [(formal.into(), FunctionWitness::from(code("first")))],
         )
         .unwrap();
+    let frame_control = unit
+        .instantiate_control(&frame, &mut WorkBudget::new(Limits::default().steps()))
+        .unwrap();
     let mut exhausted = WorkBudget::new(NonZeroU64::new(1).unwrap());
     exhausted.step().unwrap();
     assert!(
@@ -118,6 +131,7 @@ fn dormant_drop_preserves_its_contract_without_inventing_a_source_occurrence() {
             .supports(
                 body,
                 &frame,
+                &frame_control,
                 &mut exhausted,
                 &mut evaluation::Types::default()
             )
@@ -141,10 +155,19 @@ fn dormant_drop_preserves_its_contract_without_inventing_a_source_occurrence() {
             &mut WorkBudget::new(Limits::default().steps()),
         )
         .unwrap();
+    let captured_control = unit
+        .instantiate_control(&captured, &mut WorkBudget::new(Limits::default().steps()))
+        .unwrap();
     let mut domain = evaluation::Types::default();
     assert!(
         conditions[0]
-            .supports(body, &captured, &mut exhausted, &mut domain)
+            .supports(
+                body,
+                &captured,
+                &captured_control,
+                &mut exhausted,
+                &mut domain
+            )
             .unwrap()
     );
     assert!(

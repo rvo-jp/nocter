@@ -1,5 +1,6 @@
 //! Actual value transport must override a frame's default payload for the same semantic type.
 use super::*;
+use crate::value_access::InstanceProgram;
 use nocter_checking::value_access::accepted::SourceUnit;
 use nocter_test_support::ValueSourceFixture;
 use std::sync::Arc;
@@ -68,7 +69,7 @@ fn an_unmatched_replacement_is_rejected_before_projecting_its_prefix() {
         action: 0,
     };
     let mut work = WorkBudget::new(std::num::NonZeroU64::new(1).unwrap());
-    let mut projection = Projection::new(&instances, instance, id, at, &mut work).unwrap();
+    let mut projection = Projection::new(instance, id, at, &mut work).unwrap();
     assert_eq!(
         projection.steps(&[prefix.clone(), invalid]),
         Err(Failure::InvalidInstanceProgram)
@@ -79,6 +80,6 @@ fn an_unmatched_replacement_is_rejected_before_projecting_its_prefix() {
         "preflight failure must not start payload projection"
     );
     let mut work = WorkBudget::new(std::num::NonZeroU64::new(1_000).unwrap());
-    let mut projection = Projection::new(&instances, instance, id, at, &mut work).unwrap();
+    let mut projection = Projection::new(instance, id, at, &mut work).unwrap();
     assert!(projection.steps(&[prefix]).is_ok());
 }

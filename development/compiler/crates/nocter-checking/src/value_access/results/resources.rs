@@ -12,6 +12,7 @@ use nocter_declarations::value_access::{
     CodeInstanceKey, DataInstanceKey, InstanceSchema, PayloadSchema, Program,
 };
 use nocter_model::{TypeId, ValueField, ValuePath, ValueProjection};
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 #[cfg(test)]
 mod tests;
@@ -36,6 +37,7 @@ pub struct ResourceDataProjection<'a, 'work> {
     at: Location,
     work: &'work mut WorkBudget,
     values: BTreeMap<Holder, Binding>,
+    control: Option<Cow<'a, super::InstanceControl>>,
 }
 
 mod roots;
@@ -129,11 +131,15 @@ impl<'a, 'work> ResourceDataProjection<'a, 'work> {
         body: Option<&'a flow::Query>,
         frame: &'a CodeInstanceKey,
         at: Location,
+        control: Option<&'a super::InstanceControl>,
         work: &'work mut WorkBudget,
     ) -> Result<Self, Failure> {
         let body = body
             .filter(|body| body.typed().code() == frame.code())
             .ok_or(INVALID)?;
+        if control.is_some_and(|control| control.frame() != frame) {
+            return Err(INVALID);
+        }
         body.graph()
             .points()
             .get(at.point)
@@ -147,7 +153,28 @@ impl<'a, 'work> ResourceDataProjection<'a, 'work> {
             at,
             work,
             values: BTreeMap::new(),
+            control: control.map(Cow::Borrowed),
         })
+    }
+    fn resolution(&mut self) -> Result<super::InstantiationQuery<'_, '_>, Failure> {
+        if self.control.is_none() {
+            self.control = Some(Cow::Owned(
+                super::instantiate_control(
+                    self.program,
+                    self.evidence,
+                    Some(self.body),
+                    self.frame,
+                    self.work,
+                )
+                .map_err(Failure::Instantiation)?,
+            ));
+        }
+        Ok(super::InstantiationQuery::with_control(
+            self.program,
+            self.evidence,
+            self.work,
+            self.control.as_deref().ok_or(INVALID)?,
+        ))
     }
     /// Project only payload metadata, preserving the supplied operation and place identities.
     /// # Errors
@@ -332,15 +359,10 @@ impl<'a, 'work> ResourceDataProjection<'a, 'work> {
             .and_then(|graph| graph.flow())
             .and_then(|flow| flow.referent(self.at, target))
             .ok_or(INVALID)?;
-        super::instantiate_value_data(
-            self.program,
-            self.evidence,
-            self.frame,
-            source,
-            data,
-            self.work,
-        )
-        .map_err(Failure::Instantiation)
+        let frame = self.frame;
+        self.resolution()?
+            .data(frame, source, data)
+            .map_err(Failure::Instantiation)
     }
     fn source(&mut self, place: &Place, target: TypeId) -> Result<DataInstanceKey, Failure> {
         let program = self.program;
@@ -489,15 +511,10 @@ impl<'a, 'work> ResourceDataProjection<'a, 'work> {
             slot,
             path: metadata_path(place, ()),
         };
-        super::instantiate_stored_data(
-            self.program,
-            self.evidence,
-            self.frame,
-            &selected,
-            target,
-            self.work,
-        )
-        .map_err(Failure::Instantiation)
+        let frame = self.frame;
+        self.resolution()?
+            .stored(frame, &selected, target)
+            .map_err(Failure::Instantiation)
     }
 }
 fn source_slot(holder: Holder) -> Result<ValueSourceSlot, Failure> {

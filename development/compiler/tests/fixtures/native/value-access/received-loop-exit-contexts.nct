@@ -1,0 +1,22 @@
+const func identity(value: i32): i32 { value }
+const func addition(number: i32): func(i32): i32 {
+    (number; value: i32) { number + value }
+}
+const func wrap(take callback: func(i32): i32): func(i32): i32 {
+    (callback^; value: i32) { callback(value) }
+}
+const func absent(): (func(i32): i32)? { none }
+const func choose(take value: (func(i32): i32)?): i32 {
+    var action = wrap(identity)
+    loop {
+        let ignored = value^ otherwise {
+            action = wrap(addition(40))
+            break
+        }
+        drop ignored
+        break
+    }
+    action(2)
+}
+const ANSWER: i32 = choose(absent())
+func run(): i32 { choose(absent()) }

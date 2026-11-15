@@ -25,23 +25,22 @@ pub type DataEvidence = nocter_checking::value_access::accepted::DataEvidence<Pa
 
 #[derive(Clone, Debug)]
 pub struct Instance {
-    key: InstanceKey,
     calls: BTreeMap<AccessExpressionId, Invocation>,
     metadata: BTreeSet<DataInstanceKey>,
     inputs: BTreeMap<AccessLocalId, Payload>,
     result: DataEvidence,
     prepared: BTreeMap<(AccessExpressionId, usize), Payload>,
     values: projection::Values,
-    control: nocter_checking::value_access::InstanceControl,
+    queries: nocter_checking::value_access::accepted::InstanceMetadata,
 }
 impl Instance {
     #[must_use]
     pub const fn control(&self) -> &nocter_checking::value_access::InstanceControl {
-        &self.control
+        self.queries.control()
     }
     #[must_use]
     pub const fn key(&self) -> &InstanceKey {
-        &self.key
+        self.control().frame()
     }
     /// Only reachable invocation commits have an instance edge. Value references alone do not.
     #[must_use]
@@ -190,6 +189,6 @@ impl InstanceProgram {
     #[must_use]
     pub fn body(&self, instance: AccessInstanceId) -> Option<&flow::Query> {
         self.unit
-            .code_body(self.instances.get(instance)?.key.code())
+            .code_body(self.instances.get(instance)?.key().code())
     }
 }

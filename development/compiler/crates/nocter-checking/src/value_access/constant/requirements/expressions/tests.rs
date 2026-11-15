@@ -31,6 +31,7 @@ fn expression_conditions_select_original_values_and_preserve_work_failure_locati
         )
         .unwrap();
     let healthy = || WorkBudget::new(Limits::default().steps());
+    let plain_control = unit.instantiate_control(&plain, &mut healthy()).unwrap();
     let run = unit.code_body(code("run").into()).unwrap();
     let (call, _) = run
         .typed()
@@ -49,33 +50,42 @@ fn expression_conditions_select_original_values_and_preserve_work_failure_locati
             &mut healthy(),
         )
         .unwrap();
+    let captured_control = unit
+        .instantiate_control(&captured, &mut WorkBudget::new(Limits::default().steps()))
+        .unwrap();
     for condition in conditions.values() {
         assert!(!condition.selections.is_empty());
         let mut domain = evaluation::Types::default();
         assert!(
             condition
-                .supports(body, &plain, &mut healthy(), &mut domain)
+                .supports(body, &plain, &plain_control, &mut healthy(), &mut domain)
                 .unwrap()
         );
         assert!(
             !condition
-                .supports(body, &captured, &mut healthy(), &mut domain)
+                .supports(
+                    body,
+                    &captured,
+                    &captured_control,
+                    &mut healthy(),
+                    &mut domain
+                )
                 .unwrap()
         );
         let mut exhausted = WorkBudget::new(NonZeroU64::new(1).unwrap());
         exhausted.step().unwrap();
         assert!(
-            matches!(condition.supports(body, &plain, &mut exhausted, &mut domain),
+            matches!(condition.supports(body, &plain, &plain_control, &mut exhausted, &mut domain),
             Err(BoundCheckFailure::Data { at, failure: InstantiationFailure::WorkLimit }) if at == condition.selections[0].0)
         );
         assert!(
             condition
-                .supports(body, &plain, &mut healthy(), &mut domain)
+                .supports(body, &plain, &plain_control, &mut healthy(), &mut domain)
                 .unwrap()
         );
         let wrong = program.bind_code(code("first").into(), []).unwrap();
         assert!(matches!(
-            condition.supports(body, &wrong, &mut healthy(), &mut domain),
+            condition.supports(body, &wrong, &plain_control, &mut healthy(), &mut domain),
             Err(BoundCheckFailure::Integrity(_))
         ));
     }
@@ -104,6 +114,9 @@ fn dormant_expressions_retain_definition_contract_checks_without_source_values()
             [(formal.into(), FunctionWitness::from(code("first")))],
         )
         .unwrap();
+    let frame_control = unit
+        .instantiate_control(&frame, &mut WorkBudget::new(Limits::default().steps()))
+        .unwrap();
     let mut exhausted = WorkBudget::new(NonZeroU64::new(1).unwrap());
     exhausted.step().unwrap();
     for condition in conditions.values() {
@@ -113,6 +126,7 @@ fn dormant_expressions_retain_definition_contract_checks_without_source_values()
                 .supports(
                     body,
                     &frame,
+                    &frame_control,
                     &mut exhausted,
                     &mut evaluation::Types::default()
                 )
@@ -137,11 +151,20 @@ fn dormant_expressions_retain_definition_contract_checks_without_source_values()
             &mut WorkBudget::new(Limits::default().steps()),
         )
         .unwrap();
+    let captured_control = unit
+        .instantiate_control(&captured, &mut WorkBudget::new(Limits::default().steps()))
+        .unwrap();
     let mut domain = evaluation::Types::default();
     for condition in conditions.values() {
         assert!(
             condition
-                .supports(body, &captured, &mut exhausted, &mut domain)
+                .supports(
+                    body,
+                    &captured,
+                    &captured_control,
+                    &mut exhausted,
+                    &mut domain
+                )
                 .unwrap()
         );
         assert!(

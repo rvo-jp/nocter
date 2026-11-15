@@ -36,6 +36,11 @@ impl InstanceControl {
     pub fn terminator(&self, point: AccessFlowPointId) -> Option<flow::Terminator> {
         self.points.get(&point).copied()
     }
+    #[must_use]
+    pub fn edge_reachable(&self, from: AccessFlowPointId, to: AccessFlowPointId) -> bool {
+        self.terminator(from)
+            .is_some_and(|terminator| terminator.successors().contains(&to))
+    }
 }
 
 pub(in crate::value_access) fn instantiate(

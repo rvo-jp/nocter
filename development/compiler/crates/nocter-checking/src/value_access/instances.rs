@@ -12,6 +12,7 @@ pub(super) fn condition_call(
     query: &super::Query,
     caller: &CodeInstanceKey,
     id: nocter_model::AccessExpressionId,
+    control: Option<&super::InstanceControl>,
     work: &mut nocter_constant_evaluation::state::WorkBudget,
 ) -> Result<Option<CodeInstanceKey>, super::InstantiationFailure> {
     use super::InstantiationFailure as Failure;
@@ -33,6 +34,17 @@ pub(super) fn condition_call(
         call: id,
     };
     if evidence.invocation(site).is_some() {
+        if let Some(control) = control {
+            return super::results::instantiate_controlled_invocation(
+                query.program(),
+                evidence,
+                caller,
+                site,
+                control,
+                work,
+            )
+            .map(Some);
+        }
         return super::results::instantiate_invocation(
             query.program(),
             evidence,

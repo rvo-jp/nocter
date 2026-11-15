@@ -1,8 +1,10 @@
 //! Closed front-end acceptance of every definition in one private first-fragment unit.
 pub use super::staged::{ModuleSourceUnit, SourceFailure, SourceUnit};
 mod const_admission;
+mod instance_metadata;
 use super::{Failure as BodyFailure, Query as TypedQuery, flow};
 pub(super) use const_admission::check_required_const;
+pub use instance_metadata::InstanceMetadata;
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::Program;
 use nocter_diagnostics::SourceDiagnostic;
@@ -384,6 +386,7 @@ impl Unit {
             self.code_body(frame.code()),
             frame,
             at,
+            None,
             work,
         )
     }
@@ -398,11 +401,16 @@ impl Unit {
         work: &mut nocter_constant_evaluation::state::WorkBudget,
     ) -> Result<nocter_declarations::value_access::CodeInstanceKey, super::InstantiationFailure>
     {
-        super::results::instantiate_invocation(
+        if caller.code() != site.owner {
+            return Err(super::InstantiationFailure::WrongOwner);
+        }
+        let control = self.instantiate_control(caller, work)?;
+        super::results::instantiate_controlled_invocation(
             &self.program,
             &self.result_evidence,
             caller,
             site,
+            &control,
             work,
         )
     }
@@ -430,14 +438,14 @@ impl Unit {
         work: &mut nocter_constant_evaluation::state::WorkBudget,
     ) -> Result<nocter_declarations::value_access::DataInstanceKey, super::InstantiationFailure>
     {
-        super::results::instantiate_value_data(
+        super::results::InstantiationQuery::controlled(
             &self.program,
             &self.result_evidence,
+            self.code_body(caller.code()),
             caller,
-            value,
-            source,
             work,
-        )
+        )?
+        .data(caller, value, source)
     }
     /// Resolve contextual data at an original source-definition boundary.
     /// This does not choose a resource phase, validate alias access or grant a stored value.
@@ -451,14 +459,14 @@ impl Unit {
         work: &mut nocter_constant_evaluation::state::WorkBudget,
     ) -> Result<nocter_declarations::value_access::DataInstanceKey, super::InstantiationFailure>
     {
-        super::results::instantiate_stored_data(
+        super::results::InstantiationQuery::controlled(
             &self.program,
             &self.result_evidence,
+            self.code_body(caller.code()),
             caller,
-            selected,
-            source,
             work,
-        )
+        )?
+        .stored(caller, selected, source)
     }
     /// Resolve the contextual data of original returned values in this exact frame.
     /// This supplies no return value, initialized owner or executable ABI.
@@ -626,6 +634,7 @@ impl Checked {
         &'a self,
         frame: &'a nocter_declarations::value_access::CodeInstanceKey,
         at: flow::Location,
+        control: &'a super::InstanceControl,
         work: &'work mut nocter_constant_evaluation::state::WorkBudget,
     ) -> Result<super::ResourceDataProjection<'a, 'work>, super::ResourceDataFailure> {
         super::ResourceDataProjection::new(
@@ -634,6 +643,7 @@ impl Checked {
             self.code(frame.code()),
             frame,
             at,
+            Some(control),
             work,
         )
     }
@@ -694,14 +704,19 @@ impl Checked {
         &self,
         caller: &nocter_declarations::value_access::CodeInstanceKey,
         site: nocter_model::ValueApplication,
+        control: &super::InstanceControl,
         work: &mut nocter_constant_evaluation::state::WorkBudget,
     ) -> Result<nocter_declarations::value_access::CodeInstanceKey, super::InstantiationFailure>
     {
-        super::results::instantiate_invocation(
+        if caller.code() != site.owner {
+            return Err(super::InstantiationFailure::WrongOwner);
+        }
+        super::results::instantiate_controlled_invocation(
             &self.program,
             &self.result_evidence,
             caller,
             site,
+            control,
             work,
         )
     }

@@ -391,8 +391,14 @@ fn bound_condition_calls_reuse_original_frames_across_clauses() {
         let needed = (1..=10_000)
             .find(|&units| {
                 let mut work = WorkBudget::new(NonZeroU64::new(units).unwrap());
-                crate::value_access::instances::condition_call(body.typed(), &caller, id, &mut work)
-                    .is_ok()
+                crate::value_access::instances::condition_call(
+                    body.typed(),
+                    &caller,
+                    id,
+                    None,
+                    &mut work,
+                )
+                .is_ok()
             })
             .unwrap();
         let mut limited = WorkBudget::new(NonZeroU64::new(needed).unwrap());

@@ -113,14 +113,15 @@ impl Invocation {
 }
 
 pub(super) fn bind(
-    unit: &Unit,
-    frame: &InstanceKey,
+    queries: &nocter_checking::value_access::accepted::InstanceMetadata,
     caller: &nocter_checking::value_access::flow::Query,
     call: AccessExpressionId,
     body_frame: &InstanceKey,
     target: CallTarget,
     work: &mut WorkBudget,
 ) -> Result<Invocation, Failure> {
+    let unit = queries.unit();
+    let frame = queries.control().frame();
     if caller.typed().code() != frame.code() {
         return Err(INVALID);
     }
@@ -129,6 +130,7 @@ pub(super) fn bind(
         .and_then(|graph| graph.call(call))
         .ok_or(INVALID)?;
     let mut binding = Binding {
+        queries,
         unit,
         frame,
         caller,
@@ -139,6 +141,9 @@ pub(super) fn bind(
     };
     let mut selected = None;
     for bundle in bundles {
+        if !queries.control().reachable(bundle.origin.point) {
+            continue;
+        }
         let next = binding.bundle(bundle)?;
         if selected.as_ref().is_some_and(|previous| previous != &next) {
             return Err(
@@ -150,6 +155,7 @@ pub(super) fn bind(
     selected.ok_or(INVALID)
 }
 struct Binding<'a, 'work> {
+    queries: &'a nocter_checking::value_access::accepted::InstanceMetadata,
     unit: &'a Unit,
     frame: &'a InstanceKey,
     caller: &'a nocter_checking::value_access::flow::Query,
@@ -378,8 +384,8 @@ impl Binding<'_, '_> {
             .data();
         let source = *bundle.arguments.get(index).ok_or(INVALID)?;
         let key = self
-            .unit
-            .instantiate_value_data(self.frame, source, data, self.work)
+            .queries
+            .value_data(source, data, self.work)
             .map_err(|failure| self.failure(failure))?;
         self.payload(data, &key)
     }
@@ -395,8 +401,8 @@ impl Binding<'_, '_> {
                 slot: nocter_checking::value_access::ValueSourceSlot::Expression(self.call),
                 path: nocter_model::ValuePath::default(),
             };
-            self.unit
-                .instantiate_stored_data(self.frame, &selected, data, self.work)
+            self.queries
+                .stored_data(&selected, data, self.work)
                 .map_err(|failure| self.failure(failure))?
         };
         self.payload(data, &key)

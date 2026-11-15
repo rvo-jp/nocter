@@ -87,8 +87,13 @@ and its own formal-witness bindings plus captured substitutions. A concrete witn
 code, supplied invocation view and complete captured callable context. The code instance itself
 is shared across views. Actual runtime environment values do not enter its key. The builder reserves
 before following recursive edges and freezes only after every reachable instance is defined.
-Each instance retains checking's frame-specific `InstanceControl`. Invocation closure, metadata
-demand and lifecycle schedules use its selected original points; MIR consumes its terminators.
+Each instance retains checking's source-bound
+[`InstanceMetadata`](../nocter-checking/README.md#callable-result-closure), including its frame-specific
+`InstanceControl`. Invocation closure, argument data and lifecycle payload queries share that
+selection without repeating complete control analysis per operation. Metadata demand and lifecycle
+schedules use its selected original points; MIR consumes its terminators.
+The published instance key comes from that retained frame; the instance keeps no independently
+editable key beside its source-bound metadata.
 An excluded primary continuation cannot demand a fictitious callable, while original carrier/tag
 actions remain present. The target does not infer branches from layouts, signatures or missing
 call edges. Unknown domains retain the original branch.

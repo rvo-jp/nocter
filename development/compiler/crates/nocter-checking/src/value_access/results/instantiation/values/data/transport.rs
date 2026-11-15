@@ -119,6 +119,12 @@ impl Query<'_, '_> {
             ValueSourceRead::Incoming(previous) => {
                 let mut fact = Fact::Empty;
                 for boundary in previous {
+                    if self.control.as_deref().is_some_and(|control| {
+                        control.frame() == frame
+                            && !control.edge_reachable(boundary.point, selected.boundary.point)
+                    }) {
+                        continue;
+                    }
                     let next = crate::value_access::ValueSourceSelection {
                         boundary,
                         ..selected.clone()

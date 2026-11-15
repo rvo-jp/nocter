@@ -31,12 +31,13 @@ impl Condition {
         &self,
         body: &flow::Query,
         frame: &CodeInstanceKey,
+        control: &crate::value_access::InstanceControl,
         work: &mut WorkBudget,
         domain: &mut evaluation::Types,
     ) -> Result<bool, BoundCheckFailure> {
         let query = body.typed();
         let program = query.program();
-        if query.code() != frame.code() {
+        if query.code() != frame.code() || control.frame() != frame {
             return Err(INVALID.into());
         }
         let Site::Statement(statement) = self.violation.site else {
@@ -55,7 +56,12 @@ impl Condition {
             return super::super::supports(program, data, domain, None).map_err(Into::into);
         }
         let evidence = query.result_evidence.as_ref().ok_or(INVALID)?;
+        let mut resolution =
+            results::InstantiationQuery::with_control(program, evidence, work, control);
         for &at in &self.selections {
+            if !control.reachable(at.point) {
+                continue;
+            }
             let action = body
                 .graph()
                 .points()
@@ -70,22 +76,20 @@ impl Condition {
             }
             let key = match program.instantiate_closed_data(data) {
                 Ok(key) => key,
-                Err(_) => results::instantiate_stored_data(
-                    program,
-                    evidence,
-                    frame,
-                    &ValueSourceSelection {
-                        boundary: ValueSourceBoundary {
-                            point: at.point,
-                            action: at.action,
+                Err(_) => resolution
+                    .stored(
+                        frame,
+                        &ValueSourceSelection {
+                            boundary: ValueSourceBoundary {
+                                point: at.point,
+                                action: at.action,
+                            },
+                            slot: ValueSourceSlot::Local(*local),
+                            path: ValuePath::default(),
                         },
-                        slot: ValueSourceSlot::Local(*local),
-                        path: ValuePath::default(),
-                    },
-                    data,
-                    work,
-                )
-                .map_err(|failure| BoundCheckFailure::Data { at, failure })?,
+                        data,
+                    )
+                    .map_err(|failure| BoundCheckFailure::Data { at, failure })?,
             };
             if !domain.supports_instance(program, key)? {
                 return Ok(false);

@@ -12,6 +12,7 @@ use std::{num::NonZeroU64, sync::Arc};
 
 mod batches;
 mod carrier_writes;
+mod control;
 mod creations;
 mod data;
 mod explicit_writes;

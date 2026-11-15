@@ -130,7 +130,7 @@ impl Query<'_, '_> {
                     *source == value
                 }
                 ValueSource::Merge { .. } | ValueSource::Alternatives(_) => {
-                    node.value.inputs().any(|input| input == value)
+                    self.incoming_values(frame, node).contains(&value)
                 }
                 _ => false,
             };

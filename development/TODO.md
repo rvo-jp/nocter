@@ -208,10 +208,22 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   retain original tag effects, traps and exact call/resource phases.
   Carry selected predecessor evidence through recovery/result merges and partially active const
   selections; the original source graph must not join an impossible positive payload as a value.
+  Returned producer sets alone lose return-edge correspondence: use original normal-completion
+  boundaries and their staged-return definitions, not producer-origin reachability, when
+  qualifying selected result paths.
 - [x] Preserve each sparse source merge's original predecessor boundary and supplied definition
   as one paired relation. Do not deduplicate equal definitions into an uncorrelated set or infer
   selected incoming edges merely from producer-point reachability. Qualify unchanged conservative
   consumers, branch joins, shared incoming definitions and anchored loop backedges.
+- [x] Resolve received-domain loop exits against selected predecessor edges. A value created
+  before the outcome branch remains a reachable producer even when its unchanged exit edge
+  is excluded; do not let that old context pollute the surviving replacement/call/cleanup.
+  Qualify `received-loop-exit-contexts.nct` through required/native execution, actual retired
+  and received error ownership, unknown-domain rejection and request work-failure recovery.
+- [ ] Reconcile the remaining concrete-witness and referent-root query entry points with selected
+  contextual data/stored-definition queries. A read alias or transfer after a qualified loop exit
+  must keep one chosen code/environment and backing contract. Preserve the unrefined query used
+  to establish control and keep general returned/completed-input paths separately qualified.
 - [x] Qualify a same-witness recovery join from a received callable array with distinct captured
   payloads, both active/absent tags, partial transfers and remaining-owner/error cleanup.
 - [x] Close contextual callable-array construction for mixed literal absence and positive

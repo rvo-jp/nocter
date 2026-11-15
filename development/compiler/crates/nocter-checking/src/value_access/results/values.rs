@@ -88,7 +88,8 @@ pub(in crate::value_access) fn values(
         definitions: BTreeMap::new(),
         roots: BTreeMap::new(),
     };
-    let mut resolution = super::instantiation::Query::new(program, evidence, work);
+    let mut resolution =
+        super::instantiation::Query::with_control(program, evidence, work, &control);
     for ((at, expression), source) in sources.operands() {
         if !control.reachable(at.point) {
             continue;

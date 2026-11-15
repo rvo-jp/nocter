@@ -562,6 +562,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
                     query,
                     &key,
                     id,
+                    control.as_ref(),
                     &mut self.condition_work,
                 )
                 .map_err(|failure| {

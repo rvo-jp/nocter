@@ -157,7 +157,8 @@ fn bound_cleanup_uses_the_received_environment_and_retries_after_work_failure() 
     let condition = &conditions[0];
     let (at, transition) = condition.request().unwrap();
     let keys = [&plain, &captured].map(|frame| {
-        let projected = project(body, frame, at, transition, &mut healthy()).unwrap();
+        let control = unit.instantiate_control(frame, &mut healthy()).unwrap();
+        let projected = project(body, frame, at, transition, &control, &mut healthy()).unwrap();
         condition.projected_data(&projected).unwrap()
     });
     // The original condition keeps its formal source type. Resource payloads normalize to

@@ -3,6 +3,47 @@ use crate::value_access::accepted::{Failure, SourceFailure, SourceUnit};
 use nocter_constant_evaluation::state::Value as Datum;
 
 #[test]
+fn received_absence_selects_the_actual_loop_exit_callable_context() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-loop-exit-contexts.nct"
+    ));
+    for (parameter, binding) in [
+        ("take value", "let ignored = value^"),
+        ("value", "read ignored = value"),
+        ("edit value", "edit ignored = value"),
+    ] {
+        let source = source
+            .replace("choose(take value", &format!("choose({parameter}"))
+            .replace("let ignored = value^", binding);
+        let source = if parameter == "take value" {
+            source
+        } else {
+            source.replace("drop ignored", "")
+        };
+        assert_eq!(
+            super::initializers::answer(&source, "ANSWER"),
+            Datum::integer(42)
+        );
+    }
+}
+
+#[test]
+fn inhabited_received_domains_keep_conflicting_loop_exits_unresolved() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-loop-exit-contexts.nct"
+    ));
+    let source = source.replace("{ none }", "{ identity }");
+    let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+    let failure = SourceUnit::prepare(fixture.syntax()).unwrap_err();
+    assert!(
+        matches!(failure, SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })
+        if diagnostic.rule() == crate::value_access::evaluation::Rule::UnresolvedContext)
+    );
+}
+
+#[test]
 fn indexed_empty_received_domains_preserve_the_original_bounds_failure() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

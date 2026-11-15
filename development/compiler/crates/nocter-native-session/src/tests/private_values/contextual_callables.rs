@@ -2,6 +2,51 @@
 use super::*;
 
 #[test]
+fn private_received_loop_exits_preserve_selected_contexts_and_error_cleanup() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-loop-exit-contexts.nct"
+    ));
+    let runtime = source
+        .replace("const ANSWER: i32 = choose(absent())", "")
+        .replace("const func", "func");
+    let package = TempPackage::new();
+    for (parameter, binding) in [
+        ("take value", "let ignored = value^"),
+        ("value", "read ignored = value"),
+        ("edit value", "edit ignored = value"),
+    ] {
+        let source = runtime
+            .replace("choose(take value", &format!("choose({parameter}"))
+            .replace("let ignored = value^", binding);
+        let source = if parameter == "take value" {
+            source
+        } else {
+            source.replace("drop ignored", "")
+        };
+        execute_native_status(
+            &compile(&source),
+            &package.0,
+            "received-loop-exit-contexts",
+            42,
+        );
+    }
+    let owned = runtime.replace("wrap(identity)", "wrap(initial())")
+        .replace("(number; value: i32)", "(reason^, number; value: i32)")
+        .replace("func addition(number: i32): func(i32): i32 {",
+            "func addition(number: i32): func(i32): i32 { let reason = context_error(create_failure(\"received\", \"leaf\"), \"outer\")");
+    let owned = format!(
+        "primitive func create_failure(code: str, message: str): error\nprimitive func context_error(take value: error, message: str): error\nfunc initial(): func(i32): i32 {{ let reason = context_error(create_failure(\"retired\", \"leaf\"), \"outer\")\n(reason^; value: i32) {{ value }} }}\n{owned}"
+    );
+    execute_native_status(
+        &image(&trusted_error_machine(&owned)),
+        &package.0,
+        "received-loop-exit-error-cleanup",
+        42,
+    );
+}
+
+#[test]
 fn private_contextual_absent_callable_arrays_preserve_supplied_environments_and_order() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

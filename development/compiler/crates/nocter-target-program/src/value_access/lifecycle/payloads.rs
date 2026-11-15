@@ -1,5 +1,5 @@
 //! Consume checking's ordered resource data projection; no second source substitution model.
-use super::{Failure, Instance, InstanceProgram, Location, ResourceStep, Step};
+use super::{Failure, Instance, Location, ResourceStep, Step};
 use nocter_checking::value_access::{ResourceDataFailure, ResourceDataProjection};
 use nocter_constant_evaluation::state::WorkBudget;
 use nocter_model::AccessInstanceId;
@@ -24,15 +24,14 @@ fn failure(id: AccessInstanceId, at: Location, error: ResourceDataFailure) -> Fa
 }
 impl<'a, 'work> Projection<'a, 'work> {
     pub(super) fn new(
-        instances: &'a InstanceProgram,
         instance: &'a Instance,
         id: AccessInstanceId,
         at: Location,
         work: &'work mut WorkBudget,
     ) -> Result<Self, Failure> {
-        let inner = instances
-            .unit()
-            .project_resource_data(instance.key(), at, work)
+        let inner = instance
+            .queries
+            .resource_data(at, work)
             .map_err(|error| failure(id, at, error))?;
         Ok(Self {
             inner,

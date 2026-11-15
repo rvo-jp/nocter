@@ -62,7 +62,7 @@ impl BoundContext<'_, '_> {
         condition: &super::expressions::Condition,
         domain: &mut crate::value_access::evaluation::Types,
     ) -> Result<bool, BoundCheckFailure> {
-        condition.supports(body, self.caller, self.work, domain)
+        condition.supports(body, self.caller, &self.control, self.work, domain)
     }
     pub(super) fn drop(
         &mut self,
@@ -70,7 +70,7 @@ impl BoundContext<'_, '_> {
         condition: &drops::Condition,
         domain: &mut crate::value_access::evaluation::Types,
     ) -> Result<bool, BoundCheckFailure> {
-        condition.supports(body, self.caller, self.work, domain)
+        condition.supports(body, self.caller, &self.control, self.work, domain)
     }
     pub(super) fn cleanup(
         &mut self,
@@ -82,19 +82,25 @@ impl BoundContext<'_, '_> {
         let projected = match self.resources.entry(request) {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => entry.insert(
-                cleanup::project(body, self.caller, request.0, request.1, self.work).map_err(
-                    |failure| match failure {
-                        crate::value_access::ResourceDataFailure::Integrity => {
-                            BoundCheckFailure::Integrity(super::INVALID)
+                cleanup::project(
+                    body,
+                    self.caller,
+                    request.0,
+                    request.1,
+                    &self.control,
+                    self.work,
+                )
+                .map_err(|failure| match failure {
+                    crate::value_access::ResourceDataFailure::Integrity => {
+                        BoundCheckFailure::Integrity(super::INVALID)
+                    }
+                    crate::value_access::ResourceDataFailure::Instantiation(failure) => {
+                        BoundCheckFailure::Data {
+                            at: request.0,
+                            failure,
                         }
-                        crate::value_access::ResourceDataFailure::Instantiation(failure) => {
-                            BoundCheckFailure::Data {
-                                at: request.0,
-                                failure,
-                            }
-                        }
-                    },
-                )?,
+                    }
+                })?,
             ),
         };
         condition.projected_data(projected).map_err(Into::into)
@@ -107,12 +113,17 @@ impl BoundContext<'_, '_> {
         let call = match self.calls.entry(expression) {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => entry.insert(
-                instances::condition_call(self.query, self.caller, expression, self.work).map_err(
-                    |failure| BoundCheckFailure::Invocation {
-                        expression,
-                        failure,
-                    },
-                )?,
+                instances::condition_call(
+                    self.query,
+                    self.caller,
+                    expression,
+                    Some(&self.control),
+                    self.work,
+                )
+                .map_err(|failure| BoundCheckFailure::Invocation {
+                    expression,
+                    failure,
+                })?,
             ),
         };
         Ok(call.as_ref())

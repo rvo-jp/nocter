@@ -166,6 +166,7 @@ impl CallFixture {
             self.unit.code_body(self.frame.code()),
             &self.frame,
             at,
+            None,
             work,
         )
         .unwrap();

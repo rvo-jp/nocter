@@ -53,9 +53,12 @@ impl Builder<'_, '_> {
                 let at = flow::Location { point, action };
                 let mut alternatives = Vec::new();
                 for transition in query.access().resources().at(at) {
-                    let mut projection =
-                        self.checked
-                            .project_resource_data(self.instance, at, self.work)?;
+                    let mut projection = self.checked.project_resource_data(
+                        self.instance,
+                        at,
+                        &self.control,
+                        self.work,
+                    )?;
                     let roots = transition
                         .before_steps()
                         .iter()

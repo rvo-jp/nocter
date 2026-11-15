@@ -16,6 +16,25 @@ mod data;
 mod writes;
 type Result = std::result::Result<Fact, InstantiationFailure>;
 impl Query<'_, '_> {
+    fn incoming_values(
+        &self,
+        frame: &CodeInstanceKey,
+        node: &ValueSourceNode,
+    ) -> Vec<ValueSourceId> {
+        if let ValueSource::Merge { point, inputs, .. } = &node.value
+            && let Some(control) = self
+                .control
+                .as_deref()
+                .filter(|control| control.frame() == frame)
+        {
+            return inputs
+                .iter()
+                .filter(|(boundary, _)| control.edge_reachable(boundary.point, *point))
+                .map(|(_, &value)| value)
+                .collect();
+        }
+        node.value.inputs().collect()
+    }
     pub(super) fn source_result(
         &mut self,
         owner: &Key,
@@ -222,7 +241,7 @@ impl Query<'_, '_> {
             }
             ValueSource::Merge { .. } | ValueSource::Alternatives(_) => {
                 let mut fact = Fact::Empty;
-                for input in node.value.inputs() {
+                for input in self.incoming_values(frame, node) {
                     fact = fact
                         .join(self.read(owner, Key::Value(frame.clone(), input, path.clone()))?);
                 }

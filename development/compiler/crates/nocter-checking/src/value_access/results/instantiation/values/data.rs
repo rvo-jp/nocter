@@ -39,7 +39,7 @@ impl Query<'_, '_> {
             ValueSource::Merge { .. } | ValueSource::Alternatives(_)
         ) {
             let mut fact = Fact::Empty;
-            for input in node.value.inputs() {
+            for input in self.incoming_values(frame, &node) {
                 fact = fact
                     .join(self.read(owner, Key::Data(frame.clone(), input, path.clone(), target))?);
             }

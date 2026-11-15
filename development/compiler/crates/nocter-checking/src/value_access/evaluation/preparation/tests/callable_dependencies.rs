@@ -592,9 +592,10 @@ fn dormant_definition_contracts_do_not_manufacture_committed_calls_or_excuse_run
     };
     let frame = program.bind_code(calculate.into(), []).unwrap();
     let mut work = state::WorkBudget::new(std::num::NonZeroU64::new(64).unwrap());
-    let hypothesis = crate::value_access::instances::condition_call(query, &frame, call, &mut work)
-        .unwrap()
-        .unwrap();
+    let hypothesis =
+        crate::value_access::instances::condition_call(query, &frame, call, None, &mut work)
+            .unwrap()
+            .unwrap();
     assert_eq!(hypothesis.code(), skipped.into());
     assert!(unit.invocation_recipe(site).is_none());
     assert_eq!(

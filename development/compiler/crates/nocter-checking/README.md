@@ -437,6 +437,26 @@ Entry values use direct adaptation, and an absent reaching definition stays empt
 consumers enumerate every possible input through this one relation. Selecting an edge must use
 the original predecessor's selected terminator, not the origin or reachability of its producer.
 
+`received-loop-exit-contexts.nct` qualifies a conditional whole-local replacement whose unchanged
+loop exit is excluded by a received empty callable domain. The initial producer remains reachable,
+but its context cannot pollute the surviving replacement's later invocation or cleanup. Request-local
+contextual data and stored-definition queries filter incoming edges only for their exact selected frame;
+dependencies in other frames retain conservative joins. Bound expression/drop checks also select
+their original reachable occurrences without discarding dormant definition contracts. Value and
+preparation maps, call argument projection and ordered resource cleanup use the same metadata query.
+Take/read/edit inputs qualify required execution, and owning native execution includes actual
+retired and received error graphs. An inhabited domain still retains both possible exits; different
+captured contexts then remain unresolved. Work exhaustion clears query drafts and permits a healthy
+retry without publishing a selected value, owner or executable body.
+
+`accepted::InstanceMetadata` binds one retained control selection to its exact accepted Unit and
+canonical frame. It shares that selection across native invocation, argument/result data and
+ordered resource projection without recomputing the complete graph at each operation. The
+product retains the Unit rather than accepting a control map supplied from another source.
+Evaluator projection and bound const checks borrow their already selected control through the
+same query engine. Metadata sharing spends the existing work quota and grants no runtime value,
+layout, source access or executable body.
+
 `received-outcome-propagation.nct` qualifies optional propagation through take/read/edit inputs,
 including absent and positive applications of the same body in required/native execution.
 `received-failure-propagation.nct` qualifies runtime failure propagation and recovery with actual
@@ -2077,7 +2097,7 @@ environments and owning captured environments also exercise growth and shrinkage
 reference survives the replacement. A still-used read reference prevents the overwrite.
 `contextual-callable-replacement-errors.nct` executes actual retired, received and saved error
 graph cleanup across those changes. These whole-owner cases do not establish stable offsets
-for retained component references, partial writes, joins or changing backedges.
+for retained component references, partial writes, general joins or changing backedges.
 `contextual-component-replacement.nct` additionally qualifies same-geometry partial replacement
 and restoration while a disjoint sibling reference survives, including repeated writes through
 one local edit alias. Original carrier selections match its actual containing owner. The evaluator

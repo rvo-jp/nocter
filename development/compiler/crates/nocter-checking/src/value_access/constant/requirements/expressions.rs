@@ -49,11 +49,12 @@ impl Condition {
         &self,
         body: &flow::Query,
         frame: &CodeInstanceKey,
+        control: &crate::value_access::InstanceControl,
         work: &mut WorkBudget,
         domain: &mut evaluation::Types,
     ) -> Result<bool, BoundCheckFailure> {
         let query = body.typed();
-        if query.code() != frame.code() {
+        if query.code() != frame.code() || control.frame() != frame {
             return Err(INVALID.into());
         }
         let data = self.data(body)?;
@@ -63,13 +64,17 @@ impl Condition {
             return super::super::supports(program, data, domain, None).map_err(Into::into);
         }
         let evidence = query.result_evidence.as_ref().ok_or(INVALID)?;
+        let mut resolution =
+            results::InstantiationQuery::with_control(program, evidence, work, control);
         for &(at, source) in &self.selections {
+            if !control.reachable(at.point) {
+                continue;
+            }
             let key = match program.instantiate_closed_data(data) {
                 Ok(key) => key,
-                Err(_) => {
-                    results::instantiate_value_data(program, evidence, frame, source, data, work)
-                        .map_err(|failure| BoundCheckFailure::Data { at, failure })?
-                }
+                Err(_) => resolution
+                    .data(frame, source, data)
+                    .map_err(|failure| BoundCheckFailure::Data { at, failure })?,
             };
             if !domain.supports_instance(program, key)? {
                 return Ok(false);

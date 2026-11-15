@@ -77,6 +77,7 @@ pub(super) fn project(
     caller: &CodeInstanceKey,
     at: flow::Location,
     transition: usize,
+    control: &crate::value_access::InstanceControl,
     work: &mut WorkBudget,
 ) -> Result<Projected, ResourceDataFailure> {
     let query = body.typed();
@@ -90,8 +91,15 @@ pub(super) fn project(
         .at(at)
         .nth(transition)
         .ok_or(ResourceDataFailure::Integrity)?;
-    let mut projection =
-        ResourceDataProjection::new(query.program(), evidence, Some(body), caller, at, work)?;
+    let mut projection = ResourceDataProjection::new(
+        query.program(),
+        evidence,
+        Some(body),
+        caller,
+        at,
+        Some(control),
+        work,
+    )?;
     let before = projection.steps(transition.before_steps())?;
     let after = projection.after_steps(transition.after_steps())?;
     Ok(Projected { before, after })

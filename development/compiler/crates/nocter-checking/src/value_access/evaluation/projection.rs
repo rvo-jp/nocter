@@ -637,6 +637,7 @@ impl Builder<'_, '_> {
                 owner: self.instance.code(),
                 call: id,
             },
+            &self.control,
             self.work,
         )?;
         self.invocations.insert(id, key.clone());

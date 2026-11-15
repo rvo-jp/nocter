@@ -34,7 +34,7 @@ impl Builder {
     }
     fn define(
         &mut self,
-        unit: &Unit,
+        unit: &Arc<Unit>,
         id: AccessInstanceId,
         work: &mut WorkBudget,
     ) -> Result<(), Failure> {
@@ -47,16 +47,17 @@ impl Builder {
         let body = unit
             .code_body(key.code())
             .ok_or(Failure::InvalidAcceptedUnit)?;
-        let control = unit
-            .instantiate_control(&key, work)
+        let queries = unit
+            .instance_metadata(&key, work)
             .map_err(|failure| Failure::Control {
                 code: key.code(),
                 failure,
             })?;
+        let control = queries.control();
         let inputs = projection::inputs(unit, &key, body, work)?;
         let result = projection::result(unit, &key, body, work)?;
         let prepared = projection::prepared(unit, &key, work)?;
-        let metadata = projection::metadata(unit, body, &control)?;
+        let metadata = projection::metadata(unit, body, control)?;
         let mut invocations = BTreeSet::new();
         for (point, block) in body.graph().points().iter() {
             if !control.reachable(point) {
@@ -74,8 +75,8 @@ impl Builder {
                 owner: key.code(),
                 call,
             };
-            let selected = unit
-                .instantiate_invocation(&key, site, work)
+            let selected = queries
+                .invocation(site, work)
                 .map_err(|failure| Failure::Invocation { site, failure })?;
             let code = selected.code();
             let target = match code {
@@ -90,7 +91,7 @@ impl Builder {
                 }
                 _ => CallTarget::Body(self.intern(selected.clone())),
             };
-            let edge = invocation::bind(unit, &key, body, call, &selected, target, work)?;
+            let edge = invocation::bind(&queries, body, call, &selected, target, work)?;
             let nocter_checking::value_access::ExpressionKind::Call { arguments, .. } = &body
                 .typed()
                 .body()
@@ -114,14 +115,13 @@ impl Builder {
             .get_mut(id)
             .ok_or(Failure::InvalidAcceptedUnit)?
             .definition = Some(Instance {
-            key,
             calls,
             metadata,
             inputs,
             result,
             prepared,
             values,
-            control,
+            queries,
         });
         Ok(())
     }
@@ -196,7 +196,7 @@ fn validate_body_edge(
     call: &invocation::Invocation,
 ) -> Result<(), Failure> {
     let invalid = Failure::InvalidAcceptedUnit;
-    let body = unit.code_body(callee.key.code()).ok_or(invalid)?.typed();
+    let body = unit.code_body(callee.key().code()).ok_or(invalid)?.typed();
     match (body.body().inputs().environment(), call.environment()) {
         (
             Some(input),

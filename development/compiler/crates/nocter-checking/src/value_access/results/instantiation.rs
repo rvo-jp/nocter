@@ -8,6 +8,7 @@ use nocter_model::{
     AccessLocalId, TypeId, ValueApplication, ValueCode, ValueFunctionOrigin as Origin,
     ValueInvocation, ValuePath,
 };
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet, btree_map::Entry as MapEntry};
 mod creations;
 #[cfg(test)]
@@ -57,12 +58,13 @@ struct Entry {
     fact: Fact,
     dependents: BTreeSet<Key>,
 }
-pub(super) struct Query<'a, 'work> {
+pub(in crate::value_access) struct Query<'a, 'work> {
     program: &'a Program,
     evidence: &'a Evidence,
     work: &'work mut WorkBudget,
     entries: BTreeMap<Key, Entry>,
     pending: BTreeSet<Key>,
+    control: Option<Cow<'a, super::InstanceControl>>,
 }
 
 pub(in crate::value_access) fn call(
@@ -72,16 +74,20 @@ pub(in crate::value_access) fn call(
     site: ValueApplication,
     work: &mut WorkBudget,
 ) -> Result<CodeInstanceKey, InstantiationFailure> {
-    if caller.code() != site.owner {
+    Query::new(program, evidence, work).call(caller, site)
+}
+pub(in crate::value_access) fn call_with_control(
+    program: &Program,
+    evidence: &Evidence,
+    caller: &CodeInstanceKey,
+    site: ValueApplication,
+    control: &super::InstanceControl,
+    work: &mut WorkBudget,
+) -> Result<CodeInstanceKey, InstantiationFailure> {
+    if control.frame() != caller {
         return Err(InstantiationFailure::WrongOwner);
     }
-    if evidence.invocation(site).is_none() {
-        return Err(InstantiationFailure::MissingCall);
-    }
-    match Query::new(program, evidence, work).solve(&Key::Call(caller.clone(), site))? {
-        Fact::Frame(frame) => Ok(frame),
-        _ => Err(InstantiationFailure::Unresolved),
-    }
+    Query::with_control(program, evidence, work, control).call(caller, site)
 }
 pub(in crate::value_access) fn value(
     program: &Program,
@@ -144,14 +150,7 @@ pub(in crate::value_access) fn stored(
     source: TypeId,
     work: &mut WorkBudget,
 ) -> Result<DataInstanceKey, InstantiationFailure> {
-    match Query::new(program, evidence, work).solve(&Key::Stored(
-        caller.clone(),
-        selected.clone(),
-        source,
-    ))? {
-        Fact::Data(data) => Ok(data),
-        _ => Err(InstantiationFailure::Unresolved),
-    }
+    Query::new(program, evidence, work).stored(caller, selected, source)
 }
 
 pub(in crate::value_access) fn result(
@@ -183,9 +182,50 @@ impl<'a, 'work> Query<'a, 'work> {
             work,
             entries: BTreeMap::new(),
             pending: BTreeSet::new(),
+            control: None,
         }
     }
-    pub(super) fn data(
+    pub(in crate::value_access) fn with_control(
+        program: &'a Program,
+        evidence: &'a Evidence,
+        work: &'work mut WorkBudget,
+        control: &'a super::InstanceControl,
+    ) -> Self {
+        Self {
+            control: Some(Cow::Borrowed(control)),
+            ..Self::new(program, evidence, work)
+        }
+    }
+    pub(in crate::value_access) fn controlled(
+        program: &'a Program,
+        evidence: &'a Evidence,
+        body: Option<&crate::value_access::flow::Query>,
+        frame: &CodeInstanceKey,
+        work: &'work mut WorkBudget,
+    ) -> Result<Self, InstantiationFailure> {
+        let control = super::instantiate_control(program, evidence, body, frame, work)?;
+        Ok(Self {
+            control: Some(Cow::Owned(control)),
+            ..Self::new(program, evidence, work)
+        })
+    }
+    pub(in crate::value_access) fn call(
+        &mut self,
+        caller: &CodeInstanceKey,
+        site: ValueApplication,
+    ) -> Result<CodeInstanceKey, InstantiationFailure> {
+        if caller.code() != site.owner {
+            return Err(InstantiationFailure::WrongOwner);
+        }
+        if self.evidence.invocation(site).is_none() {
+            return Err(InstantiationFailure::MissingCall);
+        }
+        match self.solve(&Key::Call(caller.clone(), site))? {
+            Fact::Frame(frame) => Ok(frame),
+            _ => Err(InstantiationFailure::Unresolved),
+        }
+    }
+    pub(in crate::value_access) fn data(
         &mut self,
         caller: &CodeInstanceKey,
         value: super::ValueSourceId,
@@ -205,6 +245,17 @@ impl<'a, 'work> Query<'a, 'work> {
             ValuePath::default(),
             source,
         ))? {
+            Fact::Data(data) => Ok(data),
+            _ => Err(InstantiationFailure::Unresolved),
+        }
+    }
+    pub(in crate::value_access) fn stored(
+        &mut self,
+        frame: &CodeInstanceKey,
+        selected: &super::ValueSourceSelection,
+        data: TypeId,
+    ) -> Result<DataInstanceKey, InstantiationFailure> {
+        match self.solve(&Key::Stored(frame.clone(), selected.clone(), data))? {
             Fact::Data(data) => Ok(data),
             _ => Err(InstantiationFailure::Unresolved),
         }
