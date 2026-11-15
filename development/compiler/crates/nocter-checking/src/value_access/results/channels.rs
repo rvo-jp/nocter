@@ -94,3 +94,82 @@ pub(in crate::value_access) fn result(
     }
     super::instantiate_result_data(program, evidence, frame, data, work)
 }
+
+/// A closed call boundary, independent of whether an executable implementation is available.
+pub(in crate::value_access) struct CallBoundary {
+    pub inputs: Box<[nocter_declarations::value_access::FunctionInput<DataInstanceKey>]>,
+    pub result: DataInstanceKey,
+    pub environment_backing: bool,
+}
+pub(in crate::value_access) fn boundary(
+    program: &Program,
+    evidence: &Evidence,
+    body: Option<&flow::Query>,
+    frame: &CodeInstanceKey,
+    work: &mut WorkBudget,
+) -> Result<CallBoundary, InstantiationFailure> {
+    work.step().map_err(|_| InstantiationFailure::WorkLimit)?;
+    if let Some(body) = body {
+        if body.typed().code() != frame.code() {
+            return Err(InstantiationFailure::WrongOwner);
+        }
+        let inputs = body
+            .typed()
+            .body()
+            .inputs()
+            .ordered()
+            .map(|channel| {
+                work.step().map_err(|_| InstantiationFailure::WorkLimit)?;
+                Ok(nocter_declarations::value_access::FunctionInput {
+                    data: input(program, evidence, body, frame, channel.local, work)?,
+                    operation: channel.operation,
+                })
+            })
+            .collect::<Result<_, InstantiationFailure>>()?;
+        return Ok(CallBoundary {
+            inputs,
+            result: result(program, evidence, body, frame, work)?,
+            environment_backing: body.typed().body().inputs().environment().is_some_and(
+                |channel| channel.operation != nocter_model::ValueInputOperation::Take,
+            ),
+        });
+    }
+    let nocter_model::ValueCode::Declaration(code) = frame.code() else {
+        return Err(InstantiationFailure::Unresolved);
+    };
+    let contract = program
+        .function_contract(code.into())
+        .ok_or(InstantiationFailure::Unresolved)?;
+    let inputs = contract
+        .inputs
+        .iter()
+        .enumerate()
+        .map(|(index, channel)| {
+            work.step().map_err(|_| InstantiationFailure::WorkLimit)?;
+            let data = frame
+                .input_data(index)
+                .cloned()
+                .map_or_else(|| program.instantiate_data(channel.data, frame), Ok)
+                .map_err(|_| InstantiationFailure::Unresolved)?;
+            if data.data() != channel.data {
+                return Err(InstantiationFailure::Unresolved);
+            }
+            Ok(nocter_declarations::value_access::FunctionInput {
+                data,
+                operation: channel.operation,
+            })
+        })
+        .collect::<Result<_, InstantiationFailure>>()?;
+    // A declaration can describe the boundary without describing any returned producer.
+    // Context-dependent result families still require their original body evidence.
+    let result = program
+        .instantiate_closed_data(contract.result)
+        .map_err(|_| InstantiationFailure::Unresolved)?;
+    Ok(CallBoundary {
+        inputs,
+        result,
+        environment_backing: false,
+    })
+}
+#[cfg(test)]
+mod tests;

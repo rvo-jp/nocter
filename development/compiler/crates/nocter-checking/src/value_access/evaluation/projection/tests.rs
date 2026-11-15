@@ -3,15 +3,28 @@ use super::*;
 use nocter_constant_evaluation::state::PlanSource as _;
 use nocter_test_support::ValueSourceFixture;
 
-fn checked(text: &str) -> crate::value_access::accepted::Checked {
+pub(super) fn checked(text: &str) -> crate::value_access::accepted::Checked {
+    checked_without(text, &[])
+}
+fn checked_without(text: &str, omitted: &[&str]) -> crate::value_access::accepted::Checked {
     let source = ValueSourceFixture::new(text);
     let declarations =
         nocter_declaration_lowering::access_declarations::Query::prepare(source.syntax()).unwrap();
     let context = declarations.bind(source.syntax()).unwrap();
+    let omitted = omitted
+        .iter()
+        .map(|name| {
+            context
+                .program()
+                .resolve_code(context.program().symbols().get(name).unwrap())
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
     let queries = context
         .program()
         .codes()
         .iter()
+        .filter(|(id, _)| !omitted.contains(id))
         .map(|(id, _)| {
             (
                 id.into(),
@@ -28,6 +41,70 @@ fn copy_extension(extension: &plan::ProgramExtension) -> plan::ProgramExtension 
         plans: extension.plans.clone(),
         statics: extension.statics.clone(),
     }
+}
+
+#[test]
+fn linking_an_unavailable_body_retains_its_boundary_without_realizing_code() {
+    let checked = checked_without(
+        "func runtime(value: i32): i32 { value + 7 }
+func run(): i32 { let callback = runtime
+callback(35) }",
+        &["runtime"],
+    );
+    let code = |name| {
+        checked
+            .program
+            .resolve_code(checked.program.symbols().get(name).unwrap())
+            .unwrap()
+    };
+    let root = code("run");
+    let target = code("runtime");
+    assert!(checked.code(target.into()).is_none());
+    let mut work = plan::WorkBudget::new(plan::Limits::default().steps());
+    let (mut program, mut source) =
+        Source::prepare(&checked, root.into(), |_| None, &mut work).unwrap();
+    let extension = source.load(root.into()).unwrap();
+    assert_eq!(extension.plans.len(), 1);
+    let (&linked, contract) = extension
+        .contracts
+        .iter()
+        .find(|(key, _)| key.source == target.into())
+        .unwrap();
+    assert_eq!(contract.inputs.len(), 1);
+    assert!(!extension.plans.contains_key(&linked));
+    program.extend(extension).unwrap();
+    assert!(matches!(
+        source.load(linked),
+        Err(plan::Rule::UnavailablePlan)
+    ));
+}
+
+#[test]
+fn boundary_cache_rejects_partial_work_and_reuses_complete_metadata_without_work() {
+    let checked = checked("const func root(value: i32): i32 { value }");
+    let code = checked
+        .program
+        .resolve_code(checked.program.symbols().get("root").unwrap())
+        .unwrap();
+    let frame = checked.program.bind_code(code.into(), []).unwrap();
+    let mut instances = Instances::default();
+    let mut limited = plan::WorkBudget::new(std::num::NonZeroU64::new(1).unwrap());
+    assert!(matches!(
+        instances.boundary(&checked, &frame, &mut limited),
+        Err(Failure::WorkLimit)
+    ));
+    let expected = instances
+        .boundary(
+            &checked,
+            &frame,
+            &mut plan::WorkBudget::new(plan::Limits::default().steps()),
+        )
+        .unwrap()
+        .result
+        .clone();
+    limited.step().unwrap_err();
+    let reused = instances.boundary(&checked, &frame, &mut limited).unwrap();
+    assert_eq!(reused.result, expected);
 }
 
 #[test]

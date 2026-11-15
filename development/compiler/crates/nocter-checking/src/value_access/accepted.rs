@@ -611,6 +611,19 @@ pub(super) struct Checked {
     const_templates: Arc<super::constant::Catalog>,
 }
 impl Checked {
+    pub(super) fn instantiate_call_boundary(
+        &self,
+        frame: &nocter_declarations::value_access::CodeInstanceKey,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<super::results::CallBoundary, super::InstantiationFailure> {
+        super::results::instantiate_call_boundary(
+            &self.program,
+            &self.result_evidence,
+            self.code(frame.code()),
+            frame,
+            work,
+        )
+    }
     pub(super) fn instantiate_control(
         &self,
         frame: &nocter_declarations::value_access::CodeInstanceKey,

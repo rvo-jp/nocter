@@ -133,8 +133,10 @@ impl Builder<'_, '_> {
                 {
                     let frame = self.invocation(id)?;
                     let data = self
-                        .checked
-                        .instantiate_result_contract(&frame, self.work)?;
+                        .instances
+                        .boundary(self.checked, &frame, self.work)?
+                        .result
+                        .clone();
                     self.types.get_instance(self.program, data)?
                 }
                 Key::Resource(Holder::Return) => {
@@ -683,14 +685,10 @@ impl Builder<'_, '_> {
             return Err(INVALID);
         };
         let target_inputs = self
-            .checked
-            .code(target)
-            .ok_or(INVALID)?
-            .typed()
-            .body()
-            .inputs()
-            .ordered()
-            .collect::<Vec<_>>();
+            .instances
+            .boundary(self.checked, &key, self.work)?
+            .inputs
+            .clone();
         let target_instance = self.instances.intern(key.clone())?;
         let arguments = arguments.clone();
         let mut inputs = Vec::new();
@@ -706,11 +704,8 @@ impl Builder<'_, '_> {
                 return Err(INVALID);
             }
             if argument.operation == ValueInputOperation::Take {
-                let data = self
-                    .checked
-                    .instantiate_input_data(&key, input.local, self.work)?;
                 inputs.push(plan::Input::Take(
-                    self.types.get_instance(self.program, data)?,
+                    self.types.get_instance(self.program, input.data.clone())?,
                 ));
                 continue;
             }

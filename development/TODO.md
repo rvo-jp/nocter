@@ -304,6 +304,13 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   evaluator, target storage, ABI and native execution. An empty root has no stored payload;
   retaining an inactive alternative's descriptor must not create code, cleanup or field geometry.
   Preserve original tag guards, rejected positive uses and the explicit source-retirement decision.
+- [x] Make evaluator boundary publication retry-safe across a partially completed batch. Retain
+  pending contract identities and unpublished static values until the full extension is prepared;
+  a failed attempt must neither lose a linked boundary nor mark a missing global as published.
+- [x] Separate evaluator call-boundary linking from body realization using the shared body-channel
+  metadata authority. Preserve full body-derived input/result contexts when present; without a
+  body, admit only declaration-owned named boundaries whose keys can close independently of
+  return producers. A linked boundary grants no const capability or executable implementation.
 - [ ] Close [state-conditioned const obligations](design/compiler-realization.md#state-conditioned-const-obligations)
   for optional callback absence while the represented domain remains inhabited by a runtime-only
   witness. The linked source plus `const ANSWER: i32 = inspect(produce(false)) + 31` currently

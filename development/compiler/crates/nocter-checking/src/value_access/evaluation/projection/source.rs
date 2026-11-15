@@ -5,15 +5,28 @@ const INVALID: flow::IntegrityError = flow::IntegrityError::InconsistentTypedBod
 type Result<T> = std::result::Result<T, flow::IntegrityError>;
 use nocter_constant_evaluation::state as plan;
 use nocter_declarations::value_access::{CodeInstanceKey, Program};
-use nocter_model::{AccessCodeId, ValueInputOperation};
+use nocter_model::AccessCodeId;
 use std::collections::{BTreeMap, BTreeSet};
 #[derive(Default)]
 pub(super) struct Instances {
     ids: BTreeMap<CodeInstanceKey, plan::CodeInstance>,
     keys: BTreeMap<plan::CodeInstance, CodeInstanceKey>,
     pending: Vec<CodeInstanceKey>,
+    boundaries: BTreeMap<CodeInstanceKey, crate::value_access::results::CallBoundary>,
 }
 impl Instances {
+    pub(super) fn boundary(
+        &mut self,
+        checked: &crate::value_access::accepted::Checked,
+        frame: &CodeInstanceKey,
+        work: &mut plan::WorkBudget,
+    ) -> super::Result<&crate::value_access::results::CallBoundary> {
+        use std::collections::btree_map::Entry;
+        Ok(match self.boundaries.entry(frame.clone()) {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => entry.insert(checked.instantiate_call_boundary(frame, work)?),
+        })
+    }
     pub(super) fn intern(&mut self, key: CodeInstanceKey) -> Result<plan::CodeInstance> {
         if let Some(&id) = self.ids.get(&key) {
             return Ok(id);
@@ -86,41 +99,33 @@ impl<'a, 'work, F: Fn(AccessCodeId) -> Option<plan::Value>> Source<'a, 'work, F>
     }
     fn contracts(&mut self, extension: &mut plan::ProgramExtension) -> super::Result<()> {
         let program = &self.checked.program;
-        for key in self.instances.pending.drain(..) {
+        let mut contracts = BTreeMap::new();
+        for key in self.instances.pending.clone() {
             let id = *self.instances.ids.get(&key).ok_or(INVALID)?;
-            let query = self.checked.code(key.code()).ok_or(INVALID)?;
-            let body = query.typed().body();
-            let inputs = body
-                .inputs()
-                .ordered()
-                .map(|input| {
-                    let data = self
-                        .checked
-                        .instantiate_input_data(&key, input.local, self.work)?;
-                    Ok(plan::InputContract {
-                        data: self.types.get_instance(program, data)?,
-                        operation: input.operation,
-                    })
-                })
-                .collect::<super::Result<_>>()?;
+            let boundary = self.instances.boundary(self.checked, &key, self.work)?;
             let contract = plan::CallContract {
-                inputs,
-                result: self.types.get_instance(
-                    program,
-                    self.checked.instantiate_result_contract(&key, self.work)?,
-                )?,
+                inputs: boundary
+                    .inputs
+                    .iter()
+                    .map(|input| {
+                        Ok(plan::InputContract {
+                            data: self.types.get_instance(program, input.data.clone())?,
+                            operation: input.operation,
+                        })
+                    })
+                    .collect::<super::Result<_>>()?,
+                result: self.types.get_instance(program, boundary.result.clone())?,
                 initializer: initializer(program, key.code())?,
-                environment_backing: body
-                    .inputs()
-                    .environment()
-                    .is_some_and(|input| input.operation != ValueInputOperation::Take),
+                environment_backing: boundary.environment_backing,
             };
-            if extension.contracts.insert(id, contract).is_some() {
+            if extension.contracts.contains_key(&id) || contracts.insert(id, contract).is_some() {
                 return Err(INVALID.into());
             }
         }
+        extension.contracts.extend(contracts);
         extension.types = self.types.appended(self.published_types);
         self.published_types = self.types.len();
+        self.instances.pending.clear();
         Ok(())
     }
     fn realize(&mut self, id: plan::CodeInstance) -> super::Result<plan::ProgramExtension> {
@@ -149,7 +154,7 @@ impl<'a, 'work, F: Fn(AccessCodeId) -> Option<plan::Value>> Source<'a, 'work, F>
         .build()?;
         let mut extension = plan::ProgramExtension::default();
         for &(_, id) in &body.statics {
-            if !self.statics.insert(id) {
+            if self.statics.contains(&id) {
                 continue;
             }
             let data = program.static_declaration(id).ok_or(INVALID)?.result();
@@ -164,6 +169,7 @@ impl<'a, 'work, F: Fn(AccessCodeId) -> Option<plan::Value>> Source<'a, 'work, F>
         }
         extension.plans.insert(id, body);
         self.contracts(&mut extension)?;
+        self.statics.extend(extension.statics.keys().copied());
         Ok(extension)
     }
 }
@@ -173,9 +179,102 @@ impl<F: Fn(AccessCodeId) -> Option<plan::Value>> plan::PlanSource for Source<'_,
         code: plan::CodeInstance,
     ) -> std::result::Result<plan::ProgramExtension, plan::Rule> {
         self.work.step().map_err(|_| plan::Rule::PlanWorkLimit)?;
+        let key = self
+            .instances
+            .keys
+            .get(&code)
+            .ok_or(plan::Rule::InvalidPlan)?;
+        if self.checked.code(key.code()).is_none() {
+            return Err(plan::Rule::UnavailablePlan);
+        }
         self.realize(code).map_err(|failure| match failure {
             super::Failure::WorkLimit => plan::Rule::PlanWorkLimit,
             super::Failure::Integrity => plan::Rule::InvalidPlan,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::num::NonZeroU64;
+
+    #[test]
+    fn failed_static_lookup_does_not_mark_an_unpublished_value_as_linked() {
+        use plan::PlanSource as _;
+        use std::cell::Cell;
+        let checked =
+            super::super::tests::checked("static BASE: i32 = 42\nconst func run(): i32 { BASE }");
+        let root = checked
+            .program
+            .resolve_code(checked.program.symbols().get("run").unwrap())
+            .unwrap();
+        let ready = Cell::new(false);
+        let lookups = Cell::new(0);
+        let mut work = plan::WorkBudget::new(plan::Limits::default().steps());
+        let (mut program, mut source) = Source::prepare(
+            &checked,
+            root.into(),
+            |_| {
+                lookups.set(lookups.get() + 1);
+                ready.get().then(|| plan::Value::integer(42))
+            },
+            &mut work,
+        )
+        .unwrap();
+        assert!(matches!(
+            source.load(root.into()),
+            Err(plan::Rule::InvalidPlan)
+        ));
+        assert!(source.statics.is_empty());
+        ready.set(true);
+        let retry = source.load(root.into()).unwrap();
+        assert_eq!(lookups.get(), 2);
+        assert_eq!(retry.statics.len(), 1);
+        assert_eq!(source.statics.len(), 1);
+        program.extend(retry).unwrap();
+    }
+
+    #[test]
+    fn failed_boundary_batch_retains_pending_contracts_for_a_complete_retry() {
+        let checked = super::super::tests::checked(
+            "const func root(): void {}
+const func first(): void {}
+const func second(value: i32): i32 { value }",
+        );
+        let code = |name| {
+            checked
+                .program
+                .resolve_code(checked.program.symbols().get(name).unwrap())
+                .unwrap()
+        };
+        let frame = |name| checked.program.bind_code(code(name).into(), []).unwrap();
+        let mut work = plan::WorkBudget::new(plan::Limits::default().steps());
+        let (mut program, mut source) =
+            Source::prepare(&checked, code("root").into(), |_| None, &mut work).unwrap();
+        let first = frame("first");
+        source.instances.intern(first.clone()).unwrap();
+        source.instances.intern(frame("second")).unwrap();
+        source
+            .instances
+            .boundary(&checked, &first, source.work)
+            .unwrap();
+        let pending = source.instances.pending.clone();
+        let published_types = source.published_types;
+        *source.work = plan::WorkBudget::new(NonZeroU64::new(1).unwrap());
+        let mut failed = plan::ProgramExtension::default();
+        assert!(matches!(
+            source.contracts(&mut failed),
+            Err(super::super::Failure::WorkLimit)
+        ));
+        assert!(failed.contracts.is_empty());
+        assert_eq!(source.instances.pending, pending);
+        assert_eq!(source.published_types, published_types);
+        *source.work = plan::WorkBudget::new(plan::Limits::default().steps());
+        let mut retry = plan::ProgramExtension::default();
+        source.contracts(&mut retry).unwrap();
+        assert_eq!(retry.contracts.len(), 2);
+        assert!(source.instances.pending.is_empty());
+        program.extend(retry).unwrap();
     }
 }

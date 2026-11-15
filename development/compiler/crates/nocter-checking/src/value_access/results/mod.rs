@@ -7,6 +7,7 @@ pub(super) use carriers::instantiate as instantiate_referent_carrier_data;
 pub use carriers::{ReferentCarrierContracts, ReferentCarrierData};
 pub(super) use channels::completed_input as instantiate_completed_input_data;
 pub(super) use channels::instantiate_prepared_data;
+pub(in crate::value_access) use channels::{CallBoundary, boundary as instantiate_call_boundary};
 pub use channels::{PreparedData, PreparedDataFailure};
 pub(super) use channels::{input as instantiate_input_data, result as instantiate_result_contract};
 mod control;

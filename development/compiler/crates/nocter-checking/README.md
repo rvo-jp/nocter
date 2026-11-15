@@ -705,6 +705,21 @@ return slots, and plan result use this authority under the shared plan-work quot
 initial contract preparation retains the ordinary plan-work diagnostic rather than becoming an
 integrity failure.
 
+The evaluator's call-boundary projection uses this same body-channel authority. A retained body
+supplies its full ordered inputs, including the capture environment, and its qualified result
+context. Without that body, a named declaration can supply only a boundary whose received input
+keys and independently closed result are available from declaration metadata. Body-dependent
+result families and missing captured bodies remain unresolved. Linking that boundary grants no
+const capability or executable implementation; loading a missing body reports `UnavailablePlan`.
+
+One evaluator request caches only complete boundaries by canonical code frame, sharing them
+between call operations, result slots and program linking. Failed boundary work publishes no cache
+entry; completed entries need no repeated work. A contract batch retains its pending identities
+until all contracts are prepared, and unpublished static values are recorded as published only
+after the complete extension is ready. Failed preparation can therefore retry without losing an
+earlier contract or global value. The existing append-only program validator still checks every
+extension before execution. Value-dependent invocation guards remain separately unqualified.
+
 `Unit::instantiate_completed_input_data` selects an original input's final metadata through every
 retained normal-completion boundary in the same budgeted fixed point as stored values. Input roles
 and schemas share validation with the entry query. Different final contexts remain unresolved;
