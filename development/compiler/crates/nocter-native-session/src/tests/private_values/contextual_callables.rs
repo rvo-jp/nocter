@@ -125,6 +125,27 @@ fn private_contextual_indexed_replacement_uses_the_original_numeric_projection()
 }
 
 #[test]
+fn private_contextual_indexed_replacement_rejects_shifted_sibling_geometry() {
+    let original = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-indexed-replacement.nct"
+    ));
+    let initial = original.replace("[wrap(addition(20))]", "[wrap(identity)]");
+    assert_ne!(initial, original);
+    let source = initial.replace(
+        "if ANSWER == 42 { calculate(0) } else { 0 }",
+        "calculate(0)",
+    );
+    assert_ne!(source, initial);
+    let fixture = ValueSourceFixture::new(&source);
+    let unit = Arc::new(SourceUnit::prepare(fixture.syntax()).unwrap().into_unit());
+    assert!(matches!(
+        machine_unit(unit),
+        Err(nocter_machine::value_access::ExecutableFailure::InvalidBody(_))
+    ));
+}
+
+#[test]
 fn private_contextual_indexed_replacement_keeps_actual_bounds_failures() {
     let original = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

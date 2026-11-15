@@ -284,24 +284,7 @@ impl Builder<'_, '_> {
         if self.holder_contract(owner)?.1 != plan::Storage::Owned {
             return Err(INVALID);
         }
-        // These original carrier coordinates are structural. Evaluated array coordinates need
-        // their retained numeric receipt; never manufacture an index from metadata's unit key.
-        let fields = before
-            .selection()
-            .path
-            .fields()
-            .iter()
-            .map(|field| {
-                Ok(plan::Projection::Field(match *field {
-                    nocter_model::ValueProjection::Record(id) => {
-                        self.component_position(nocter_model::ValueField::Record(id))?
-                    }
-                    nocter_model::ValueProjection::Tuple(index) => index,
-                    nocter_model::ValueProjection::Variant(primary) => usize::from(!primary),
-                    nocter_model::ValueProjection::Array(()) => return Err(INVALID),
-                }))
-            })
-            .collect::<Result<Vec<_>>>()?;
+        let fields = self.carrier_fields(before)?;
         Ok(plan::Effect::ReplaceReferent {
             source: source.clone(),
             destination: destination.clone(),
@@ -317,6 +300,45 @@ impl Builder<'_, '_> {
                 .get_instance(self.program, after.instance().clone())?,
             view_data: self.types.get_instance(self.program, root.after.clone())?,
         })
+    }
+    fn carrier_fields(
+        &self,
+        carrier: &crate::value_access::ReferentCarrierData,
+    ) -> Result<Vec<plan::Projection>> {
+        use crate::value_access::IndexFact;
+        use nocter_declarations::value_access::InstanceSchema;
+        use nocter_model::{ValueField, ValueProjection};
+        let mut instance = carrier.instance().clone();
+        let mut fields = Vec::new();
+        for projection in carrier.selection().path.fields() {
+            let field = match *projection {
+                ValueProjection::Record(id) => ValueField::Record(id),
+                ValueProjection::Tuple(index) => ValueField::Tuple(index),
+                ValueProjection::Variant(primary) => ValueField::Variant(primary),
+                ValueProjection::Array(()) => {
+                    let InstanceSchema::Array(array) =
+                        instance.schema(self.program).map_err(|_| INVALID)?
+                    else {
+                        return Err(INVALID);
+                    };
+                    let IndexFact::Known(index) =
+                        IndexFact::Unknown.on_normal_continuation(array.length())
+                    else {
+                        return Err(INVALID);
+                    };
+                    ValueField::Array(index)
+                }
+            };
+            let position = match field {
+                ValueField::Array(index) => usize::try_from(index).map_err(|_| INVALID)?,
+                _ => self.component_position(field)?,
+            };
+            fields.push(plan::Projection::Field(position));
+            instance = instance
+                .component(self.program, field)
+                .map_err(|_| INVALID)?;
+        }
+        Ok(fields)
     }
     fn resource_data(&mut self, step: &Step<InstantiatedPayload>) -> Result<()> {
         step.try_map_payloads_at::<super::Failure, ()>(|site, payload| {

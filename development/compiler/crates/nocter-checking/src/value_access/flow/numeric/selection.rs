@@ -19,7 +19,7 @@ pub(in crate::value_access::flow) fn index_fact(
     let fact = known
         .filter(|&value| selected.is_some_and(|index| value < index.bound()))
         .map_or(IndexFact::Unknown, IndexFact::Known);
-    Some(selected.map_or(fact, |index| index.selected_fact(fact)))
+    Some(selected.map_or(fact, |index| fact.on_normal_continuation(index.bound())))
 }
 
 pub(in crate::value_access::flow) fn path(

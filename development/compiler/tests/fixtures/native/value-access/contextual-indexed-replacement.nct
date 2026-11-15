@@ -19,9 +19,12 @@ const func wrap(take callback: func(i32): i32): func(i32): i32 {
 const func calculate(index: usize): i32 {
     var pair = ([wrap(addition(20))], 2)
     read sibling = pair.1
-    let first = pair.0[index](20)
-    pair.0[index] = wrap(subtraction(50))
-    let second = pair.0[index](8)
+    let first = pair.0[0](20)
+    var retained = index
+    edit selected = pair.0[retained]
+    retained = 1
+    selected = wrap(subtraction(50))
+    let second = selected(8)
     let saved = pair.0[index]^
     pair.0[index] = wrap(addition(1))
     let third = pair.0[index](41)

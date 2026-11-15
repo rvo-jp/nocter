@@ -24,8 +24,9 @@ The [checking](compiler/crates/nocter-checking/README.md) and
 [target-program](compiler/crates/nocter-target-program/README.md) owners describe the implemented
 canonical metadata, original source-definition queries and ordered lifecycle specialization.
 
-Next qualify context-changing updates through evaluated local edit aliases and edit input boundaries,
-using original entry/completion channels. Continue closing partial carrier-root selection and context-changing evaluator slots against
+Next qualify callable results selected from received compound inputs, retaining original input,
+component and return sources. Continue context-changing updates through edit input boundaries,
+partial carrier-root selection and context-changing evaluator slots against
 the exact per-value keys. The component owners above describe covered ordinary operand/definition,
 evaluator slot metadata, shared body-channel metadata, invocation, body-ABI, lifecycle and storage scope.
 Keep evaluator slot selection on checking's shared original-value and ordered resource-data
@@ -118,8 +119,10 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   transfers, preserving temporary completion, source retirement and actual post-call cleanup.
 - [x] Qualify structural context-changing partial writes through local edit aliases with one
   owning local carrier, preserving sibling views, subsequent reads and actual cleanup contracts.
-- [ ] Extend local alias replacement receipts to evaluated singleton-array components, preserving
+- [x] Extend local alias replacement receipts to evaluated singleton-array components, preserving
   saved addresses, original bounds effects and actual containing-owner/cleanup metadata.
+- [ ] Qualify owning callable results extracted from received tuples/arrays, preserving formal
+  component identities, actual producer contexts, source retirement and remaining-container cleanup.
 
 Qualify the same lexical closure with different captured callbacks before and after forwarding
 it with another instance, including safe/unsafe ordinary source, conditional const admission,

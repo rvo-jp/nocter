@@ -1809,8 +1809,7 @@ and restoration while a disjoint sibling reference survives, including repeated 
 one local edit alias. Original carrier selections match its actual containing owner. The evaluator
 retains the alias's entry view and changes its current referent contract only with an actual checked
 receipt, validating both the owning container and the alias without adding ownership state.
-This projection requires one owning local carrier and structural component coordinates; evaluated
-array coordinates still require their retained numeric evidence. Calls and a saved transferred
+This projection requires one owning local carrier and established component coordinates. Calls and a saved transferred
 owner retain their actual contexts in required and native execution. The matching error fixture executes
 retired, saved and received graph cleanup. A native negative case changes the initial environment
 size and must reject shifted sibling geometry before an executable can be published. General
@@ -1818,6 +1817,12 @@ relocation and changing offsets remain unqualified.
 `contextual-indexed-replacement.nct` qualifies the same transport through a singleton array nested
 in a tuple, using a usize input as the evaluated index. Required/native execution preserves the
 sibling reference and saved callable, while a matching error fixture exercises actual cleanup.
+The first replacement uses a retained edit alias after its original index variable is changed;
+its saved address still selects the original element. A one-element carrier has one coordinate
+on normal continuation, using the same selection rule as numeric/resource projection. The
+original bounds check executes when the alias is formed, before any replacement can occur.
+An independent native negative case grows the captured element representation and rejects changed
+sibling geometry before publishing an executable.
 The normal-continuation coordinate proof is shared by numerical projection and resource paths;
 it never rewrites the operand value or original bounds disposition. Out-of-range input still
 fails in required execution and traps natively, and mixed multi-element contexts remain unresolved.

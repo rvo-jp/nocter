@@ -11,6 +11,16 @@ pub enum IndexFact {
     Known(u64),
     Unknown,
 }
+impl IndexFact {
+    /// Selected coordinate after a successful bounds check, not the operand's numeric value or
+    /// the bounds disposition. A singleton's only normal-continuation coordinate is zero.
+    pub(super) const fn on_normal_continuation(self, bound: u64) -> Self {
+        match (self, bound) {
+            (Self::Unknown, 1) => Self::Known(0),
+            _ => self,
+        }
+    }
+}
 pub type AccessPath = ValuePath<IndexFact>;
 
 pub(super) fn known(fields: &FieldPath) -> AccessPath {

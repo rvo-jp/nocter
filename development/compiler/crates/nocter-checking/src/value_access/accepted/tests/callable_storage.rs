@@ -406,12 +406,12 @@ fn a_unique_coordinate_does_not_allow_overwriting_a_still_used_element_reference
     ));
     let changed = source
         .replace(
-            "let first = pair.0[index](20)",
-            "read held = pair.0[index]\n    let first = held(20)",
+            "edit selected = pair.0[retained]",
+            "read held = pair.0[retained]\n    edit selected = pair.0[retained]",
         )
         .replace(
-            "let second = pair.0[index](8)",
-            "let _ = held(20)\n    let second = pair.0[index](8)",
+            "let second = selected(8)",
+            "let _ = held(20)\n    let second = selected(8)",
         );
     assert_ne!(changed, source);
     let (sources, tree) = input(&changed);

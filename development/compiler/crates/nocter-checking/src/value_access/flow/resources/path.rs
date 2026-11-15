@@ -16,18 +16,6 @@ pub struct RetainedIndex {
     bound: u64,
 }
 impl RetainedIndex {
-    /// The coordinate selected on normal continuation; this does not classify the bounds check
-    /// or replace the operand's numeric value. A singleton has only coordinate zero.
-    pub(in crate::value_access::flow) fn selected_fact(
-        self,
-        fact: crate::value_access::IndexFact,
-    ) -> crate::value_access::IndexFact {
-        if fact == crate::value_access::IndexFact::Unknown && self.bound == 1 {
-            crate::value_access::IndexFact::Known(0)
-        } else {
-            fact
-        }
-    }
     /// One retained selection with a concrete suffix beneath a concrete owning array.
     /// This describes a projection, not numeric equality or ownership of its snapshot.
     pub(in crate::value_access::flow) fn for_referent(
@@ -239,7 +227,9 @@ impl Path {
                     crate::value_access::IndexFact::Known(value) => Index::Constant(value),
                     crate::value_access::IndexFact::Unknown => {
                         let index = RetainedIndex::for_selection(typed, selection)?;
-                        match index.selected_fact(crate::value_access::IndexFact::Unknown) {
+                        match crate::value_access::IndexFact::Unknown
+                            .on_normal_continuation(index.bound())
+                        {
                             crate::value_access::IndexFact::Known(value) => Index::Constant(value),
                             crate::value_access::IndexFact::Unknown => Index::Retained(index),
                         }
