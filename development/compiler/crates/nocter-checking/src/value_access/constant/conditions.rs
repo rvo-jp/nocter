@@ -5,10 +5,17 @@ use nocter_declarations::value_access::{CodeTemplateKey, FunctionWitness, Payloa
 use nocter_model::{AccessExpressionId, ValueCode, ValueFunctionOrigin};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+/// Reference to one original invocation clause in this exact requirements catalog.
+/// The clause owns its input attribution; this reference proves no observed value state.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct Guard {
+    code: ValueCode,
+    expression: AccessExpressionId,
+}
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum Term {
-    Invocation(FunctionWitness),
-    Body(FunctionWitness),
+    Invocation(FunctionWitness, Option<Guard>),
+    Body(FunctionWitness, Option<Guard>),
     Representation(FunctionWitness),
     Cleanup(FunctionWitness),
     Input {
@@ -19,8 +26,8 @@ enum Term {
 impl Term {
     fn witness(self) -> FunctionWitness {
         match self {
-            Self::Invocation(witness)
-            | Self::Body(witness)
+            Self::Invocation(witness, _)
+            | Self::Body(witness, _)
             | Self::Representation(witness)
             | Self::Cleanup(witness)
             | Self::Input { witness, .. } => witness,
@@ -28,8 +35,8 @@ impl Term {
     }
     fn substitute(self, witness: FunctionWitness) -> Self {
         match self {
-            Self::Invocation(_) => Self::Invocation(witness),
-            Self::Body(_) => Self::Body(witness),
+            Self::Invocation(_, guard) => Self::Invocation(witness, guard),
+            Self::Body(_, guard) => Self::Body(witness, guard),
             Self::Representation(_) => Self::Representation(witness),
             Self::Cleanup(_) => Self::Cleanup(witness),
             Self::Input { operation, .. } => Self::Input { operation, witness },
@@ -175,49 +182,14 @@ impl Conditions {
         pending: &mut VecDeque<(ValueCode, Term)>,
     ) -> Result<(), flow::IntegrityError> {
         let code = item.code();
-        for entry in item.call_expressions() {
-            let (id, expression) = entry?;
-            let ExpressionKind::Call {
-                target,
-                kind,
-                arguments,
-            } = expression
-            else {
-                return Err(INVALID);
-            };
-            if super::uncommitted_parameter_call(*kind, *target, arguments) {
-                continue;
-            }
-            if !matches!(
-                target,
-                ValueFunctionOrigin::Declaration(_)
-                    | ValueFunctionOrigin::Closure(_)
-                    | ValueFunctionOrigin::Parameter(_)
-            ) {
-                continue;
-            }
-            let witness = FunctionWitness {
-                origin: *target,
-                invocation: kind.invocation(arguments).ok_or(INVALID)?,
-            };
-            if self.insert(
-                item.body().typed().program(),
-                code,
-                Term::Invocation(witness),
-                Cause {
-                    code,
-                    site: Site::Expression(id),
-                    rule: None,
-                    parent: None,
-                    parameter: None,
-                },
-            )? {
-                pending.push_back((code, Term::Invocation(witness)));
-            }
-        }
+        self.seed_invocations(item, pending)?;
         for call in item.completed_calls() {
             if let Ok(CallTemplate::Parameter(witness)) = call.template() {
-                let term = Term::Body(*witness);
+                let guard = call.input_resource().map(|_| Guard {
+                    code,
+                    expression: call.expression(),
+                });
+                let term = Term::Body(*witness, guard);
                 if self.insert(
                     item.body().typed().program(),
                     code,
@@ -265,6 +237,60 @@ impl Conditions {
                     code,
                     site: violation.site,
                     rule: Some(violation.rule()),
+                    parent: None,
+                    parameter: None,
+                },
+            )? {
+                pending.push_back((code, term));
+            }
+        }
+        Ok(())
+    }
+    fn seed_invocations(
+        &mut self,
+        item: &Requirements,
+        pending: &mut VecDeque<(ValueCode, Term)>,
+    ) -> Result<(), flow::IntegrityError> {
+        let code = item.code();
+        for entry in item.call_expressions() {
+            let call = entry?;
+            let id = call.expression;
+            let ExpressionKind::Call {
+                target,
+                kind,
+                arguments,
+            } = call.kind
+            else {
+                return Err(INVALID);
+            };
+            if super::uncommitted_parameter_call(*kind, *target, arguments) {
+                continue;
+            }
+            if !matches!(
+                target,
+                ValueFunctionOrigin::Declaration(_)
+                    | ValueFunctionOrigin::Closure(_)
+                    | ValueFunctionOrigin::Parameter(_)
+            ) {
+                continue;
+            }
+            let witness = FunctionWitness {
+                origin: *target,
+                invocation: kind.invocation(arguments).ok_or(INVALID)?,
+            };
+            let guard = call.input_resource.map(|_| Guard {
+                code,
+                expression: id,
+            });
+            let term = Term::Invocation(witness, guard);
+            if self.insert(
+                item.body().typed().program(),
+                code,
+                term,
+                Cause {
+                    code,
+                    site: Site::Expression(id),
+                    rule: None,
                     parent: None,
                     parameter: None,
                 },
@@ -365,7 +391,7 @@ impl Conditions {
         // This is only the atomic authored-capability fact, never the callee's full eligibility.
         // Its own symbolic requirements still propagate independently through the stored edges.
         let witness = term.witness();
-        if matches!(term, Term::Invocation(_))
+        if matches!(term, Term::Invocation(_, _))
             && matches!(witness.origin, ValueFunctionOrigin::Declaration(_))
             && super::invocation_rule(
                 program,
@@ -397,8 +423,8 @@ impl Conditions {
             let rule = match term {
                 // Body eligibility requires the separately matched callee conjunction. Merely
                 // observing no atomic violation here supplies no positive body fact.
-                Term::Body(_) => None,
-                Term::Invocation(_) => super::invocation_rule(
+                Term::Body(_, _) => None,
+                Term::Invocation(_, _) => super::invocation_rule(
                     program,
                     crate::value_access::CallKind::Value,
                     witness.origin,
@@ -513,6 +539,9 @@ impl Conditions {
                 .into_iter()
                 .flat_map(|terms| terms.keys())
             {
+                if matches!(term, Term::Invocation(_, Some(_)) | Term::Body(_, Some(_))) {
+                    return Ok(None);
+                }
                 let witness = term.witness();
                 let code = match witness.origin {
                     ValueFunctionOrigin::Declaration(code) => ValueCode::Declaration(code),
@@ -531,7 +560,7 @@ impl Conditions {
                     }
                     _ => return Ok(None),
                 };
-                if matches!(term, Term::Body(_)) {
+                if matches!(term, Term::Body(_, _)) {
                     // Selected calls with callable receiving formals need their actual frame;
                     // a matching invocation capability never supplies those bindings.
                     if program.bind_code(code, []).is_err() {
@@ -561,10 +590,13 @@ impl Conditions {
                 continue;
             };
             for (&term, &cause) in terms {
-                if let Term::Invocation(FunctionWitness {
-                    origin: ValueFunctionOrigin::Closure(target),
-                    ..
-                }) = term
+                if let Term::Invocation(
+                    FunctionWitness {
+                        origin: ValueFunctionOrigin::Closure(target),
+                        ..
+                    },
+                    _,
+                ) = term
                 {
                     dependents.entry(target).or_default().push((
                         source,
@@ -668,6 +700,103 @@ mod tests {
     use std::sync::Arc;
 
     #[test]
+    fn nullable_input_candidates_remain_outside_unconditional_invocation_and_body_terms() {
+        let source = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/native/value-access/value-guarded-callable-outcomes.nct"
+        ));
+        let source = format!(
+            "{source}
+const func forward(take value: (func(i32): i32)?): i32 {{ inspect(value^) }}
+const func plain(action: func(i32): i32): i32 {{ action(35) }}
+func call_plain(): i32 {{ plain(runtime) }}
+func call_optional(): i32 {{ forward(runtime) }}
+func fixed(take value: (func(i32): i32)?): i32 {{ runtime(35) }}"
+        );
+        let (sources, tree) = input(&source);
+        let unit = SourceUnit::prepare(bound(&sources, &tree))
+            .unwrap()
+            .into_unit();
+        let program = unit.program();
+        let code = |name| {
+            ValueCode::Declaration(
+                program
+                    .resolve_code(program.symbols().get(name).unwrap())
+                    .unwrap(),
+            )
+        };
+        let requirements = unit
+            .bodies()
+            .map(|(_, body)| {
+                let item = Requirements::prepare(Arc::new(body.clone())).unwrap();
+                (item.code(), item)
+            })
+            .collect::<BTreeMap<_, _>>();
+        let graph = Conditions::prepare(&requirements).unwrap();
+        let inspect = code("inspect");
+        assert!(
+            graph
+                .terms
+                .get(&inspect)
+                .into_iter()
+                .flat_map(|terms| terms.keys())
+                .all(|term| !matches!(term, Term::Invocation(_, None) | Term::Body(_, None)))
+        );
+        assert!(
+            graph.terms[&inspect]
+                .keys()
+                .any(|term| matches!(term, Term::Invocation(_, Some(_))))
+        );
+        assert!(
+            graph.terms[&inspect]
+                .keys()
+                .any(|term| matches!(term, Term::Body(_, Some(_))))
+        );
+        for term in graph.terms[&inspect].keys() {
+            if let Term::Invocation(_, Some(guard)) | Term::Body(_, Some(guard)) = term {
+                assert_eq!(guard.code, inspect);
+                assert!(
+                    requirements[&inspect]
+                        .invocation_input_resources()
+                        .any(|(expression, _)| expression == guard.expression)
+                );
+            }
+        }
+        for name in ["inspect", "forward"] {
+            let selected = code(name);
+            assert!(!graph.covered.contains(&selected));
+            assert!(
+                graph
+                    .violation(&requirements[&selected], &|_| true)
+                    .unwrap()
+                    .is_none()
+            );
+        }
+        let plain = &graph.terms[&code("plain")];
+        assert!(
+            plain
+                .keys()
+                .any(|term| matches!(term, Term::Invocation(_, _)))
+        );
+        assert!(plain.keys().any(|term| matches!(term, Term::Body(_, _))));
+        assert!(!graph.covered.contains(&code("call_optional")));
+        assert!(
+            graph
+                .violation(&requirements[&code("call_optional")], &|_| true)
+                .unwrap()
+                .is_none(),
+            "an unbound compound input supplies no closed conditional failure or success"
+        );
+        for name in ["call_plain", "fixed"] {
+            let violation = graph
+                .violation(&requirements[&code(name)], &|_| true)
+                .unwrap()
+                .unwrap();
+            assert!(matches!(violation.rule, Rule::RuntimeCall(_)), "{name}");
+        }
+    }
+
+    #[test]
     fn unused_owned_callable_cleanup_composes_without_becoming_an_invocation_condition() {
         let source = "const func discard(take action: once(i32): i32): void {}\nconst func inspect(action: func(i32): i32): void {}\nconst func update(edit action: mut(i32): i32): void {}\nfunc run(take input: error, take editing: error): void { let action = (input^; value: i32): i32 { value }\nvar update_action: mut(i32): i32 = (editing^; value: i32): i32 { value }\ninspect(action)\nupdate(update_action)\ndiscard(action^) }";
         let (sources, tree) = input(source);
@@ -718,7 +847,7 @@ mod tests {
         assert!(
             terms
                 .keys()
-                .all(|term| !matches!(term, Term::Invocation(_)))
+                .all(|term| !matches!(term, Term::Invocation(_, _)))
         );
 
         let (&term, &cause) = terms

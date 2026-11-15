@@ -11,21 +11,27 @@ fn optional_runtime_witnesses_keep_their_unqualified_const_obligation() {
         env!("CARGO_MANIFEST_DIR"),
         "/../../tests/fixtures/native/value-access/value-guarded-callable-outcomes.nct"
     ));
-    accepted(source);
-    for present in [false, true] {
-        let required = format!("{source}\nconst ANSWER: i32 = inspect(produce({present})) + 31");
-        let fixture = nocter_test_support::ValueSourceFixture::new(&required);
-        let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
-            SourceUnit::prepare(fixture.syntax())
-        else {
-            panic!("tag state alone is not a closed const-guard proof")
-        };
-        assert!(matches!(diagnostic.rule(), Rule::RuntimeCall(_)));
-        let permitted = required.replace("func runtime(", "const func runtime(");
-        assert_eq!(
-            super::initializers::answer(&permitted, "ANSWER"),
-            nocter_constant_evaluation::state::Value::integer(if present { 73 } else { 42 })
-        );
+    let source = format!(
+        "{source}\nconst func forward(take value: (func(i32): i32)?): i32 {{ inspect(value^) }}"
+    );
+    accepted(&source);
+    for target in ["inspect", "forward"] {
+        for present in [false, true] {
+            let required =
+                format!("{source}\nconst ANSWER: i32 = {target}(produce({present})) + 31");
+            let fixture = nocter_test_support::ValueSourceFixture::new(&required);
+            let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+                SourceUnit::prepare(fixture.syntax())
+            else {
+                panic!("tag state alone is not a closed const-guard proof: {target}")
+            };
+            assert!(matches!(diagnostic.rule(), Rule::RuntimeCall(_)));
+            let permitted = required.replace("func runtime(", "const func runtime(");
+            assert_eq!(
+                super::initializers::answer(&permitted, "ANSWER"),
+                nocter_constant_evaluation::state::Value::integer(if present { 73 } else { 42 })
+            );
+        }
     }
 }
 

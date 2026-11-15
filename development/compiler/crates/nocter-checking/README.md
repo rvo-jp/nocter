@@ -498,9 +498,13 @@ owned error graphs and captured callable environments. Propagation stages the ab
 before ordinary cleanup; a projected fallible `?` still rejects at its source because read/edit
 access cannot transfer the caller's error.
 Invocation clauses retain the original direct nullable input associated with a parameter-selected
-callable witness. This definition-owned schema attribution supplies no tag or const permission;
-it is excluded from the flat conjunctive coverage claim. Bound checks retain their current
-fail-closed obligations. `value-guarded-callable-outcomes.nct` qualifies absent/present ordinary
+callable witness. Invocation and selected-body terms preserve a reference to that original clause
+through witness substitution, rather than turning the resource candidate into an unconditional
+obligation. The clause remains the owner of its input attribution. These guarded terms cannot
+supply flat conjunctive coverage or a closed-root proof; unresolved guards preserve conservative
+failure reporting and exact bound checks. A clause reference supplies neither an observed tag nor
+the identity/state of a supplied value. Applied state predicates still require original occurrence
+correspondence, and this metadata grants no const permission. `value-guarded-callable-outcomes.nct` qualifies absent/present ordinary
 runtime use of a runtime-only callback, with const-capable controls in checking. Required uses of
 the represented runtime witness remain outside qualified value-state discharge, even when its
 particular tag is absent; the [state-conditioned obligations](../../../design/compiler-realization.md#state-conditioned-const-obligations)

@@ -32,14 +32,25 @@ impl Clause {
     }
 }
 
+/// One original source operation and its definition-owned resource attribution.
+pub(super) struct CallExpression<'a> {
+    pub expression: AccessExpressionId,
+    pub kind: &'a ExpressionKind,
+    pub input_resource: Option<nocter_model::AccessLocalId>,
+}
+
 /// One completed edge borrowed from its matched definition-owned body product.
 pub(in crate::value_access) struct CallEdge<'a> {
     expression: AccessExpressionId,
     template: &'a Result<CallTemplate, flow::IntegrityError>,
+    input_resource: Option<nocter_model::AccessLocalId>,
 }
 impl CallEdge<'_> {
     pub(super) fn template(&self) -> Result<&CallTemplate, flow::IntegrityError> {
         self.template.as_ref().map_err(|error| *error)
+    }
+    pub(super) fn input_resource(&self) -> Option<nocter_model::AccessLocalId> {
+        self.input_resource
     }
     pub(in crate::value_access) fn expression(&self) -> AccessExpressionId {
         self.expression
@@ -414,28 +425,33 @@ impl Requirements {
             Clause::Invocation {
                 expression,
                 template: Some(template),
-                ..
+                input_resource,
             } => Some(CallEdge {
                 expression: *expression,
                 template,
+                input_resource: *input_resource,
             }),
             _ => None,
         })
     }
-    pub(in crate::value_access) fn call_expressions(
+    /// Original invocation clauses, including candidates that a flat conjunction cannot discharge.
+    pub(super) fn call_expressions(
         &self,
-    ) -> impl Iterator<Item = Result<(AccessExpressionId, &ExpressionKind), flow::IntegrityError>>
-    {
+    ) -> impl Iterator<Item = Result<CallExpression<'_>, flow::IntegrityError>> {
         self.clauses
             .iter()
             .filter_map(|clause| match clause {
-                Clause::Invocation { expression, .. } => Some(*expression),
+                Clause::Invocation {
+                    expression,
+                    input_resource,
+                    ..
+                } => Some((*expression, *input_resource)),
                 _ => None,
             })
-            .map(|id| {
-                Ok((
-                    id,
-                    &self
+            .map(|(id, resource)| {
+                Ok(CallExpression {
+                    expression: id,
+                    kind: &self
                         .body
                         .typed()
                         .body()
@@ -443,7 +459,8 @@ impl Requirements {
                         .get(id)
                         .ok_or(INVALID)?
                         .kind,
-                ))
+                    input_resource: resource,
+                })
             })
     }
     /// Compose completed source call bindings without choosing a code for an unresolved parameter.
