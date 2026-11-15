@@ -2,6 +2,21 @@
 use super::*;
 
 #[test]
+fn private_constructed_absence_closes_actual_receiving_domains() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/constructed-outcome-inputs.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "constructed-outcome-inputs",
+        42,
+    );
+}
+
+#[test]
 fn private_received_outcomes_dispose_forwarded_failure_and_capture_owners() {
     let machine = trusted_error_machine(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

@@ -9,6 +9,62 @@ const RECEIVED_OUTCOMES: &str = include_str!(concat!(
 ));
 
 #[test]
+fn directly_constructed_absence_closes_a_receiving_callable_constraint() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/constructed-outcome-inputs.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Value::integer(42));
+}
+
+#[test]
+fn constructed_absence_cannot_retype_a_frozen_source_contract() {
+    use crate::value_access::{InstantiationFailure, ValueSource};
+    use nocter_constant_evaluation::state::WorkBudget;
+    use nocter_model::ValueField;
+    use std::num::NonZeroU64;
+    let unit = accepted(
+        "func discard(take value: (func(i32): i32)?): i32 { drop value\n42 }\nfunc other(take value: (func(u64): u64)?): void { drop value }\nfunc absent_u64(): (func(u64): u64)? { none }\nfunc run(): i32 { discard(none) }",
+    );
+    let program = unit.program();
+    let code = |name| {
+        program
+            .resolve(program.symbols().get(name).unwrap())
+            .unwrap()
+    };
+    let frame = program.bind_code(code("run").into(), []).unwrap();
+    let target = program
+        .function_contract(code("other").into())
+        .unwrap()
+        .inputs[0]
+        .data;
+    let mut count = 0;
+    for (value, node) in unit.value_sources(frame.code()).unwrap().nodes() {
+        if !matches!(&node.value, ValueSource::Aggregate(fields) if fields.is_empty()) {
+            continue;
+        }
+        let actual = node.data.unwrap();
+        let budget = || WorkBudget::new(NonZeroU64::new(100_000).unwrap());
+        let key = unit
+            .instantiate_value_data(&frame, value, actual, &mut budget())
+            .unwrap();
+        assert!(
+            key.component(program, ValueField::Variant(true))
+                .unwrap()
+                .is_uninhabited()
+        );
+        for target in [target, named(&unit, "absent_u64").typed().result_data()] {
+            assert_eq!(
+                unit.instantiate_value_data(&frame, value, target, &mut budget()),
+                Err(InstantiationFailure::Unresolved)
+            );
+        }
+        count += 1;
+    }
+    assert!(count > 0);
+}
+
+#[test]
 fn received_outcome_inputs_preserve_application_specific_empty_domains() {
     use crate::value_access::{ExpressionKind, InstantiationFailure};
     use nocter_constant_evaluation::state::WorkBudget;

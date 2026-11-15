@@ -1807,8 +1807,13 @@ proves nothing. This
 does not feed substituted calls back into the global positive result summaries. Only an original
 named result's outcome guard admits this excluded leaf; ordinary callable results still require a
 positive producer. The matching error fixture executes actual forwarded failure and capture-owner
-cleanup. Direct input construction and instance-specific positive continuations retain
-separate qualification obligations.
+cleanup. `constructed-outcome-inputs.nct` qualifies fresh `none` inputs for function and compound
+primary constraints. Only a matched foreign input component without a selected positive context can
+choose an excluded domain for that explicit inactive alternative. Construction checks its original
+source contract even when the requested target is already excluded; different function signatures
+cannot be retyped through absence. Existing input domains and positive supplied fields keep their
+own evidence. Propagating explicit constructor exclusion through returned-callable equations and
+instance-specific positive continuations retain separate qualification obligations.
 Declared compound-result contracts have declaration-owned result ordinals. A diverging body can
 retain that known signature without establishing any returned value, concrete environment or
 storage representation; publishing its header is not a consumer-realization proof.

@@ -200,7 +200,11 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Qualify received excluded/positive outcome metadata through taking inputs, whole-outcome
   return/forwarding, original selection/merge contracts, required/native execution and actual
   error/capture cleanup. Keep missing inputs, unknown producers and positive callable values separate.
-- [ ] Extend received-domain qualification to direct `none` input construction and instance-specific
+- [x] Qualify fresh `none` construction under matched foreign callable-component input constraints,
+  including compound primary schemas, exact source-contract checks and native temporary cleanup.
+  Missing positive witnesses and unrelated receiving signatures cannot supply this proof.
+- [ ] Carry explicit constructor exclusions through returned callable application equations without
+  treating an empty producer set as proof. Extend received-domain qualification to instance-specific
   control/positive-use pruning. A source-wide formal contract cannot determine every application's
   active callable domain; retain original tag effects, traps and exact call/resource phases.
 - [x] Qualify statically pruned and ordinary conditional outcome inputs through original commit

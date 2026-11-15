@@ -5,8 +5,10 @@ use super::{
     ValueSourceId,
 };
 
-use nocter_declarations::value_access::DataInstanceKey;
-use nocter_model::ValueField;
+use nocter_declarations::value_access::{
+    CodeBindingError, ConcreteWitness, DataInstanceKey, FunctionWitness,
+};
+use nocter_model::{ValueField, ValueFunctionOrigin, ValueParameter};
 
 impl Query<'_, '_> {
     pub(super) fn outcome_metadata(
@@ -20,6 +22,19 @@ impl Query<'_, '_> {
         if let Some(PayloadSchema::Optional(primary) | PayloadSchema::Fallible(primary)) =
             self.program.data_schema(target)
         {
+            let original = self
+                .source_node(frame, value, &ValuePath::default())
+                .and_then(|node| node.data);
+            let receiving =
+                original.is_some_and(|actual| self.program.matches_compound_input(actual, target));
+            if !original.is_some_and(|actual| {
+                self.evidence
+                    .matches_payload_metadata(self.program, actual, target)
+                    || receiving
+                    || self.program.matches_compound_input(target, actual)
+            }) {
+                return Ok(Some(Fact::Unavailable));
+            }
             let mut expected = vec![(ValueField::Variant(true), primary)];
             if matches!(
                 self.program.data_schema(target),
@@ -39,11 +54,7 @@ impl Query<'_, '_> {
                 if let Ok(key) = self
                     .program
                     .instantiate_callable_domains(data, |_, witness| {
-                        if self.evidence.uninhabited_origin(witness.origin) {
-                            Ok(None)
-                        } else {
-                            frame.resolve(self.program, witness).map(Some)
-                        }
+                        self.inactive_callable_domain(frame, field, receiving, witness)
                     })
                 {
                     values.push((field, key));
@@ -68,6 +79,31 @@ impl Query<'_, '_> {
             }
         }
         Ok(None)
+    }
+
+    fn inactive_callable_domain(
+        &self,
+        frame: &CodeInstanceKey,
+        field: ValueField,
+        receiving: bool,
+        witness: FunctionWitness,
+    ) -> std::result::Result<Option<ConcreteWitness>, CodeBindingError> {
+        if self.evidence.uninhabited_origin(witness.origin) {
+            return Ok(None);
+        }
+        match frame.resolve(self.program, witness) {
+            Ok(actual) => Ok(Some(actual)),
+            Err(_)
+                if field == ValueField::Variant(true)
+                    && receiving
+                    && foreign_input_component(self.program, frame, witness.origin) =>
+            {
+                // An explicit inactive alternative is a fresh construction under a foreign
+                // receiving constraint. It supplies no missing code and changes no existing input.
+                Ok(None)
+            }
+            Err(error) => Err(error),
+        }
     }
 
     pub(in super::super::super) fn source_representation(
@@ -134,4 +170,13 @@ impl Query<'_, '_> {
         }
         Ok(fact)
     }
+}
+
+fn foreign_input_component(
+    program: &nocter_declarations::value_access::Program,
+    frame: &CodeInstanceKey,
+    origin: ValueFunctionOrigin,
+) -> bool {
+    matches!(origin, ValueFunctionOrigin::Parameter(parameter @ ValueParameter::Component { .. })
+        if program.parameter_owner(parameter).is_some_and(|owner| owner != frame.code()))
 }

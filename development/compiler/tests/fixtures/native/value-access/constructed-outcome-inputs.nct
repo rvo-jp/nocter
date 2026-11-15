@@ -1,0 +1,11 @@
+const func discard(take value: (func(i32): i32)?): i32 {
+    drop value
+    21
+}
+const func discard_pair(take value: (func(i32): i32, i32)?): i32 {
+    drop value
+    21
+}
+const func calculate(): i32 { discard(none) + discard_pair(none) }
+const ANSWER: i32 = calculate()
+func run(): i32 { calculate() }
