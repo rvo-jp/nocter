@@ -2,6 +2,32 @@
 use super::*;
 
 #[test]
+fn private_constructed_compound_absence_keeps_owned_error_environments() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/constructed-outcome-environments.nct"
+    ));
+    let runtime = source
+        .replace("const ANSWER: i32 = calculate()", "")
+        .replace("const func", "func")
+        .replace(
+            "wrap(addition(20))",
+            "wrap(owning(context_error(create_failure(\"failure\", \"leaf\"), \"outer\"), 20))",
+        );
+    let source = format!(
+        "primitive func create_failure(code: str, message: str): error\nprimitive func context_error(take value: error, message: str): error\nfunc owning(take reason: error, number: i32): func(i32): i32 {{ (reason^, number; value: i32) {{ number + value }} }}\n{runtime}"
+    );
+    let machine = trusted_error_machine(&source);
+    let package = TempPackage::new();
+    execute_native_status(
+        &image(&machine),
+        &package.0,
+        "constructed-compound-error-environments",
+        42,
+    );
+}
+
+#[test]
 fn private_constructed_absence_preserves_positive_inactive_environments() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

@@ -1852,9 +1852,14 @@ environments. Original returned sources first close under their own typed descri
 callee's declaration/result path then qualifies receiving result-family metadata through the
 canonical `reproject_result` authority. The same lexical owned-capture body can retain different
 nested callable environments without erasing their positive represented domains when the actual
-outcome is absent. Generic signature matching still cannot create a result context. Remaining
-compound result carriers and instance-specific received primary continuations retain separate
-qualification obligations.
+outcome is absent. The same source qualifies tuple and two-element tuple-array results and
+optional payloads inside a success/failure carrier. Tests retain each original inactive-callable
+input fact separately from its positive physical domain, compare distinct contexts at the same
+lexical result descriptor, read adjacent scalar fields, transfer/invoke active callable components
+and clean only the remaining container. Native error variants retain and dispose actual owned
+error environments while inactive alternatives create no owner. Generic signature matching still
+cannot create a result context. Remaining compound result carriers and instance-specific received
+primary continuations retain separate qualification obligations.
 Declared compound-result contracts have declaration-owned result ordinals. A diverging body can
 retain that known signature without establishing any returned value, concrete environment or
 storage representation; publishing its header is not a consumer-realization proof.

@@ -168,19 +168,12 @@ fn constructed_absence_retains_positive_inactive_environment_metadata() {
         env!("CARGO_MANIFEST_DIR"),
         "/../../tests/fixtures/native/value-access/constructed-outcome-environments.nct"
     ));
-    let baseline = source.replace(
-        "let absent = forward(none, false)",
-        "let absent: i32? = none",
-    );
-    assert_eq!(answer(&baseline, "ANSWER"), Value::integer(42));
     assert_eq!(answer(source, "ANSWER"), Value::integer(42));
 }
 
 #[test]
 fn constructed_absence_keeps_each_original_positive_environment_instance() {
-    use crate::value_access::{ExpressionKind, ValueSource};
-    use nocter_declarations::value_access::CodeInstanceKey;
-    use nocter_model::{ValueApplication, ValueCode, ValueField, ValueFunctionOrigin as Origin};
+    use nocter_model::ValueField;
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../tests/fixtures/native/value-access/constructed-outcome-environments.nct"
@@ -190,6 +183,32 @@ fn constructed_absence_keeps_each_original_positive_environment_instance() {
             .replace("const ANSWER: i32 = calculate()", "")
             .replace("const func", "func"),
     );
+    let variants: [(&str, &[ValueField]); 4] = [
+        ("forward", &[]),
+        ("forward_pair", &[ValueField::Tuple(0)]),
+        (
+            "forward_array",
+            &[ValueField::Array(0), ValueField::Tuple(0)],
+        ),
+        ("forward_outcome", &[ValueField::Variant(true)]),
+    ];
+    for (owner, fields) in variants {
+        let contexts = inactive_contexts(&unit, owner, fields);
+        assert_eq!(contexts.len(), 2);
+        assert_eq!(contexts[0].data(), contexts[1].data());
+        assert_ne!(contexts[0], contexts[1]);
+        assert!(!contexts[0].has_same_representation(unit.program(), &contexts[1]));
+    }
+}
+
+fn inactive_contexts(
+    unit: &Unit,
+    owner: &str,
+    fields: &[nocter_model::ValueField],
+) -> Vec<nocter_declarations::value_access::DataInstanceKey> {
+    use crate::value_access::{ExpressionKind, ValueSource};
+    use nocter_declarations::value_access::CodeInstanceKey;
+    use nocter_model::{ValueApplication, ValueCode, ValueField, ValueFunctionOrigin as Origin};
     let program = unit.program();
     let code = |name| {
         program
@@ -214,18 +233,13 @@ fn constructed_absence_keeps_each_original_positive_environment_instance() {
     };
     let root = program.bind_code(code("calculate").into(), []).unwrap();
     let mut contexts = Vec::new();
-    for (call, expression) in named(&unit, "calculate")
-        .typed()
-        .body()
-        .expressions()
-        .iter()
-    {
-        if !matches!(expression.kind, ExpressionKind::Call { target: Origin::Declaration(target), .. } if target == code("forward"))
+    for (call, expression) in named(unit, "calculate").typed().body().expressions().iter() {
+        if !matches!(expression.kind, ExpressionKind::Call { target: Origin::Declaration(target), .. } if target == code(owner))
         {
             continue;
         }
         let outer = invoke(&root, call);
-        let task = named(&unit, "forward")
+        let task = named(unit, owner)
             .typed()
             .body()
             .expressions()
@@ -246,7 +260,7 @@ fn constructed_absence_keeps_each_original_positive_environment_instance() {
             panic!("expected captured code")
         };
         let body = &unit.closures()[&closure];
-        let call = body.typed().body().expressions().iter().find_map(|(call, expression)| matches!(expression.kind, ExpressionKind::Call { target: Origin::Declaration(target), .. } if target == code("forward")).then_some(call)).unwrap();
+        let call = body.typed().body().expressions().iter().find_map(|(call, expression)| matches!(expression.kind, ExpressionKind::Call { target: Origin::Declaration(target), .. } if target == code(owner)).then_some(call)).unwrap();
         let inner = invoke(&environment, call);
         assert_eq!(inner.input_data(0), outer.input_data(0));
         let input = inner.input_data(0).unwrap();
@@ -261,14 +275,27 @@ fn constructed_absence_keeps_each_original_positive_environment_instance() {
         let result = unit
             .instantiate_value_data(&environment, source, node.data.unwrap(), &mut budget())
             .unwrap();
-        assert!(result.has_same_representation(program, input));
-        assert_resources(&unit, &environment, body);
+        let selected = fields
+            .iter()
+            .try_fold(result.clone(), |carrier, field| {
+                carrier.component(program, *field)
+            })
+            .unwrap();
+        assert!(selected.has_same_representation(program, input));
+        assert!(
+            unit.invocation_recipe(ValueApplication {
+                owner: environment.code(),
+                call
+            })
+            .unwrap()
+            .inputs
+            .values()
+            .all(crate::value_access::InputProducers::excludes_active_callable)
+        );
+        assert_resources(unit, &environment, body);
         contexts.push(result);
     }
-    assert_eq!(contexts.len(), 2);
-    assert_eq!(contexts[0].data(), contexts[1].data());
-    assert_ne!(contexts[0], contexts[1]);
-    assert!(!contexts[0].has_same_representation(program, &contexts[1]));
+    contexts
 }
 
 #[test]

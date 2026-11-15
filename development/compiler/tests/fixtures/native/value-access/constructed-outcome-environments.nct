@@ -16,11 +16,71 @@ const func forward(take value: (func(i32): i32)?, nested: bool): (func(i32): i32
     } else { value^ }
 }
 
+const func forward_pair(take value: (func(i32): i32)?, nested: bool): ((func(i32): i32)?, i32) {
+    if nested {
+        let task = (value^;) {
+            let absent = forward_pair(none, false)
+            drop absent
+            (value^, 14)
+        }
+        task^()
+    } else { (value^, 14) }
+}
+const func forward_array(take value: (func(i32): i32)?, nested: bool): [((func(i32): i32)?, i32); 2] {
+    if nested {
+        let task = (value^;) {
+            let absent = forward_array(none, false)
+            drop absent
+            var empty = value^
+            let retained = empty^
+            empty = none
+            [(retained^, 20), (empty^, 22)]
+        }
+        task^()
+    } else { [(value^, 20), (none, 22)] }
+}
+const func forward_outcome(take value: (func(i32): i32)?, nested: bool): ((func(i32): i32)?)! {
+    if nested {
+        let task = (value^;) {
+            let absent = forward_outcome(none, false)
+            drop absent
+            value^
+        }
+        task^()
+    } else { value^ }
+}
 const func calculate(): i32 {
     let first = forward(wrap(identity), true)
     drop first
     let second = forward(wrap(addition(20)), true)
     drop second
+    let first_pair = forward_pair(wrap(identity), true)
+    let second_pair = forward_pair(wrap(addition(20)), true)
+    if first_pair.1 != 14 || second_pair.1 != 14 { return 0 }
+    let first_pair_action = first_pair.0^!
+    let second_pair_action = second_pair.0^!
+    drop first_pair
+    drop second_pair
+    if first_pair_action(2) != 2 || second_pair_action(2) != 22 { return 0 }
+    drop first_pair_action
+    drop second_pair_action
+    let first_array = forward_array(wrap(identity), true)
+    let second_array = forward_array(wrap(addition(20)), true)
+    if first_array[0].1 != 20 || first_array[1].1 != 22 || second_array[0].1 != 20 || second_array[1].1 != 22 { return 0 }
+    let first_array_action = first_array[0].0^!
+    let second_array_action = second_array[0].0^!
+    drop first_array
+    drop second_array
+    if first_array_action(2) != 2 || second_array_action(2) != 22 { return 0 }
+    drop first_array_action
+    drop second_array_action
+    let first_outcome = forward_outcome(wrap(identity), true)!
+    let second_outcome = forward_outcome(wrap(addition(20)), true)!
+    let first_outcome_action = first_outcome^!
+    let second_outcome_action = second_outcome^!
+    if first_outcome_action(2) != 2 || second_outcome_action(2) != 22 { return 0 }
+    drop first_outcome_action
+    drop second_outcome_action
     42
 }
 const ANSWER: i32 = calculate()
