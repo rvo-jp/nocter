@@ -3,6 +3,30 @@ use crate::value_access::accepted::{Failure, SourceFailure, SourceUnit};
 use nocter_constant_evaluation::state::Value as Datum;
 
 #[test]
+fn indexed_empty_received_domains_preserve_the_original_bounds_failure() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-indexed-outcome-control.nct"
+    ));
+    for name in ["inspect", "inspect_read", "inspect_edit"] {
+        let prefix = format!("{name}([(none, addition(100), 2), (none, addition(200), 3)], ");
+        let invalid = source.replace(&format!("{prefix}0)"), &format!("{prefix}2)"));
+        assert_ne!(invalid, source);
+        let fixture = nocter_test_support::ValueSourceFixture::new(&invalid);
+        let failure = SourceUnit::prepare(fixture.syntax()).unwrap_err();
+        let SourceFailure::Checking(Failure::Evaluation { diagnostic, .. }) = failure else {
+            panic!("expected the original bounds failure: {failure:?}")
+        };
+        assert_eq!(
+            diagnostic.rule(),
+            crate::value_access::evaluation::Rule::Execution(
+                nocter_constant_evaluation::state::Rule::IndexOutOfBounds
+            )
+        );
+    }
+}
+
+#[test]
 fn compound_fallible_projection_cannot_transfer_the_callers_error() {
     for (parameter, binding) in [("value", "read action"), ("edit value", "edit action")] {
         let source = format!(

@@ -448,6 +448,11 @@ The same source qualifies optional propagation and assertions of the selected co
 three input operations. Propagation stages absence before cleaning remaining components; failed
 assertions retain the original component-check diagnostic and native safety trap rather than
 requiring an impossible callable or running recoverable cleanup.
+`received-indexed-outcome-control.nct` extends received optional-component selection to dynamic
+indices in a homogeneous array of tuples. Take/read/edit cases preserve the selected sibling scalar,
+distinct element values and actual remaining-owner cleanup, including native error-owning
+callable environments. An empty primary callable domain does not remove index evaluation or bounds
+checks: out-of-range uses keep their required-evaluation bounds diagnostic and native safety trap.
 `received-compound-failure-control.nct` qualifies owned failure propagation and take/read/edit
 recovery at a tuple component with a neighboring live callable and scalar field. Native execution
 uses actual nested error graphs in failure payloads and callable environments. Propagation stages

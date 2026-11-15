@@ -43,6 +43,62 @@ fn private_contextual_absent_callable_arrays_preserve_supplied_environments_and_
 }
 
 #[test]
+fn private_indexed_empty_received_domains_keep_bounds_traps() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-indexed-outcome-control.nct"
+    ));
+    let source = source
+        .replace("const ANSWER: i32 = calculate()", "")
+        .replace("const func", "func");
+    let package = TempPackage::new();
+    for name in ["inspect", "inspect_read", "inspect_edit"] {
+        let prefix = format!("{name}([(none, addition(100), 2), (none, addition(200), 3)], ");
+        let invalid = source.replace(&format!("{prefix}0)"), &format!("{prefix}2)"));
+        assert_ne!(invalid, source);
+        execute_native_signal(
+            &compile(&invalid),
+            &package.0,
+            &format!("indexed-received-{name}-bounds"),
+            5,
+        );
+    }
+}
+
+#[test]
+fn private_indexed_received_outcomes_keep_selected_and_remaining_error_owners() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-indexed-outcome-control.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "indexed-received-outcomes",
+        42,
+    );
+    let source = source
+        .replace("const ANSWER: i32 = calculate()", "")
+        .replace("const func", "func")
+        .replace(
+            "func addition(number: i32)",
+            "func addition(take reason: error, number: i32)",
+        )
+        .replace("(number; value: i32)", "(reason^, number; value: i32)");
+    let source = ["number", "100", "200"].into_iter().fold(source, |source, number| source.replace(&format!("addition({number})"), &format!("addition(context_error(create_failure(\"held\", \"leaf\"), \"outer\"), {number})")));
+    let source = format!(
+        "primitive func create_failure(code: str, message: str): error\nprimitive func context_error(take value: error, message: str): error\n{source}"
+    );
+    execute_native_status(
+        &image(&trusted_error_machine(&source)),
+        &package.0,
+        "indexed-received-error-environments",
+        42,
+    );
+}
+
+#[test]
 fn private_compound_received_failures_preserve_staged_and_adjacent_error_owners() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

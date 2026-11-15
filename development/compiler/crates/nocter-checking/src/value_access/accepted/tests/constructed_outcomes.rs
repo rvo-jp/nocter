@@ -4,6 +4,15 @@ use super::*;
 use nocter_constant_evaluation::state::Value;
 
 #[test]
+fn indexed_received_domains_preserve_dynamic_selection_and_remaining_owners() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-indexed-outcome-control.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Value::integer(42));
+}
+
+#[test]
 fn compound_received_failure_domains_preserve_their_source_ownership_contracts() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
