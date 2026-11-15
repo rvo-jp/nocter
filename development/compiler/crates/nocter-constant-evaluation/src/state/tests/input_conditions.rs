@@ -173,6 +173,108 @@ fn compound_program(
     )
 }
 
+fn nested_program(depth: usize, outer: bool, present: bool, operation: Op) -> Program {
+    let (root, _) = code_ids();
+    let base = compound_program(true, present, operation, &[1, 1]).unwrap();
+    let mut types = base.types;
+    let mut data = 4;
+    for _ in 0..depth {
+        types.push(Type::Variant {
+            primary: data,
+            alternate: None,
+        });
+        data = types.len() - 1;
+    }
+    let plans = base
+        .plans
+        .into_iter()
+        .map(|(code, plan)| {
+            let mut plan = (*plan).clone();
+            Arc::make_mut(&mut plan.slots)[2].data = data;
+            if code.source == root.into() {
+                plan.points = plan.points.map(|_, point| {
+                    let mut point = point.clone();
+                    let Operation::Literal { value, .. } = &mut point.actions[0].operation else {
+                        unreachable!()
+                    };
+                    if outer {
+                        for _ in 0..depth {
+                            *value = Value::variant(true, Some(value.clone()));
+                        }
+                    } else {
+                        *value = Value::variant(false, None);
+                    }
+                    if operation == Op::Take {
+                        let Operation::Call { inputs, .. } = &mut point.actions[1].operation else {
+                            unreachable!()
+                        };
+                        inputs[0] = Input::Take(data);
+                    }
+                    point
+                });
+            } else {
+                plan.conditions[0].fields = std::iter::repeat_n(0, depth).chain([1, 1]).collect();
+            }
+            (code, plan)
+        })
+        .collect();
+    Program::new(types, plans, BTreeMap::new()).unwrap()
+}
+
+#[test]
+fn nested_conditions_short_circuit_outer_absence_and_recheck_inner_tags_for_each_invocation() {
+    let (root, target) = code_ids();
+    for operation in [Op::Read, Op::Edit, Op::Take] {
+        let outer_absent = nested_program(2, false, true, operation);
+        let inner_absent = nested_program(2, true, false, operation);
+        let present = nested_program(2, true, true, operation);
+        let mut budget = Budget::new(Limits::default());
+        for program in [&outer_absent, &inner_absent] {
+            assert_eq!(
+                Executor::new(program, &mut budget, 0)
+                    .evaluate_initializer(root)
+                    .unwrap(),
+                Value::integer(42)
+            );
+        }
+        let error = Executor::new(&present, &mut budget, 0)
+            .evaluate_initializer(root)
+            .unwrap_err();
+        assert_eq!(error.rule, Rule::InputConditionFailed);
+        assert_eq!(error.site.unwrap().code, target.into());
+        assert_eq!(budget.storage_used(), 0);
+        assert_eq!(
+            Executor::new(&inner_absent, &mut budget, 0)
+                .evaluate_initializer(root)
+                .unwrap(),
+            Value::integer(42)
+        );
+    }
+}
+
+#[test]
+fn an_absent_outer_tag_does_not_spend_work_or_read_unavailable_deep_payloads() {
+    let (root, target) = code_ids();
+    let limits =
+        CompileTimeEvaluationLimits::new(NonZeroU64::new(16).unwrap(), NonZeroU32::new(8).unwrap());
+    let mut budget = Budget::new(limits);
+    let absent = nested_program(128, false, true, Op::Read);
+    assert_eq!(
+        Executor::new(&absent, &mut budget, 0)
+            .evaluate_initializer(root)
+            .unwrap(),
+        Value::integer(42)
+    );
+    assert_eq!(budget.storage_used(), 0);
+    let present = nested_program(128, true, true, Op::Read);
+    let error = Executor::new(&present, &mut budget, 0)
+        .evaluate_initializer(root)
+        .unwrap_err();
+    assert_eq!(error.rule, Rule::StepLimit);
+    assert_eq!(error.site.unwrap().code, target.into());
+    assert_eq!(budget.storage_used(), 0);
+}
+
 #[test]
 fn compound_conditions_select_exact_nested_fields_through_owned_and_alias_inputs() {
     let (root, target) = code_ids();

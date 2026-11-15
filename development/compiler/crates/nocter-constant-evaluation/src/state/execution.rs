@@ -191,20 +191,43 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         result
     }
     fn conditions(&mut self, code: super::CodeInstance, plan: &Plan, frame: usize) -> Result<()> {
-        for condition in &plan.conditions {
+        'condition: for condition in &plan.conditions {
             self.site = Some(condition.cause);
             self.tick()?;
             let &(slot, _) = plan.inputs.get(condition.input).ok_or(Rule::InvalidPlan)?;
-            for _ in &condition.fields {
+            let mut data = plan.slots.get(slot).ok_or(Rule::InvalidPlan)?.data;
+            // Read the bound handle once, then visit only selected children. This preserves
+            // aliases and sparse siblings without allocating or repeatedly resolving prefixes.
+            let mut value = self.read(frame, &Place::root(slot))?;
+            for &field in &condition.fields {
                 self.tick()?;
+                data = match self.program.types.get(data) {
+                    Some(super::Type::Record(fields)) => {
+                        *fields.get(field).ok_or(Rule::InvalidPlan)?
+                    }
+                    Some(super::Type::Variant {
+                        primary,
+                        alternate: None,
+                    }) if field == 0 => {
+                        if matches!(
+                            value.data(),
+                            Data::Variant {
+                                primary: false,
+                                payload: None
+                            }
+                        ) {
+                            continue 'condition;
+                        }
+                        *primary
+                    }
+                    _ => return Err(Rule::InvalidPlan),
+                };
+                value = value
+                    .data()
+                    .component(field)
+                    .ok_or(Rule::InvalidPlan)?
+                    .clone();
             }
-            let value = self.read(
-                frame,
-                &Place {
-                    slot,
-                    fields: (&*condition.fields).into(),
-                },
-            )?;
             if !matches!(
                 value.data(),
                 Data::Variant {

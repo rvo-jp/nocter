@@ -350,10 +350,13 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   attribution, exact selected callee paths, evaluator validation/execution and required/native
   consumers. Preserve same-signature sibling independence, alias inputs, per-path work, original
   causes, traps and healthy retry; ambiguous or changing paths cannot grant permission.
+- [x] Qualify absence predicates through nested optional and mixed tuple/optional paths. Stop at
+  the first actual absence without reading an inactive payload or spending work on its suffix;
+  preserve original recoveries/assertions, exact source selections, active violations and retry.
 - [ ] Extend [state-conditioned const obligations](design/compiler-realization.md#state-conditioned-const-obligations)
-  beyond stable nullable inputs and fixed tuple components with independently linkable callbacks.
-  Qualify changing inputs,
-  general nested/indexed component predicates, context-dependent boundaries and guarded cleanup.
+  beyond stable nullable inputs and fixed component/optional paths with independently linkable callbacks.
+  Qualify changing inputs, general nested/indexed component predicates, context-dependent
+  boundaries and guarded cleanup.
   Retain exact-body/occurrence references and revalidate invalidated predicates; preserve fixed
   forbidden definitions, runtime validity, original source causes and healthy work-failure retry.
   Do not turn an observed tag into an uninhabited representation or execute unsupported bodies.

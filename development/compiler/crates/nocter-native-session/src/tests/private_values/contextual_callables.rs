@@ -2,6 +2,64 @@
 use super::*;
 
 #[test]
+fn private_guarded_nested_optionals_preserve_tags_and_owned_callback_cleanup() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/value-guarded-nested-outcomes.nct"
+    ));
+    let runtime = source.replace("const func", "func");
+    let package = TempPackage::new();
+    for tuple in [false, true] {
+        let (source, action) = if tuple {
+            (
+                runtime
+                    .replace("((func(i32): i32)?)?", "(i32, (func(i32): i32)?)?")
+                    .replace(" { value^ }", " { (35, value^) }")
+                    .replace("let action = inner^", "let action = inner.1^")
+                    .replace("action(35)", "action(inner.0)"),
+                "inner.1",
+            )
+        } else {
+            (runtime.clone(), "inner")
+        };
+        for (parameter, inner, selected) in [
+            (
+                "take value",
+                "let inner = value^",
+                format!("let action = {action}^"),
+            ),
+            (
+                "value",
+                "read inner = value",
+                format!("read action = {action}"),
+            ),
+            (
+                "edit value",
+                "edit inner = value",
+                format!("edit action = {action}"),
+            ),
+        ] {
+            let source = source
+                .replace("inspect(take value", &format!("inspect({parameter}"))
+                .replace("let inner = value^", inner)
+                .replace(&format!("let action = {action}^"), &selected);
+            execute_native_status(&compile(&source), &package.0, "guarded-nested-inputs", 42);
+            let owned = source.replace("if present { runtime }", "if present { make() }");
+            assert_ne!(owned, source);
+            let owned = format!(
+                "primitive func create_failure(code: str, message: str): error\nprimitive func context_error(take value: error, message: str): error\nfunc make(): func(i32): i32 {{ let reason = context_error(create_failure(\"nested\", \"leaf\"), \"outer\")\n(reason^; value: i32) {{ runtime(value) }} }}\n{owned}"
+            );
+            execute_native_status(
+                &image(&trusted_error_machine(&owned)),
+                &package.0,
+                "guarded-nested-errors",
+                42,
+            );
+        }
+    }
+}
+
+#[test]
 fn private_guarded_tuple_components_preserve_sibling_independence_and_actual_captures() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

@@ -1,0 +1,16 @@
+func runtime(value: i32): i32 { value + 7 }
+const func single(present: bool): (func(i32): i32)? {
+    if present { runtime } else { none }
+}
+const func lift(take value: (func(i32): i32)?): ((func(i32): i32)?)? { value^ }
+const func produce(mode: u8): ((func(i32): i32)?)? {
+    if mode == 0 { none } else { lift(single(mode == 2)) }
+}
+const func inspect(take value: ((func(i32): i32)?)?): i32 {
+    let inner = value^ otherwise { return 11 }
+    let action = inner^ otherwise { return 13 }
+    action(35)
+}
+func run(): i32 {
+    if inspect(produce(0)) == 11 && inspect(produce(1)) == 13 && inspect(produce(2)) == 42 { 42 } else { 0 }
+}

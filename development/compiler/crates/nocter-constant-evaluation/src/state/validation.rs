@@ -284,10 +284,14 @@ fn validate_plan(program: &Program, code: super::CodeInstance, plan: &super::Pla
         let source = plan.slots.get(slot).ok_or(INVALID)?;
         let mut data = source.data;
         for &field in &condition.fields {
-            let Some(Type::Record(fields)) = program.types.get(data) else {
-                return Err(INVALID);
+            data = match program.types.get(data) {
+                Some(Type::Record(fields)) => *fields.get(field).ok_or(INVALID)?,
+                Some(Type::Variant {
+                    primary,
+                    alternate: None,
+                }) if field == 0 => *primary,
+                _ => return Err(INVALID),
             };
-            data = *fields.get(field).ok_or(INVALID)?;
         }
         if !matches!(
             program.types.get(data),

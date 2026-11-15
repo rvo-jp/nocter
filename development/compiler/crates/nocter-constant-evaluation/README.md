@@ -75,11 +75,14 @@ Unsigned negation arrives as checked zero subtraction, while signed negation ret
 operation. Pointer-size entries use the qualified target profile, independently of host size.
 
 A plan may retain input-absence conditions independently of its invocation signature. Each
-condition selects a real input ordinal and an optional value through a fixed record/tuple-field
-path, with a causal operation in that exact plan. Linking validates each field and rejects invalid
-inputs, tag/index traversal, non-optional targets and foreign/out-of-range causes. After binding
-the actual inputs, execution checks the selected value's absence before the original body
-operations and charges both the condition and each field to the operation budget. Neighboring
+condition selects a real input ordinal and an optional value through fixed record fields and
+optional-primary components, with a causal operation in that exact plan. Linking validates every
+step and rejects invalid inputs, indexed/failure-payload traversal, non-optional targets and
+foreign/out-of-range causes. After binding the inputs, execution visits only selected children of
+the original immutable value handle. An absent outer optional satisfies the condition without
+reading its payload or examining the remaining suffix. A fully active prefix still requires final
+absence. Both the condition and each visited component spend operation work before original body
+operations; traversal is linear and allocates no new payload or intermediate path. Neighboring
 optional fields retain their independent values through read/edit/take inputs. Execution preserves
 the original action indices and does not alter the represented domain. A failed condition reports its original cause and exact code
 instance, refunds failed frames and supplies no body or permission. Compiler-side stability and

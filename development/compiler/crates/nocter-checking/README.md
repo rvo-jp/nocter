@@ -564,9 +564,20 @@ Source traversal retains only the remaining expected path length per original no
 path expansion across loops. The evaluator validates the selected component's optional type and
 checks that component on every invocation, charging work for each field. Read/edit/take cases
 preserve independent sibling tags, original assertion traps and actual call traces. Named and
-captured runtime-only callbacks retain their positive domains. Written inputs and array/tag-selected
-outer paths remain outside this qualified predicate scope; ordinary runtime execution and cleanup
-remain separate consumers.
+captured runtime-only callbacks retain their positive domains. Written inputs and array/failure
+paths remain outside this qualified predicate scope; ordinary runtime execution and cleanup remain
+separate consumers.
+
+`value-guarded-nested-outcomes.nct` qualifies nested optional and mixed optional/tuple paths under
+the same original-source correspondence. The owning schema distinguishes tuple fields from primary
+payload selections; numeric component ordinals alone cannot change that meaning. Any actual absent
+optional on the path discharges the invocation condition without reading an inactive payload.
+Original recoveries still choose their distinct outer/inner results, and an original assertion
+still traps at its own source. A fully present path preserves the call restriction and actual
+trace. Take/read/edit inputs, named/captured callbacks and runtime error-owning environments keep
+their independent contexts. The [state evaluator](../nocter-constant-evaluation/README.md#stateful-value-plans)
+charges only visited components; a deep inactive suffix supplies no value, representation change
+or extra body permission.
 
 `received-compound-outcome-control.nct` qualifies the same continuation selection at a tuple
 component through take/read/edit inputs. A neighboring live callable and scalar field retain their

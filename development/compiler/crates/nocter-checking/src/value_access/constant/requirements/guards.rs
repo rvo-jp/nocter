@@ -77,8 +77,8 @@ enum Candidate {
     Ambiguous,
 }
 
-// Summarize shared schemas once. Arrays, tag-selected outer carriers and nominal fields
-// need their own predicates; they cannot manufacture a fixed tuple-field attribution.
+// Summarize shared schemas once. Arrays, failure-selected carriers and nominal fields
+// need their own predicates; they cannot manufacture a static tuple/optional attribution.
 fn nullable_path(
     program: &nocter_declarations::value_access::Program,
     root: nocter_model::TypeId,
@@ -97,6 +97,20 @@ fn nullable_path(
             Some(PayloadSchema::Optional(payload)) if matches!(program.data_schema(payload), Some(PayloadSchema::Function(witness)) if witness.origin == target) =>
             {
                 result = Candidate::Unique(Box::new([]));
+            }
+            Some(PayloadSchema::Optional(payload)) => {
+                if !expanded {
+                    pending.push((data, true));
+                    pending.push((payload, false));
+                    continue;
+                }
+                result = match &done[&payload] {
+                    Candidate::Absent => Candidate::Absent,
+                    Candidate::Unique(path) => {
+                        Candidate::Unique(std::iter::once(0).chain(path.iter().copied()).collect())
+                    }
+                    Candidate::Ambiguous => Candidate::Ambiguous,
+                };
             }
             Some(PayloadSchema::Aggregate(schema)) => {
                 if let AggregateForm::Tuple(fields) = schema.form() {
@@ -129,6 +143,51 @@ fn nullable_path(
         Candidate::Unique(path) => Some(path),
         _ => None,
     }
+}
+
+/// Interpret fixed ordinals using the original input schema, without observing any value.
+fn expected_path(
+    body: &flow::Query,
+    local: AccessLocalId,
+    fields: &[usize],
+    work: &mut nocter_constant_evaluation::state::WorkBudget,
+) -> Result<Option<Vec<nocter_model::ValueProjection<()>>>, crate::value_access::InstantiationFailure>
+{
+    use crate::value_access::InstantiationFailure as Failure;
+    let mut data = body
+        .typed()
+        .body()
+        .locals()
+        .get(local)
+        .ok_or(Failure::Unresolved)?
+        .data;
+    let mut expected = Vec::with_capacity(fields.len() + 1);
+    for &field in fields {
+        work.step().map_err(|_| Failure::WorkLimit)?;
+        match body.typed().program().data_schema(data) {
+            Some(PayloadSchema::Aggregate(schema)) => {
+                let nocter_declarations::value_access::AggregateForm::Tuple(fields) = schema.form()
+                else {
+                    return Ok(None);
+                };
+                data = *fields.get(field).ok_or(Failure::Unresolved)?;
+                expected.push(nocter_model::ValueProjection::Tuple(field));
+            }
+            Some(PayloadSchema::Optional(payload)) if field == 0 => {
+                data = payload;
+                expected.push(nocter_model::ValueProjection::Variant(true));
+            }
+            _ => return Ok(None),
+        }
+    }
+    if !matches!(
+        body.typed().program().data_schema(data),
+        Some(PayloadSchema::Optional(_))
+    ) {
+        return Ok(None);
+    }
+    expected.push(nocter_model::ValueProjection::Variant(true));
+    Ok(Some(expected))
 }
 
 /// Entry absence can discharge only a callee value derived from that exact original input.
@@ -177,12 +236,9 @@ pub(super) fn derives_from_input(
         .as_ref()
         .and_then(|evidence| evidence.value_sources(body.typed().code()))
         .ok_or(Failure::Unresolved)?;
-    let expected: Vec<_> = fields
-        .iter()
-        .copied()
-        .map(nocter_model::ValueProjection::Tuple)
-        .chain([nocter_model::ValueProjection::Variant(true)])
-        .collect();
+    let Some(expected) = expected_path(body, local, fields, work)? else {
+        return Ok(false);
+    };
     let mut reached = false;
     for call in sources.call(expression).ok_or(Failure::Unresolved)? {
         if !control.reachable(call.origin.point) {

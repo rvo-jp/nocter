@@ -2,6 +2,158 @@
 use super::*;
 
 #[test]
+fn nested_absence_conditions_short_circuit_each_absent_optional_layer() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/value-guarded-nested-outcomes.nct"
+    ));
+    for captured in [false, true] {
+        let source = if captured {
+            format!("{source}\nconst func make(): func(i32): i32 {{ let offset = 0\n(offset; value: i32) {{ runtime(value) + offset }} }}").replace("if present { runtime }", "if present { make() }")
+        } else {
+            source.to_owned()
+        };
+        for tuple in [false, true] {
+            let (source, action) = if tuple {
+                (
+                    source
+                        .replace("((func(i32): i32)?)?", "(i32, (func(i32): i32)?)?")
+                        .replace(" { value^ }", " { (35, value^) }")
+                        .replace("let action = inner^", "let action = inner.1^")
+                        .replace("action(35)", "action(inner.0)"),
+                    "inner.1",
+                )
+            } else {
+                (source.clone(), "inner")
+            };
+            for (parameter, inner, selected) in [
+                (
+                    "take value",
+                    "let inner = value^",
+                    format!("let action = {action}^"),
+                ),
+                (
+                    "value",
+                    "read inner = value",
+                    format!("read action = {action}"),
+                ),
+                (
+                    "edit value",
+                    "edit inner = value",
+                    format!("edit action = {action}"),
+                ),
+            ] {
+                let source = source
+                    .replace("inspect(take value", &format!("inspect({parameter}"))
+                    .replace("let inner = value^", inner)
+                    .replace(&format!("let action = {action}^"), &selected);
+                accepted(&source);
+                let absent = format!(
+                    "{source}\nconst ANSWER: i32 = inspect(produce(0)) + inspect(produce(1)) + inspect(produce(0)) + 7"
+                );
+                assert_eq!(
+                    super::initializers::answer(&absent, "ANSWER"),
+                    nocter_constant_evaluation::state::Value::integer(42)
+                );
+                let present = format!(
+                    "{source}\nconst ANSWER: i32 = inspect(produce(0)) + inspect(produce(1)) + inspect(produce(2))"
+                );
+                let fixture = nocter_test_support::ValueSourceFixture::new(&present);
+                let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+                    SourceUnit::prepare(fixture.syntax())
+                else {
+                    panic!("the active deepest payload must reject")
+                };
+                assert!(matches!(diagnostic.rule(), Rule::CapturedCall(_)) == captured);
+                assert!(matches!(
+                    diagnostic.rule(),
+                    Rule::RuntimeCall(_) | Rule::CapturedCall(_)
+                ));
+                let call = if tuple {
+                    "action(inner.0)"
+                } else {
+                    "action(35)"
+                };
+                assert_eq!(
+                    fixture
+                        .syntax()
+                        .text_at(diagnostic.source().primary().span().range()),
+                    Some(call)
+                );
+                assert!(diagnostic.source().notes().iter().any(|note| {
+                    fixture.syntax().text_at(note.origin().span().range())
+                        == Some("inspect(produce(2))")
+                }));
+                for earlier in ["inspect(produce(0))", "inspect(produce(1))"] {
+                    assert!(!diagnostic.source().notes().iter().any(|note| {
+                        fixture.syntax().text_at(note.origin().span().range()) == Some(earlier)
+                    }));
+                }
+                let permitted = format!("{source}\nconst ANSWER: i32 = inspect(produce(2))")
+                    .replace("func runtime(", "const func runtime(");
+                assert_eq!(
+                    super::initializers::answer(&permitted, "ANSWER"),
+                    nocter_constant_evaluation::state::Value::integer(42)
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn nested_conditions_preserve_each_original_assertion_and_unproved_write_boundary() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/value-guarded-nested-outcomes.nct"
+    ));
+    for (assertion, mode, expression) in [("outer", 0, "value^!"), ("inner", 1, "inner^!")] {
+        let asserted = if assertion == "outer" {
+            source.replace("value^ otherwise { return 11 }", "value^!")
+        } else {
+            source.replace("inner^ otherwise { return 13 }", "inner^!")
+        };
+        let required = format!("{asserted}\nconst ANSWER: i32 = inspect(produce({mode}))");
+        let fixture = nocter_test_support::ValueSourceFixture::new(&required);
+        let Err(SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })) =
+            SourceUnit::prepare(fixture.syntax())
+        else {
+            panic!("the original {assertion} assertion must trap")
+        };
+        assert_eq!(
+            diagnostic.rule(),
+            crate::value_access::evaluation::Rule::Execution(
+                nocter_constant_evaluation::state::Rule::InactiveVariant
+            )
+        );
+        assert_eq!(
+            fixture
+                .syntax()
+                .text_at(diagnostic.source().primary().span().range()),
+            Some(expression)
+        );
+        if assertion == "inner" {
+            let outer_absent = format!("{asserted}\nconst ANSWER: i32 = inspect(produce(0)) + 31");
+            assert_eq!(
+                super::initializers::answer(&outer_absent, "ANSWER"),
+                nocter_constant_evaluation::state::Value::integer(42)
+            );
+        }
+    }
+    let written = source.replace("    let inner =", "    no_change(value)\n    let inner =");
+    let written = format!(
+        "{written}\nconst func no_change(edit value: ((func(i32): i32)?)?): void {{}}\nconst ANSWER: i32 = inspect(produce(0))"
+    );
+    accepted(written.split("const ANSWER:").next().unwrap());
+    let fixture = nocter_test_support::ValueSourceFixture::new(&written);
+    let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+        SourceUnit::prepare(fixture.syntax())
+    else {
+        panic!("unproved writes must retain the rejection")
+    };
+    assert!(matches!(diagnostic.rule(), Rule::RuntimeCall(_)));
+}
+
+#[test]
 fn stable_tuple_component_absence_selects_the_called_input_instead_of_its_sibling() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
