@@ -1,0 +1,15 @@
+const func live(value: i32): i32 { value }
+const func absent(): (func(i32): i32)? { none }
+const func present(): (func(i32): i32)? { live }
+const func propagate(take value: (func(i32): i32)?): i32? {
+    let action = value^?
+    action(21)
+}
+const func recover(take value: i32?): i32 {
+    value^ otherwise { return 21 }
+}
+const func calculate(): i32 {
+    recover(propagate(absent())) + recover(propagate(present()))
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { calculate() }

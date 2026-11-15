@@ -433,6 +433,13 @@ the original `!` as an inactive-variant trap, and native execution preserves the
 inhabited counterparts. Recovery/result joins and partially active const selections remain
 separate qualification obligations.
 
+`received-outcome-propagation.nct` qualifies optional propagation through take/read/edit inputs,
+including absent and positive applications of the same body in required/native execution.
+`received-failure-propagation.nct` qualifies runtime failure propagation and recovery with actual
+owned error graphs and captured callable environments. Propagation stages the absence/error
+before ordinary cleanup; a projected fallible `?` still rejects at its source because read/edit
+access cannot transfer the caller's error.
+
 Each original invocation input retains its positive alternatives and a separate inactive-callable
 fact in one `InputProducers` summary. Matching compound input paths propagate a constructed
 inactive outcome to its callable descendants. Joins require every observed source to exclude the

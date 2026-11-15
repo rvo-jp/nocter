@@ -2,6 +2,46 @@
 use super::*;
 
 #[test]
+fn private_received_outcome_propagation_preserves_domains_and_owned_errors() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-outcome-propagation.nct"
+    ));
+    let source = source
+        .replace("const ANSWER: i32 = calculate()", "")
+        .replace("const func", "func");
+    let package = TempPackage::new();
+    for (index, (parameter, binding)) in [
+        ("take value", "let action = value^?"),
+        ("value", "read action = value?"),
+        ("edit value", "edit action = value?"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let source = source
+            .replace("propagate(take value", &format!("propagate({parameter}"))
+            .replace("let action = value^?", binding);
+        execute_native_status(
+            &compile(&source),
+            &package.0,
+            &format!("received-optional-propagation-{index}"),
+            42,
+        );
+    }
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-failure-propagation.nct"
+    ));
+    execute_native_status(
+        &image(&trusted_error_machine(source)),
+        &package.0,
+        "received-failure-propagation",
+        42,
+    );
+}
+
+#[test]
 fn private_received_callable_assertions_preserve_traps_and_positive_inputs() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

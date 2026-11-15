@@ -1,0 +1,19 @@
+primitive func create_failure(code: str, message: str): error
+primitive func context_error(take value: error, message: str): error
+func failed(): (func(i32): i32)! {
+    throw context_error(create_failure("failed", "leaf"), "outer")
+}
+func present(): (func(i32): i32)! {
+    let reason = context_error(create_failure("captured", "leaf"), "outer")
+    (reason^; value: i32) { value }
+}
+func propagate(take value: (func(i32): i32)!): i32! {
+    let action = value^?
+    action(21)
+}
+func recover(take value: i32!): i32 {
+    value^ catch reason { return 21 }
+}
+func run(): i32 {
+    recover(propagate(failed())) + recover(propagate(present()))
+}

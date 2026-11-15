@@ -3,6 +3,54 @@ use crate::value_access::accepted::{Failure, SourceFailure, SourceUnit};
 use nocter_constant_evaluation::state::Value as Datum;
 
 #[test]
+fn received_optional_propagation_preserves_absence_and_positive_calls() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-outcome-propagation.nct"
+    ));
+    for (parameter, binding) in [
+        ("take value", "let action = value^?"),
+        ("value", "read action = value?"),
+        ("edit value", "edit action = value?"),
+    ] {
+        let source = source
+            .replace("propagate(take value", &format!("propagate({parameter}"))
+            .replace("let action = value^?", binding);
+        assert_eq!(
+            super::initializers::answer(&source, "ANSWER"),
+            Datum::integer(42)
+        );
+    }
+}
+
+#[test]
+fn received_fallible_projection_cannot_extract_the_callers_error() {
+    for (parameter, binding) in [("value", "read action"), ("edit value", "edit action")] {
+        let source = format!(
+            "func inspect({parameter}: (func(): i32)!): i32! {{ {binding} = value?\naction() }}"
+        );
+        let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+        let Err(SourceFailure::Checking(Failure::Body {
+            failure: crate::value_access::Failure::Rejected(diagnostic),
+            ..
+        })) = SourceUnit::prepare(fixture.syntax())
+        else {
+            panic!("a projected failure cannot transfer another owner's error");
+        };
+        assert_eq!(
+            diagnostic.rule(),
+            crate::value_access::Rule::MissingTransfer
+        );
+        assert_eq!(
+            fixture
+                .syntax()
+                .text_at(diagnostic.source().primary().span().range()),
+            Some("value?")
+        );
+    }
+}
+
+#[test]
 fn received_callable_assertions_preserve_the_original_trap() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
