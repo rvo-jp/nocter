@@ -13,7 +13,9 @@ mod conditions;
 mod requirements;
 mod traversal;
 pub use requirements::Requirements;
-pub(in crate::value_access) use requirements::{BoundCheck, BoundCheckFailure};
+pub(in crate::value_access) use requirements::{
+    BoundCheck, BoundCheckFailure, InvocationCondition,
+};
 mod representation;
 pub(super) use catalog::Catalog;
 use traversal::Traversal;

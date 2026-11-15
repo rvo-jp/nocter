@@ -372,7 +372,8 @@ fn unused_callback_permutations_share_condition_checks_only_after_data_qualifica
         &mut preparation.condition_work,
     )
     .unwrap();
-    let (owner, root) = admission.into_parts();
+    let (owner, root, conditions) = admission.into_parts();
+    assert!(conditions.is_empty());
     assert!(std::ptr::eq(owner, &raw const checked));
     assert_eq!(root, answer.into());
 }
@@ -502,7 +503,8 @@ fn independent_invocation_positions_share_only_fully_covered_named_conditions() 
         &mut preparation.condition_work,
     )
     .expect("matched closed body obligations prove the conditions independently of discovery");
-    let (owner, root) = admission.into_parts();
+    let (owner, root, conditions) = admission.into_parts();
+    assert!(conditions.is_empty());
     assert!(std::ptr::eq(owner, &raw const checked));
     assert_eq!(root, answer.into());
 }

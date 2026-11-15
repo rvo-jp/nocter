@@ -57,6 +57,7 @@ pub(super) fn initializer(program: &Program, code: nocter_model::ValueCode) -> R
 /// Retains the exact checked products; loading code can only project frozen operations.
 pub(in crate::value_access::evaluation) struct Source<'a, 'work, F> {
     checked: &'a crate::value_access::accepted::Checked,
+    conditions: crate::value_access::accepted::ConstConditions,
     values: F,
     instances: Instances,
     types: Types,
@@ -68,11 +69,13 @@ impl<'a, 'work, F: Fn(AccessCodeId) -> Option<plan::Value>> Source<'a, 'work, F>
     pub(super) fn prepare(
         checked: &'a crate::value_access::accepted::Checked,
         root: nocter_model::ValueCodeRoot,
+        conditions: crate::value_access::accepted::ConstConditions,
         values: F,
         work: &'work mut plan::WorkBudget,
     ) -> super::Result<(plan::Program, Self)> {
         let mut source = Self {
             checked,
+            conditions,
             values,
             instances: Instances::default(),
             types: Types::default(),
@@ -96,6 +99,20 @@ impl<'a, 'work, F: Fn(AccessCodeId) -> Option<plan::Value>> Source<'a, 'work, F>
         )
         .map_err(|_| INVALID)?;
         Ok((program, source))
+    }
+    pub(in crate::value_access::evaluation) fn condition_failure(
+        &self,
+        instance: plan::CodeInstance,
+        site: plan::Site,
+    ) -> Option<(CodeInstanceKey, crate::value_access::constant::Violation)> {
+        let frame = self.instances.keys.get(&instance)?;
+        if frame.code() != site.code {
+            return None;
+        }
+        let condition = self.conditions.get(frame)?.iter().find(|condition| {
+            condition.cause.point == site.point && condition.cause.action == site.action
+        })?;
+        Some((frame.clone(), condition.violation))
     }
     fn contracts(&mut self, extension: &mut plan::ProgramExtension) -> super::Result<()> {
         let program = &self.checked.program;
@@ -135,6 +152,17 @@ impl<'a, 'work, F: Fn(AccessCodeId) -> Option<plan::Value>> Source<'a, 'work, F>
         let prepared = self.checked.instantiate_prepared_data(&key, self.work)?;
         let values = self.checked.instantiate_value_data_map(&key, self.work)?;
         let control = self.checked.instantiate_control(&key, self.work)?;
+        let conditions = self.conditions.get(&key).into_iter().flatten().map(|condition| {
+            let action = query.graph().points().get(condition.cause.point)
+                .and_then(|point| point.actions.get(condition.cause.action)).ok_or(INVALID)?;
+            if !matches!(action.operation, flow::Operation::CommitCall(expression) if expression == condition.expression) {
+                return Err(super::Failure::Integrity);
+            }
+            Ok(plan::InputCondition {
+                input: condition.input,
+                cause: plan::Site { code: key.code(), point: condition.cause.point, action: condition.cause.action },
+            })
+        }).collect::<super::Result<_>>()?;
         let body = Builder {
             checked: self.checked,
             work: self.work,
@@ -150,6 +178,7 @@ impl<'a, 'work, F: Fn(AccessCodeId) -> Option<plan::Value>> Source<'a, 'work, F>
             values,
             resources: BTreeMap::new(),
             control,
+            conditions,
         }
         .build()?;
         let mut extension = plan::ProgramExtension::default();
@@ -215,6 +244,7 @@ mod tests {
         let (mut program, mut source) = Source::prepare(
             &checked,
             root.into(),
+            BTreeMap::new(),
             |_| {
                 lookups.set(lookups.get() + 1);
                 ready.get().then(|| plan::Value::integer(42))
@@ -250,8 +280,14 @@ const func second(value: i32): i32 { value }",
         };
         let frame = |name| checked.program.bind_code(code(name).into(), []).unwrap();
         let mut work = plan::WorkBudget::new(plan::Limits::default().steps());
-        let (mut program, mut source) =
-            Source::prepare(&checked, code("root").into(), |_| None, &mut work).unwrap();
+        let (mut program, mut source) = Source::prepare(
+            &checked,
+            code("root").into(),
+            BTreeMap::new(),
+            |_| None,
+            &mut work,
+        )
+        .unwrap();
         let first = frame("first");
         source.instances.intern(first.clone()).unwrap();
         source.instances.intern(frame("second")).unwrap();

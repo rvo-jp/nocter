@@ -6,7 +6,7 @@ use nocter_model::CompileTimeGuarantee;
 const FORWARDING: &str = "const func identity(value: i32): i32 { value }\nconst func apply(action: func(i32): i32, value: i32): i32 { action(value) }\nconst func forward(action: func(i32): i32, value: i32): i32 { apply(action, value) }\nconst func anonymous(): i32 { let pass = (action: func(i32): i32, value: i32): i32 { forward(action, value) }\npass(identity, 42) }\nconst func interrupted(): i32 { forward(identity, if true { return 42 } else { return 0 }) }\nconst ANSWER: i32 = if anonymous() == 42 && interrupted() == 42 { 42 } else { 0 }";
 
 #[test]
-fn optional_runtime_witnesses_keep_their_unqualified_const_obligation() {
+fn stable_absence_discharges_runtime_callback_conditions_on_every_invocation() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../tests/fixtures/native/value-access/value-guarded-callable-outcomes.nct"
@@ -14,25 +14,213 @@ fn optional_runtime_witnesses_keep_their_unqualified_const_obligation() {
     let source = format!(
         "{source}\nconst func forward(take value: (func(i32): i32)?): i32 {{ inspect(value^) }}"
     );
-    accepted(&source);
-    for target in ["inspect", "forward"] {
-        for present in [false, true] {
-            let required =
-                format!("{source}\nconst ANSWER: i32 = {target}(produce({present})) + 31");
-            let fixture = nocter_test_support::ValueSourceFixture::new(&required);
-            let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
-                SourceUnit::prepare(fixture.syntax())
-            else {
-                panic!("tag state alone is not a closed const-guard proof: {target}")
-            };
-            assert!(matches!(diagnostic.rule(), Rule::RuntimeCall(_)));
-            let permitted = required.replace("func runtime(", "const func runtime(");
+    for (parameter, extraction) in [
+        ("take value", "let action = value^"),
+        ("value", "read action = value"),
+        ("edit value", "edit action = value"),
+    ] {
+        let source = source
+            .replace("inspect(take value", &format!("inspect({parameter}"))
+            .replace("let action = value^", extraction);
+        assert!(source.contains(&format!("func inspect({parameter}:")));
+        accepted(&source);
+        for target in ["inspect", "forward"] {
+            let absent = format!(
+                "{source}\nconst ANSWER: i32 = {target}(produce(false)) + {target}(produce(false)) + 20"
+            );
+            assert_eq!(
+                super::initializers::answer(&absent, "ANSWER"),
+                nocter_constant_evaluation::state::Value::integer(42)
+            );
+            for calls in [
+                format!("{target}(produce(true))"),
+                format!("{target}(produce(false)) + {target}(produce(true))"),
+            ] {
+                let required = format!("{source}\nconst ANSWER: i32 = {calls}");
+                let fixture = nocter_test_support::ValueSourceFixture::new(&required);
+                let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+                    SourceUnit::prepare(fixture.syntax())
+                else {
+                    panic!("an active runtime callback must fail: {parameter}, {target}");
+                };
+                assert!(matches!(diagnostic.rule(), Rule::RuntimeCall(_)));
+                assert!(!diagnostic.source().notes().is_empty());
+            }
+            let permitted = format!("{source}\nconst ANSWER: i32 = {target}(produce(true)) + 31")
+                .replace("func runtime(", "const func runtime(");
             assert_eq!(
                 super::initializers::answer(&permitted, "ANSWER"),
-                nocter_constant_evaluation::state::Value::integer(if present { 73 } else { 42 })
+                nocter_constant_evaluation::state::Value::integer(73)
             );
         }
     }
+}
+
+#[test]
+fn stable_absence_preserves_assertion_traps_and_written_inputs_still_reject() {
+    let source = input_guard_fixture();
+    for target in ["changed", "aliased"] {
+        let required = format!("{source}\nconst ANSWER: i32 = {target}(produce(false))");
+        let fixture = nocter_test_support::ValueSourceFixture::new(&required);
+        let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+            SourceUnit::prepare(fixture.syntax())
+        else {
+            panic!("an unproved written input cannot discharge its callback condition: {target}");
+        };
+        assert!(matches!(diagnostic.rule(), Rule::RuntimeCall(_)));
+    }
+    let allowed = format!("{source}\nconst ANSWER: i32 = unrelated(produce(false)) + 31");
+    assert_eq!(
+        super::initializers::answer(&allowed, "ANSWER"),
+        nocter_constant_evaluation::state::Value::integer(42)
+    );
+    let asserted = source.replace(
+        "let action = value^ otherwise { return 11 }",
+        "let action = value^!",
+    );
+    assert_ne!(asserted, source);
+    let asserted = format!("{asserted}\nconst ANSWER: i32 = inspect(produce(false))");
+    let fixture = nocter_test_support::ValueSourceFixture::new(&asserted);
+    let Err(SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })) =
+        SourceUnit::prepare(fixture.syntax())
+    else {
+        panic!("absence must preserve the original assertion failure");
+    };
+    assert_eq!(
+        diagnostic.rule(),
+        crate::value_access::evaluation::Rule::Execution(
+            nocter_constant_evaluation::state::Rule::InactiveVariant
+        )
+    );
+    assert_eq!(
+        fixture
+            .syntax()
+            .text_at(diagnostic.source().primary().span().range()),
+        Some("value^!")
+    );
+}
+
+#[test]
+fn entry_conditions_select_the_actual_nullable_input_and_preserve_trace_occurrences() {
+    let source = input_guard_fixture();
+    let source = format!(
+        "{source}\nconst func second(take other: (func(i32): i32)?, take value: (func(i32): i32)?): i32 {{ let action = value^ otherwise {{ return 11 }}\naction(35) }}"
+    );
+    for first in [false, true] {
+        let allowed =
+            format!("{source}\nconst ANSWER: i32 = second(produce({first}), produce(false)) + 31");
+        assert_eq!(
+            super::initializers::answer(&allowed, "ANSWER"),
+            nocter_constant_evaluation::state::Value::integer(42)
+        );
+        let rejected = format!(
+            "{source}\nconst ANSWER: i32 = second(produce({first}), produce(false)) + second(produce({first}), produce(true))"
+        );
+        let fixture = nocter_test_support::ValueSourceFixture::new(&rejected);
+        let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+            SourceUnit::prepare(fixture.syntax())
+        else {
+            panic!("the called second input is present");
+        };
+        assert!(matches!(diagnostic.rule(), Rule::RuntimeCall(_)));
+        assert_eq!(
+            fixture
+                .syntax()
+                .text_at(diagnostic.source().primary().span().range()),
+            Some("action(35)")
+        );
+        let expected = format!("second(produce({first}), produce(true))");
+        assert!(diagnostic.source().notes().iter().any(|note| {
+            fixture.syntax().text_at(note.origin().span().range()) == Some(expected.as_str())
+        }));
+        assert!(!diagnostic.source().notes().iter().any(|note| {
+            fixture.syntax().text_at(note.origin().span().range())
+                == Some(format!("second(produce({first}), produce(false))").as_str())
+        }));
+    }
+}
+
+#[test]
+fn entry_condition_discovery_recovers_after_failed_work_without_publishing_permission() {
+    use crate::value_access::{
+        ExpressionKind,
+        constant::{BoundCheck, BoundCheckFailure},
+    };
+    use nocter_constant_evaluation::state::{Limits, WorkBudget};
+    use nocter_model::ValueApplication;
+    use std::num::NonZeroU64;
+    let source = input_guard_fixture();
+    let unit = accepted(&source);
+    let program = unit.program();
+    let body = named(&unit, "run");
+    let run = program.bind_code(body.typed().code(), []).unwrap();
+    let inspect = named(&unit, "inspect").typed().code();
+    let call = body.typed().body().expressions().iter().find_map(|(call, expression)|
+        matches!(expression.kind, ExpressionKind::Call { target: nocter_model::ValueFunctionOrigin::Declaration(target), .. }
+            if nocter_model::ValueCode::Declaration(target) == inspect).then_some(ValueApplication { owner: run.code(), call })).unwrap();
+    let healthy = || WorkBudget::new(Limits::default().steps());
+    let frame = unit
+        .instantiate_invocation(&run, call, &mut healthy())
+        .unwrap();
+    let requirements = unit.const_requirements(inspect).unwrap();
+    for steps in [1, 2, 8] {
+        let mut limited = WorkBudget::new(NonZeroU64::new(steps).unwrap());
+        assert!(matches!(
+            requirements.check_bound(&|_| true, &frame, &mut limited),
+            Err(
+                BoundCheckFailure::Control(crate::value_access::InstantiationFailure::WorkLimit)
+                    | BoundCheckFailure::Invocation {
+                        failure: crate::value_access::InstantiationFailure::WorkLimit,
+                        ..
+                    }
+                    | BoundCheckFailure::Data {
+                        failure: crate::value_access::InstantiationFailure::WorkLimit,
+                        ..
+                    }
+            )
+        ));
+    }
+    let BoundCheck::Calls {
+        conditions,
+        control,
+        ..
+    } = requirements
+        .check_bound(&|_| true, &frame, &mut healthy())
+        .unwrap()
+    else {
+        panic!("stable input supports a pending entry condition");
+    };
+    let selected = conditions.values().collect::<Vec<_>>();
+    let [condition] = selected.as_slice() else {
+        panic!("one input condition");
+    };
+    assert_eq!(condition.input, 0);
+    assert!(control.reachable(condition.cause.point));
+    assert!(matches!(condition.violation.rule(), Rule::RuntimeCall(_)));
+}
+
+#[test]
+fn input_lineage_closes_anchored_loop_merges_without_interpreting_control() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/value-guarded-callable-outcomes.nct"
+    ));
+    let source = source.replace("inspect(take value", "inspect(value")
+        .replace("let action = value^ otherwise { return 11 }",
+            "read action = value otherwise { return 11 }\nvar counter = 0\nwhile counter < 1 { counter += 1 }");
+    assert!(source.contains("func inspect(value:"));
+    assert!(source.contains("while counter < 1"));
+    let absent = format!("{source}\nconst ANSWER: i32 = inspect(produce(false)) + 31");
+    assert_eq!(
+        super::initializers::answer(&absent, "ANSWER"),
+        nocter_constant_evaluation::state::Value::integer(42)
+    );
+    let positive = format!("{source}\nconst ANSWER: i32 = inspect(produce(true))")
+        .replace("func runtime(", "const func runtime(");
+    assert_eq!(
+        super::initializers::answer(&positive, "ANSWER"),
+        nocter_constant_evaluation::state::Value::integer(42)
+    );
 }
 
 #[test]
@@ -72,15 +260,19 @@ fn invocation_resource_attribution_matches_original_nullable_input_witnesses() {
     }
 }
 
-#[test]
-fn nullable_input_stability_uses_original_alias_and_call_write_correspondence() {
+fn input_guard_fixture() -> String {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../tests/fixtures/native/value-access/value-guarded-callable-outcomes.nct"
     ));
-    let source = format!(
+    format!(
         "{source}\nconst func no_change(edit value: (func(i32): i32)?): void {{}}\nconst func increment(edit number: i32): void {{ number += 1 }}\nconst func changed(edit value: (func(i32): i32)?): i32 {{ no_change(value)\nread action = value otherwise {{ return 11 }}\naction(35) }}\nconst func aliased(edit value: (func(i32): i32)?): i32 {{ edit alias = value\nno_change(alias)\nread action = value otherwise {{ return 11 }}\naction(35) }}\nconst func unrelated(value: (func(i32): i32)?): i32 {{ var number = 0\nincrement(number)\nread action = value otherwise {{ return 11 }}\naction(35) }}"
-    );
+    )
+}
+
+#[test]
+fn nullable_input_stability_uses_original_alias_and_call_write_correspondence() {
+    let source = input_guard_fixture();
     let unit = accepted(&source);
     for (name, stable) in [
         ("inspect", true),

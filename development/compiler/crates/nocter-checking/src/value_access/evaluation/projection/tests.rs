@@ -62,7 +62,7 @@ callback(35) }",
     assert!(checked.code(target.into()).is_none());
     let mut work = plan::WorkBudget::new(plan::Limits::default().steps());
     let (mut program, mut source) =
-        Source::prepare(&checked, root.into(), |_| None, &mut work).unwrap();
+        Source::prepare(&checked, root.into(), BTreeMap::new(), |_| None, &mut work).unwrap();
     let extension = source.load(root.into()).unwrap();
     assert_eq!(extension.plans.len(), 1);
     let (&linked, contract) = extension
@@ -118,7 +118,7 @@ fn concrete_resource_contracts_survive_projection_and_invalid_constraints_publis
         .unwrap();
     let mut work = plan::WorkBudget::new(plan::Limits::default().steps());
     let (mut program, mut source) =
-        Source::prepare(&checked, root.into(), |_| None, &mut work).unwrap();
+        Source::prepare(&checked, root.into(), BTreeMap::new(), |_| None, &mut work).unwrap();
     let id = plan::CodeInstance::from(root);
     let extension = source.load(id).unwrap();
     let body = &extension.plans[&id];
@@ -215,6 +215,7 @@ fn owner_registration_retains_one_slot_and_never_relabels_its_initial_context() 
         .unwrap();
     let mut instances = source::Instances::default();
     let mut builder = Builder {
+        conditions: Box::new([]),
         control: checked.instantiate_control(&frame, &mut work).unwrap(),
         checked: &checked,
         work: &mut work,
@@ -283,7 +284,7 @@ fn published_callable_input_contexts_match_the_original_body_entry_slots() {
     let apply = code("apply");
     let mut work = plan::WorkBudget::new(plan::Limits::default().steps());
     let (mut program, mut source) =
-        Source::prepare(&checked, root.into(), |_| None, &mut work).unwrap();
+        Source::prepare(&checked, root.into(), BTreeMap::new(), |_| None, &mut work).unwrap();
     let extension = source.load(root.into()).unwrap();
     let (&callee, contract) = extension
         .contracts
@@ -313,7 +314,7 @@ fn partial_writes_constrain_complete_carriers_at_both_source_boundaries() {
         .unwrap();
     let mut work = plan::WorkBudget::new(plan::Limits::default().steps());
     let (mut program, mut source) =
-        Source::prepare(&checked, root.into(), |_| None, &mut work).unwrap();
+        Source::prepare(&checked, root.into(), BTreeMap::new(), |_| None, &mut work).unwrap();
     let id = plan::CodeInstance::from(root);
     let extension = source.load(id).unwrap();
     let body = &extension.plans[&id];

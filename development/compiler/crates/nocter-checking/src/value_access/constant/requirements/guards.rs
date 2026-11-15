@@ -76,3 +76,90 @@ pub(super) fn input_resource(
         }
     }))
 }
+
+/// Entry absence can discharge only a callee value derived from that exact original input.
+/// Opaque calls/writes/constructions supply no such proof. This walks the existing source graph.
+pub(super) fn derives_from_input(
+    body: &flow::Query,
+    control: &crate::value_access::InstanceControl,
+    expression: nocter_model::AccessExpressionId,
+    local: AccessLocalId,
+    work: &mut nocter_constant_evaluation::state::WorkBudget,
+) -> Result<bool, crate::value_access::InstantiationFailure> {
+    use crate::value_access::{InstantiationFailure as Failure, ValueSource};
+    let Some(input) = body
+        .typed()
+        .body()
+        .inputs()
+        .ordered()
+        .find(|input| input.local == local)
+    else {
+        return Err(Failure::Unresolved);
+    };
+    // A mutable/owned entry needs a whole-body no-write boundary until general alias
+    // interference is qualified. Read inputs retain ordinary source access protection.
+    if input.operation != nocter_model::ValueInputOperation::Read {
+        for (_, point) in body.graph().points().iter() {
+            for action in &point.actions {
+                work.step().map_err(|_| Failure::WorkLimit)?;
+                match action.operation {
+                    flow::Operation::Assign { .. } | flow::Operation::CompoundAssign { .. } => {
+                        return Ok(false);
+                    }
+                    flow::Operation::CommitCall(call) if call != expression => {
+                        // Other calls may hide alias effects. Only the guarded invocation itself
+                        // is excluded by entry absence; general sibling-call effects are unproved.
+                        return Ok(false);
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    let sources = body
+        .typed()
+        .result_evidence
+        .as_ref()
+        .and_then(|evidence| evidence.value_sources(body.typed().code()))
+        .ok_or(Failure::Unresolved)?;
+    let mut reached = false;
+    for call in sources.call(expression).ok_or(Failure::Unresolved)? {
+        if !control.reachable(call.origin.point) {
+            continue;
+        }
+        reached = true;
+        let mut pending = vec![call.callee];
+        let mut visited = BTreeSet::new();
+        let mut anchored = false;
+        while let Some(value) = pending.pop() {
+            work.step().map_err(|_| Failure::WorkLimit)?;
+            if !visited.insert(value) {
+                continue;
+            }
+            match &sources.node(value).ok_or(Failure::Unresolved)?.value {
+                ValueSource::Input { local: source, .. } if *source == local => anchored = true,
+                ValueSource::Adapt { source }
+                | ValueSource::Transport { source }
+                | ValueSource::Select { source, .. } => pending.push(*source),
+                ValueSource::Merge { point, inputs, .. } => {
+                    let before = pending.len();
+                    pending.extend(
+                        inputs
+                            .iter()
+                            .filter(|(boundary, _)| control.edge_reachable(boundary.point, *point))
+                            .map(|(_, source)| *source),
+                    );
+                    if pending.len() == before {
+                        return Ok(false);
+                    }
+                }
+                ValueSource::Alternatives(inputs) if !inputs.is_empty() => pending.extend(inputs),
+                _ => return Ok(false),
+            }
+        }
+        if !anchored {
+            return Ok(false);
+        }
+    }
+    Ok(reached)
+}

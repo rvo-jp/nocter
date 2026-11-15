@@ -81,8 +81,8 @@ pub(super) fn prepare<'a, 'work, F: Fn(nocter_model::AccessCodeId) -> Option<pla
     values: F,
     work: &'work mut plan::WorkBudget,
 ) -> Result<(plan::Program, Source<'a, 'work, F>)> {
-    let (checked, root) = admission.into_parts();
-    Source::prepare(checked, root, values, work)
+    let (checked, root, conditions) = admission.into_parts();
+    Source::prepare(checked, root, conditions, values, work)
 }
 struct Builder<'a, 'b> {
     checked: &'a super::super::accepted::Checked,
@@ -99,6 +99,7 @@ struct Builder<'a, 'b> {
     values: crate::value_access::ValueData,
     resources: BTreeMap<flow::Location, Vec<resources::Projected>>,
     control: crate::value_access::InstanceControl,
+    conditions: Box<[plan::InputCondition]>,
 }
 impl Builder<'_, '_> {
     fn expression(&self, id: AccessExpressionId) -> Result<super::super::ValueType> {
@@ -1056,7 +1057,7 @@ impl Builder<'_, '_> {
         let statics = self.static_views();
         let environment_backing = self.environment_backing()?;
         Ok(plan::Plan {
-            conditions: Box::new([]),
+            conditions: self.conditions,
             environment_backing,
             statics,
             inputs,

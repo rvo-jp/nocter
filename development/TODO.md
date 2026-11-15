@@ -323,12 +323,22 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Classify direct nullable-input guard stability from the canonical original source writes.
   Preserve attribution when writes or source evidence prevent a stability proof; qualify direct
   and alias-mediated edits, unrelated writes and take/read/edit extraction without retyping bodies.
-- [ ] Close [state-conditioned const obligations](design/compiler-realization.md#state-conditioned-const-obligations)
-  for optional callback absence while the represented domain remains inhabited by a runtime-only
-  witness. The linked source plus `const ANSWER: i32 = inspect(produce(false)) + 31` currently
-  rejects with RuntimeCall. Retain exact-body guards through bound admission and evaluator plans;
-  preserve fixed forbidden definitions, runtime validity, original source causes and healthy retry.
-  Do not convert an observed tag into an uninhabited representation or execute unsupported bodies.
+- [x] Qualify direct nullable callback invocation under stable entry-absence conditions through
+  bound admission and original evaluator plans. Retain exact frame/cause references, reject active
+  runtime-only callbacks before body execution, preserve original traps and exclude unsupported
+  bodies without changing represented domains. Require actual callee/input source lineage and
+  read-protected bodies or elementary owned/update bodies without mutation/sibling calls;
+  keep written/unknown inputs conservatively rejected.
+- [ ] Admit nullable callable parameters in captured signatures before qualifying their entry
+  conditions. Ordinary typing currently rejects `(amount; take value: (func(i32): i32)?): i32`
+  at the nested `func` with UnsupportedData. Preserve the capture-environment input prefix and
+  explicit received-compound contexts when unifying named/captured input metadata.
+- [ ] Extend [state-conditioned const obligations](design/compiler-realization.md#state-conditioned-const-obligations)
+  beyond direct stable nullable inputs with named runtime-only callbacks. Qualify changing inputs,
+  unavailable captured bodies, general nested/indexed component predicates and guarded cleanup.
+  Retain exact-body/occurrence references and revalidate invalidated predicates; preserve fixed
+  forbidden definitions, runtime validity, original source causes and healthy work-failure retry.
+  Do not turn an observed tag into an uninhabited representation or execute unsupported bodies.
 - [x] Retain definition-owned attribution of direct nullable invocation witnesses to their exact
   input roots, excluding these potential state guards from flat coverage. Qualify distinct
   same-signature inputs, ordinary-boolean/fixed-target exclusions and runtime/const boundaries.

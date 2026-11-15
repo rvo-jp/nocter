@@ -760,8 +760,28 @@ impl<'a, 'source> Preparation<'a, 'source> {
             &mut self.budget,
             dependencies::value_depth(requests) - 1,
         );
-        let value = match executor.evaluate_initializer(id) {
+        let evaluated = executor.evaluate_initializer(id);
+        drop(executor);
+        let value = match evaluated {
             Ok(value) => value,
+            Err(error) if error.rule == state::Rule::InputConditionFailed => {
+                let instance = *error.instance.as_deref().ok_or(INVALID)?;
+                let site = error.site.ok_or(INVALID)?;
+                let (frame, violation) = source.condition_failure(instance, site).ok_or(INVALID)?;
+                let callable = frame.code().source_owner();
+                let diagnostic = super::project_input_condition(
+                    &self.context,
+                    &checked,
+                    &frame,
+                    violation,
+                    &error,
+                )
+                .map_err(|failure| Failure::Body { callable, failure })?;
+                return Err(Failure::Const {
+                    callable,
+                    diagnostic: Box::new(diagnostic),
+                });
+            }
             Err(error)
                 if matches!(
                     error.rule,

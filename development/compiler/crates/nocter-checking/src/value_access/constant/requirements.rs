@@ -63,7 +63,7 @@ mod drops;
 mod expressions;
 mod guards;
 use bound::BoundContext;
-pub(in crate::value_access) use bound::{BoundCheck, BoundCheckFailure};
+pub(in crate::value_access) use bound::{BoundCheck, BoundCheckFailure, InvocationCondition};
 
 /// Definition-owned operation requirements, with the exact shared checked-body generation.
 /// This product alone grants neither authored const capability nor executable representation.
@@ -176,12 +176,16 @@ impl Requirements {
                 continue;
             }
             let violation = match clause {
-                Clause::Invocation { expression: id, .. } => {
+                Clause::Invocation {
+                    expression: id,
+                    input_resource,
+                    ..
+                } => {
                     let callee = match calls.as_deref_mut() {
                         Some(calls) => calls.resolve(*id)?,
                         None => None,
                     };
-                    super::operation_rule(
+                    let violation = super::operation_rule(
                         program,
                         &expressions.get(*id).ok_or(INVALID)?.kind,
                         available,
@@ -190,7 +194,16 @@ impl Requirements {
                     .map(|rule| Violation {
                         site: Site::Expression(*id),
                         rule,
-                    })
+                    });
+                    if let (Some(violation), Some(calls)) = (violation, calls.as_deref_mut()) {
+                        if calls.defer_invocation(&self.body, *id, *input_resource, violation)? {
+                            None
+                        } else {
+                            Some(violation)
+                        }
+                    } else {
+                        violation
+                    }
                 }
                 Clause::Inputs(id) => {
                     let callee = match calls.as_deref_mut() {

@@ -134,9 +134,10 @@ authority can substitute for those proofs. Final callable serialization remains 
 Keep logical resource presence separate from represented callable domains. A nullable value may be
 absent while its canonical representation still contains a runtime-only callable witness. The
 [value-guarded callback source](../compiler/tests/fixtures/native/value-access/value-guarded-callable-outcomes.nct)
-qualifies both ordinary runtime paths. Requiring `inspect(produce(false))` as a constant currently
-retains the represented witness's invocation obligation; observing absence alone is not an existing
-admission certificate. Do not manufacture an uninhabited representation to bypass that obligation.
+covers ordinary runtime paths. Required `inspect(produce(false))` must retain the represented
+witness while discharging its invocation obligation under a qualified resource-state predicate.
+Actual absence does not change the represented domain. Do not manufacture an uninhabited
+representation to bypass that obligation.
 
 Definition-owned invocation clauses can attribute a direct nullable callable witness to its original
 input schema. This attribution supplies neither a tag fact nor source-value lineage, initialized

@@ -3,7 +3,7 @@ pub use super::staged::{ModuleSourceUnit, SourceFailure, SourceUnit};
 mod const_admission;
 mod instance_metadata;
 use super::{Failure as BodyFailure, Query as TypedQuery, flow};
-pub(super) use const_admission::{ConstAdmission, check_required_const};
+pub(super) use const_admission::{ConstAdmission, ConstConditions, check_required_const};
 pub use instance_metadata::InstanceMetadata;
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::Program;
@@ -611,6 +611,25 @@ pub(super) struct Checked {
     const_templates: Arc<super::constant::Catalog>,
 }
 impl Checked {
+    pub(super) fn project_const_violation(
+        &self,
+        context: &DeclarationContext<'_>,
+        frame: &nocter_declarations::value_access::CodeInstanceKey,
+        violation: super::constant::Violation,
+    ) -> Result<super::constant::Diagnostic, super::Failure> {
+        let query = self
+            .code(frame.code())
+            .ok_or(super::Failure::InconsistentSyntax)?;
+        let bound = query.bind(context)?;
+        let mut diagnostic = violation.project(&bound)?;
+        let verified = self
+            .result_evidence
+            .verify(context)
+            .map_err(|_| super::Failure::InconsistentSyntax)?;
+        self.const_templates
+            .annotate(diagnostic.rule(), &mut diagnostic, &verified)?;
+        Ok(diagnostic)
+    }
     pub(super) fn instantiate_call_boundary(
         &self,
         frame: &nocter_declarations::value_access::CodeInstanceKey,

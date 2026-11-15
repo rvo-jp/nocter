@@ -164,6 +164,19 @@ fn project(
         ),
     })
 }
+fn project_input_condition(
+    context: &DeclarationContext<'_>,
+    checked: &super::accepted::Checked,
+    frame: &nocter_declarations::value_access::CodeInstanceKey,
+    violation: super::constant::Violation,
+    error: &state::Error,
+) -> Result<super::constant::Diagnostic, BodyFailure> {
+    let mut diagnostic = checked.project_const_violation(context, frame, violation)?;
+    for site in &error.trace {
+        diagnostic.note_call(source_origin(context, origin(context, checked, *site)?)?);
+    }
+    Ok(diagnostic)
+}
 fn final_diagnostic(
     context: &DeclarationContext<'_>,
     source: &nocter_declaration_lowering::access_declarations::BodySource,

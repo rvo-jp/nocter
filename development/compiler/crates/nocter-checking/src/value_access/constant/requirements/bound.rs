@@ -3,12 +3,21 @@ use super::{Requirements, Violation, cleanup, drops, flow, instances};
 use nocter_declarations::value_access::CodeInstanceKey;
 use nocter_model::{AccessExpressionId, ValueClosure};
 
+/// An unresolved invocation capability guarded by the stable absence of its original input.
+#[derive(Clone, Copy, Debug)]
+pub(in crate::value_access) struct InvocationCondition {
+    pub expression: AccessExpressionId,
+    pub input: usize,
+    pub cause: flow::Location,
+    pub violation: Violation,
+}
 /// Exact call metadata discovered while checking local clauses; not recursive const admission.
 pub(in crate::value_access) enum BoundCheck {
     Violation(Violation),
     Calls {
         calls: std::collections::BTreeMap<AccessExpressionId, CodeInstanceKey>,
         control: crate::value_access::InstanceControl,
+        conditions: std::collections::BTreeMap<AccessExpressionId, InvocationCondition>,
     },
 }
 #[derive(Clone, Copy, Debug)]
@@ -36,8 +45,89 @@ pub(super) struct BoundContext<'a, 'work> {
     calls: std::collections::BTreeMap<AccessExpressionId, Option<CodeInstanceKey>>,
     resources: std::collections::BTreeMap<(flow::Location, usize), cleanup::Projected>,
     control: crate::value_access::InstanceControl,
+    conditions: std::collections::BTreeMap<AccessExpressionId, InvocationCondition>,
 }
 impl BoundContext<'_, '_> {
+    pub(super) fn defer_invocation(
+        &mut self,
+        body: &flow::Query,
+        expression: AccessExpressionId,
+        resource: Option<super::guards::InputResource>,
+        violation: Violation,
+    ) -> Result<bool, BoundCheckFailure> {
+        let (
+            Some(super::guards::InputResource::Stable(local)),
+            super::super::Rule::RuntimeCall(target),
+        ) = (resource, violation.rule())
+        else {
+            return Ok(false);
+        };
+        let Some(frame) = self.calls.get(&expression).and_then(Option::as_ref) else {
+            return Err(super::INVALID.into());
+        };
+        if frame.code() != target.into() {
+            return Err(super::INVALID.into());
+        }
+        if !super::guards::derives_from_input(body, &self.control, expression, local, self.work)
+            .map_err(|failure| BoundCheckFailure::Invocation {
+                expression,
+                failure,
+            })?
+        {
+            return Ok(false);
+        }
+        let evidence = self.query.result_evidence.as_ref().ok_or(super::INVALID)?;
+        match crate::value_access::results::instantiate_call_boundary(
+            self.query.program(),
+            evidence,
+            None,
+            frame,
+            self.work,
+        ) {
+            Ok(_) => {}
+            Err(crate::value_access::InstantiationFailure::WorkLimit) => {
+                return Err(BoundCheckFailure::Invocation {
+                    expression,
+                    failure: crate::value_access::InstantiationFailure::WorkLimit,
+                });
+            }
+            Err(_) => return Ok(false),
+        }
+        let input = body
+            .typed()
+            .body()
+            .inputs()
+            .ordered()
+            .position(|input| input.local == local)
+            .ok_or(super::INVALID)?;
+        let sources = evidence
+            .value_sources(self.caller.code())
+            .ok_or(super::INVALID)?;
+        let mut cause = None;
+        for call in sources.call(expression).ok_or(super::INVALID)? {
+            self.work
+                .step()
+                .map_err(|_| BoundCheckFailure::Invocation {
+                    expression,
+                    failure: crate::value_access::InstantiationFailure::WorkLimit,
+                })?;
+            if self.control.reachable(call.origin.point) {
+                cause = Some(call.origin);
+                break;
+            }
+        }
+        let cause = cause.ok_or(super::INVALID)?;
+        self.conditions.insert(
+            expression,
+            InvocationCondition {
+                expression,
+                input,
+                cause,
+                violation,
+            },
+        );
+        Ok(true)
+    }
     pub(super) fn active(&self, clause: &super::Clause) -> Result<bool, BoundCheckFailure> {
         Ok(match clause {
             super::Clause::Invocation { expression, .. } | super::Clause::Inputs(expression) => {
@@ -152,6 +242,7 @@ impl Requirements {
             work,
             calls: std::collections::BTreeMap::new(),
             resources: std::collections::BTreeMap::new(),
+            conditions: std::collections::BTreeMap::new(),
             control,
         };
         if let Some(violation) = self.check_clauses(available, Some(caller), Some(&mut calls))? {
@@ -164,6 +255,7 @@ impl Requirements {
                 .filter_map(|(expression, call)| call.map(|call| (expression, call)))
                 .collect(),
             control: calls.control,
+            conditions: calls.conditions,
         })
     }
 }
@@ -213,6 +305,7 @@ mod tests {
             work: &mut work,
             calls: BTreeMap::new(),
             resources: BTreeMap::new(),
+            conditions: BTreeMap::new(),
             control: unit
                 .instantiate_control(&caller, &mut WorkBudget::new(Limits::default().steps()))
                 .unwrap(),
@@ -259,6 +352,7 @@ mod tests {
             work: &mut work,
             calls: BTreeMap::new(),
             resources: BTreeMap::new(),
+            conditions: BTreeMap::new(),
             control: unit
                 .instantiate_control(&caller, &mut WorkBudget::new(Limits::default().steps()))
                 .unwrap(),

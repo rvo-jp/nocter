@@ -4,18 +4,30 @@ use crate::value_access::{constant, evaluation, results, source_origin};
 use std::{collections::BTreeMap, sync::Arc};
 
 mod provenance;
+use nocter_declarations::value_access::CodeInstanceKey;
 use provenance::Parent;
 
+pub(in crate::value_access) type ConstConditions = BTreeMap<
+    nocter_declarations::value_access::CodeInstanceKey,
+    Box<[constant::InvocationCondition]>,
+>;
 /// A successful required-root proof tied to the exact immutable checked product.
 /// Construction remains with this admission routine; metadata or a body cannot substitute.
 pub(in crate::value_access) struct ConstAdmission<'a> {
     checked: &'a Checked,
     root: nocter_model::ValueCodeRoot,
+    conditions: ConstConditions,
 }
 impl<'a> ConstAdmission<'a> {
-    pub(in crate::value_access) fn into_parts(self) -> (&'a Checked, nocter_model::ValueCodeRoot) {
-        let Self { checked, root } = self;
-        (checked, root)
+    pub(in crate::value_access) fn into_parts(
+        self,
+    ) -> (&'a Checked, nocter_model::ValueCodeRoot, ConstConditions) {
+        let Self {
+            checked,
+            root,
+            conditions,
+        } = self;
+        (checked, root, conditions)
     }
 }
 
@@ -27,7 +39,11 @@ pub(in crate::value_access) fn check_required_const<'a>(
     root: nocter_model::ValueCodeRoot,
     work: &mut nocter_constant_evaluation::state::WorkBudget,
 ) -> Result<ConstAdmission<'a>, Failure> {
-    let admitted = ConstAdmission { checked, root };
+    let mut admitted = ConstAdmission {
+        checked,
+        root,
+        conditions: BTreeMap::new(),
+    };
     let program = &checked.program;
     let verified = checked
         .result_evidence
@@ -55,26 +71,18 @@ pub(in crate::value_access) fn check_required_const<'a>(
         let bound = query
             .bind_verified(&verified)
             .map_err(|failure| Failure::Body { callable, failure })?;
-        let (calls, control) = match requirements
+        let (calls, control, conditions) = match requirements
             .check_bound(&|code| availability.permitted_template(code), &key, work)
             .map_err(|error| bound_failure(error, &bound, callable))?
         {
-            constant::BoundCheck::Calls { calls, control } => (calls, control),
+            constant::BoundCheck::Calls {
+                calls,
+                control,
+                conditions,
+            } => (calls, control, conditions),
             constant::BoundCheck::Violation(violation) => {
-                let mut diagnostic = violation
-                    .project(&bound)
-                    .map_err(|failure| Failure::Body { callable, failure })?;
-                availability
-                    .annotate(diagnostic.rule(), &mut diagnostic, &verified)
-                    .map_err(|failure| Failure::Body { callable, failure })?;
-                provenance::annotate(
-                    availability,
-                    &verified,
-                    &parents,
-                    &key,
-                    violation,
-                    &mut diagnostic,
-                )?;
+                let diagnostic =
+                    bound_violation(availability, &verified, &parents, &key, &bound, violation)?;
                 return Err(Failure::Const {
                     callable,
                     diagnostic: Box::new(diagnostic),
@@ -83,6 +91,9 @@ pub(in crate::value_access) fn check_required_const<'a>(
         };
         for call in requirements.completed_calls() {
             let id = call.expression();
+            if conditions.contains_key(&id) {
+                continue;
+            }
             let sources =
                 checked
                     .result_evidence
@@ -120,9 +131,43 @@ pub(in crate::value_access) fn check_required_const<'a>(
             );
             pending.push(selected);
         }
+        if !conditions.is_empty() {
+            admitted
+                .conditions
+                .insert(key, conditions.into_values().collect());
+        }
     }
     Ok(admitted)
 }
+fn bound_violation(
+    availability: &constant::Catalog,
+    verified: &results::Verified<'_, '_>,
+    parents: &BTreeMap<CodeInstanceKey, Option<Parent>>,
+    key: &CodeInstanceKey,
+    bound: &flow::Context<'_, '_>,
+    violation: constant::Violation,
+) -> Result<constant::Diagnostic, Failure> {
+    let mut diagnostic = violation.project(bound).map_err(|failure| Failure::Body {
+        callable: key.code().source_owner(),
+        failure,
+    })?;
+    availability
+        .annotate(diagnostic.rule(), &mut diagnostic, verified)
+        .map_err(|failure| Failure::Body {
+            callable: key.code().source_owner(),
+            failure,
+        })?;
+    provenance::annotate(
+        availability,
+        verified,
+        parents,
+        key,
+        violation,
+        &mut diagnostic,
+    )?;
+    Ok(diagnostic)
+}
+
 pub(super) fn check_const_bodies(
     program: &Program,
     bodies: &BTreeMap<nocter_model::ValueCodeRoot, Arc<flow::Query>>,

@@ -511,11 +511,24 @@ alias-mediated edit calls invalidate the proof, even when their final metadata h
 writes to unrelated locals do not. Take/read/edit extraction can retain this source-definition
 classification; transfer and retirement still change availability under the resource model.
 Missing source correspondence stays unproved. This classification proves neither an actual tag
-nor initialized backing, and ordinary const admission still discharges its existing obligations. `value-guarded-callable-outcomes.nct` qualifies absent/present ordinary
-runtime use of a runtime-only callback, with const-capable controls in checking. Required uses of
-the represented runtime witness remain outside qualified value-state discharge, even when its
-particular tag is absent; the [state-conditioned obligations](../../../design/compiler-realization.md#state-conditioned-const-obligations)
-own that remaining realization boundary.
+nor initialized backing.
+
+`value-guarded-callable-outcomes.nct` qualifies required evaluation of stable direct nullable
+inputs whose represented domain contains a named runtime-only callback. Take/read/edit inputs
+and forwarding keep that positive domain while the evaluator checks actual entry absence.
+The actual callee must trace through the original input's projections/adapters and selected sparse
+merges. Opaque calls, replacements and independent constructions supply no lineage proof. Read
+inputs retain source access protection; owned/update inputs additionally exclude mutation and
+sibling calls until general alias/callee interference is qualified. Bound admission retains the
+exact frame, original clause and cause; projection verifies that cause against its original call
+operation. Only independently linkable call boundaries can defer an invocation capability. Other data, preparation and cleanup obligations remain mandatory.
+An active input reports the original runtime-call violation with its actual evaluation trace,
+before body operations. Each invocation rechecks its value, including absent and present calls
+sharing one canonical frame. Original absence assertions still trap at their source. Direct or
+alias-mediated input writes retain the conservative rejection; unrelated writes do not invalidate
+the proof. Ordinary runtime execution remains valid for both tags. Unavailable captured bodies,
+changing inputs, general component/index guards and guarded cleanup retain the separate
+[state-conditioned obligations](../../../design/compiler-realization.md#state-conditioned-const-obligations).
 
 `received-compound-outcome-control.nct` qualifies the same continuation selection at a tuple
 component through take/read/edit inputs. A neighboring live callable and scalar field retain their
@@ -722,10 +735,10 @@ substitute a different body or requested root after proving eligibility. The clo
 proof and full bound traversal construct the same product under their existing quotas and local
 causes. Lower-level frozen-plan projection remains private to the projection module and its tests;
 body discovery, linked contracts and projection metadata alone do not authorize required evaluation.
-The product currently records fully discharged roots; it grants no pending value-state guard. The
-[state evaluator](../nocter-constant-evaluation/README.md#stateful-value-plans) supports validated
-input-absence conditions; ordinary projection currently emits none. Source stability, exact
-obligation matching and conditional body admission must qualify before that support is used.
+The product retains qualified entry-absence conditions per canonical frame alongside discharged
+obligations. The [state evaluator](../nocter-constant-evaluation/README.md#stateful-value-plans)
+checks those conditions against each invocation's bound values. A cached plan or input descriptor
+never caches the truth of an earlier invocation's state predicate.
 
 The evaluator's call-boundary projection uses this same body-channel authority. A retained body
 supplies its full ordered inputs, including the capture environment, and its qualified result
@@ -740,7 +753,7 @@ entry; completed entries need no repeated work. A contract batch retains its pen
 until all contracts are prepared, and unpublished static values are recorded as published only
 after the complete extension is ready. Failed preparation can therefore retry without losing an
 earlier contract or global value. The existing append-only program validator still checks every
-extension before execution. Value-dependent invocation guards remain separately unqualified.
+extension before execution. Linking an unavailable boundary supplies no invocation capability.
 
 `Unit::instantiate_completed_input_data` selects an original input's final metadata through every
 retained normal-completion boundary in the same budgeted fixed point as stored values. Input roles
