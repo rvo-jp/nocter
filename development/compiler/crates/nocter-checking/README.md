@@ -1236,8 +1236,10 @@ execution, including absent `error?` and `(error!)?` values. Live error graphs, 
 and runtime primitive calls remain unavailable. Final publication also excludes representable
 callable payloads; an unavailable opposite case does not erase that restriction.
 Selecting an unavailable payload from a represented carrier cannot produce an evaluator value.
-The domain check retains this uninhabited projection through ordinary value boundaries, allowing
-the lowered failure arm of `?` without creating error data. Execution still performs the ordinary
+The domain check retains this projection through ordinary value boundaries, allowing
+the lowered failure arm of `?` without creating error data. A conditionally supported carrier
+retains its own bound domain obligation; admitting that carrier also covers its original payload
+projections. An unbound contract alone never grants an actual payload. Execution still performs the ordinary
 tag test or assertion. This is evaluator representation evidence, not source reachability;
 runtime calls and explicit error destruction remain rejected even in an inactive handler.
 Absent optional payloads and partial arrays of those values use ordinary sparse cleanup.
@@ -1784,7 +1786,16 @@ declaration forwarding, preserved result-ordinal gaps and adjacent context-bound
 Empty-array element signatures are checked without adding producer equations or element values.
 Required/native execution preserves the once-only evaluation and cleanup of a zero-repeat seed;
 the matching error fixture executes seed and retained returned-owner cleanup. Wrong signatures and
-missing seed transfers reject. Compound results through outcomes require separate qualification.
+missing seed transfers reject.
+`contextual-outcome-results.nct` qualifies uniquely witnessed optional/fallible callable results,
+exact forwarding before outcome injection, nested optional layers and optional tuple components.
+Present values retain their actual nested callback contexts; absent alternatives inherit only
+representation constraints through original forwarding, aggregate, merge and return channels in
+the same canonical frame. No type-wide default or positive producer is inferred from absence.
+Ordered outcome assembly consumes this shared definition metadata while separately checking the
+actually supplied resource fields. Required/native execution agrees. The matching error fixture
+executes discarded captured-owner cleanup, returned callable cleanup and actual failure propagation.
+Outcome results with no positive callable producer remain a separate qualification boundary.
 `contextual-compound-edits.nct` additionally qualifies scalar updates through edit tuple inputs,
 forwarded updates and caller reads after completion while the callable context remains unchanged.
 The matching error fixture executes actual cleanup after both updates. Receiving/caller descriptors

@@ -71,6 +71,8 @@ frame-wide type map. This includes non-owning local bindings: their actual defin
 the alias representation. Source-place address projection consumes checking's frozen reference-root
 contracts at the original action, while partial input resource roots retain the bound input payload.
 Contextual evaluated reference arguments likewise retain the original action's complete selected root.
+Outcome tag inspection projects its selected data from that same original referent-root contract,
+including nested callable contexts; it does not reconstruct the carrier from an unbound type.
 At invocation commit this root must match the prepared argument data; the previously evaluated
 expression is not queried as a fresh operand or replaced by a declaration-wide type default.
 Independently closed schemas remain sufficient for representation-only references, including

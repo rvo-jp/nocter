@@ -67,7 +67,7 @@ impl Checker<'_, '_> {
             .data();
         let mut wrappers = Vec::new();
         let mut inner = data;
-        while inner != actual {
+        while !self.matches_result_data(actual, inner) {
             let Some(PayloadSchema::Optional(payload) | PayloadSchema::Fallible(payload)) =
                 self.program().data_schema(inner)
             else {

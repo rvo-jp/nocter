@@ -380,6 +380,33 @@ impl Builder<'_> {
             .collect();
         Ok(place)
     }
+    pub(super) fn referent_data(
+        &self,
+        referent: nocter_checking::value_access::Referent,
+    ) -> Result<RuntimeDataId, Failure> {
+        let at = self.at.ok_or_else(|| self.invalid())?;
+        let root = self
+            .instance
+            .referent_root(at, referent)
+            .ok_or_else(|| self.invalid())?;
+        let selected = match referent {
+            nocter_checking::value_access::Referent::Place(id) => {
+                let place = self
+                    .checked
+                    .typed()
+                    .body()
+                    .places()
+                    .get(id)
+                    .ok_or_else(|| self.invalid())?;
+                root.project_path(self.instances.unit().program(), &place.fields)
+                    .map_err(|_| self.invalid())?
+            }
+            nocter_checking::value_access::Referent::Evaluated(_) => root.clone(),
+        };
+        self.storage
+            .instance(self.instances.unit().program(), &selected)
+            .map_err(Failure::Storage)
+    }
     pub(super) fn referent_root(
         &self,
         referent: nocter_checking::value_access::Referent,

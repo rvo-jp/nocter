@@ -1,0 +1,64 @@
+struct Item { value: i32 }
+const func identity(value: i32): i32 { value }
+const func choose(present: bool): (func(i32): i32)? {
+    if present { identity } else { none }
+}
+const func forward(present: bool): (func(i32): i32)? { choose(present) }
+const func success(): (func(i32): i32)! { identity }
+const func propagate(): (func(i32): i32)! { success()? }
+const func owning(value: i32): func(i32): i32 {
+    let item = Item { value: value }
+    (item^; amount: i32) { item.value + amount }
+}
+const func wrap(take action: func(i32): i32): func(i32): i32 {
+    (action^; value: i32) { action(value) }
+}
+const func choose_owned(present: bool): (func(i32): i32)? {
+    if present { wrap(owning(40)) } else { none }
+}
+const func forward_owned(present: bool): (func(i32): i32)? { choose_owned(present) }
+const func owned_success(): (func(i32): i32)! { wrap(owning(40)) }
+const func forward_success(): (func(i32): i32)! {
+    let value = owned_success()
+    value^?
+}
+const func nested(present: bool): (func(i32): i32)?? {
+    let value = choose_owned(present)
+    value^
+}
+const func pair(present: bool): ((func(i32): i32)?, func(i32): i32) {
+    if present { (wrap(owning(40)), identity) } else { (none, identity) }
+}
+const func calculate(): i32 {
+    let first = forward(true)
+    let selected = first^ otherwise { return 0 }
+    let missing = forward(false)
+    let _ = missing^ otherwise {
+        let completed = propagate()
+        let action = completed^!
+        let owned = forward_owned(true)
+        let retained = owned^ otherwise { return 0 }
+        let absent_owned = forward_owned(false)
+        let _ = absent_owned^ otherwise {
+            let completed_owned = forward_success()
+            let callable = completed_owned^!
+            let deep = nested(false)
+            let inside = deep^!
+            let pair_value = pair(true)
+            let paired = pair_value.0^!
+            let missing_pair = pair(false)
+            let _ = missing_pair.0^ otherwise {
+                let _ = inside^ otherwise {
+                    if action(42) == 42 && retained(2) == 42 && callable(2) == 42 && paired(2) == 42 && pair_value.1(42) == 42 && missing_pair.1(42) == 42 { return selected(42) }
+                    return 0
+                }
+                return 0
+            }
+            return 0
+        }
+        return 0
+    }
+    0
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { calculate() }

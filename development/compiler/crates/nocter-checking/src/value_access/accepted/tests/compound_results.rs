@@ -9,6 +9,110 @@ const SOURCE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../tests/fixtures/native/value-access/contextual-compound-results.nct"
 ));
+const OUTCOMES: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../tests/fixtures/native/value-access/contextual-outcome-results.nct"
+));
+
+#[test]
+fn optional_callable_results_preserve_present_and_absent_returns() {
+    let source = OUTCOMES;
+    let unit = accepted(
+        &source
+            .replace("const ANSWER: i32 = calculate()", "")
+            .replace("const func", "func"),
+    );
+    for (id, body) in unit.bodies() {
+        if let Ok(frame) = unit.program().bind_code(body.typed().code(), []) {
+            unit.instantiate_value_data_map(
+                &frame,
+                &mut WorkBudget::new(NonZeroU64::new(100_000).unwrap()),
+            )
+            .unwrap_or_else(|failure| {
+                panic!(
+                    "{} values: {failure:?}",
+                    unit.program().code_label(id).unwrap()
+                )
+            });
+            assert_resources(&unit, &frame, body);
+            unit.instantiate_result_contract(
+                &frame,
+                &mut WorkBudget::new(NonZeroU64::new(100_000).unwrap()),
+            )
+            .unwrap_or_else(|failure| {
+                panic!(
+                    "{} result: {failure:?}",
+                    unit.program().code_label(id).unwrap()
+                )
+            });
+        }
+    }
+    assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
+}
+
+#[test]
+fn outcome_result_metadata_preserves_quotas_and_healthy_retry() {
+    use crate::value_access::InstantiationFailure;
+    let unit = accepted(
+        &OUTCOMES
+            .replace("const ANSWER: i32 = calculate()", "")
+            .replace("const func", "func"),
+    );
+    let code = unit
+        .program()
+        .resolve(unit.program().symbols().get("choose_owned").unwrap())
+        .unwrap();
+    let frame = unit.program().bind_code(code.into(), []).unwrap();
+    let budget = |units| WorkBudget::new(NonZeroU64::new(units).unwrap());
+    let expected = unit
+        .instantiate_result_contract(&frame, &mut budget(100_000))
+        .unwrap();
+    assert_eq!(
+        unit.instantiate_result_contract(&frame, &mut budget(1)),
+        Err(InstantiationFailure::WorkLimit)
+    );
+    assert_eq!(
+        unit.instantiate_result_contract(&frame, &mut budget(100_000)),
+        Ok(expected)
+    );
+}
+
+#[test]
+fn outcome_result_representations_do_not_grant_transfers_code_identity_or_const_capability() {
+    for (index, source) in [
+        OUTCOMES.replace(
+            "let retained = owned^ otherwise",
+            "let duplicate = owned\nlet retained = owned^ otherwise",
+        ),
+        OUTCOMES.replace(
+            "let retained = owned^ otherwise { return 0 }",
+            "let retained = owned^ otherwise { return 0 }\nlet again = owned^",
+        ),
+        OUTCOMES.replace(
+            "func forward(present: bool): (func(i32): i32)?",
+            "func forward(present: bool): (func(bool): i32)?",
+        ),
+        OUTCOMES.replace("const func identity(", "func identity("),
+        "func absent(): (func(i32): i32)? { none }\nfunc run(): void { let value = absent() }"
+            .to_owned(),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        assert_ne!(source, OUTCOMES);
+        let (sources, tree) = input(&source);
+        let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+        assert!(
+            matches!(
+                (index, &failure),
+                (0 | 2 | 4, SourceFailure::Checking(Failure::Body { .. }))
+                    | (1, SourceFailure::Checking(Failure::Flow { .. }))
+                    | (3, SourceFailure::Checking(Failure::Const { .. }))
+            ),
+            "case {index}: {failure:?}"
+        );
+    }
+}
 
 #[test]
 fn empty_compound_results_do_not_manufacture_element_producers_or_shift_ordinals() {

@@ -385,7 +385,7 @@ impl<'a, 'work> ResourceDataProjection<'a, 'work> {
             ResourceStep::AdaptFunction { .. } => {
                 self.receiving(source.ok_or(INVALID)?.clone(), target)
             }
-            ResourceStep::Assemble { fields, .. } => self.assemble(target, fields),
+            ResourceStep::Assemble { fields, .. } => self.assemble(holder, target, fields),
             ResourceStep::Construct { .. } | ResourceStep::Receive { .. } => {
                 self.stored(&holder.place(), target, true)
             }
@@ -394,6 +394,7 @@ impl<'a, 'work> ResourceDataProjection<'a, 'work> {
     }
     fn assemble(
         &mut self,
+        holder: Holder,
         target: TypeId,
         fields: &[(ValueField, Place)],
     ) -> Result<DataInstanceKey, Failure> {
@@ -415,6 +416,22 @@ impl<'a, 'work> ResourceDataProjection<'a, 'work> {
         }
         if let Some(element) = element {
             values.push((ValueField::Array(0), element));
+        }
+        if matches!(
+            program.data_schema(target),
+            Some(PayloadSchema::Optional(_) | PayloadSchema::Fallible(_))
+        ) {
+            // Inactive branches have representation constraints, not extra assembled values.
+            // The original completed definition owns those constraints; resource fields still
+            // validate only the values actually supplied by this ordered operation.
+            let key = self.stored(&holder.place(), target, true)?;
+            for (field, actual) in values {
+                let expected = key.component(program, field).map_err(|_| INVALID)?;
+                if !actual.has_same_representation(program, &expected) {
+                    return Err(INVALID);
+                }
+            }
+            return Ok(key);
         }
         program
             .instantiate_components(target, values)

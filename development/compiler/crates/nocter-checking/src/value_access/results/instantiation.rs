@@ -30,6 +30,7 @@ enum Key {
     Creation(CodeInstanceKey, nocter_model::ValueClosure),
     Value(CodeInstanceKey, super::ValueSourceId, ValuePath<()>),
     Data(CodeInstanceKey, super::ValueSourceId, ValuePath<()>, TypeId),
+    Representation(CodeInstanceKey, super::ValueSourceId, ValuePath<()>, TypeId),
     Stored(CodeInstanceKey, super::ValueSourceSelection, TypeId),
     CompletedInput(CodeInstanceKey, AccessLocalId, ValuePath<()>, TypeId),
 }
@@ -289,6 +290,9 @@ impl<'a, 'work> Query<'a, 'work> {
             Key::Value(frame, value, path) => self.source_value(key, frame, *value, path),
             Key::Data(frame, value, path, target) => {
                 self.source_data(key, frame, *value, path, *target)
+            }
+            Key::Representation(frame, value, path, target) => {
+                self.source_representation(key, frame, *value, path, *target)
             }
             Key::Stored(frame, selected, target) => {
                 self.source_stored_data(key, frame, selected, *target)

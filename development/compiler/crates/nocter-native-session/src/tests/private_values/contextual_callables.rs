@@ -2,6 +2,26 @@
 use super::*;
 
 #[test]
+fn private_outcome_results_preserve_callable_values_and_absence() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-outcome-results.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "outcome-results", 42);
+}
+
+#[test]
+fn private_outcome_results_dispose_actual_captures_and_propagated_errors() {
+    let machine = trusted_error_machine(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-outcome-results-errors.nct"
+    )));
+    let package = TempPackage::new();
+    execute_native_status(&image(&machine), &package.0, "outcome-result-errors", 42);
+}
+
+#[test]
 fn private_empty_compound_results_preserve_descriptor_gaps_without_element_values() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

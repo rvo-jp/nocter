@@ -4,6 +4,7 @@ use super::{
 };
 use nocter_declarations::value_access::CodeInstanceKey;
 use nocter_model::{ValueField, ValueProjection};
+mod representation;
 mod transport;
 
 impl Query<'_, '_> {
@@ -104,7 +105,9 @@ impl Query<'_, '_> {
                 }
                 Ok(fact)
             }
-            ValueSource::Aggregate(fields) => self.source_aggregate(owner, frame, &fields, target),
+            ValueSource::Aggregate(fields) => {
+                self.source_aggregate(owner, frame, value, &fields, target)
+            }
             ValueSource::Repeat { seed } => {
                 self.source_repetition(owner, frame, seed, path, target)
             }
@@ -117,6 +120,7 @@ impl Query<'_, '_> {
         &mut self,
         owner: &Key,
         frame: &CodeInstanceKey,
+        value: ValueSourceId,
         fields: &[(ValueField, ValueSourceId)],
         target: TypeId,
     ) -> Result {
@@ -158,6 +162,9 @@ impl Query<'_, '_> {
                 return Ok(Fact::Unavailable);
             };
             values.push((ValueField::Array(0), data));
+        }
+        if let Some(fact) = self.outcome_metadata(owner, frame, value, target, &mut values)? {
+            return Ok(fact);
         }
         Ok(self
             .program

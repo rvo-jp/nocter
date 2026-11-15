@@ -325,6 +325,19 @@ impl Store {
                         pending.extend([key, child]);
                     }
                 }
+                (Some(PayloadSchema::Optional(a)), Some(PayloadSchema::Optional(b)))
+                | (Some(PayloadSchema::Fallible(a)), Some(PayloadSchema::Fallible(b))) => {
+                    let primary = ValueField::Variant(true);
+                    let child = (self.selected(facts, &[primary]), a, b);
+                    if let Some(&payload) = done.get(&child) {
+                        let mut children = node.children;
+                        children.insert(primary, payload);
+                        let id = self.aggregate(children);
+                        done.insert(key, id);
+                    } else {
+                        pending.extend([key, child]);
+                    }
+                }
                 (Some(PayloadSchema::Aggregate(a)), Some(PayloadSchema::Aggregate(b)))
                     if a.len() == b.len()
                         && matches!(

@@ -682,6 +682,7 @@ impl<'a, 's> Checker<'a, 's> {
         }
         if actual.data() != expected.data()
             && expected.mode() == Mode::Own
+            && !self.matches_result_data(actual.data(), expected.data())
             && let Some(PayloadSchema::Optional(_) | PayloadSchema::Fallible(_)) =
                 self.program().data_schema(expected.data())
         {

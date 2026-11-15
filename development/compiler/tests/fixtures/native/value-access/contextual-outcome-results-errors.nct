@@ -1,0 +1,36 @@
+primitive func create_failure(code: str, message: str): error
+primitive func context_error(take value: error, message: str): error
+func owning(value: i32): func(i32): i32 {
+    let reason = context_error(create_failure("captured", "leaf"), "outer")
+    (reason^, value; amount: i32) { value + amount }
+}
+func wrap(take action: func(i32): i32): func(i32): i32 {
+    (action^; value: i32) { action(value) }
+}
+func choose(present: bool): (func(i32): i32)? {
+    let discarded = wrap(owning(0))
+    if present { wrap(owning(40)) } else { none }
+}
+func outcome(fail: bool): (func(i32): i32)! {
+    let discarded = wrap(owning(0))
+    if fail { throw context_error(create_failure("failed", "leaf"), "outer") }
+    wrap(owning(40))
+}
+func forward(fail: bool): (func(i32): i32)! { outcome(fail)? }
+func calculate(): i32 {
+    let present = choose(true)
+    let action = present^ otherwise { return 0 }
+    let success = forward(false)
+    let retained = success^!
+    let failure = forward(true)
+    let _ = failure^ catch reason {
+        let missing = choose(false)
+        let _ = missing^ otherwise {
+            if action(2) == 42 && retained(2) == 42 { return 42 }
+            return 0
+        }
+        return 0
+    }
+    0
+}
+func run(): i32 { calculate() }

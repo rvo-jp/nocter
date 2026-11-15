@@ -81,7 +81,7 @@ pub(super) fn collect(
     for (id, expression) in query.body().expressions().iter() {
         if let Some(value) = expression.ty.normal()
             && !domain.supports(query.program(), value.data())?
-            && !projections.uninhabited(body, id, domain)?
+            && !projections.covered(body, id, domain)?
         {
             conditions.insert(
                 id,

@@ -115,14 +115,9 @@ impl Builder<'_> {
         let destination = self.result(id)?;
         let operation = match kind {
             ExpressionKind::PrimaryCondition { source } => {
-                let data = self
-                    .checked
-                    .typed()
-                    .body()
-                    .referent_data(source)
-                    .ok_or_else(|| self.invalid())?;
+                let data = self.referent_data(source)?;
                 Operation::PrimaryCondition {
-                    source: self.referent(source, self.closed_data(data)?)?,
+                    source: self.referent(source, data)?,
                     destination,
                 }
             }

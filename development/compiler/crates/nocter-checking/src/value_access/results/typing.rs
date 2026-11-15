@@ -6,6 +6,21 @@ use nocter_model::{AccessExpressionId, TypeId, ValueAccess as Ty, ValueAccessMod
 use nocter_syntax::NodeId;
 
 impl Checker<'_, '_> {
+    /// Probe the shared result-identity rules without publishing equalities or supply actions.
+    pub(in crate::value_access) fn matches_result_data(
+        &self,
+        actual: TypeId,
+        expected: TypeId,
+    ) -> bool {
+        actual == expected
+            || deferred_equalities(
+                self.program(),
+                Ty::new(actual, Mode::Own),
+                Ty::new(expected, Mode::Own),
+                self.expressions.next_id(),
+            )
+            .is_some()
+    }
     pub(in crate::value_access) fn result_boundary(
         &mut self,
         node: NodeId,
@@ -126,6 +141,10 @@ pub(in crate::value_access) fn deferred_equalities(
                 } else {
                     pending.push((a.element(), b.element()));
                 }
+            }
+            (Some(PayloadSchema::Optional(a)), Some(PayloadSchema::Optional(b)))
+            | (Some(PayloadSchema::Fallible(a)), Some(PayloadSchema::Fallible(b))) => {
+                pending.push((a, b));
             }
             (Some(PayloadSchema::Aggregate(a)), Some(PayloadSchema::Aggregate(b))) => {
                 use nocter_declarations::value_access::AggregateForm;
