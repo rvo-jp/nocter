@@ -12,6 +12,10 @@ pub(in crate::value_access) fn values(
     unit.instantiate_value_data_map(frame, work)
         .map_err(|failure| match failure {
             ValueDataFailure::Body => Failure::InvalidAcceptedUnit,
+            ValueDataFailure::Control(failure) => Failure::Control {
+                code: frame.code(),
+                failure,
+            },
             ValueDataFailure::Value { at, failure } => Failure::Value {
                 code: frame.code(),
                 at,

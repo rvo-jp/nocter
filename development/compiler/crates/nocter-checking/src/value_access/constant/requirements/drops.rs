@@ -14,6 +14,9 @@ pub(super) struct Condition {
     selections: Box<[flow::Location]>,
 }
 impl Condition {
+    pub(super) fn active(&self, control: &crate::value_access::InstanceControl) -> bool {
+        self.selections.is_empty() || self.selections.iter().any(|at| control.reachable(at.point))
+    }
     pub(super) fn violation(&self) -> Violation {
         self.violation
     }

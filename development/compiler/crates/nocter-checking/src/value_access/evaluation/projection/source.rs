@@ -129,6 +129,7 @@ impl<'a, 'work, F: Fn(AccessCodeId) -> Option<plan::Value>> Source<'a, 'work, F>
         let program = &self.checked.program;
         let prepared = self.checked.instantiate_prepared_data(&key, self.work)?;
         let values = self.checked.instantiate_value_data_map(&key, self.work)?;
+        let control = self.checked.instantiate_control(&key, self.work)?;
         let body = Builder {
             checked: self.checked,
             work: self.work,
@@ -143,6 +144,7 @@ impl<'a, 'work, F: Fn(AccessCodeId) -> Option<plan::Value>> Source<'a, 'work, F>
             prepared,
             values,
             resources: BTreeMap::new(),
+            control,
         }
         .build()?;
         let mut extension = plan::ProgramExtension::default();

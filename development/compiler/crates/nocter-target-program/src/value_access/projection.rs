@@ -15,10 +15,11 @@ pub(super) use abi::{inputs, result};
 pub(super) fn metadata(
     unit: &Unit,
     body: &flow::Query,
+    control: &nocter_checking::value_access::InstanceControl,
 ) -> Result<BTreeSet<DataInstanceKey>, Failure> {
     let program = unit.program();
     let mut roots = BTreeSet::new();
-    for source in requirements::data(body)? {
+    for source in requirements::data(body, control)? {
         if unit
             .data_evidence(source)
             .map_err(|_| Failure::InvalidAcceptedUnit)?

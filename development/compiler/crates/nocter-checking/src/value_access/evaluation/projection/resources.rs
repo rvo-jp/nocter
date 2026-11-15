@@ -46,7 +46,7 @@ impl Builder<'_, '_> {
     pub(super) fn prepare_resource_data(&mut self) -> Result<()> {
         let query = self.query;
         for (point, block) in query.graph().points().iter() {
-            if !query.initialization().reachable(point) {
+            if !self.control.reachable(point) {
                 continue;
             }
             for action in 0..block.actions.len() {

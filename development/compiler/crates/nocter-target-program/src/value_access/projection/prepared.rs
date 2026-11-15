@@ -16,6 +16,10 @@ pub(in crate::value_access) fn arguments(
         unit.instantiate_prepared_data(frame, work)
             .map_err(|failure| match failure {
                 PreparedDataFailure::Body => invalid,
+                PreparedDataFailure::Control(failure) => Failure::Control {
+                    code: frame.code(),
+                    failure,
+                },
                 PreparedDataFailure::Argument { site, failure, .. } => {
                     Failure::Invocation { site, failure }
                 }

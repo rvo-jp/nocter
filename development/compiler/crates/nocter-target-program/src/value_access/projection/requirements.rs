@@ -7,7 +7,10 @@ use nocter_checking::value_access::{
 use nocter_model::{AccessExpressionId, AccessLocalId, TypeId};
 use std::collections::BTreeSet;
 
-pub(super) fn data(checked: &flow::Query) -> Result<BTreeSet<TypeId>, Failure> {
+pub(super) fn data(
+    checked: &flow::Query,
+    control: &nocter_checking::value_access::InstanceControl,
+) -> Result<BTreeSet<TypeId>, Failure> {
     let body = checked.typed().body();
     let mut needed = Needed {
         body,
@@ -22,7 +25,7 @@ pub(super) fn data(checked: &flow::Query) -> Result<BTreeSet<TypeId>, Failure> {
         needed.local(input.local)?;
     }
     for (point, block) in checked.graph().points().iter() {
-        if !checked.initialization().reachable(point) {
+        if !control.reachable(point) {
             continue;
         }
         for (action, event) in block.actions.iter().enumerate() {

@@ -4,6 +4,15 @@ use super::*;
 use nocter_constant_evaluation::state::Value;
 
 #[test]
+fn received_outcome_control_uses_each_actual_input_domain() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-outcome-control.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Value::integer(42));
+}
+
+#[test]
 fn excluded_result_reprojection_is_not_a_result_family_receipt() {
     use crate::value_access::ExpressionKind;
     use nocter_model::{ValueApplication, ValueField, ValueFunctionOrigin as Origin};

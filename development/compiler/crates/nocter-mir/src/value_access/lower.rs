@@ -39,11 +39,11 @@ impl Builder<'_> {
     ) -> Result<BTreeMap<nocter_model::AccessFlowPointId, super::Terminator>, Failure> {
         let checked = self.checked;
         let mut terminators = BTreeMap::new();
-        for (point, block) in checked.graph().points().iter() {
-            if !checked.initialization().reachable(point) {
+        for (point, _) in checked.graph().points().iter() {
+            let Some(selected) = self.instance.control().terminator(point) else {
                 continue;
-            }
-            let terminator = match block.terminator {
+            };
+            let terminator = match selected {
                 flow::Terminator::Jump(next) => super::Terminator::Jump(next),
                 flow::Terminator::Branch { condition, yes, no } => super::Terminator::Branch {
                     condition: self.predicate(condition)?,

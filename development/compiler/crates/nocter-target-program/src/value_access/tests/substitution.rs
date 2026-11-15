@@ -131,27 +131,24 @@ fn reached_invocations_share_one_work_quota_and_failure_does_not_publish_a_parti
         })
         .collect::<Vec<_>>();
     assert_eq!(calls.len(), 2);
-    let first = nocter_model::ValueApplication {
+    let second = nocter_model::ValueApplication {
         owner: caller.code(),
-        call: calls[0],
+        call: calls[1],
     };
-    // Discover the public query's minimum cost instead of pinning this test to internal steps.
+    // Find the observable boundary after the first commit. Earlier continuation/preparation
+    // work also spends this quota; no fixed cost or per-invocation replenishment is assumed.
     let minimum = (1..=1_024)
         .find(|&units| {
             let mut work = WorkBudget::new(NonZeroU64::new(units).unwrap());
-            unit.instantiate_invocation(&caller, first, &mut work)
-                .is_ok()
+            matches!(InstanceProgram::prepare_with_budget(unit.clone(), root, &mut work), Err(Failure::Invocation { site, failure: InstantiationFailure::WorkLimit }) if site == second)
         })
-        .expect("the small call has a bounded metadata query");
+        .expect("both reached invocations share a bounded metadata quota");
     let mut work = WorkBudget::new(NonZeroU64::new(minimum).unwrap());
     let failure = InstanceProgram::prepare_with_budget(unit.clone(), root, &mut work).unwrap_err();
     assert_eq!(
         failure,
         Failure::Invocation {
-            site: nocter_model::ValueApplication {
-                owner: caller.code(),
-                call: calls[1]
-            },
+            site: second,
             failure: InstantiationFailure::WorkLimit,
         }
     );
@@ -164,7 +161,7 @@ fn reached_invocations_share_one_work_quota_and_failure_does_not_publish_a_parti
     let mut exhausted = WorkBudget::new(NonZeroU64::new(1).unwrap());
     assert!(matches!(
         InstanceProgram::prepare_with_budget(unit, root, &mut exhausted),
-        Err(Failure::Invocation {
+        Err(Failure::Control {
             failure: InstantiationFailure::WorkLimit,
             ..
         })

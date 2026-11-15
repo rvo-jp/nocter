@@ -32,8 +32,13 @@ pub struct Instance {
     result: DataEvidence,
     prepared: BTreeMap<(AccessExpressionId, usize), Payload>,
     values: projection::Values,
+    control: nocter_checking::value_access::InstanceControl,
 }
 impl Instance {
+    #[must_use]
+    pub const fn control(&self) -> &nocter_checking::value_access::InstanceControl {
+        &self.control
+    }
     #[must_use]
     pub const fn key(&self) -> &InstanceKey {
         &self.key
@@ -110,6 +115,10 @@ impl Instance {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Failure {
+    Control {
+        code: nocter_model::ValueCode,
+        failure: nocter_checking::value_access::InstantiationFailure,
+    },
     UnknownRoot(AccessCodeId),
     InitializerRoot(AccessCodeId),
     BodylessRoot(AccessCodeId),

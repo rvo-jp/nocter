@@ -135,7 +135,9 @@ impl Requirements {
         self.check_clauses(available, None, None)
             .map_err(|error| match error {
                 BoundCheckFailure::Integrity(error) => error,
-                BoundCheckFailure::Invocation { .. } | BoundCheckFailure::Data { .. } => INVALID,
+                BoundCheckFailure::Invocation { .. }
+                | BoundCheckFailure::Data { .. }
+                | BoundCheckFailure::Control(_) => INVALID,
             })
     }
     fn check_clauses(
@@ -151,6 +153,11 @@ impl Requirements {
         let expressions = self.body.typed().body().expressions();
         let mut domain = evaluation::Types::default();
         for clause in &self.clauses {
+            if let Some(calls) = calls.as_deref()
+                && !calls.active(clause)?
+            {
+                continue;
+            }
             let violation = match clause {
                 Clause::Invocation { expression: id, .. } => {
                     let callee = match calls.as_deref_mut() {

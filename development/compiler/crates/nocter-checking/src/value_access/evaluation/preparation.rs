@@ -498,6 +498,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
     ) -> Result<Vec<(ValueCode, Demand, CallOrigin)>, Failure> {
         let program = resolved.program();
         let scope = resolved.scope().map_err(Failure::Integrity)?;
+        let controls = resolved.controls().map_err(Failure::Integrity)?;
         let mut discovery = super::discovery::Discovery::new(&scope);
         discovery
             .insert(
@@ -519,6 +520,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
                 .as_ref()
                 .and_then(|evidence| evidence.value_sources(key.code()))
                 .ok_or(INVALID)?;
+            let mut control = None;
             for (id, expression) in query.body().expressions().iter() {
                 if sources.call(id).is_none()
                     || !crate::value_access::instances::is_completed_call(&expression.kind)
@@ -532,6 +534,30 @@ impl<'a, 'source> Preparation<'a, 'source> {
                         failure,
                     },
                 )?;
+                if control.is_none() {
+                    let original = controls.get(&key.code()).ok_or(INVALID)?;
+                    control = Some(
+                        crate::value_access::results::instantiate_graph_control(
+                            program,
+                            query.result_evidence.as_ref().ok_or(INVALID)?,
+                            query,
+                            &original.graph,
+                            &key,
+                            &mut self.condition_work,
+                        )
+                        .map_err(|failure| {
+                            super::condition_failure(failure, key.code().source_owner(), primary)
+                        })?,
+                    );
+                }
+                if !control
+                    .as_ref()
+                    .ok_or(INVALID)?
+                    .call_reachable(sources, id)
+                    .map_err(Failure::Integrity)?
+                {
+                    continue;
+                }
                 let selected = crate::value_access::instances::condition_call(
                     query,
                     &key,

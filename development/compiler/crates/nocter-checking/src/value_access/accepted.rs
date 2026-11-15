@@ -235,6 +235,23 @@ impl Unit {
             work,
         )
     }
+    /// Select original continuations using this frame's represented outcome domains.
+    /// This does not erase tag evaluation or grant initialized storage, access or execution.
+    /// # Errors
+    /// Rejects missing bodies, inconsistent original points and exhausted metadata work.
+    pub fn instantiate_control(
+        &self,
+        frame: &nocter_declarations::value_access::CodeInstanceKey,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<super::InstanceControl, super::InstantiationFailure> {
+        super::results::instantiate_control(
+            &self.program,
+            &self.result_evidence,
+            self.code_body(frame.code()),
+            frame,
+            work,
+        )
+    }
     /// Select reference-root contract metadata at one original source occurrence.
     /// This grants no initialized value, source access, physical allocation or stable layout.
     /// # Errors
@@ -579,6 +596,19 @@ pub(super) struct Checked {
     const_templates: Arc<super::constant::Catalog>,
 }
 impl Checked {
+    pub(super) fn instantiate_control(
+        &self,
+        frame: &nocter_declarations::value_access::CodeInstanceKey,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<super::InstanceControl, super::InstantiationFailure> {
+        super::results::instantiate_control(
+            &self.program,
+            &self.result_evidence,
+            self.code(frame.code()),
+            frame,
+            work,
+        )
+    }
     pub(super) fn instantiate_value_data_map(
         &self,
         frame: &nocter_declarations::value_access::CodeInstanceKey,
@@ -693,13 +723,19 @@ pub(super) struct Resolved {
     result_evidence: Arc<super::results::Evidence>,
 }
 impl Resolved {
+    pub(super) fn controls(
+        &self,
+    ) -> Result<BTreeMap<nocter_model::ValueCode, &flow::Control>, flow::IntegrityError> {
+        flow::scope(self.controls.values())
+    }
     pub(super) fn program(&self) -> &Program {
         &self.program
     }
     pub(super) fn scope(
         &self,
     ) -> Result<BTreeMap<nocter_model::ValueCode, &TypedQuery>, flow::IntegrityError> {
-        Ok(flow::scope(self.controls.values())?
+        Ok(self
+            .controls()?
             .into_iter()
             .map(|(code, control)| (code, control.typed.as_ref()))
             .collect())

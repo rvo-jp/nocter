@@ -2,6 +2,16 @@
 use super::*;
 
 #[test]
+fn private_received_outcome_control_keeps_each_input_domain() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-outcome-control.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "received-outcome-control", 42);
+}
+
+#[test]
 fn private_constructed_compound_absence_keeps_owned_error_environments() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

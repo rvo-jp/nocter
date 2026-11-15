@@ -414,6 +414,21 @@ Outcome retagging preserves that fact, and strong updates retain earlier immutab
 an initialized value nor a represented callable domain, code witness, cleanup or const eligibility.
 The positive producer equations do not use an empty witness set as a tag fact.
 
+`Unit::instantiate_control` selects continuations in the original control graph for one complete
+code frame. A canonical outcome key whose primary child is uninhabited can exclude its positive
+continuation; unresolved metadata retains the original branch. The query preserves the original
+actions, including carrier evaluation and tag reads. Its read-only `InstanceControl` retains the
+frame and selected original terminators; it proves neither an initialized value nor source access.
+Required dependency discovery and bound const clauses, ordinary value/preparation maps, evaluator
+plans and private native instance/lifecycle/MIR projection consume this same selection. Bound
+clause results retain the control map so a missing call edge is accepted only with its original
+unreachable commit. Dormant source contracts keep their separate definition-time checks.
+Representation-based branch pruning does not infer a tag from an unknown domain or from the
+absence of positive producer candidates. Optional recovery with an early-return fallback is
+qualified for take/read/edit inputs, including effectful input creation. Per-instance assertion
+continuations, recovery/result joins and partially active const selections remain separate
+qualification obligations.
+
 Each original invocation input retains its positive alternatives and a separate inactive-callable
 fact in one `InputProducers` summary. Matching compound input paths propagate a constructed
 inactive outcome to its callable descendants. Joins require every observed source to exclude the

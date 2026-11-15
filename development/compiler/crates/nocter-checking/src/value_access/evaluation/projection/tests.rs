@@ -101,22 +101,18 @@ fn owner_registration_retains_one_slot_and_never_relabels_its_initial_context() 
     };
     let frame = program.bind_code(code("run").into(), []).unwrap();
     let query = checked.code(frame.code()).unwrap();
-    let owner = query
-        .typed()
-        .body()
-        .locals()
-        .iter()
-        .find(|(_, local)| local.kind.access_mode() == ValueAccessMode::Own)
-        .unwrap()
-        .0;
-    let alias = query
-        .typed()
-        .body()
-        .locals()
-        .iter()
-        .find(|(_, local)| local.kind.access_mode() == ValueAccessMode::Read)
-        .unwrap()
-        .0;
+    let local = |mode| {
+        query
+            .typed()
+            .body()
+            .locals()
+            .iter()
+            .find(|(_, local)| local.kind.access_mode() == mode)
+            .unwrap()
+            .0
+    };
+    let owner = local(ValueAccessMode::Own);
+    let alias = local(ValueAccessMode::Read);
     let expression = query
         .typed()
         .body()
@@ -142,6 +138,7 @@ fn owner_registration_retains_one_slot_and_never_relabels_its_initial_context() 
         .unwrap();
     let mut instances = source::Instances::default();
     let mut builder = Builder {
+        control: checked.instantiate_control(&frame, &mut work).unwrap(),
         checked: &checked,
         work: &mut work,
         query,

@@ -344,7 +344,7 @@ fn bound_condition_calls_reuse_original_frames_across_clauses() {
         // of the callee. The request-local call cache has an independent exhausted-budget test.
         let mut work =
             WorkBudget::new(nocter_constant_evaluation::state::Limits::default().steps());
-        let BoundCheck::Calls(calls) = requirements
+        let BoundCheck::Calls { calls, .. } = requirements
             .check_bound(&|_| true, &caller, &mut work)
             .unwrap()
         else {
@@ -566,6 +566,6 @@ fn bound_check(
         .check_bound(&|_| true, key, &mut work)
         .map(|check| match check {
             crate::value_access::constant::BoundCheck::Violation(violation) => Some(violation),
-            crate::value_access::constant::BoundCheck::Calls(_) => None,
+            crate::value_access::constant::BoundCheck::Calls { .. } => None,
         })
 }

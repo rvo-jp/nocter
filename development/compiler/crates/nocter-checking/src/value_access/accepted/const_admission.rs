@@ -41,11 +41,11 @@ pub(in crate::value_access) fn check_required_const(
         let bound = query
             .bind_verified(&verified)
             .map_err(|failure| Failure::Body { callable, failure })?;
-        let calls = match requirements
+        let (calls, control) = match requirements
             .check_bound(&|code| availability.permitted_template(code), &key, work)
             .map_err(|error| bound_failure(error, &bound, callable))?
         {
-            constant::BoundCheck::Calls(calls) => calls,
+            constant::BoundCheck::Calls { calls, control } => (calls, control),
             constant::BoundCheck::Violation(violation) => {
                 let mut diagnostic = violation
                     .project(&bound)
@@ -69,6 +69,19 @@ pub(in crate::value_access) fn check_required_const(
         };
         for call in requirements.completed_calls() {
             let id = call.expression();
+            let sources =
+                checked
+                    .result_evidence
+                    .value_sources(key.code())
+                    .ok_or(Failure::Integrity(
+                        flow::IntegrityError::InconsistentTypedBody,
+                    ))?;
+            if !control
+                .call_reachable(sources, id)
+                .map_err(Failure::Integrity)?
+            {
+                continue;
+            }
             let origin = bound
                 .typed()
                 .expression_origin(id)
@@ -168,6 +181,13 @@ fn bound_failure(
 ) -> Failure {
     let (origin, failure) = match error {
         constant::BoundCheckFailure::Integrity(error) => return Failure::Integrity(error),
+        constant::BoundCheckFailure::Control(failure) => match bound.origin(flow::Location {
+            point: bound.query().graph().entry(),
+            action: 0,
+        }) {
+            Ok(origin) => (origin, failure),
+            Err(failure) => return Failure::Body { callable, failure },
+        },
         constant::BoundCheckFailure::Invocation {
             expression,
             failure,

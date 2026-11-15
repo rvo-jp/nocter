@@ -24,6 +24,7 @@ impl PreparedData {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PreparedDataFailure {
     Body,
+    Control(InstantiationFailure),
     Argument {
         site: ValueApplication,
         index: usize,
@@ -46,6 +47,8 @@ pub(in crate::value_access) fn arguments(
         .value_sources(frame.code())
         .and_then(|graph| graph.flow())
         .ok_or(invalid)?;
+    let control = super::super::instantiate_control(program, evidence, Some(body), frame, work)
+        .map_err(PreparedDataFailure::Control)?;
     let mut prepared = PreparedData {
         arguments: BTreeMap::new(),
     };
@@ -54,7 +57,7 @@ pub(in crate::value_access) fn arguments(
         let ValueSourceSlot::Argument { call, index } = slot else {
             continue;
         };
-        if !body.initialization().reachable(at.point) {
+        if !control.reachable(at.point) {
             continue;
         }
         // This slot may also have a post-call definition. Preparation contracts belong only

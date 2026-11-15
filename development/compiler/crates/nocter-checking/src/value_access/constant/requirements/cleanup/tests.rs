@@ -169,12 +169,12 @@ fn bound_cleanup_uses_the_received_environment_and_retries_after_work_failure() 
     assert!(!domain.supports_instance(program, keys[1].clone()).unwrap());
     let mut exhausted = WorkBudget::new(NonZeroU64::new(1).unwrap());
     exhausted.step().unwrap();
+    assert!(matches!(
+        requirements.check_bound(&|_| true, &plain, &mut exhausted),
+        Err(BoundCheckFailure::Control(InstantiationFailure::WorkLimit))
+    ));
     assert!(
-        matches!(requirements.check_bound(&|_| true, &plain, &mut exhausted),
-        Err(BoundCheckFailure::Data { at: failed_at, failure: InstantiationFailure::WorkLimit }) if failed_at == at)
-    );
-    assert!(
-        matches!(requirements.check_bound(&|_| true, &plain, &mut healthy()).unwrap(), BoundCheck::Calls(calls) if calls.is_empty())
+        matches!(requirements.check_bound(&|_| true, &plain, &mut healthy()).unwrap(), BoundCheck::Calls { calls, .. } if calls.is_empty())
     );
     let BoundCheck::Violation(violation) = requirements
         .check_bound(&|_| true, &captured, &mut healthy())

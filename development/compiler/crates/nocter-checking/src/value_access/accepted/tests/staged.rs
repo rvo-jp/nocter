@@ -289,8 +289,10 @@ fn ordinary_body_value_requests_restart_outer_work_but_share_nested_work() {
     else {
         panic!("nested dependencies must consume the same work budget")
     };
-    assert_eq!(
+    // Metadata preparation and execution share the outer-request policy; either phase may
+    // reach its deterministic quota first. Neither may replenish work for nested dependencies.
+    assert!(matches!(
         diagnostic.rule(),
-        evaluation::Rule::Execution(state::Rule::StepLimit)
-    );
+        evaluation::Rule::Execution(state::Rule::StepLimit | state::Rule::PlanWorkLimit)
+    ));
 }

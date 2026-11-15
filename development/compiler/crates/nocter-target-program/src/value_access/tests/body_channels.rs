@@ -49,9 +49,20 @@ fn value_data_exhaustion_reports_the_original_action_and_allows_a_healthy_retry(
     let fixture = ValueSourceFixture::new("func run(): i32 { 42 }");
     let unit = accepted(&fixture);
     let root = callable(&unit, "run");
-    let mut work =
-        nocter_constant_evaluation::state::WorkBudget::new(std::num::NonZeroU64::new(1).unwrap());
-    let failure = InstanceProgram::prepare_with_budget(unit.clone(), root, &mut work).unwrap_err();
+    let frame = unit.program().bind_code(root.into(), []).unwrap();
+    // Reach the value phase through its public projection, without pinning the preceding
+    // continuation query's internal cost or confusing it with an operand-data failure.
+    let failure = (1..=1_024)
+        .find_map(|units| {
+            let mut work = nocter_constant_evaluation::state::WorkBudget::new(
+                std::num::NonZeroU64::new(units).unwrap(),
+            );
+            match projection::values(&unit, &frame, &mut work) {
+                Err(failure @ Failure::Value { .. }) => Some(failure),
+                _ => None,
+            }
+        })
+        .expect("value metadata has a bounded work-exhaustion boundary");
     let Failure::Value { code, at, failure } = failure else {
         panic!("the value metadata query must report its original action: {failure:?}")
     };

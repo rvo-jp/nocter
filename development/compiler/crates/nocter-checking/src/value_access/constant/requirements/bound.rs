@@ -6,11 +6,15 @@ use nocter_model::{AccessExpressionId, ValueClosure};
 /// Exact call metadata discovered while checking local clauses; not recursive const admission.
 pub(in crate::value_access) enum BoundCheck {
     Violation(Violation),
-    Calls(std::collections::BTreeMap<AccessExpressionId, CodeInstanceKey>),
+    Calls {
+        calls: std::collections::BTreeMap<AccessExpressionId, CodeInstanceKey>,
+        control: crate::value_access::InstanceControl,
+    },
 }
 #[derive(Clone, Copy, Debug)]
 pub(in crate::value_access) enum BoundCheckFailure {
     Integrity(flow::IntegrityError),
+    Control(crate::value_access::InstantiationFailure),
     Invocation {
         expression: AccessExpressionId,
         failure: crate::value_access::InstantiationFailure,
@@ -31,8 +35,27 @@ pub(super) struct BoundContext<'a, 'work> {
     work: &'work mut nocter_constant_evaluation::state::WorkBudget,
     calls: std::collections::BTreeMap<AccessExpressionId, Option<CodeInstanceKey>>,
     resources: std::collections::BTreeMap<(flow::Location, usize), cleanup::Projected>,
+    control: crate::value_access::InstanceControl,
 }
 impl BoundContext<'_, '_> {
+    pub(super) fn active(&self, clause: &super::Clause) -> Result<bool, BoundCheckFailure> {
+        Ok(match clause {
+            super::Clause::Invocation { expression, .. } | super::Clause::Inputs(expression) => {
+                let sources = self
+                    .query
+                    .result_evidence
+                    .as_ref()
+                    .and_then(|evidence| evidence.value_sources(self.caller.code()))
+                    .ok_or(super::INVALID)?;
+                self.control.call_reachable(sources, *expression)?
+            }
+            super::Clause::Data(condition) => condition.active(&self.control),
+            super::Clause::Drop(condition) => condition.active(&self.control),
+            super::Clause::Cleanup(condition) => {
+                self.control.reachable(condition.request()?.0.point)
+            }
+        })
+    }
     pub(super) fn expression(
         &mut self,
         body: &flow::Query,
@@ -103,23 +126,34 @@ impl Requirements {
         caller: &CodeInstanceKey,
         work: &mut nocter_constant_evaluation::state::WorkBudget,
     ) -> Result<BoundCheck, BoundCheckFailure> {
+        let query = self.body.typed();
+        let control = crate::value_access::results::instantiate_control(
+            query.program(),
+            query.result_evidence.as_ref().ok_or(super::INVALID)?,
+            Some(&self.body),
+            caller,
+            work,
+        )
+        .map_err(BoundCheckFailure::Control)?;
         let mut calls = BoundContext {
             query: self.body.typed(),
             caller,
             work,
             calls: std::collections::BTreeMap::new(),
             resources: std::collections::BTreeMap::new(),
+            control,
         };
         if let Some(violation) = self.check_clauses(available, Some(caller), Some(&mut calls))? {
             return Ok(BoundCheck::Violation(violation));
         }
-        Ok(BoundCheck::Calls(
-            calls
+        Ok(BoundCheck::Calls {
+            calls: calls
                 .calls
                 .into_iter()
                 .filter_map(|(expression, call)| call.map(|call| (expression, call)))
                 .collect(),
-        ))
+            control: calls.control,
+        })
     }
 }
 
@@ -168,6 +202,9 @@ mod tests {
             work: &mut work,
             calls: BTreeMap::new(),
             resources: BTreeMap::new(),
+            control: unit
+                .instantiate_control(&caller, &mut WorkBudget::new(Limits::default().steps()))
+                .unwrap(),
         };
         let selected = context.resolve(expression).unwrap().unwrap().clone();
         *context.work = WorkBudget::new(NonZeroU64::new(1).unwrap());
@@ -211,6 +248,9 @@ mod tests {
             work: &mut work,
             calls: BTreeMap::new(),
             resources: BTreeMap::new(),
+            control: unit
+                .instantiate_control(&caller, &mut WorkBudget::new(Limits::default().steps()))
+                .unwrap(),
         };
         assert!(matches!(
             calls.cleanup(body, condition),

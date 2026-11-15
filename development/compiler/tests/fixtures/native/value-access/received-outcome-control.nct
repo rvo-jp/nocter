@@ -1,0 +1,38 @@
+const func addition(number: i32): func(i32): i32 {
+    (number; value: i32) { number + value }
+}
+const func absent(): (func(i32): i32)? { none }
+const func observed_absent(edit effects: i32): (func(i32): i32)? {
+    effects += 1
+    none
+}
+const func present(number: i32): (func(i32): i32)? { addition(number) }
+const func inspect(take value: (func(i32): i32)?): i32 {
+    let action = value^ otherwise { return 21 }
+    action(2)
+}
+const func inspect_read(value: (func(i32): i32)?): i32 {
+    read action = value otherwise { return 21 }
+    action(2)
+}
+const func inspect_edit(edit value: (func(i32): i32)?): i32 {
+    edit action = value otherwise { return 21 }
+    action(2)
+}
+const func through_access(): i32 {
+    var first = absent()
+    var second = present(19)
+    let readings = inspect_read(first) + inspect_read(second)
+    let edits = inspect_edit(first) + inspect_edit(second)
+    if readings != 42 || edits != 42 { return 0 }
+    42
+}
+const func calculate(): i32 {
+    var effects: i32 = 0
+    let first = inspect(observed_absent(effects))
+    let second = inspect(present(19))
+    if effects != 1 || through_access() != 42 { return 0 }
+    first + second
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { calculate() }

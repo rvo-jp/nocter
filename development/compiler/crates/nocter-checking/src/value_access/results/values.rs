@@ -11,6 +11,7 @@ use std::collections::BTreeMap;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ValueDataFailure {
     Body,
+    Control(InstantiationFailure),
     Value {
         at: flow::Location,
         failure: InstantiationFailure,
@@ -80,6 +81,8 @@ pub(in crate::value_access) fn values(
         .value_sources(frame.code())
         .and_then(|graph| graph.flow())
         .ok_or(INVALID)?;
+    let control = super::instantiate_control(program, evidence, Some(body), frame, work)
+        .map_err(Failure::Control)?;
     let mut values = ValueData {
         operands: BTreeMap::new(),
         definitions: BTreeMap::new(),
@@ -87,7 +90,7 @@ pub(in crate::value_access) fn values(
     };
     let mut resolution = super::instantiation::Query::new(program, evidence, work);
     for ((at, expression), source) in sources.operands() {
-        if !body.initialization().reachable(at.point) {
+        if !control.reachable(at.point) {
             continue;
         }
         if let Some(data) = expression_data(body, expression)?
@@ -98,7 +101,7 @@ pub(in crate::value_access) fn values(
         }
     }
     for ((at, slot), source) in sources.definitions() {
-        if !body.initialization().reachable(at.point) {
+        if !control.reachable(at.point) {
             continue;
         }
         if matches!(
@@ -116,18 +119,34 @@ pub(in crate::value_access) fn values(
         }
     }
     for ((at, referent), source) in sources.roots() {
-        if !body.initialization().reachable(at.point) {
+        if !control.reachable(at.point) {
             continue;
         }
-        let data = root_type(body, referent).ok_or(INVALID)?;
+        let data = root_type(body.typed(), referent).ok_or(INVALID)?;
         if evidence.unproduced(program, data) {
             continue;
         }
-        let key = root_data(program, body, frame, source, referent, &mut resolution)
-            .map_err(|failure| Failure::Value { at, failure })?;
+        let key = root_data(
+            program,
+            body.typed(),
+            frame,
+            source,
+            referent,
+            &mut resolution,
+        )
+        .map_err(|failure| Failure::Value { at, failure })?;
         let after = sources
             .root_after(at, referent)
-            .map(|source| root_data(program, body, frame, source, referent, &mut resolution))
+            .map(|source| {
+                root_data(
+                    program,
+                    body.typed(),
+                    frame,
+                    source,
+                    referent,
+                    &mut resolution,
+                )
+            })
             .transpose()
             .map_err(|failure| Failure::Value { at, failure })?;
         values
@@ -136,8 +155,8 @@ pub(in crate::value_access) fn values(
     }
     Ok(values)
 }
-fn root_type(body: &flow::Query, referent: Referent) -> Option<TypeId> {
-    let body = body.typed().body();
+fn root_type(body: &crate::value_access::Query, referent: Referent) -> Option<TypeId> {
+    let body = body.body();
     match referent {
         Referent::Place(place) => body
             .locals()
@@ -161,7 +180,7 @@ pub(in crate::value_access) fn root(
         .ok_or(InstantiationFailure::Unresolved)?;
     root_data(
         program,
-        body,
+        body.typed(),
         frame,
         source,
         referent,
@@ -182,7 +201,7 @@ pub(in crate::value_access) fn root_after(
         .ok_or(InstantiationFailure::Unresolved)?;
     root_data(
         program,
-        body,
+        body.typed(),
         frame,
         source,
         referent,
@@ -202,9 +221,9 @@ pub(super) fn root_flow<'a>(
         .and_then(|graph| graph.flow())
         .ok_or(InstantiationFailure::Unresolved)
 }
-fn root_data(
+pub(super) fn root_data(
     program: &Program,
-    body: &flow::Query,
+    body: &crate::value_access::Query,
     frame: &CodeInstanceKey,
     source: ValueSourceId,
     referent: Referent,

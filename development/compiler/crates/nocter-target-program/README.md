@@ -87,6 +87,11 @@ and its own formal-witness bindings plus captured substitutions. A concrete witn
 code, supplied invocation view and complete captured callable context. The code instance itself
 is shared across views. Actual runtime environment values do not enter its key. The builder reserves
 before following recursive edges and freezes only after every reachable instance is defined.
+Each instance retains checking's frame-specific `InstanceControl`. Invocation closure, metadata
+demand and lifecycle schedules use its selected original points; MIR consumes its terminators.
+An excluded primary continuation cannot demand a fictitious callable, while original carrier/tag
+actions remain present. The target does not infer branches from layouts, signatures or missing
+call edges. Unknown domains retain the original branch.
 Only checking-reachable invocation commits create call edges. A value reference, uninvoked binding
 or interrupted argument does not force a code instance. Construction indexes are discarded; one
 immutable instance arena is the published authority.

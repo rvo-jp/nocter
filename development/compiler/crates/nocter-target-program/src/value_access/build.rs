@@ -47,13 +47,19 @@ impl Builder {
         let body = unit
             .code_body(key.code())
             .ok_or(Failure::InvalidAcceptedUnit)?;
+        let control = unit
+            .instantiate_control(&key, work)
+            .map_err(|failure| Failure::Control {
+                code: key.code(),
+                failure,
+            })?;
         let inputs = projection::inputs(unit, &key, body, work)?;
         let result = projection::result(unit, &key, body, work)?;
         let prepared = projection::prepared(unit, &key, work)?;
-        let metadata = projection::metadata(unit, body)?;
+        let metadata = projection::metadata(unit, body, &control)?;
         let mut invocations = BTreeSet::new();
         for (point, block) in body.graph().points().iter() {
-            if !body.initialization().reachable(point) {
+            if !control.reachable(point) {
                 continue;
             }
             for action in &block.actions {
@@ -115,6 +121,7 @@ impl Builder {
             result,
             prepared,
             values,
+            control,
         });
         Ok(())
     }

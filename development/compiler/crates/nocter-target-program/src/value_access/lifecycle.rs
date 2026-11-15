@@ -255,7 +255,7 @@ fn lower(
         let checked = program.body(id).ok_or(INVALID)?;
         let mut actions = BTreeMap::new();
         for (point, block) in checked.graph().points().iter() {
-            if !checked.initialization().reachable(point) {
+            if !instance.control().reachable(point) {
                 continue;
             }
             for (action, event) in block.actions.iter().enumerate() {

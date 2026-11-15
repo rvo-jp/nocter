@@ -194,7 +194,7 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Amortize physical-transport metadata comparison across shared source/destination pairs.
   Share one immutable-environment comparison authority, including exact identities, unknown/cycle
   behavior and bounded array traversal; emission consumes prepared copy/conversion decisions.
-- [ ] Qualify application-specific empty callable domains supplied through received optional
+- [x] Qualify application-specific empty callable domains supplied through received optional
   inputs. A globally nonempty formal result equation is not a proof that every application
   supplies a callable; preserve the exact committed input context rather than closing its raw type.
 - [x] Qualify received excluded/positive outcome metadata through taking inputs, whole-outcome
@@ -206,6 +206,11 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [ ] Extend received-domain qualification to instance-specific control/positive-use pruning.
   A source-wide formal contract cannot determine every application's active callable domain;
   retain original tag effects, traps and exact call/resource phases.
+  Carry selected predecessor evidence through recovery/result merges and partially active const
+  selections; the original source graph must not join an impossible positive payload as a value.
+- [x] Qualify the shared checking-owned instance continuation map through optional take/read/edit
+  recovery, effectful input production, required/native execution and all affected consumers.
+  Preserve dormant contract checks and original commits; unknown domains must retain their branches.
 - [x] Qualify mixed independently sourced tuple result leaves through captured environments.
   Preserve one original invocation recipe, each input/result family and actual swapped contexts
   through required/native execution and owned-error cleanup; reject uncaptured/foreign parameters
@@ -249,7 +254,8 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   evaluator, target storage, ABI and native execution. An empty root has no stored payload;
   retaining an inactive alternative's descriptor must not create code, cleanup or field geometry.
   Preserve original tag guards, rejected positive uses and the explicit source-retirement decision.
-- [ ] Qualify recovery, propagation and assertions when the primary callable domain is empty.
+- [ ] Qualify remaining instance-specific recovery, propagation and assertion continuations when
+  a received primary callable domain is empty.
   Preserve evaluation of the original carrier/tag, required traps and alternate cleanup while
   excluding impossible positive continuations; a guarded empty descriptor is not a callable value.
 - [x] Qualify value/read/edit recovery and value propagation of excluded primary callable

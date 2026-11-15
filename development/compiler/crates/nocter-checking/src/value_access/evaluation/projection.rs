@@ -42,7 +42,8 @@ impl From<crate::value_access::InstantiationFailure> for Failure {
 impl From<crate::value_access::PreparedDataFailure> for Failure {
     fn from(failure: crate::value_access::PreparedDataFailure) -> Self {
         match failure {
-            crate::value_access::PreparedDataFailure::Argument { failure, .. } => failure.into(),
+            crate::value_access::PreparedDataFailure::Argument { failure, .. }
+            | crate::value_access::PreparedDataFailure::Control(failure) => failure.into(),
             crate::value_access::PreparedDataFailure::Body => Self::Integrity,
         }
     }
@@ -59,7 +60,8 @@ impl From<crate::value_access::ValueDataFailure> for Failure {
     fn from(failure: crate::value_access::ValueDataFailure) -> Self {
         match failure {
             crate::value_access::ValueDataFailure::Body => Self::Integrity,
-            crate::value_access::ValueDataFailure::Value { failure, .. } => failure.into(),
+            crate::value_access::ValueDataFailure::Value { failure, .. }
+            | crate::value_access::ValueDataFailure::Control(failure) => failure.into(),
         }
     }
 }
@@ -87,6 +89,7 @@ struct Builder<'a, 'b> {
     prepared: crate::value_access::PreparedData,
     values: crate::value_access::ValueData,
     resources: BTreeMap<flow::Location, Vec<resources::Projected>>,
+    control: crate::value_access::InstanceControl,
 }
 impl Builder<'_, '_> {
     fn expression(&self, id: AccessExpressionId) -> Result<super::super::ValueType> {
@@ -954,7 +957,7 @@ impl Builder<'_, '_> {
             .transpose()
     }
     fn point(&mut self, id: AccessFlowPointId, point: &flow::Point) -> Result<plan::Point> {
-        let reachable = self.query.initialization().reachable(id);
+        let reachable = self.control.reachable(id);
         let mut actions = Vec::new();
         if reachable {
             for (index, action) in point.actions.iter().enumerate() {
@@ -1005,7 +1008,7 @@ impl Builder<'_, '_> {
             }
         }
         let terminator = if reachable {
-            match point.terminator {
+            match self.control.terminator(id).ok_or(INVALID)? {
                 flow::Terminator::Jump(next) => plan::Terminator::Jump(next),
                 flow::Terminator::Branch { condition, yes, no } => plan::Terminator::Branch {
                     condition: self.aux(Key::Predicate(condition), condition)?,
