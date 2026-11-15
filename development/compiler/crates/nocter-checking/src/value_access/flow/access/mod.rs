@@ -114,8 +114,17 @@ pub struct Analysis {
     liveness: Liveness,
     violations: Box<[Violation]>,
     resources: super::resources::Report,
+    retained_roots: BTreeMap<Location, BTreeSet<Root>>,
 }
 impl Analysis {
+    /// No retained address or reservation names this root on either side of this action.
+    /// This grants neither initialized storage nor permission to relocate a partial payload.
+    #[must_use]
+    pub fn root_unretained(&self, at: Location, root: Root) -> bool {
+        self.retained_roots
+            .get(&at)
+            .is_some_and(|roots| !roots.contains(&root))
+    }
     #[must_use]
     pub const fn status(&self) -> Status {
         self.status
@@ -147,6 +156,7 @@ pub(super) fn analyze(
             liveness,
             violations: Box::new([]),
             resources: super::resources::Report::default(),
+            retained_roots: BTreeMap::new(),
         });
     }
     let entry = World::entry(typed)?;
@@ -154,6 +164,7 @@ pub(super) fn analyze(
     let mut pending = BTreeSet::from([(graph.entry(), entry)]);
     let mut entries: BTreeMap<_, BTreeSet<World>> = BTreeMap::new();
     let mut violations = BTreeSet::new();
+    let mut retained_roots: BTreeMap<Location, BTreeSet<Root>> = BTreeMap::new();
     while let Some((point, mut world)) = pending.pop_first() {
         world.trim(liveness.entry(point))?;
         if !entries.entry(point).or_default().insert(world.clone()) {
@@ -168,6 +179,7 @@ pub(super) fn analyze(
             let mut next = Vec::new();
             for mut world in worlds {
                 world.trim(liveness.before(location))?;
+                let retained = world.retained_roots();
                 let before = world.resources.clone();
                 match effects::apply(
                     typed,
@@ -181,6 +193,9 @@ pub(super) fn analyze(
                     Ok(mut alternatives) => {
                         for (alternative, plan) in &mut alternatives {
                             alternative.trim(liveness.after(location))?;
+                            let roots = retained_roots.entry(location).or_default();
+                            roots.extend(retained.iter().copied());
+                            roots.extend(alternative.retained_roots());
                             resources.record(location, &before, plan, &alternative.resources);
                             next.push(alternative.clone());
                         }
@@ -223,6 +238,7 @@ pub(super) fn analyze(
         liveness,
         violations: violations.into_iter().collect(),
         resources,
+        retained_roots,
     })
 }
 const INVALID: IntegrityError = IntegrityError::InconsistentTypedBody;

@@ -197,6 +197,7 @@ fn cleanup_plan(
                 | mir::Effect::VariantTag { .. }
                 | mir::Effect::Initialize(_)
                 | mir::Effect::Transfer { .. }
+                | mir::Effect::Repack { .. }
                 | mir::Effect::Transport { .. }
                 | mir::Effect::Reinterpret { .. }
                 | mir::Effect::ConsolidateArrayPrefix { .. }

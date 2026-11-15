@@ -90,10 +90,16 @@ Dependent resource-source projections consume their original step's retained con
 independent roots keep their declaration-closed representation. Array remainder exclusions use
 the same selected container root as the cleanup operation. Partial destinations without an exact
 receipt still require independently closed or bound-input data. Matched owning partial moves use
-their original after-container for placement and retain the before/after pair as a geometry
-constraint, preserving the preceding separate disposal. Changing geometry,
-relocation and general carrier coherence remain separate qualification boundaries for changing
-captured representations. The [checking owner](../nocter-checking/README.md#context-bound-callable-captures)
+their original after-container for placement, preserving the preceding separate disposal.
+For direct owning tuple assignments, `Effect::Repack` retains the original before-container and
+all disjoint sibling subtrees. Its shared structural projection requires unchanged sibling data
+and tuple-only paths. Checking must prove that every sibling is initialized and that neither a
+retained address nor a prepared reservation names the owning root on either side of the action,
+across all alternatives. Only the assigned subtree may already be missing. Machine snapshots all
+preserved sources before writing any new offsets and then performs the original receipt. Nested
+tuples, environment growth/shrinkage, saved instances and owned sibling cleanup have ordinary
+source/native coverage. Other partial moves keep the before/after geometry constraint. Live aliases,
+other missing siblings, external carriers and general relocation remain separate qualifications. The [checking owner](../nocter-checking/README.md#context-bound-callable-captures)
 defines the qualified ordinary-source capture scope.
 Adapter cleanup likewise selects its completed full carrier in the original argument slot before
 projecting the completed environment. Its selected environment data must match the cleanup

@@ -27,6 +27,71 @@ fn operations(body: &Body) -> impl Iterator<Item = &Operation> {
 }
 
 #[test]
+fn tuple_repacking_retains_the_original_receipt_and_all_disjoint_siblings() {
+    let program = lower(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-component-growth.nct"
+    )));
+    validate::program(&program).unwrap();
+    let effect = program
+        .bodies
+        .values()
+        .flat_map(|body| body.actions.values())
+        .flat_map(|action| &action.alternatives)
+        .flat_map(|alternative| alternative.before.iter().chain(&alternative.after))
+        .find(|effect| matches!(effect, Effect::Repack { .. }))
+        .unwrap();
+    let Effect::Repack {
+        before,
+        destination,
+        preserved,
+        ..
+    } = effect
+    else {
+        unreachable!()
+    };
+    assert_ne!(*before, destination.root);
+    assert_eq!(preserved.len(), 1);
+    assert_eq!(preserved[0].0.root, *before);
+    assert_eq!(preserved[0].1.root, destination.root);
+    assert_eq!(
+        preserved[0].0.projections.as_ref(),
+        &[Projection::Field(nocter_model::ValueField::Tuple(1))]
+    );
+    for corruption in 0..4 {
+        let mut changed = program.clone();
+        let effect = changed
+            .bodies
+            .values_mut()
+            .flat_map(|body| body.actions.values_mut())
+            .flat_map(|action| &mut action.alternatives)
+            .flat_map(|alternative| alternative.before.iter_mut().chain(&mut alternative.after))
+            .find(|effect| matches!(effect, Effect::Repack { .. }))
+            .unwrap();
+        let Effect::Repack {
+            source,
+            destination,
+            before,
+            preserved,
+        } = effect
+        else {
+            unreachable!()
+        };
+        match corruption {
+            0 => *preserved = Box::new([]),
+            1 => preserved[0].1.root = *before,
+            2 => source.slot = destination.slot,
+            3 => *before = RuntimeDataId::Instance(u32::MAX),
+            _ => unreachable!(),
+        }
+        assert!(
+            validate::program(&changed).is_err(),
+            "corruption {corruption}"
+        );
+    }
+}
+
+#[test]
 fn guarded_transport_is_neither_exact_copy_narrowing_nor_overlapping_reinterpretation() {
     let program = lower(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

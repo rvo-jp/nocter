@@ -71,6 +71,12 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [ ] Close carrier representation coherence under the
   [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances)
   before admitting context-changing writes and retained sibling references.
+- [x] Qualify tuple-component representation growth/shrinkage without retained addresses, with
+  original retirement/receipt, initialized sibling relocation, nested tuple paths, saved instances
+  and native owned-error cleanup. Keep other missing siblings and live aliases separate.
+- [ ] Extend tuple relocation to sparse missing sibling subtrees, preserving only initialized
+  storage at its original resource phase. Keep the existing ownership ledger, saved owners and
+  exact old/new contexts; do not load a whole sibling that contains a transferred field.
 - [x] Qualify same-geometry contextual callable component replacement and restoration with a
   surviving disjoint sibling reference. Carry each partial receipt's original containing roots
   into MIR and physical geometry checks without fusing separate retirement/receipt operations.

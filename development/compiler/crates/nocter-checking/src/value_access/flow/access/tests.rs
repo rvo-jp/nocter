@@ -98,3 +98,76 @@ fn index_side_invalidation_reports_a_retained_place_rather_than_an_activated_rea
                 .is_some_and(|r| r.kind == super::RetentionKind::Place))
     );
 }
+
+#[test]
+fn relocation_excludes_live_views_reservations_and_all_control_alternatives() {
+    for (body, retained) in [
+        ("pair.0 = 3\nreturn pair.1", false),
+        (
+            "read sibling = pair.1\nif flag { let copy = sibling }\npair.0 = 3\nreturn pair.1",
+            false,
+        ),
+        (
+            "return observe(pair.1, if flag { pair.0 = 3\n1 } else { 1 })",
+            true,
+        ),
+        ("read sibling = pair.1\npair.0 = 3\nreturn sibling", true),
+        (
+            "read sibling = pair.1\nlet copy = sibling\npair.0 = 3\nreturn copy",
+            false,
+        ),
+        (
+            "edit sibling = pair.1\npair.0 = 3\nsibling = 4\nreturn sibling",
+            true,
+        ),
+        (
+            "read sibling = pair.1\nif flag { pair.0 = 3 } else { pair.0 = 4 }\nreturn sibling",
+            true,
+        ),
+    ] {
+        let source = format!(
+            "func observe(first: i32, second: i32): i32 {{ first + second }}\nfunc run(flag: bool): i32 {{ var pair = (1, 2)\n{body} }}"
+        );
+        let query = analyze(&source).pop().unwrap();
+        assert!(query.access().violations().is_empty());
+        let local = query
+            .typed()
+            .body()
+            .locals()
+            .iter()
+            .find(|(_, local)| {
+                matches!(
+                    query.typed().program().data_schema(local.data),
+                    Some(nocter_declarations::value_access::PayloadSchema::Aggregate(
+                        _
+                    ))
+                )
+            })
+            .map(|(id, _)| id)
+            .unwrap();
+        let mut found = 0;
+        for (point, block) in query.graph().points().iter() {
+            for (action, operation) in block.actions.iter().enumerate() {
+                if matches!(operation.operation, super::super::Operation::Assign { .. }) {
+                    assert_eq!(
+                        query.access().root_unretained(
+                            super::super::Location { point, action },
+                            super::Root::Owned(local)
+                        ),
+                        !retained,
+                        "{body}"
+                    );
+                    found += 1;
+                }
+            }
+        }
+        assert!(found > 0);
+        assert!(!query.access().root_unretained(
+            super::super::Location {
+                point: query.graph().entry(),
+                action: usize::MAX
+            },
+            super::Root::Owned(local),
+        ));
+    }
+}

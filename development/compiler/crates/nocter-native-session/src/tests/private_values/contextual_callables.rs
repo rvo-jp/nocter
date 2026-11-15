@@ -1491,6 +1491,76 @@ fn private_contextual_callable_replacement_disposes_retired_received_and_saved_e
 }
 
 #[test]
+fn private_contextual_component_growth_preserves_siblings_and_saved_instances() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-component-growth.nct"
+    ));
+    let package = TempPackage::new();
+    for nested in [false, true] {
+        let source = if nested {
+            source
+                .replace("(wrap(identity), 2)", "(1, (wrap(identity), 2), 3)")
+                .replace("pair.0", "pair.1.0")
+                .replace("pair.1 ==", "pair.1.1 ==")
+                .replace("= pair.1\n", "= pair.1.1\n")
+                .replace(
+                    "if small_sibling",
+                    "if pair.0 == 1 && pair.2 == 3 && small_sibling",
+                )
+        } else {
+            source
+                .replace(
+                    "let empty =",
+                    "read prior = pair.1\n    let initial = prior\n    let empty =",
+                )
+                .replace("if small_sibling", "if initial == 2 && small_sibling")
+        };
+        execute_native_status(
+            &compile(&source),
+            &package.0,
+            "contextual-component-growth",
+            42,
+        );
+    }
+}
+
+#[test]
+fn private_contextual_component_growth_moves_owned_siblings_and_disposes_actual_errors() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-component-growth-errors.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &image(&trusted_error_machine(source)),
+        &package.0,
+        "component-growth-errors",
+        42,
+    );
+}
+
+#[test]
+fn private_contextual_component_growth_keeps_missing_siblings_unqualified() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-component-growth-errors.nct"
+    ));
+    let changed = source
+        .replace(
+            "let empty =",
+            "let saved_sibling = pair.2.0^\n    let empty =",
+        )
+        .replace("inspect(pair.2.0)", "inspect(saved_sibling)");
+    assert_ne!(changed, source);
+    let unit = trusted_error_unit(&changed);
+    assert!(matches!(
+        machine_unit(unit),
+        Err(nocter_machine::value_access::ExecutableFailure::InvalidBody(_))
+    ));
+}
+
+#[test]
 fn private_contextual_component_replacement_preserves_sibling_views_and_saved_instances() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

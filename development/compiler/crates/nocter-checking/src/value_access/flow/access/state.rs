@@ -48,6 +48,20 @@ pub(super) struct World {
 }
 const INVALID: IntegrityError = IntegrityError::InconsistentTypedBody;
 impl World {
+    pub(super) fn retained_roots(&self) -> BTreeSet<Root> {
+        self.nodes
+            .values()
+            .map(|node| node.region.root)
+            .chain(
+                self.prepared
+                    .values()
+                    .filter_map(|prepared| match prepared {
+                        Prepared::Reserved { region, .. } => Some(region.root),
+                        Prepared::Value(_) => None,
+                    }),
+            )
+            .collect()
+    }
     pub fn entry(typed: &TypedQuery) -> Result<Self, IntegrityError> {
         let mut world = Self {
             resources: super::super::resources::State::entry(typed)?,

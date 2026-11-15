@@ -1272,8 +1272,12 @@ contexts are constrained before their effects, destination contexts after receip
 retain distinct retired/supplied constraints. Whole owning-root moves emit the evaluator kernel's
 contextual receipt with the actual supplied data, preserving original retirement order. These
 constraints do not create values, access or owners. Publication rejects a mismatched constraint
-without retaining part of the plan. General changing-holder registration, partial-carrier execution
-and the enclosing source-admission boundary remain unqualified.
+without retaining part of the plan. `flow::access::Analysis::root_unretained` projects the union
+of retained node/reservation roots before and after each reachable original action, across all
+alternatives. Missing action evidence never proves absence. This is neither an initialized-value
+nor a relocation proof; MIR combines it with the original owning transition and its own structural
+sibling projection. General changing-holder registration, external alias carriers and the
+remaining source-admission boundary stay unqualified.
 Place, boundary, guard, component and index
 views select their metadata from the represented source slot; read/edit local bindings and forwarded
 views preserve that selection. Physical component lookup has one evaluator authority and does not
@@ -2233,6 +2237,12 @@ reference survives the replacement. A still-used read reference prevents the ove
 `contextual-callable-replacement-errors.nct` executes actual retired, received and saved error
 graph cleanup across those changes. These whole-owner cases do not establish stable offsets
 for retained component references, partial writes, general joins or changing backedges.
+`contextual-component-growth.nct` qualifies direct owning tuple-component replacement and
+restoration with changing environment sizes, calls, saved instances and initialized sibling values.
+Native cases include nested tuple destinations, an expired sibling view and an owning error-graph
+sibling in addition to retired/received captures. The [MIR owner](../nocter-mir/README.md) defines
+the relocation proof and exact preserved-subtree boundary. Other missing siblings and live
+addresses do not acquire that permission.
 `contextual-component-replacement.nct` additionally qualifies same-geometry partial replacement
 and restoration while a disjoint sibling reference survives, including repeated writes through
 one local edit alias. Original carrier selections match its actual containing owner. The evaluator
@@ -2242,7 +2252,7 @@ This projection requires one owning local carrier and established component coor
 owner retain their actual contexts in required and native execution. The matching error fixture executes
 retired, saved and received graph cleanup. A native negative case changes the initial environment
 size and must reject shifted sibling geometry before an executable can be published. General
-relocation and changing offsets remain unqualified.
+relocation with retained addresses and changing offsets remains unqualified.
 `contextual-indexed-replacement.nct` qualifies the same transport through a singleton array nested
 in a tuple, using a usize input as the evaluated index. Required/native execution preserves the
 sibling reference and saved callable, while a matching error fixture exercises actual cleanup.

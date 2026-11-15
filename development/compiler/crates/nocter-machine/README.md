@@ -57,6 +57,12 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
   work, compares arrays by count/stride rather than element expansion, and requires no empty-array
   element payload. Missing or incompatible layouts reject before body emission. This implements
   neither relocation nor a lifetime, source-admission or initialized-storage proof.
+- MIR's separately qualified tuple `Repack` effects carry exact old/new places for initialized,
+  disjoint sibling subtrees. Lowering loads every old subtree into an independent value before any
+  destination store, then transfers the supplied value to its new position. This preserves
+  overlapping old/new offsets without moving stale holes, creating owners or repeating cleanup.
+  The original disposal remains before receipt. Checking owns the absence of surviving addresses
+  and reservations; a maximum-capacity stack object cannot substitute for that evidence.
 - Generic member placement is keyed by the complete concrete type plus semantic member identity;
   distinct specializations cannot overwrite one another's field, variant, payload, or capture
   correspondence.

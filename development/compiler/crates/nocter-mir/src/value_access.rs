@@ -1,6 +1,7 @@
 //! Closed private control, computation and lifecycle bodies. No released or native admission.
 mod computation;
 mod lower;
+mod repack;
 #[cfg(test)]
 mod tests;
 mod validate;
@@ -97,6 +98,14 @@ pub enum Effect {
     Transfer {
         source: Place,
         destination: Place,
+    },
+    /// Move initialized disjoint siblings to their new offsets before a partial receipt.
+    /// All preserved sources must be snapshotted before any destination is overwritten.
+    Repack {
+        source: Place,
+        destination: Place,
+        before: RuntimeDataId,
+        preserved: Box<[(Place, Place)]>,
     },
     /// A distinct guarded wider representation, with separate source/destination payload layouts.
     /// Logical ownership and positive code/context identity were checked before this boundary.

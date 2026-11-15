@@ -486,6 +486,83 @@ impl Builder<'_> {
         });
         Ok(())
     }
+    fn repack(
+        &self,
+        original: &Step<Payload>,
+        before: RuntimeDataId,
+        source: &Place,
+        destination: &Place,
+    ) -> Result<Option<Effect>, Failure> {
+        if before == destination.root {
+            return Ok(None);
+        }
+        let at = self.at.ok_or_else(|| self.invalid())?;
+        let Step::Move {
+            source: supplied,
+            destination: target,
+            ..
+        } = original
+        else {
+            return Err(self.invalid());
+        };
+        let Holder::Local(local) = target.holder() else {
+            return Ok(None);
+        };
+        if supplied.holder() == target.holder()
+            || !matches!(
+                self.checked
+                    .graph()
+                    .points()
+                    .get(at.point)
+                    .and_then(|block| block.actions.get(at.action))
+                    .map(|action| &action.operation),
+                Some(Operation::Assign { .. })
+            )
+            || !self
+                .checked
+                .access()
+                .root_unretained(at, flow::access::Root::Owned(local))
+        {
+            return Ok(None);
+        }
+        let mut matched = false;
+        for transition in self.checked.access().resources().at(at) {
+            if !transition.steps().iter().any(|step| {
+                matches!(step,
+                Step::Move { source, destination, .. }
+                    if source == supplied && destination == target)
+            }) {
+                continue;
+            }
+            matched = true;
+            let condition = transition.condition();
+            let Some((_, missing)) = condition
+                .owned()
+                .find(|(holder, _)| *holder == target.holder())
+            else {
+                return Ok(None);
+            };
+            if missing
+                .iter()
+                .any(|missing| missing.value() != Some(target.fields()))
+            {
+                return Ok(None);
+            }
+        }
+        if !matched {
+            return Err(self.invalid());
+        }
+        Ok(
+            super::repack::preserved(self.runtime, before, destination).map(|preserved| {
+                Effect::Repack {
+                    source: source.clone(),
+                    destination: destination.clone(),
+                    before,
+                    preserved,
+                }
+            }),
+        )
+    }
     fn scoped_replacement(
         &mut self,
         replacement: &lifecycle::ScopedReplacement,
@@ -697,12 +774,21 @@ impl Builder<'_> {
                                 .storage
                                 .instance(program, roots.after())
                                 .map_err(Failure::Storage)?;
-                            self.constrain_geometry(before, after)?;
-                            self.place_with_root(
+                            // Register both selected storage contexts independently of traversal order.
+                            self.root(destination.holder(), before, false)?;
+                            let destination = self.place_with_root(
                                 destination,
                                 self.payload_data(payload)?,
                                 Some(after),
-                            )?
+                            )?;
+                            if let Some(effect) =
+                                self.repack(projected.operation(), before, &source, &destination)?
+                            {
+                                output.push(effect);
+                                continue;
+                            }
+                            self.constrain_geometry(before, after)?;
+                            destination
                         } else {
                             self.place(destination, self.payload_data(payload)?)?
                         };

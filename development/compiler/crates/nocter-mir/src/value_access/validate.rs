@@ -247,6 +247,40 @@ impl Context<'_> {
                 .permits_guarded_value_transport(source.data, destination.data),
         )
     }
+    fn repack(
+        &self,
+        source: &Place,
+        destination: &Place,
+        before: nocter_runtime_contract::RuntimeDataId,
+        preserved: &[(Place, Place)],
+    ) -> Result<(), Failure> {
+        self.place(source)?;
+        self.place(destination)?;
+        self.require(self.body.slots.get(destination.slot).is_some_and(|slot| {
+            slot.storage == Storage::Payload && slot.representations.contains(&before)
+        }))?;
+        self.require(source.slot != destination.slot)?;
+        self.require(
+            self.body
+                .slots
+                .get(source.slot)
+                .is_some_and(|slot| slot.storage == Storage::Payload),
+        )?;
+        self.require(
+            self.program
+                .runtime
+                .has_same_value_representation(source.data, destination.data),
+        )?;
+        self.require(
+            super::repack::preserved(&self.program.runtime, before, destination)
+                .is_some_and(|expected| expected.as_ref() == preserved),
+        )?;
+        for (source, target) in preserved {
+            self.place(source)?;
+            self.place(target)?;
+        }
+        Ok(())
+    }
     fn effect(&self, effect: &Effect) -> Result<(), Failure> {
         match effect {
             Effect::VariantTag {
@@ -307,6 +341,12 @@ impl Context<'_> {
                         .has_same_value_representation(source.data, destination.data),
                 )
             }
+            Effect::Repack {
+                source,
+                destination,
+                before,
+                preserved,
+            } => self.repack(source, destination, *before, preserved),
             Effect::Reinterpret {
                 source,
                 destination,

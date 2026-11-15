@@ -83,6 +83,10 @@ fn image(machine: &nocter_machine::MachineProgram) -> crate::NativeImage {
 }
 
 fn trusted_error_machine(source: &str) -> nocter_machine::MachineProgram {
+    machine_unit(trusted_error_unit(source)).unwrap()
+}
+
+fn trusted_error_unit(source: &str) -> Arc<nocter_checking::value_access::accepted::Unit> {
     use nocter_compile_input::{ModuleIdentity, PrimitiveRoleLocator, ToolchainInput};
     use nocter_declaration_lowering::access_declarations as declarations;
     use nocter_model::PackageIdentity;
@@ -101,12 +105,11 @@ fn trusted_error_machine(source: &str) -> nocter_machine::MachineProgram {
     ]);
     let authority = declarations::PrimitiveAuthority::for_module(&toolchain, &module).unwrap();
     let fixture = ValueSourceFixture::new(source);
-    let unit = Arc::new(
+    Arc::new(
         SourceUnit::prepare_with_primitive_authority(fixture.syntax(), &authority)
             .unwrap()
             .into_unit(),
-    );
-    machine_unit(unit).unwrap()
+    )
 }
 
 #[test]

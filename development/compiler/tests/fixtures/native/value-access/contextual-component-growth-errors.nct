@@ -1,0 +1,36 @@
+primitive func create_failure(code: str, message: str): error
+primitive func context_error(take value: error, message: str): error
+
+func inspect(value: error): i32 { 42 }
+
+func identity(value: i32): i32 { value }
+
+func addition(value: i32): func(i32): i32 {
+    let reason = context_error(create_failure("addition", "leaf"), "outer")
+    (reason^, value; amount: i32): i32 { value + amount }
+}
+
+func subtraction(value: i32): func(i32): i32 {
+    let reason = context_error(create_failure("subtraction", "leaf"), "outer")
+    (reason^, value; amount: i32): i32 { value - amount }
+}
+
+func wrap(take callback: func(i32): i32): func(i32): i32 {
+    (callback^; amount: i32): i32 { callback(amount) }
+}
+
+func run(): i32 {
+    var pair = (1, wrap(identity), (context_error(create_failure("sibling", "leaf"), "outer"), 2), 3)
+    let empty = pair.1(42)
+    pair.1 = wrap(addition(20))
+    let first = pair.1(20)
+    pair.1 = wrap(subtraction(50))
+    let second = pair.1(8)
+    let saved = pair.1^
+    pair.1 = wrap(addition(1))
+    let third = pair.1(41)
+    let preserved = saved(8)
+    pair.1 = wrap(identity)
+    let shrunk = pair.1(42)
+    if pair.0 == 1 && pair.2.1 == 2 && pair.3 == 3 && inspect(pair.2.0) == 42 && empty == 42 && first == 40 && second == 42 && third == 42 && preserved == 42 && shrunk == 42 { 42 } else { 0 }
+}

@@ -310,6 +310,22 @@ impl<'a> Builder<'a> {
                 source,
                 destination,
             } => self.copy(source, destination)?,
+            mir::Effect::Repack {
+                source,
+                destination,
+                preserved,
+                ..
+            } => {
+                // Capture every old sibling before any write can overlap its old location.
+                let snapshots = preserved
+                    .iter()
+                    .map(|(source, _)| self.load(source))
+                    .collect::<Result<Vec<_>, _>>()?;
+                for ((_, target), value) in preserved.iter().zip(snapshots) {
+                    self.store(target, value)?;
+                }
+                self.copy(source, destination)?;
+            }
             mir::Effect::Transport {
                 source,
                 destination,
