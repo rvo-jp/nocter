@@ -419,8 +419,9 @@ fact in one `InputProducers` summary. Matching compound input paths propagate a 
 inactive outcome to its callable descendants. Joins require every observed source to exclude the
 leaf; an unobserved accumulator is distinct from a described unknown with no positive candidates.
 The original call recipe remains shared by all result leaves. Descriptor-only applications retain
-unknowns rather than inventing constructor facts. Positive result solving and represented-domain
-selection do not consume the new exclusion as a witness or an empty physical representation.
+unknowns rather than inventing constructor facts. Positive result solving does not consume the
+exclusion as a witness. A separate proof over the original return/application equations may use it
+to exclude an active callable; it does not prove an empty physical representation.
 
 `results::applications` classifies each selected call result once. A newly reserved callable result
 application must match its caller/call key, the selected callee's result template and declared result
@@ -1832,8 +1833,22 @@ own evidence. `lifted-callable-outcome-inputs.nct` qualifies supplied functions 
 optional, nested optional and success layers, including tuple-component construction. Shared
 constraint selection checks the callable contract and retains the supplied code identity before
 building the outcome layers; required evaluation and native invocation agree. A different callable
-signature rejects. Propagating explicit constructor exclusion through returned-callable equations and
-instance-specific positive continuations retain separate qualification obligations.
+signature rejects. `constructed-outcome-results.nct` qualifies explicit constructor exclusion through
+original return/application equations, nested forwarding, required evaluation, per-call input/result
+keys, resource projection and native cleanup. Each original result/application has one
+`CallableEvidence` classification. `Excluded` retains active-value exclusion separately from
+`Uninhabited`: closed-domain queries still reject without concrete instance metadata. Original
+equations distinguish constructed exclusion from missing or empty unknown inputs. Outcome control may prune a proven inactive primary
+continuation, preserving the original carrier evaluation and tag/trap operation. Dormant const
+requirements use value exclusion only when the original graph has no received occurrence or
+committed call; actual values still require their concrete representation. Recovery through owned,
+read and edit access, propagation and original assertion traps are covered through required/native
+execution. Symbolic transport classification may use the exclusion, while concrete source/destination queries must still close
+and validate their own keys. Exact canonical reprojection can preserve a supplied excluded domain
+under the receiving result descriptor; otherwise the original consumer constraints remain required.
+Distinct calls retain absent and positive actual inputs/results independently. Instance-specific
+received primary continuations and positive inactive environment contexts retain separate
+qualification obligations.
 Declared compound-result contracts have declaration-owned result ordinals. A diverging body can
 retain that known signature without establishing any returned value, concrete environment or
 storage representation; publishing its header is not a consumer-realization proof.

@@ -5,8 +5,72 @@ use nocter_model::{
 };
 
 #[test]
+fn original_constructed_exclusion_does_not_invent_a_closed_application_representation() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/constructed-outcome-results.nct"
+    ));
+    let fixture = nocter_test_support::ValueSourceFixture::new(source);
+    let unit = crate::value_access::staged::SourceUnit::prepare(fixture.syntax())
+        .unwrap()
+        .into_unit();
+    let program = unit.program();
+    let owner = program
+        .resolve(program.symbols().get("calculate").unwrap())
+        .unwrap();
+    let forward = program
+        .resolve(program.symbols().get("forward").unwrap())
+        .unwrap();
+    let body = unit
+        .bodies()
+        .find(|(code, _)| *code == owner)
+        .unwrap()
+        .1
+        .typed();
+    let evidence = body.result_evidence.as_ref().unwrap();
+    let mut classifications = Vec::new();
+    for (call, expression) in body.body().expressions().iter() {
+        if !matches!(expression.kind, crate::value_access::ExpressionKind::Call { target: Origin::Declaration(target), .. } if target == forward)
+        {
+            continue;
+        }
+        let application = ValueApplication {
+            owner: owner.into(),
+            call,
+        };
+        let origin = Origin::Application(application.into());
+        let excluded = evidence.excludes_callable_origin(origin);
+        classifications.push(excluded);
+        assert!(
+            !evidence.uninhabited_origin(origin),
+            "a tag fact is not a represented-domain proof"
+        );
+        if excluded {
+            let data = expression.ty.access().unwrap().data();
+            assert!(evidence.excludes_primary(program, data));
+            assert!(evidence.closed_domain(program, data).is_err());
+        }
+    }
+    assert_eq!(classifications, [true, false]);
+    let absent = program
+        .resolve(program.symbols().get("absent").unwrap())
+        .unwrap();
+    let result = Origin::Result(ValueCallableResult {
+        owner: absent,
+        ordinal: 0,
+    });
+    assert!(evidence.excludes_callable_origin(result));
+    assert!(!evidence.uninhabited_origin(result));
+    assert!(
+        evidence
+            .closed_domain(program, program.codes().get(absent).unwrap().result())
+            .is_err()
+    );
+}
+
+#[test]
 fn selected_and_unproduced_evidence_belongs_to_the_exact_result_leaf() {
-    use super::super::{ApplicationEvidence, Evidence};
+    use super::super::{CallableEvidence, Evidence};
     let mut codes = ArenaBuilder::<AccessCodeId, ()>::new();
     let maker = codes.insert(());
     let witnesses = [codes.insert(()), codes.insert(())].map(FunctionWitness::from);
@@ -16,19 +80,19 @@ fn selected_and_unproduced_evidence_belongs_to_the_exact_result_leaf() {
     };
     let mut evidence = Evidence::default();
     for (ordinal, witness) in witnesses.into_iter().enumerate() {
-        evidence.producers.insert(
+        evidence.results.insert(
             ValueCallableResult {
                 owner: maker,
                 ordinal,
             },
-            witness,
+            CallableEvidence::Witness(witness),
         );
         evidence.applications.insert(
             ValueAppliedResult {
                 application,
                 ordinal,
             },
-            ApplicationEvidence::Witness(witness),
+            CallableEvidence::Witness(witness),
         );
     }
     let absent = ValueAppliedResult {
@@ -39,12 +103,12 @@ fn selected_and_unproduced_evidence_belongs_to_the_exact_result_leaf() {
     assert!(!evidence.has_no_callable_value(Origin::Application(absent)));
     evidence
         .applications
-        .insert(absent, ApplicationEvidence::Uncommitted);
+        .insert(absent, CallableEvidence::Uncommitted);
     assert!(evidence.has_no_callable_value(Origin::Application(absent)));
     assert!(!evidence.uninhabited_origin(Origin::Application(absent)));
     evidence
         .applications
-        .insert(absent, ApplicationEvidence::Uninhabited);
+        .insert(absent, CallableEvidence::Uninhabited);
     assert!(evidence.has_no_callable_value(Origin::Application(absent)));
     assert!(evidence.uninhabited_origin(Origin::Application(absent)));
     assert!(!evidence.uncommitted_application(application));
@@ -65,11 +129,11 @@ fn selected_and_unproduced_evidence_belongs_to_the_exact_result_leaf() {
     };
     evidence
         .applications
-        .insert(other_call.into(), ApplicationEvidence::Uncommitted);
+        .insert(other_call.into(), CallableEvidence::Uncommitted);
     assert!(evidence.uncommitted_application(other_call));
     evidence
         .applications
-        .insert(other_call.into(), ApplicationEvidence::Uninhabited);
+        .insert(other_call.into(), CallableEvidence::Uninhabited);
     assert!(!evidence.uncommitted_application(other_call));
     for (ordinal, witness) in witnesses.into_iter().enumerate() {
         let result = Origin::Result(ValueCallableResult {

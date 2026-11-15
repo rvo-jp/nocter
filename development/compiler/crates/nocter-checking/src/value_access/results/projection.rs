@@ -162,7 +162,7 @@ fn resolved_descriptor(query: &Query, data: nocter_model::TypeId) -> bool {
                 query
                     .result_evidence
                     .as_ref()
-                    .is_some_and(|evidence| evidence.uninhabited_origin(witness.origin))
+                    .is_some_and(|evidence| evidence.excludes_callable_origin(witness.origin))
             })
         })
 }

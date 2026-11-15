@@ -59,20 +59,21 @@ pub(super) struct Equality {
 }
 #[derive(Clone, Debug, Default)]
 pub(super) struct Evidence {
-    producers: BTreeMap<ValueCallableResult, FunctionWitness>,
-    uninhabited_results: std::collections::BTreeSet<ValueCallableResult>,
+    results: BTreeMap<ValueCallableResult, CallableEvidence>,
     recipes: relations::Relations,
     invocations: BTreeMap<ValueApplication, Arc<InvocationRecipe>>,
     creations: BTreeMap<nocter_model::ValueClosure, CreationRecipe>,
-    applications: BTreeMap<ValueAppliedResult, ApplicationEvidence>,
+    applications: BTreeMap<ValueAppliedResult, CallableEvidence>,
     bodies: nocter_declaration_lowering::access_declarations::BodySources,
     value_sources: BTreeMap<nocter_model::ValueCode, ValueSources>,
 }
 #[derive(Clone, Copy, Debug)]
-enum ApplicationEvidence {
+enum CallableEvidence {
     Witness(FunctionWitness),
     /// The structural contract is known, but no reachable invocation produces this value.
     Uncommitted,
+    /// Original inputs exclude an active callable; its represented domain remains instance-bound.
+    Excluded,
     /// The call can complete, but this leaf has no represented callable values.
     Uninhabited,
 }
@@ -94,7 +95,7 @@ impl Evidence {
         self.recipes.get(&term)
     }
     pub(super) fn producer(&self, result: ValueCallableResult) -> Option<FunctionWitness> {
-        self.producers.get(&result).copied()
+        self.selected(ValueFunctionOrigin::Result(result))
     }
     pub(super) fn verify<'a, 'source>(
         &'a self,
@@ -106,13 +107,16 @@ impl Evidence {
             context,
         })
     }
-    fn selected(&self, origin: ValueFunctionOrigin) -> Option<FunctionWitness> {
+    fn classification(&self, origin: ValueFunctionOrigin) -> Option<CallableEvidence> {
         match origin {
-            ValueFunctionOrigin::Result(result) => self.producers.get(&result).copied(),
-            ValueFunctionOrigin::Application(result) => match self.applications.get(&result)? {
-                ApplicationEvidence::Witness(witness) => Some(*witness),
-                ApplicationEvidence::Uncommitted | ApplicationEvidence::Uninhabited => None,
-            },
+            ValueFunctionOrigin::Result(result) => self.results.get(&result).copied(),
+            ValueFunctionOrigin::Application(result) => self.applications.get(&result).copied(),
+            _ => None,
+        }
+    }
+    fn selected(&self, origin: ValueFunctionOrigin) -> Option<FunctionWitness> {
+        match self.classification(origin)? {
+            CallableEvidence::Witness(witness) => Some(witness),
             _ => None,
         }
     }
@@ -169,24 +173,31 @@ impl Evidence {
         }
     }
     fn has_no_callable_value(&self, origin: ValueFunctionOrigin) -> bool {
-        self.uninhabited_origin(origin)
-            || matches!(origin, ValueFunctionOrigin::Application(application)
-            if matches!(self.applications.get(&application), Some(ApplicationEvidence::Uncommitted)))
+        matches!(
+            self.classification(origin),
+            Some(
+                CallableEvidence::Uncommitted
+                    | CallableEvidence::Excluded
+                    | CallableEvidence::Uninhabited
+            )
+        )
+    }
+    fn excludes_callable_origin(&self, origin: ValueFunctionOrigin) -> bool {
+        matches!(
+            self.classification(origin),
+            Some(CallableEvidence::Excluded | CallableEvidence::Uninhabited)
+        )
     }
     fn uninhabited_origin(&self, origin: ValueFunctionOrigin) -> bool {
-        match origin {
-            ValueFunctionOrigin::Result(result) => self.uninhabited_results.contains(&result),
-            ValueFunctionOrigin::Application(result) => matches!(
-                self.applications.get(&result),
-                Some(ApplicationEvidence::Uninhabited)
-            ),
-            _ => false,
-        }
+        matches!(
+            self.classification(origin),
+            Some(CallableEvidence::Uninhabited)
+        )
     }
     fn uncommitted_application(&self, site: ValueApplication) -> bool {
         matches!(
             self.applications.get(&site.into()),
-            Some(ApplicationEvidence::Uncommitted)
+            Some(CallableEvidence::Uncommitted)
         )
     }
     pub(in crate::value_access) fn excludes_primary(
@@ -199,11 +210,13 @@ impl Evidence {
         else {
             return false;
         };
-        self.empty_domain(program, primary)
+        self.excludes_value(program, primary)
     }
-    pub(in crate::value_access) fn empty_domain(&self, program: &Program, data: TypeId) -> bool {
-        self.closed_domain(program, data)
-            .is_ok_and(|key| key.is_uninhabited())
+    /// No active value exists along a required product path; this grants no representation.
+    pub(in crate::value_access) fn excludes_value(&self, program: &Program, data: TypeId) -> bool {
+        Self::excluded_data(program, data, |origin| {
+            self.excludes_callable_origin(origin)
+        })
     }
     pub(in crate::value_access) fn closed_domain(
         &self,
@@ -231,7 +244,7 @@ impl Evidence {
     ) -> bool {
         !self.matches_payload_metadata(program, actual, target)
             && program.matches_guarded_transport_metadata(actual, target, |witness| {
-                self.uninhabited_origin(witness.origin)
+                self.excludes_callable_origin(witness.origin)
             })
     }
     pub(in crate::value_access) fn transports_expression(
@@ -282,13 +295,20 @@ impl Evidence {
                     origin = template.origin;
                 }
                 ValueFunctionOrigin::Result(result) => {
-                    return self.uninhabited_results.contains(&result);
+                    return self.uninhabited_origin(ValueFunctionOrigin::Result(result));
                 }
                 _ => return false,
             }
         }
     }
     pub(super) fn unproduced(&self, program: &Program, data: TypeId) -> bool {
+        Self::excluded_data(program, data, |origin| self.has_no_callable_value(origin))
+    }
+    fn excluded_data(
+        program: &Program,
+        data: TypeId,
+        excluded: impl Fn(ValueFunctionOrigin) -> bool,
+    ) -> bool {
         let mut pending = vec![data];
         let mut seen = std::collections::BTreeSet::new();
         while let Some(data) = pending.pop() {
@@ -296,9 +316,7 @@ impl Evidence {
                 continue;
             }
             match program.data_schema(data) {
-                Some(PayloadSchema::Function(witness))
-                    if self.has_no_callable_value(witness.origin) =>
-                {
+                Some(PayloadSchema::Function(witness)) if excluded(witness.origin) => {
                     return true;
                 }
                 Some(PayloadSchema::Function(FunctionWitness {
@@ -350,7 +368,7 @@ pub(super) fn close(
     solve::prove_equalities(context, &scope, &evidence)?;
     let mut witnesses = BTreeMap::new();
     for origin in evidence
-        .producers
+        .results
         .keys()
         .copied()
         .map(ValueFunctionOrigin::Result)

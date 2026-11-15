@@ -1,0 +1,8 @@
+const func identity(value: i32): i32 { value }
+const func discard(take value: (func(i32): i32)?): i32 { drop value
+14 }
+const func forward(take value: (func(i32): i32)?): (func(i32): i32)? { value^ }
+const func absent(): (func(i32): i32)? { forward(none) }
+const func calculate(): i32 { discard(forward(none)) + discard(absent()) + discard(forward(identity)) }
+const ANSWER: i32 = calculate()
+func run(): i32 { calculate() }

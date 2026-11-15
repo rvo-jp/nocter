@@ -23,8 +23,33 @@ const func recovered_propagation(): i32 {
     let result = propagated()
     result^ otherwise { return 42 }
 }
+const func forward(take value: (func(): i32)?): (func(): i32)? { value^ }
+const func constructed_value(): i32 {
+    let result = forward(none)
+    let action = result^ otherwise { return 42 }
+    action()
+}
+const func constructed_read(): i32 {
+    let result = forward(none)
+    read action = result otherwise { return 42 }
+    action()
+}
+const func constructed_edit(): i32 {
+    var result = forward(none)
+    edit action = result otherwise { return 42 }
+    action()
+}
+const func constructed_propagated(): i32? {
+    let result = forward(none)
+    let action = result^?
+    action()
+}
+const func constructed_recovered(): i32 {
+    let result = constructed_propagated()
+    result^ otherwise { return 42 }
+}
 const func calculate(): i32 {
-    if recovered_value() == 42 && recovered_read() == 42 && recovered_edit() == 42 && recovered_propagation() == 42 { 42 } else { 0 }
+    if constructed_value() == 42 && constructed_read() == 42 && constructed_edit() == 42 && constructed_recovered() == 42 && recovered_value() == 42 && recovered_read() == 42 && recovered_edit() == 42 && recovered_propagation() == 42 { 42 } else { 0 }
 }
 const ANSWER: i32 = calculate()
 func run(): i32 { calculate() }

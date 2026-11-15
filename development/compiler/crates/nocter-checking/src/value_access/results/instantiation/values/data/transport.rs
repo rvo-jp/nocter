@@ -32,14 +32,19 @@ impl Query<'_, '_> {
             Fact::Data(key) => key,
             other => return Ok(other),
         };
-        let destination = match self.evidence.closed_domain(self.program, destination) {
-            Ok(key) => key,
-            Err(_) if self.program.matches_compound_input(actual, destination) => {
-                match from.reproject(self.program, destination) {
-                    Ok(key) => key,
-                    Err(_) => return Ok(Fact::Unavailable),
+        let destination = match self
+            .evidence
+            .closed_domain(self.program, destination)
+            .or_else(|error| {
+                if self.program.matches_compound_input(actual, destination)
+                    || self.evidence.excludes_primary(self.program, destination)
+                {
+                    from.reproject(self.program, destination)
+                } else {
+                    Err(error)
                 }
-            }
+            }) {
+            Ok(key) => key,
             Err(_) => match self.read(
                 owner,
                 Key::Representation(frame.clone(), value, ValuePath::default(), destination),

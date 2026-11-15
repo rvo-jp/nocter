@@ -132,13 +132,13 @@ pub(super) fn collect(
             .filter(|(_, source)| seen.insert(*source))
             .collect();
     }
-    // A dormant empty-domain descriptor needs no evaluator value. Actual operand/definition
+    // A dormant excluded-value descriptor needs no evaluator value. Actual operand/definition
     // occurrences still require ordinary representation checks and cannot use this exemption.
     let evidence = query.result_evidence.as_ref().ok_or(INVALID)?;
     let mut excluded = Vec::new();
     for (&id, condition) in &conditions {
         if condition.selections.is_empty()
-            && evidence.empty_domain(query.program(), condition.data(body)?)
+            && evidence.excludes_value(query.program(), condition.data(body)?)
         {
             excluded.push(id);
         }

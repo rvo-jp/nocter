@@ -2,6 +2,21 @@
 use super::*;
 
 #[test]
+fn private_constructed_absence_survives_original_result_equations() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/constructed-outcome-results.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "constructed-outcome-results",
+        42,
+    );
+}
+
+#[test]
 fn private_lifted_callable_inputs_preserve_actual_code_and_outcome_layers() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -270,6 +285,16 @@ fn private_excluded_callable_assertions_keep_the_required_traps() {
             &compile(&source),
             &package.0,
             &format!("excluded-optional-assertion-{index}"),
+            5,
+        );
+        let constructed = source.replace(
+            "func absent(): (func(): i32)? { none }",
+            "func forward(take value: (func(): i32)?): (func(): i32)? { value^ }\nfunc absent(): (func(): i32)? { forward(none) }",
+        );
+        execute_native_signal(
+            &compile(&constructed),
+            &package.0,
+            &format!("constructed-optional-assertion-{index}"),
             5,
         );
         let source = format!(

@@ -1,4 +1,4 @@
-//! Refine original outcome control from canonical empty domains without removing source effects.
+//! Refine original outcome control from proved inactive values without removing source effects.
 use super::{Control, IntegrityError, Operation, Point, Terminator};
 use crate::value_access::{ExpressionKind, Query, results::Evidence};
 use std::sync::Arc;

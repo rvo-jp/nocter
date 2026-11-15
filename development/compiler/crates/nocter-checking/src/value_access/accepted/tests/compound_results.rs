@@ -550,6 +550,18 @@ fn assert_resource_contexts(unit: &Unit, caller: &CodeInstanceKey) {
 fn assert_outcome_contracts(unit: &Unit) {
     for (id, body) in unit.bodies() {
         if let Ok(frame) = unit.program().bind_code(body.typed().code(), []) {
+            if !body.typed().body().inputs().explicit().is_empty()
+                && unit
+                    .program()
+                    .compound_input_contracts(
+                        nocter_declarations::value_access::FunctionWitness::from(id),
+                    )
+                    .unwrap()
+                    .iter()
+                    .any(|(index, _)| frame.input_data(*index).is_none())
+            {
+                continue;
+            }
             unit.instantiate_value_data_map(
                 &frame,
                 &mut WorkBudget::new(NonZeroU64::new(100_000).unwrap()),

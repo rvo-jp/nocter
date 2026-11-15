@@ -238,6 +238,13 @@ Metadata joins may select a represented domain containing an excluded alternativ
 merge different positive callable contexts or turn an empty/pending witness fact into a function.
 Retain the existing work budgets, fixed-point dependencies and atomic failed-request behavior.
 
+A constructed inactive tag can exclude an active callable along an original invocation input and
+result equation without establishing an empty represented domain. Keep this value fact distinct
+from canonical representation exclusion. It may remove an impossible positive continuation or
+classify a possible transport, but source and destination representation queries must still close
+from their original occurrence contexts and validate the actual directed relation. Missing or
+empty unknown producer alternatives provide neither fact.
+
 #### Temporal Evaluator Slot Contexts
 
 A logical slot identifies storage and its existing ownership role; it does not establish one

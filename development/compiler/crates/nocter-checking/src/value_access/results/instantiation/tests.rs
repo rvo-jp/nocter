@@ -1,7 +1,7 @@
 //! Logical metadata graphs exercise contexts not yet admitted by the source capture gate.
 use super::*;
 use crate::value_access::{
-    results::{ApplicationEvidence, InvocationRecipe},
+    results::{CallableEvidence, InvocationRecipe},
     tests::{bound, input},
 };
 use nocter_model::{
@@ -90,13 +90,13 @@ fn returned_closure_uses_its_actual_creation_frame_instead_of_the_outer_frames_b
         call: fixture.sites[1],
     };
     let mut evidence = Evidence::default();
-    evidence.applications.insert(
-        factory.into(),
-        ApplicationEvidence::Witness(fixture.captured),
-    );
     evidence
-        .producers
-        .insert(fixture.creator.into(), fixture.captured);
+        .applications
+        .insert(factory.into(), CallableEvidence::Witness(fixture.captured));
+    evidence.results.insert(
+        fixture.creator.into(),
+        CallableEvidence::Witness(fixture.captured),
+    );
     let Origin::Closure(closure) = fixture.captured.origin else {
         unreachable!()
     };

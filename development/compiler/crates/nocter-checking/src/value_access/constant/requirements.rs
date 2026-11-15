@@ -493,5 +493,5 @@ fn excluded_call(
     else {
         return false;
     };
-    sources.call(id).is_none() && evidence.empty_domain(query.program(), data)
+    sources.call(id).is_none() && evidence.excludes_value(query.program(), data)
 }

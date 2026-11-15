@@ -1,6 +1,6 @@
 //! Reachable result summaries close first; per-call type applications then substitute those summaries.
 use super::{
-    ApplicationEvidence, Evidence,
+    CallableEvidence, Evidence,
     producers::Producers,
     reject,
     relations::{self, InvocationRecipe, Relation, Relations, Solutions, Term},
@@ -105,7 +105,16 @@ fn close_results(
         let result = nocter_model::ValueCallableResult { owner: id, ordinal };
         if producers.is_empty() && empty_outcome_result(query.program(), result, equations, solved)
         {
-            evidence.uninhabited_results.insert(result);
+            evidence
+                .results
+                .insert(result, CallableEvidence::Uninhabited);
+            continue;
+        }
+        if producers.is_empty()
+            && guarded_result(query.program(), result)
+            && relations::excludes_active_callable(origin, equations, equations, solved)
+        {
+            evidence.results.insert(result, CallableEvidence::Excluded);
             continue;
         }
         let Some(witness) = single(producers) else {
@@ -130,10 +139,9 @@ fn close_results(
         {
             return Err(INVALID);
         }
-        evidence.producers.insert(
-            nocter_model::ValueCallableResult { owner: id, ordinal },
-            witness,
-        );
+        evidence
+            .results
+            .insert(result, CallableEvidence::Witness(witness));
     }
     Ok(())
 }
@@ -221,7 +229,7 @@ fn close_applications(
         if producers.is_empty() && !committed.contains(&application) {
             evidence
                 .applications
-                .insert(application, ApplicationEvidence::Uncommitted);
+                .insert(application, CallableEvidence::Uncommitted);
             continue;
         }
         if producers.is_empty()
@@ -231,7 +239,16 @@ fn close_applications(
         {
             evidence
                 .applications
-                .insert(application, ApplicationEvidence::Uninhabited);
+                .insert(application, CallableEvidence::Uninhabited);
+            continue;
+        }
+        if producers.is_empty()
+            && guarded_result_application(query.program(), application)
+            && relations::excludes_active_callable(origin, originals, &equations, &solved)
+        {
+            evidence
+                .applications
+                .insert(application, CallableEvidence::Excluded);
             continue;
         }
         let witness = single(producers).ok_or_else(|| reject(context, query, Some(site.call),
@@ -243,7 +260,7 @@ fn close_applications(
         }
         evidence
             .applications
-            .insert(application, ApplicationEvidence::Witness(witness));
+            .insert(application, CallableEvidence::Witness(witness));
     }
     Ok(())
 }

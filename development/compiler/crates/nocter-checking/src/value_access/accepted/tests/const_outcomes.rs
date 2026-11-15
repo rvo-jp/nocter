@@ -88,6 +88,27 @@ fn excluded_callable_assertions_preserve_the_original_trap() {
                 .text_at(diagnostic.source().primary().span().range()),
             Some(site)
         );
+        let constructed = source.replace(
+            "const func absent(): (func(): i32)? { none }",
+            "const func forward(take value: (func(): i32)?): (func(): i32)? { value^ }\nconst func absent(): (func(): i32)? { forward(none) }",
+        );
+        let fixture = nocter_test_support::ValueSourceFixture::new(&constructed);
+        let failure = SourceUnit::prepare(fixture.syntax()).unwrap_err();
+        let SourceFailure::Checking(Failure::Evaluation { diagnostic, .. }) = failure else {
+            panic!("expected constructed assertion failure: {failure:?}")
+        };
+        assert_eq!(
+            diagnostic.rule(),
+            crate::value_access::evaluation::Rule::Execution(
+                nocter_constant_evaluation::state::Rule::InactiveVariant
+            )
+        );
+        assert_eq!(
+            fixture
+                .syntax()
+                .text_at(diagnostic.source().primary().span().range()),
+            Some(site)
+        );
         let present = source.replace(
             "const func absent(): (func(): i32)? { none }",
             "const func live(): i32 { 7 }\nconst func absent(): (func(): i32)? { live }",

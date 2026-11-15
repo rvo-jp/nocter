@@ -203,10 +203,17 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Qualify fresh `none` construction under matched foreign callable-component input constraints,
   including compound primary schemas, exact source-contract checks and native temporary cleanup.
   Missing positive witnesses and unrelated receiving signatures cannot supply this proof.
-- [ ] Carry explicit constructor exclusions through returned callable application equations without
-  treating an empty producer set as proof. Extend received-domain qualification to instance-specific
-  control/positive-use pruning. A source-wide formal contract cannot determine every application's
-  active callable domain; retain original tag effects, traps and exact call/resource phases.
+- [ ] Extend received-domain qualification to instance-specific control/positive-use pruning.
+  A source-wide formal contract cannot determine every application's active callable domain;
+  retain original tag effects, traps and exact call/resource phases.
+- [ ] Qualify constructor-backed result transport through positive inactive environment contexts
+  and remaining compound result carriers. Preserve each original input/result family and actual
+  canonical source/destination key: active-value exclusion cannot erase positive representation
+  metadata or supply an unknown callable context.
+- [x] Carry constructor-backed active-value exclusion through original return/application equations
+  separately from canonical uninhabited representation evidence. Qualify forwarding and cleanup,
+  preserve unknown-input rejection and original tag/trap effects, and require actual per-instance
+  input/result keys before claiming layout or storage support.
 - [x] Retain explicit constructed outcome tags in the shared producer fact DAG, separating missing
   facts from described unknowns. Qualify source creation snapshots, conservative joins/weak updates
   and bounded shared-schema traversal without granting ownership, code or represented-domain facts.

@@ -1,4 +1,4 @@
-//! Finite positive witness equations; call applications consume actual code return summaries.
+//! Finite producer equations and original-source exclusion proofs over callable results.
 use super::producers::{Inputs, Producers};
 use nocter_declarations::value_access::FunctionWitness;
 use nocter_model::{ValueAppliedResult, ValueCode, ValueFunctionOrigin as Origin, ValueInvocation};
@@ -28,7 +28,7 @@ pub(super) type Solutions = BTreeMap<Term, Producers>;
 
 /// An empty positive solution is not proof of emptiness when an opaque target could return code.
 pub(super) fn closed_empty(root: Term, relations: &Relations, known: &Solutions) -> bool {
-    prove_empty(root, known, |term| relations.get(&term))
+    prove_exclusion(root, known, false, |term| relations.get(&term))
 }
 /// Keep original body equations as the emptiness proof while substituting this call's inputs.
 pub(super) fn closed_empty_application(
@@ -37,14 +37,27 @@ pub(super) fn closed_empty_application(
     applications: &Relations,
     known: &Solutions,
 ) -> bool {
-    prove_empty(root, known, |term| match term {
+    prove_exclusion(root, known, false, |term| match term {
         Term::Result { .. } => originals.get(&term),
         Term::Application(_) => applications.get(&term),
     })
 }
-fn prove_empty<'a>(
+/// Constructed input absence excludes an active value, not its represented payload domain.
+pub(super) fn excludes_active_callable(
+    root: Term,
+    originals: &Relations,
+    applications: &Relations,
+    known: &Solutions,
+) -> bool {
+    prove_exclusion(root, known, true, |term| match term {
+        Term::Result { .. } => originals.get(&term),
+        Term::Application(_) => applications.get(&term),
+    })
+}
+fn prove_exclusion<'a>(
     root: Term,
     known: &Solutions,
+    constructed_inputs: bool,
     relation: impl Fn(Term) -> Option<&'a Relation>,
 ) -> bool {
     let mut pending = vec![root];
@@ -108,6 +121,9 @@ fn prove_empty<'a>(
                             let Some(actuals) = invocation.inputs.get(&parameter) else {
                                 return false;
                             };
+                            if constructed_inputs && actuals.excludes_active_callable() {
+                                continue;
+                            }
                             if actuals.producers().is_empty() {
                                 return false;
                             }

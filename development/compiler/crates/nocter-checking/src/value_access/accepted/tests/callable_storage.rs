@@ -9,6 +9,81 @@ const RECEIVED_OUTCOMES: &str = include_str!(concat!(
 ));
 
 #[test]
+fn constructed_absence_survives_original_return_application_equations() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/constructed-outcome-results.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Value::integer(42));
+    let runtime = source
+        .replace("const ANSWER: i32 = calculate()", "")
+        .replace("const func", "func");
+    let invalid = runtime.replace(
+        "discard(forward(none))",
+        "let original = forward(none)\nlet moved = original^\ndrop original\ndiscard(moved^)",
+    );
+    let fixture = nocter_test_support::ValueSourceFixture::new(&invalid);
+    assert!(matches!(
+        SourceUnit::prepare(fixture.syntax()),
+        Err(SourceFailure::Checking(Failure::Flow { .. }))
+    ));
+    let unit = accepted(&runtime);
+    let program = unit.program();
+    let code = |name| {
+        program
+            .resolve(program.symbols().get(name).unwrap())
+            .unwrap()
+    };
+    let caller = program.bind_code(code("calculate").into(), []).unwrap();
+    let body = named(&unit, "calculate");
+    let budget = || {
+        nocter_constant_evaluation::state::WorkBudget::new(
+            std::num::NonZeroU64::new(100_000).unwrap(),
+        )
+    };
+    let mut excluded = Vec::new();
+    for (call, expression) in body.typed().body().expressions().iter() {
+        let crate::value_access::ExpressionKind::Call {
+            target: nocter_model::ValueFunctionOrigin::Declaration(target),
+            ..
+        } = expression.kind
+        else {
+            continue;
+        };
+        let frame = unit
+            .instantiate_invocation(
+                &caller,
+                nocter_model::ValueApplication {
+                    owner: caller.code(),
+                    call,
+                },
+                &mut budget(),
+            )
+            .unwrap();
+        assert_resources(
+            &unit,
+            &frame,
+            named(&unit, &program.code_label(target).unwrap()),
+        );
+        if target == code("forward") || target == code("absent") {
+            let result = unit
+                .instantiate_result_contract(&frame, &mut budget())
+                .unwrap();
+            excluded.push(
+                result
+                    .component(program, nocter_model::ValueField::Variant(true))
+                    .unwrap()
+                    .is_uninhabited(),
+            );
+        }
+    }
+    assert_eq!(excluded, [true, true, false]);
+    unit.instantiate_value_data_map(&caller, &mut budget())
+        .unwrap();
+    assert_resources(&unit, &caller, body);
+}
+
+#[test]
 fn lifted_callable_inputs_preserve_actual_code_through_nested_outcomes_and_components() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
