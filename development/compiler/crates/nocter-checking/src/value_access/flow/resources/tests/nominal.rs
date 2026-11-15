@@ -537,7 +537,7 @@ fn selected_invocation_cannot_transfer_an_incomplete_parent() {
     );
     assert_eq!(state, before);
     assert!(matches!(&steps[..], [Step::Invoke { source, .. }] if source == &first));
-    assert!(!state.returned(f.data));
+    assert!(!state.returned(&f.program, f.data));
     assert!(
         state
             .move_to(

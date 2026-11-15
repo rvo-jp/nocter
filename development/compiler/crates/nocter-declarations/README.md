@@ -331,10 +331,14 @@ sole slot zero; compound results retain separate same-signature leaves without p
 descriptor. Its array selectors name homogeneous element schemas, including uninhabited zero-array
 metadata; they prove neither bounds nor an initialized element. The read-only traversal preserves
 outcome layers and visits shared schemas once, independently of array cardinality.
+`matches_uninhabited_metadata` compares declaration-owned data contracts while permitting
+signature-equivalent callable descriptors only below an empty array. Positive leaves and nominal
+identities remain exact. It grants no element value or Copy evidence to the element itself.
 `BodyTypes::application` publishes independent applied-result templates and rebuilds their
 containing structural types in one atomic extension. These are descriptors of one original call,
-not extra invocations or concrete results. Reusing a call key cannot replace its templates or
-change their count; original header contracts remain immutable.
+not extra invocations or concrete results. Empty arrays publish no applied element template;
+remaining leaves preserve their declared ordinals. Reusing a call key cannot replace its template
+set, including ordinal gaps; original header contracts remain immutable.
 The same iterative reference fold publishes these types and reconciles existing input/result
 recipes under their actual owners. Metadata does not close a result's producer: it grants no
 concrete witness, Copy, payload, layout or cleanup. Initializers, record fields and higher-order

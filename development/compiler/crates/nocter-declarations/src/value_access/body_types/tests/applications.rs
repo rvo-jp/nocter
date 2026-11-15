@@ -4,6 +4,66 @@ use nocter_model::{
 };
 
 #[test]
+fn result_ordinal_gaps_cannot_change_an_existing_calls_template_set() {
+    use nocter_model::{BuiltinType, CompileTimeGuarantee, SymbolTable, ValueAppliedResult};
+    let symbols = SymbolTable::from_spellings(["run", "before", "after"]);
+    let mut reservations = Reservations::new(symbols.clone());
+    let [root, before, after] =
+        ["run", "before", "after"].map(|name| reservations.reserve(symbols.get(name).unwrap(), 0));
+    let mut builder = reservations.finish().unwrap();
+    builder
+        .define(
+            root,
+            CodeKind::Function(CompileTimeGuarantee::Evaluatable),
+            [],
+            BuiltinType::Void,
+        )
+        .unwrap();
+    let leaf = DataReference::Function(Box::new(FunctionDefinition {
+        invocation: ValueInvocation::Read,
+        inputs: Box::new([]),
+        result: BuiltinType::I32.into(),
+    }));
+    let empty = DataReference::Array {
+        element: Box::new(leaf.clone()),
+        length: 0,
+    };
+    for (id, a, b) in [(before, empty.clone(), leaf.clone()), (after, leaf, empty)] {
+        builder
+            .define(
+                id,
+                CodeKind::Function(CompileTimeGuarantee::Evaluatable),
+                [],
+                DataReference::Tuple(TupleData::new(a, b, [])),
+            )
+            .unwrap();
+    }
+    let header = builder.finish().unwrap();
+    let mut body = header.body_types(root).unwrap();
+    let site = ValueApplication {
+        owner: root.into(),
+        call: ArenaBuilder::<AccessExpressionId, ()>::new().insert(()),
+    };
+    body.application(site.owner, site.call, before).unwrap();
+    let original = ValueAppliedResult {
+        application: site,
+        ordinal: 1,
+    };
+    let template = body.program().application_template(original).unwrap();
+    let types = body.program().types.store().type_count();
+    assert_eq!(
+        body.application(site.owner, site.call, after),
+        Err(BodyTypeError::InvalidApplication)
+    );
+    assert_eq!(body.program().types.store().type_count(), types);
+    assert_eq!(
+        body.program().application_template(original),
+        Some(template)
+    );
+    assert!(body.program().application_template(site.into()).is_none());
+}
+
+#[test]
 fn application_templates_are_immutable_shape_facts_without_payload_or_copy_evidence() {
     let (header, [root, ..]) = application_headers();
     let mut body = header.body_types(root).unwrap();

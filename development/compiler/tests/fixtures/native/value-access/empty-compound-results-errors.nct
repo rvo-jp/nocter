@@ -1,0 +1,32 @@
+func identity(value: i32): i32 { value }
+func empty(): [func(i32): i32; 0] { [] }
+func mixed(): ([func(i32): i32; 0], func(i32): i32) { ([], identity) }
+func later(): (func(i32): i32, [func(i32): i32; 0]) { (identity, []) }
+func forward(): ([func(i32): i32; 0], func(i32): i32) { mixed() }
+primitive func create_failure(code: str, message: str): error
+primitive func context_error(take value: error, message: str): error
+func owning(value: i32): func(i32): i32 {
+    let reason = context_error(create_failure("empty-result", "leaf"), "outer")
+    (reason^, value; amount: i32): i32 { value + amount }
+}
+func wrap(take action: func(i32): i32): func(i32): i32 {
+    (action^; value: i32): i32 { action(value) }
+}
+func counted(edit calls: i32): func(i32): i32 {
+    calls += 1
+    wrap(owning(40))
+}
+func discard_seed(take action: func(i32): i32): [func(i32): i32; 0] { [action^; 0] }
+func owned(): ([func(i32): i32; 0], func(i32): i32) { ([], wrap(owning(40))) }
+func relay_owned(): ([func(i32): i32; 0], func(i32): i32) { owned() }
+func calculate(): i32 {
+    let zero = empty()
+    let first = mixed()
+    let second = later()
+    let third = forward()
+    var calls = 0
+    let discarded = discard_seed(counted(calls))
+    let retained = relay_owned()
+    if first.1(42) == 42 && second.0(42) == 42 && third.1(42) == 42 && calls == 1 && retained.1(2) == 42 { 42 } else { 0 }
+}
+func run(): i32 { calculate() }

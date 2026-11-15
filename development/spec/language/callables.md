@@ -211,6 +211,10 @@ participate in the same relation. Each call substitutes its selected actual
 witnesses into that relation; two calls to the same factory can therefore return distinct code
 witnesses. Their identical result signatures cannot conflate those identities.
 
+An empty array of callable values has no element return producer. Its declared element signature
+is still checked when forwarding the array; no code witness is invented or required for a
+nonexistent element. This does not remove the evaluation and cleanup of a zero-repeat seed.
+
 Different reachable return witnesses for the same result leaf are incompatible within one
 function's unspecialized contract. A recursive relation needs an established code or input witness
 and cannot choose one from its signature. A taking callback may transfer its environment into the

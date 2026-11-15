@@ -1,3 +1,4 @@
+mod data_compatibility;
 use std::collections::BTreeSet;
 
 use crate::RuntimeDataId;
@@ -285,6 +286,65 @@ mod tests {
         RuntimeTypeRepresentation, RuntimeTypeRepresentationTable, RuntimeTypeTableBuilder,
         RuntimeValueFieldRepresentation,
     };
+
+    #[test]
+    fn value_transport_ignores_empty_element_metadata_but_preserves_static_callable_identity() {
+        use crate::RuntimeDataId;
+        use nocter_model::ValueField;
+        let [first, second, empty_a, empty_b, tuple_a, tuple_b, wrong] =
+            [0, 1, 2, 3, 4, 5, 6].map(RuntimeDataId::Instance);
+        let mut types = RuntimeTypeTableBuilder::new();
+        for id in [first, second] {
+            types
+                .insert(id, RuntimeType::StaticCallable { environment: None })
+                .unwrap();
+        }
+        for (id, element) in [(empty_a, 100), (empty_b, 101)] {
+            types
+                .insert(
+                    id,
+                    RuntimeType::EmptyArray {
+                        element: RuntimeDataId::Instance(element),
+                    },
+                )
+                .unwrap();
+        }
+        let mut representations = std::collections::BTreeMap::new();
+        for (id, empty, callable) in [
+            (tuple_a, empty_a, first),
+            (tuple_b, empty_b, first),
+            (wrong, empty_b, second),
+        ] {
+            types.insert(id, RuntimeType::Aggregate).unwrap();
+            representations.insert(
+                id,
+                RuntimeTypeRepresentation::ValueAggregate {
+                    fields: [empty, callable]
+                        .into_iter()
+                        .enumerate()
+                        .map(|(index, data)| {
+                            RuntimeValueFieldRepresentation::new(ValueField::Tuple(index), data)
+                        })
+                        .collect(),
+                },
+            );
+        }
+        let runtime = RuntimeEnvironment::new(
+            types.finish().unwrap(),
+            RuntimeTypeRepresentationTable::new(representations),
+            RuntimeAbiIdentity::Arm64DarwinV1,
+        )
+        .unwrap();
+        assert!(runtime.has_same_value_representation(empty_a, empty_b));
+        assert!(runtime.has_same_value_representation(tuple_a, tuple_b));
+        assert!(runtime.has_same_value_representation(tuple_b, tuple_a));
+        assert!(!runtime.has_same_value_representation(first, second));
+        assert!(!runtime.has_same_value_representation(tuple_a, wrong));
+        assert!(!runtime.has_same_value_representation(
+            RuntimeDataId::Instance(100),
+            RuntimeDataId::Instance(100)
+        ));
+    }
 
     #[test]
     fn stored_text_representation_requires_the_exact_text_identity() {

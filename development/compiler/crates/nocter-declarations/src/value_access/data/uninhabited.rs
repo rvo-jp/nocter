@@ -1,0 +1,68 @@
+//! Empty-array descriptors retain contracts without inventing positive callable identities.
+use super::{PayloadSchema, Program};
+use nocter_model::{TypeId, ValueFunctionOrigin};
+use std::collections::BTreeSet;
+
+impl Program {
+    /// Compare exact data, permitting equivalent callable constraints only below empty arrays.
+    /// All inhabited leaves and nominal identities remain exact. This provides no element,
+    /// concrete code, source conversion, ownership or layout permission.
+    #[must_use]
+    pub fn matches_uninhabited_metadata(&self, actual: TypeId, expected: TypeId) -> bool {
+        let mut pending = vec![(actual, expected, false)];
+        let mut seen = BTreeSet::new();
+        while let Some((actual, expected, metadata)) = pending.pop() {
+            let (Some(a), Some(b)) = (self.data_schema(actual), self.data_schema(expected)) else {
+                return false;
+            };
+            if actual == expected {
+                continue;
+            }
+            if !seen.insert((actual, expected, metadata)) {
+                continue;
+            }
+            match (a, b) {
+                (PayloadSchema::Function(a), PayloadSchema::Function(b))
+                    if metadata
+                        && (descriptor(a.origin) || descriptor(b.origin))
+                        && self
+                            .function_contract(a)
+                            .zip(self.function_contract(b))
+                            .is_some_and(|(a, b)| a == b) => {}
+                (PayloadSchema::Array(a), PayloadSchema::Array(b)) if a.length() == b.length() => {
+                    pending.push((a.element(), b.element(), metadata || a.is_empty()));
+                }
+                (PayloadSchema::Aggregate(a), PayloadSchema::Aggregate(b)) => {
+                    use crate::value_access::AggregateForm;
+                    let (AggregateForm::Tuple(a), AggregateForm::Tuple(b)) = (a.form(), b.form())
+                    else {
+                        return false;
+                    };
+                    if a.len() != b.len() {
+                        return false;
+                    }
+                    pending.extend(
+                        a.iter()
+                            .copied()
+                            .zip(b.iter().copied())
+                            .map(|(a, b)| (a, b, metadata)),
+                    );
+                }
+                (PayloadSchema::Optional(a), PayloadSchema::Optional(b))
+                | (PayloadSchema::Fallible(a), PayloadSchema::Fallible(b)) => {
+                    pending.push((a, b, metadata));
+                }
+                _ => return false,
+            }
+        }
+        true
+    }
+}
+fn descriptor(origin: ValueFunctionOrigin) -> bool {
+    matches!(
+        origin,
+        ValueFunctionOrigin::Parameter(_)
+            | ValueFunctionOrigin::Result(_)
+            | ValueFunctionOrigin::Application(_)
+    )
+}

@@ -1,5 +1,4 @@
 //! Integrity of the closed product, never another source-acceptance or ownership checker.
-mod input_data;
 use super::{
     Body, CallTarget, Effect, Failure, Operation, Place, Program, Projection, SlotKey, Storage,
     Terminator,
@@ -111,7 +110,11 @@ impl Context<'_> {
                 }
             };
         }
-        self.require(data == place.data && self.program.runtime.types().get(data).is_some())
+        self.require(
+            self.program
+                .runtime
+                .has_same_value_representation(data, place.data),
+        )
     }
     fn snapshot(&self, id: nocter_model::MirLocalId, length: u64) -> Result<(), Failure> {
         let slot = self.body.slots.get(id).ok_or_else(|| self.invalid())?;
@@ -257,7 +260,11 @@ impl Context<'_> {
             } => {
                 self.place(source)?;
                 self.place(destination)?;
-                self.require(source.data == destination.data)
+                self.require(
+                    self.program
+                        .runtime
+                        .has_same_value_representation(source.data, destination.data),
+                )
             }
             Effect::Reinterpret {
                 source,
@@ -350,7 +357,11 @@ impl Context<'_> {
             } => {
                 self.place(source)?;
                 self.place(destination)?;
-                self.require(source.data == destination.data)
+                self.require(
+                    self.program
+                        .runtime
+                        .has_same_value_representation(source.data, destination.data),
+                )
             }
             Operation::Storage(effect) => self.effect(effect),
             Operation::Repeat {
@@ -516,14 +527,22 @@ impl Context<'_> {
                         )
                     }
                 };
-                self.require(call.inputs.len() == inputs.len() && call.answer.data == result)?;
+                self.require(
+                    call.inputs.len() == inputs.len()
+                        && self
+                            .program
+                            .runtime
+                            .has_same_value_representation(call.answer.data, result),
+                )?;
                 self.require(self.body.slots.get(call.answer.slot).is_some_and(|slot| {
                     slot.storage == Storage::Payload && matches!(slot.key, SlotKey::Answer(_))
                 }))?;
                 for (actual, expected) in call.inputs.iter().zip(inputs) {
                     self.place(&actual.source)?;
                     self.require(
-                        self.input_data_compatible(actual.source.data, expected.0)
+                        self.program
+                            .runtime
+                            .has_same_value_representation(actual.source.data, expected.0)
                             && actual.operation == expected.1,
                     )?;
                     if actual.operation == ValueInputOperation::Take {
@@ -678,7 +697,10 @@ fn validate_control(context: &Context<'_>) -> Result<(), Failure> {
                     .get(place.slot)
                     .ok_or_else(|| context.invalid())?;
                 context.require(
-                    place.data == body.signature.result()
+                    context
+                        .program
+                        .runtime
+                        .has_same_value_representation(place.data, body.signature.result())
                         && slot.key == SlotKey::Return
                         && place.projections.is_empty()
                         && slot.storage == Storage::Payload,

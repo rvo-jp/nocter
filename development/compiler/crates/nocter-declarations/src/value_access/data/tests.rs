@@ -3,6 +3,7 @@ use crate::value_access::{
     CodeKind, DeclarationRule, FieldDefinition, HeaderStep, Reservations, TupleData,
 };
 use nocter_model::{CompileTimeGuarantee, UsizeTerm};
+mod uninhabited;
 
 fn array(element: DataReference, length: u64) -> DataReference {
     DataReference::Array {

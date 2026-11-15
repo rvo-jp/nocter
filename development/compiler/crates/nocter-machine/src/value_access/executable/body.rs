@@ -237,7 +237,12 @@ impl<'a> Builder<'a> {
                 }
             }
         }
-        if data != place.data {
+        if !self
+            .context
+            .program
+            .runtime()
+            .has_same_value_representation(data, place.data)
+        {
             return Err(Self::invalid());
         }
         if offset != 0 {

@@ -98,6 +98,7 @@ pub(in crate::value_access) fn deferred_equalities(
     let mut pending = vec![(left.data(), right.data())];
     let mut seen = std::collections::BTreeSet::new();
     let mut equalities = Vec::new();
+    let mut descriptor_only = false;
     while let Some((left, right)) = pending.pop() {
         if left == right || !seen.insert((left, right)) {
             continue;
@@ -117,7 +118,14 @@ pub(in crate::value_access) fn deferred_equalities(
             (Some(PayloadSchema::Array(a)), Some(PayloadSchema::Array(b)))
                 if a.length() == b.length() =>
             {
-                pending.push((a.element(), b.element()));
+                if a.is_empty() {
+                    if !program.matches_uninhabited_metadata(left, right) {
+                        return None;
+                    }
+                    descriptor_only = true;
+                } else {
+                    pending.push((a.element(), b.element()));
+                }
             }
             (Some(PayloadSchema::Aggregate(a)), Some(PayloadSchema::Aggregate(b))) => {
                 use nocter_declarations::value_access::AggregateForm;
@@ -133,7 +141,7 @@ pub(in crate::value_access) fn deferred_equalities(
             _ => return None,
         }
     }
-    if equalities.is_empty() {
+    if equalities.is_empty() && !descriptor_only {
         return None;
     }
     Some(equalities)

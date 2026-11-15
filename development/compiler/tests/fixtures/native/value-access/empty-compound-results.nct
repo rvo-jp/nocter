@@ -1,0 +1,32 @@
+const func identity(value: i32): i32 { value }
+const func empty(): [func(i32): i32; 0] { [] }
+const func mixed(): ([func(i32): i32; 0], func(i32): i32) { ([], identity) }
+const func later(): (func(i32): i32, [func(i32): i32; 0]) { (identity, []) }
+const func forward(): ([func(i32): i32; 0], func(i32): i32) { mixed() }
+struct Item { value: i32 }
+const func owning(value: i32): func(i32): i32 {
+    let item = Item { value: value }
+    (item^; amount: i32): i32 { item.value + amount }
+}
+const func wrap(take action: func(i32): i32): func(i32): i32 {
+    (action^; value: i32): i32 { action(value) }
+}
+const func counted(edit calls: i32): func(i32): i32 {
+    calls += 1
+    wrap(owning(40))
+}
+const func discard_seed(take action: func(i32): i32): [func(i32): i32; 0] { [action^; 0] }
+const func owned(): ([func(i32): i32; 0], func(i32): i32) { ([], wrap(owning(40))) }
+const func relay_owned(): ([func(i32): i32; 0], func(i32): i32) { owned() }
+const func calculate(): i32 {
+    let zero = empty()
+    let first = mixed()
+    let second = later()
+    let third = forward()
+    var calls = 0
+    let discarded = discard_seed(counted(calls))
+    let retained = relay_owned()
+    if first.1(42) == 42 && second.0(42) == 42 && third.1(42) == 42 && calls == 1 && retained.1(2) == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { calculate() }

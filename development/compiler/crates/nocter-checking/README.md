@@ -1779,7 +1779,12 @@ caller's concrete result shape only through actual component evidence; a matchin
 substitute another static callable. Required/native execution agrees, and the matching error fixture
 executes returned-owner and remaining-container cleanup. Missing transfer/input context, retired
 source use, wrong concrete targets and exhausted work reject; healthy retry remains possible.
-Compound results through outcomes and uninhabited element descriptors require separate qualification.
+`empty-compound-results.nct` qualifies standalone and mixed empty-array results, declaration-to-
+declaration forwarding, preserved result-ordinal gaps and adjacent context-bound callable values.
+Empty-array element signatures are checked without adding producer equations or element values.
+Required/native execution preserves the once-only evaluation and cleanup of a zero-repeat seed;
+the matching error fixture executes seed and retained returned-owner cleanup. Wrong signatures and
+missing seed transfers reject. Compound results through outcomes require separate qualification.
 `contextual-compound-edits.nct` additionally qualifies scalar updates through edit tuple inputs,
 forwarded updates and caller reads after completion while the callable context remains unchanged.
 The matching error fixture executes actual cleanup after both updates. Receiving/caller descriptors

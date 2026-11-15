@@ -11,6 +11,47 @@ const SOURCE: &str = include_str!(concat!(
 ));
 
 #[test]
+fn empty_compound_results_do_not_manufacture_element_producers_or_shift_ordinals() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/empty-compound-results.nct"
+    ));
+    let runtime = source
+        .replace("const ANSWER: i32 = calculate()", "")
+        .replace("const func", "func");
+    let unit = accepted(&runtime);
+    let program = unit.program();
+    for (_, body) in unit.bodies() {
+        if let Ok(frame) = program.bind_code(body.typed().code(), []) {
+            assert_resources(&unit, &frame, body);
+        }
+    }
+    assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
+}
+
+#[test]
+fn empty_result_descriptors_still_reject_incompatible_signatures_and_seed_access() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/empty-compound-results.nct"
+    ));
+    for changed in [
+        source.replace(
+            "func forward(): ([func(i32): i32; 0]",
+            "func forward(): ([func(bool): i32; 0]",
+        ),
+        source.replace("[action^; 0]", "[action; 0]"),
+    ] {
+        assert_ne!(changed, source);
+        let (sources, tree) = input(&changed);
+        assert!(matches!(
+            SourceUnit::prepare(bound(&sources, &tree)),
+            Err(SourceFailure::Checking(Failure::Body { .. }))
+        ));
+    }
+}
+
+#[test]
 fn declared_compound_results_preserve_independent_returned_callable_producers() {
     assert_eq!(answer(SOURCE, "ANSWER"), Datum::integer(42));
     let unit = accepted(SOURCE);
@@ -154,6 +195,10 @@ fn compound_results_preserve_transfer_and_actual_const_requirements() {
 
 fn assert_resource_contexts(unit: &Unit, caller: &CodeInstanceKey) {
     let body = named(unit, "calculate");
+    assert_resources(unit, caller, body);
+}
+
+fn assert_resources(unit: &Unit, caller: &CodeInstanceKey, body: &flow::Query) {
     for (point, block) in body.graph().points().iter() {
         for (action, operation) in block.actions.iter().enumerate() {
             let at = crate::value_access::flow::Location { point, action };

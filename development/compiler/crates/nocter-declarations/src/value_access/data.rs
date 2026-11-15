@@ -2,6 +2,7 @@
 use super::{AggregateForm, DeclarationId, Program};
 use nocter_model::{BuiltinType, FieldPath, NominalTypeId, SymbolTable, TypeId, TypeKind};
 use std::collections::BTreeMap;
+mod uninhabited;
 
 /// The exact closed shapes admitted by this declaration product, not a general type classifier.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

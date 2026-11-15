@@ -376,12 +376,12 @@ impl State {
         steps.extend(changes);
         Ok(())
     }
-    pub fn returned(&self, data: TypeId) -> bool {
+    pub fn returned(&self, program: &Program, data: TypeId) -> bool {
         self.frames.is_empty()
             && self.owned.len() == 1
-            && self
-                .owned
-                .get(&Holder::Return)
-                .is_some_and(|value| value.payload.data() == data && value.missing.is_empty())
+            && self.owned.get(&Holder::Return).is_some_and(|value| {
+                program.matches_uninhabited_metadata(value.payload.data(), data)
+                    && value.missing.is_empty()
+            })
     }
 }

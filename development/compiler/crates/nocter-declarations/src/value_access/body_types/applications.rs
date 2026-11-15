@@ -39,6 +39,11 @@ impl BodyTypes {
                 .store()
                 .get(data)
                 .ok_or(BodyTypeError::InvalidExtension)?;
+            if matches!(self.program.data_schema(data), Some(crate::value_access::PayloadSchema::Array(array)) if array.is_empty())
+            {
+                projected.insert(data, data);
+                continue;
+            }
             let missing = children(kind)
                 .into_iter()
                 .filter(|child| !projected.contains_key(child))
@@ -51,19 +56,15 @@ impl BodyTypes {
             let selected = if let TypeKind::ValueFunction { origin, invocation } = kind {
                 let application = ValueAppliedResult {
                     application: ValueApplication { owner, call },
-                    ordinal: applications.len(),
+                    ordinal: match origin {
+                        ValueFunctionOrigin::Result(selected) if data != result => selected.ordinal,
+                        _ => applications.len(),
+                    },
                 };
                 let template = FunctionWitness {
                     origin: *origin,
                     invocation: *invocation,
                 };
-                if self
-                    .program
-                    .application_template(application)
-                    .is_some_and(|old| old != template)
-                {
-                    return Err(BodyTypeError::InvalidApplication);
-                }
                 applications.insert(application, template);
                 functions::intern_views(
                     &mut types,
@@ -79,7 +80,7 @@ impl BodyTypes {
             return Err(BodyTypeError::InvalidApplication);
         }
         let site = ValueApplication { owner, call };
-        let existing = self
+        let mut existing = self
             .program
             .applications
             .range(
@@ -91,8 +92,8 @@ impl BodyTypes {
                     ordinal: usize::MAX,
                 },
             )
-            .count();
-        if existing != 0 && existing != applications.len() {
+            .peekable();
+        if existing.peek().is_some() && !existing.eq(applications.iter()) {
             return Err(BodyTypeError::InvalidApplication);
         }
         self.program.types = types

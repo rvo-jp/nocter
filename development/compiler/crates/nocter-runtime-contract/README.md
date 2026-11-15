@@ -96,6 +96,11 @@ owns contextual graph construction and its current source-admission boundary.
   validates actual payload references; it does not require an unused empty element's runtime entry
   or reinterpret a released zero-count `FixedArray` as this value-model shape. `RuntimeType::array`
   supplies the common homogeneous identity/count view, independently of physical geometry.
+- `RuntimeEnvironment::has_same_value_representation` owns value-transport comparison for MIR and
+  Machine. Empty-array element metadata does not supply a positive leaf; every represented leaf,
+  including static callable identity, remains exact. Structural tuples and outcome/array carriers
+  retain their child identities, while distinct nominal records remain distinct. This proof
+  supplies neither source conversion nor ownership and is independent of byte geometry.
 - Stored data shape does not encode a value-model input operation. RuntimeValueSignature retains
   the environment/explicit local channels independently; it introduces no borrow data type.
 - `ValueText` grants stored descriptor representation only to the exact Text primitive identity.

@@ -1,20 +1,21 @@
-//! Call-boundary equivalence excludes nonexistent empty-array elements, preserving positive data.
-use super::Context;
-use nocter_runtime_contract::{RuntimeDataId, RuntimeType, RuntimeTypeRepresentation};
+//! Value-transport equivalence excludes nonexistent empty-array elements, preserving positive data.
+use super::RuntimeEnvironment;
+use crate::{RuntimeDataId, RuntimeType, RuntimeTypeRepresentation};
 use std::collections::BTreeSet;
 
-impl Context<'_> {
-    /// Calls can transport structural values whose empty-array element descriptors differ.
+impl RuntimeEnvironment {
+    /// Operations can transport structural values whose empty-array element descriptors differ.
     /// Empty metadata supplies no element payload. All positive leaves, including static code
     /// tokens, retain their exact runtime identities; physical geometry is not this proof.
-    pub(super) fn input_data_compatible(
+    #[must_use]
+    pub fn has_same_value_representation(
         &self,
         actual: RuntimeDataId,
         expected: RuntimeDataId,
     ) -> bool {
         let mut pending = vec![(actual, expected)];
         let mut seen = BTreeSet::new();
-        let types = self.program.runtime.types();
+        let types = self.types();
         while let Some((actual, expected)) = pending.pop() {
             if !seen.insert((actual, expected)) {
                 continue;
@@ -44,8 +45,8 @@ impl Context<'_> {
                         Some(RuntimeTypeRepresentation::ValueAggregate { fields: a }),
                         Some(RuntimeTypeRepresentation::ValueAggregate { fields: b }),
                     ) = (
-                        self.program.runtime.type_representations().get(actual),
-                        self.program.runtime.type_representations().get(expected),
+                        self.type_representations().get(actual),
+                        self.type_representations().get(expected),
                     )
                     else {
                         return false;

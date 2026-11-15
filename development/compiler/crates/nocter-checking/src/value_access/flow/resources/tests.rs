@@ -10,7 +10,7 @@ fn ownership_mutants_cannot_duplicate_destroy_twice_or_escape_without_a_return_h
     let source = Holder::Local(local).place();
     let mut state = State::entry(query).unwrap();
     let owned = payload(program, query.body().locals().get(local).unwrap().data).unwrap();
-    assert!(!state.returned(owned.data()));
+    assert!(!state.returned(program, owned.data()));
     assert!(
         state
             .construct(Holder::Local(local), owned, &mut Vec::new())
@@ -19,7 +19,7 @@ fn ownership_mutants_cannot_duplicate_destroy_twice_or_escape_without_a_return_h
     let mut state = State::entry(query).unwrap();
     state.dispose(program, &source, &mut Vec::new()).unwrap();
     assert!(state.dispose(program, &source, &mut Vec::new()).is_err());
-    assert!(!state.returned(owned.data()));
+    assert!(!state.returned(program, owned.data()));
     let mut state = State::entry(query).unwrap();
     state
         .move_to(
@@ -30,8 +30,8 @@ fn ownership_mutants_cannot_duplicate_destroy_twice_or_escape_without_a_return_h
             &mut Vec::new(),
         )
         .unwrap();
-    assert!(state.returned(owned.data()));
-    assert!(!state.returned(program.data_type(BuiltinType::I32).unwrap()));
+    assert!(state.returned(program, owned.data()));
+    assert!(!state.returned(program, program.data_type(BuiltinType::I32).unwrap()));
     assert!(
         state
             .move_to(
@@ -156,7 +156,7 @@ fn fallible_error_payloads_keep_the_selected_branch_and_partial_cleanup() {
                 &mut steps,
             )
             .unwrap();
-        assert!(state.returned(outcome));
+        assert!(state.returned(&program, outcome));
         assert!(!state.contains(Holder::Local(local)));
         assert!(matches!(steps.as_slice(), [Step::Assemble { fields, .. }]
             if fields[0].0 == nocter_model::ValueField::Variant(primary)));
