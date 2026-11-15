@@ -2,6 +2,21 @@
 use super::*;
 
 #[test]
+fn construction_context_does_not_replace_an_exact_parameter_witness() {
+    let fixture = nocter_test_support::ValueSourceFixture::new(
+        "func live(value: i32): i32 { value }\nfunc keep(take action: func(i32): i32): void { var saved = action^\nsaved = live }",
+    );
+    let Err(SourceFailure::Checking(Failure::Body {
+        failure: crate::value_access::Failure::Rejected(diagnostic),
+        ..
+    })) = SourceUnit::prepare(fixture.syntax())
+    else {
+        panic!("an exact local witness cannot be replaced by signature matching")
+    };
+    assert_eq!(diagnostic.rule(), crate::value_access::Rule::TypeMismatch);
+}
+
+#[test]
 fn contextual_absent_elements_keep_their_own_supplied_environment_context() {
     use crate::value_access::ExpressionKind;
     use nocter_declarations::value_access::InstanceSchema;
@@ -87,6 +102,7 @@ fn contextual_callable_arrays_keep_authored_context_and_actual_witness_requireme
         "let values = [live, none]\ndrop values",
         "discard([live, other])",
         "discard([none, wrong])",
+        "discard([none, if true { live } else { wrong }])",
     ] {
         let source = format!(
             "func live(value: i32): i32 {{ value }}\nfunc other(value: i32): i32 {{ value + 1 }}\nfunc wrong(value: u64): u64 {{ value }}\nfunc discard(take values: [(func(i32): i32)?; 2]): void {{ drop values }}\nfunc run(): void {{ {body} }}"

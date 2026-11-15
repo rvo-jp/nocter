@@ -215,10 +215,10 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   homogeneous representation, distinct captured environments, ordered effects and interrupted
   argument cleanup through required/native execution. Uncontextualized absence and incompatible
   positive witnesses still reject; all-absent lists invent no code or Copy evidence.
-- [ ] Carry callable constraints through conditional elements under a contextual array boundary.
-  `discard([none, if true { return 42 } else { live }])` still rejects the known `live` witness
-  against the receiving formal identity. Preserve dormant signature checks, interrupted formation
-  and real source receipts rather than binding a formal witness from an unreachable value.
+- [x] Carry callable constraints through conditional elements under a contextual array boundary.
+  Preserve actual branch witnesses, statically selected application descriptors, runtime-selected
+  captured environments, dormant signature checks and interrupted formation through required/native
+  consumers. Keep exact local/parameter identities separate from construction constraints.
 - [x] Qualify the shared checking-owned instance continuation map through optional take/read/edit
   recovery, effectful input production, required/native execution and all affected consumers.
   Preserve dormant contract checks and original commits; unknown domains must retain their branches.
@@ -269,6 +269,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   a received primary callable domain is empty.
   Preserve evaluation of the original carrier/tag, required traps and alternate cleanup while
   excluding impossible positive continuations; a guarded empty descriptor is not a callable value.
+- [ ] Qualify nested received optional callable domains through distinct outer absence, present
+  inner absence and live captured callbacks. Preserve each original tag/continuation, staged
+  early-return cleanup and actual owned environments through required/native consumers.
 - [x] Qualify received take/read/edit assertions through original const trap diagnostics and
   native safety traps. Share assertion-source recognition with definition-level flow refinement;
   preserve whole-carrier evaluation and exclude only the impossible normal continuation.

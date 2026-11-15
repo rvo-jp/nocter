@@ -32,6 +32,20 @@ impl Checker<'_, '_> {
         hint: Option<&Annotation>,
         reachable: bool,
     ) -> Result<AccessBlockId, Failure> {
+        self.block_with_construction(node, expected, hint, None, reachable)
+    }
+    pub(super) fn block_with_construction(
+        &mut self,
+        node: NodeId,
+        expected: Option<Boundary>,
+        hint: Option<&Annotation>,
+        construction: Option<nocter_model::TypeId>,
+        reachable: bool,
+    ) -> Result<AccessBlockId, Failure> {
+        // Construction refines supplied identities; an exact boundary cannot also select it.
+        if expected.is_some() && construction.is_some() {
+            return Err(Failure::InconsistentSyntax);
+        }
         for &name in self.context.block_import_names(node)? {
             let spelling = self.text(name)?;
             if self.lookup(spelling).is_some() || self.unavailable.contains(spelling) {
@@ -50,13 +64,18 @@ impl Checker<'_, '_> {
         for entry in entries {
             if self.kind(entry)? == NodeKind::BodyResult {
                 let expression = self.first_child(entry)?;
-                let mut value = self.expression_with_hint(
-                    expression,
-                    hint,
-                    expected.filter(|_| continues),
-                    reachable && continues,
-                )?;
+                let mut value = if let Some(data) = construction {
+                    self.construction_value(expression, Some(data), reachable && continues)?
+                } else {
+                    self.expression_with_hint(
+                        expression,
+                        hint,
+                        expected.filter(|_| continues),
+                        reachable && continues,
+                    )?
+                };
                 if expected.is_none()
+                    && construction.is_none()
                     && let Some(ty) = self.ty(value).access()
                 {
                     value = self.boundary(
@@ -76,7 +95,9 @@ impl Checker<'_, '_> {
             }
         }
         if result.is_none() && continues {
-            result = Some(self.unit_completion(node, expected)?);
+            result = Some(
+                self.unit_completion(node, expected.or_else(|| construction.map(Boundary::Value)))?,
+            );
         }
         let ty = result
             .map_or(ValueType::NEVER, |value| self.ty(value))

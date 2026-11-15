@@ -251,24 +251,36 @@ impl Evidence {
                 self.excludes_callable_origin(witness.origin)
             })
     }
+    /// An explicit value boundary retains its receiving descriptor even when the two represented
+    /// domains are equivalent. This reclassifies one existing owner; it grants no new payload.
+    pub(in crate::value_access) fn permits_transport(
+        &self,
+        program: &Program,
+        actual: TypeId,
+        target: TypeId,
+    ) -> bool {
+        actual != target
+            && (self.matches_payload_metadata(program, actual, target)
+                || self.requires_transport(program, actual, target))
+    }
+    pub(in crate::value_access) fn reclassifies_expression(
+        &self,
+        query: &Query,
+        source: AccessExpressionId,
+        destination: AccessExpressionId,
+    ) -> bool {
+        expression_data(query, source, destination)
+            .is_some_and(|(source, target)| self.permits_transport(query.program(), source, target))
+    }
     pub(in crate::value_access) fn transports_expression(
         &self,
         query: &Query,
         source: AccessExpressionId,
         destination: AccessExpressionId,
     ) -> bool {
-        let data = |id| {
-            query
-                .body()
-                .expressions()
-                .get(id)
-                .and_then(|expression| expression.ty.access())
-        };
-        data(source)
-            .zip(data(destination))
-            .is_some_and(|(source, target)| {
-                self.requires_transport(query.program(), source.data(), target.data())
-            })
+        expression_data(query, source, destination).is_some_and(|(source, target)| {
+            self.requires_transport(query.program(), source, target)
+        })
     }
     pub(in crate::value_access) fn matches_payload_metadata(
         &self,
@@ -481,4 +493,22 @@ fn reject(
             message,
         ),
     }
+}
+
+/// Read the two original schemas without selecting actual values or result-family receipts.
+fn expression_data(
+    query: &Query,
+    source: AccessExpressionId,
+    destination: AccessExpressionId,
+) -> Option<(TypeId, TypeId)> {
+    let data = |id| {
+        query
+            .body()
+            .expressions()
+            .get(id)?
+            .ty
+            .access()
+            .map(nocter_model::ValueAccess::data)
+    };
+    data(source).zip(data(destination))
 }

@@ -22,6 +22,13 @@ const func interrupted(): i32 {
     consume_after([none, wrap(addition(0))], if true { return 42 } else { 0 })
     0
 }
+const func interrupted_element(): i32 {
+    discard([none, if true { return 42 } else { live }])
+    0
+}
+const func conditional(flag: bool): i32 {
+    choose([none, if flag { wrap(addition(0)) } else { wrap(addition(10)) }])
+}
 const func choose(take values: [(func(i32): i32)?; 2]): i32 {
     let fallback = values[1]^!
     let action = values[0]^ otherwise { fallback^ }
@@ -30,7 +37,8 @@ const func choose(take values: [(func(i32): i32)?; 2]): i32 {
 const func calculate(): i32 {
     var order: i32 = 0
     discard_three([observed(order, 1), none, observed(order, 2)])
-    if order != 12 || interrupted() != 42 { return 0 }
+    if order != 12 || interrupted() != 42 || interrupted_element() != 42 { return 0 }
+    if conditional(true) != 21 || conditional(false) != 31 { return 0 }
     if discard([none, live]) != 21 || discard([live, none]) != 21 || discard([none, none]) != 21 { return 0 }
     if choose([none, wrap(live)]) + choose([wrap(live), wrap(live)]) != 42 { return 0 }
     if choose([none, wrap(addition(0))]) + choose([wrap(addition(0)), wrap(addition(40))]) != 42 { return 0 }

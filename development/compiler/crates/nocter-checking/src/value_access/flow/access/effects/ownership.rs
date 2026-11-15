@@ -208,11 +208,9 @@ impl Context<'_, '_> {
             ExpressionKind::Boundary {
                 source,
                 action: BoundaryAction::TakeValue,
-            } if self
-                .typed
-                .result_evidence
-                .as_ref()
-                .is_some_and(|evidence| evidence.transports_expression(self.typed, source, id)) =>
+            } if self.typed.result_evidence.as_ref().is_some_and(|evidence| {
+                evidence.reclassifies_expression(self.typed, source, id)
+            }) =>
             {
                 self.transport_ownership(id, source)?;
             }
@@ -279,7 +277,7 @@ impl Context<'_, '_> {
                 typed
                     .result_evidence
                     .as_ref()
-                    .is_some_and(|evidence| evidence.requires_transport(typed.program(), from, to))
+                    .is_some_and(|evidence| evidence.permits_transport(typed.program(), from, to))
             },
         )?;
         Ok(())

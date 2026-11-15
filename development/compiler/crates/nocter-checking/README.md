@@ -2319,6 +2319,19 @@ captured functions, distinct nested environments at the same lexical code, all-a
 partial transfers and actual owned-error cleanup through required/native consumers. Unknown
 contexts, incompatible signatures and distinct positive witnesses remain separate from absence.
 
+Conditional elements pass construction context into both branches without turning a receiving
+callable signature into an exact supplied witness. Branches still check their declarations and
+signatures, including dormant branches; only normally producing branches supply the result's
+identity. A statically selected branch retains its own application descriptor. The shared source
+also qualifies runtime-selected captured environments and an early return during element formation.
+Exact local and parameter witnesses remain binding constraints rather than construction hints.
+After the branch identities agree, explicit value boundaries give continuing branch values the
+conditional result's common receiving descriptor. Equivalent represented domains still retain
+that schema transition through the existing single-owner transport operation; physical equivalence
+does not leave branch-specific descriptors attached to one merged result slot. Schema-only
+reclassification remains ordinary adaptation in the original value graph, retaining its result-family
+receipt. Representation-changing transport separately records both original carrier domains.
+
 Repetition closes its count through the common query, then prepares its seed even at zero count.
 The seed must be supplied as an ordinary value; zero does not turn a non-Copy read into an owner
 or suppress a required constant dependency. Counts above one require the declaration authority's

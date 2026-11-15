@@ -23,7 +23,7 @@ fn private_contextual_absent_callable_arrays_preserve_supplied_environments_and_
             "func addition(take reason: error, number: i32)",
         )
         .replace("(number; value: i32)", "(reason^, number; value: i32)");
-    let source = [0, 40].into_iter().fold(source, |source, number| {
+    let source = [0, 10, 40].into_iter().fold(source, |source, number| {
         source.replace(
             &format!("addition({number})"),
             &format!(

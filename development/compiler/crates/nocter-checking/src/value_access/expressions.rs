@@ -130,8 +130,9 @@ impl Checker<'_, '_> {
             NodeKind::IfExpression => {
                 return self.if_expression(
                     node,
-                    expected.or_else(|| data_hint.map(Boundary::Value)),
+                    expected,
                     context,
+                    expected.is_none().then_some(data_hint).flatten(),
                     reachable,
                 );
             }
@@ -359,6 +360,7 @@ impl Checker<'_, '_> {
         node: NodeId,
         expected: Option<Boundary>,
         hint: Option<&Annotation>,
+        construction: Option<nocter_model::TypeId>,
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
         let condition_node = self.first_child(self.direct(node, NodeKind::IfCondition)?)?;
@@ -369,6 +371,7 @@ impl Checker<'_, '_> {
         // A terminating condition never reaches either branch's outgoing value boundary.
         // Still type-check each branch's own declarations, operations and explicit returns.
         let expected = expected.filter(|_| self.ty(condition).may_complete());
+        let construction = construction.filter(|_| self.ty(condition).may_complete());
         let alternative = self.direct(node, NodeKind::ElseClause).ok();
         // Without else the operation completes with unit, not a retained branch access.
         let branch_expected = if alternative.is_none() {
@@ -385,19 +388,22 @@ impl Checker<'_, '_> {
         } else {
             hint
         };
-        let then_block = self.block_with_hint(
+        let branch_construction = alternative.is_some().then_some(construction).flatten();
+        let then_block = self.block_with_construction(
             self.direct(node, NodeKind::Block)?,
             branch_expected,
             branch_hint,
+            branch_construction,
             branches_reachable && known_condition != Some(false),
         )?;
         let else_block = if let Some(clause) = alternative {
             let child = self.first_child(clause)?;
             if self.kind(child)? == NodeKind::Block {
-                self.block_with_hint(
+                self.block_with_construction(
                     child,
                     expected,
                     hint,
+                    construction,
                     branches_reachable && known_condition != Some(true),
                 )?
             } else {
@@ -405,6 +411,7 @@ impl Checker<'_, '_> {
                     child,
                     expected,
                     hint,
+                    construction,
                     branches_reachable && known_condition != Some(true),
                 )?;
                 self.emit_block(clause, Vec::new(), Some(value), self.ty(value))?
@@ -416,6 +423,62 @@ impl Checker<'_, '_> {
             }
             self.emit_block(node, Vec::new(), Some(unit), self.ty(unit))?
         };
+        let ty = self.conditional_type(node, condition, then_block, else_block)?;
+        if construction.is_some()
+            && let Some(access) = ty.normal()
+        {
+            self.supply_conditional_results(node, [then_block, else_block], access)?;
+        }
+        let value = self.emit(
+            node,
+            ty,
+            ExpressionKind::If {
+                condition,
+                then_block,
+                else_block,
+            },
+        )?;
+        if alternative.is_none()
+            && let Some(boundary) = expected
+        {
+            self.boundary(node, value, boundary)
+        } else {
+            Ok(value)
+        }
+    }
+    fn supply_conditional_results(
+        &mut self,
+        node: NodeId,
+        blocks: [AccessBlockId; 2],
+        access: Ty,
+    ) -> Result<(), Failure> {
+        // Once branch identities agree, give their shared result one explicit receiving schema.
+        // Keep each original producing expression and its independent source contract intact.
+        for block in blocks {
+            let body = self.blocks.get(block).ok_or(Failure::InconsistentSyntax)?;
+            if body.ty.normal().is_none_or(|actual| actual == access) {
+                continue;
+            }
+            let source = body.result.ok_or(Failure::InconsistentSyntax)?;
+            let value = self.boundary(node, source, Boundary::Binding(access))?;
+            let ty = self.ty(value);
+            let body = self
+                .blocks
+                .get_mut(block)
+                .ok_or(Failure::InconsistentSyntax)?;
+            body.result = Some(value);
+            body.ty = ty;
+        }
+        Ok(())
+    }
+    fn conditional_type(
+        &mut self,
+        node: NodeId,
+        condition: AccessExpressionId,
+        then_block: AccessBlockId,
+        else_block: AccessBlockId,
+    ) -> Result<ValueType, Failure> {
+        let known_condition = self.normal_boolean(condition);
         let (left, right) = (self.block_ty(then_block), self.block_ty(else_block));
         let checked_access =
             match (left.access(), right.access()) {
@@ -439,31 +502,24 @@ impl Checker<'_, '_> {
             (Some(access), None) | (None, Some(access)) => Some(access),
             _ => checked_access,
         };
+        let access = known_condition
+            .and_then(|selected| {
+                if selected {
+                    left.normal()
+                } else {
+                    right.normal()
+                }
+            })
+            .or(access);
         let completes = self.ty(condition).may_complete()
             && match known_condition {
                 Some(true) => left.may_complete(),
                 Some(false) => right.may_complete(),
                 None => left.may_complete() || right.may_complete(),
             };
-        let ty = access
+        Ok(access
             .map_or(ValueType::NEVER, ValueType::known)
-            .with_continuation(completes);
-        let value = self.emit(
-            node,
-            ty,
-            ExpressionKind::If {
-                condition,
-                then_block,
-                else_block,
-            },
-        )?;
-        if alternative.is_none()
-            && let Some(boundary) = expected
-        {
-            self.boundary(node, value, boundary)
-        } else {
-            Ok(value)
-        }
+            .with_continuation(completes))
     }
     pub fn block_ty(&self, id: AccessBlockId) -> ValueType {
         self.blocks.get(id).expect("own block").ty

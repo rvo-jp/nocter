@@ -479,7 +479,7 @@ impl Builder<'_, '_> {
                     .result_evidence
                     .as_ref()
                     .is_some_and(|evidence| {
-                        evidence.requires_transport(self.program, from.data(), payload.data())
+                        evidence.permits_transport(self.program, from.data(), payload.data())
                     })
                 {
                     return Err(INVALID);
