@@ -210,9 +210,13 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   Preserve one original invocation recipe, each input/result family and actual swapped contexts
   through required/native execution and owned-error cleanup; reject uncaptured/foreign parameters
   and stronger invocation views without using signatures as scope or value evidence.
-- [ ] Extend mixed independently sourced result qualification to nested outcome/array carriers.
-  Preserve each original input/result family, homogeneous element constraints and exact instance:
-  active-value exclusion cannot erase positive domains or supply an unknown/foreign context.
+- [x] Qualify mixed independently sourced results through success-wrapped tuple arrays, including
+  an absent second row, scalar offsets, partial extraction and actual owned-error cleanup.
+  Preserve each input/result family, homogeneous per-leaf context and exact instance through
+  required/native execution without erasing positive domains or inventing a foreign context.
+- [x] Share metadata fixed-point dependencies within value/preparation batches using complete
+  frame/source/path/type keys. Qualify the combined constructed-environment source under the
+  unchanged default work quota, charge solved hits and discard interrupted drafts before retry.
 - [x] Qualify constructor-backed exclusion through tuple, positive tuple-array and nested
   success/optional results. Preserve each context at a shared lexical descriptor, array homogeneity,
   scalar offsets, explicit move/restoration, active component extraction/invocation, remaining-owner

@@ -595,6 +595,11 @@ the original source graph's operand selections and final local/expression writes
 action, using typed schemas and the shared source-value query under one metadata quota. Intermediate
 writes within one action do not become new phases. Unproduced contracts supply no payload. Failure
 identifies the original action and publishes no partial map; a fresh request can retry. The read-only
+One batch retains the source-value fixed point across its operand, definition and root queries;
+prepared-argument batches do the same. The immutable program/evidence and complete frame/source/
+path/type keys bound reuse, so equal signatures cannot merge distinct occurrences or environments.
+Every request charges work, including a solved hit. An interrupted solve discards its draft facts
+and pending work before retry; no partial map or executable permission escapes.
 `ValueData` retains actual instantiated payload contracts without adding owners or granting source
 access, materialization or executable-body permission. Target-program occurrence projection consumes
 this map directly. Evaluator preparation registers its local/expression definitions alongside the
@@ -1866,9 +1871,12 @@ and clean only the remaining container. Native error variants retain and dispose
 error environments while inactive alternatives create no owner. Mixed tuple results preserve two
 independent input families, including a recursive call with a constructed inactive first input and
 a positive captured second input. Both result leaves share one original invocation recipe; swapped
-actual environments remain distinct through extraction, invocation and disposal. Generic signature
-matching still cannot create a result context. Remaining compound result carriers and instance-specific received
-primary continuations retain separate qualification obligations.
+actual environments remain distinct through extraction, invocation and disposal. A success/failure
+carrier around a two-element tuple array retains those two families and homogeneous per-leaf
+contexts even when the second row is absent. Scalar offsets, partial extraction, original resource
+phases and remaining cleanup use the same source in required/native execution. Generic signature
+matching still cannot create a result context. Instance-specific received primary continuations
+retain separate qualification obligations.
 Declared compound-result contracts have declaration-owned result ordinals. A diverging body can
 retain that known signature without establishing any returned value, concrete environment or
 storage representation; publishing its header is not a consumer-realization proof.

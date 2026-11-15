@@ -10,6 +10,7 @@ use nocter_model::{
 };
 use std::{num::NonZeroU64, sync::Arc};
 
+mod batches;
 mod carrier_writes;
 mod creations;
 mod data;

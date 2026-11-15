@@ -60,6 +60,23 @@ const func forward_mixed(take first: (func(i32): i32)?, take second: (func(i32):
         task^()
     } else { (first^, second^) }
 }
+const func forward_mixed_outcome(take first: (func(i32): i32)?, take second: (func(i32): i32)?, nested: bool): [((func(i32): i32)?, (func(i32): i32)?, i32); 2]! {
+    if nested {
+        let task = (first^, second^;) {
+            let received = forward_mixed_outcome(none, second^, false)!
+            let retained = received[0].1^
+            drop received
+            var first_slot = first^
+            let first_action = first_slot^
+            first_slot = none
+            var second_slot = retained^
+            let second_action = second_slot^
+            second_slot = none
+            [(first_action^, second_action^, 20), (first_slot^, second_slot^, 22)]
+        }
+        task^()
+    } else { [(first^, second^, 20), (none, none, 22)] }
+}
 const func calculate(): i32 {
     let first = forward(wrap(identity), true)
     drop first
@@ -105,6 +122,20 @@ const func calculate(): i32 {
     drop first_mixed_right
     drop second_mixed_left
     drop second_mixed_right
+    let first_grid = forward_mixed_outcome(wrap(identity), wrap(addition(20)), true)!
+    let second_grid = forward_mixed_outcome(wrap(addition(20)), wrap(identity), true)!
+    if first_grid[0].2 != 20 || first_grid[1].2 != 22 || second_grid[0].2 != 20 || second_grid[1].2 != 22 { return 0 }
+    let first_grid_left = first_grid[0].0^!
+    let first_grid_right = first_grid[0].1^!
+    let second_grid_left = second_grid[0].0^!
+    let second_grid_right = second_grid[0].1^!
+    drop first_grid
+    drop second_grid
+    if first_grid_left(2) != 2 || first_grid_right(2) != 22 || second_grid_left(2) != 22 || second_grid_right(2) != 2 { return 0 }
+    drop first_grid_left
+    drop first_grid_right
+    drop second_grid_left
+    drop second_grid_right
     42
 }
 const ANSWER: i32 = calculate()

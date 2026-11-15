@@ -85,12 +85,14 @@ pub(in crate::value_access) fn values(
         definitions: BTreeMap::new(),
         roots: BTreeMap::new(),
     };
+    let mut resolution = super::instantiation::Query::new(program, evidence, work);
     for ((at, expression), source) in sources.operands() {
         if !body.initialization().reachable(at.point) {
             continue;
         }
         if let Some(data) = expression_data(body, expression)?
-            && let Some(payload) = payload(program, evidence, frame, at, source, data, work)?
+            && let Some(payload) =
+                payload(program, evidence, frame, at, source, data, &mut resolution)?
         {
             values.operands.insert((at, expression), payload);
         }
@@ -107,12 +109,13 @@ pub(in crate::value_access) fn values(
         }
         let data = slot.data(body.typed()).map_err(|_| INVALID)?;
         if let Some(data) = data
-            && let Some(payload) = payload(program, evidence, frame, at, source, data, work)?
+            && let Some(payload) =
+                payload(program, evidence, frame, at, source, data, &mut resolution)?
         {
             values.definitions.insert((at, slot), payload);
         }
     }
-    for ((at, referent), _) in sources.roots() {
+    for ((at, referent), source) in sources.roots() {
         if !body.initialization().reachable(at.point) {
             continue;
         }
@@ -120,11 +123,11 @@ pub(in crate::value_access) fn values(
         if evidence.unproduced(program, data) {
             continue;
         }
-        let key = root(program, evidence, body, frame, at, referent, work)
+        let key = root_data(program, body, frame, source, referent, &mut resolution)
             .map_err(|failure| Failure::Value { at, failure })?;
         let after = sources
             .root_after(at, referent)
-            .map(|_| root_after(program, evidence, body, frame, at, referent, work))
+            .map(|source| root_data(program, body, frame, source, referent, &mut resolution))
             .transpose()
             .map_err(|failure| Failure::Value { at, failure })?;
         values
@@ -156,7 +159,14 @@ pub(in crate::value_access) fn root(
     let source = root_flow(evidence, body, frame)?
         .root(at, referent)
         .ok_or(InstantiationFailure::Unresolved)?;
-    root_data(program, evidence, body, frame, source, referent, work)
+    root_data(
+        program,
+        body,
+        frame,
+        source,
+        referent,
+        &mut super::instantiation::Query::new(program, evidence, work),
+    )
 }
 pub(in crate::value_access) fn root_after(
     program: &Program,
@@ -170,7 +180,14 @@ pub(in crate::value_access) fn root_after(
     let source = root_flow(evidence, body, frame)?
         .root_after(at, referent)
         .ok_or(InstantiationFailure::Unresolved)?;
-    root_data(program, evidence, body, frame, source, referent, work)
+    root_data(
+        program,
+        body,
+        frame,
+        source,
+        referent,
+        &mut super::instantiation::Query::new(program, evidence, work),
+    )
 }
 pub(super) fn root_flow<'a>(
     evidence: &'a Evidence,
@@ -187,18 +204,17 @@ pub(super) fn root_flow<'a>(
 }
 fn root_data(
     program: &Program,
-    evidence: &Evidence,
     body: &flow::Query,
     frame: &CodeInstanceKey,
     source: ValueSourceId,
     referent: Referent,
-    work: &mut WorkBudget,
+    resolution: &mut super::instantiation::Query<'_, '_>,
 ) -> Result<DataInstanceKey, InstantiationFailure> {
     let data = root_type(body, referent).ok_or(InstantiationFailure::Unresolved)?;
     if let Ok(key) = program.instantiate_closed_data(data) {
         return Ok(key);
     }
-    super::instantiate_value_data(program, evidence, frame, source, data, work)
+    resolution.data(frame, source, data)
 }
 fn expression_data(
     body: &flow::Query,
@@ -221,13 +237,14 @@ fn payload(
     at: flow::Location,
     source: ValueSourceId,
     data: TypeId,
-    work: &mut WorkBudget,
+    resolution: &mut super::instantiation::Query<'_, '_>,
 ) -> Result<Option<Payload>, Failure> {
     if evidence.unproduced(program, data) {
         return Ok(None);
     }
     let contract = flow::resources::payload(program, data).map_err(|_| INVALID)?;
-    let key = super::instantiate_value_data(program, evidence, frame, source, data, work)
+    let key = resolution
+        .data(frame, source, data)
         .map_err(|failure| Failure::Value { at, failure })?;
     Ok(Some(
         contract.instantiate(program, &key).map_err(|_| INVALID)?,

@@ -183,7 +183,7 @@ fn constructed_absence_keeps_each_original_positive_environment_instance() {
             .replace("const ANSWER: i32 = calculate()", "")
             .replace("const func", "func"),
     );
-    let variants: [(&str, &[ValueField]); 5] = [
+    let variants: [(&str, &[ValueField]); 6] = [
         ("forward", &[]),
         ("forward_pair", &[ValueField::Tuple(0)]),
         (
@@ -192,6 +192,14 @@ fn constructed_absence_keeps_each_original_positive_environment_instance() {
         ),
         ("forward_outcome", &[ValueField::Variant(true)]),
         ("forward_mixed", &[ValueField::Tuple(0)]),
+        (
+            "forward_mixed_outcome",
+            &[
+                ValueField::Variant(true),
+                ValueField::Array(0),
+                ValueField::Tuple(0),
+            ],
+        ),
     ];
     for (owner, fields) in variants {
         let contexts = inactive_contexts(&unit, owner, fields);
@@ -287,7 +295,7 @@ fn inactive_contexts(
             owner: environment.code(),
             call,
         };
-        assert_input_recipe(unit, site, &outer, &inner, &result);
+        assert_input_recipe(unit, site, &outer, &inner, &result, fields);
         assert_resources(unit, &environment, body);
         contexts.push(result);
     }
@@ -300,6 +308,7 @@ fn assert_input_recipe(
     outer: &nocter_declarations::value_access::CodeInstanceKey,
     inner: &nocter_declarations::value_access::CodeInstanceKey,
     result: &nocter_declarations::value_access::DataInstanceKey,
+    inactive_path: &[nocter_model::ValueField],
 ) {
     use crate::value_access::{ProducerRelation, ProducerTerm};
     use nocter_declarations::value_access::FunctionWitness;
@@ -328,8 +337,16 @@ fn assert_input_recipe(
     );
     if let Some(second) = inner.input_data(1) {
         assert_eq!(outer.input_data(1), Some(second));
+        let (inactive, parent) = inactive_path.split_last().unwrap();
+        assert_eq!(*inactive, ValueField::Tuple(0));
+        let parent = parent
+            .iter()
+            .try_fold(result.clone(), |data, field| {
+                data.component(program, *field)
+            })
+            .unwrap();
         assert!(
-            result
+            parent
                 .component(program, ValueField::Tuple(1))
                 .unwrap()
                 .has_same_representation(program, second)

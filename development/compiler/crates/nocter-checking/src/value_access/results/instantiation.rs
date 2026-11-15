@@ -57,7 +57,7 @@ struct Entry {
     fact: Fact,
     dependents: BTreeSet<Key>,
 }
-struct Query<'a, 'work> {
+pub(super) struct Query<'a, 'work> {
     program: &'a Program,
     evidence: &'a Evidence,
     work: &'work mut WorkBudget,
@@ -115,22 +115,7 @@ pub(in crate::value_access) fn data(
     source: TypeId,
     work: &mut WorkBudget,
 ) -> Result<DataInstanceKey, InstantiationFailure> {
-    if evidence
-        .value_sources(caller.code())
-        .and_then(|graph| graph.node(value))
-        .is_none()
-    {
-        return Err(InstantiationFailure::Unresolved);
-    }
-    match Query::new(program, evidence, work).solve(&Key::Data(
-        caller.clone(),
-        value,
-        ValuePath::default(),
-        source,
-    ))? {
-        Fact::Data(data) => Ok(data),
-        _ => Err(InstantiationFailure::Unresolved),
-    }
+    Query::new(program, evidence, work).data(caller, value, source)
 }
 
 pub(in crate::value_access) fn completed_input(
@@ -187,7 +172,11 @@ pub(in crate::value_access) fn result(
 }
 
 impl<'a, 'work> Query<'a, 'work> {
-    fn new(program: &'a Program, evidence: &'a Evidence, work: &'work mut WorkBudget) -> Self {
+    pub(super) fn new(
+        program: &'a Program,
+        evidence: &'a Evidence,
+        work: &'work mut WorkBudget,
+    ) -> Self {
         Self {
             program,
             evidence,
@@ -196,7 +185,40 @@ impl<'a, 'work> Query<'a, 'work> {
             pending: BTreeSet::new(),
         }
     }
-    fn solve(mut self, root: &Key) -> Result<Fact, InstantiationFailure> {
+    pub(super) fn data(
+        &mut self,
+        caller: &CodeInstanceKey,
+        value: super::ValueSourceId,
+        source: TypeId,
+    ) -> Result<DataInstanceKey, InstantiationFailure> {
+        if self
+            .evidence
+            .value_sources(caller.code())
+            .and_then(|graph| graph.node(value))
+            .is_none()
+        {
+            return Err(InstantiationFailure::Unresolved);
+        }
+        match self.solve(&Key::Data(
+            caller.clone(),
+            value,
+            ValuePath::default(),
+            source,
+        ))? {
+            Fact::Data(data) => Ok(data),
+            _ => Err(InstantiationFailure::Unresolved),
+        }
+    }
+    fn solve(&mut self, root: &Key) -> Result<Fact, InstantiationFailure> {
+        let result = self.settle(root);
+        if result.is_err() {
+            self.entries.clear();
+            self.pending.clear();
+        }
+        result
+    }
+    fn settle(&mut self, root: &Key) -> Result<Fact, InstantiationFailure> {
+        self.step()?;
         self.ensure(root.clone())?;
         while let Some(key) = self.pending.pop_first() {
             self.step()?;
@@ -212,8 +234,8 @@ impl<'a, 'work> Query<'a, 'work> {
             }
         }
         self.entries
-            .remove(root)
-            .map(|entry| entry.fact)
+            .get(root)
+            .map(|entry| entry.fact.clone())
             .ok_or(InstantiationFailure::Unresolved)
     }
 
