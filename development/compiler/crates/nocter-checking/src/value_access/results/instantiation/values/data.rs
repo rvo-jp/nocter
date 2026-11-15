@@ -25,20 +25,14 @@ impl Query<'_, '_> {
         {
             return Ok(Fact::Empty);
         }
+        if let ValueSource::Transport { source } = node.value {
+            return self.transported_data(owner, frame, value, source, path, target);
+        }
         let Some(schema) = self.program.data_schema(target) else {
             return Ok(Fact::Unavailable);
         };
         if matches!(schema, PayloadSchema::Function(_)) {
-            return Ok(
-                match self.read(owner, Key::Value(frame.clone(), value, path.clone()))? {
-                    Fact::Witness(actual) => self
-                        .program
-                        .instantiate_function(target, &actual)
-                        .map_or(Fact::Unavailable, Fact::Data),
-                    Fact::Empty => Fact::Empty,
-                    _ => Fact::Unavailable,
-                },
-            );
+            return self.source_function_data(owner, frame, value, path, target);
         }
         if let ValueSource::Merge { ref inputs, .. } | ValueSource::Alternatives(ref inputs) =
             node.value
@@ -115,6 +109,25 @@ impl Query<'_, '_> {
                 self.source_data_transport(owner, frame, value, &value_kind, path, target)
             }
         }
+    }
+    fn source_function_data(
+        &mut self,
+        owner: &Key,
+        frame: &CodeInstanceKey,
+        value: ValueSourceId,
+        path: &ValuePath<()>,
+        target: TypeId,
+    ) -> Result {
+        Ok(
+            match self.read(owner, Key::Value(frame.clone(), value, path.clone()))? {
+                Fact::Witness(actual) => self
+                    .program
+                    .instantiate_function(target, &actual)
+                    .map_or(Fact::Unavailable, Fact::Data),
+                Fact::Empty => Fact::Empty,
+                _ => Fact::Unavailable,
+            },
+        )
     }
     fn source_aggregate(
         &mut self,

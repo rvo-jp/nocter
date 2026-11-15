@@ -464,7 +464,30 @@ impl Builder<'_, '_> {
                     destination: plan::Place::root(self.holder(*destination)?),
                 }
             }
-            Step::Transport { .. } => return Err(INVALID),
+            Step::Transport {
+                source,
+                destination,
+                from,
+                payload,
+            } => {
+                if !self
+                    .query
+                    .typed()
+                    .result_evidence
+                    .as_ref()
+                    .is_some_and(|evidence| {
+                        evidence
+                            .transport_domains(self.program, from.data(), payload.data())
+                            .is_some()
+                    })
+                {
+                    return Err(INVALID);
+                }
+                plan::Effect::Transport {
+                    source: self.resource(source)?,
+                    destination: plan::Place::root(self.holder(*destination)?),
+                }
+            }
             Step::Capture {
                 source,
                 destination,

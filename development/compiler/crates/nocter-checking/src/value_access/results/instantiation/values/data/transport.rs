@@ -6,6 +6,46 @@ use super::{
 };
 
 impl Query<'_, '_> {
+    pub(super) fn transported_data(
+        &mut self,
+        owner: &Key,
+        frame: &CodeInstanceKey,
+        value: ValueSourceId,
+        source: ValueSourceId,
+        path: &ValuePath<()>,
+        target: TypeId,
+    ) -> Result {
+        let root = ValuePath::default();
+        let Some(actual) = self
+            .source_node(frame, source, &root)
+            .and_then(|node| node.data)
+        else {
+            return Ok(Fact::Unavailable);
+        };
+        let Some(destination) = self
+            .source_node(frame, value, &root)
+            .and_then(|node| node.data)
+        else {
+            return Ok(Fact::Unavailable);
+        };
+        let from = match self.read(owner, Key::Data(frame.clone(), source, root, actual))? {
+            Fact::Data(key) => key,
+            other => return Ok(other),
+        };
+        let Some((_, destination)) =
+            self.evidence
+                .transport_domains(self.program, actual, destination)
+        else {
+            return Ok(Fact::Unavailable);
+        };
+        if !from.permits_guarded_transport(self.program, &destination) {
+            return Ok(Fact::Unavailable);
+        }
+        Ok(destination
+            .project_path(self.program, &super::super::concrete_path(path))
+            .and_then(|key| key.reproject(self.program, target))
+            .map_or(Fact::Unavailable, Fact::Data))
+    }
     pub(in super::super::super) fn source_completed_input(
         &mut self,
         owner: &Key,

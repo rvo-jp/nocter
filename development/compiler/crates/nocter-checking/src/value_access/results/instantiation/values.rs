@@ -225,7 +225,7 @@ impl Query<'_, '_> {
                 owner,
                 Key::Value(frame.clone(), source, prefix.concat(path)),
             )?,
-            ValueSource::Adapt { source } => {
+            ValueSource::Adapt { source } | ValueSource::Transport { source } => {
                 self.read(owner, Key::Value(frame.clone(), source, path.clone()))?
             }
             ValueSource::Aggregate(fields) => {

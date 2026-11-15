@@ -83,6 +83,10 @@ pub enum ValueSource {
     Adapt {
         source: ValueSourceId,
     },
+    /// A new represented destination; its supplied value retains its own original schema.
+    Transport {
+        source: ValueSourceId,
+    },
     Index {
         source: ValueSourceId,
         index: ValueSourceId,

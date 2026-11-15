@@ -135,8 +135,8 @@ work charged independently of array cardinality. Logical values store only origi
 payloads, so transport shares their immutable graphs through the same retirement/receipt kernel as
 ordinary movement; it cannot inspect excluded fields or justify a physical byte copy. Tests cover
 absence, owned alternate graphs, adjacent captured environments, shared maximum-count arrays,
-double retirement and work/storage failure recovery. This does not realize checking's source
-projection or [native guarded transport](../../../design/compiler-realization.md#guarded-representation-transport).
+double retirement and work/storage failure recovery. Checking and Machine retain the separate
+qualification of source projection and [native guarded transport](../../../design/compiler-realization.md#guarded-representation-transport).
 
 `Type::Variant` retains the primary payload identity and an optional alternate payload identity.
 An absent alternate payload differs from an alternate `Type::Unavailable`: no value validates

@@ -223,9 +223,9 @@ the original resource obligation once. Excluded alternatives supply no function 
 cleanup. Different payload offsets and containing sizes must use their own selected contracts;
 an equal signature or sufficient destination capacity cannot justify copying the source geometry.
 
-Qualify absence-only forwarding into an inhabited callable result with distinct payload widths,
-actual fallible error-graph movement, nested products/outcomes, calls, cleanup and failed requests
-before widening ordinary source admission. Runtime reinterpretation and metadata relabelling must
+Extend independently closed transport to occurrence-bound destination domains while preserving
+distinct payload widths, actual fallible error graphs, nested products/outcomes, calls, cleanup
+and failed requests before broader source admission. Runtime reinterpretation and metadata relabelling must
 not substitute for the required transfer. The declaration authority owns the shared structural
 comparison; consumers retain their existing ownership, presence, plan and physical-layout proofs.
 

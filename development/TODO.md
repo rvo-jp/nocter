@@ -24,6 +24,11 @@ The [checking](compiler/crates/nocter-checking/README.md) and
 [target-program](compiler/crates/nocter-target-program/README.md) owners describe the implemented
 canonical metadata, original source-definition queries and ordered lifecycle specialization.
 
+Extend guarded transport to occurrence-bound destination domains using original supplied/receiving
+expressions and the callee's own result descriptor. Preserve shared value graphs, single-owner
+transitions, evaluator effects and separate physical layouts; broader context-dependent destinations
+retain a source-local diagnostic until occurrence selection closes.
+
 Continue producer-less outcome qualification with representation widening and application-specific
 empty received contexts, preserving original tag evaluation, required traps and
 exact result-leaf, call and code contexts through each consumer. Continue context-changing updates through edit input boundaries,
@@ -144,46 +149,46 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   existing anonymous-carrier relations and reject missing/foreign/swapped concrete contexts.
 - [x] Qualify uniquely witnessed callable-result components through optional/fallible carriers, preserving absent
   and unproduced alternatives independently of actual returned functions and their cleanup.
-- [ ] Represent optional/fallible callable-result schemas with no positive callable producer,
-  including bodies whose reachable returns are all absent or failed. A valid inactive outcome
-  must not require an invented function code; distinguish this from uncommitted applications,
-  unresolved recursion and missing context for a genuinely produced callable value.
 - [x] Qualify closed absence-only and failure-only result domains through ordinary source,
   exact declaration/application identities, forwarding, nested optional construction, required
   evaluation, original resource phases and native execution with actual error-graph cleanup.
-- [ ] Qualify forwarding an excluded callable alternative into an outcome whose other return
-  produces a callable. Reconcile guarded representation widening through original resource,
-  evaluator, ABI and storage channels; equal signatures or byte geometry alone cannot transport
-  the smaller absence-only representation into a larger represented carrier.
+- [x] Qualify forwarding an excluded callable alternative into an independently closed inhabited
+  outcome through original resource, evaluator, ABI and storage channels; matching signatures or
+  equal geometry cannot substitute for represented-value transport.
 - [x] Define directed guarded representation compatibility alongside exact representation
   equality in the declaration authority. Reject empty roots, narrowing and changed positive
   callable contexts; preserve nominal identities and cardinality-independent array traversal.
-- [ ] Realize guarded representation transport through original source/destination contracts,
-  const plans and MIR/native effects before accepting `widened-outcome-results.nct`. Retain both
+- [x] Realize independently closed guarded transport through original source/destination contracts,
+  const plans and MIR/native effects for `widened-outcome-results.nct`. Retain both
   representations: widening is not reinterpretation or byte-copy compatibility. Move only active
   payloads under original tags and retire the source obligation once, including actual error graphs.
 - [x] Qualify directed symbolic outcome-contract matching and a single-owner reclassification
   record with separate source/destination payload roles, atomic failures and original identity
-  checks. Reuse the ownership transition for function adapters; keep unimplemented value transport
-  closed in metadata specialization, evaluator projection and MIR lowering.
+  checks. Reuse the ownership transition for function adapters and retain fail-closed admission
+  for unqualified destination contexts.
 - [x] Qualify exact descriptor reprojection from supplied component instances, preserving distinct
   captured environments beside excluded outcome alternatives through forwarding, partial extraction,
   required/native execution and remaining-container cleanup. Keep representation widening separate.
-- [x] Replace the generic typed-body integrity failure on unqualified outcome widening with an
-  appropriate source-local cause at the original taking/forwarding/return boundary. Qualify
-  optional, nested tuple and failed-result cases while preserving direct destination construction.
+- [x] Give unqualified occurrence-dependent widening an original source-local cause before
+  ownership rather than a generic typed-body integrity failure. Keep direct construction supported.
 - [x] Distinguish a proven empty representation domain from unavailable evaluator metadata in the
   evaluator's own type vocabulary before guarded transport can use it as a conversion proof.
   Qualify inactive alternatives separately from actual values, slots and input/cleanup obligations.
 - [x] Realize guarded represented-value transport in closed evaluator plans with explicit source
   and destination shapes, exact positive callable contexts, inactive-alternative checks, once-only
-  retirement and failure/budget recovery. This alone does not admit source conversions or native ABI.
+  retirement and failure/budget recovery, independently of source and native admission proofs.
 - [x] Define directed guarded transport over runtime representation metadata without weakening exact
   transfer equality, preserving positive runtime identities and bounded shared/MAX-array traversal.
   This relation grants no executable conversion, source code/context proof, layout or ownership.
-- [ ] Qualify directed physical outcome transport in runtime representation metadata and MIR/Machine
+- [x] Qualify directed physical outcome transport in runtime representation metadata and MIR/Machine
   effects, preserving separate layouts, original tags and active payload offsets. Keep exact transfer
-  equality and checking's positive code/environment proof separate; do not admit source conversions yet.
+  equality and checking's positive code/environment proof separate; reject overlapping payload slots.
+- [ ] Qualify guarded widening into occurrence-bound destination domains selected from actual
+  positive producers and matched consumers. Do not recover captured environments from an ambient
+  frame, invent code from exclusion or replace the callee's original supplied schema with its target.
+- [ ] Amortize physical-transport metadata comparison across shared source/destination pairs.
+  Helper discovery and emission currently re-walk child subgraphs; preserve one runtime comparison
+  authority, exact identities, unknown/cycle behavior and bounded array traversal when sharing results.
 - [ ] Qualify application-specific empty callable domains supplied through received optional
   inputs. A globally nonempty formal result equation is not a proof that every application
   supplies a callable; preserve the exact committed input context rather than closing its raw type.
@@ -191,10 +196,10 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   concrete callable witnesses and actual owner availability. Normalize required product children,
   retain inactive outcome alternatives and reject an uninhabited environment/input as a received value.
   Qualify metadata classification and fail-closed owned-value/storage boundaries.
-- [ ] Transport inhabited outcomes with uninhabited alternatives through guarded lifecycle,
+- [x] Transport independently closed outcomes with uninhabited alternatives through guarded lifecycle,
   evaluator, target storage, ABI and native execution. An empty root has no stored payload;
   retaining an inactive alternative's descriptor must not create code, cleanup or field geometry.
-  Qualify original tag guards and rejected positive uses before opening producer-less source results.
+  Preserve original tag guards, rejected positive uses and the explicit source-retirement decision.
 - [ ] Qualify recovery, propagation and assertions when the primary callable domain is empty.
   Preserve evaluation of the original carrier/tag, required traps and alternate cleanup while
   excluding impossible positive continuations; a guarded empty descriptor is not a callable value.

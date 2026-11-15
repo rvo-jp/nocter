@@ -202,15 +202,73 @@ impl Evidence {
         self.empty_domain(program, primary)
     }
     pub(in crate::value_access) fn empty_domain(&self, program: &Program, data: TypeId) -> bool {
-        program
-            .instantiate_callable_domains(data, |_, witness| {
-                if self.uninhabited_origin(witness.origin) {
-                    Ok(None)
-                } else {
-                    program.concrete_witness(witness).map(Some)
-                }
-            })
+        self.closed_domain(program, data)
             .is_ok_and(|key| key.is_uninhabited())
+    }
+    pub(in crate::value_access) fn closed_domain(
+        &self,
+        program: &Program,
+        data: TypeId,
+    ) -> Result<
+        nocter_declarations::value_access::DataInstanceKey,
+        nocter_declarations::value_access::CodeBindingError,
+    > {
+        program.instantiate_callable_domains(data, |_, witness| {
+            if self.uninhabited_origin(witness.origin) {
+                Ok(None)
+            } else {
+                program.concrete_witness(witness).map(Some)
+            }
+        })
+    }
+    pub(in crate::value_access) fn requires_transport(
+        &self,
+        program: &Program,
+        actual: TypeId,
+        target: TypeId,
+    ) -> bool {
+        !self.matches_payload_metadata(program, actual, target)
+            && program.matches_guarded_transport_metadata(actual, target, |witness| {
+                self.uninhabited_origin(witness.origin)
+            })
+    }
+    pub(in crate::value_access) fn transports_expression(
+        &self,
+        query: &Query,
+        source: AccessExpressionId,
+        destination: AccessExpressionId,
+    ) -> bool {
+        let data = |id| {
+            query
+                .body()
+                .expressions()
+                .get(id)
+                .and_then(|expression| expression.ty.access())
+        };
+        data(source)
+            .zip(data(destination))
+            .is_some_and(|(source, target)| {
+                self.transport_domains(query.program(), source.data(), target.data())
+                    .is_some()
+            })
+    }
+    pub(in crate::value_access) fn transport_domains(
+        &self,
+        program: &Program,
+        actual: TypeId,
+        target: TypeId,
+    ) -> Option<(
+        nocter_declarations::value_access::DataInstanceKey,
+        nocter_declarations::value_access::DataInstanceKey,
+    )> {
+        if !self.requires_transport(program, actual, target) {
+            return None;
+        }
+        let source = self.closed_domain(program, actual).ok()?;
+        let destination = self.closed_domain(program, target).ok()?;
+        source
+            .permits_guarded_transport(program, &destination)
+            .then_some((source, destination))
     }
     pub(in crate::value_access) fn matches_payload_metadata(
         &self,

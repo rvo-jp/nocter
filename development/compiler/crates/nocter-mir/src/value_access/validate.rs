@@ -229,6 +229,24 @@ impl Context<'_> {
             Some(RuntimeType::Optional(_) | RuntimeType::Fallible(_))
         ))
     }
+    fn transport(&self, source: &Place, destination: &Place) -> Result<(), Failure> {
+        self.place(source)?;
+        self.place(destination)?;
+        self.require(source.slot != destination.slot && destination.projections.is_empty())?;
+        for slot in [source.slot, destination.slot] {
+            self.require(
+                self.body
+                    .slots
+                    .get(slot)
+                    .is_some_and(|slot| slot.storage == Storage::Payload),
+            )?;
+        }
+        self.require(
+            self.program
+                .runtime
+                .permits_guarded_value_transport(source.data, destination.data),
+        )
+    }
     fn effect(&self, effect: &Effect) -> Result<(), Failure> {
         match effect {
             Effect::VariantTag {
@@ -299,6 +317,10 @@ impl Context<'_> {
                 let destination = self.program.runtime.types().get(destination.data);
                 self.require(matches!((source, destination), (Some(RuntimeType::StaticCallable { environment: left }), Some(RuntimeType::StaticCallable { environment: right })) if left == right))
             }
+            Effect::Transport {
+                source,
+                destination,
+            } => self.transport(source, destination),
             Effect::BindAddress {
                 destination,
                 source,

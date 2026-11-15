@@ -3,6 +3,7 @@ use nocter_runtime_contract::RuntimeDataId;
 mod body;
 mod data;
 mod primitives;
+mod transport;
 use super::ExecutableFailure as Failure;
 use crate::identity::{MachineId, MachineTable};
 use crate::{
@@ -21,6 +22,7 @@ struct Context<'a> {
     functions: BTreeMap<AccessInstanceId, MachineFunctionId>,
     abis: BTreeMap<AccessInstanceId, MachineCallableAbi>,
     cleanup: BTreeMap<RuntimeDataId, MachineFunctionId>,
+    transports: BTreeMap<transport::Pair, transport::Helper>,
     primitives: BTreeMap<nocter_runtime_contract::PrimitiveRole, crate::MachinePrimitiveTarget>,
 }
 
@@ -99,13 +101,16 @@ pub(super) fn program(program: &mir::Program) -> Result<MachineProgram, Failure>
         .collect::<Result<_, Failure>>()?;
     let data = data::Data::build(program, &layouts)?;
     let (primitives, runtime_call_abis) = primitives::prepare(program, &layouts)?;
+    let cleanup = cleanup_plan(program)?;
+    let transports = transport::prepare(program, &layouts, program.bodies().len() + cleanup.len())?;
     let context = Context {
         data: &data,
         program,
         layouts: &layouts,
         functions,
         abis,
-        cleanup: cleanup_plan(program)?,
+        cleanup,
+        transports,
         primitives,
     };
     let mut values = Vec::new();
@@ -114,6 +119,9 @@ pub(super) fn program(program: &mir::Program) -> Result<MachineProgram, Failure>
     }
     for (&data, &id) in &context.cleanup {
         values.push(body::cleanup(&context, data, id)?);
+    }
+    for (&pair, helper) in &context.transports {
+        values.push(body::transport(&context, pair, helper)?);
     }
     let entry = *context
         .functions
@@ -142,6 +150,21 @@ pub(super) fn program(program: &mir::Program) -> Result<MachineProgram, Failure>
     }))
 }
 
+fn effects(action: &mir::Action) -> impl Iterator<Item = &mir::Effect> {
+    action
+        .alternatives
+        .iter()
+        .flat_map(|alternative| alternative.before.iter().chain(&alternative.after))
+        .chain(&action.call_bindings)
+        .chain(action.operations.iter().filter_map(|operation| {
+            if let mir::Operation::Storage(effect) = operation {
+                Some(effect)
+            } else {
+                None
+            }
+        }))
+}
+
 fn cleanup_plan(
     program: &mir::Program,
 ) -> Result<BTreeMap<RuntimeDataId, MachineFunctionId>, Failure> {
@@ -151,18 +174,7 @@ fn cleanup_plan(
         .values()
         .flat_map(|body| body.actions().values())
     {
-        let phases = action
-            .alternatives
-            .iter()
-            .flat_map(|alternative| alternative.before.iter().chain(&alternative.after));
-        let operations = action
-            .operations
-            .iter()
-            .filter_map(|operation| match operation {
-                mir::Operation::Storage(effect) => Some(effect),
-                _ => None,
-            });
-        for effect in phases.chain(&action.call_bindings).chain(operations) {
+        for effect in effects(action) {
             match effect {
                 mir::Effect::Dispose { source, disposal }
                     if *disposal != mir::Disposal::Trivial =>
@@ -185,6 +197,7 @@ fn cleanup_plan(
                 | mir::Effect::VariantTag { .. }
                 | mir::Effect::Initialize(_)
                 | mir::Effect::Transfer { .. }
+                | mir::Effect::Transport { .. }
                 | mir::Effect::Reinterpret { .. }
                 | mir::Effect::ConsolidateArrayPrefix { .. }
                 | mir::Effect::End(_)

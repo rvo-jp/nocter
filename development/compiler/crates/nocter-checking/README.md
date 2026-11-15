@@ -612,6 +612,12 @@ action. Aggregate fields and one repetition seed retain shared references indepe
 cardinality. Numeric selectors in alias/update paths are erased, and array replacements remain weak;
 these paths prove neither equal indices, bounds nor saved-address identity.
 
+`ValueSource::Transport` retains a distinct receiving node and its original supplied source.
+Representation realization first closes that source against its own schema, then selects the
+independently closed destination domain through `Evidence::transport_domains`. Callable-value
+queries continue through the supplied source; an excluded alternative contributes no positive
+function witness. The destination constraint never replaces the original callee's result schema.
+
 Scalar operations are opaque to this metadata graph. A call's selected edit input records a possible
 post-call write, distinguishing existing storage from an owned temporary; it does not assert an
 unchanged context or infer the callee's effects. Nodes retain canonical projected schemas and are scoped to
@@ -940,9 +946,11 @@ two actual values; constant cleanup requirements consume the retired obligation.
 `Step::Transport` retains separate source and destination contracts for represented-value
 transport. The shared reclassification kernel consumes one existing owner, checks the recorded
 identities and contracts, then publishes its destination and step atomically. Function invocation
-adapters reuse that same ownership transition. Symbolic contract matching does not realize a
-conversion: ordinary source emission, concrete destination selection, evaluator projection and
-MIR/native transport remain unqualified and fail closed at their current boundaries.
+adapters reuse that same ownership transition. Independently closed taking conversions use this
+record through original value definitions, ordered resource-data projection, evaluator effects and
+MIR/native lowering. Destination selection validates the actual supplied instance against that
+closed domain; it does not reconstruct captured contexts from an ambient frame. Occurrence-bound
+destinations remain outside this qualification and reject before ownership consumes the graph.
 Array transfers identify the original retained element, not the
 whole array. The type-only convenience transform delegates to this same exhaustive operation
 mapping. A site grants no availability or bounds proof and does not choose an operation phase.
@@ -1816,15 +1824,19 @@ cannot establish an empty domain. An uncommitted application remains distinct fr
 carrier whose callable alternative is excluded. The evaluator shares one explicit `Uninhabited`
 shape, distinct from unresolved `Unavailable` descriptors. The matching error fixture qualifies
 failure-only results, exact forwarding and disposal of actual owned error graphs.
-This does not qualify extracting an excluded callable, widening an absence-only carrier into a
-carrier with a produced callable, or application-specific emptiness through received inputs.
-After outcome refinement, `results::admission` checks reachable original taking, forwarding and
-return boundaries before ownership and source-value projection. A taking boundary retains its
-supplied expression separately from the receiving expression's constraint. A proven
-excluded-to-represented outcome change reports `UnsupportedData` at that supplied expression
-until guarded transport is realized. It cannot pass as descriptor equality or fall through to an
-unexplained ownership integrity failure. Unknown metadata does not establish such a conversion;
-constructing `none` directly in the destination representation remains supported.
+Extracting an excluded callable and application-specific emptiness through received inputs remain
+separate obligations. After outcome refinement, `results::admission` checks reachable taking,
+forwarding and return boundaries. Taking conversions with independently closed source/destination
+domains emit an explicit transport; other known widening boundaries report `UnsupportedData` at
+the supplied expression. Unknown metadata establishes no conversion. Direct destination construction
+of `none` remains supported without moving an existing smaller representation.
+`widened-outcome-results.nct` qualifies absence-only forwarding into an inhabited callable result.
+`widened-outcome-carriers.nct` extends the same operation to tuple and array carriers, preserved
+component values, partial extraction and differing element strides. Required evaluation and native
+execution agree. `widened-outcome-results-errors.nct` qualifies native failure forwarding, actual
+owned error graphs, successful captured-owner cleanup and named recovery. Both representations and
+original tags survive the single-owner transition; matching signatures or equal geometry do not
+replace it. Context-dependent target environments still report their original source-local cause.
 `producerless-outcome-guards.nct` qualifies value/read/edit recovery and value propagation when
 the primary domain is empty. Checking refines only the impossible outgoing edge of the original
 tag condition; every source action, tag read and action identity remains intact. Original value

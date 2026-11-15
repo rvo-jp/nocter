@@ -98,6 +98,12 @@ pub enum Effect {
         source: Place,
         destination: Place,
     },
+    /// A distinct guarded wider representation, with separate source/destination payload layouts.
+    /// Logical ownership and positive code/context identity were checked before this boundary.
+    Transport {
+        source: Place,
+        destination: Place,
+    },
     Reinterpret {
         source: Place,
         destination: Place,

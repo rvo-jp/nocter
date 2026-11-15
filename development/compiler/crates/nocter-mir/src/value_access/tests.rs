@@ -27,6 +27,91 @@ fn operations(body: &Body) -> impl Iterator<Item = &Operation> {
 }
 
 #[test]
+fn guarded_transport_is_neither_exact_copy_narrowing_nor_overlapping_reinterpretation() {
+    let program = lower(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/widened-outcome-results.nct"
+    )));
+    validate::program(&program).unwrap();
+    let mut copied = program.clone();
+    let effect = transport_effect(transport_body(&mut copied));
+    let Effect::Transport {
+        source,
+        destination,
+    } = effect
+    else {
+        unreachable!()
+    };
+    *effect = Effect::Transfer {
+        source: source.clone(),
+        destination: destination.clone(),
+    };
+    assert!(validate::program(&copied).is_err());
+    let mut narrowed = program.clone();
+    let Effect::Transport {
+        source,
+        destination,
+    } = transport_effect(transport_body(&mut narrowed))
+    else {
+        unreachable!()
+    };
+    std::mem::swap(source, destination);
+    assert!(validate::program(&narrowed).is_err());
+    let mut overlapping = program;
+    let body = transport_body(&mut overlapping);
+    let Effect::Transport {
+        source,
+        destination,
+    } = transport_effect(body)
+    else {
+        unreachable!()
+    };
+    let source = source.clone();
+    let target = destination.root;
+    body.slots = body.slots.map(|id, slot| {
+        let mut slot = slot.clone();
+        if id == source.slot {
+            slot.representations = slot
+                .representations
+                .iter()
+                .copied()
+                .chain([target])
+                .collect::<std::collections::BTreeSet<_>>()
+                .into_iter()
+                .collect();
+        }
+        slot
+    });
+    let Effect::Transport { destination, .. } = transport_effect(body) else {
+        unreachable!()
+    };
+    destination.slot = source.slot;
+    assert!(validate::program(&overlapping).is_err());
+}
+
+fn transport_body(program: &mut Program) -> &mut Body {
+    program
+        .bodies
+        .values_mut()
+        .find(|body| {
+            body.actions
+                .values()
+                .flat_map(|action| &action.alternatives)
+                .flat_map(|alternative| alternative.before.iter().chain(&alternative.after))
+                .any(|effect| matches!(effect, Effect::Transport { .. }))
+        })
+        .unwrap()
+}
+fn transport_effect(body: &mut Body) -> &mut Effect {
+    body.actions
+        .values_mut()
+        .flat_map(|action| &mut action.alternatives)
+        .flat_map(|alternative| alternative.before.iter_mut().chain(&mut alternative.after))
+        .find(|effect| matches!(effect, Effect::Transport { .. }))
+        .unwrap()
+}
+
+#[test]
 fn excluded_outcome_alternatives_cannot_be_constructed_or_registered_as_stored_values() {
     let program = lower(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

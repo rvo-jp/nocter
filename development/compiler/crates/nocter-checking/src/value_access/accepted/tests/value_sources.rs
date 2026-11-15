@@ -74,6 +74,7 @@ fn edges(value: &ValueSource) -> Vec<ValueSourceId> {
         }
         ValueSource::Select { source, .. }
         | ValueSource::Adapt { source }
+        | ValueSource::Transport { source }
         | ValueSource::Index { source, .. }
         | ValueSource::CallWrite { source, .. } => vec![*source],
         ValueSource::Closure { environment, .. } => vec![*environment],

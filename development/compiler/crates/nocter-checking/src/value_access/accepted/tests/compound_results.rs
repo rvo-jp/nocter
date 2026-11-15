@@ -38,7 +38,7 @@ fn excluded_result_components_preserve_adjacent_contextual_callable_instances() 
 }
 
 #[test]
-fn unqualified_outcome_widening_remains_closed_until_value_transport_is_realized() {
+fn closed_outcome_widening_preserves_original_values_through_required_execution() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../tests/fixtures/native/value-access/widened-outcome-results.nct"
@@ -46,13 +46,48 @@ fn unqualified_outcome_widening_remains_closed_until_value_transport_is_realized
     let runtime = source
         .replace("const ANSWER: i32 = calculate()", "")
         .replace("const func", "func");
-    assert_transport_rejected(&runtime, "absent()");
+    let unit = accepted(&runtime);
+    assert_outcome_contracts(&unit);
+    assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
     let constructed = source.replace("else { absent() }", "else { none }");
     assert_eq!(answer(&constructed, "ANSWER"), Datum::integer(42));
 }
 
 #[test]
-fn unrealized_nested_and_fallible_transport_keeps_the_original_source_cause() {
+fn closed_carrier_widening_preserves_components_and_array_element_strides() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/widened-outcome-carriers.nct"
+    ));
+    let runtime = source
+        .replace("const ANSWER: i32 = calculate()", "")
+        .replace("const func", "func");
+    assert_outcome_contracts(&accepted(&runtime));
+    assert_eq!(answer(source, "ANSWER"), Datum::integer(42));
+}
+
+#[test]
+fn guarded_transport_preserves_explicit_retirement_before_an_invalid_source_reuse() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/widened-outcome-results.nct"
+    ));
+    let source = source
+        .replace("const ANSWER: i32 = calculate()", "")
+        .replace("const func", "func")
+        .replace(
+            "else { absent() }",
+            "else { let original = absent()\nlet value = original^\ndrop original\nvalue^ }",
+        );
+    let (sources, tree) = input(&source);
+    assert!(matches!(
+        SourceUnit::prepare(bound(&sources, &tree)),
+        Err(SourceFailure::Checking(Failure::Flow { .. }))
+    ));
+}
+
+#[test]
+fn closed_nested_and_fallible_transport_retains_original_contracts() {
     let common = "func owning(number: i32): func(i32): i32 { (number; amount: i32) { number + amount } }\nfunc absent(): (func(i32): i32)? { none }\n";
     for (body, site) in [
         (
@@ -68,8 +103,16 @@ fn unrealized_nested_and_fallible_transport_keeps_the_original_source_cause() {
             "failed(cause^)",
         ),
     ] {
-        assert_transport_rejected(&format!("{common}{body}"), site);
+        let source = format!("{common}{body}");
+        assert_outcome_contracts(&accepted(&source));
+        assert!(source.contains(site));
     }
+}
+
+#[test]
+fn context_dependent_transport_keeps_a_local_cause_until_occurrence_selection_is_qualified() {
+    let source = "func wrap(take action: func(i32): i32): func(i32): i32 { (action^; value: i32) { action(value) } }\nfunc absent(): (func(i32): i32)? { none }\nfunc choose(flag: bool, take action: func(i32): i32): (func(i32): i32)? { if flag { wrap(action^) } else { drop action\nabsent() } }";
+    assert_transport_rejected(source, "absent()");
 }
 
 fn assert_transport_rejected(runtime: &str, site: &str) {

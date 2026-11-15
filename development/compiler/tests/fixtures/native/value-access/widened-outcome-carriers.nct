@@ -1,0 +1,55 @@
+const func owning(number: i32): func(i32): i32 {
+    (number; amount: i32) { number + amount }
+}
+const func absent(): (func(i32): i32)? { none }
+const func empty_pair(): ((func(i32): i32)?, (func(i32): i32)?) { (absent(), absent()) }
+const func choose_pair(present: bool): ((func(i32): i32)?, (func(i32): i32)?) {
+    if present { (owning(40), owning(41)) } else { empty_pair() }
+}
+const func empty_array(): [(func(i32): i32)?; 2] { [absent(), absent()] }
+const func choose_array(present: bool): [(func(i32): i32)?; 2] {
+    if present { [owning(40), owning(41)] } else { empty_array() }
+}
+const func empty_mixed(): ((func(i32): i32)?, i32) { (absent(), 42) }
+const func choose_mixed(present: bool): ((func(i32): i32)?, i32) {
+    if present { (owning(40), 41) } else { empty_mixed() }
+}
+const func mixed_fields(): bool {
+    let first = choose_mixed(true)
+    let action = first.0^ otherwise { return false }
+    let second = choose_mixed(false)
+    let _ = second.0^ otherwise {
+        return first.1 == 41 && second.1 == 42 && action(2) == 42
+    }
+    false
+}
+const func missing_pair(): bool {
+    let pair = choose_pair(false)
+    let _ = pair.0^ otherwise {
+        let _ = pair.1^ otherwise { return true }
+        return false
+    }
+    false
+}
+const func missing_array(): bool {
+    let values = choose_array(false)
+    let _ = values[0]^ otherwise {
+        let _ = values[1]^ otherwise { return true }
+        return false
+    }
+    false
+}
+const func available(): bool {
+    let pair = choose_pair(true)
+    let first = pair.0^ otherwise { return false }
+    let second = pair.1^ otherwise { return false }
+    let values = choose_array(true)
+    let third = values[0]^ otherwise { return false }
+    let fourth = values[1]^ otherwise { return false }
+    first(2) == 42 && second(1) == 42 && third(2) == 42 && fourth(1) == 42
+}
+const func calculate(): i32 {
+    if available() && missing_pair() && missing_array() && mixed_fields() { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { calculate() }

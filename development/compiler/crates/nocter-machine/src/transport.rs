@@ -387,13 +387,22 @@ pub(crate) fn address_signature(
     data: RuntimeDataId,
     layouts: &MachineLayoutStore,
 ) -> Result<MachineCallableAbi, MachineAbiError> {
+    address_signatures(std::iter::once(data), layouts)
+}
+
+pub(crate) fn address_signatures(
+    data: impl IntoIterator<Item = RuntimeDataId>,
+    layouts: &MachineLayoutStore,
+) -> Result<MachineCallableAbi, MachineAbiError> {
     place_signature(
         layouts.target(),
-        std::iter::once(Ok(ArgumentShape {
-            ty: data,
-            class: MachineValueClass::Direct { words: 1 },
-            alignment: layouts.target().pointer_alignment(),
-        })),
+        data.into_iter().map(|data| {
+            Ok(ArgumentShape {
+                ty: data,
+                class: MachineValueClass::Direct { words: 1 },
+                alignment: layouts.target().pointer_alignment(),
+            })
+        }),
         MachineResultAbi::Completion,
         None,
     )

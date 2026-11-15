@@ -195,28 +195,7 @@ impl Context<'_, '_> {
                 resources::expression_payload(self.typed, id)?,
                 &mut self.steps,
             )?,
-            ExpressionKind::Aggregate { ref fields } => {
-                let fields = fields
-                    .iter()
-                    .map(|field| (field.field, Holder::Expression(field.value).place()))
-                    .collect::<Vec<_>>();
-                let typed = self.typed;
-                self.world.resources.assemble_with(
-                    self.typed.program(),
-                    Holder::Expression(id),
-                    resources::expression_payload(self.typed, id)?,
-                    &fields,
-                    &mut self.steps,
-                    |actual, expected| {
-                        typed
-                            .result_evidence
-                            .as_ref()
-                            .map_or(actual == expected, |evidence| {
-                                evidence.matches_payload_metadata(typed.program(), actual, expected)
-                            })
-                    },
-                )?;
-            }
+            ExpressionKind::Aggregate { ref fields } => self.aggregate_ownership(id, fields)?,
             ExpressionKind::Repeat { seed } => self.repeat_ownership(id, seed)?,
             ExpressionKind::Select {
                 source,
@@ -226,6 +205,17 @@ impl Context<'_, '_> {
                 self.select_ownership(id, source, fields, action)?;
             }
             ExpressionKind::Move(place) => self.move_ownership(id, place)?,
+            ExpressionKind::Boundary {
+                source,
+                action: BoundaryAction::TakeValue,
+            } if self
+                .typed
+                .result_evidence
+                .as_ref()
+                .is_some_and(|evidence| evidence.transports_expression(self.typed, source, id)) =>
+            {
+                self.transport_ownership(id, source)?;
+            }
             ExpressionKind::RequirePrimary { source }
             | ExpressionKind::Boundary {
                 source,
@@ -271,6 +261,55 @@ impl Context<'_, '_> {
             }
         }
 
+        Ok(())
+    }
+    fn transport_ownership(
+        &mut self,
+        id: AccessExpressionId,
+        source: AccessExpressionId,
+    ) -> Result<()> {
+        let typed = self.typed;
+        self.world.resources.transport(
+            typed.program(),
+            &Holder::Expression(source).place(),
+            Holder::Expression(id),
+            resources::expression_payload(typed, id)?,
+            &mut self.steps,
+            |from, to| {
+                typed.result_evidence.as_ref().is_some_and(|evidence| {
+                    evidence
+                        .transport_domains(typed.program(), from, to)
+                        .is_some()
+                })
+            },
+        )?;
+        Ok(())
+    }
+    fn aggregate_ownership(
+        &mut self,
+        id: AccessExpressionId,
+        fields: &[crate::value_access::ir::FieldValue],
+    ) -> Result<()> {
+        let fields = fields
+            .iter()
+            .map(|field| (field.field, Holder::Expression(field.value).place()))
+            .collect::<Vec<_>>();
+        let typed = self.typed;
+        self.world.resources.assemble_with(
+            self.typed.program(),
+            Holder::Expression(id),
+            resources::expression_payload(self.typed, id)?,
+            &fields,
+            &mut self.steps,
+            |actual, expected| {
+                typed
+                    .result_evidence
+                    .as_ref()
+                    .map_or(actual == expected, |evidence| {
+                        evidence.matches_payload_metadata(typed.program(), actual, expected)
+                    })
+            },
+        )?;
         Ok(())
     }
     fn move_ownership(&mut self, id: AccessExpressionId, place: Referent) -> Result<()> {

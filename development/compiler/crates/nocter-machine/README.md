@@ -174,7 +174,18 @@ an empty domain as a stored root rejects. Cleanup discovery skips an optional's 
 instead of requesting a helper for nonexistent data. The producer-less outcome fixtures qualify
 absence-only/nested optional returns and actual failure-only error-graph cleanup through the common
 native path. These cases retain the original tags and checked lifecycle; extracting an excluded
-callable or widening its carrier remains a separate qualification boundary.
+callable and occurrence-dependent widening remain separate qualification boundaries.
+
+Guarded `Transport` effects generate shared two-address helpers per source/destination type pair.
+Outcome helpers read the original tag, trap an excluded branch without creating its payload address,
+move the active payload between independently selected offsets and write the matching destination
+tag. Tuple helpers retain each field's offsets; array helpers use the common countdown traversal
+with separate source/destination strides. Exact positive payloads use ordinary copying, while widened
+carriers never use same-size reinterpretation. Fresh disjoint payload slots remain an upstream MIR
+requirement; this does not qualify relocation through surviving aliases. The widened-outcome fixtures
+qualify ordinary source, required values, differing-sized native helper parameters, observed tuple/
+array contents and actual error-graph movement/cleanup. Context-dependent destination selection is
+still owned by checking rather than recovered from physical layouts.
 
 The private consumer uses the common optional/fallible layouts, tag encoding and payload offsets. Stored tag
 access requests the runtime primitive's own layout, including helper-only primitive types. Frozen

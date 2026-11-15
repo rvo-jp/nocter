@@ -2,6 +2,71 @@
 use super::*;
 
 #[test]
+fn private_closed_outcome_widening_transports_original_tags_and_payloads() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/widened-outcome-results.nct"
+    ));
+    let package = TempPackage::new();
+    let machine = machine(source);
+    assert_differently_sized_transport_helper(&machine);
+    execute_native_status(&image(&machine), &package.0, "widened-outcome-results", 42);
+    let assertion = source.replace(
+        "func run(): i32 { calculate() }",
+        "func run(): i32 { let value = choose(false)\nlet action = value^!\naction(2) }",
+    );
+    assert_ne!(assertion, source);
+    execute_native_signal(
+        &compile(&assertion),
+        &package.0,
+        "widened-absence-assertion",
+        5,
+    );
+}
+
+#[test]
+fn private_closed_outcome_widening_preserves_carrier_fields_and_array_strides() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/widened-outcome-carriers.nct"
+    ));
+    let machine = machine(source);
+    assert_differently_sized_transport_helper(&machine);
+    let package = TempPackage::new();
+    execute_native_status(&image(&machine), &package.0, "widened-outcome-carriers", 42);
+}
+
+#[test]
+fn private_closed_outcome_widening_moves_actual_error_graphs_once() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/widened-outcome-results-errors.nct"
+    ));
+    let machine = trusted_error_machine(source);
+    assert_differently_sized_transport_helper(&machine);
+    let package = TempPackage::new();
+    execute_native_status(&image(&machine), &package.0, "widened-outcome-errors", 42);
+}
+
+fn assert_differently_sized_transport_helper(machine: &nocter_machine::MachineProgram) {
+    assert!(
+        machine.functions().any(|(_, function)| {
+            let parameters = function.body().parameters();
+            if parameters.len() != 2 {
+                return false;
+            }
+            let first = function.body().stack(parameters[0]).unwrap();
+            let second = function.body().stack(parameters[1]).unwrap();
+            first.carrier() == nocter_machine::MachineValueCarrier::Address
+                && second.carrier() == nocter_machine::MachineValueCarrier::Address
+                && machine.layouts().get(first.ty()).unwrap().size()
+                    != machine.layouts().get(second.ty()).unwrap().size()
+        }),
+        "the real executable must retain a helper for distinct source and destination layouts"
+    );
+}
+
+#[test]
 fn private_producerless_outcomes_preserve_absence_without_callable_payloads() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

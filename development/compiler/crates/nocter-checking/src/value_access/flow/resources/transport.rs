@@ -2,6 +2,27 @@
 use super::{Holder, INVALID, Payload, Place, Program, Result, State, Step};
 
 impl State {
+    pub fn transport(
+        &mut self,
+        program: &Program,
+        source: &Place,
+        destination: Holder,
+        payload: Payload,
+        steps: &mut Vec<Step>,
+        compatible: impl FnOnce(nocter_model::TypeId, nocter_model::TypeId) -> bool,
+    ) -> Result<()> {
+        self.reclassify(program, source, destination, payload, steps, |from| {
+            if !compatible(from.data(), payload.data()) {
+                return Err(INVALID);
+            }
+            Ok(Step::Transport {
+                source: source.clone(),
+                destination,
+                from,
+                payload,
+            })
+        })
+    }
     pub(super) fn reclassify(
         &mut self,
         program: &Program,

@@ -444,7 +444,7 @@ second relation is directed and permits only compatible excluded alternatives to
 callable contexts and nominal identities remain exact, and an empty root has no transferable value.
 This metadata relation does not implement conversion or relax byte-copy equality. The
 [guarded transport contract](../../../design/compiler-realization.md#guarded-representation-transport)
-owns the remaining integrated obligations before source admission.
+owns the remaining integrated obligations before broader source admission.
 `reproject` selects an equivalent existing declaration descriptor from the supplied instance,
 preserving each occurrence’s actual code, environment and empty domain. It rebuilds through the
 same canonical component constructors and visits shared context/descriptor pairs once, including

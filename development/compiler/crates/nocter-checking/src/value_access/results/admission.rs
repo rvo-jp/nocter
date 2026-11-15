@@ -25,10 +25,11 @@ pub(super) fn validate(
             let Some((source, actual, target)) = boundary(query, &action.operation)? else {
                 continue;
             };
-            if !evidence.matches_payload_metadata(program, actual, target)
-                && program.matches_guarded_transport_metadata(actual, target, |witness| {
-                    evidence.uninhabited_origin(witness.origin)
-                })
+            if evidence.requires_transport(program, actual, target)
+                && !(matches!(action.operation, flow::Operation::Evaluate(_))
+                    && evidence
+                        .transport_domains(program, actual, target)
+                        .is_some())
             {
                 return Err(crate::value_access::diagnostics::query_rejection(
                     context,

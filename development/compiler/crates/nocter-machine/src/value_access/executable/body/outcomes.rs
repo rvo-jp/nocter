@@ -9,13 +9,6 @@ use nocter_mir::value_access::Place;
 use nocter_runtime_contract::RuntimeDataId;
 use nocter_runtime_contract::RuntimePrimitive;
 impl Builder<'_> {
-    pub(super) fn outcome_tag(
-        &mut self,
-        place: &Place,
-    ) -> Result<(MachineAddressId, MachineOutcomeKind), Failure> {
-        let base = self.place(place)?;
-        self.stored_outcome_tag(base, place.data)
-    }
     fn stored_outcome_tag(
         &mut self,
         base: MachineAddressId,
@@ -41,7 +34,16 @@ impl Builder<'_> {
         Ok((address, kind))
     }
     pub(super) fn variant_tag(&mut self, place: &Place, primary: bool) -> Result<(), Failure> {
-        let (destination, kind) = self.outcome_tag(place)?;
+        let base = self.place(place)?;
+        self.store_outcome_tag(base, place.data, primary)
+    }
+    pub(super) fn store_outcome_tag(
+        &mut self,
+        base: MachineAddressId,
+        data: RuntimeDataId,
+        primary: bool,
+    ) -> Result<(), Failure> {
+        let (destination, kind) = self.stored_outcome_tag(base, data)?;
         let tag = if primary {
             kind.primary_tag()
         } else {

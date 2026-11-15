@@ -11,7 +11,8 @@ impl Builder<'_> {
         id: AccessExpressionId,
         state: &State,
     ) -> Result<ValueSourceId> {
-        let kind = &self.query.body.expressions.get(id).ok_or(INVALID)?.kind;
+        let expression = self.query.body.expressions.get(id).ok_or(INVALID)?;
+        let kind = &expression.kind;
         let value = match kind {
             ExpressionKind::Function(code) => ValueSource::Function(FunctionWitness {
                 origin: ValueFunctionOrigin::Declaration(*code),
@@ -45,6 +46,17 @@ impl Builder<'_> {
             ExpressionKind::PrimaryCondition { source } => {
                 self.place(point, *source, state)?;
                 ValueSource::Opaque
+            }
+            ExpressionKind::Boundary {
+                source,
+                action: crate::value_access::BoundaryAction::TakeValue,
+            } if self.query.result_evidence.as_ref().is_some_and(|evidence| {
+                evidence.transports_expression(self.query, *source, id)
+            }) =>
+            {
+                ValueSource::Transport {
+                    source: self.value(point, *source, state)?,
+                }
             }
             ExpressionKind::Boundary { source, .. }
             | ExpressionKind::AdaptFunction { source }

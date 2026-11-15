@@ -367,6 +367,17 @@ impl<'a, 'work> ResourceDataProjection<'a, 'work> {
         source: Option<&DataInstanceKey>,
     ) -> Result<DataInstanceKey, Failure> {
         let program = self.program;
+        if matches!(step, ResourceStep::Transport { .. }) {
+            let source = source.ok_or(INVALID)?;
+            let target = self
+                .evidence
+                .closed_domain(program, target)
+                .map_err(|_| INVALID)?;
+            if !source.permits_guarded_transport(program, &target) {
+                return Err(INVALID);
+            }
+            return Ok(target);
+        }
         if let Some(key) = self.closed(target) {
             return Ok(key);
         }

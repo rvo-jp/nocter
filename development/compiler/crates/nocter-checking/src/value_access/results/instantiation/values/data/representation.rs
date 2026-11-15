@@ -90,7 +90,9 @@ impl Query<'_, '_> {
                 .step()
                 .map_err(|_| super::super::InstantiationFailure::WorkLimit)?;
             let forwards = match &node.value {
-                ValueSource::Adapt { source } => *source == value,
+                ValueSource::Adapt { source } | ValueSource::Transport { source } => {
+                    *source == value
+                }
                 ValueSource::Merge { inputs, .. } | ValueSource::Alternatives(inputs) => {
                     inputs.contains(&value)
                 }

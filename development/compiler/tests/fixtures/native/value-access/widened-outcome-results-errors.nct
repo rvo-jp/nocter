@@ -1,0 +1,25 @@
+primitive func create_failure(code: str, message: str): error
+primitive func context_error(take value: error, message: str): error
+func owning(number: i32): func(i32): i32 {
+    let reason = context_error(create_failure("captured", "leaf"), "outer")
+    (reason^, number; amount: i32) { number + amount }
+}
+func failed(): (func(i32): i32)! {
+    throw context_error(create_failure("failed", "leaf"), "outer")
+}
+func choose(fail: bool): (func(i32): i32)! {
+    if fail { failed() } else { owning(40) }
+}
+func forward(fail: bool): (func(i32): i32)! { choose(fail)? }
+func run(): i32 {
+    let discarded = choose(true)
+    drop discarded
+    let success = forward(false)
+    let action = success^!
+    let failure = forward(true)
+    let _ = failure^ catch reason {
+        if action(2) == 42 { return 42 }
+        return 0
+    }
+    0
+}

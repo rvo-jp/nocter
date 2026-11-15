@@ -21,7 +21,9 @@ mod outcomes;
 pub(super) use destruction::build as cleanup;
 mod remainder;
 mod repetition;
+mod transport;
 mod traversal;
+pub(super) use transport::build as transport;
 
 struct Block {
     parameters: Vec<MachineValueId>,
@@ -308,6 +310,14 @@ impl<'a> Builder<'a> {
                 source,
                 destination,
             } => self.copy(source, destination)?,
+            mir::Effect::Transport {
+                source,
+                destination,
+            } => {
+                let from = self.place(source)?;
+                let to = self.place(destination)?;
+                self.transport_value((source.data, destination.data), from, to)?;
+            }
             mir::Effect::BindAddress {
                 destination,
                 source,

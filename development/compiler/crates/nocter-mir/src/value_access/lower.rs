@@ -843,7 +843,22 @@ impl Builder<'_> {
                             destination,
                         });
                     }
-                    Step::Transport { .. } | Step::ReplaceReferent { .. } => {
+                    Step::Transport {
+                        source,
+                        destination,
+                        from,
+                        payload,
+                    } => {
+                        let source =
+                            self.resource_place(source, self.payload_data(from)?, projected)?;
+                        let destination =
+                            self.root(*destination, self.payload_data(payload)?, false)?;
+                        output.push(Effect::Transport {
+                            source,
+                            destination,
+                        });
+                    }
+                    Step::ReplaceReferent { .. } => {
                         return Err(self.invalid());
                     }
                 },
