@@ -214,9 +214,11 @@ impl Program {
             nocter_model::ValueParameter::Closure { .. } => self.closure_parameters.get(&parameter),
         }
     }
-    /// The contract of an already selected concrete or formal witness. No candidate search occurs.
-    #[must_use]
-    pub fn function_contract(&self, mut witness: FunctionWitness) -> Option<FunctionConstraint> {
+    /// Resolve applied signature templates only; no result producer or occurrence is selected.
+    pub(super) fn contract_template(
+        &self,
+        mut witness: FunctionWitness,
+    ) -> Option<FunctionWitness> {
         let mut seen = std::collections::BTreeSet::new();
         while let ValueFunctionOrigin::Application(application) = witness.origin {
             if !seen.insert(application) {
@@ -228,6 +230,12 @@ impl Program {
             }
             witness.origin = template.origin;
         }
+        Some(witness)
+    }
+    /// The contract of an already selected concrete or formal witness. No candidate search occurs.
+    #[must_use]
+    pub fn function_contract(&self, witness: FunctionWitness) -> Option<FunctionConstraint> {
+        let witness = self.contract_template(witness)?;
         let mut contract = match witness.origin {
             ValueFunctionOrigin::Closure(id) => self.closure(id)?.contract().clone(),
             ValueFunctionOrigin::Declaration(id) => {

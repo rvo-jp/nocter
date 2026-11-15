@@ -1846,8 +1846,14 @@ read and edit access, propagation and original assertion traps are covered throu
 execution. Symbolic transport classification may use the exclusion, while concrete source/destination queries must still close
 and validate their own keys. Exact canonical reprojection can preserve a supplied excluded domain
 under the receiving result descriptor; otherwise the original consumer constraints remain required.
-Distinct calls retain absent and positive actual inputs/results independently. Instance-specific
-received primary continuations and positive inactive environment contexts retain separate
+Distinct calls retain absent and positive actual inputs/results independently.
+`constructed-outcome-environments.nct` extends the result path through positive inactive callable
+environments. Original returned sources first close under their own typed descriptors; the selected
+callee's declaration/result path then qualifies receiving result-family metadata through the
+canonical `reproject_result` authority. The same lexical owned-capture body can retain different
+nested callable environments without erasing their positive represented domains when the actual
+outcome is absent. Generic signature matching still cannot create a result context. Remaining
+compound result carriers and instance-specific received primary continuations retain separate
 qualification obligations.
 Declared compound-result contracts have declaration-owned result ordinals. A diverging body can
 retain that known signature without establishing any returned value, concrete environment or

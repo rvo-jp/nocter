@@ -450,6 +450,16 @@ preserving each occurrence’s actual code, environment and empty domain. It reb
 same canonical component constructors and visits shared context/descriptor pairs once, including
 homogeneous arrays independently of their cardinality. It neither adapts callable invocation views
 nor widens an outcome representation; a missing positive context cannot be supplied by the target.
+`reproject_result` additionally matches a receiving result family to one selected declaration-owned
+result path. A bounded schema-pair walk checks the exact result owner and leaf ordinal, including
+applied templates, before the same projection authority retains the supplied concrete contexts.
+Foreign or swapped same-signature leaves reject; empty arrays remain metadata-only. Opaque result
+contexts use the existing canonical function/component representation and validation, without a
+second context registry or provenance in instance identity. General `reproject` and
+`instantiate_function` still reject an unresolved producer target. The qualified projection grants
+no original return receipt, value, source conversion, invocation, ownership or physical transport.
+An ordinary compatible empty-domain reprojection remains a representation operation; it does not
+certify a foreign result-family binding.
 `instantiate_data` uses the same binding normalization and frozen witness resolution as code
 frames; it discards irrelevant input bindings. `function_representation` explicitly selects the
 actual callable leaf's code/environment key while leaving its containing carrier unchanged. `InstanceSchema` exposes the canonical carrier

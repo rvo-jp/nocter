@@ -142,8 +142,34 @@ impl Query<'_, '_> {
         let returned: Vec<_> = graph.returned().iter().copied().collect();
         let mut fact = Fact::Empty;
         for value in returned {
-            fact =
-                fact.join(self.read(owner, Key::Data(frame.clone(), value, path.clone(), target))?);
+            let Some(original) = self
+                .source_node(frame, value, path)
+                .and_then(|node| node.data)
+                .and_then(|data| {
+                    self.program
+                        .project_data_by(data, path, |(), length| length > 0)
+                })
+            else {
+                return Ok(Fact::Unavailable);
+            };
+            let supplied = self.read(
+                owner,
+                Key::Data(frame.clone(), value, path.clone(), original),
+            )?;
+            let selected = match supplied {
+                Fact::Data(key) => {
+                    let projected = key.reproject(self.program, target).or_else(|error| {
+                        if let nocter_model::ValueCode::Declaration(code) = frame.code() {
+                            key.reproject_result(self.program, code, path, target)
+                        } else {
+                            Err(error)
+                        }
+                    });
+                    projected.map_or(Fact::Unavailable, Fact::Data)
+                }
+                other => other,
+            };
+            fact = fact.join(selected);
         }
         Ok(fact)
     }

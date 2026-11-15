@@ -2,6 +2,21 @@
 use super::*;
 
 #[test]
+fn private_constructed_absence_preserves_positive_inactive_environments() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/constructed-outcome-environments.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "constructed-outcome-environments",
+        42,
+    );
+}
+
+#[test]
 fn private_constructed_absence_survives_original_result_equations() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

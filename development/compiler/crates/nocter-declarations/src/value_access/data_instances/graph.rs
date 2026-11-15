@@ -21,6 +21,23 @@ impl Program {
         let Some(PayloadSchema::Function(wanted)) = self.data_schema(data) else {
             return Err(CodeBindingError::InvalidWitness);
         };
+        if matches!(
+            wanted.origin,
+            ValueFunctionOrigin::Result(_) | ValueFunctionOrigin::Application(_)
+        ) {
+            return Err(CodeBindingError::InvalidWitness);
+        }
+        self.instantiate_function_context(data, actual)
+    }
+    /// The caller validates the declaration-owned result family before binding an opaque leaf.
+    pub(super) fn instantiate_function_context(
+        &self,
+        data: TypeId,
+        actual: &ConcreteWitness,
+    ) -> Result<DataInstanceKey, CodeBindingError> {
+        let Some(PayloadSchema::Function(wanted)) = self.data_schema(data) else {
+            return Err(CodeBindingError::InvalidWitness);
+        };
         let actual = self.adapt_witness(actual, wanted.invocation)?;
         self.constrain_instance_function(data, actual.witness())?;
         let context = if self.concrete_witness(wanted).as_ref() == Ok(&actual) {
@@ -45,12 +62,12 @@ impl Program {
             return Err(CodeBindingError::InvalidWitness);
         }
         match wanted.origin {
-            ValueFunctionOrigin::Parameter(parameter) => {
-                let mut contract = self
-                    .parameter_contract(parameter)
-                    .ok_or(CodeBindingError::InvalidWitness)?
-                    .clone();
-                contract.invocation = wanted.invocation;
+            ValueFunctionOrigin::Parameter(_)
+            | ValueFunctionOrigin::Result(_)
+            | ValueFunctionOrigin::Application(_) => {
+                let contract = self
+                    .function_contract(wanted)
+                    .ok_or(CodeBindingError::InvalidWitness)?;
                 let supplied = self
                     .function_data(actual)
                     .ok_or(CodeBindingError::InvalidWitness)?;

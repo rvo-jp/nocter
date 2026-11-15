@@ -1,7 +1,8 @@
 //! Retain each supplied occurrence while selecting an equivalent declaration descriptor.
 use super::{DataInstanceKey, InstanceSchema, Program};
 use crate::value_access::{AggregateForm, CodeBindingError, PayloadSchema};
-use nocter_model::{TypeId, ValueField};
+use nocter_model::{AccessCodeId, TypeId, ValueField, ValuePath};
+mod results;
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
@@ -28,6 +29,33 @@ impl DataInstanceKey {
     /// # Errors
     /// Rejects missing contexts, changed positive witnesses, incompatible schemas and cycles.
     pub fn reproject(&self, program: &Program, target: TypeId) -> Result<Self, CodeBindingError> {
+        self.reproject_constraints(program, target, &BTreeSet::new())
+    }
+    /// Preserve a supplied result occurrence under its declaration-owned receiving family.
+    /// The original selected body/result path is required; this grants no returned value,
+    /// invocation, source conversion, ownership or physical transport permission.
+    /// # Errors
+    /// Rejects foreign/swapped result families, changed contracts, missing contexts and cycles.
+    pub fn reproject_result(
+        &self,
+        program: &Program,
+        owner: AccessCodeId,
+        path: &ValuePath<()>,
+        target: TypeId,
+    ) -> Result<Self, CodeBindingError> {
+        let declared = program.codes().get(owner).ok_or(INVALID)?.result();
+        let declared = program
+            .project_data_by(declared, path, |(), length| length > 0)
+            .ok_or(INVALID)?;
+        let constraints = results::constraints(program, declared, target)?;
+        self.reproject_constraints(program, target, &constraints)
+    }
+    fn reproject_constraints(
+        &self,
+        program: &Program,
+        target: TypeId,
+        results: &BTreeSet<TypeId>,
+    ) -> Result<Self, CodeBindingError> {
         let root = node(self, target);
         let mut pending = vec![(self.clone(), target, false)];
         let mut known = BTreeMap::new();
@@ -56,7 +84,11 @@ impl DataInstanceKey {
                         Some(program.instantiate_closed_data(target)?)
                     }
                     (InstanceSchema::Function(actual), PayloadSchema::Function(_)) => {
-                        let value = program.instantiate_function(target, actual)?;
+                        let value = if results.contains(&target) {
+                            program.instantiate_function_context(target, actual)?
+                        } else {
+                            program.instantiate_function(target, actual)?
+                        };
                         if !matches!(value.schema(program)?, InstanceSchema::Function(selected) if selected == *actual)
                         {
                             return Err(INVALID);
