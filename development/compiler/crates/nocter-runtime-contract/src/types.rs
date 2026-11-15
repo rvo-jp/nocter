@@ -95,6 +95,9 @@ impl RuntimePrimitive {
 /// One fully concrete runtime type. Symbolic semantic forms are intentionally unrepresentable.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RuntimeType {
+    /// An explicitly empty represented domain. It has no value, addressable payload or layout.
+    /// Outcome descriptors may retain this identity for an excluded alternative.
+    Uninhabited,
     Primitive(RuntimePrimitive),
     /// A storable unit value, distinct from completion-only primitive Void.
     Unit,
@@ -265,6 +268,7 @@ impl RuntimeTypeTableBuilder {
                     Some(*value)
                 }
                 RuntimeType::Primitive(_)
+                | RuntimeType::Uninhabited
                 | RuntimeType::EmptyArray { .. }
                 | RuntimeType::Unit
                 | RuntimeType::Aggregate

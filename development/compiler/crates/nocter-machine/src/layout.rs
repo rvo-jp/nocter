@@ -555,6 +555,7 @@ impl LayoutBuilder<'_> {
         kind: &RuntimeType,
     ) -> Result<MachineLayout, MachineLayoutError> {
         match kind {
+            RuntimeType::Uninhabited => Err(MachineLayoutError::UninhabitedType(ty)),
             RuntimeType::Primitive(primitive) => self.primitive(ty, *primitive),
             RuntimeType::Unit => Ok(MachineLayout {
                 size: 0,
@@ -663,16 +664,18 @@ impl LayoutBuilder<'_> {
                 },
             }),
             RuntimeType::Optional(payload) => {
-                let payload_layout = self.layout(*payload)?.clone();
-                Self::outcome(
-                    ty,
-                    MachineOutcomeKind::Optional,
-                    Some((payload_layout, *payload)),
-                    None,
-                )
+                let primary = if matches!(self.types.get(*payload), Some(RuntimeType::Uninhabited))
+                {
+                    None
+                } else {
+                    Some((self.layout(*payload)?.clone(), *payload))
+                };
+                Self::outcome(ty, MachineOutcomeKind::Optional, primary, None)
             }
             RuntimeType::Fallible(payload) => {
-                let primary = if is_void(self.types, *payload) {
+                let primary = if is_void(self.types, *payload)
+                    || matches!(self.types.get(*payload), Some(RuntimeType::Uninhabited))
+                {
                     None
                 } else {
                     Some((self.layout(*payload)?.clone(), *payload))
@@ -1104,6 +1107,7 @@ fn align_up(value: u64, alignment: u64, ty: RuntimeDataId) -> Result<u64, Machin
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MachineLayoutError {
+    UninhabitedType(RuntimeDataId),
     UnknownType(RuntimeDataId),
     MissingPrimitive(RuntimePrimitive),
     InvalidIntegerWidth(u16),

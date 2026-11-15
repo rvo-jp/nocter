@@ -155,6 +155,11 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   evaluator, target storage, ABI and native execution. An empty root has no stored payload;
   retaining an inactive alternative's descriptor must not create code, cleanup or field geometry.
   Qualify original tag guards and rejected positive uses before opening producer-less source results.
+- [x] Qualify excluded-outcome runtime descriptors, canonical target interning and physical layouts
+  without a positive child or field geometry. Reject empty roots/slots and construction of excluded tags.
+- [ ] Eliminate tags for singleton represented outcomes after qualifying ABI, addressability,
+  guarded transport and context-changing storage. Derive this from the canonical representation
+  domain rather than a second source-presence analysis or a geometry-only assumption.
 - [x] Qualify compound returns with empty-array callable descriptors, including mixtures with
   inhabited result leaves, ordinal gaps and forwarding between declaration-owned descriptors.
   Uninhabited metadata must neither create an element equation nor require a concrete producer.

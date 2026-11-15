@@ -13,6 +13,7 @@ mod tests;
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum StructuralShape {
+    Uninhabited,
     Tuple(Box<[RuntimeDataId]>),
     Array { element: RuntimeDataId, length: u64 },
     Optional(RuntimeDataId),
@@ -41,6 +42,9 @@ impl<'a> Builder<'a> {
         }
     }
     pub(super) fn intern(&mut self, key: DataInstanceKey) -> Result<RuntimeDataId, Failure> {
+        if key.is_uninhabited() {
+            return Err(Failure::InvalidPayload(key.data()));
+        }
         let root = self.normalized(key)?;
         let mut pending = vec![(root.clone(), false)];
         while let Some((key, expanded)) = pending.pop() {
@@ -80,7 +84,14 @@ impl<'a> Builder<'a> {
     fn normalized(&self, key: DataInstanceKey) -> Result<DataInstanceKey, Failure> {
         let source = key.data();
         let invalid = || Failure::InvalidPayload(source);
-        if key.is_uninhabited() {
+        if matches!(
+            key.schema(self.program).map_err(|_| invalid())?,
+            InstanceSchema::Fallible(_)
+        ) && key
+            .component(self.program, ValueField::Variant(false))
+            .map_err(|_| invalid())?
+            .is_uninhabited()
+        {
             return Err(invalid());
         }
         Ok(key
@@ -107,6 +118,7 @@ impl<'a> Builder<'a> {
     ) -> Result<Option<Vec<DataInstanceKey>>, Failure> {
         let invalid = || Failure::InvalidPayload(key.data());
         let fields = match key.schema(self.program).map_err(|_| invalid())? {
+            InstanceSchema::Uninhabited => vec![],
             InstanceSchema::Aggregate(schema)
                 if matches!(
                     schema.form(),
@@ -140,6 +152,7 @@ impl<'a> Builder<'a> {
             .map(|key| self.ids.get(key).copied().ok_or_else(invalid))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(match key.schema(self.program).map_err(|_| invalid())? {
+            InstanceSchema::Uninhabited => StructuralShape::Uninhabited,
             InstanceSchema::Aggregate(_) => StructuralShape::Tuple(children.into()),
             InstanceSchema::Array(array) => StructuralShape::Array {
                 element: *children.first().ok_or_else(invalid)?,
@@ -162,6 +175,20 @@ impl<'a> Builder<'a> {
         let child = key
             .component(self.program, field)
             .map_err(|_| Failure::InvalidPayload(key.data()))?;
+        if child.is_uninhabited() {
+            if matches!(
+                key.schema(self.program),
+                Ok(InstanceSchema::Optional(_) | InstanceSchema::Fallible(_))
+            ) && field == ValueField::Variant(true)
+            {
+                return self
+                    .ids
+                    .get(&child)
+                    .copied()
+                    .ok_or(Failure::InvalidPayload(key.data()));
+            }
+            return Err(Failure::InvalidPayload(key.data()));
+        }
         self.intern(child)
     }
     fn builtin(
@@ -198,7 +225,7 @@ impl<'a> Builder<'a> {
     fn shape(&mut self, id: RuntimeDataId, key: &DataInstanceKey) -> Result<RuntimeType, Failure> {
         let invalid = || Failure::InvalidPayload(key.data());
         Ok(match key.schema(self.program).map_err(|_| invalid())? {
-            InstanceSchema::Uninhabited => return Err(invalid()),
+            InstanceSchema::Uninhabited => RuntimeType::Uninhabited,
             InstanceSchema::Array(array) if array.is_empty() => RuntimeType::EmptyArray {
                 // Metadata only: no element binding, payload or geometry is manufactured.
                 element: RuntimeDataId::Source(array.element()),

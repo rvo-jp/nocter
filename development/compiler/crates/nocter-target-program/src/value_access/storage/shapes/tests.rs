@@ -10,6 +10,9 @@ struct Fixture {
     captured: TypeId,
     array: TypeId,
     empty: TypeId,
+    optional: TypeId,
+    optional_integer: TypeId,
+    fallible: TypeId,
     wrapper: FunctionWitness,
 }
 
@@ -74,6 +77,9 @@ fn fixture() -> Fixture {
     let array = body.array(captured, 2).unwrap();
     let tuple = body.tuple(&[captured, array]).unwrap();
     let empty = body.array(captured, 0).unwrap();
+    let optional = body.optional(captured).unwrap();
+    let optional_integer = body.optional(result).unwrap();
+    let fallible = body.fallible(captured).unwrap();
     let wrapper = body.reserve_closure().unwrap();
     body.closure(
         wrapper,
@@ -105,8 +111,101 @@ fn fixture() -> Fixture {
         captured,
         array,
         empty,
+        optional,
+        optional_integer,
+        fallible,
         wrapper,
     }
+}
+
+#[test]
+fn outcome_storage_retains_excluded_primary_metadata_without_materializing_a_callable() {
+    let fixture = fixture();
+    let program = &fixture.program;
+    let empty = program
+        .instantiate_uninhabited_data(fixture.captured)
+        .unwrap();
+    let optional = program
+        .instantiate_components(
+            fixture.optional,
+            [(ValueField::Variant(true), empty.clone())],
+        )
+        .unwrap();
+    let error = program.data_type(BuiltinType::Error).unwrap();
+    let fallible = program
+        .instantiate_components(
+            fixture.fallible,
+            [
+                (ValueField::Variant(true), empty),
+                (
+                    ValueField::Variant(false),
+                    program.instantiate_closed_data(error).unwrap(),
+                ),
+            ],
+        )
+        .unwrap();
+    let mut builder = Builder::new(program);
+    let a = builder.intern(optional).unwrap();
+    let absent_integer = program
+        .instantiate_components(
+            fixture.optional_integer,
+            [(
+                ValueField::Variant(true),
+                program
+                    .instantiate_uninhabited_data(program.data_type(BuiltinType::I32).unwrap())
+                    .unwrap(),
+            )],
+        )
+        .unwrap();
+    assert_ne!(absent_integer.data(), fixture.optional);
+    assert_eq!(
+        builder.intern(absent_integer).unwrap(),
+        a,
+        "empty runtime domains do not retain a counterfeit callable identity"
+    );
+    let b = builder.intern(fallible).unwrap();
+    let runtime = builder
+        .finish(RuntimeAbiIdentity::Arm64DarwinV1)
+        .unwrap()
+        .into_environment();
+    let Some(RuntimeType::Optional(primary)) = runtime.types().get(a) else {
+        panic!("optional");
+    };
+    assert_eq!(
+        runtime.types().get(*primary),
+        Some(&RuntimeType::Uninhabited)
+    );
+    assert_eq!(
+        runtime.types().get(b),
+        Some(&RuntimeType::Fallible(*primary))
+    );
+    assert!(
+        !runtime
+            .types()
+            .iter()
+            .any(|(_, kind)| matches!(kind, RuntimeType::StaticCallable { .. }))
+    );
+    let unsupported = program
+        .instantiate_components(
+            fixture.fallible,
+            [
+                (
+                    ValueField::Variant(true),
+                    fixture.keys[0]
+                        .component(program, ValueField::Tuple(0))
+                        .unwrap(),
+                ),
+                (
+                    ValueField::Variant(false),
+                    program.instantiate_uninhabited_data(error).unwrap(),
+                ),
+            ],
+        )
+        .unwrap();
+    let mut builder = Builder::new(program);
+    assert!(builder.intern(unsupported).is_err());
+    assert!(builder.ids.is_empty());
+    assert!(builder.pending.is_empty());
 }
 
 #[test]

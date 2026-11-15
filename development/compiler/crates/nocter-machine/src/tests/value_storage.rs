@@ -48,6 +48,67 @@ fn record(instances: &InstanceProgram, name: &str) -> TypeId {
 }
 
 #[test]
+fn excluded_outcome_payloads_have_no_layout_or_addressable_field() {
+    use nocter_model::ValueField;
+    use nocter_runtime_contract::{
+        RuntimeDataId, RuntimePrimitive, RuntimeTypeRepresentationTable, RuntimeTypeTableBuilder,
+    };
+    let empty = RuntimeDataId::Instance(0);
+    let optional = RuntimeDataId::Instance(1);
+    let fallible = RuntimeDataId::Instance(2);
+    let error = RuntimeDataId::Instance(3);
+    let unit = RuntimeDataId::Instance(4);
+    let present_unit = RuntimeDataId::Instance(5);
+    let mut types = RuntimeTypeTableBuilder::new();
+    for (id, kind) in [
+        (empty, RuntimeType::Uninhabited),
+        (optional, RuntimeType::Optional(empty)),
+        (fallible, RuntimeType::Fallible(empty)),
+        (error, RuntimeType::Primitive(RuntimePrimitive::Error)),
+        (unit, RuntimeType::Unit),
+        (present_unit, RuntimeType::Optional(unit)),
+    ] {
+        types.insert(id, kind).unwrap();
+    }
+    let runtime = RuntimeEnvironment::new(
+        types.finish().unwrap(),
+        RuntimeTypeRepresentationTable::new(std::collections::BTreeMap::new()),
+        RuntimeAbiIdentity::Arm64DarwinV1,
+    )
+    .unwrap();
+    let plan =
+        MachineLayoutPlan::from_runtime(&runtime, [optional, fallible, present_unit]).unwrap();
+    assert_eq!(
+        (
+            plan.get(optional).unwrap().size(),
+            plan.get(optional).unwrap().alignment()
+        ),
+        (1, 1)
+    );
+    assert!(plan.get(empty).is_none());
+    assert!(
+        plan.value_field(optional, ValueField::Variant(true))
+            .is_none()
+    );
+    assert!(
+        plan.value_field(fallible, ValueField::Variant(true))
+            .is_none()
+    );
+    assert!(
+        plan.value_field(fallible, ValueField::Variant(false))
+            .is_some()
+    );
+    assert!(
+        plan.value_field(present_unit, ValueField::Variant(true))
+            .is_some(),
+        "an inhabited zero-byte unit retains its field"
+    );
+    assert!(
+        matches!(MachineLayoutPlan::from_runtime(&runtime, [empty]), Err(MachineLayoutError::UninhabitedType(id)) if id == empty)
+    );
+}
+
+#[test]
 fn contextual_runtime_shapes_keep_independent_layouts_and_value_paths() {
     use nocter_model::{AccessFieldId, ArenaBuilder, ValueField, ValueProjection};
     use nocter_runtime_contract::{

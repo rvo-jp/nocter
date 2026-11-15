@@ -167,6 +167,12 @@ all retained-index cleanup cases.
 
 ## Private Optional Execution
 
+An explicitly uninhabited primary retains no layout, addressable field or ABI value class.
+Optional/fallible layout requests skip that excluded edge while preserving the outer tag and any
+inhabited alternate. An inhabited zero-byte unit still has its own selectable field. Requesting
+an empty domain as a stored root rejects. These runtime-layout contracts do not qualify ordinary
+producer-less callable outcomes; checking and lifecycle must retain the original guarded paths.
+
 The private consumer uses the common optional/fallible layouts, tag encoding and payload offsets. Stored tag
 access requests the runtime primitive's own layout, including helper-only primitive types. Frozen
 variants write only the selected payload; absence never reads uninitialized payload backing.

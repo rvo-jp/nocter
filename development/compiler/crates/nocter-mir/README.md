@@ -73,6 +73,9 @@ contracts at the original action, while partial input resource roots retain the 
 Contextual evaluated reference arguments likewise retain the original action's complete selected root.
 Outcome tag inspection projects its selected data from that same original referent-root contract,
 including nested callable contexts; it does not reconstruct the carrier from an unbound type.
+Integrity validation rejects uninhabited stored-slot representations and positive places, while
+outcome metadata can retain an excluded child. Constructing that child's primary tag rejects;
+an existing tag assertion remains a guard rather than a payload-construction permission.
 At invocation commit this root must match the prepared argument data; the previously evaluated
 expression is not queried as a fresh operand or replaced by a declaration-wide type default.
 Independently closed schemas remain sufficient for representation-only references, including

@@ -311,6 +311,14 @@ Body signatures and MIR payload slots resolve through the prepared interner rath
 independent substitutions. Checked payload/access/cleanup evidence remains a separate prerequisite.
 No released executable adapter is introduced.
 
+Outcome interning retains a declaration-owned uninhabited primary as `RuntimeType::Uninhabited`
+metadata without inventing a static callable. Ordinary root interning still rejects empty domains
+before reserving an identity; only the owning outcome edge admits that metadata child. The
+interner shares one empty runtime domain while preserving every semantic key upstream. The current
+fallible runtime descriptor preserves the ordinary error alternative and rejects specializations
+that exclude it. This stored-shape capability does not admit producer-less source returns or
+grant their lifecycle/guard proofs.
+
 This materializer and its nested-context tests do not complete formal-environment source support.
 The producer and closure-creation paths still need qualification before that source admission can open. A representation key supplies neither a
 checked payload nor a new destruction or callable-publication rule.

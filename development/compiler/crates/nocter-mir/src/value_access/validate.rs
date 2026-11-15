@@ -74,6 +74,10 @@ impl Context<'_> {
         }
     }
     fn place(&self, place: &Place) -> Result<(), Failure> {
+        self.require(!matches!(
+            self.program.runtime.types().get(place.data),
+            Some(RuntimeType::Uninhabited)
+        ))?;
         let slot = self
             .body
             .slots
@@ -203,15 +207,34 @@ impl Context<'_> {
         }
         Ok(())
     }
+    fn variant_tag(&self, destination: &Place, primary: bool) -> Result<(), Failure> {
+        self.place(destination)?;
+        if primary
+            && self
+                .program
+                .runtime
+                .types()
+                .outcome_payload(destination.data, true)
+                .is_some_and(|payload| {
+                    matches!(
+                        self.program.runtime.types().get(payload),
+                        Some(RuntimeType::Uninhabited)
+                    )
+                })
+        {
+            return Err(self.invalid());
+        }
+        self.require(matches!(
+            self.program.runtime.types().get(destination.data),
+            Some(RuntimeType::Optional(_) | RuntimeType::Fallible(_))
+        ))
+    }
     fn effect(&self, effect: &Effect) -> Result<(), Failure> {
         match effect {
-            Effect::VariantTag { destination, .. } => {
-                self.place(destination)?;
-                self.require(matches!(
-                    self.program.runtime.types().get(destination.data),
-                    Some(RuntimeType::Optional(_) | RuntimeType::Fallible(_))
-                ))
-            }
+            Effect::VariantTag {
+                destination,
+                primary,
+            } => self.variant_tag(destination, *primary),
 
             Effect::DisposeArrayRemainder { source, missing } => {
                 self.array_remainder(source, missing)
@@ -582,7 +605,13 @@ fn validate_body(program: &Program, id: AccessInstanceId, body: &Body) -> Result
     for (_, slot) in body.slots.iter() {
         context.require(keys.insert(slot.key) && !slot.representations.is_empty())?;
         for &data in &slot.representations {
-            context.require(program.runtime.types().get(data).is_some())?;
+            context.require(
+                program
+                    .runtime
+                    .types()
+                    .get(data)
+                    .is_some_and(|kind| !matches!(kind, RuntimeType::Uninhabited)),
+            )?;
         }
     }
     let inputs = body.signature.ordered().collect::<Vec<_>>();

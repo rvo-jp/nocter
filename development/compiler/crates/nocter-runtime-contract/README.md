@@ -96,6 +96,10 @@ owns contextual graph construction and its current source-admission boundary.
   validates actual payload references; it does not require an unused empty element's runtime entry
   or reinterpret a released zero-count `FixedArray` as this value-model shape. `RuntimeType::array`
   supplies the common homogeneous identity/count view, independently of physical geometry.
+- `Uninhabited` is an explicit empty represented domain, distinct from missing metadata and an
+  inhabited zero-byte value. Outcomes may retain it as an excluded payload descriptor; it supplies
+  no positive value, callable, address or stored layout. Source admission and tag proofs remain
+  upstream obligations.
 - `RuntimeEnvironment::has_same_value_representation` owns value-transport comparison for MIR and
   Machine. Empty-array element metadata does not supply a positive leaf; every represented leaf,
   including static callable identity, remains exact. Structural tuples and outcome/array carriers

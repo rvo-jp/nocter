@@ -27,6 +27,86 @@ fn operations(body: &Body) -> impl Iterator<Item = &Operation> {
 }
 
 #[test]
+fn excluded_outcome_alternatives_cannot_be_constructed_or_registered_as_stored_values() {
+    use nocter_runtime_contract::{RuntimeEnvironment, RuntimeTypeTableBuilder};
+    let mut program =
+        lower("func absent(): i32? { none }\nfunc run(): i32 { let value = absent()\n42 }");
+    let optional = program
+        .runtime
+        .types()
+        .iter()
+        .find_map(|(id, kind)| matches!(kind, RuntimeType::Optional(_)).then_some(id))
+        .unwrap();
+    let empty = (0..u32::MAX)
+        .map(RuntimeDataId::Instance)
+        .find(|id| program.runtime.types().get(*id).is_none())
+        .unwrap();
+    let mut types = RuntimeTypeTableBuilder::new();
+    for (id, kind) in program.runtime.types().iter() {
+        types
+            .insert(
+                id,
+                if id == optional {
+                    RuntimeType::Optional(empty)
+                } else {
+                    kind.clone()
+                },
+            )
+            .unwrap();
+    }
+    types.insert(empty, RuntimeType::Uninhabited).unwrap();
+    program.runtime = RuntimeEnvironment::new(
+        types.finish().unwrap(),
+        program.runtime.type_representations().clone(),
+        program.runtime.abi(),
+    )
+    .unwrap();
+    validate::program(&program).unwrap();
+    let mut bad_tag = program.clone();
+    let primary = bad_tag
+        .bodies
+        .values_mut()
+        .flat_map(|body| body.actions.values_mut())
+        .flat_map(|action| &mut action.alternatives)
+        .flat_map(|alternative| alternative.before.iter_mut().chain(&mut alternative.after))
+        .find_map(|effect| match effect {
+            Effect::VariantTag {
+                destination,
+                primary,
+            } if destination.data == optional => Some(primary),
+            _ => None,
+        })
+        .unwrap();
+    assert!(!*primary);
+    *primary = true;
+    assert!(validate::program(&bad_tag).is_err());
+    let mut bad_slot = program;
+    let (body, id) = bad_slot
+        .bodies
+        .iter()
+        .find_map(|(&body, value)| {
+            value.slots.iter().find_map(|(id, slot)| {
+                matches!(slot.key, SlotKey::Expression(_)).then_some((body, id))
+            })
+        })
+        .unwrap();
+    let body = bad_slot.bodies.get_mut(&body).unwrap();
+    body.slots = body.slots.map(|selected, slot| {
+        let mut slot = slot.clone();
+        if selected == id {
+            slot.representations = slot
+                .representations
+                .iter()
+                .copied()
+                .chain([empty])
+                .collect();
+        }
+        slot
+    });
+    assert!(validate::program(&bad_slot).is_err());
+}
+
+#[test]
 fn compound_input_transport_cannot_substitute_another_callable_context() {
     let source = lower(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
