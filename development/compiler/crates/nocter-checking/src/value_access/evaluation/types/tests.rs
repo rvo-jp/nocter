@@ -39,7 +39,8 @@ fn uninhabited_metadata_has_no_value_but_preserves_optional_absence() {
     assert_ne!(unresolved, id);
     assert!(types.supports_contract(program, fixture.formal).unwrap());
     assert!(!types.supports(program, fixture.formal).unwrap());
-    assert_eq!(types.appended(0)[id], Type::Unavailable);
+    assert_eq!(types.appended(0)[id], Type::Uninhabited);
+    assert_eq!(types.appended(0)[unresolved], Type::Unavailable);
     assert!(!types.supports_instance(program, empty.clone()).unwrap());
     let optional = program
         .instantiate_components(fixture.optional, [(ValueField::Variant(true), empty)])

@@ -120,6 +120,13 @@ published contract and direct remainder in the [adopted contract](../../../spec/
 only the quotient-domain policy differs, not the arithmetic implementation. Floating
 operations still require an explicit compilation target in their existing domain.
 
+`Type::Unavailable` names declared data whose payload representation is not supplied by this closed
+table. No value validates against it, but it proves no empty domain. `Type::Uninhabited` instead
+records a domain already proved empty by the producer. It may appear in inactive alternative
+metadata or as the result contract of a nonreturning plan; actual slots, received input contracts
+and owned payload effects reject it. No scalar, aggregate or callable value can inhabit that domain.
+The evaluator does not infer exclusion from missing code, unresolved metadata or a failed request.
+
 `Type::Variant` retains the primary payload identity and an optional alternate payload identity.
 An absent alternate payload differs from an alternate `Type::Unavailable`: no value validates
 against the latter, though another selected case can remain valid. `Data::Variant` and model-owned
@@ -268,11 +275,9 @@ zero-count shape and contains no element identity. Source element contracts rema
 they cannot select a represented callable or create an element value. Schema validation does not
 expand a count, and positive containment edges follow the finite table order.
 
-`Type::Unavailable` names declared data for which this closed table provides no payload representation.
-Every literal value rejects against it. An empty array needs no element representation, while a
-positive element cannot smuggle unit/scalar/aggregate data into that shape. The descriptor creates
-no source type or runtime representation. Checking retains zero-count element classification in
-its source-key table, separately from the empty executable value and positive containment.
+An empty array needs no element representation. Checking retains zero-count element classification
+in its source-key table, separately from the empty executable value and positive containment;
+that metadata cannot manufacture an element payload or execution identity.
 
 Listed arrays use the same `Data::Aggregate` nodes, metered import, copy-on-write, assembly and
 frozen publication as records/tuples. The selected slot schema validates their exact count and

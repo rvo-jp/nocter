@@ -257,7 +257,7 @@ impl Types {
                 if let Some(&id) = self.structures.get(&StructuralShape::Uninhabited) {
                     self.ids.insert(data, id);
                 } else {
-                    let id = self.insert(data, Type::Unavailable, false);
+                    let id = self.insert(data, Type::Uninhabited, false);
                     self.structures.insert(StructuralShape::Uninhabited, id);
                 }
                 continue;

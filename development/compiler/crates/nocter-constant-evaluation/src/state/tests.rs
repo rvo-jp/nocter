@@ -7,6 +7,7 @@ mod arrays;
 mod captured_invocation;
 mod captured_values;
 mod contexts;
+mod empty_domains;
 mod expression_roots;
 mod lexical_codes;
 mod named_functions;

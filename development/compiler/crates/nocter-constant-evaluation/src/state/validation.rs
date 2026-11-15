@@ -210,10 +210,12 @@ pub(super) fn validate_added(
     for code in contracts {
         let contract = program.contracts.get(&code).ok_or(INVALID)?;
         if contract.result >= program.types.len()
-            || contract
-                .inputs
-                .iter()
-                .any(|input| input.data >= program.types.len())
+            || contract.inputs.iter().any(|input| {
+                program
+                    .types
+                    .get(input.data)
+                    .is_none_or(|data| matches!(data, Type::Uninhabited))
+            })
             || (contract.initializer && !contract.inputs.is_empty())
             || (matches!(code.source, nocter_model::ValueCode::Expression(_))
                 && !contract.initializer)
@@ -254,11 +256,12 @@ pub(super) fn validate_added(
     Ok(())
 }
 fn validate_plan(program: &Program, plan: &super::Plan) -> Result<()> {
-    if plan
-        .slots
-        .iter()
-        .any(|slot| slot.data >= program.types.len())
-        || plan.result >= program.types.len()
+    if plan.slots.iter().any(|slot| {
+        program
+            .types
+            .get(slot.data)
+            .is_none_or(|data| matches!(data, Type::Uninhabited))
+    }) || plan.result >= program.types.len()
         || plan.points.get(plan.entry).is_none()
         || (plan.initializer && !plan.inputs.is_empty())
     {
@@ -612,7 +615,11 @@ fn bounded_array(
 }
 fn owned_place(program: &Program, plan: &View<'_>, source: &Place) -> Result<usize> {
     if definition(plan, source.slot)?.storage == Storage::Owned {
-        place(program, plan, source)
+        let data = place(program, plan, source)?;
+        if matches!(program.types.get(data), Some(Type::Uninhabited)) {
+            return Err(INVALID);
+        }
+        Ok(data)
     } else {
         Err(INVALID)
     }

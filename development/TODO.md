@@ -172,9 +172,12 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Replace the generic typed-body integrity failure on unqualified outcome widening with an
   appropriate source-local cause at the original taking/forwarding/return boundary. Qualify
   optional, nested tuple and failed-result cases while preserving direct destination construction.
-- [ ] Distinguish a proven empty representation domain from unavailable evaluator metadata in the
+- [x] Distinguish a proven empty representation domain from unavailable evaluator metadata in the
   evaluator's own type vocabulary before guarded transport can use it as a conversion proof.
   Qualify inactive alternatives separately from actual values, slots and input/cleanup obligations.
+- [ ] Realize guarded represented-value transport in closed evaluator plans with explicit source
+  and destination shapes, exact positive callable contexts, inactive-alternative checks, once-only
+  retirement and failure/budget recovery. This alone does not admit source conversions or native ABI.
 - [ ] Qualify application-specific empty callable domains supplied through received optional
   inputs. A globally nonempty formal result equation is not a proof that every application
   supplies a callable; preserve the exact committed input context rather than closing its raw type.

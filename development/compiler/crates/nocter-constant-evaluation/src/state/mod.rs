@@ -41,6 +41,9 @@ pub enum Type {
     /// against it; inactive variants may retain its uninstantiated identity. Source zero-count
     /// element classification requires no executable reference to this shape.
     Unavailable,
+    /// A proven empty represented domain. Inactive alternatives may retain it as metadata,
+    /// but no value, stored root or received input can inhabit it. Unknown data stays Unavailable.
+    Uninhabited,
     Unit,
     /// A concrete code witness with no runtime environment; Unit is its payload.
     NamedFunction(AccessCodeId),

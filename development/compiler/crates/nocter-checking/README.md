@@ -1813,8 +1813,8 @@ declaration forwarding and nested optional construction through required/native 
 ordered resource projection. An empty positive solution is accepted only beneath an outcome
 and with complete equations and known call targets; an opaque target or unresolved root callable
 cannot establish an empty domain. An uncommitted application remains distinct from a completed
-carrier whose callable alternative is excluded. The evaluator shares one unavailable empty-domain
-shape without treating unresolved descriptors as empty. The matching error fixture qualifies
+carrier whose callable alternative is excluded. The evaluator shares one explicit `Uninhabited`
+shape, distinct from unresolved `Unavailable` descriptors. The matching error fixture qualifies
 failure-only results, exact forwarding and disposal of actual owned error graphs.
 This does not qualify extracting an excluded callable, widening an absence-only carrier into a
 carrier with a produced callable, or application-specific emptiness through received inputs.
