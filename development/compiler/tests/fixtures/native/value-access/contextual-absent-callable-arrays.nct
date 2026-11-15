@@ -79,6 +79,20 @@ const func conditional_empty_last(flag: bool): i32 {
 const func conditional_empty_all(flag: bool): i32 {
     discard([if flag { none } else { none }, if flag { none } else { none }])
 }
+const func conditional_nested_absence(flag: bool, inner: bool): i32 {
+    choose([if flag {
+        let marker: i32 = 40
+        let pending = (marker; value: i32) { marker + value }
+        if inner { none } else { none }
+    } else { wrap(addition(0)) }, wrap(addition(10))])
+}
+const func conditional_nested_presence(flag: bool, inner: bool): i32 {
+    choose([if flag { wrap(addition(0)) } else {
+        let marker: i32 = 40
+        let pending = (marker; value: i32) { marker + value }
+        if inner { none } else { none }
+    }, wrap(addition(10))])
+}
 const func conditional_chain(first: bool, second: bool): i32 {
     choose([none, if first { wrap(addition(0)) } else if second { wrap(addition(10)) } else { wrap(addition(40)) }])
 }
@@ -105,6 +119,8 @@ const func calculate(): i32 {
     if conditional_empty(condition_order, false) != 21 || condition_order != 2 { return 0 }
     if conditional_empty_last(true) != 21 || conditional_empty_last(false) != 21 { return 0 }
     if conditional_empty_all(true) != 21 || conditional_empty_all(false) != 21 { return 0 }
+    if conditional_nested_absence(true, true) != 31 || conditional_nested_absence(true, false) != 31 || conditional_nested_absence(false, false) != 21 { return 0 }
+    if conditional_nested_presence(true, true) != 21 || conditional_nested_presence(false, true) != 31 || conditional_nested_presence(false, false) != 31 { return 0 }
     if conditional_chain(true, false) != 21 || conditional_chain(false, true) != 31 || conditional_chain(false, false) != 61 { return 0 }
     if discard([none, live]) != 21 || discard([live, none]) != 21 || discard([none, none]) != 21 { return 0 }
     if choose([none, wrap(live)]) + choose([wrap(live), wrap(live)]) != 42 { return 0 }

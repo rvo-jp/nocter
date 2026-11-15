@@ -373,63 +373,30 @@ impl Checker<'_, '_> {
         let expected = expected.filter(|_| self.ty(condition).may_complete());
         let construction = construction.filter(|_| self.ty(condition).may_complete());
         let alternative = self.direct(node, NodeKind::ElseClause).ok();
-        // Without else the operation completes with unit, not a retained branch access.
-        let branch_expected = if alternative.is_none() {
-            Some(Boundary::Binding(Ty::new(
-                self.data(BuiltinType::Void),
-                Mode::Own,
-            )))
-        } else {
-            expected
-        };
-        let unit_hint = Annotation::Data(self.data(BuiltinType::Void));
-        let branch_hint = if alternative.is_none() {
-            Some(&unit_hint)
-        } else {
-            hint
-        };
-        let branch_construction = alternative.is_some().then_some(construction).flatten();
-        let then_block = self.block_with_construction(
-            self.direct(node, NodeKind::Block)?,
-            branch_expected,
-            branch_hint,
-            branch_construction,
-            branches_reachable && known_condition != Some(false),
-        )?;
-        let else_block = if let Some(clause) = alternative {
-            let child = self.first_child(clause)?;
-            if self.kind(child)? == NodeKind::Block {
-                self.block_with_construction(
-                    child,
-                    expected,
-                    hint,
-                    construction,
-                    branches_reachable && known_condition != Some(true),
-                )?
-            } else {
-                let value = self.if_expression(
-                    child,
-                    expected,
-                    hint,
-                    construction,
-                    branches_reachable && known_condition != Some(true),
-                )?;
-                self.emit_block(clause, Vec::new(), Some(value), self.ty(value))?
-            }
-        } else {
-            let mut unit = self.unit(node)?;
-            if let Some(boundary) = branch_expected {
-                unit = self.boundary(node, unit, boundary)?;
-            }
-            self.emit_block(node, Vec::new(), Some(unit), self.ty(unit))?
-        };
-        if construction.is_some() {
-            self.refine_conditional_absence(
-                [then_block, else_block],
+        let [then_block, else_block] = if alternative.is_some() {
+            self.conditional_blocks(
+                node,
+                expected,
+                hint,
+                construction,
                 branches_reachable,
                 known_condition,
+            )?
+        } else {
+            // Without else the operation completes with unit, not a retained branch access.
+            let unit = self.data(BuiltinType::Void);
+            let boundary = Boundary::Binding(Ty::new(unit, Mode::Own));
+            let then_block = self.block_with_hint(
+                self.direct(node, NodeKind::Block)?,
+                Some(boundary),
+                Some(&Annotation::Data(unit)),
+                branches_reachable && known_condition != Some(false),
             )?;
-        }
+            let value = self.unit(node)?;
+            let value = self.boundary(node, value, boundary)?;
+            let else_block = self.emit_block(node, Vec::new(), Some(value), self.ty(value))?;
+            [then_block, else_block]
+        };
         let ty = self.conditional_type(node, condition, then_block, else_block)?;
         if construction.is_some()
             && let Some(access) = ty.normal()
@@ -451,6 +418,82 @@ impl Checker<'_, '_> {
             self.boundary(node, value, boundary)
         } else {
             Ok(value)
+        }
+    }
+    fn conditional_blocks(
+        &mut self,
+        node: NodeId,
+        expected: Option<Boundary>,
+        hint: Option<&Annotation>,
+        construction: Option<nocter_model::TypeId>,
+        reachable: bool,
+        condition: Option<bool>,
+    ) -> Result<[AccessBlockId; 2], Failure> {
+        let then_node = self.direct(node, NodeKind::Block)?;
+        let clause = self.direct(node, NodeKind::ElseClause)?;
+        let then_absent = construction.is_some() && self.absence_construction(then_node)?;
+        let else_absent =
+            construction.is_some() && self.absence_construction(self.first_child(clause)?)?;
+        let context_from = |this: &Self, block| {
+            this.block_ty(block)
+                .access()
+                .map(Ty::data)
+                .filter(|data| this.absence_type(*data).is_some())
+                .or(construction)
+        };
+        if then_absent && !else_absent {
+            let other = self.conditional_else(
+                clause,
+                expected,
+                hint,
+                construction,
+                reachable && condition != Some(true),
+            )?;
+            let selected = context_from(self, other);
+            let first = self.block_with_construction(
+                then_node,
+                expected,
+                hint,
+                selected,
+                reachable && condition != Some(false),
+            )?;
+            return Ok([first, other]);
+        }
+        let first = self.block_with_construction(
+            then_node,
+            expected,
+            hint,
+            construction,
+            reachable && condition != Some(false),
+        )?;
+        let selected = if else_absent && !then_absent {
+            context_from(self, first)
+        } else {
+            construction
+        };
+        let other = self.conditional_else(
+            clause,
+            expected,
+            hint,
+            selected,
+            reachable && condition != Some(true),
+        )?;
+        Ok([first, other])
+    }
+    fn conditional_else(
+        &mut self,
+        clause: NodeId,
+        expected: Option<Boundary>,
+        hint: Option<&Annotation>,
+        construction: Option<nocter_model::TypeId>,
+        reachable: bool,
+    ) -> Result<AccessBlockId, Failure> {
+        let child = self.first_child(clause)?;
+        if self.kind(child)? == NodeKind::Block {
+            self.block_with_construction(child, expected, hint, construction, reachable)
+        } else {
+            let value = self.if_expression(child, expected, hint, construction, reachable)?;
+            self.emit_block(clause, Vec::new(), Some(value), self.ty(value))
         }
     }
     fn supply_conditional_results(

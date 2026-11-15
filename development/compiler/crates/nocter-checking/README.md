@@ -2339,16 +2339,17 @@ does not leave branch-specific descriptors attached to one merged result slot. S
 reclassification remains ordinary adaptation in the original value graph, retaining its result-family
 receipt. Representation-changing transport separately records both original carrier domains.
 
-When one contextual conditional branch ends in the literal `none` and the other has a known
-outcome shape, only that literal's construction adopts the other outcome descriptor before branch
-identities are joined. Both branches' already-checked statements remain in place, and no foreign
-input witness is equated to the callable merely to type the absence. Interrupted branches retain
-their lack of normal completion: known shape supplies no runtime payload or callable receipt.
-Arrays and conditional results share literal-absence recognition; named values retain their own
-type constraints. The shared source covers either branch order, source-ordered updates, nested
-`else if` results and earlier returns in one or both branches. Already prepared array prefixes
-retain their ordinary cleanup, including native environments owning errors. Incompatible dormant
-signatures still reject.
+When one contextual conditional branch recursively constructs only literal absence, check the
+value-bearing branch against the authored constraint first, then use its known outcome descriptor
+as the absence-only branch's construction context. Each branch body is checked once; the original
+graph retains its condition and source-ordered statements. No foreign input witness is equated to
+the callable merely to type the absence. Interrupted branches retain their lack of normal completion:
+known shape supplies no runtime payload or callable receipt. `construction::absence` owns the
+memoized syntax-only query shared by arrays and conditional results, discarded with the body builder. It neither
+infers named-value tags nor replaces producer evidence. The shared source covers either branch order,
+nested absence-only branches, source-ordered updates, `else if` results and earlier returns in one or
+both branches. Already prepared array prefixes retain their ordinary cleanup, including native
+environments owning errors. Incompatible dormant signatures still reject.
 
 Repetition closes its count through the common query, then prepares its seed even at zero count.
 The seed must be supplied as an ordinary value; zero does not turn a non-Copy read into an owner

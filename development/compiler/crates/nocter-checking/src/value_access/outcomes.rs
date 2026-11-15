@@ -8,12 +8,6 @@ use nocter_declarations::value_access::PayloadSchema;
 use nocter_model::{AccessExpressionId, FieldPath, TypeId, ValueAccessMode as Mode, ValueField};
 use nocter_syntax::NodeId;
 mod recovery;
-struct ConditionalResult {
-    node: NodeId,
-    data: TypeId,
-    literal_absence: bool,
-    completes: bool,
-}
 struct OwnedOutcome {
     source: AccessExpressionId,
     payload: TypeId,
@@ -21,97 +15,6 @@ struct OwnedOutcome {
     place: nocter_model::AccessPlaceId,
 }
 impl Checker<'_, '_> {
-    pub(super) fn literal_absence(&self, node: NodeId) -> Result<bool, Failure> {
-        let node = self.unwrap(node)?;
-        Ok(self.kind(node)? == nocter_syntax::NodeKind::ScalarLiteral
-            && self.token(node)?.kind()
-                == nocter_syntax::TokenKind::Keyword(nocter_syntax::Keyword::None))
-    }
-    /// Only syntax that constructs literal absence on every branch. This is a construction
-    /// inference request, not a tag fact about named values, calls or runtime reachability.
-    pub(super) fn absence_construction(&self, node: NodeId) -> Result<bool, Failure> {
-        use nocter_syntax::NodeKind;
-        let mut pending = vec![node];
-        while let Some(node) = pending.pop() {
-            let node = self.unwrap(node)?;
-            if self.literal_absence(node)? {
-                continue;
-            }
-            match self.kind(node)? {
-                NodeKind::IfExpression => {
-                    let Ok(alternative) = self.direct(node, NodeKind::ElseClause) else {
-                        return Ok(false);
-                    };
-                    pending.push(self.direct(node, NodeKind::Block)?);
-                    pending.push(self.first_child(alternative)?);
-                }
-                NodeKind::Block => {
-                    let Ok(sequence) = self.direct(node, NodeKind::ExecutableSequence) else {
-                        return Ok(false);
-                    };
-                    let Ok(result) = self.direct(sequence, NodeKind::BodyResult) else {
-                        return Ok(false);
-                    };
-                    pending.push(self.first_child(result)?);
-                }
-                _ => return Ok(false),
-            }
-        }
-        Ok(true)
-    }
-    pub(super) fn refine_conditional_absence(
-        &mut self,
-        blocks: [nocter_model::AccessBlockId; 2],
-        reachable: bool,
-        condition: Option<bool>,
-    ) -> Result<(), Failure> {
-        let mut supplied = Vec::new();
-        for block in blocks {
-            let body = self.blocks.get(block).ok_or(Failure::InconsistentSyntax)?;
-            let Some(access) = body.ty.access() else {
-                return Ok(());
-            };
-            let value = body.result.ok_or(Failure::InconsistentSyntax)?;
-            let nocter_syntax::SyntaxOrigin::Node(node) = self.expression_origin(value)? else {
-                return Err(Failure::InconsistentSyntax);
-            };
-            supplied.push(ConditionalResult {
-                node,
-                data: access.data(),
-                literal_absence: self.literal_absence(node)?,
-                completes: body.ty.may_complete(),
-            });
-        }
-        let absent = match (supplied[0].literal_absence, supplied[1].literal_absence) {
-            (true, false) => 0,
-            (false, true) => 1,
-            _ => return Ok(()),
-        };
-        let target = supplied[1 - absent].data;
-        if target == supplied[absent].data || self.absence_type(target).is_none() {
-            return Ok(());
-        }
-        // A literal supplies no code or payload. Rebuild only its ordinary construction;
-        // retain the checked statements, source effects and the other branch's known descriptor.
-        let selected = match condition {
-            Some(true) => absent == 0,
-            Some(false) => absent == 1,
-            None => true,
-        };
-        let value = self.construction_value(
-            supplied[absent].node,
-            Some(target),
-            reachable && selected && supplied[absent].completes,
-        )?;
-        let ty = self.ty(value).with_continuation(supplied[absent].completes);
-        let body = self
-            .blocks
-            .get_mut(blocks[absent])
-            .ok_or(Failure::InconsistentSyntax)?;
-        body.result = Some(value);
-        body.ty = ty;
-        Ok(())
-    }
     pub(super) fn outcome_payload(&self, mut data: TypeId) -> TypeId {
         while let Some(PayloadSchema::Optional(payload) | PayloadSchema::Fallible(payload)) =
             self.program().data_schema(data)

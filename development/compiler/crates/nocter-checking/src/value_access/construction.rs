@@ -8,6 +8,7 @@ use nocter_declarations::value_access::{AggregateForm, PayloadSchema};
 use nocter_model::{AccessExpressionId, ValueAccessMode as Mode};
 use nocter_syntax::{NodeId, NodeKind, direct_identifier};
 use std::collections::BTreeSet;
+mod absence;
 mod arrays;
 
 impl Checker<'_, '_> {
