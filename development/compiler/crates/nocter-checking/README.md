@@ -414,6 +414,14 @@ Outcome retagging preserves that fact, and strong updates retain earlier immutab
 an initialized value nor a represented callable domain, code witness, cleanup or const eligibility.
 The positive producer equations do not use an empty witness set as a tag fact.
 
+Each original invocation input retains its positive alternatives and a separate inactive-callable
+fact in one `InputProducers` summary. Matching compound input paths propagate a constructed
+inactive outcome to its callable descendants. Joins require every observed source to exclude the
+leaf; an unobserved accumulator is distinct from a described unknown with no positive candidates.
+The original call recipe remains shared by all result leaves. Descriptor-only applications retain
+unknowns rather than inventing constructor facts. Positive result solving and represented-domain
+selection do not consume the new exclusion as a witness or an empty physical representation.
+
 `results::applications` classifies each selected call result once. A newly reserved callable result
 application must match its caller/call key, the selected callee's result template and declared result
 invocation. A callable result of a named, anonymous or returned callee gets its own application;
@@ -1820,7 +1828,11 @@ primary constraints. Only a matched foreign input component without a selected p
 choose an excluded domain for that explicit inactive alternative. Construction checks its original
 source contract even when the requested target is already excluded; different function signatures
 cannot be retyped through absence. Existing input domains and positive supplied fields keep their
-own evidence. Propagating explicit constructor exclusion through returned-callable equations and
+own evidence. `lifted-callable-outcome-inputs.nct` qualifies supplied functions lifted through
+optional, nested optional and success layers, including tuple-component construction. Shared
+constraint selection checks the callable contract and retains the supplied code identity before
+building the outcome layers; required evaluation and native invocation agree. A different callable
+signature rejects. Propagating explicit constructor exclusion through returned-callable equations and
 instance-specific positive continuations retain separate qualification obligations.
 Declared compound-result contracts have declaration-owned result ordinals. A diverging body can
 retain that known signature without establishing any returned value, concrete environment or

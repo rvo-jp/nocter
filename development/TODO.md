@@ -210,9 +210,12 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Retain explicit constructed outcome tags in the shared producer fact DAG, separating missing
   facts from described unknowns. Qualify source creation snapshots, conservative joins/weak updates
   and bounded shared-schema traversal without granting ownership, code or represented-domain facts.
-- [ ] Retain explicit active-callable absence in each original invocation input summary alongside
+- [x] Retain explicit active-callable absence in each original invocation input summary alongside
   its positive producer alternatives. Merge only matching original inputs, distinguish missing/empty
   alternatives from a constructed exclusion, and keep represented-domain selection and ownership separate.
+- [x] Preserve actual supplied function identity when lifting into optional/fallible compound-input
+  constraints, including nested outcomes and tuple components. Share constraint selection between
+  construction and input preparation; qualify actual required/native invocation and wrong-contract rejection.
 - [x] Qualify statically pruned and ordinary conditional outcome inputs through original commit
   recipes and supplied/formal domain reprojection. Preserve dormant descriptor checks separately
   from committed empty-domain and original merge evidence; retained source effects remain intact.

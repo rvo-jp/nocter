@@ -2,6 +2,16 @@
 use super::*;
 
 #[test]
+fn private_lifted_callable_inputs_preserve_actual_code_and_outcome_layers() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/lifted-callable-outcome-inputs.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "lifted-callable-inputs", 42);
+}
+
+#[test]
 fn private_constructed_absence_closes_actual_receiving_domains() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

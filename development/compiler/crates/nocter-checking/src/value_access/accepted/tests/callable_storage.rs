@@ -9,6 +9,21 @@ const RECEIVED_OUTCOMES: &str = include_str!(concat!(
 ));
 
 #[test]
+fn lifted_callable_inputs_preserve_actual_code_through_nested_outcomes_and_components() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/lifted-callable-outcome-inputs.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Value::integer(42));
+    let mismatched = source.replace(
+        "const func identity(value: i32): i32",
+        "const func identity(value: u64): u64",
+    );
+    let fixture = nocter_test_support::ValueSourceFixture::new(&mismatched);
+    assert!(SourceUnit::prepare(fixture.syntax()).is_err());
+}
+
+#[test]
 fn directly_constructed_absence_closes_a_receiving_callable_constraint() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

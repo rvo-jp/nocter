@@ -1,0 +1,22 @@
+const func identity(value: i32): i32 { value }
+const func optional(take value: (func(i32): i32)?): i32 {
+    let callback = value^!
+    callback(10)
+}
+const func nested(take value: ((func(i32): i32)?)?): i32 {
+    let callback = (value^!)!
+    callback(10)
+}
+const func success(take value: (func(i32): i32)!): i32 {
+    let callback = value^!
+    callback(10)
+}
+const func component(take value: ((func(i32): i32)?, i32)): i32 {
+    let callback = value.0^!
+    callback(value.1)
+}
+const func calculate(): i32 {
+    optional(identity) + nested(identity) + success(identity) + component((identity, 12))
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { calculate() }

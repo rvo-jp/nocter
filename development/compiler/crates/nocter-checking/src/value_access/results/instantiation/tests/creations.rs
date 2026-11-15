@@ -272,7 +272,7 @@ fn snapshot_evidence(
             *site,
             Arc::new(InvocationRecipe {
                 callees: BTreeSet::from([fixture.creator.into()]),
-                inputs: BTreeMap::from([(fixture.formal, BTreeSet::from([callback]))]),
+                inputs: BTreeMap::from([(fixture.formal, BTreeSet::from([callback]).into())]),
             }),
         );
     }

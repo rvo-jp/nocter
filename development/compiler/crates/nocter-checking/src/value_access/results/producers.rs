@@ -6,7 +6,47 @@ use nocter_model::{AccessExpressionId, ValueAppliedResult, ValueFunctionOrigin};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) type Producers = BTreeSet<FunctionWitness>;
-pub(super) type Inputs = BTreeMap<nocter_model::ValueParameter, Producers>;
+pub(super) type Inputs = BTreeMap<nocter_model::ValueParameter, InputProducers>;
+/// Original input alternatives and an independent actual-value exclusion fact. This grants no
+/// represented domain, code, initialized input, ownership or invocation permission.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct InputProducers {
+    producers: Producers,
+    excluded: Option<bool>,
+}
+impl InputProducers {
+    /// Positive symbolic alternatives; an empty set alone never proves absence.
+    #[must_use]
+    pub const fn producers(&self) -> &BTreeSet<FunctionWitness> {
+        &self.producers
+    }
+    /// All observed sources exclude this callable leaf under an inactive outcome tag.
+    #[must_use]
+    pub fn excludes_active_callable(&self) -> bool {
+        self.excluded == Some(true) && self.producers.is_empty()
+    }
+    fn source(producers: Producers, excluded: bool) -> Self {
+        Self {
+            producers,
+            excluded: Some(excluded),
+        }
+    }
+    fn extend(&mut self, producers: impl IntoIterator<Item = FunctionWitness>) {
+        self.join(Self::source(producers.into_iter().collect(), false));
+    }
+    fn join(&mut self, other: Self) {
+        self.producers.extend(other.producers);
+        self.excluded = match (self.excluded, other.excluded) {
+            (None, value) | (value, None) => value,
+            (Some(a), Some(b)) => Some(a && b),
+        };
+    }
+}
+impl From<BTreeSet<FunctionWitness>> for InputProducers {
+    fn from(producers: BTreeSet<FunctionWitness>) -> Self {
+        Self::source(producers, false)
+    }
+}
 pub(super) struct Report {
     pub(super) returned: BTreeMap<usize, Vec<(FunctionWitness, AccessExpressionId)>>,
     pub(super) applications: BTreeSet<ValueAppliedResult>,
@@ -293,7 +333,7 @@ fn commit(
             .get(&Key::Argument { call: id, index })
             .ok_or(INVALID)?;
         for (parameter, producers) in store.input_producers(query.program(), data, supplied)? {
-            inputs.entry(parameter).or_default().extend(producers);
+            inputs.entry(parameter).or_default().join(producers);
         }
     }
     let Some(result) = super::applications::call_result(query, id)? else {
@@ -323,7 +363,12 @@ pub(super) fn application_inputs(
     let mut inputs: Inputs = arguments
         .iter()
         .filter_map(|argument| argument.binding.as_ref())
-        .map(|binding| (binding.parameter, Producers::from([binding.witness])))
+        .map(|binding| {
+            (
+                binding.parameter,
+                InputProducers::from(Producers::from([binding.witness])),
+            )
+        })
         .collect();
     let mut store = Store::default();
     for (index, data) in query
@@ -336,7 +381,7 @@ pub(super) fn application_inputs(
         let actual = expression_data(query, argument.value)?;
         let actual = store.received(query.program(), actual, true)?;
         for (parameter, producers) in store.input_producers(query.program(), data, actual)? {
-            inputs.entry(parameter).or_default().extend(producers);
+            inputs.entry(parameter).or_default().join(producers);
         }
     }
     Ok(inputs)
@@ -566,3 +611,6 @@ fn evaluate(
         _ => Ok(Store::unknown()),
     }
 }
+
+#[cfg(test)]
+mod tests;

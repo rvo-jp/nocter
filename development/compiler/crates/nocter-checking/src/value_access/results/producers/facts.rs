@@ -305,11 +305,11 @@ impl Store {
         actual: Facts,
     ) -> Result<super::Inputs, IntegrityError> {
         let formal = self.received(program, data, true)?;
-        let mut pending = vec![(formal, actual)];
+        let mut pending = vec![(formal, actual, false)];
         let mut seen = BTreeSet::new();
         let mut inputs = super::Inputs::new();
-        while let Some((formal, actual)) = pending.pop() {
-            if !seen.insert((formal, actual)) {
+        while let Some((formal, actual, excluded)) = pending.pop() {
+            if !seen.insert((formal, actual, excluded)) {
                 continue;
             }
             let formal = &self.nodes[formal.0];
@@ -322,13 +322,19 @@ impl Store {
                     inputs
                         .entry(parameter)
                         .or_default()
-                        .extend(actual.producers.iter().copied());
+                        .join(super::InputProducers::source(
+                            actual.producers.clone(),
+                            excluded,
+                        ));
                 }
             }
             pending.extend(formal.children.iter().map(|(field, &formal)| {
                 (
                     formal,
                     actual.children.get(field).copied().unwrap_or_default(),
+                    excluded
+                        || (*field == ValueField::Variant(true)
+                            && actual.tag.primary() == Some(false)),
                 )
             }));
         }

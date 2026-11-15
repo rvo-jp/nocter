@@ -1,6 +1,6 @@
 //! Source-flow recipes survive result code/type projection in the exact accepted Unit.
 use super::*;
-use crate::value_access::{ExpressionKind, ProducerRelation, ProducerTerm};
+use crate::value_access::{ExpressionKind, InputProducers, ProducerRelation, ProducerTerm};
 use nocter_declarations::value_access::FunctionWitness;
 use nocter_model::{
     AccessCodeId, AccessExpressionId, ValueApplication, ValueFunctionOrigin as Origin,
@@ -26,6 +26,78 @@ fn application(unit: &Unit, owner: &str, call: AccessExpressionId) -> ProducerTe
         }
         .into(),
     )
+}
+
+#[test]
+fn invocation_inputs_keep_constructed_absence_separate_from_unknown_and_positive_sources() {
+    let unit = accepted(
+        "func identity(value: i32): i32 { value }\nfunc discard(take value: (func(i32): i32)?): i32 { drop value\n42 }\nfunc run(take value: (func(i32): i32)?): i32 { let first = discard(none)\nlet second = discard(identity)\nlet third = discard(value^)\nfirst + second + third }",
+    );
+    let target = code(&unit, "discard");
+    let input = unit.program().codes().get(target).unwrap().parameters()[0];
+    let parameter = nocter_model::ValueParameter::Component { input, ordinal: 0 };
+    let mut inputs = Vec::new();
+    for (id, expression) in named(&unit, "run").typed().body().expressions().iter() {
+        if !matches!(expression.kind, ExpressionKind::Call { target: Origin::Declaration(code), .. } if code == target)
+        {
+            continue;
+        }
+        let recipe = unit
+            .invocation_recipe(ValueApplication {
+                owner: code(&unit, "run").into(),
+                call: id,
+            })
+            .unwrap();
+        assert_eq!(recipe.inputs.len(), 1);
+        inputs.push(recipe.inputs[&parameter].clone());
+    }
+    assert_eq!(inputs.len(), 3);
+    assert!(inputs[0].excludes_active_callable());
+    assert!(inputs[0].producers().is_empty());
+    assert!(!inputs[1].excludes_active_callable());
+    assert_eq!(
+        inputs[1].producers(),
+        &BTreeSet::from([FunctionWitness::from(code(&unit, "identity"))])
+    );
+    assert!(!inputs[2].excludes_active_callable());
+    assert!(
+        inputs[2]
+            .producers()
+            .iter()
+            .any(|value| matches!(value.origin, Origin::Parameter(_)))
+    );
+}
+
+#[test]
+fn nested_inactive_outcomes_exclude_each_original_callable_input_leaf() {
+    let unit = accepted(
+        "func discard(take value: ((func(i32): i32)?)?): void { drop value }\nfunc discard_pair(take value: (func(i32): i32, i32)?): void { drop value }\nfunc run(): void { discard(none)\ndiscard_pair(none) }",
+    );
+    let owner = code(&unit, "run").into();
+    let mut count = 0;
+    for (id, expression) in named(&unit, "run").typed().body().expressions().iter() {
+        if !matches!(
+            expression.kind,
+            ExpressionKind::Call {
+                target: Origin::Declaration(_),
+                ..
+            }
+        ) {
+            continue;
+        }
+        let recipe = unit
+            .invocation_recipe(ValueApplication { owner, call: id })
+            .unwrap();
+        assert_eq!(recipe.inputs.len(), 1);
+        assert!(
+            recipe
+                .inputs
+                .values()
+                .all(InputProducers::excludes_active_callable)
+        );
+        count += 1;
+    }
+    assert_eq!(count, 2);
 }
 
 #[test]
@@ -90,7 +162,7 @@ fn distinct_applications_keep_inputs_even_when_their_result_types_project_to_one
         assert_eq!(invocation.callees, BTreeSet::from([maker.into()]));
         assert_eq!(invocation.inputs.len(), 1);
         assert_eq!(
-            invocation.inputs[&parameter],
+            *invocation.inputs[&parameter].producers(),
             BTreeSet::from([FunctionWitness::from(code(&unit, name))])
         );
     }
@@ -183,8 +255,8 @@ fn forwarded_application_keeps_its_original_producer_term_after_selected_code_pr
     else {
         panic!("forwarded application");
     };
-    let original = invocation.inputs[&parameter].first().unwrap();
-    assert_eq!(invocation.inputs[&parameter].len(), 1);
+    let original = invocation.inputs[&parameter].producers().first().unwrap();
+    assert_eq!(invocation.inputs[&parameter].producers().len(), 1);
     let Origin::Application(origin) = original.origin else {
         panic!("original nested application");
     };
@@ -235,7 +307,7 @@ fn producer_recipes_remain_paired_with_the_accepted_units_body_sources() {
         invocation
             .inputs
             .values()
-            .flatten()
+            .flat_map(InputProducers::producers)
             .all(|witness| witness.origin == Origin::Declaration(code(&rebound, "first")))
     );
 }
@@ -260,7 +332,11 @@ fn scalar_result_calls_retain_original_callable_argument_and_receiver_producers(
         recipe.callees,
         BTreeSet::from([FunctionWitness::from(code(&unit, "consume"))])
     );
-    let actual = recipe.inputs.values().flatten().collect::<Vec<_>>();
+    let actual = recipe
+        .inputs
+        .values()
+        .flat_map(InputProducers::producers)
+        .collect::<Vec<_>>();
     assert_eq!(actual.len(), 1);
     assert!(
         matches!(actual[0].origin, Origin::Application(origin) if origin.application.owner == site.owner && origin.application.call == maker)

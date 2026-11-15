@@ -43,15 +43,8 @@ impl Checker<'_, '_> {
             };
             Some(WitnessBinding { parameter, witness })
         } else {
-            if let Some(actual) = self.ty(value).access()
-                && self
-                    .program()
-                    .matches_compound_input(actual.data(), expected.data)
-            {
-                // Keep the supplied value's semantic identity. The callee's canonical input
-                // metadata closes each formal component from the original argument source.
-                expected.data = actual.data();
-            }
+            // Keep supplied semantic identities, including through newly injected outcomes.
+            expected.data = self.supplied_constraint_data(syntax, value, expected.data)?;
             None
         };
         if self

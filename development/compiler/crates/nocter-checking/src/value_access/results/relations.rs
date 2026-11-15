@@ -108,10 +108,10 @@ fn prove_empty<'a>(
                             let Some(actuals) = invocation.inputs.get(&parameter) else {
                                 return false;
                             };
-                            if actuals.is_empty() {
+                            if actuals.producers().is_empty() {
                                 return false;
                             }
-                            for actual in actuals {
+                            for actual in actuals.producers() {
                                 pending.push(match actual.origin {
                                     Origin::Result(result) => Term::Result {
                                         code: result.owner.into(),
@@ -196,7 +196,7 @@ pub(super) fn solve(relations: &Relations) -> Result<Solutions, ()> {
                             {
                                 if let Origin::Parameter(parameter) = result.origin {
                                     if let Some(actuals) = inputs.get(&parameter) {
-                                        for &actual in actuals {
+                                        for &actual in actuals.producers() {
                                             for witness in values(actual, &known)? {
                                                 next.insert(adapt(witness, result.invocation)?);
                                             }

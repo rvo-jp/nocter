@@ -121,7 +121,10 @@ fn returned_closure_uses_its_actual_creation_frame_instead_of_the_outer_frames_b
         factory,
         Arc::new(InvocationRecipe {
             callees: BTreeSet::from([fixture.creator.into()]),
-            inputs: BTreeMap::from([(fixture.formal, BTreeSet::from([fixture.callbacks[1]]))]),
+            inputs: BTreeMap::from([(
+                fixture.formal,
+                BTreeSet::from([fixture.callbacks[1]]).into(),
+            )]),
         }),
     );
     evidence.invocations.insert(

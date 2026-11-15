@@ -222,13 +222,13 @@ fn empty_input_substitution_needs_actual_producers_and_original_result_equations
         ),
     ]);
     for inputs in [
-        Inputs::from([(parameter, Producers::from([supplied]))]),
-        Inputs::from([(parameter, Producers::new())]),
+        Inputs::from([(parameter, Producers::from([supplied]).into())]),
+        Inputs::from([(parameter, Producers::new().into())]),
         Inputs::new(),
     ] {
         let has_actual = inputs
             .get(&parameter)
-            .is_some_and(|values| !values.is_empty());
+            .is_some_and(|values| !values.producers().is_empty());
         let mut applications = originals.clone();
         applications.insert(
             application,
@@ -372,7 +372,7 @@ fn returned_callees_and_input_results_use_real_return_summaries_without_signatur
                     origin: Origin::Application(make.into()),
                     invocation: ValueInvocation::Read,
                 }]),
-                inputs: Inputs::from([(parameter, Producers::from([actual.into()]))]),
+                inputs: Inputs::from([(parameter, Producers::from([actual.into()]).into())]),
             })),
         );
     }

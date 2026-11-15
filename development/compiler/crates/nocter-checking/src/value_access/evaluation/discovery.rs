@@ -158,10 +158,13 @@ fn occurrence_separable(
     };
     unary(callee)
         && (!matches!(callee.origin, ValueFunctionOrigin::Parameter(_)) || recipe.inputs.is_empty())
-        && recipe
-            .inputs
-            .values()
-            .all(|terms| terms.len() == 1 && terms.first().is_some_and(|&witness| unary(witness)))
+        && recipe.inputs.values().all(|terms| {
+            terms.producers().len() == 1
+                && terms
+                    .producers()
+                    .first()
+                    .is_some_and(|&witness| unary(witness))
+        })
 }
 
 #[cfg(test)]

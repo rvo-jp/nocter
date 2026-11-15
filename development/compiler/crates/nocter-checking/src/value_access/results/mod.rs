@@ -17,7 +17,7 @@ pub(super) use instantiation::{
     stored as instantiate_stored_data, value as instantiate_value,
 };
 mod producers;
-pub use producers::{CreationRecipe, ProducerShape};
+pub use producers::{CreationRecipe, InputProducers, ProducerShape};
 mod projection;
 mod relations;
 mod resources;

@@ -388,7 +388,7 @@ impl<'a, 'work> Query<'a, 'work> {
         let mut unavailable =
             matches!(selected, Fact::Unavailable | Fact::Frame(_) | Fact::Data(_));
         for (&parameter, terms) in &recipe.inputs {
-            match self.union(owner, frame, terms)? {
+            match self.union(owner, frame, terms.producers())? {
                 Fact::Witness(witness) => bindings.push((parameter, witness)),
                 Fact::Empty => pending = true,
                 _ => unavailable = true,

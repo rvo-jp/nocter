@@ -19,36 +19,67 @@ impl Checker<'_, '_> {
         reachable: bool,
     ) -> Result<AccessExpressionId, Failure> {
         let value = self.expression_with_context(node, expected, None, reachable)?;
-        let data = match expected {
-            Some(data) => match self.program().data_schema(data) {
-                Some(PayloadSchema::Function(witness))
-                    if matches!(
-                        witness.origin,
-                        nocter_model::ValueFunctionOrigin::Result(_)
-                            | nocter_model::ValueFunctionOrigin::Parameter(
-                                nocter_model::ValueParameter::Component { .. }
-                            )
-                    ) =>
-                {
-                    let contract = self
-                        .program()
-                        .function_contract(witness)
-                        .ok_or(Failure::InconsistentSyntax)?;
-                    if self.ty(value).access().is_some() {
-                        self.function_constraint_data(node, value, &contract, false)?
-                    } else {
-                        data
-                    }
-                }
-                _ => self
-                    .ty(value)
-                    .access()
-                    .filter(|actual| self.program().matches_compound_input(actual.data(), data))
-                    .map_or(data, nocter_model::ValueAccess::data),
-            },
-            None => return Ok(value),
+        let Some(data) = expected else {
+            return Ok(value);
         };
+        let data = self.supplied_constraint_data(node, value, data)?;
         self.boundary(node, value, Boundary::Value(data))
+    }
+    /// Outcome lifting constrains the payload without replacing a supplied callable identity.
+    pub(super) fn supplied_constraint_data(
+        &mut self,
+        node: NodeId,
+        value: AccessExpressionId,
+        expected: nocter_model::TypeId,
+    ) -> Result<nocter_model::TypeId, Failure> {
+        let Some(actual) = self.ty(value).access() else {
+            return Ok(expected);
+        };
+        let mut inner = expected;
+        let mut wrappers = Vec::new();
+        while !self.matches_result_data(actual.data(), inner)
+            && !self.program().matches_compound_input(actual.data(), inner)
+        {
+            match self.program().data_schema(inner) {
+                Some(PayloadSchema::Optional(payload)) => {
+                    wrappers.push(true);
+                    inner = payload;
+                }
+                Some(PayloadSchema::Fallible(payload)) => {
+                    wrappers.push(false);
+                    inner = payload;
+                }
+                _ => break,
+            }
+        }
+        let mut supplied = match self.program().data_schema(inner) {
+            Some(PayloadSchema::Function(witness))
+                if matches!(
+                    witness.origin,
+                    nocter_model::ValueFunctionOrigin::Result(_)
+                        | nocter_model::ValueFunctionOrigin::Parameter(
+                            nocter_model::ValueParameter::Component { .. }
+                        )
+                ) =>
+            {
+                let contract = self
+                    .program()
+                    .function_contract(witness)
+                    .ok_or(Failure::InconsistentSyntax)?;
+                self.function_constraint_data(node, value, &contract, false)?
+            }
+            _ if self.program().matches_compound_input(actual.data(), inner) => actual.data(),
+            _ => return Ok(expected),
+        };
+        for optional in wrappers.into_iter().rev() {
+            supplied = if optional {
+                self.types.optional(supplied)
+            } else {
+                self.types.fallible(supplied)
+            }
+            .map_err(|_| Failure::InconsistentSyntax)?;
+        }
+        Ok(supplied)
     }
     pub fn tuple_value(
         &mut self,
