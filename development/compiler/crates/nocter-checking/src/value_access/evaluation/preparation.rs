@@ -730,7 +730,8 @@ impl<'a, 'source> Preparation<'a, 'source> {
         // source checker or evaluator. Only established frozen data crosses into final Unit typing.
         let checked =
             accepted::admit_resolved(&self.context, ready.resolved, Some(&ready.invoked))?;
-        accepted::check_required_const(&self.context, &checked, id, &mut self.condition_work)?;
+        let admission =
+            accepted::check_required_const(&self.context, &checked, id, &mut self.condition_work)?;
         if !super::super::constant::supports_final(&checked.program, result_data)
             .map_err(Failure::Integrity)?
         {
@@ -747,9 +748,8 @@ impl<'a, 'source> Preparation<'a, 'source> {
                 diagnostic: Box::new(diagnostic),
             });
         }
-        let (program, mut source) = projection::Source::prepare(
-            &checked,
-            id,
+        let (program, mut source) = projection::prepare(
+            admission,
             |id| dependencies::value(requests, id).map(|value| value.execution.clone()),
             &mut self.plan_work,
         )

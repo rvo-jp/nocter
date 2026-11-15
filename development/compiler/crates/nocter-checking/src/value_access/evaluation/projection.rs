@@ -75,6 +75,15 @@ enum Key {
     Operand(AccessExpressionId, usize),
     Predicate(AccessExpressionId),
 }
+/// Product evaluation starts only from the exact root accepted by ordinary const admission.
+pub(super) fn prepare<'a, 'work, F: Fn(nocter_model::AccessCodeId) -> Option<plan::Value>>(
+    admission: crate::value_access::accepted::ConstAdmission<'a>,
+    values: F,
+    work: &'work mut plan::WorkBudget,
+) -> Result<(plan::Program, Source<'a, 'work, F>)> {
+    let (checked, root) = admission.into_parts();
+    Source::prepare(checked, root, values, work)
+}
 struct Builder<'a, 'b> {
     checked: &'a super::super::accepted::Checked,
     work: &'b mut plan::WorkBudget,

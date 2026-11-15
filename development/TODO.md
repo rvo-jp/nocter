@@ -311,6 +311,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   metadata authority. Preserve full body-derived input/result contexts when present; without a
   body, admit only declaration-owned named boundaries whose keys can close independently of
   return producers. A linked boundary grants no const capability or executable implementation.
+- [x] Retain required-const admission as a sealed exact checked-root product and require it for
+  production evaluator preparation. Body availability, linked boundaries and metadata projection
+  alone must not authorize evaluation. Preserve existing condition proofs, budgets and diagnostics.
 - [ ] Close [state-conditioned const obligations](design/compiler-realization.md#state-conditioned-const-obligations)
   for optional callback absence while the represented domain remains inhabited by a runtime-only
   witness. The linked source plus `const ANSWER: i32 = inspect(produce(false)) + 31` currently

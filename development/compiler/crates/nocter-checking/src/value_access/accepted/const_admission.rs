@@ -6,14 +6,28 @@ use std::{collections::BTreeMap, sync::Arc};
 mod provenance;
 use provenance::Parent;
 
+/// A successful required-root proof tied to the exact immutable checked product.
+/// Construction remains with this admission routine; metadata or a body cannot substitute.
+pub(in crate::value_access) struct ConstAdmission<'a> {
+    checked: &'a Checked,
+    root: nocter_model::ValueCodeRoot,
+}
+impl<'a> ConstAdmission<'a> {
+    pub(in crate::value_access) fn into_parts(self) -> (&'a Checked, nocter_model::ValueCodeRoot) {
+        let Self { checked, root } = self;
+        (checked, root)
+    }
+}
+
 /// Close the direct callable-formal conditions over exact checked instance metadata before
 /// executing any plan. This consumes the ordinary bodies and never manufactures named const.
-pub(in crate::value_access) fn check_required_const(
+pub(in crate::value_access) fn check_required_const<'a>(
     context: &DeclarationContext<'_>,
-    checked: &Checked,
+    checked: &'a Checked,
     root: nocter_model::ValueCodeRoot,
     work: &mut nocter_constant_evaluation::state::WorkBudget,
-) -> Result<(), Failure> {
+) -> Result<ConstAdmission<'a>, Failure> {
+    let admitted = ConstAdmission { checked, root };
     let program = &checked.program;
     let verified = checked
         .result_evidence
@@ -24,7 +38,7 @@ pub(in crate::value_access) fn check_required_const(
         .bind_code(root.code(), [])
         .map_err(|_| Failure::Integrity(flow::IntegrityError::InconsistentTypedBody))?;
     if availability.prove_closed_root(root.code(), &verified, work)? {
-        return Ok(());
+        return Ok(admitted);
     }
     let mut traversal = availability.traversal();
     let mut parents: BTreeMap<_, Option<Parent>> = BTreeMap::from([(root.clone(), None)]);
@@ -107,7 +121,7 @@ pub(in crate::value_access) fn check_required_const(
             pending.push(selected);
         }
     }
-    Ok(())
+    Ok(admitted)
 }
 pub(super) fn check_const_bodies(
     program: &Program,

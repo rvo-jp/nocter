@@ -65,7 +65,7 @@ pub(in crate::value_access::evaluation) struct Source<'a, 'work, F> {
     work: &'work mut plan::WorkBudget,
 }
 impl<'a, 'work, F: Fn(AccessCodeId) -> Option<plan::Value>> Source<'a, 'work, F> {
-    pub(in crate::value_access::evaluation) fn prepare(
+    pub(super) fn prepare(
         checked: &'a crate::value_access::accepted::Checked,
         root: nocter_model::ValueCodeRoot,
         values: F,

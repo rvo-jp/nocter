@@ -365,13 +365,16 @@ fn unused_callback_permutations_share_condition_checks_only_after_data_qualifica
     let checked =
         accepted::admit_resolved(&preparation.context, ready.resolved, Some(&ready.invoked))
             .unwrap();
-    accepted::check_required_const(
+    let admission = accepted::check_required_const(
         &preparation.context,
         &checked,
         answer.into(),
         &mut preparation.condition_work,
     )
     .unwrap();
+    let (owner, root) = admission.into_parts();
+    assert!(std::ptr::eq(owner, &raw const checked));
+    assert_eq!(root, answer.into());
 }
 
 #[test]
@@ -492,13 +495,16 @@ fn independent_invocation_positions_share_only_fully_covered_named_conditions() 
         accepted::admit_resolved(&preparation.context, ready.resolved, Some(&ready.invoked))
             .unwrap();
     preparation.condition_work = state::WorkBudget::new(std::num::NonZeroU64::new(64).unwrap());
-    accepted::check_required_const(
+    let admission = accepted::check_required_const(
         &preparation.context,
         &checked,
         answer.into(),
         &mut preparation.condition_work,
     )
     .expect("matched closed body obligations prove the conditions independently of discovery");
+    let (owner, root) = admission.into_parts();
+    assert!(std::ptr::eq(owner, &raw const checked));
+    assert_eq!(root, answer.into());
 }
 
 #[test]

@@ -705,6 +705,14 @@ return slots, and plan result use this authority under the shared plan-work quot
 initial contract preparation retains the ordinary plan-work diagnostic rather than becoming an
 integrity failure.
 
+Successful required-const admission returns a sealed product retaining the exact immutable checked
+owner and required root. Production evaluator preparation consumes that product; callers cannot
+substitute a different body or requested root after proving eligibility. The closed-condition fast
+proof and full bound traversal construct the same product under their existing quotas and local
+causes. Lower-level frozen-plan projection remains private to the projection module and its tests;
+body discovery, linked contracts and projection metadata alone do not authorize required evaluation.
+The product currently records fully discharged roots; it grants no pending value-state guard.
+
 The evaluator's call-boundary projection uses this same body-channel authority. A retained body
 supplies its full ordered inputs, including the capture environment, and its qualified result
 context. Without that body, a named declaration can supply only a boundary whose received input

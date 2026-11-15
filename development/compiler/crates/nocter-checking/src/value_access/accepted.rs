@@ -3,7 +3,7 @@ pub use super::staged::{ModuleSourceUnit, SourceFailure, SourceUnit};
 mod const_admission;
 mod instance_metadata;
 use super::{Failure as BodyFailure, Query as TypedQuery, flow};
-pub(super) use const_admission::check_required_const;
+pub(super) use const_admission::{ConstAdmission, check_required_const};
 pub use instance_metadata::InstanceMetadata;
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::Program;
