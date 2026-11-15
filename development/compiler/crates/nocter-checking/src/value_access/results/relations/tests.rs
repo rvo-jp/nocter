@@ -58,7 +58,7 @@ fn returned_callees_and_input_results_use_real_return_summaries_without_signatur
             Term::Application(application),
             Relation::Apply(Arc::new(InvocationRecipe {
                 callees: Producers::from([FunctionWitness {
-                    origin: Origin::Application(make),
+                    origin: Origin::Application(make.into()),
                     invocation: ValueInvocation::Read,
                 }]),
                 inputs: Inputs::from([(parameter, Producers::from([actual.into()]))]),

@@ -106,8 +106,8 @@ impl Evidence {
             ValueFunctionOrigin::Result(result) if result.ordinal == 0 => {
                 self.producers.get(&result.owner).copied()
             }
-            ValueFunctionOrigin::Application(application) => {
-                match self.applications.get(&application)? {
+            ValueFunctionOrigin::Application(result) if result.ordinal == 0 => {
+                match self.applications.get(&result.application)? {
                     ApplicationEvidence::Witness(witness) => Some(*witness),
                     ApplicationEvidence::Unproduced => None,
                 }
@@ -169,7 +169,7 @@ impl Evidence {
     }
     fn unproduced_origin(&self, origin: ValueFunctionOrigin) -> bool {
         matches!(origin, ValueFunctionOrigin::Application(application)
-            if matches!(self.applications.get(&application), Some(ApplicationEvidence::Unproduced)))
+            if application.ordinal == 0 && matches!(self.applications.get(&application.application), Some(ApplicationEvidence::Unproduced)))
     }
     pub(super) fn unproduced(&self, program: &Program, data: TypeId) -> bool {
         let mut pending = vec![data];
@@ -242,7 +242,7 @@ pub(super) fn close(
                 .applications
                 .keys()
                 .copied()
-                .map(ValueFunctionOrigin::Application),
+                .map(|application| ValueFunctionOrigin::Application(application.into())),
         )
     {
         for invocation in [

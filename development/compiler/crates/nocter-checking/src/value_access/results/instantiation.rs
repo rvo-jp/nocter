@@ -324,8 +324,10 @@ impl<'a, 'work> Query<'a, 'work> {
             return Ok(Fact::Witness(witness));
         }
         let fact = match selected.origin {
-            Origin::Application(site) if frame.code() == site.owner => {
-                match self.read(owner, Key::Call(frame.clone(), site))? {
+            Origin::Application(result)
+                if result.ordinal == 0 && frame.code() == result.application.owner =>
+            {
+                match self.read(owner, Key::Call(frame.clone(), result.application))? {
                     Fact::Frame(callee) => {
                         self.read(owner, Key::Result(callee, ValuePath::default()))?
                     }

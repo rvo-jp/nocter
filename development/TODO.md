@@ -128,6 +128,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Establish declaration-owned callable result-component contracts and deterministic publication
   without opening compound-result payload admission. Qualify separate same-signature result leaves
   and invalid-header rejection before extending producer/result realization and consumer storage.
+- [x] Separate applied callable-result leaf identities from whole-call identities, preserving
+  the existing root-result execution domain and rejecting unpublished result slots without
+  borrowing a root witness, contract or unproduced-value classification.
 - [ ] Extend original return-producer and per-call application relations to declared callable result
   components. Keep descriptor-only or absent results distinct from produced witnesses, preserve
   original compound paths and call frames, then qualify storage, evaluation, ABI and actual cleanup.

@@ -122,7 +122,7 @@ fn returned_closure_uses_its_actual_creation_frame_instead_of_the_outer_frames_b
         invoked,
         Arc::new(InvocationRecipe {
             callees: BTreeSet::from([FunctionWitness {
-                origin: Origin::Application(factory),
+                origin: Origin::Application(factory.into()),
                 invocation: ValueInvocation::Read,
             }]),
             inputs: BTreeMap::new(),

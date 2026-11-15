@@ -7,10 +7,13 @@ fn applications() -> [FunctionWitness; 2] {
     let owner = codes.insert(()).into();
     let mut calls = ArenaBuilder::<AccessExpressionId, ()>::new();
     [0, 1].map(|_| FunctionWitness {
-        origin: ValueFunctionOrigin::Application(ValueApplication {
-            owner,
-            call: calls.insert(()),
-        }),
+        origin: ValueFunctionOrigin::Application(
+            ValueApplication {
+                owner,
+                call: calls.insert(()),
+            }
+            .into(),
+        ),
         invocation: ValueInvocation::Read,
     })
 }

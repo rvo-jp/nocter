@@ -138,7 +138,7 @@ impl Program {
     #[must_use]
     pub fn application_template(
         &self,
-        application: nocter_model::ValueApplication,
+        application: nocter_model::ValueAppliedResult,
     ) -> Option<FunctionWitness> {
         self.applications.get(&application).copied()
     }
@@ -299,7 +299,7 @@ impl Program {
                     .get(result.ordinal)?;
             }
             ValueFunctionOrigin::Application(application) => {
-                if !self.has_type_root(application.owner.root()) {
+                if !self.has_type_root(application.application.owner.root()) {
                     return None;
                 }
                 self.function_contract(witness)?;

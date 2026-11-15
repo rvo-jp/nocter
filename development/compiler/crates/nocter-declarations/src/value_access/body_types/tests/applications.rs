@@ -37,8 +37,8 @@ fn application_templates_are_immutable_shape_facts_without_payload_or_copy_evide
             },
         )
         .unwrap();
-    assert!(old.application_template(key).is_none());
-    assert_eq!(body.program().application_template(key), Some(named));
+    assert!(old.application_template(key.into()).is_none());
+    assert_eq!(body.program().application_template(key.into()), Some(named));
     assert_eq!(
         body.program().payload_readiness(data),
         PayloadReadiness::Pending
@@ -46,11 +46,24 @@ fn application_templates_are_immutable_shape_facts_without_payload_or_copy_evide
     assert_eq!(body.program().data_copyable(data), Some(false));
     assert_eq!(
         body.program().function_contract(FunctionWitness {
-            origin: ValueFunctionOrigin::Application(key),
+            origin: ValueFunctionOrigin::Application(key.into()),
             invocation: ValueInvocation::Read
         }),
         header.function_contract(named)
     );
+    for ordinal in [1, usize::MAX] {
+        let selected = nocter_model::ValueAppliedResult {
+            application: key,
+            ordinal,
+        };
+        assert!(body.program().application_template(selected).is_none());
+        let witness = FunctionWitness {
+            origin: ValueFunctionOrigin::Application(selected),
+            invocation: ValueInvocation::Read,
+        };
+        assert!(body.program().function_contract(witness).is_none());
+        assert!(body.program().function_data(witness).is_none());
+    }
 }
 
 #[test]
@@ -64,9 +77,9 @@ fn deep_application_template_queries_are_iterative_and_reject_a_cycle() {
             owner: ValueCode::Declaration(root),
             call: calls.insert(()),
         };
-        body.program.applications.insert(key, selected);
+        body.program.applications.insert(key.into(), selected);
         selected = FunctionWitness {
-            origin: ValueFunctionOrigin::Application(key),
+            origin: ValueFunctionOrigin::Application(key.into()),
             invocation: ValueInvocation::Read,
         };
     }

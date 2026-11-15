@@ -98,7 +98,9 @@ impl Store {
                 node.producers
                     .iter()
                     .filter_map(|witness| match witness.origin {
-                        ValueFunctionOrigin::Application(application) => Some(application),
+                        ValueFunctionOrigin::Application(result) if result.ordinal == 0 => {
+                            Some(result.application)
+                        }
                         _ => None,
                     }),
             );

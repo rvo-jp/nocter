@@ -36,8 +36,8 @@ fn application_creation_keeps_its_own_call_template_and_declared_view() {
     assert_eq!(second_key.owner, query.code());
     assert_eq!(second_key.call, calls[1]);
     assert_ne!(
-        query.program().application_template(first_key),
-        query.program().application_template(second_key)
+        query.program().application_template(first_key.into()),
+        query.program().application_template(second_key.into())
     );
     assert_ne!(first.data, second.data);
     query.body.expressions = query.body.expressions.map(|id, expression| {
@@ -63,7 +63,7 @@ fn application_creation_keeps_its_own_call_template_and_declared_view() {
     let edited = nested
         .program()
         .function_data(FunctionWitness {
-            origin: ValueFunctionOrigin::Application(application),
+            origin: ValueFunctionOrigin::Application(application.into()),
             invocation: ValueInvocation::Edit,
         })
         .unwrap();

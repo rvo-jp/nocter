@@ -429,8 +429,9 @@ impl<'a, 's> Checker<'a, 's> {
                         self.program().code_label(id),
                     nocter_model::ValueFunctionOrigin::Result(result) =>
                         self.program().code_label(result.owner),
-                    nocter_model::ValueFunctionOrigin::Application(application) =>
-                        self.program().root_label(application.owner.root()),
+                    nocter_model::ValueFunctionOrigin::Application(application) => self
+                        .program()
+                        .root_label(application.application.owner.root()),
                     nocter_model::ValueFunctionOrigin::Parameter(id) =>
                         self.program().parameter_label(id),
                 }

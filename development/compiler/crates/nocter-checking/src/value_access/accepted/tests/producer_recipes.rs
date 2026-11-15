@@ -128,7 +128,7 @@ fn assert_component_producers(unit: &Unit, name: &str, expected: &[Vec<usize>]) 
             alternatives
                 .iter()
                 .map(|&index| FunctionWitness {
-                    origin: Origin::Application(creations[index]),
+                    origin: Origin::Application(creations[index].into()),
                     invocation: nocter_model::ValueInvocation::Read,
                 })
                 .collect::<BTreeSet<_>>(),
@@ -154,10 +154,10 @@ fn forwarded_application_keeps_its_original_producer_term_after_selected_code_pr
     let Origin::Application(origin) = original.origin else {
         panic!("original nested application");
     };
-    assert_eq!(origin.call, inner);
-    assert_eq!(origin.owner, code(&unit, "run").into());
+    assert_eq!(origin.application.call, inner);
+    assert_eq!(origin.application.owner, code(&unit, "run").into());
     assert!(
-        matches!(unit.producer_relation(ProducerTerm::Application(origin)), Some(ProducerRelation::Apply(recipe)) if recipe.callees == BTreeSet::from([FunctionWitness::from(code(&unit, "make"))]))
+        matches!(unit.producer_relation(ProducerTerm::Application(origin.application)), Some(ProducerRelation::Apply(recipe)) if recipe.callees == BTreeSet::from([FunctionWitness::from(code(&unit, "make"))]))
     );
     let expression = named(&unit, "run")
         .typed()
@@ -229,7 +229,7 @@ fn scalar_result_calls_retain_original_callable_argument_and_receiver_producers(
     let actual = recipe.inputs.values().flatten().collect::<Vec<_>>();
     assert_eq!(actual.len(), 1);
     assert!(
-        matches!(actual[0].origin, Origin::Application(origin) if origin.owner == site.owner && origin.call == maker)
+        matches!(actual[0].origin, Origin::Application(origin) if origin.application.owner == site.owner && origin.application.call == maker)
     );
     let body = named(&unit, "run").typed().body();
     let ExpressionKind::Call { arguments, .. } = &body.expressions().get(consumer).unwrap().kind
@@ -252,7 +252,7 @@ fn scalar_result_calls_retain_original_callable_argument_and_receiver_producers(
     };
     let recipe = direct_value.invocation_recipe(site).unwrap();
     assert!(
-        matches!(recipe.callees.first().unwrap().origin, Origin::Application(origin) if origin.call == inner && origin.owner == site.owner)
+        matches!(recipe.callees.first().unwrap().origin, Origin::Application(origin) if origin.application.call == inner && origin.application.owner == site.owner)
     );
 }
 
@@ -310,10 +310,13 @@ fn receiver_recipes_follow_actual_reassignment_and_preserve_control_alternatives
         let expected = calls[(2 - alternatives)..]
             .iter()
             .map(|&call| FunctionWitness {
-                origin: Origin::Application(ValueApplication {
-                    owner: site.owner,
-                    call,
-                }),
+                origin: Origin::Application(
+                    ValueApplication {
+                        owner: site.owner,
+                        call,
+                    }
+                    .into(),
+                ),
                 invocation: nocter_model::ValueInvocation::Read,
             })
             .collect::<BTreeSet<_>>();
@@ -343,10 +346,13 @@ fn receiver_producer_terms_keep_invocation_views_separate_from_source_retirement
         assert_eq!(
             recipe.callees,
             BTreeSet::from([FunctionWitness {
-                origin: Origin::Application(ValueApplication {
-                    owner: site.owner,
-                    call: maker
-                }),
+                origin: Origin::Application(
+                    ValueApplication {
+                        owner: site.owner,
+                        call: maker
+                    }
+                    .into()
+                ),
                 invocation: view,
             }])
         );
@@ -396,10 +402,13 @@ fn prepared_receiver_is_not_replaced_by_later_updates_to_another_value_of_the_sa
     assert_eq!(
         recipe.callees,
         BTreeSet::from([FunctionWitness {
-            origin: Origin::Application(ValueApplication {
-                owner: site.owner,
-                call: calls[0].0
-            }),
+            origin: Origin::Application(
+                ValueApplication {
+                    owner: site.owner,
+                    call: calls[0].0
+                }
+                .into()
+            ),
             invocation: nocter_model::ValueInvocation::Read,
         }])
     );

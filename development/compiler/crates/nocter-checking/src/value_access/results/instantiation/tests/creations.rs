@@ -234,7 +234,7 @@ fn one_creation_snapshot_keeps_two_calls_to_the_same_closure_with_different_cont
             (
                 ValueField::Tuple(position),
                 FunctionWitness {
-                    origin: Origin::Application(site),
+                    origin: Origin::Application(site.into()),
                     invocation: ValueInvocation::Read,
                 },
             )

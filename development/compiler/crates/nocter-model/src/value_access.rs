@@ -95,7 +95,7 @@ pub enum ValueFunctionOrigin {
     /// A declared callable result, closed by checking its reachable return producers.
     Result(ValueCallableResult),
     /// One statically selected call application, independent of source coordinates and type IDs.
-    Application(ValueApplication),
+    Application(ValueAppliedResult),
 }
 
 /// One callable leaf in a declared result, in written payload-descriptor order. A result that
@@ -108,6 +108,22 @@ pub struct ValueCallableResult {
 impl From<crate::AccessCodeId> for ValueCallableResult {
     fn from(owner: crate::AccessCodeId) -> Self {
         Self { owner, ordinal: 0 }
+    }
+}
+
+/// A callable result leaf selected by one original call. The call remains a whole-operation
+/// identity; its result ordinal selects a descriptor, not another invocation or produced value.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct ValueAppliedResult {
+    pub application: ValueApplication,
+    pub ordinal: usize,
+}
+impl From<ValueApplication> for ValueAppliedResult {
+    fn from(application: ValueApplication) -> Self {
+        Self {
+            application,
+            ordinal: 0,
+        }
     }
 }
 
@@ -278,10 +294,13 @@ mod tests {
         for symbolic in [
             ValueFunctionOrigin::Parameter(parameter.into()),
             ValueFunctionOrigin::Result(code.into()),
-            ValueFunctionOrigin::Application(ValueApplication {
-                owner: ValueCode::Declaration(code),
-                call,
-            }),
+            ValueFunctionOrigin::Application(
+                ValueApplication {
+                    owner: ValueCode::Declaration(code),
+                    call,
+                }
+                .into(),
+            ),
         ] {
             assert_eq!(symbolic.code(), None);
         }
@@ -351,6 +370,37 @@ mod formal_tests {
 mod result_tests {
     use super::*;
     use crate::{AccessCodeId, ArenaBuilder, TypeAuthority, TypeKind};
+    #[test]
+    fn applied_result_ordinals_preserve_the_whole_call_without_inventing_code() {
+        let owner = ArenaBuilder::<AccessCodeId, ()>::new().insert(()).into();
+        let call = ArenaBuilder::<crate::AccessExpressionId, ()>::new().insert(());
+        let application = ValueApplication { owner, call };
+        let base = TypeAuthority::new();
+        let mut types = base.transaction();
+        let mut ids = Vec::new();
+        for ordinal in [0, 1] {
+            let selected = ValueAppliedResult {
+                application,
+                ordinal,
+            };
+            assert_eq!(selected.application, application);
+            let origin = ValueFunctionOrigin::Application(selected);
+            assert_eq!(origin.code(), None);
+            let data = types
+                .intern(TypeKind::ValueFunction {
+                    origin,
+                    invocation: ValueInvocation::Read,
+                })
+                .unwrap();
+            assert_eq!(types.is_concrete(data), Some(false));
+            assert!(types.may_carry_storage(data));
+            let projected = types.project(data).unwrap();
+            assert_eq!(projected.types().get(projected.root()), types.get(data));
+            ids.push(data);
+        }
+        assert_ne!(ids[0], ids[1]);
+    }
+
     #[test]
     fn result_signature_identity_is_symbolic_until_its_producer_is_closed() {
         let mut declarations = ArenaBuilder::<AccessCodeId, ()>::new();

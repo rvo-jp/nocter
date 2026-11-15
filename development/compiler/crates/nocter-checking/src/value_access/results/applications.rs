@@ -33,8 +33,9 @@ pub(super) fn call_result(
         origin: ValueFunctionOrigin::Application(application),
         invocation: result_invocation,
     })) = query.program().data_schema(data)
-        && application.owner == query.code()
-        && application.call == id
+        && application.ordinal == 0
+        && application.application.owner == query.code()
+        && application.application.call == id
     {
         let template = query
             .program()
@@ -55,7 +56,7 @@ pub(super) fn call_result(
         }
         return Ok(Some(CallResult {
             data,
-            created: Some(application),
+            created: Some(application.application),
         }));
     }
     let result = query

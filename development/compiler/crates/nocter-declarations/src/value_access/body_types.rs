@@ -283,7 +283,7 @@ impl BodyTypes {
         else {
             return Err(BodyTypeError::InvalidApplication);
         };
-        let application = ValueApplication { owner, call };
+        let application = nocter_model::ValueAppliedResult::from(ValueApplication { owner, call });
         if self
             .program
             .application_template(application)
@@ -440,7 +440,7 @@ impl Program {
             let prefix = body.header_prefix.cursor();
             let projection = replay_types(body, owner, &mut types)?;
             for (&application, &template) in &body.applications {
-                if application.owner.root() != owner
+                if application.application.owner.root() != owner
                     || body.function_data(template).is_none()
                     || applications.insert(application, template).is_some()
                 {
@@ -602,8 +602,8 @@ fn replay_types(
                 origin: ValueFunctionOrigin::Application(application),
                 invocation,
             } => {
-                application.owner.root() == owner
-                    && match application.owner {
+                application.application.owner.root() == owner
+                    && match application.application.owner {
                         ValueCode::Closure(id) => body.closure(id).is_some(),
                         ValueCode::Declaration(_) | ValueCode::Expression(_) => true,
                     }

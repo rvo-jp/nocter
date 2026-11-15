@@ -61,7 +61,7 @@ fn applications(unit: &Unit, name: &str) -> Vec<ValueApplication> {
 }
 fn producer(application: ValueApplication) -> FunctionWitness {
     FunctionWitness {
-        origin: Origin::Application(application),
+        origin: Origin::Application(application.into()),
         invocation: nocter_model::ValueInvocation::Read,
     }
 }

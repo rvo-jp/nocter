@@ -33,11 +33,11 @@ fn values(term: FunctionWitness, known: &Solutions) -> Result<Producers, ()> {
             .get(&Term::Result(ValueCode::Declaration(result.owner)))
             .ok_or(())?
             .clone(),
-        Origin::Result(_) => return Err(()),
-        Origin::Application(application) => known
-            .get(&Term::Application(application))
+        Origin::Application(result) if result.ordinal == 0 => known
+            .get(&Term::Application(result.application))
             .ok_or(())?
             .clone(),
+        Origin::Result(_) | Origin::Application(_) => return Err(()),
     };
     selected
         .into_iter()
