@@ -439,6 +439,11 @@ including absent and positive applications of the same body in required/native e
 owned error graphs and captured callable environments. Propagation stages the absence/error
 before ordinary cleanup; a projected fallible `?` still rejects at its source because read/edit
 access cannot transfer the caller's error.
+`received-nested-outcome-control.nct` qualifies two optional layers through take/read/edit
+inputs. Outer absence and present-inner-absence share one canonical received representation, but
+their original outer tag test remains intact. Only the inner impossible callable continuation is
+excluded; the inhabited counterpart keeps its branch. Required/native execution distinguishes both
+absence layers and the live callback, including native environments owning error graphs.
 
 `received-outcome-recovery-merge.nct` qualifies a recovery result that rejoins normal execution
 with the same received callable witness. A homogeneous optional-callable array supplies both

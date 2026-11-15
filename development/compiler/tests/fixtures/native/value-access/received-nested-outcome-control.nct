@@ -1,0 +1,31 @@
+const func addition(number: i32): func(i32): i32 {
+    (number; value: i32) { number + value }
+}
+const func absent(): (func(i32): i32)? { none }
+const func present(number: i32): (func(i32): i32)? { addition(number) }
+const func lift(take value: (func(i32): i32)?): ((func(i32): i32)?)? { value^ }
+const func outer_absent(): ((func(i32): i32)?)? { none }
+const func inspect(take value: ((func(i32): i32)?)?): i32 {
+    let inner = value^ otherwise { return 5 }
+    let action = inner^ otherwise { return 7 }
+    action(1)
+}
+const func inspect_read(value: ((func(i32): i32)?)?): i32 {
+    read inner = value otherwise { return 5 }
+    read action = inner otherwise { return 7 }
+    action(1)
+}
+const func inspect_edit(edit value: ((func(i32): i32)?)?): i32 {
+    edit inner = value otherwise { return 5 }
+    edit action = inner otherwise { return 7 }
+    action(1)
+}
+const func calculate(): i32 {
+    if inspect(outer_absent()) != 5 || inspect(lift(absent())) != 7 { return 0 }
+    if inspect_read(outer_absent()) != 5 || inspect_read(lift(absent())) != 7 { return 0 }
+    if inspect_edit(outer_absent()) != 5 || inspect_edit(lift(absent())) != 7 { return 0 }
+    if inspect(lift(present(20))) != 21 || inspect_read(lift(present(20))) != 21 || inspect_edit(lift(present(20))) != 21 { return 0 }
+    42
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { calculate() }

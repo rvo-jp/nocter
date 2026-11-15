@@ -269,7 +269,7 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   a received primary callable domain is empty.
   Preserve evaluation of the original carrier/tag, required traps and alternate cleanup while
   excluding impossible positive continuations; a guarded empty descriptor is not a callable value.
-- [ ] Qualify nested received optional callable domains through distinct outer absence, present
+- [x] Qualify nested received optional callable domains through distinct outer absence, present
   inner absence and live captured callbacks. Preserve each original tag/continuation, staged
   early-return cleanup and actual owned environments through required/native consumers.
 - [x] Qualify received take/read/edit assertions through original const trap diagnostics and

@@ -4,6 +4,15 @@ use super::*;
 use nocter_constant_evaluation::state::Value;
 
 #[test]
+fn nested_received_optional_domains_preserve_each_original_layer() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-nested-outcome-control.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Value::integer(42));
+}
+
+#[test]
 fn received_recovery_merges_preserve_shared_witness_payloads() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

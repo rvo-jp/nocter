@@ -188,3 +188,76 @@ fn empty_and_positive_received_domains_select_distinct_original_continuations() 
         absent.terminator(point)
     );
 }
+
+#[test]
+fn nested_absence_shares_representation_without_erasing_outer_tag_control() {
+    use nocter_declarations::value_access::PayloadSchema;
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-nested-outcome-control.nct"
+    ));
+    let source = source.replace("const ANSWER: i32 = calculate()", "");
+    let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+    let unit = crate::value_access::accepted::SourceUnit::prepare(fixture.syntax())
+        .unwrap()
+        .into_unit();
+    let program = unit.program();
+    let code = |name| {
+        program
+            .resolve(program.symbols().get(name).unwrap())
+            .unwrap()
+    };
+    let root = program.bind_code(code("calculate").into(), []).unwrap();
+    let caller = unit.code_body(root.code()).unwrap();
+    for name in ["inspect", "inspect_read", "inspect_edit"] {
+        let target = code(name);
+        let body = unit.code_body(target.into()).unwrap();
+        let mut work = WorkBudget::new(NonZeroU64::new(100_000).unwrap());
+        let frames: Vec<_> = caller.typed().body().expressions().iter().filter_map(|(call, expression)| {
+            matches!(expression.kind, ExpressionKind::Call { target: Origin::Declaration(selected), .. } if selected == target).then_some(call)
+        }).map(|call| unit.instantiate_invocation(&root, ValueApplication { owner: root.code(), call }, &mut work).unwrap()).collect();
+        assert_eq!(frames.len(), 3, "{name}");
+        // Outer absence and present-inner-absence have the same represented possibilities.
+        assert_eq!(frames[0], frames[1], "{name}");
+        assert_ne!(frames[1], frames[2], "{name}");
+        for (index, frame) in frames.iter().enumerate() {
+            let control = unit.instantiate_control(frame, &mut work).unwrap();
+            let mut branches = 0;
+            for (point, block) in body.graph().points().iter() {
+                let flow::Terminator::Branch { condition, no, .. } = block.terminator else {
+                    continue;
+                };
+                let ExpressionKind::PrimaryCondition { source } = body
+                    .typed()
+                    .body()
+                    .expressions()
+                    .get(condition)
+                    .unwrap()
+                    .kind
+                else {
+                    panic!("expected an original optional tag condition")
+                };
+                let data = body.typed().body().referent_data(source).unwrap();
+                let Some(PayloadSchema::Optional(primary)) = program.data_schema(data) else {
+                    panic!("expected optional data")
+                };
+                let nested = matches!(
+                    program.data_schema(primary),
+                    Some(PayloadSchema::Optional(_))
+                );
+                let expected = if nested || index == 2 {
+                    block.terminator
+                } else {
+                    flow::Terminator::Jump(no)
+                };
+                assert_eq!(
+                    control.terminator(point),
+                    Some(expected),
+                    "{name}, frame {index}, outer {nested}"
+                );
+                branches += 1;
+            }
+            assert_eq!(branches, 2);
+        }
+    }
+}
