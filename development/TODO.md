@@ -88,6 +88,11 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   reject absent elements/missing layouts and qualify singleton and maximum zero-size arrays.
   This supplies no common root, capacity, initialized storage or relocation permission; existing
   executable geometry constraints remain unchanged pending the scoped transition proof.
+- [x] Retain matched scoped-replacement owning carriers that are fully initialized at entry,
+  the operation boundary and normal exit. Consume the original transition, meter freezing and
+  keep partial carriers, source-component moves and external edit inputs outside this annotation.
+  The lifecycle fact supplies no capacity or address-stability proof and does not widen native
+  geometry admission; retain separate retired/supplied obligations and original containing roots.
 - [ ] Close carrier representation coherence under the
   [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances)
   before admitting context-changing writes and retained sibling references.

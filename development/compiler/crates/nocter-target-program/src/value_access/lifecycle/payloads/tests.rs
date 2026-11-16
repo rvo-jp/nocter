@@ -68,9 +68,9 @@ fn an_unmatched_replacement_is_rejected_before_projecting_its_prefix() {
         point: body.graph().entry(),
         action: 0,
     };
-    let condition = body.access().resources().at(at).next().unwrap().condition();
+    let transition = body.access().resources().at(at).next().unwrap();
     let mut work = WorkBudget::new(std::num::NonZeroU64::new(1).unwrap());
-    let mut projection = Projection::new(instance, id, at, &condition, &[], &mut work).unwrap();
+    let mut projection = Projection::new(instance, id, at, transition, &mut work).unwrap();
     assert_eq!(
         projection.steps(&[prefix.clone(), invalid]),
         Err(Failure::InvalidInstanceProgram)
@@ -81,7 +81,7 @@ fn an_unmatched_replacement_is_rejected_before_projecting_its_prefix() {
         "preflight failure must not start payload projection"
     );
     let mut work = WorkBudget::new(std::num::NonZeroU64::new(1_000).unwrap());
-    let mut projection = Projection::new(instance, id, at, &condition, &[], &mut work).unwrap();
+    let mut projection = Projection::new(instance, id, at, transition, &mut work).unwrap();
     assert!(projection.steps(&[prefix]).is_ok());
 }
 
@@ -125,4 +125,66 @@ fn destination_annotation_work_is_bounded_and_failed_freezing_can_retry() {
         complete,
         destinations(&selected.0, &selected.1, &mut budget(1_000)).unwrap()
     );
+}
+
+#[test]
+fn scoped_carrier_completeness_requires_original_ownership_at_every_boundary() {
+    for (source, complete) in [
+        (
+            "func run(): i32 { var pair = (1, 2)\nedit selected = pair.0\nselected = 3\nselected + pair.1 }",
+            true,
+        ),
+        (
+            "struct Item { value: i32 }\nfunc run(): i32 { var pair = (1, Item { value: 2 })\nlet saved = pair.1^\nedit selected = pair.0\nselected = 3\nselected + saved.value }",
+            false,
+        ),
+        (
+            "func run(): i32 { var pair = (1, 2)\nedit selected = pair.0\nselected = pair.1^\nselected }",
+            false,
+        ),
+        (
+            "func change(edit pair: (i32, i32)): void { edit selected = pair.0\nselected = 3 }\nfunc run(): i32 { var pair = (1, 2)\nchange(pair)\npair.0 }",
+            false,
+        ),
+    ] {
+        let fixture = ValueSourceFixture::new(source);
+        let unit = Arc::new(SourceUnit::prepare(fixture.syntax()).unwrap().into_unit());
+        let root = unit
+            .program()
+            .resolve(unit.program().symbols().get("run").unwrap())
+            .unwrap();
+        let instances = Arc::new(InstanceProgram::prepare(unit, root).unwrap());
+        let program = super::super::Program::prepare(instances).unwrap();
+        let mut found = 0;
+        for body in program.bodies().values() {
+            for action in body.actions().values() {
+                for alternative in action.alternatives() {
+                    for step in alternative.before().iter().chain(alternative.after()) {
+                        let Step::ScopedReplacement(replacement) = step else {
+                            continue;
+                        };
+                        let [carrier] = replacement.carriers().before() else {
+                            panic!("one original carrier");
+                        };
+                        let nocter_checking::value_access::ValueSourceSlot::Local(local) =
+                            carrier.selection().slot
+                        else {
+                            panic!("a local source slot");
+                        };
+                        assert_eq!(
+                            replacement.initialized_carriers(),
+                            if complete {
+                                vec![Holder::Local(local)]
+                            } else {
+                                vec![]
+                            },
+                            "{source}"
+                        );
+                        found += 1;
+                    }
+                }
+            }
+        }
+        assert_eq!(found, 1, "{source}");
+    }
 }

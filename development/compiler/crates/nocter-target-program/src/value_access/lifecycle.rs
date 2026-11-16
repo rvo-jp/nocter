@@ -75,8 +75,17 @@ pub struct ScopedReplacement {
     before: nocter_declarations::value_access::DataInstanceKey,
     after: nocter_declarations::value_access::DataInstanceKey,
     carriers: nocter_checking::value_access::ReferentCarrierContracts,
+    initialized_carriers: Box<[nocter_checking::value_access::flow::resources::Holder]>,
 }
 impl ScopedReplacement {
+    /// Original owning carriers complete at entry, the operation boundary and normal exit.
+    /// This supplies no address stability, backing capacity or relocation permission.
+    #[must_use]
+    pub fn initialized_carriers(
+        &self,
+    ) -> &[nocter_checking::value_access::flow::resources::Holder] {
+        &self.initialized_carriers
+    }
     #[must_use]
     pub const fn carriers(&self) -> &nocter_checking::value_access::ReferentCarrierContracts {
         &self.carriers
@@ -287,14 +296,8 @@ fn lower(
                 let mut alternatives = BTreeMap::new();
                 for transition in checked.access().resources().at(at) {
                     let condition = transition.condition();
-                    let mut projection = payloads::Projection::new(
-                        instance,
-                        id,
-                        at,
-                        &condition,
-                        transition.steps(),
-                        work,
-                    )?;
+                    let mut projection =
+                        payloads::Projection::new(instance, id, at, transition, work)?;
                     let before = projection.steps(transition.before_steps())?;
                     let mut after = completion.clone().into_iter().collect::<Vec<_>>();
                     after.extend(projection.after_steps(transition.after_steps())?);

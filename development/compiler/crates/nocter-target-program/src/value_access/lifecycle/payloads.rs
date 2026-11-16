@@ -1,10 +1,13 @@
 //! Consume checking's ordered resource data projection; no second source substitution model.
 use super::{Condition, Failure, Instance, Location, Resource, ResourceStep, Step};
-use nocter_checking::value_access::flow::resources::{Missing, Place};
+use nocter_checking::value_access::flow::resources::{Holder, Missing, Place, Transition};
 use nocter_checking::value_access::{ResourceDataFailure, ResourceDataProjection};
 use nocter_constant_evaluation::state::WorkBudget;
 use nocter_model::AccessInstanceId;
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 #[cfg(test)]
 mod tests;
 
@@ -14,6 +17,7 @@ pub(super) struct Projection<'a, 'work> {
     at: Location,
     instance: &'a Instance,
     destinations: BTreeMap<Place, Arc<[Missing]>>,
+    complete: BTreeSet<Holder>,
 }
 fn failure(id: AccessInstanceId, at: Location, error: ResourceDataFailure) -> Failure {
     match error {
@@ -30,15 +34,22 @@ impl<'a, 'work> Projection<'a, 'work> {
         instance: &'a Instance,
         id: AccessInstanceId,
         at: Location,
-        condition: &Condition,
-        steps: &[ResourceStep],
+        transition: &Transition,
         work: &'work mut WorkBudget,
     ) -> Result<Self, Failure> {
-        let destinations = destinations(steps, condition, work).map_err(|()| Failure::Payload {
+        let condition = transition.condition();
+        let steps = transition.steps();
+        let complete = complete_carriers(transition, work).map_err(|()| Failure::Payload {
             instance: id,
             at,
             failure: nocter_checking::value_access::InstantiationFailure::WorkLimit,
         })?;
+        let destinations =
+            destinations(steps, &condition, work).map_err(|()| Failure::Payload {
+                instance: id,
+                at,
+                failure: nocter_checking::value_access::InstantiationFailure::WorkLimit,
+            })?;
         let inner = instance
             .queries
             .resource_data(at, work)
@@ -49,6 +60,7 @@ impl<'a, 'work> Projection<'a, 'work> {
             at,
             instance,
             destinations,
+            complete,
         })
     }
     pub(super) fn steps(&mut self, steps: &[ResourceStep]) -> Result<Vec<Step>, Failure> {
@@ -93,8 +105,24 @@ impl<'a, 'work> Projection<'a, 'work> {
             .zip(roots)
             .map(|(step, roots)| {
                 if let Some((before, after, carriers)) = roots {
+                    let initialized_carriers = carriers
+                        .before()
+                        .iter()
+                        .filter_map(|carrier| {
+                            let nocter_checking::value_access::ValueSourceSlot::Local(local) =
+                                carrier.selection().slot
+                            else {
+                                return None;
+                            };
+                            let holder = Holder::Local(local);
+                            self.complete.contains(&holder).then_some(holder)
+                        })
+                        .collect::<BTreeSet<_>>()
+                        .into_iter()
+                        .collect();
                     Ok(Step::ScopedReplacement(super::ScopedReplacement {
                         operation: Box::new(step),
+                        initialized_carriers,
                         before,
                         after,
                         carriers,
@@ -117,6 +145,32 @@ impl<'a, 'work> Projection<'a, 'work> {
             })
             .collect()
     }
+}
+
+/// Freeze completeness only from the original matched transition. No payload or source
+/// operation is replayed, and a missing phase/holder can never prove initialization.
+fn complete_carriers(
+    transition: &Transition,
+    work: &mut WorkBudget,
+) -> Result<BTreeSet<Holder>, ()> {
+    if !transition
+        .steps()
+        .iter()
+        .any(|step| matches!(step, ResourceStep::ReplaceReferent { .. }))
+    {
+        return Ok(BTreeSet::new());
+    }
+    let mut complete = BTreeSet::new();
+    for (holder, missing) in transition.operation_condition().owned() {
+        work.step().map_err(|_| ())?;
+        if missing.is_empty()
+            && transition.initialized_before(holder)
+            && transition.initialized_after(holder)
+        {
+            complete.insert(holder);
+        }
+    }
+    Ok(complete)
 }
 
 /// Freeze only partial receipt metadata before borrowing the shared data-projection budget.
