@@ -1,9 +1,10 @@
-//! Reverse structural cleanup with exclusions from the checked sparse owner, never a new ledger.
+//! Structural cleanup and transport share the checked sparse exclusions, never another ledger.
 use super::{Builder, Failure, mir};
 use crate::{
-    MachineAddress, MachineAddressRoot, MachineAddressStep, MachineArithmeticCheck,
-    MachineBinaryOperation, MachineBranchTarget, MachineCall, MachineCallAllocation,
-    MachineCallTarget, MachineLayoutKind, MachineOperationKind, MachineTerminator, MachineValueId,
+    MachineAddress, MachineAddressId, MachineAddressRoot, MachineAddressStep,
+    MachineArithmeticCheck, MachineBinaryOperation, MachineBranchTarget, MachineCall,
+    MachineCallAllocation, MachineCallTarget, MachineLayoutKind, MachineOperationKind,
+    MachineTerminator, MachineValueId,
 };
 use nocter_model::{MirLocalId, ValueField};
 use nocter_runtime_contract::RuntimeDataId;
@@ -53,18 +54,114 @@ impl Builder<'_> {
             true,
             MachineOperationKind::AddressOf { source: address },
         )?;
-        self.cleanup_remaining(source.data, pointer, &exclusions)
+        self.visit_remaining(source.data, pointer, &exclusions, None)
     }
 
-    fn cleanup_remaining(
+    pub(super) fn copy_remaining_fields(
+        &mut self,
+        logical: &mir::Place,
+        source: MachineAddressId,
+        destination: MachineAddressId,
+        missing: &[Box<[mir::Projection]>],
+    ) -> Result<(), Failure> {
+        let exclusions = missing
+            .iter()
+            .filter(|hole| hole.starts_with(&logical.projections))
+            .map(|hole| Exclusion {
+                path: hole[logical.projections.len()..].to_vec(),
+                conditions: Vec::new(),
+                prefix: None,
+            })
+            .collect::<Vec<_>>();
+        if exclusions.is_empty() {
+            return Err(Self::invalid());
+        }
+        let source = self.value(
+            logical.data,
+            true,
+            MachineOperationKind::AddressOf { source },
+        )?;
+        let destination = self.value(
+            logical.data,
+            true,
+            MachineOperationKind::AddressOf {
+                source: destination,
+            },
+        )?;
+        self.visit_remaining(logical.data, source, &exclusions, Some(destination))
+    }
+
+    fn remainder_address(
+        &mut self,
+        data: RuntimeDataId,
+        pointer: MachineValueId,
+        offset: u64,
+    ) -> Result<MachineAddressId, Failure> {
+        let layout = self.context.layouts.get(data).ok_or_else(Self::invalid)?;
+        Ok(self.address(MachineAddress::new(
+            data,
+            layout.size(),
+            layout.alignment(),
+            MachineAddressRoot::Pointer { value: pointer },
+            [MachineAddressStep::Offset(offset)],
+        )))
+    }
+    fn remainder_member(
+        &mut self,
+        data: RuntimeDataId,
+        pointer: MachineValueId,
+        offset: u64,
+    ) -> Result<MachineValueId, Failure> {
+        let source = self.remainder_address(data, pointer, offset)?;
+        self.value(data, true, MachineOperationKind::AddressOf { source })
+    }
+    fn visit_complete(
+        &mut self,
+        data: RuntimeDataId,
+        source: MachineValueId,
+        destination: Option<MachineValueId>,
+    ) -> Result<(), Failure> {
+        if let Some(destination) = destination {
+            let source = self.remainder_address(data, source, 0)?;
+            let target = self.remainder_address(data, destination, 0)?;
+            let value = self.value(data, false, MachineOperationKind::Load { source })?;
+            self.emit(MachineOperationKind::Store {
+                destination: target,
+                value,
+            });
+        } else {
+            let target = *self.context.cleanup.get(&data).ok_or_else(Self::invalid)?;
+            self.emit(MachineOperationKind::Call(MachineCall::new(
+                MachineCallTarget::Direct(target),
+                [source],
+                MachineCallAllocation::Inherit,
+                None,
+            )));
+        }
+        Ok(())
+    }
+
+    fn visit_remaining(
         &mut self,
         data: RuntimeDataId,
         pointer: MachineValueId,
         exclusions: &[Exclusion],
+        destination: Option<MachineValueId>,
     ) -> Result<(), Failure> {
-        let Some(&target) = self.context.cleanup.get(&data) else {
+        if destination.is_none() && !self.context.cleanup.contains_key(&data) {
             return Ok(());
-        };
+        }
+        if destination.is_some()
+            && self
+                .context
+                .layouts
+                .get(data)
+                .ok_or_else(Self::invalid)?
+                .size()
+                == 0
+        {
+            return Ok(());
+        }
         // An unconditional whole-node exclusion needs neither a helper nor a traversal.
         if exclusions
             .iter()
@@ -100,14 +197,9 @@ impl Builder<'_> {
             .cloned()
             .collect();
         if partial.is_empty() {
-            self.emit(MachineOperationKind::Call(MachineCall::new(
-                MachineCallTarget::Direct(target),
-                [pointer],
-                MachineCallAllocation::Inherit,
-                None,
-            )));
+            self.visit_complete(data, pointer, destination)?;
         } else {
-            self.cleanup_partial_shape(data, pointer, &partial)?;
+            self.visit_partial_shape(data, pointer, &partial, destination)?;
         }
         if let Some(end) = end {
             self.terminate(MachineTerminator::Goto(MachineBranchTarget::new(end, [])))?;
@@ -116,11 +208,12 @@ impl Builder<'_> {
         Ok(())
     }
 
-    fn cleanup_partial_shape(
+    fn visit_partial_shape(
         &mut self,
         data: RuntimeDataId,
         pointer: MachineValueId,
         partial: &[Exclusion],
+        destination: Option<MachineValueId>,
     ) -> Result<(), Failure> {
         match self
             .context
@@ -135,7 +228,7 @@ impl Builder<'_> {
                 length,
                 stride,
             } => {
-                self.cleanup_partial_array(element, length, stride, pointer, partial)?;
+                self.visit_partial_array(element, length, stride, pointer, partial, destination)?;
             }
             MachineLayoutKind::Struct { fields } => {
                 let Some(RuntimeTypeRepresentation::ValueAggregate { fields: schema }) = self
@@ -162,24 +255,11 @@ impl Builder<'_> {
                             });
                         }
                     }
-                    let child = self
-                        .context
-                        .layouts
-                        .get(field.ty())
-                        .ok_or_else(Self::invalid)?;
-                    let address = self.address(MachineAddress::new(
-                        field.ty(),
-                        child.size(),
-                        child.alignment(),
-                        MachineAddressRoot::Pointer { value: pointer },
-                        [MachineAddressStep::Offset(field.offset())],
-                    ));
-                    let child_pointer = self.value(
-                        field.ty(),
-                        true,
-                        MachineOperationKind::AddressOf { source: address },
-                    )?;
-                    self.cleanup_remaining(field.ty(), child_pointer, &children)?;
+                    let child = self.remainder_member(field.ty(), pointer, field.offset())?;
+                    let target = destination
+                        .map(|pointer| self.remainder_member(field.ty(), pointer, field.offset()))
+                        .transpose()?;
+                    self.visit_remaining(field.ty(), child, &children, target)?;
                 }
             }
             _ => return Err(Self::invalid()),
@@ -187,13 +267,14 @@ impl Builder<'_> {
         Ok(())
     }
 
-    fn cleanup_partial_array(
+    fn visit_partial_array(
         &mut self,
         element: RuntimeDataId,
         length: u64,
         stride: u64,
         pointer: MachineValueId,
         exclusions: &[Exclusion],
+        destination: Option<MachineValueId>,
     ) -> Result<(), Failure> {
         let traversal = self.begin_array(length)?;
         let boolean = self
@@ -252,7 +333,17 @@ impl Builder<'_> {
             true,
             MachineOperationKind::AddressOf { source: address },
         )?;
-        self.cleanup_remaining(element, child, &children)?;
+        let target = destination
+            .map(|pointer| {
+                let address = self.array_address(element, pointer, traversal.index, stride)?;
+                self.value(
+                    element,
+                    true,
+                    MachineOperationKind::AddressOf { source: address },
+                )
+            })
+            .transpose()?;
+        self.visit_remaining(element, child, &children, target)?;
         self.end_array(traversal)
     }
 }

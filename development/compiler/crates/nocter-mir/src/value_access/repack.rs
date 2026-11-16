@@ -1,5 +1,5 @@
 //! Structural complement of one tuple destination; ownership and address freedom are separate.
-use super::{Place, Projection};
+use super::{Place, Preservation, Preserved, Projection};
 use nocter_model::ValueField;
 use nocter_runtime_contract::{
     RuntimeDataId, RuntimeEnvironment, RuntimeTypeRepresentation, RuntimeValueFieldRepresentation,
@@ -10,7 +10,7 @@ pub(super) fn preserved(
     before: RuntimeDataId,
     destination: &Place,
     missing: &[Box<[Projection]>],
-) -> Option<Box<[(Place, Place)]>> {
+) -> Option<Box<[Preserved]>> {
     if destination.projections.is_empty() {
         return None;
     }
@@ -25,10 +25,9 @@ pub(super) fn preserved(
         let mut data = before;
         for projection in path {
             data = match projection {
-                Projection::Field(field @ ValueField::Tuple(_)) => {
+                Projection::Field(field @ (ValueField::Tuple(_) | ValueField::Array(_))) => {
                     runtime.value_field(data, *field)?
                 }
-                Projection::Field(ValueField::Array(0)) => singleton_element(runtime, data)?,
                 _ => return None,
             };
         }
@@ -88,7 +87,7 @@ fn initialized(
     runtime: &RuntimeEnvironment,
     mut pending: Vec<(Place, Place)>,
     missing: &[Box<[Projection]>],
-) -> Option<Box<[(Place, Place)]>> {
+) -> Option<Box<[Preserved]>> {
     let mut retained = Vec::new();
     while let Some((source, target)) = pending.pop() {
         let index = missing.partition_point(|hole| hole.as_ref() < source.projections.as_ref());
@@ -96,9 +95,26 @@ fn initialized(
             Some(hole) if hole.as_ref() == source.projections.as_ref() => continue,
             Some(hole) if hole.starts_with(&source.projections) => {}
             _ => {
-                retained.push((source, target));
+                retained.push(Preserved {
+                    source,
+                    destination: target,
+                    kind: Preservation::Complete,
+                });
                 continue;
             }
+        }
+        if runtime
+            .types()
+            .get(source.data)?
+            .array()
+            .is_some_and(|(_, length)| length > 1)
+        {
+            retained.push(Preserved {
+                source,
+                destination: target,
+                kind: Preservation::ArrayRemainder,
+            });
+            continue;
         }
         let tuple = tuple_fields(runtime, source.data);
         let singleton = singleton_element(runtime, source.data)

@@ -1539,6 +1539,47 @@ fn private_contextual_indexed_growth_preserves_actual_owned_capture_and_sibling_
 }
 
 #[test]
+fn private_contextual_array_holes_skip_zero_byte_storage_at_maximum_cardinality() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-component-growth.nct"
+    ));
+    let source = source
+        .replace(
+            "(wrap(identity), 2)",
+            "(wrap(identity), [(); 18446744073709551615])",
+        )
+        .replace(
+            "let empty =",
+            "let saved_unit = pair.1[0]^\n    let empty =",
+        )
+        .replace("= pair.1\n", "= pair.1[1]\n")
+        .replace("small_sibling == 2", "small_sibling == ()")
+        .replace("large_sibling == 2", "large_sibling == ()")
+        .replace("pair.1 == 2", "pair.1[18446744073709551614] == ()")
+        .replace("const ANSWER: i32 = calculate()", "")
+        .replace("if ANSWER == 42 { calculate() } else { 0 }", "calculate()")
+        .replace("let shrunk =", "pair.1[0] = saved_unit^\n    let shrunk =");
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(&source),
+        &package.0,
+        "array-zero-storage-relocation",
+        42,
+    );
+}
+
+#[test]
+fn private_contextual_array_holes_preserve_saved_owners_and_remaining_elements() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-array-hole-growth.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "array-hole-growth", 42);
+}
+
+#[test]
 fn private_contextual_conditional_holes_select_their_original_owning_alternative() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -1688,14 +1729,14 @@ fn private_contextual_component_growth_moves_only_initialized_siblings_and_prese
 }
 
 #[test]
-fn private_contextual_singleton_holes_keep_saved_errors_and_reject_larger_arrays() {
+fn private_contextual_array_holes_preserve_saved_and_remaining_error_graphs() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../tests/fixtures/native/value-access/contextual-component-growth-errors.nct"
     ));
     let original = "(context_error(create_failure(\"sibling\", \"leaf\"), \"outer\"), 2)";
     assert!(source.contains(original));
-    for length in [1, 2] {
+    for length in [1, 2, 3] {
         let value = "context_error(create_failure(\"sibling\", \"leaf\"), \"outer\")";
         let elements = std::iter::repeat_n(value, length)
             .collect::<Vec<_>>()
@@ -1709,20 +1750,13 @@ fn private_contextual_singleton_holes_keep_saved_errors_and_reject_larger_arrays
             )
             .replace("inspect(pair.2.0)", "inspect(saved_sibling)");
         let unit = trusted_error_unit(&changed);
-        if length == 1 {
-            let package = TempPackage::new();
-            execute_native_status(
-                &image(&machine_unit(unit).unwrap()),
-                &package.0,
-                "singleton-saved-error",
-                42,
-            );
-        } else {
-            assert!(matches!(
-                machine_unit(unit),
-                Err(nocter_machine::value_access::ExecutableFailure::InvalidBody(_))
-            ));
-        }
+        let package = TempPackage::new();
+        execute_native_status(
+            &image(&machine_unit(unit).unwrap()),
+            &package.0,
+            "array-saved-error",
+            42,
+        );
     }
 }
 

@@ -85,8 +85,12 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Freeze each partial owning receipt's original destination holes through lifecycle guard
   simplification and MIR, qualifying branch-dependent tuple/singleton holes in one callable
   instance, required/native execution, actual error cleanup and bounded metadata retry.
-- [ ] Extend relocation's initialized-subtree selection to remaining array/range holes and
-  unresolved represented alternatives, preserving sparse source coordinates without element expansion.
+- [x] Preserve concrete holes inside larger unchanged array siblings through explicit sparse
+  MIR parts and shared native cleanup/transport traversal. Snapshot initialized fields before
+  overlapping writes, retain one owner and qualify distinct captured values, actual error graphs,
+  restoration and maximum-cardinality zero-byte storage without element expansion.
+- [ ] Extend relocation's initialized-subtree selection to dynamic/range holes and unresolved
+  represented alternatives, preserving original saved coordinates without element expansion.
 - [x] Qualify same-geometry contextual callable component replacement and restoration with a
   surviving disjoint sibling reference. Carry each partial receipt's original containing roots
   into MIR and physical geometry checks without fusing separate retirement/receipt operations.

@@ -20,6 +20,7 @@ mod destruction;
 mod outcomes;
 pub(super) use destruction::build as cleanup;
 mod remainder;
+mod repacking;
 mod repetition;
 mod transport;
 mod traversal;
@@ -314,17 +315,10 @@ impl<'a> Builder<'a> {
                 source,
                 destination,
                 preserved,
+                missing,
                 ..
             } => {
-                // Capture every old sibling before any write can overlap its old location.
-                let snapshots = preserved
-                    .iter()
-                    .map(|(source, _)| self.load(source))
-                    .collect::<Result<Vec<_>, _>>()?;
-                for ((_, target), value) in preserved.iter().zip(snapshots) {
-                    self.store(target, value)?;
-                }
-                self.copy(source, destination)?;
+                self.repack(source, destination, preserved, missing)?;
             }
             mir::Effect::Transport {
                 source,

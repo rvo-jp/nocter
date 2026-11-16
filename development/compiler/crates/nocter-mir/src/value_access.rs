@@ -86,6 +86,20 @@ pub enum RemainderExclusion {
     ArrayPrefix { array: Place, endpoint: MirLocalId },
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Preservation {
+    Complete,
+    ArrayRemainder,
+}
+
+/// One unchanged subtree's physical transport, with sparse presence retained separately.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Preserved {
+    pub source: Place,
+    pub destination: Place,
+    pub kind: Preservation,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Effect {
     /// Complete one wrapper construction at its checked commit phase.
@@ -105,9 +119,9 @@ pub enum Effect {
         source: Place,
         destination: Place,
         before: RuntimeDataId,
-        /// Original prefix-free missing tuple/singleton paths outside the replaced subtree.
+        /// Original prefix-free missing component paths outside the replaced subtree.
         missing: Box<[Box<[Projection]>]>,
-        preserved: Box<[(Place, Place)]>,
+        preserved: Box<[Preserved]>,
     },
     /// A distinct guarded wider representation, with separate source/destination payload layouts.
     /// Logical ownership and positive code/context identity were checked before this boundary.

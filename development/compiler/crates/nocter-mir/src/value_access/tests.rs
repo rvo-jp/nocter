@@ -52,10 +52,10 @@ fn tuple_repacking_retains_the_original_receipt_and_all_disjoint_siblings() {
     };
     assert_ne!(*before, destination.root);
     assert_eq!(preserved.len(), 1);
-    assert_eq!(preserved[0].0.root, *before);
-    assert_eq!(preserved[0].1.root, destination.root);
+    assert_eq!(preserved[0].source.root, *before);
+    assert_eq!(preserved[0].destination.root, destination.root);
     assert_eq!(
-        preserved[0].0.projections.as_ref(),
+        preserved[0].source.projections.as_ref(),
         &[Projection::Field(nocter_model::ValueField::Tuple(1))]
     );
     for corruption in 0..4 {
@@ -80,7 +80,7 @@ fn tuple_repacking_retains_the_original_receipt_and_all_disjoint_siblings() {
         };
         match corruption {
             0 => *preserved = Box::new([]),
-            1 => preserved[0].1.root = *before,
+            1 => preserved[0].destination.root = *before,
             2 => source.slot = destination.slot,
             3 => *before = RuntimeDataId::Instance(u32::MAX),
             _ => unreachable!(),
@@ -121,7 +121,7 @@ fn indexed_repacking_uses_only_the_closed_singleton_coordinate() {
             );
             assert_eq!(preserved.len(), 1);
             assert_eq!(
-                preserved[0].0.projections.as_ref(),
+                preserved[0].source.projections.as_ref(),
                 &[Projection::Field(nocter_model::ValueField::Tuple(1))]
             );
             found += 1;
@@ -131,6 +131,35 @@ fn indexed_repacking_uses_only_the_closed_singleton_coordinate() {
         found >= 2,
         "both growth and shrinkage need original receipts"
     );
+}
+
+#[test]
+fn partial_array_preservation_cannot_become_a_complete_load() {
+    let program = lower(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-array-hole-growth.nct"
+    )));
+    validate::program(&program).unwrap();
+    let mut changed = program.clone();
+    let part = changed
+        .bodies
+        .values_mut()
+        .flat_map(|body| body.actions.values_mut())
+        .flat_map(|action| &mut action.alternatives)
+        .flat_map(|alternative| alternative.before.iter_mut().chain(&mut alternative.after))
+        .find_map(|effect| match effect {
+            Effect::Repack { preserved, .. } => preserved
+                .iter_mut()
+                .find(|part| part.kind == Preservation::ArrayRemainder),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(
+        part.source.projections.as_ref(),
+        &[Projection::Field(nocter_model::ValueField::Tuple(1))]
+    );
+    part.kind = Preservation::Complete;
+    assert!(validate::program(&changed).is_err());
 }
 
 #[test]
@@ -199,7 +228,7 @@ fn singleton_hole_repacking_keeps_the_initialized_element_field_and_skips_its_pa
             );
             let paths = preserved
                 .iter()
-                .map(|(source, _)| source.projections.clone())
+                .map(|part| part.source.projections.clone())
                 .collect::<std::collections::BTreeSet<_>>();
             assert_eq!(
                 paths,
@@ -238,7 +267,7 @@ fn sparse_tuple_repacking_never_snapshots_a_missing_subtree_or_its_parent() {
     assert_eq!(missing.as_ref(), &[Box::from([field(1), field(0)])]);
     let paths = preserved
         .iter()
-        .map(|(source, _)| source.projections.clone())
+        .map(|part| part.source.projections.clone())
         .collect::<std::collections::BTreeSet<_>>();
     assert_eq!(
         paths,

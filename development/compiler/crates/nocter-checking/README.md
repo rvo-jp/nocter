@@ -2248,13 +2248,16 @@ saved-owner restoration and replacement of a partially retired subtree. Native e
 preserves a separately saved error graph while relocating its remaining siblings.
 `contextual-singleton-hole-growth.nct` retains missing descendants inside singleton arrays, saved
 owner restoration and initialized fields in the same element through required/native execution.
-Native checks also preserve a saved owning error element and reject the corresponding larger-array
-hole. `contextual-conditional-hole-growth.nct` qualifies branch-dependent sibling holes through
+Native checks also preserve saved and remaining owning error elements across one-, two- and
+three-element arrays. `contextual-array-hole-growth.nct` qualifies concrete missing descendants
+inside larger unchanged arrays, with distinct captured values, initialized element fields and
+saved-owner restoration through required/native execution. Native zero-byte storage covers maximum
+usize cardinality without expanding the schema or performing an empty copy traversal. `contextual-conditional-hole-growth.nct` qualifies branch-dependent sibling holes through
 required/native execution of both Boolean inputs in the same callable instance. The matching
 error fixture executes actual conditional withdrawal, retirement and remaining-owner cleanup.
 Lifecycle retains each original destination condition through guard simplification; the
 [MIR owner](../nocter-mir/README.md) defines receipt-time relocation. Live addresses, general
-array/range holes and unresolved represented contexts do not acquire that permission.
+dynamic/range holes and unresolved represented contexts do not acquire that permission.
 `contextual-component-replacement.nct` additionally qualifies same-geometry partial replacement
 and restoration while a disjoint sibling reference survives, including repeated writes through
 one local edit alias. Original carrier selections match its actual containing owner. The evaluator
