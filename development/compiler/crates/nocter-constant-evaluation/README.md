@@ -281,6 +281,9 @@ caches completed values through the common
 [construction dependency query](../nocter-dependency-query/README.md). Unresolved declaration references
 cannot enter a stateful plan. Frozen source dependencies, including unevaluated authored references,
 are resolved before a plan executes. Callable recursion remains ordinary graph execution.
+Lazy plan sources can report `Rule::UnresolvedContext` separately from missing implementations,
+invalid closed plans and exhausted plan work; the executor preserves that reason for its consumer.
+
 
 `state::Budget` owns one remaining-work counter across dependency preparation and nested closed
 executions. Actions, resource effects and control transitions consume it without resetting for a

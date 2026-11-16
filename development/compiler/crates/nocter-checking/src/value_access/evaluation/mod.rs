@@ -75,7 +75,7 @@ impl Rule {
                 DiagnosticCode::E0322,
                 "required constant analysis exhausted its condition-work budget",
             ),
-            Self::UnresolvedContext => (
+            Self::UnresolvedContext | Self::Execution(state::Rule::UnresolvedContext) => (
                 DiagnosticCode::E0323,
                 "required constant analysis cannot establish one concrete value context",
             ),
@@ -152,9 +152,14 @@ fn project(
     } else {
         nocter_syntax::SyntaxOrigin::Node(root.body().ok_or(BodyFailure::InconsistentSyntax)?)
     };
-    let (code, message) = Rule::Execution(error.rule).diagnostic()?;
+    let rule = if error.rule == state::Rule::UnresolvedContext {
+        Rule::UnresolvedContext
+    } else {
+        Rule::Execution(error.rule)
+    };
+    let (code, message) = rule.diagnostic()?;
     Ok(Diagnostic {
-        rule: Rule::Execution(error.rule),
+        rule,
         source: SourceDiagnostic::new(
             code,
             message,
@@ -198,15 +203,16 @@ fn plan_failure(
     code: nocter_model::ValueCodeRoot,
     failure: projection::Failure,
 ) -> Failure {
-    match failure {
+    let rule = match failure {
         projection::Failure::Integrity => {
             return Failure::Integrity(flow::IntegrityError::InconsistentTypedBody);
         }
-        projection::Failure::WorkLimit => {}
-    }
+        projection::Failure::WorkLimit => state::Rule::PlanWorkLimit,
+        projection::Failure::UnresolvedContext => state::Rule::UnresolvedContext,
+    };
     let error = state::Error {
         instance: None,
-        rule: state::Rule::PlanWorkLimit,
+        rule,
         site: None,
         code,
         trace: Box::new([]),

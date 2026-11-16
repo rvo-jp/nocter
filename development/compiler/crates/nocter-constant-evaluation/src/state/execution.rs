@@ -10,6 +10,8 @@ use nocter_model::{ConstantValue, ValueCode, ValueCodeRoot, ValueInputOperation}
 pub enum Rule {
     InvalidPlan,
     UnavailablePlan,
+    /// Source plan metadata cannot establish a complete concrete value context.
+    UnresolvedContext,
     InputConditionFailed,
     PlanWorkLimit,
     ArithmeticFailure,

@@ -558,7 +558,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
                 {
                     continue;
                 }
-                let selected = crate::value_access::instances::condition_call(
+                let selected = crate::value_access::instances::condition_calls(
                     query,
                     &key,
                     id,
@@ -569,25 +569,27 @@ impl<'a, 'source> Preparation<'a, 'source> {
                     super::condition_failure(failure, key.code().source_owner(), primary)
                 })?
                 .ok_or(INVALID)?;
-                // The caller's bound domain check reports a missing authored capability. A
-                // runtime-only actual value does not create an evaluator body dependency.
-                if let ValueCode::Declaration(code) = selected.code()
-                    && program.codes().get(code).ok_or(INVALID)?.compile_time()
-                        != nocter_model::CompileTimeGuarantee::Evaluatable
-                {
-                    continue;
+                for selected in selected {
+                    // The caller's bound domain check reports a missing authored capability. A
+                    // runtime-only actual value does not create an evaluator body dependency.
+                    if let ValueCode::Declaration(code) = selected.code()
+                        && program.codes().get(code).ok_or(INVALID)?.compile_time()
+                            != nocter_model::CompileTimeGuarantee::Evaluatable
+                    {
+                        continue;
+                    }
+                    dependencies.push((
+                        selected.code(),
+                        Demand::Invoke,
+                        CallOrigin {
+                            parent: key.code(),
+                            site,
+                        },
+                    ));
+                    discovery
+                        .insert(program, selected)
+                        .map_err(Failure::Integrity)?;
                 }
-                dependencies.push((
-                    selected.code(),
-                    Demand::Invoke,
-                    CallOrigin {
-                        parent: key.code(),
-                        site,
-                    },
-                ));
-                discovery
-                    .insert(program, selected)
-                    .map_err(Failure::Integrity)?;
             }
         }
         Ok(dependencies)

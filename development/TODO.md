@@ -187,6 +187,13 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   code/environment cases, read-only invocation backing and common explicit input/result channels.
   Reuse ordinary handoff protection; cover inactive deferred bodies, read/edit/take inputs,
   rejected mutable environments and bounded failure cleanup before source call admission.
+- [x] Inspect all original complete callable frames in bound const capability/input clauses,
+  required admission and body discovery. Reuse controlled domains, preserve strict single-frame
+  queries and existing state-guard scope, and retain unresolved-context diagnostics through
+  initial/lazy plan projection before admitting source selected calls.
+- [ ] Preserve the original failed operation and instance when lazy plan projection fails before
+  entering the requested body. Keep source-context failures distinct from invalid plans and
+  report the inner cause rather than only the caller's load site.
 - [ ] Close the [positive callable alternative obligations](design/compiler-realization.md#positive-callable-alternatives)
   through the canonical data-instance graph, guarded source transport, evaluator/target plans,
   native selection and cleanup before widening source admission. The value-context fixture

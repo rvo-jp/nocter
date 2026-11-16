@@ -16,7 +16,7 @@ pub(in crate::value_access) struct InvocationCondition {
 pub(in crate::value_access) enum BoundCheck {
     Violation(Violation),
     Calls {
-        calls: std::collections::BTreeMap<AccessExpressionId, CodeInstanceKey>,
+        calls: std::collections::BTreeMap<AccessExpressionId, Box<[CodeInstanceKey]>>,
         control: crate::value_access::InstanceControl,
         conditions: std::collections::BTreeMap<AccessExpressionId, InvocationCondition>,
     },
@@ -43,7 +43,7 @@ pub(super) struct BoundContext<'a, 'work> {
     query: &'a crate::value_access::Query,
     caller: &'a CodeInstanceKey,
     work: &'work mut nocter_constant_evaluation::state::WorkBudget,
-    calls: std::collections::BTreeMap<AccessExpressionId, Option<CodeInstanceKey>>,
+    calls: std::collections::BTreeMap<AccessExpressionId, Option<Box<[CodeInstanceKey]>>>,
     resources: std::collections::BTreeMap<(flow::Location, usize), cleanup::Projected>,
     control: crate::value_access::InstanceControl,
     conditions: std::collections::BTreeMap<AccessExpressionId, InvocationCondition>,
@@ -65,8 +65,11 @@ impl BoundContext<'_, '_> {
             super::super::Rule::CapturedCall(target) => nocter_model::ValueCode::Closure(target),
             _ => return Ok(false),
         };
-        let Some(frame) = self.calls.get(&expression).and_then(Option::as_ref) else {
+        let Some(frames) = self.calls.get(&expression).and_then(Option::as_ref) else {
             return Err(super::INVALID.into());
+        };
+        let [frame] = frames.as_ref() else {
+            return Ok(false);
         };
         if frame.code() != target {
             return Err(super::INVALID.into());
@@ -205,15 +208,15 @@ impl BoundContext<'_, '_> {
         };
         condition.projected_data(projected).map_err(Into::into)
     }
-    pub(super) fn resolve(
+    pub(super) fn resolve_all(
         &mut self,
         expression: AccessExpressionId,
-    ) -> Result<Option<&CodeInstanceKey>, BoundCheckFailure> {
+    ) -> Result<Option<&[CodeInstanceKey]>, BoundCheckFailure> {
         use std::collections::btree_map::Entry;
         let call = match self.calls.entry(expression) {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => entry.insert(
-                instances::condition_call(
+                instances::condition_calls(
                     self.query,
                     self.caller,
                     expression,
@@ -226,7 +229,7 @@ impl BoundContext<'_, '_> {
                 })?,
             ),
         };
-        Ok(call.as_ref())
+        Ok(call.as_deref())
     }
 }
 
@@ -320,10 +323,13 @@ mod tests {
                 .instantiate_control(&caller, &mut WorkBudget::new(Limits::default().steps()))
                 .unwrap(),
         };
-        let selected = context.resolve(expression).unwrap().unwrap().clone();
+        let selected = context.resolve_all(expression).unwrap().unwrap().to_vec();
         *context.work = WorkBudget::new(NonZeroU64::new(1).unwrap());
         context.work.step().unwrap();
-        assert_eq!(context.resolve(expression).unwrap(), Some(&selected));
+        assert_eq!(
+            context.resolve_all(expression).unwrap(),
+            Some(selected.as_slice())
+        );
         assert_eq!(context.calls.len(), 1);
     }
 

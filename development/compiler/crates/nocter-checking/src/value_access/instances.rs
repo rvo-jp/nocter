@@ -57,6 +57,49 @@ pub(super) fn condition_call(
     select_contract_call(query.program(), caller, &expression.kind).map_err(|_| Failure::Unresolved)
 }
 
+/// Capability/discovery consumers must inspect every complete original candidate frame.
+/// Selector and executable admission remain with their consumers.
+pub(super) fn condition_calls(
+    query: &super::Query,
+    caller: &CodeInstanceKey,
+    id: nocter_model::AccessExpressionId,
+    control: Option<&super::InstanceControl>,
+    work: &mut nocter_constant_evaluation::state::WorkBudget,
+) -> Result<Option<Box<[CodeInstanceKey]>>, super::InstantiationFailure> {
+    match condition_call(query, caller, id, control, work) {
+        Ok(Some(frame)) => Ok(Some(vec![frame].into())),
+        Ok(None) => Ok(None),
+        Err(super::InstantiationFailure::Unresolved) if control.is_some() => {
+            let evidence = query
+                .result_evidence
+                .as_ref()
+                .ok_or(super::InstantiationFailure::Unresolved)?;
+            let domain = super::results::instantiate_controlled_invocation_domain(
+                query.program(),
+                evidence,
+                caller,
+                nocter_model::ValueApplication {
+                    owner: caller.code(),
+                    call: id,
+                },
+                control.ok_or(super::InstantiationFailure::Unresolved)?,
+                work,
+            )?;
+            let mut frames = std::collections::BTreeSet::new();
+            for case in domain.cases() {
+                work.step()
+                    .map_err(|_| super::InstantiationFailure::WorkLimit)?;
+                frames.insert(case.frame().clone());
+            }
+            if frames.is_empty() {
+                return Err(super::InstantiationFailure::Unresolved);
+            }
+            Ok(Some(frames.into_iter().collect()))
+        }
+        Err(failure) => Err(failure),
+    }
+}
+
 /// Close a dormant definition contract without claiming occurrence or creation evidence.
 /// Reached calls use the original-recipe resolver instead.
 /// # Errors

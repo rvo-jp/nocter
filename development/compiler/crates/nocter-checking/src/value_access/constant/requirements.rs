@@ -181,20 +181,19 @@ impl Requirements {
                     input_resource,
                     ..
                 } => {
-                    let callee = match calls.as_deref_mut() {
-                        Some(calls) => calls.resolve(*id)?,
+                    let callees = match calls.as_deref_mut() {
+                        Some(calls) => calls.resolve_all(*id)?,
                         None => None,
                     };
-                    let violation = super::operation_rule(
-                        program,
-                        &expressions.get(*id).ok_or(INVALID)?.kind,
-                        available,
-                        callee,
-                    )?
-                    .map(|rule| Violation {
-                        site: Site::Expression(*id),
-                        rule,
-                    });
+                    let expression = &expressions.get(*id).ok_or(INVALID)?.kind;
+                    let violation = first_violation(callees, |callee| {
+                        super::operation_rule(program, expression, available, callee).map(|rule| {
+                            rule.map(|rule| Violation {
+                                site: Site::Expression(*id),
+                                rule,
+                            })
+                        })
+                    })?;
                     if let (Some(violation), Some(calls)) = (violation, calls.as_deref_mut()) {
                         if calls.defer_invocation(
                             &self.body,
@@ -211,16 +210,14 @@ impl Requirements {
                     }
                 }
                 Clause::Inputs(id) => {
-                    let callee = match calls.as_deref_mut() {
-                        Some(calls) => calls.resolve(*id)?,
+                    let callees = match calls.as_deref_mut() {
+                        Some(calls) => calls.resolve_all(*id)?,
                         None => None,
                     };
-                    super::call_inputs(
-                        program,
-                        &expressions.get(*id).ok_or(INVALID)?.kind,
-                        &mut domain,
-                        callee,
-                    )?
+                    let expression = &expressions.get(*id).ok_or(INVALID)?.kind;
+                    first_violation(callees, |callee| {
+                        super::call_inputs(program, expression, &mut domain, callee)
+                    })?
                 }
                 Clause::Data(condition) => {
                     let supported = match calls.as_deref_mut() {
@@ -579,4 +576,26 @@ fn excluded_call(
         return false;
     };
     sources.call(id).is_none() && evidence.excludes_value(query.program(), data)
+}
+
+/// A bound clause must hold for every original complete frame, never a representative.
+fn first_violation<'a>(
+    candidates: Option<&'a [CodeInstanceKey]>,
+    mut check: impl FnMut(
+        Option<&'a CodeInstanceKey>,
+    ) -> Result<Option<Violation>, flow::IntegrityError>,
+) -> Result<Option<Violation>, flow::IntegrityError> {
+    let Some(candidates) = candidates else {
+        return check(None);
+    };
+    if candidates.is_empty() {
+        return Err(INVALID);
+    }
+    for candidate in candidates {
+        let violation = check(Some(candidate))?;
+        if violation.is_some() {
+            return Ok(violation);
+        }
+    }
+    Ok(None)
 }

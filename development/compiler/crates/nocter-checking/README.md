@@ -789,6 +789,14 @@ substitute a different body or requested root after proving eligibility. The clo
 proof and full bound traversal construct the same product under their existing quotas and local
 causes. Lower-level frozen-plan projection remains private to the projection module and its tests;
 body discovery, linked contracts and projection metadata alone do not authorize required evaluation.
+Bound capability and input clauses inspect every complete frame returned by the original
+controlled invocation domain when strict single-frame selection is unresolved. The request-local
+cache retains that full frame set; it cannot prove a clause from one representative. Required
+admission and body discovery visit all supplied frames without recombining witnesses. Dormant
+definition-contract hypotheses remain separate from original reached-call evidence. Stable-input
+absence deferral keeps its existing single-frame scope; multi-frame state guards remain
+unqualified. These proofs alone do not create a selector or admit evaluator plan projection.
+
 The product retains qualified entry-absence conditions per canonical frame alongside discharged
 obligations. The [state evaluator](../nocter-constant-evaluation/README.md#stateful-value-plans)
 checks those conditions against each invocation's bound values. A cached plan or input descriptor
@@ -802,6 +810,10 @@ lexical environment keeps its intrinsic read/edit/take operation and backing fla
 inputs; received compound ordinals still exclude that prefix. Missing environment contexts and
 body-dependent result families remain unresolved. Linking that boundary grants no const capability
 or executable implementation; loading a missing body reports `UnavailablePlan`.
+An unresolved value context discovered during initial or lazy plan projection retains
+`UnresolvedContext` through the evaluator boundary and its E0323 diagnostic. It is not converted
+into an invalid-plan/integrity error merely because capability discovery advanced farther.
+
 
 One evaluator request caches only complete boundaries by canonical code frame, sharing them
 between call operations, result slots and program linking. Failed boundary work publishes no cache

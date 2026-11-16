@@ -4,6 +4,7 @@ use crate::value_access::{constant, evaluation, results, source_origin};
 use std::{collections::BTreeMap, sync::Arc};
 
 mod provenance;
+const INVALID: Failure = Failure::Integrity(flow::IntegrityError::InconsistentTypedBody);
 use nocter_declarations::value_access::CodeInstanceKey;
 use provenance::Parent;
 
@@ -48,11 +49,9 @@ pub(in crate::value_access) fn check_required_const<'a>(
     let verified = checked
         .result_evidence
         .verify(context)
-        .map_err(|_| Failure::Integrity(flow::IntegrityError::InconsistentTypedBody))?;
+        .map_err(|_| INVALID)?;
     let availability = &checked.const_templates;
-    let root = program
-        .bind_code(root.code(), [])
-        .map_err(|_| Failure::Integrity(flow::IntegrityError::InconsistentTypedBody))?;
+    let root = program.bind_code(root.code(), []).map_err(|_| INVALID)?;
     if availability.prove_closed_root(root.code(), &verified, work)? {
         return Ok(admitted);
     }
@@ -115,21 +114,23 @@ pub(in crate::value_access) fn check_required_const<'a>(
                 ))?;
             let origin = source_origin(bound.typed().syntax(), origin)
                 .map_err(|failure| Failure::Body { callable, failure })?;
-            let selected = calls.get(&id).cloned().ok_or(Failure::Integrity(
+            let selected = calls.get(&id).ok_or(Failure::Integrity(
                 flow::IntegrityError::InconsistentTypedBody,
             ))?;
-            if parents.contains_key(&selected) {
-                continue;
+            for selected in selected {
+                if parents.contains_key(selected) {
+                    continue;
+                }
+                parents.insert(
+                    selected.clone(),
+                    Some(Parent {
+                        key: key.clone(),
+                        call: id,
+                        origin,
+                    }),
+                );
+                pending.push(selected.clone());
             }
-            parents.insert(
-                selected.clone(),
-                Some(Parent {
-                    key: key.clone(),
-                    call: id,
-                    origin,
-                }),
-            );
-            pending.push(selected);
         }
         if !conditions.is_empty() {
             admitted
@@ -252,7 +253,7 @@ fn bound_failure(
             failure,
         } => {
             let Some(origin) = bound.typed().expression_origin(expression) else {
-                return Failure::Integrity(flow::IntegrityError::InconsistentTypedBody);
+                return INVALID;
             };
             (origin, failure)
         }

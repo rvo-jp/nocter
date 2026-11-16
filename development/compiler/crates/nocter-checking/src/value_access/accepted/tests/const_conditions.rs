@@ -1118,7 +1118,7 @@ fn bound_condition_calls_reuse_original_frames_across_clauses() {
                 &mut WorkBudget::new(NonZeroU64::new(10_000).unwrap()),
             )
             .unwrap();
-        assert_eq!(calls[&id], expected);
+        assert_eq!(calls[&id].as_ref(), std::slice::from_ref(&expected));
         assert_eq!(
             calls.len(),
             1,
@@ -1326,4 +1326,98 @@ fn bound_check(
             crate::value_access::constant::BoundCheck::Violation(violation) => Some(violation),
             crate::value_access::constant::BoundCheck::Calls { .. } => None,
         })
+}
+
+#[test]
+fn positive_const_call_candidates_preserve_each_complete_original_frame() {
+    use crate::value_access::constant::BoundCheck;
+    use nocter_constant_evaluation::state::{Limits, WorkBudget};
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/value-contexts/contextual-joined-sibling-growth.nct"
+    ));
+    let (definitions, _) = source.split_once("\nconst ANSWER:").unwrap();
+    for runtime_identity in [false, true] {
+        let definitions = if runtime_identity {
+            definitions.replace("const func identity", "func identity")
+        } else {
+            definitions.to_owned()
+        };
+        let source = nocter_test_support::ValueSourceFixture::new(&format!(
+            "{definitions}\nfunc run(): i32 {{ calculate(true) }}"
+        ));
+        let unit = SourceUnit::prepare(source.syntax()).unwrap().into_unit();
+        let code = unit
+            .program()
+            .resolve_code(unit.program().symbols().get("calculate").unwrap())
+            .unwrap();
+        let frame = unit.program().bind_code(code.into(), []).unwrap();
+        let body = unit.code_body(code.into()).unwrap();
+        let expression = body
+            .typed()
+            .body()
+            .expressions()
+            .iter()
+            .filter_map(|(id, expression)| {
+                matches!(
+                    expression.kind,
+                    crate::value_access::ExpressionKind::Call {
+                        kind: crate::value_access::CallKind::Value,
+                        ..
+                    }
+                )
+                .then_some(id)
+            })
+            .last()
+            .unwrap();
+        let budget = || WorkBudget::new(Limits::default().steps());
+        let requirements = unit.const_requirements(code.into()).unwrap();
+        let BoundCheck::Calls { calls, .. } = requirements
+            .check_bound(&|_| true, &frame, &mut budget())
+            .unwrap()
+        else {
+            panic!("the local caller clauses are eligible");
+        };
+        let candidates = &calls[&expression];
+        assert_eq!(candidates.len(), 2);
+        assert_eq!(candidates[0].code(), candidates[1].code());
+        assert_ne!(candidates[0].environment(), candidates[1].environment());
+        let expected: std::collections::BTreeSet<_> = unit
+            .instantiate_invocation_domain(
+                &frame,
+                nocter_model::ValueApplication {
+                    owner: frame.code(),
+                    call: expression,
+                },
+                &mut budget(),
+            )
+            .unwrap()
+            .cases()
+            .iter()
+            .map(|case| case.frame().clone())
+            .collect();
+        assert_eq!(
+            candidates
+                .iter()
+                .cloned()
+                .collect::<std::collections::BTreeSet<_>>(),
+            expected
+        );
+        let mut violations = 0;
+        for candidate in candidates {
+            let required = unit.const_requirements(candidate.code()).unwrap();
+            if let BoundCheck::Violation(violation) = required
+                .check_bound(&|_| true, candidate, &mut budget())
+                .unwrap()
+            {
+                assert!(runtime_identity);
+                assert!(matches!(
+                    violation.rule(),
+                    crate::value_access::constant::Rule::RuntimeCall(_)
+                ));
+                violations += 1;
+            }
+        }
+        assert_eq!(violations, usize::from(runtime_identity));
+    }
 }

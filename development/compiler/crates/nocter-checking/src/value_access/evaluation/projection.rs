@@ -25,6 +25,7 @@ use std::collections::BTreeMap;
 pub(super) enum Failure {
     Integrity,
     WorkLimit,
+    UnresolvedContext,
 }
 impl From<flow::IntegrityError> for Failure {
     fn from(_: flow::IntegrityError) -> Self {
@@ -35,6 +36,7 @@ impl From<crate::value_access::InstantiationFailure> for Failure {
     fn from(failure: crate::value_access::InstantiationFailure) -> Self {
         match failure {
             crate::value_access::InstantiationFailure::WorkLimit => Self::WorkLimit,
+            crate::value_access::InstantiationFailure::Unresolved => Self::UnresolvedContext,
             _ => Self::Integrity,
         }
     }

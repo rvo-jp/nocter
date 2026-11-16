@@ -220,6 +220,7 @@ impl<F: Fn(AccessCodeId) -> Option<plan::Value>> plan::PlanSource for Source<'_,
         self.realize(code).map_err(|failure| match failure {
             super::Failure::WorkLimit => plan::Rule::PlanWorkLimit,
             super::Failure::Integrity => plan::Rule::InvalidPlan,
+            super::Failure::UnresolvedContext => plan::Rule::UnresolvedContext,
         })
     }
 }
