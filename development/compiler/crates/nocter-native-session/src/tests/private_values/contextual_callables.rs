@@ -2733,3 +2733,44 @@ fn private_scoped_growth_preserves_live_selected_aliases_and_initialized_sibling
     );
     execute_native_status(&image(&machine), &package.0, "scoped-growth-errors", 42);
 }
+
+#[test]
+fn private_scoped_sparse_selections_preserve_snapshots_frontiers_bounds_and_error_owners() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-scoped-sparse-selections.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "scoped-sparse-selections", 42);
+    let (definitions, _) = source.split_once("\nfunc run():").unwrap();
+    for (name, call) in [("index", "dynamic(2, 40)"), ("prefix", "prefix(3)")] {
+        let trapped = format!("{definitions}\nfunc run(): i32 {{ {call} }}");
+        execute_native_signal(
+            &compile(&trapped),
+            &package.0,
+            &format!("scoped-sparse-{name}"),
+            5,
+        );
+    }
+    let (definitions, _) = source.split_once("\nconst ANSWER:").unwrap();
+    let runtime = definitions.replace("const func", "func");
+    let owned = runtime.replace(
+        "let item = Item { value: value }\n    (item^; amount: i32): i32 { item.value + amount }",
+        "let reason = context_error(create_failure(\"scoped-hole\", \"leaf\"), \"outer\")\n    (reason^, value; amount: i32): i32 { value + amount }",
+    );
+    assert_ne!(owned, runtime);
+    let owned = format!(
+        "primitive func create_failure(code: str, message: str): error\nprimitive func context_error(take value: error, message: str): error\n{owned}\nfunc run(): i32 {{ calculate() }}"
+    );
+    let machine = trusted_error_machine(&owned);
+    assert!(
+        machine
+            .functions()
+            .flat_map(|(_, function)| function.body().operations())
+            .any(|(_, operation)| matches!(
+                operation.kind(),
+                nocter_machine::MachineOperationKind::ReleaseError { .. }
+            ))
+    );
+    execute_native_status(&image(&machine), &package.0, "scoped-sparse-errors", 42);
+}

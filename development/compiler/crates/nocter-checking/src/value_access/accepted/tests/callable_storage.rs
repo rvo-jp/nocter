@@ -1768,3 +1768,29 @@ fn nonreturning_mutable_captures_keep_execution_limits_without_a_completion_cont
         )
     );
 }
+
+#[test]
+fn scoped_sparse_receipts_preserve_saved_selections_and_original_bounds_failures() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-scoped-sparse-selections.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Value::integer(42));
+    let (definitions, _) = source.split_once("\nconst ANSWER:").unwrap();
+    for call in ["dynamic(2, 40)", "prefix(3)"] {
+        let source = format!("{definitions}\nconst BAD: i32 = {call}");
+        let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+        let Err(SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })) =
+            SourceUnit::prepare(fixture.syntax())
+        else {
+            panic!("an original sparse selection must retain its bounds effect");
+        };
+        assert_eq!(
+            diagnostic.rule(),
+            crate::value_access::evaluation::Rule::Execution(
+                nocter_constant_evaluation::state::Rule::IndexOutOfBounds
+            )
+        );
+        assert_eq!(diagnostic.source().code(), "E0325");
+    }
+}

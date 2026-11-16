@@ -18,12 +18,11 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify retained dynamic-index and array-prefix exclusions through scoped local relocation.
-Reuse original saved coordinates, prefix frontiers and bounds effects while index/counter variables
-change. Verify required/native results, original bounds traps and actual remaining/saved error
-cleanup without expanding schemas or relaxing shifted-endpoint/external-alias constraints.
-Consuming closure environments now retain their original direct/indirect ABI payload sizes while
-using a maximum-capacity owning slot; remaining named/formal input transport stays separate.
+Qualify remaining owning-input and containing-record paths for scoped representation changes.
+Reproduce source admission failures against the canonical declared component contracts before
+changing inference or storage. Keep one original ownership transition, matched before/after root
+contracts and independently qualified retained offsets. Stable dynamic/prefix exclusions and
+consumed closure input capacity are qualified; external reference transport remains separate.
 
 Complete occurrence-sensitive value/capture transport under the
 [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances).
@@ -106,8 +105,10 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   widths, maximum owning capacity, caller sentinels, required/native results and real owned errors.
 - [ ] Qualify remaining named/formal owning inputs across context-changing scoped replacement;
   preserve canonical received contracts, original ABI transport and caller storage isolation.
-- [ ] Qualify stable dynamic-index and array-prefix holes during scoped repacking, preserving
-  original snapshots/frontiers after source-variable mutation, bounds traps and actual error cleanup.
+- [x] Qualify stable dynamic-index and array-prefix holes during scoped repacking, preserving
+  original snapshots/frontiers after source-variable mutation, both coordinates, every prefix
+  length, required/native bounds failures and actual saved/withdrawn/remaining error cleanup.
+  Reuse direct-receipt exclusion conversion and sparse traversal without a new ownership model.
 - [x] Fix ARM64 incoming payload sizing: use original ABI data size (pointer size for read/edit),
   independently of the receiving slot's capacity for later representations. Qualify register,
   stack and indirect paths, enlarged capacity and undersized-storage rejection.

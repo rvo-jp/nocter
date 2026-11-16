@@ -182,9 +182,13 @@ paths and a matching Repack at the same original action. The shared
 singleton array through required/native execution. It also covers saved whole siblings, nested
 holes and a larger array containing a partial tuple element. Its error variant retires real old
 captures and preserves/cleans actual saved and remaining owned environments. Exclusion and
-preservation-kind mutations reject, and exhausted metadata work permits a healthy retry. This
-does not qualify changing sparse states, general external aliases or changing retained endpoint
-offsets.
+preservation-kind mutations reject, and exhausted metadata work permits a healthy retry.
+`contextual-scoped-sparse-selections.nct` additionally qualifies dynamic element holes and original
+array-prefix exclusions while the source index/counter changes. Required/native cases preserve
+both saved coordinates, empty/partial/complete prefixes, initialized scalar siblings, original
+bounds failures and real saved/withdrawn/remaining error owners. These use the same exclusion
+conversion and sparse preservation traversal as direct receipts. This does not qualify changing
+sparse states, general external aliases or changing retained endpoint offsets.
 
 The same owning-carrier proof applies to a consumed closure's environment input. The shared
 `contextual-owning-scoped-growth.nct` source qualifies direct and indirect incoming environments
