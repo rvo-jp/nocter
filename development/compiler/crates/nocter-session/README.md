@@ -15,6 +15,10 @@ Recovery storage variants and phase order remain private. The crate does not imp
 invoke semantic compiler stages, implement editor queries, generate native code, or project
 protocol values.
 
+The distinct value-access query product currently receives an explicit unqualified-domain error.
+It cannot enter released program/target translation or recovery. Qualifying v2 session, diagnostics,
+target and editor evidence is a separate integration step; session does not run the private checker.
+
 ## Internal Responsibilities
 
 - closed complete-or-incomplete outcome translation

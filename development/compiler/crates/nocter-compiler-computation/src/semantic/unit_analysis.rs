@@ -12,6 +12,7 @@ struct UnitAnalysisQuery;
 #[derive(Debug)]
 pub enum UnitAnalysisOutcome {
     Complete(Arc<super::ProgramAnalysisProduct>),
+    ValueAccess(Arc<super::ValueAccessAnalysis>),
     Incomplete(Arc<super::IncompleteSemanticAnalysis>),
     Failed(Arc<super::SemanticQueryFailure>),
 }
@@ -65,19 +66,28 @@ impl Query for UnitAnalysisQuery {
 
     fn execute(database: &Database, key: &Self::Key) -> Result<Self::Value, ComputationError> {
         let current = database.input::<CurrentSourceScopeInput>(key)?;
-        let outcome = if current.unit.has_syntax_errors() {
-            let incomplete = super::incomplete_analysis(database, key.clone())?;
-            match incomplete.outcome() {
-                super::incomplete_analysis::IncompleteAnalysisOutcome::Analyzed(analysis) => {
-                    UnitAnalysisOutcome::Incomplete(Arc::clone(analysis))
-                }
-                super::incomplete_analysis::IncompleteAnalysisOutcome::Failed(failure) => {
-                    UnitAnalysisOutcome::Failed(Arc::clone(failure))
+        let outcome = match current.unit.source_goal() {
+            nocter_syntax::ParseGoal::V2CoreUnit => {
+                match super::value_access::analyze(&current.unit) {
+                    Ok(analysis) => UnitAnalysisOutcome::ValueAccess(Arc::new(analysis)),
+                    Err(failure) => UnitAnalysisOutcome::Failed(Arc::new(failure)),
                 }
             }
-        } else {
-            let complete = super::analyzed_program(database, key.clone())?;
-            UnitAnalysisOutcome::Complete(complete)
+            nocter_syntax::ParseGoal::SourceFile if current.unit.has_syntax_errors() => {
+                let incomplete = super::incomplete_analysis(database, key.clone())?;
+                match incomplete.outcome() {
+                    super::incomplete_analysis::IncompleteAnalysisOutcome::Analyzed(analysis) => {
+                        UnitAnalysisOutcome::Incomplete(Arc::clone(analysis))
+                    }
+                    super::incomplete_analysis::IncompleteAnalysisOutcome::Failed(failure) => {
+                        UnitAnalysisOutcome::Failed(Arc::clone(failure))
+                    }
+                }
+            }
+            nocter_syntax::ParseGoal::SourceFile => {
+                let complete = super::analyzed_program(database, key.clone())?;
+                UnitAnalysisOutcome::Complete(complete)
+            }
         };
         Ok(CachedUnitAnalysis {
             outcome,

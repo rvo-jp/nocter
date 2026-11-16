@@ -19,6 +19,24 @@ scope authority. It owns the computation database, retention policy, and query i
 does not select packages, discover modules, translate session outcomes, build targets, or
 interpret editor requests.
 
+## Selected Value-Access Query Scope
+
+An explicit v2 package-root catalog enters the same source-revision, discovery, input-publication
+and sole unit-analysis query as released inputs. The selected grammar also belongs to the stable
+scope key. The value-access branch calls checking's existing `ModuleSourceUnit` coordinator; it
+owns no alternative header, typing, lifetime, cleanup or required-evaluation implementation.
+The accepted product seals its reusable `ModuleQuery` and complete checked Unit together.
+Source rejection retains the original typed `SourceFailure`, including any internal integrity
+cause, without converting it into released declaration diagnostics. Incomplete syntax retains the
+exact discovery diagnostics and exposes no checked Unit or released recovery result.
+
+This branch currently depends on the complete exact-current source input. An unchanged request
+reuses the result; a body edit recomputes the coordinator and its required values. Header binding
+may remain reusable, but old complete body/value evidence must reject the changed source. Fine-grained
+v2 body-query reuse and partial editor recovery remain unqualified. The ordinary session rejects
+this distinct product until its target, diagnostic and editor consumers are qualified; public CLI,
+installed library and ABI admission do not follow from query integration.
+
 ## Internal Responsibilities
 
 - content-addressed parse, declaration-surface, and module-surface queries
@@ -40,8 +58,7 @@ interpret editor requests.
   retained by discovery, including diagnostic recovery. Exact-body publication uses that same
   selected grammar; neither path silently reparses with another goal. Module-surface queries consume
   declaration surfaces rather than raw source identity, so body-only edits do not invalidate module
-  contracts. This preserves a query boundary; it does not admit v2 package metadata or checking into
-  the ordinary production entry.
+  contracts. Grammar selection is retained from the root catalog through the query scope.
 - A source token from another owner or an earlier overlay generation is rejected before any query
   is supplied or semantic input is published. Discovery additionally rejects a package graph built
   from an independently created overlay, even when its explicit overrides are byte-identical.

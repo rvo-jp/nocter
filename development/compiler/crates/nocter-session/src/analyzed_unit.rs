@@ -163,6 +163,9 @@ pub fn analyze_unit_from_query(
         nocter_semantic_product::UnitAnalysisOutcome::Complete(complete) => {
             analyzed_complete_unit(unit, complete)
         }
+        nocter_semantic_product::UnitAnalysisOutcome::ValueAccess(_) => {
+            Err(SemanticAnalysisDomainError::UnqualifiedValueAccess)
+        }
         nocter_semantic_product::UnitAnalysisOutcome::Incomplete(incomplete) => {
             Ok(analyzed_incomplete_unit(
                 unit,
@@ -245,6 +248,7 @@ fn analyzed_incomplete_unit(
 
 #[derive(Clone, Debug)]
 pub enum SemanticAnalysisDomainError {
+    UnqualifiedValueAccess,
     QueryFailure(Arc<nocter_semantic_product::SemanticQueryFailure>),
 }
 
@@ -252,6 +256,9 @@ impl std::fmt::Display for SemanticAnalysisDomainError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::QueryFailure(failure) => failure.fmt(formatter),
+            Self::UnqualifiedValueAccess => {
+                formatter.write_str("value-access session admission is not qualified")
+            }
         }
     }
 }
@@ -260,6 +267,7 @@ impl std::error::Error for SemanticAnalysisDomainError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::QueryFailure(failure) => Some(failure.as_ref()),
+            Self::UnqualifiedValueAccess => None,
         }
     }
 }

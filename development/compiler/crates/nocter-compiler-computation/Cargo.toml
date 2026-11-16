@@ -17,5 +17,8 @@ nocter-model = { path = "../nocter-model" }
 nocter-source = { path = "../nocter-source" }
 nocter-syntax = { path = "../nocter-syntax" }
 
+[dev-dependencies]
+nocter-package = { path = "../nocter-package" }
+
 [lints]
 workspace = true

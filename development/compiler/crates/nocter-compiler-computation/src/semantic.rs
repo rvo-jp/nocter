@@ -12,6 +12,7 @@ mod program_preparation;
 mod program_relations;
 mod typed_bodies;
 mod unit_analysis;
+mod value_access;
 
 use body_names::{BodyNameSet, SemanticBodyKey, resolve_body_name, resolved_body_names};
 pub(crate) use body_source::BodySourcePublication;
@@ -36,6 +37,7 @@ use program_preparation::{
 };
 use typed_bodies::{TypedBodySet, typed_bodies};
 pub use unit_analysis::{UnitAnalysisOutcome, UnitAnalysisProduct};
+pub use value_access::{AcceptedValueAccess, ValueAccessAnalysis};
 
 use std::sync::Arc;
 
@@ -61,6 +63,7 @@ impl SemanticScopeKey {
     fn for_unit(unit: &DiscoveredUnit) -> Self {
         let mut stable = Vec::new();
         encode(unit.target().name().as_bytes(), &mut stable);
+        encode(unit.source_goal().as_str().as_bytes(), &mut stable);
         let mut roots = unit.root_packages().iter().collect::<Vec<_>>();
         roots.sort_unstable();
         for root in roots {

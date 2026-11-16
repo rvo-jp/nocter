@@ -18,18 +18,13 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Connect the selected v2 discovery input to the revision-owned semantic query branch, using the
-existing module/header/body/required-evaluation coordinator. Preserve exact-current source guards,
-complete/incomplete separation, retained diagnostics and grammar-specific cache identities. Do not
-run v2 trees through released declaration lowering or create a second semantic checking engine.
-Public session/native/editor admission and the standard library remain independently unqualified.
+Qualify session consumption of the selected v2 query result, retaining the exact discovery envelope
+and original diagnostics without invoking checking again or converting to released program evidence.
+Keep source acceptance separate from executable-entry/target/ABI qualification. Continue toward the
+ordinary native/editor workflow using the existing value-access consumers and one semantic pipeline;
+fine-grained v2 query reuse, partial editor recovery and the standard library remain open.
 
-Re-evaluate the ordinary package/session and module entry paths against the qualified v2 core.
-Identify the next production-integration dependency and close a source-backed vertical slice without
-adding a competing semantic authority. Preserve existing package/source revision validation and
-keep unqualified library/ABI/publication scope explicit. Stable read-record field capability
-conditions now share original-source lineage with nullable guards; nested/indexed/mutable-input
-conditions, external representation changes and mutable captured environments remain open.
+## Remaining Contextual Representation Qualification
 
 Complete occurrence-sensitive value/capture transport under the
 [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances).
@@ -687,6 +682,11 @@ not a language restriction derived from the current realization boundary.
   and unsafe unused helpers. Preserve released behavior and publication/entry/library boundaries.
 - [ ] Complete directory modules, contract-only index files, visibility, see hints and package/platform
   integration. Close the intended v2 platform and ABI scope with executable and negative source cases.
+- [x] Select the existing v2 source coordinator inside the revision-owned unit query. Retain a
+  sealed header/Unit pair, typed source failures and incomplete syntax without released recovery;
+  qualify same-input reuse, changed required values, independent header/body guards, stale revision
+  rejection and failure-to-healthy retry. Grammar belongs to the scope identity. Session translation
+  remains explicitly closed pending its own diagnostic, target and editor qualification.
 - [ ] Integrate v2 into the ordinary compiler/CLI and editor workflow with one semantic pipeline,
   current diagnostics, formatting, presentation and revision/source reuse. Remove transitional private
   handoffs when their production replacement is qualified; retain no competing semantic authority.

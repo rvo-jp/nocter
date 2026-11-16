@@ -29,6 +29,12 @@ declarations -> preparation -> body names -> typed bodies -> finalization
                                     session semantic evidence
 ```
 
+The detailed body-query chain above describes released source analysis. The same sole unit query
+now selects the existing value-access source coordinator for explicitly selected v2 discovery,
+without entering released declaration or recovery stages. Its
+[query scope](../../compiler/crates/nocter-compiler-computation/README.md#selected-value-access-query-scope)
+owns the qualified result/reuse boundary; it does not yet produce session semantic evidence.
+
 Commands and workspace analysis both enter through `nocter-compiler-computation`. They differ in
 owner lifetime and requested downstream product, not in syntax providers, semantic stage order, or
 recovery policy. Intermediate semantic queries are private to that owner. A caller can publish one
@@ -72,7 +78,7 @@ each supplied canonical source against the frozen observation owned by its overl
 the parse query.
 
 Physical paths are canonicalized before they become query keys. A semantic scope key identifies
-the selected target and canonical root package identities. A body key identifies one canonical
+the selected source grammar, target and canonical root package identities. A body key identifies one canonical
 source path plus its declaration-owned syntax locator. Generation-local `SourceId`, `NodeId`,
 token, span, symbol, type-arena, and closure-arena identities never become cross-revision keys.
 

@@ -4,6 +4,8 @@ mod body_inputs;
 mod module_surface;
 mod semantic;
 mod source_syntax;
+#[cfg(test)]
+mod value_access_tests;
 
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -13,10 +15,10 @@ use nocter_discovery::{DiscoveredUnit, DiscoveryFailure, DiscoveryRequest};
 use nocter_filesystem::{SourceOverlay, SourceOverlayIdentity};
 
 pub use semantic::{
-    FinalizedProgram, IncompleteSemanticAnalysis, IncompleteSemanticError,
+    AcceptedValueAccess, FinalizedProgram, IncompleteSemanticAnalysis, IncompleteSemanticError,
     IncompleteSemanticEvidence, IncompleteSemanticFailure, ProgramAnalysisOutcome,
     ProgramAnalysisProduct, SemanticInputError, SemanticQueryFailure, UnitAnalysisOutcome,
-    UnitAnalysisProduct,
+    UnitAnalysisProduct, ValueAccessAnalysis,
 };
 
 const RETAINED_SOURCE_REVISIONS: usize = 32;

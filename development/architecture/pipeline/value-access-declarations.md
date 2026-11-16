@@ -21,8 +21,12 @@ discovery. Root parse products, directory ownership, direct `see`, module import
 and source diagnostics become the existing immutable compile input. `ModuleSourceUnit` consumes
 that exact input through its ordinary declaration/body/required-value coordinator. Contract-only
 roots, complete paired headers, child/package boundaries and unused source-folder helpers retain
-their existing owners. This qualifies the selected physical-to-private checking handoff, not the
-ordinary session/query semantic branch, an executable entry, a v2 standard library or public CLI.
+their existing owners. The revision-owned unit-analysis query now selects this same coordinator
+for v2 input and retains accepted, rejected or incomplete syntax outcomes under exact-current source
+identity. It does not convert the result to released checking/recovery. This qualifies the physical
+and query-to-checking handoff, not ordinary session translation, an executable entry, a v2 standard
+library or public CLI. The [query owner](../../compiler/crates/nocter-compiler-computation/README.md#selected-value-access-query-scope)
+defines its reuse and recovery scope.
 
 ## Implemented Handoff
 
