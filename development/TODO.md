@@ -18,12 +18,12 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Requalify occurrence-specific captured callback substitutions from the original source through
-required evaluation and native execution. Begin with two values from one lexical factory holding
-different callbacks, then extend through argument, component and return transport and actual
-owned-error cleanup. The minimal source now passes checking and Machine lowering; establish
-observable execution and the remaining failure boundary before changing the model or closing
-the broader finding below. Keep original producer/creation evidence and canonical instance keys.
+Qualify scoped replacement's current alias-root selections across representation-changing
+partial writes. Reproduce the boundary through an edit alias to a tuple component, independently
+of a surviving sibling reference. Preserve separate retirement/receipt contexts, original source
+operands, initialized sibling transport, backing capacity and actual error cleanup. An alias's
+binding-time snapshot cannot substitute for its later referent. Keep source admission conservative
+until checking, evaluator and native geometry agree.
 
 Complete occurrence-sensitive value/capture transport under the
 [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances).
@@ -640,14 +640,12 @@ not a language restriction derived from the current realization boundary.
 
 ## Open Findings
 
-- [ ] Preserve value-occurrence producer and creation-frame context when one caller receives the
-  same lexical closure with different captured callback substitutions. A per-frame `TypeId` map
-  cannot distinguish those results after code-only result projection. Extend the existing matched
-  producer/application evidence through local, argument, component and return transport, using the
-  canonical witness/data instance authority. Extend the
-  [qualified capture scope](compiler/crates/nocter-checking/README.md#context-bound-callable-captures)
-  only after these transport and cleanup cases are qualified; see the
-  [instance obligations](design/compiler-realization.md#captured-callable-instances).
+- [x] Preserve distinct captured callback substitutions from one lexical factory through local,
+  argument, component, result and re-capture transport using original source/creation evidence and
+  canonical instance keys. Existing formal-capture qualification covers named/owned environments,
+  all invocation modes, required/native agreement and actual error cleanup. Requalification also
+  confirms two concurrent factory outputs through returned tuple components and forwarding;
+  the broader changing-carrier and retained-reference obligations remain separate below.
 
 - [ ] Extend symbolic discharge beyond covered root-closed named/owned-environment witnesses and
   parameter-selected calls without callable receiving dependencies. Free/unresolved captures,
