@@ -18,11 +18,12 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Separate anonymous callable availability discovery from the set of actual invocations during
-staged required evaluation. Qualify the empty-closure interrupted-field reproducer below using
-the ordinary body and condition authorities, while retaining named/captured runtime rejection,
-original access validation and conservative unresolved payload/context handling. Static eligibility
-must not manufacture an invocation, physical argument/result receipt or evaluator plan.
+Requalify occurrence-specific captured callback substitutions from the original source through
+required evaluation and native execution. Begin with two values from one lexical factory holding
+different callbacks, then extend through argument, component and return transport and actual
+owned-error cleanup. The minimal source now passes checking and Machine lowering; establish
+observable execution and the remaining failure boundary before changing the model or closing
+the broader finding below. Keep original producer/creation evidence and canonical instance keys.
 
 Complete occurrence-sensitive value/capture transport under the
 [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances).
@@ -721,13 +722,12 @@ not a language restriction derived from the current realization boundary.
   prefix payloads, original cleanup and complete-unit definition closure. Required/native tests
   cover void, record and callable results, an owning prefix and actual error captures; strict
   invocation queries retain MissingCall and interrupted applications produce no callable witness.
-- [ ] Separate anonymous callable availability discovery from actual invocation selection during
-  staged required evaluation. `Holder { callback: func(i32): void }` with a local empty anonymous
-  callback and `holder.callback(if true { return 42 } else { loop {} })` still reports
-  CapturedCall, even though the callback's body has no forbidden operation. Prepared type-only
-  closures are excluded from the availability catalog by the invocation filter. Preserve actual
-  body/access validation, dormant runtime rejection, unresolved contexts and independent payload
-  readiness; admitting an availability proof must not create a call frame or executable receipt.
+- [x] Separate formed anonymous callable availability from executable invocation selection during
+  staged required evaluation. Share the payload dependency walk for a non-requesting readiness
+  probe; include ready ordinary bodies in the static condition catalog while leaving unready
+  dormant bodies unresolved. Keep the physical body catalog restricted to selected invocations.
+  Qualify empty/scalar-capturing receivers, runtime-operation rejection, MissingCall, existing
+  unready nominal signatures, scoped-out plan rejection and native canceled-prefix cleanup.
 - [ ] Complete nested callable data/witness support through header/data positions and the owning
   type authority. Keep valid formal structural descriptors separate from owned-payload admission.
   Qualify concrete representation, substitution and callable input/result evidence;

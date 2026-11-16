@@ -4,7 +4,7 @@ use nocter_declaration_lowering::access_declarations::CodeSource;
 use nocter_declarations::value_access::{
     AggregateForm, Code, FunctionConstraint, PayloadSchema, Program,
 };
-use nocter_model::TypeId;
+use nocter_model::{NominalTypeId, TypeId};
 use nocter_syntax::SyntaxOrigin;
 use std::collections::BTreeSet;
 
@@ -53,6 +53,27 @@ fn require_roots(
     program: &Program,
     roots: impl IntoIterator<Item = (TypeId, SyntaxOrigin)>,
 ) -> Result<(), Failure> {
+    match unready(program, roots)? {
+        Some((record, origin)) => Err(Failure::RequiredHeader {
+            declaration: record.into(),
+            origin,
+        }),
+        None => Ok(()),
+    }
+}
+
+/// Metadata-only readiness probe; absence never requests or proves a payload.
+pub(in crate::value_access) fn ready(
+    program: &Program,
+    roots: impl IntoIterator<Item = TypeId>,
+) -> Result<bool, Failure> {
+    unready(program, roots.into_iter().map(|data| (data, ()))).map(|missing| missing.is_none())
+}
+
+fn unready<Origin: Copy>(
+    program: &Program,
+    roots: impl IntoIterator<Item = (TypeId, Origin)>,
+) -> Result<Option<(NominalTypeId, Origin)>, Failure> {
     let mut pending = roots.into_iter().collect::<Vec<_>>();
     let mut seen = BTreeSet::new();
     while let Some((data, origin)) = pending.pop() {
@@ -61,10 +82,7 @@ fn require_roots(
         }
         if let Some(record) = program.record_identity(data) {
             if !program.header_ready(record) {
-                return Err(Failure::RequiredHeader {
-                    declaration: record.into(),
-                    origin,
-                });
+                return Ok(Some((record, origin)));
             }
             // Publication already closed this record's positive payload dependencies.
             continue;
@@ -90,5 +108,5 @@ fn require_roots(
             }
         }
     }
-    Ok(())
+    Ok(None)
 }

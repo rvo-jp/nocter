@@ -871,12 +871,31 @@ pub(super) fn admit_resolved(
     let mut closures = BTreeMap::new();
     for (root, control) in controls {
         for (code, nested) in flow::scope([&control]).map_err(Failure::Integrity)? {
-            if invoked.is_some_and(|set| !set.contains(&code)) {
-                continue;
-            }
             let nocter_model::ValueCode::Closure(id) = code else {
                 continue;
             };
+            if invoked.is_some_and(|set| !set.contains(&code)) {
+                let query = &nested.typed;
+                let roots = std::iter::once(query.result_data())
+                    .chain(query.body().locals().iter().map(|(_, local)| local.data))
+                    .chain(
+                        query
+                            .body()
+                            .expressions()
+                            .iter()
+                            .filter_map(|(_, expression)| {
+                                expression.ty.access().map(nocter_model::ValueAccess::data)
+                            }),
+                    );
+                if !super::checker::payload_requirements::ready(&program, roots).map_err(
+                    |failure| Failure::Body {
+                        callable: code.source_owner(),
+                        failure,
+                    },
+                )? {
+                    continue;
+                }
+            }
             let checked = nested.clone().finish(&writes).map_err(Failure::Integrity)?;
             let checked = admit(checked, &verified)?;
             if closures.insert(id, Arc::new(checked)).is_some() {
@@ -898,6 +917,11 @@ pub(super) fn admit_resolved(
         &verified,
         definition_work,
     )?;
+    // The catalog retains the shared static body/condition product. That is not permission
+    // for the plan source to realize a body outside the invocation selection.
+    if let Some(invoked) = invoked {
+        closures.retain(|&id, _| invoked.contains(&nocter_model::ValueCode::Closure(id)));
+    }
     Ok(Checked {
         program,
         bodies,

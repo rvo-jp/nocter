@@ -2621,13 +2621,15 @@ fn private_anonymous_signatures_wait_for_actual_record_body_use() {
     );
 }
 
-fn qualify_interrupted_signature_cleanup(source: &str, invocation: &str) {
+const INTERRUPTED_RESULT_CASES: &[(&str, &str)] = &[
+    ("void", ""),
+    ("Data", "loop {}"),
+    ("func(i32): i32", "identity"),
+];
+
+fn qualify_interrupted_signature_cleanup(source: &str, invocation: &str, results: &[(&str, &str)]) {
     let package = TempPackage::new();
-    for (result, body) in [
-        ("void", ""),
-        ("Data", "loop {}"),
-        ("func(i32): i32", "identity"),
-    ] {
+    for &(result, body) in results {
         let source = source
             .replace(
                 "take value: Data): void",
@@ -2675,6 +2677,7 @@ fn private_interrupted_signature_calls_keep_original_prepared_cleanup() {
             "/../../tests/fixtures/native/value-access/interrupted-signature-record-readiness.nct"
         )),
         "receive",
+        INTERRUPTED_RESULT_CASES,
     );
 }
 
@@ -2686,5 +2689,18 @@ fn private_interrupted_field_calls_keep_original_prepared_cleanup() {
             "/../../tests/fixtures/native/value-access/interrupted-field-record-readiness.nct"
         )),
         "let receiver = Receiver { invoke: receive }\nreceiver.invoke",
+        INTERRUPTED_RESULT_CASES,
+    );
+}
+
+#[test]
+fn private_interrupted_anonymous_field_receivers_keep_static_availability_and_cleanup() {
+    qualify_interrupted_signature_cleanup(
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/native/value-access/interrupted-anonymous-field-readiness.nct"
+        )),
+        "let receiver = Receiver { invoke: (before: i32, take action: func(i32): i32, take value: i32): void {} }\nreceiver.invoke",
+        &[("void", "")],
     );
 }

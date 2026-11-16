@@ -1108,6 +1108,16 @@ requirement is created for the interrupted call. Required/native cases cover voi
 callable result signatures and actual error-prefix cleanup. General symbolic received field and
 capture contexts remain separate qualification work.
 
+`interrupted-anonymous-field-readiness.nct` additionally qualifies inferred availability for a
+formed anonymous receiver whose payload contracts are ready. Static eligibility and executable
+body selection are separate: the catalog retains the ordinary admitted body's condition product,
+while an invocation-scoped Checked product exposes executable bodies only for its selected calls.
+The common payload-dependency traversal supplies a read-only readiness probe; an unready nominal
+input, local or result leaves that dormant body's availability unresolved without requesting its
+header or constructing an invocation. Callable signature and zero-array edges retain their
+identity-only rules. Complete-unit closure still validates all definitions. Required/native tests
+preserve MissingCall, runtime-operation rejection and actual canceled-prefix cleanup.
+
 Original call-result witness and data queries can inspect a complete positive invocation domain
 when strict single-frame selection is unresolved. They query every original candidate's returned
 source at the same receiving path and descriptor. Only agreeing result facts close a uniform

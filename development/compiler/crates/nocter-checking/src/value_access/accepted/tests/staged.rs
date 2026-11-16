@@ -638,3 +638,76 @@ fn interrupted_field_calls_preserve_runtime_witness_rejection_and_prefix_payload
     };
     assert_eq!(diagnostic.rule(), evaluation::Rule::DependencyCycle);
 }
+
+#[test]
+fn interrupted_anonymous_field_receivers_have_static_availability_without_an_invocation() {
+    use crate::value_access::{ExpressionKind, InstantiationFailure};
+    use nocter_constant_evaluation::state::WorkBudget;
+    use nocter_model::{ValueApplication, ValueFunctionOrigin};
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/interrupted-anonymous-field-readiness.nct"
+    ));
+    assert_eq!(
+        super::initializers::answer(source, "SIZE"),
+        state::Value::integer(42)
+    );
+    assert_eq!(
+        super::initializers::answer(&source.replace("(tag; before:", "(before:"), "SIZE"),
+        state::Value::integer(42)
+    );
+    let fixture = nocter_test_support::ValueSourceFixture::new(source);
+    let unit = SourceUnit::prepare(fixture.syntax()).unwrap().into_unit();
+    let program = unit.program();
+    let code = program
+        .resolve_code(program.symbols().get("size").unwrap())
+        .unwrap();
+    let frame = program.bind_code(code.into(), []).unwrap();
+    let query = unit.code_body(frame.code()).unwrap().typed();
+    let (call, _) = query
+        .body()
+        .expressions()
+        .iter()
+        .find(|(_, expression)| {
+            matches!(
+                expression.kind,
+                ExpressionKind::Call {
+                    target: ValueFunctionOrigin::Contract(_),
+                    ..
+                }
+            )
+        })
+        .unwrap();
+    assert!(
+        unit.value_sources(frame.code())
+            .unwrap()
+            .call(call)
+            .is_none()
+    );
+    let mut work = WorkBudget::new(state::Limits::default().steps());
+    assert_eq!(
+        unit.instantiate_invocation(
+            &frame,
+            ValueApplication {
+                owner: frame.code(),
+                call
+            },
+            &mut work
+        ),
+        Err(InstantiationFailure::MissingCall)
+    );
+    let source = source.replace(
+        "take value: i32): void {} }",
+        "take value: i32): void { runtime() } }",
+    ) + "\nfunc runtime(): void {}";
+    let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+    let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+        SourceUnit::prepare(fixture.syntax())
+    else {
+        panic!("a runtime operation cannot acquire inferred const availability");
+    };
+    assert!(matches!(
+        diagnostic.rule(),
+        crate::value_access::constant::Rule::CapturedCall(_)
+    ));
+}
