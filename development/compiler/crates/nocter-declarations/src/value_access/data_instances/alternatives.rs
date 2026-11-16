@@ -23,9 +23,16 @@ impl Program {
             };
             choices.insert(actual);
         }
+        self.function_alternative_context(data, choices)
+    }
+    pub(super) fn function_alternative_context(
+        &self,
+        data: TypeId,
+        choices: BTreeSet<ConcreteWitness>,
+    ) -> Result<DataInstanceKey, CodeBindingError> {
         match choices.len() {
             0 => Err(CodeBindingError::InvalidWitness),
-            1 => self.instantiate_function(
+            1 => self.instantiate_function_context(
                 data,
                 choices.first().ok_or(CodeBindingError::InvalidWitness)?,
             ),

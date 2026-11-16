@@ -107,6 +107,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Retain finite positive callable domains in the declaration-owned graph with complete
   code/view/environment identities, canonical normalization, iterative comparison, source-contract
   validation and explicit rejection by unqualified frame/storage consumers.
+- [x] Add budgeted joins over canonical data domains, preserving complete positive witnesses,
+  explicit exclusion, nominal descriptors and shared array/component schemas. Qualify interrupted
+  requests and healthy retry before connecting source metadata merges.
 - [ ] Close the [positive callable alternative obligations](design/compiler-realization.md#positive-callable-alternatives)
   through the canonical data-instance graph, guarded source transport, evaluator/target plans,
   native selection and cleanup before widening source admission. The value-context fixture

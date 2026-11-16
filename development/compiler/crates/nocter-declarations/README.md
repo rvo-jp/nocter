@@ -463,6 +463,14 @@ metadata projection do not qualify positive injection, cross-descriptor reprojec
 selector, ABI or storage; target materialization remains closed. The
 [positive alternative contract](../../../design/compiler-realization.md#positive-callable-alternatives)
 owns those integrated obligations, including budgeted source discovery and healthy retry.
+`join_data_domains` unions already validated domains under the same source descriptor. It uses
+one iterative, memoized schema-pair walk and the same function-domain normalization. Explicit
+uninhabited domains contribute no positives; function joins retain whole witnesses, and arrays
+retain one element schema. A caller-supplied work step meters graph/alternative visits and memo
+hits; binding and work failures remain distinct, and no partial result is published. Required
+source discovery must supply its existing request budget. Component domains conservatively retain
+possibilities; they do not replace original branch correlations or justify concrete transport.
+Different source descriptors still require their existing validated reprojection first.
 `has_same_representation` and `permits_guarded_transport` share that structural comparison. The
 second relation is directed and permits only compatible excluded alternatives to widen; positive
 callable contexts and nominal identities remain exact, and an empty root has no transferable value.

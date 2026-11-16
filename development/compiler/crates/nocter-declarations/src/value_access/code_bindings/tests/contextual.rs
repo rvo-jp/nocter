@@ -7,3 +7,5 @@ mod data;
 mod inputs;
 mod reprojection;
 mod uninhabited;
+
+mod domains;

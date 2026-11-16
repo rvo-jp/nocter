@@ -7,6 +7,8 @@ use nocter_model::{BuiltinType, FieldPath, TypeId, ValueCode, ValueField};
 use std::{collections::BTreeMap, sync::Arc};
 mod alternatives;
 mod graph;
+mod join;
+pub use join::DataDomainJoinFailure;
 mod representation;
 mod reprojection;
 
