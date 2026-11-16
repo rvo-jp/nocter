@@ -18,6 +18,13 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
+Qualify uniform contextual selected-call results using the callable record-field carrier. Original
+result witness/data queries still require a single selected frame; retain every original candidate
+and its independently proved result before projecting one common receiving channel. The original
+source reproducer fails when using or retiring the returned carrier. Preserve separate candidate
+frames, exact receiving definitions and source-backed rejection of nonuniform results. Nested
+callable headers retain their separate qualification boundary.
+
 Complete occurrence-sensitive value/capture transport under the
 [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances).
 The [checking](compiler/crates/nocter-checking/README.md) and
@@ -663,7 +670,13 @@ not a language restriction derived from the current realization boundary.
 - [x] Publish callable record-field contracts atomically under reserved field identities. Preserve
   header lineage, payload-versus-signature dependency edges and conservative Copy checks before
   qualifying original source construction, contextual value binding and execution consumers.
-- [ ] Bind original named/captured values to callable field contracts without erasing code,
+- [ ] Qualify symbolic definition-context proofs for callable field invocations whose function,
+  compound-input or capture contexts are not independently closed. Preserve dormant runtime-call
+  rejection and original input provenance before removing conservative contextual-call rejection,
+  including interrupted field calls without a committed occurrence.
+  Keep declaration-check work in one bounded scope and connect configurable limits before
+  widening the ordinary compiler workflow.
+- [x] Bind original named/captured values to callable field contracts without erasing code,
   invocation or environment identity. Qualify construction, field invocation, forwarding and
   retirement through required/native consumers; keep abstract contracts nonconcrete and non-Copy.
 - [ ] Complete nested callable data/witness support through header/data positions and the owning

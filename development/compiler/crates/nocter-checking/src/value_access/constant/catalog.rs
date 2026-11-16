@@ -17,6 +17,7 @@ pub(in crate::value_access) struct Catalog {
     requirements: BTreeMap<ValueCode, Requirements>,
     states: BTreeMap<ValueClosure, Option<Cause>>,
     conditions: super::conditions::Conditions,
+    contextual_calls: BTreeMap<ValueCode, Violation>,
 }
 impl Catalog {
     pub(in crate::value_access) fn prepare(
@@ -59,11 +60,16 @@ impl Catalog {
                 }
             }
         }
+        let contextual_calls = super::value_context::prepare(&requirements);
         Ok(Self {
             requirements,
             states,
             conditions,
+            contextual_calls,
         })
+    }
+    pub(in crate::value_access) fn contextual_call(&self, code: ValueCode) -> Option<Violation> {
+        self.contextual_calls.get(&code).copied()
     }
     pub(in crate::value_access) fn closed_violation(
         &self,

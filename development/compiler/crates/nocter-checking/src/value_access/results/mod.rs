@@ -134,7 +134,8 @@ impl Evidence {
         match origin {
             ValueFunctionOrigin::Declaration(_)
             | ValueFunctionOrigin::Closure(_)
-            | ValueFunctionOrigin::Parameter(_) => Ok(origin),
+            | ValueFunctionOrigin::Parameter(_)
+            | ValueFunctionOrigin::Contract(_) => Ok(origin),
             _ => self
                 .selected(origin)
                 .map(|w| w.origin)
@@ -149,7 +150,8 @@ impl Evidence {
             return match witness.origin {
                 ValueFunctionOrigin::Declaration(_)
                 | ValueFunctionOrigin::Closure(_)
-                | ValueFunctionOrigin::Parameter(_) => Ok(witness),
+                | ValueFunctionOrigin::Parameter(_)
+                | ValueFunctionOrigin::Contract(_) => Ok(witness),
                 _ => Err(Failure::InconsistentSyntax),
             };
         };

@@ -196,3 +196,44 @@ fn nested_contract_metadata_replays_a_deep_signature_graph_without_value_expansi
     }
     assert_eq!(data, program.data_type(BuiltinType::I32).unwrap());
 }
+
+#[test]
+fn value_binding_keeps_code_and_environment_separate_from_the_receiving_contract() {
+    let (headers, [root, wrong, _]) = super::application_headers();
+    let void = headers.data_type(BuiltinType::Void).unwrap();
+    let integer = headers.data_type(BuiltinType::I32).unwrap();
+    let mut body = headers.body_types(root).unwrap();
+    let contract = body.callable_contract(0, signature(void)).unwrap();
+    let code = body.reserve_closure().unwrap();
+    let captured = body.closure(code, integer, signature(void)).unwrap();
+    let program = body.finish();
+    let named = program.function_data(FunctionWitness::from(root)).unwrap();
+    let wrong = program.function_data(FunctionWitness::from(wrong)).unwrap();
+    assert!(program.function_binding(named, contract));
+    assert!(program.function_binding(captured, contract));
+    assert!(!program.function_adapter(named, contract));
+    assert!(!program.function_binding(named, captured));
+    assert!(!program.function_binding(wrong, contract));
+    let keys = [named, captured].map(|source| {
+        let actual = program.concrete_witness(witness(&program, source)).unwrap();
+        let bound = program.instantiate_function(contract, &actual).unwrap();
+        assert_eq!(bound.data(), contract);
+        let crate::value_access::InstanceSchema::Function(selected) =
+            bound.schema(&program).unwrap()
+        else {
+            panic!("same complete source witness")
+        };
+        assert_eq!(selected, actual);
+        bound
+    });
+    assert!(!keys[0].has_same_representation(&program, &keys[1]));
+    assert!(program.instantiate_closed_data(contract).is_err());
+    assert_eq!(program.data_copyable(contract), Some(false));
+    let dependencies = program
+        .payload_dependencies_all([contract, integer, contract])
+        .unwrap();
+    assert_eq!(dependencies.contracts().len(), 1);
+    assert!(dependencies.parameters().is_empty());
+    assert!(dependencies.producers().is_empty());
+    assert_eq!(dependencies.readiness(), PayloadReadiness::Unsupported);
+}

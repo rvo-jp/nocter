@@ -323,15 +323,15 @@ pub fn payload(program: &Program, data: TypeId) -> Result<Payload> {
                     Disposal::OwnedCapture
                 }
                 nocter_model::ValueFunctionOrigin::Declaration(_) => Disposal::Trivial,
-                nocter_model::ValueFunctionOrigin::Parameter(_) => Disposal::FunctionEnvironment,
+                nocter_model::ValueFunctionOrigin::Parameter(_)
+                | nocter_model::ValueFunctionOrigin::Contract(_) => Disposal::FunctionEnvironment,
                 nocter_model::ValueFunctionOrigin::Result(_)
                 | nocter_model::ValueFunctionOrigin::Application(_)
                     if guarded =>
                 {
                     Disposal::FunctionEnvironment
                 }
-                nocter_model::ValueFunctionOrigin::Contract(_)
-                | nocter_model::ValueFunctionOrigin::Result(_)
+                nocter_model::ValueFunctionOrigin::Result(_)
                 | nocter_model::ValueFunctionOrigin::Application(_) => return Err(INVALID),
             },
             PayloadSchema::Builtin(_) => return Err(INVALID),

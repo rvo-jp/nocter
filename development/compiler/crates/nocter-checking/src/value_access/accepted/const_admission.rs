@@ -55,6 +55,19 @@ pub(in crate::value_access) fn check_required_const<'a>(
     if availability.prove_closed_root(root.code(), &verified, work)? {
         return Ok(admitted);
     }
+    admitted.conditions = check_instances(program, availability, &verified, root, work)?;
+    Ok(admitted)
+}
+
+/// Shared actual-source admission; declaration checks do not manufacture a Checked product.
+fn check_instances(
+    program: &Program,
+    availability: &constant::Catalog,
+    verified: &results::Verified<'_, '_>,
+    root: CodeInstanceKey,
+    work: &mut nocter_constant_evaluation::state::WorkBudget,
+) -> Result<ConstConditions, Failure> {
+    let mut conditions_by_frame = BTreeMap::new();
     let mut traversal = availability.traversal();
     let mut parents: BTreeMap<_, Option<Parent>> = BTreeMap::from([(root.clone(), None)]);
     let mut pending = vec![root];
@@ -68,7 +81,7 @@ pub(in crate::value_access) fn check_required_const<'a>(
         let query = requirements.body();
         let callable = key.code().source_owner();
         let bound = query
-            .bind_verified(&verified)
+            .bind_verified(verified)
             .map_err(|failure| Failure::Body { callable, failure })?;
         let (calls, control, conditions) = match requirements
             .check_bound(&|code| availability.permitted_template(code), &key, work)
@@ -81,7 +94,7 @@ pub(in crate::value_access) fn check_required_const<'a>(
             } => (calls, control, conditions),
             constant::BoundCheck::Violation(violation) => {
                 let diagnostic =
-                    bound_violation(availability, &verified, &parents, &key, &bound, violation)?;
+                    bound_violation(availability, verified, &parents, &key, &bound, violation)?;
                 return Err(Failure::Const {
                     callable,
                     diagnostic: Box::new(diagnostic),
@@ -93,13 +106,12 @@ pub(in crate::value_access) fn check_required_const<'a>(
             if conditions.contains_key(&id) {
                 continue;
             }
-            let sources =
-                checked
-                    .result_evidence
-                    .value_sources(key.code())
-                    .ok_or(Failure::Integrity(
-                        flow::IntegrityError::InconsistentTypedBody,
-                    ))?;
+            let sources = verified
+                .evidence
+                .value_sources(key.code())
+                .ok_or(Failure::Integrity(
+                    flow::IntegrityError::InconsistentTypedBody,
+                ))?;
             if !control
                 .call_reachable(sources, id)
                 .map_err(Failure::Integrity)?
@@ -133,12 +145,10 @@ pub(in crate::value_access) fn check_required_const<'a>(
             }
         }
         if !conditions.is_empty() {
-            admitted
-                .conditions
-                .insert(key, conditions.into_values().collect());
+            conditions_by_frame.insert(key, conditions.into_values().collect());
         }
     }
-    Ok(admitted)
+    Ok(conditions_by_frame)
 }
 fn bound_violation(
     availability: &constant::Catalog,
@@ -179,6 +189,9 @@ pub(super) fn check_const_bodies(
         constant::Catalog::prepare(bodies.values().chain(closures.values()).cloned())
             .map_err(Failure::Integrity)?;
     let mut const_roots = Vec::new();
+    let mut definition_work = nocter_constant_evaluation::state::WorkBudget::new(
+        nocter_constant_evaluation::state::Limits::default().steps(),
+    );
     for (&root, query) in bodies {
         let callable = root.source_owner();
         let evaluatable = match root {
@@ -222,6 +235,7 @@ pub(super) fn check_const_bodies(
         }
     }
     for root in const_roots {
+        check_definition_context(program, &availability, verified, root, &mut definition_work)?;
         if let Some((callable, diagnostic)) =
             availability.closed_violation(root.code(), verified)?
         {
@@ -232,6 +246,58 @@ pub(super) fn check_const_bodies(
         }
     }
     Ok(Arc::new(availability))
+}
+
+fn check_definition_context(
+    program: &Program,
+    availability: &constant::Catalog,
+    verified: &results::Verified<'_, '_>,
+    root: nocter_model::ValueCodeRoot,
+    definition_work: &mut nocter_constant_evaluation::state::WorkBudget,
+) -> Result<(), Failure> {
+    let item = availability.get(root.code()).ok_or(INVALID)?;
+    let contextual = availability.contextual_call(root.code());
+    let declared_function = matches!(root, nocter_model::ValueCodeRoot::Declaration(id)
+        if program.codes().get(id).is_some_and(|code| !code.kind().is_initializer()));
+    if declared_function && (item.needs_value_context() || contextual.is_some()) {
+        let frame = program.bind_code(root.code(), []).ok().filter(|frame| {
+            root.code().origin().is_none_or(|origin| {
+                program
+                    .compound_input_contracts(nocter_declarations::value_access::FunctionWitness {
+                        origin,
+                        invocation: nocter_model::ValueInvocation::Read,
+                    })
+                    .is_ok_and(|inputs| {
+                        inputs
+                            .keys()
+                            .all(|&index| frame.input_data(index).is_some())
+                    })
+            })
+        });
+        match frame {
+            Some(frame) => {
+                check_instances(program, availability, verified, frame, definition_work)?;
+            }
+            None => {
+                if let Some(violation) = contextual {
+                    // General symbolic input/environment contexts remain outside this source scope.
+                    let callable = root.source_owner();
+                    let bound = item
+                        .body()
+                        .bind_verified(verified)
+                        .map_err(|failure| Failure::Body { callable, failure })?;
+                    let diagnostic = violation
+                        .project(&bound)
+                        .map_err(|failure| Failure::Body { callable, failure })?;
+                    return Err(Failure::Const {
+                        callable,
+                        diagnostic: Box::new(diagnostic),
+                    });
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 fn bound_failure(

@@ -323,9 +323,11 @@ impl Types {
                             vec![data.environment(program, code)?]
                         }
                         origin => {
-                            let conditional =
-                                matches!(origin, nocter_model::ValueFunctionOrigin::Parameter(_))
-                                    && matches!(&data, ShapeKey::Raw(_));
+                            let conditional = matches!(
+                                origin,
+                                nocter_model::ValueFunctionOrigin::Parameter(_)
+                                    | nocter_model::ValueFunctionOrigin::Contract(_)
+                            ) && matches!(&data, ShapeKey::Raw(_));
                             let ty = match origin {
                                 nocter_model::ValueFunctionOrigin::Declaration(code) => {
                                     Type::NamedFunction(code)

@@ -254,6 +254,15 @@ impl Requirements {
         }
         Ok(None)
     }
+    pub(in crate::value_access) fn needs_value_context(&self) -> bool {
+        self.body
+            .typed()
+            .program()
+            .payload_dependencies_all(self.body.typed().body().expressions().iter().filter_map(
+                |(_, expression)| expression.ty.access().map(nocter_model::ValueAccess::data),
+            ))
+            .is_some_and(|dependencies| !dependencies.contracts().is_empty())
+    }
     /// Coverage of the current conjunctive vocabulary, not eligibility or executable layout.
     pub(super) fn clause_coverage(&self) -> Result<bool, flow::IntegrityError> {
         let program = self.body.typed().program();

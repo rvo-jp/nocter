@@ -668,8 +668,13 @@ a recursive stored payload. Each immutable field owns its shared signature graph
 reuse the existing persistent field arena rather than cloning a global contract table. Header
 lineage and body replay preserve these field contracts exactly. Read-only field-recipe reconciliation
 uses that field's contract ordinals through the same structural fold as publication.
-Original source value binding, contextual payloads, invocation and nested callable headers remain
-separately unqualified; publishing a contract alone does not admit its value construction. The
+`Program::function_binding` checks actual callable values against these receiving contracts while
+keeping the complete source code, invocation view and environment in the instantiated value key.
+The stricter same-origin `function_adapter` relation remains separate. A raw contract still cannot
+instantiate a closed payload. Payload dependency queries report contracts separately from formal
+inputs and result producers; batched roots share one schema traversal. Original field construction,
+forwarding and retained-read invocation now consume that value evidence through checking and native
+execution. Nested callable headers and wider invocation channels remain separately unqualified. The
 [realization contract](../../../design/compiler-realization.md#callable-type-contracts) owns the
 remaining integration obligations.
 

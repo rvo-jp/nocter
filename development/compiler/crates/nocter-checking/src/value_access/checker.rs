@@ -710,7 +710,7 @@ impl<'a, 's> Checker<'a, 's> {
         if actual.data() != expected.data()
             && !self
                 .program()
-                .function_adapter(actual.data(), expected.data())
+                .function_binding(actual.data(), expected.data())
         {
             if let Some(value) = self.result_assignment(node, source, expected)? {
                 source = value;
@@ -725,7 +725,7 @@ impl<'a, 's> Checker<'a, 's> {
             if expected.mode() != Mode::Own
                 || !self
                     .program()
-                    .function_adapter(actual.data(), expected.data())
+                    .function_binding(actual.data(), expected.data())
             {
                 return self.mismatch(node, expected, actual);
             }

@@ -1,0 +1,23 @@
+struct Item { value: i32 }
+struct Handler { callback: func(i32): i32 }
+const func identity(value: i32): i32 { value }
+const func wrap(take callback: func(i32): i32): Handler {
+    Handler { callback: callback^ }
+}
+const func make(offset: i32): Handler {
+    let item = Item { value: offset }
+    Handler { callback: (item^; value: i32): i32 { item.value + value } }
+}
+const func relay(take holder: Handler): Handler { holder^ }
+const func calculate(): i32 {
+    let plain = wrap(identity)
+    let first = relay(make(40))
+    let second = make(41)
+    let forwarded = relay(wrap(identity))
+    if plain.callback(42) != 42 || forwarded.callback(42) != 42 { return 0 }
+    if first.callback(2) != 42 || second.callback(1) != 42 || first.callback(1) != 41 { return 0 }
+    let saved = first.callback^
+    if saved(2) == 42 && second.callback(2) == 43 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { calculate() }

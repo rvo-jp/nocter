@@ -1068,27 +1068,154 @@ fn assert_retained_invocation_domain(
 }
 
 #[test]
-fn callable_record_fields_remain_unqualified_until_value_binding_is_supported() {
-    let text = "struct Handler { callback: func(i32): i32 }
+fn callable_record_fields_preserve_their_original_named_source() {
+    assert_eq!(
+        answer(
+            "struct Handler { callback: func(i32): i32 }
         const func identity(value: i32): i32 { value }
         const func calculate(): i32 {
             let holder = Handler { callback: identity }
             holder.callback(42)
         }
-        const ANSWER: i32 = calculate()";
-    let fixture = nocter_test_support::ValueSourceFixture::new(text);
-    let Err(SourceFailure::Checking(Failure::Body {
-        failure: crate::value_access::Failure::Rejected(diagnostic),
-        ..
-    })) = SourceUnit::prepare(fixture.syntax())
-    else {
-        panic!("an unqualified contract binding must reject at source");
-    };
-    assert_eq!(diagnostic.rule(), crate::value_access::Rule::TypeMismatch);
-    assert_eq!(
-        fixture
-            .syntax()
-            .text_at(diagnostic.source().primary().span().range()),
-        Some("identity")
+        const ANSWER: i32 = calculate()",
+            "ANSWER"
+        ),
+        Value::integer(42)
     );
+}
+
+#[test]
+fn callable_field_contracts_do_not_grant_runtime_functions_const_capability() {
+    for required in [false, true] {
+        let source = format!(
+            "struct Handler {{ callback: func(i32): i32 }}
+            func runtime(value: i32): i32 {{ value }}
+            const func calculate(): i32 {{ let holder = Handler {{ callback: runtime }}
+                holder.callback(42) }}
+            {}",
+            if required {
+                "const ANSWER: i32 = calculate()"
+            } else {
+                ""
+            }
+        );
+        let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+        let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+            SourceUnit::prepare(fixture.syntax())
+        else {
+            panic!("a type contract cannot grant const capability: required={required}");
+        };
+        assert!(matches!(
+            diagnostic.rule(),
+            crate::value_access::constant::Rule::RuntimeCall(_)
+        ));
+    }
+}
+
+#[test]
+fn callable_record_fields_preserve_owned_captures_through_factory_results() {
+    assert_eq!(answer(
+        "struct Item { value: i32 }
+        struct Handler { callback: func(i32): i32 }
+        const func make(offset: i32): Handler {
+            let item = Item { value: offset }
+            Handler { callback: (item^; value: i32): i32 { item.value + value } }
+        }
+        const func calculate(): i32 {
+            let first = make(40)
+            let second = make(41)
+            if first.callback(2) == 42 && second.callback(1) == 42 && first.callback(1) == 41 { 42 } else { 0 }
+        }
+        const ANSWER: i32 = calculate()", "ANSWER"), Value::integer(42));
+}
+
+#[test]
+fn generic_unqualified_field_invocations_do_not_bypass_const_definition_checks() {
+    for body in [
+        "let holder = Handler { callback: runtime }\nholder.callback(42)",
+        "let action = (): i32 { let holder = Handler { callback: runtime }\nholder.callback(42) }\naction()",
+    ] {
+        let source = format!(
+            "struct Handler {{ callback: func(i32): i32 }}\nfunc runtime(value: i32): i32 {{ value }}\nconst func calculate(unused: func(i32): i32): i32 {{ {body} }}"
+        );
+        let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+        let Err(SourceFailure::Checking(Failure::Const { .. })) =
+            SourceUnit::prepare(fixture.syntax())
+        else {
+            panic!("unqualified generic field contexts cannot grant const capability");
+        };
+    }
+}
+
+#[test]
+fn callable_field_carriers_keep_sources_through_inputs_results_and_partial_transfer() {
+    assert_eq!(
+        answer(
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../tests/fixtures/native/value-access/callable-record-fields.nct"
+            )),
+            "ANSWER"
+        ),
+        Value::integer(42)
+    );
+}
+
+#[test]
+fn callable_field_factory_edits_invalidate_closed_caller_contexts() {
+    let source = "struct Handler { callback: func(i32): i32 }
+        func identity(value: i32): i32 { value }
+        func shifted(value: i32): i32 { value + 1 }
+        func make(): Handler { Handler { callback: identity } }
+        func caller(): i32 { let holder = make()\nholder.callback(41) }
+        func unrelated(): i32 { 0 }";
+    let fixture = nocter_test_support::ValueSourceFixture::new(source);
+    let headers =
+        nocter_declaration_lowering::access_declarations::Query::prepare(fixture.syntax()).unwrap();
+    let context = headers.bind(fixture.syntax()).unwrap();
+    let unit = Unit::prepare(&context).unwrap();
+    let id = unit
+        .program()
+        .resolve_code(unit.program().symbols().get("caller").unwrap())
+        .unwrap();
+    let query = unit.body(id).unwrap();
+    for (changed, reusable) in [
+        (
+            source.replace("callback: identity", "callback: shifted"),
+            false,
+        ),
+        (
+            source.replace("unrelated(): i32 { 0 }", "unrelated(): i32 { 1 }"),
+            true,
+        ),
+    ] {
+        let fixture = nocter_test_support::ValueSourceFixture::new(&changed);
+        let context = headers.bind(fixture.syntax()).unwrap();
+        assert_eq!(query.bind(&context).is_ok(), reusable);
+    }
+}
+
+#[test]
+fn callable_field_const_contracts_remain_checked_in_dormant_source_paths() {
+    for body in [
+        "if false { holder.callback(42) } else { 0 }",
+        "loop {}\nholder.callback(42)",
+        "holder.callback(if true { return 0 } else { return 1 })",
+    ] {
+        let source = format!(
+            "struct Handler {{ callback: func(i32): i32 }}\nfunc runtime(value: i32): i32 {{ value }}\nconst func calculate(): i32 {{ let holder = Handler {{ callback: runtime }}\n{body} }}"
+        );
+        accepted(&source.replace("const func", "func"));
+        let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+        match SourceUnit::prepare(fixture.syntax()) {
+            Err(SourceFailure::Checking(Failure::Const { .. })) => {}
+            Err(SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })) => {
+                assert_eq!(
+                    diagnostic.rule(),
+                    crate::value_access::evaluation::Rule::UnresolvedContext
+                );
+            }
+            _ => panic!("expected a source-backed const rejection: {body}"),
+        }
+    }
 }

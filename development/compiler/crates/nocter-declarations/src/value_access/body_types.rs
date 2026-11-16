@@ -32,12 +32,18 @@ pub enum PayloadReadiness {
 pub struct PayloadDependencies {
     parameters: std::collections::BTreeSet<super::FunctionWitness>,
     producers: std::collections::BTreeSet<super::FunctionWitness>,
+    contracts: std::collections::BTreeSet<super::FunctionWitness>,
 }
 impl PayloadDependencies {
     /// Keep each frozen view: one formal can appear at more than one invocation view.
     #[must_use]
     pub const fn parameters(&self) -> &std::collections::BTreeSet<super::FunctionWitness> {
         &self.parameters
+    }
+    /// Valid type contracts still requiring actual source-value context, never flat inputs.
+    #[must_use]
+    pub const fn contracts(&self) -> &std::collections::BTreeSet<super::FunctionWitness> {
+        &self.contracts
     }
     /// Exact unresolved result/application terms, including their selected invocation views.
     #[must_use]
@@ -50,7 +56,7 @@ impl PayloadDependencies {
     }
     #[must_use]
     pub fn readiness(&self) -> PayloadReadiness {
-        if !self.parameters.is_empty() {
+        if !self.parameters.is_empty() || !self.contracts.is_empty() {
             PayloadReadiness::Unsupported
         } else if self.has_pending_producers() {
             PayloadReadiness::Pending
@@ -319,12 +325,22 @@ impl Program {
     /// Unsupported descriptors return `None`; valid formal descriptors remain unavailable payloads.
     #[must_use]
     pub fn payload_dependencies(&self, data: TypeId) -> Option<PayloadDependencies> {
+        self.payload_dependencies_all([data])
+    }
+    /// Union dependencies across original data roots with one shared schema traversal.
+    /// This batches metadata only and grants no payload, ownership or source receipt.
+    #[must_use]
+    pub fn payload_dependencies_all(
+        &self,
+        roots: impl IntoIterator<Item = TypeId>,
+    ) -> Option<PayloadDependencies> {
         use super::PayloadSchema;
-        let mut pending = vec![data];
+        let mut pending = roots.into_iter().collect::<Vec<_>>();
         let mut seen = std::collections::BTreeSet::new();
         let mut dependencies = PayloadDependencies {
             parameters: std::collections::BTreeSet::new(),
             producers: std::collections::BTreeSet::new(),
+            contracts: std::collections::BTreeSet::new(),
         };
         while let Some(data) = pending.pop() {
             if !seen.insert(data) {
@@ -345,7 +361,10 @@ impl Program {
                 }
                 PayloadSchema::Function(witness) => match witness.origin {
                     ValueFunctionOrigin::Declaration(_) => {}
-                    ValueFunctionOrigin::Contract(_) => return None,
+                    ValueFunctionOrigin::Contract(_) => {
+                        self.function_contract(witness)?;
+                        dependencies.contracts.insert(witness);
+                    }
                     ValueFunctionOrigin::Closure(id) => {
                         pending.push(self.closure(id)?.environment());
                     }

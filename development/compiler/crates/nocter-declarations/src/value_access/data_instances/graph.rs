@@ -63,6 +63,7 @@ impl Program {
         }
         match wanted.origin {
             ValueFunctionOrigin::Parameter(_)
+            | ValueFunctionOrigin::Contract(_)
             | ValueFunctionOrigin::Result(_)
             | ValueFunctionOrigin::Application(_) => {
                 let contract = self

@@ -1014,6 +1014,14 @@ even if their declared scalar schema is independently closed. The key selects co
 not initialized storage, source access, runtime layout or cleanup. Ordinary body payload and
 lifecycle consumers must retain those exact selections within the qualified source scope.
 
+Callable record fields retain their declaration-owned type contracts while each original value
+retains its actual callable witness and capture context. Binding validates the signature and view;
+it does not replace that value with a contract-derived function. The shared
+`callable-record-fields.nct` fixture qualifies named values, distinct owned captures from the same
+factory, taking inputs, returned carriers, field invocation and partial field transfer through
+required evaluation and native execution. Native qualification also retains actual owned-error
+capture cleanup. Abstract contracts remain non-Copy and unavailable as closed payloads.
+
 The code-summary/creation-recipe resolver remains available for original metadata fixtures and
 definition-contract reasoning without a matched value graph. Failure of an actual source-value
 query cannot fall back to that hypothesis. A matched result-code summary may close directly only when the declaration authority proves
@@ -1553,6 +1561,16 @@ body's operation domain, including unused definitions, dead branches and interru
 Direct and exact named-value calls require the selected declaration's authored const capability. Recursive const
 headers close without executing bodies or proving termination; every definition must independently
 pass ordinary typing, initialization, access and resource validation.
+
+Callable field contracts provide definition-only hypotheses, never const capability. Closed
+named const definitions with contextual field operations use the same actual-source instance
+admission as required roots, so even a dormant definition rejects a runtime-only stored callee.
+A shared reverse-call filter retains transitive contextual obligations; it is not an eligibility
+proof. Definitions without independently complete input/capture contexts conservatively reject
+contextual invocation until symbolic context proof is qualified. Interrupted field calls likewise
+reject when no committed occurrence supplies an actual callee; a type signature cannot stand in for
+that missing capability evidence. Constructor-only generic carriers retain their separate conditions. Declaration checks share one bounded default work scope;
+configurable declaration limits and general symbolic contexts remain open.
 
 `value_access::constant` owns this bounded domain check. It admits primitive Boolean/integer/unit
 operations, optional construction/assertion, eligible fallible success values and finite record/tuple/array payload compositions of supported data, local values, read/edit aliases,

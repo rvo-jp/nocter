@@ -2355,3 +2355,39 @@ fn assert_positive_widening(machine: &nocter_machine::MachineProgram) {
         "nested original choices need an actual two-case to three-case transport"
     );
 }
+
+#[test]
+fn private_callable_record_fields_preserve_names_captures_forwarding_and_owned_cleanup() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/callable-record-fields.nct"
+    ));
+    let (definitions, _) = source.split_once("\nconst ANSWER:").unwrap();
+    let runtime = format!(
+        "{}\nfunc run(): i32 {{ calculate() }}",
+        definitions.replace("const func", "func")
+    );
+    let package = TempPackage::new();
+    execute_native_status(&compile(&runtime), &package.0, "callable-record-fields", 42);
+    let owned = runtime.replace("let item = Item { value: offset }", "let item = Item { value: offset }\nlet reason = context_error(create_failure(\"field\", \"owned capture\"), \"outer\")")
+        .replace("(item^;", "(item^, reason^;");
+    let owned = format!(
+        "primitive func create_failure(code: str, message: str): error\nprimitive func context_error(take value: error, message: str): error\n{owned}"
+    );
+    let machine = trusted_error_machine(&owned);
+    assert!(
+        machine
+            .functions()
+            .flat_map(|(_, function)| function.body().operations())
+            .any(|(_, operation)| matches!(
+                operation.kind(),
+                nocter_machine::MachineOperationKind::ReleaseError { .. }
+            ))
+    );
+    execute_native_status(
+        &image(&machine),
+        &package.0,
+        "callable-record-fields-errors",
+        42,
+    );
+}

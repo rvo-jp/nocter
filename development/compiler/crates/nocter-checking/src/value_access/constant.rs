@@ -12,6 +12,7 @@ mod catalog;
 mod conditions;
 mod requirements;
 mod traversal;
+mod value_context;
 pub use requirements::Requirements;
 pub(in crate::value_access) use requirements::{
     BoundCheck, BoundCheckFailure, InvocationCondition,
@@ -91,6 +92,13 @@ fn operation_rule(
             if uncommitted_parameter_call(*kind, *target, arguments) {
                 return Ok(None);
             }
+            // A field contract alone cannot establish a dormant callee's capability.
+            // No committed occurrence exists from which to recover its actual value context.
+            if matches!(target, ValueFunctionOrigin::Contract(_))
+                && !super::instances::completed(arguments)
+            {
+                return Ok(Some(Rule::ValueInvocation));
+            }
             let target = match callee {
                 Some(callee) => callee.code().origin().ok_or(INVALID)?,
                 None => *target,
@@ -146,7 +154,9 @@ fn invocation_rule(
         (CallKind::Value, ValueFunctionOrigin::Closure(code)) => {
             (!available(code)).then_some(Rule::CapturedCall(code))
         }
-        (CallKind::Value, ValueFunctionOrigin::Parameter(_)) => None,
+        (CallKind::Value, ValueFunctionOrigin::Parameter(_) | ValueFunctionOrigin::Contract(_)) => {
+            None
+        }
         (CallKind::Value, _) => Some(Rule::ValueInvocation),
         (CallKind::Direct, _) => return Err(INVALID),
     })

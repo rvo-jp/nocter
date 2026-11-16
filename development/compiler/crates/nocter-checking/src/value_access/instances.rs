@@ -74,14 +74,20 @@ pub(super) fn condition_calls(
                 .result_evidence
                 .as_ref()
                 .ok_or(super::InstantiationFailure::Unresolved)?;
+            let site = nocter_model::ValueApplication {
+                owner: caller.code(),
+                call: id,
+            };
+            // Dormant contract hypotheses have no original committed invocation recipe.
+            // Their unresolved context is not a missing-call integrity failure.
+            if evidence.invocation(site).is_none() {
+                return Err(super::InstantiationFailure::Unresolved);
+            }
             let domain = super::results::instantiate_controlled_invocation_domain(
                 query.program(),
                 evidence,
                 caller,
-                nocter_model::ValueApplication {
-                    owner: caller.code(),
-                    call: id,
-                },
+                site,
                 control.ok_or(super::InstantiationFailure::Unresolved)?,
                 work,
             )?;

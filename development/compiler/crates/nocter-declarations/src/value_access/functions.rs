@@ -359,6 +359,15 @@ impl Program {
         }
     }
 
+    /// Check callable value binding while retaining the source's complete runtime witness.
+    /// A contract constrains signature/view only; it supplies no code or stored environment.
+    #[must_use]
+    pub fn function_binding(&self, from: TypeId, to: TypeId) -> bool {
+        self.function_adapter(from, to)
+            || matches!(self.data_schema(to), Some(PayloadSchema::Function(witness))
+                if matches!(witness.origin, ValueFunctionOrigin::Contract(_))
+                    && self.function_contract(witness).is_some_and(|contract| self.constrain_function(from, &contract).is_ok()))
+    }
     #[must_use]
     pub fn function_data(&self, witness: FunctionWitness) -> Option<TypeId> {
         match witness.origin {

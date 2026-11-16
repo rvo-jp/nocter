@@ -492,7 +492,7 @@ impl Builder<'_, '_> {
                 from,
                 payload,
             } => {
-                if !self.program.function_adapter(from.data(), payload.data()) {
+                if !self.program.function_binding(from.data(), payload.data()) {
                     return Err(INVALID);
                 }
                 plan::Effect::AdaptFunction {

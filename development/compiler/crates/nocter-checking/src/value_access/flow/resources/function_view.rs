@@ -11,7 +11,7 @@ impl State {
         steps: &mut Vec<Step>,
     ) -> Result<()> {
         self.reclassify(program, source, destination, payload, steps, |from| {
-            if !program.function_adapter(from.data(), payload.data()) {
+            if !program.function_binding(from.data(), payload.data()) {
                 return Err(INVALID);
             }
             Ok(Step::AdaptFunction {
