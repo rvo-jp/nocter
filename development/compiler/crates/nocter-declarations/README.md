@@ -315,6 +315,18 @@ Pattern matching creates no type, code or environment identity. Only the outer i
 view can adapt; nested callable contracts remain invariant. Failures retain their input/result
 path independently of source coordinates. Normalized contextual contracts retain exact data
 identities rather than expanding those identities into anonymous structural signatures.
+Abstract type-contract binding has a separate relation: `constrain_callable_contract` compares
+nested abstract signatures through the canonical data graph while retaining every original
+contract, formal and producer identity. `function_binding` and instantiated function receipt use
+this relation only for a receiving `Contract` origin. The exact normalized `constrain_function`
+and pattern-leaf identity checks above retain their existing behavior. Only the outer invocation
+view may adapt; nested invocation views and input operations stay invariant. Concrete nested
+witnesses keep exact code identity, nominal types keep identity, and even zero-length arrays keep
+their declared element contract. A shared pair traversal and parent-linked diagnostic paths avoid
+expanding deep shared signatures or large array cardinalities. This comparison creates no type,
+concrete witness, capture environment, payload or const capability. Higher-order source invocation
+and nested header publication still require their separate original-context qualification.
+
 Named witnesses are capture-free Copy values with trivial cleanup and no outside D/S
 under their exact schema. This is not evidence about arbitrary structural callback contracts.
 Anonymous callable inputs use `ValueParameter::Closure` with the lexical closure and input position;

@@ -5,6 +5,7 @@ use nocter_model::{
     ValueInvocation,
 };
 mod compound_inputs;
+mod conformance;
 pub(super) mod contracts;
 mod patterns;
 mod result_components;
@@ -366,7 +367,7 @@ impl Program {
         self.function_adapter(from, to)
             || matches!(self.data_schema(to), Some(PayloadSchema::Function(witness))
                 if matches!(witness.origin, ValueFunctionOrigin::Contract(_))
-                    && self.function_contract(witness).is_some_and(|contract| self.constrain_function(from, &contract).is_ok()))
+                    && self.constrain_callable_contract(from, witness).is_ok())
     }
     #[must_use]
     pub fn function_data(&self, witness: FunctionWitness) -> Option<TypeId> {

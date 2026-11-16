@@ -62,8 +62,14 @@ impl Program {
             return Err(CodeBindingError::InvalidWitness);
         }
         match wanted.origin {
+            ValueFunctionOrigin::Contract(_) => {
+                let supplied = self
+                    .function_data(actual)
+                    .ok_or(CodeBindingError::InvalidWitness)?;
+                self.constrain_callable_contract(supplied, wanted)
+                    .map_err(|failure| CodeBindingError::Contract(failure.mismatch))?;
+            }
             ValueFunctionOrigin::Parameter(_)
-            | ValueFunctionOrigin::Contract(_)
             | ValueFunctionOrigin::Result(_)
             | ValueFunctionOrigin::Application(_) => {
                 let contract = self

@@ -2432,3 +2432,18 @@ fn record_capture_with_owned_error(source: &str) -> String {
         "primitive func create_failure(code: str, message: str): error\nprimitive func context_error(take value: error, message: str): error\n{source}"
     )
 }
+
+#[test]
+fn private_higher_order_callable_field_values_retire_without_invented_formals() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/higher-order-callable-field-values.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "higher-order-field-values",
+        42,
+    );
+}

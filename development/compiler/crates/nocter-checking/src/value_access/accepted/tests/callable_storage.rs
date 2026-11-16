@@ -1378,3 +1378,27 @@ fn definition_check_with_steps(
         Err(failure) => panic!("unexpected definition-check failure: {failure:?}"),
     }
 }
+
+#[test]
+fn higher_order_field_values_preserve_physical_formals_and_reject_unqualified_calls_locally() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/higher-order-callable-field-values.nct"
+    ));
+    let unit = accepted(source);
+    assert_eq!(unit.program().parameters().iter().count(), 2);
+    let called = source.replace("    42\n", "    runner.callback(identity)\n");
+    assert_ne!(called, source);
+    let fixture = nocter_test_support::ValueSourceFixture::new(&called);
+    let Err(SourceFailure::Checking(Failure::Body {
+        failure: crate::value_access::Failure::Rejected(diagnostic),
+        ..
+    })) = SourceUnit::prepare(fixture.syntax())
+    else {
+        panic!("unqualified higher-order field inputs require a source diagnostic");
+    };
+    assert_eq!(
+        diagnostic.rule(),
+        crate::value_access::Rule::UnsupportedData
+    );
+}

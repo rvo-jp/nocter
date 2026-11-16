@@ -18,12 +18,11 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify nested callable signature conformance before widening callable headers and higher-order
-field invocation. Equal structural contracts at different declaration-owned identities must match
-without equating their runtime witnesses, input owners or result producers. Preserve nested access
-operations, invocation views, nominal data identities, depth/sharing and precise mismatch paths.
-Then connect original actual argument/result contexts through each consumer; matching signatures
-alone cannot grant payload, invocation or const permission.
+Bind callable arguments of field type contracts to the actual selected callee's original input
+ordinals and formal IDs. Type-contract identities are not hidden physical parameters. Preserve
+actual supplied witnesses, complete environments and receiving/result channels through checking,
+required evaluation and native execution before removing the explicit source rejection. Keep
+general nested header publication and symbolic definition-context proof separately qualified.
 
 Complete occurrence-sensitive value/capture transport under the
 [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances).
@@ -681,6 +680,14 @@ not a language restriction derived from the current realization boundary.
 - [x] Bind original named/captured values to callable field contracts without erasing code,
   invocation or environment identity. Qualify construction, field invocation, forwarding and
   retirement through required/native consumers; keep abstract contracts nonconcrete and non-Copy.
+- [x] Compare nested abstract type contracts structurally only when binding to a receiving
+  Contract origin. Preserve exact normalized/pattern identity checks, concrete code identities,
+  nominal data and nested invocation/input operations; qualify deep/shared graph traversal,
+  precise mismatch paths, original named binding and source/native higher-order field retirement.
+- [ ] Bind callable inputs of field type contracts to the actual selected callee's original
+  input ordinals and formal IDs. Preserve supplied witnesses, capture environments and result
+  channels without allocating fake parameters for nested signatures. Higher-order field values
+  can be bound and retired; invoking them remains an explicit source UnsupportedData boundary.
 - [ ] Complete nested callable data/witness support through header/data positions and the owning
   type authority. Keep valid formal structural descriptors separate from owned-payload admission.
   Qualify concrete representation, substitution and callable input/result evidence;

@@ -1022,6 +1022,14 @@ factory, taking inputs, returned carriers, field invocation and partial field tr
 required evaluation and native execution. Native qualification also retains actual owned-error
 capture cleanup. Abstract contracts remain non-Copy and unavailable as closed payloads.
 
+`higher-order-callable-field-values.nct` qualifies binding and native retirement of a named
+function whose signature itself accepts a callback. Its field's nested type contract allocates no
+physical formal parameter. Invocation still requires original ordinal-to-formal correspondence
+with the selected actual body; `prepare_input` reports a source-backed `UnsupportedData` boundary
+instead of treating that contract as a physical input or reporting inconsistent syntax. This
+construction/retirement scope does not qualify higher-order field invocation or general nested
+header publication. The declaration owner describes the separate structural binding relation.
+
 Original call-result witness and data queries can inspect a complete positive invocation domain
 when strict single-frame selection is unresolved. They query every original candidate's returned
 source at the same receiving path and descriptor. Only agreeing result facts close a uniform

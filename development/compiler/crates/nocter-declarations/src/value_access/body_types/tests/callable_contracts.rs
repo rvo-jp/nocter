@@ -237,3 +237,5 @@ fn value_binding_keeps_code_and_environment_separate_from_the_receiving_contract
     assert!(dependencies.producers().is_empty());
     assert_eq!(dependencies.readiness(), PayloadReadiness::Unsupported);
 }
+
+mod conformance;

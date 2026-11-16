@@ -22,8 +22,14 @@ impl Checker<'_, '_> {
         let binding = if let Some(PayloadSchema::Function(witness)) =
             self.program().data_schema(expected.data)
         {
-            let ValueFunctionOrigin::Parameter(parameter) = witness.origin else {
-                return Err(Failure::InconsistentSyntax);
+            let parameter = match witness.origin {
+                ValueFunctionOrigin::Parameter(parameter) => parameter,
+                // A nested type contract is not a physical input of its eventual callee.
+                // Original ordinal-to-formal binding still needs separate qualification.
+                ValueFunctionOrigin::Contract(_) => {
+                    return self.reject(Rule::UnsupportedData, syntax);
+                }
+                _ => return Err(Failure::InconsistentSyntax),
             };
             let constraint = self
                 .program()
