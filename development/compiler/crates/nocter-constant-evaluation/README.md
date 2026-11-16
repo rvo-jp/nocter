@@ -143,12 +143,16 @@ and owned payload effects reject it. No scalar, aggregate or callable value can 
 The evaluator does not infer exclusion from missing code, unresolved metadata or a failed request.
 
 `Effect::Transport` consumes an owned value into a separately selected guarded wider shape.
-Closed-plan validation permits only explicit excluded alternatives to widen; positive callable code
-and environment identities stay exact. Unavailable metadata, narrowing and empty roots reject.
+Closed-plan validation permits explicit excluded alternatives to widen while retaining exact
+positive payload identities. Whole callable receipts can inject a complete static case into a
+finite domain or move a domain into another domain containing every source case. Compatibility and
+encoding share one exact code/environment identity map; encoding writes the receiving ordinal
+rather than reinterpreting the old number. Positive narrowing, unavailable metadata and empty roots
+reject. Positive changes nested inside aggregates remain unqualified.
 Target completeness and directed shape matching visit shared table edges iteratively, with runtime
-work charged independently of array cardinality. Logical values store only original tags and active
-payloads, so transport shares their immutable graphs through the same retirement/receipt kernel as
-ordinary movement; it cannot inspect excluded fields or justify a physical byte copy. Tests cover
+work charged independently of array cardinality. Logical values retain only selected payloads;
+encoding shares their immutable graphs through the same retirement/receipt kernel as ordinary
+movement. It cannot inspect excluded fields or justify a physical byte copy. Tests cover
 absence, owned alternate graphs, adjacent captured environments, shared maximum-count arrays,
 double retirement and work/storage failure recovery. Checking and Machine retain the separate
 qualification of source projection and [native guarded transport](../../../design/compiler-realization.md#guarded-representation-transport).
@@ -308,9 +312,10 @@ component projection exposes neither case. Whole-value handoff, import, equality
 environments and iterative destruction use the existing shared-value and lease machinery. An
 exhausted import cannot retain partial storage; logical array cardinality is never expanded.
 Closed-plan probes qualify complete captured contexts and bounded maximum-length environments.
-Source shape projection, positive injection/reindexing, selected invocation and final publication
-remain separate consumers; stored choice values alone do not widen source admission. Exact
-whole-choice transport preserves its existing selector; broader transports remain rejected.
+Checking owns source shape projection and final-publication eligibility. Whole-choice transport
+uses the directed relation described above; source producer encoding, nested positive conversion
+and selected invocation remain separately qualified consumers. Stored choice values alone do not
+widen source admission.
 
 ### Evaluated Array Addresses
 

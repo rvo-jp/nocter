@@ -75,6 +75,20 @@ pub enum Type {
     },
 }
 impl Type {
+    fn function_identity(&self) -> Option<(nocter_model::ValueCode, Option<usize>)> {
+        match self {
+            Type::NamedFunction(code) => Some((nocter_model::ValueCode::Declaration(*code), None)),
+            Type::CapturedFunction { code, environment } => {
+                Some((nocter_model::ValueCode::Closure(*code), Some(*environment)))
+            }
+            _ => None,
+        }
+    }
+    // Invocation permission is a producer fact; this compares only exact payload identities.
+    fn same_function_payload(&self, other: &Self) -> bool {
+        self.function_identity()
+            .is_some_and(|identity| Some(identity) == other.function_identity())
+    }
     /// Select component metadata. This does not establish payload presence or initialization.
     #[must_use]
     pub fn component(&self, index: usize) -> Option<usize> {
@@ -167,8 +181,8 @@ pub enum Effect {
         source: Place,
         destination: Place,
     },
-    /// Consume one represented value into a distinct, guarded wider shape. The original tag and
-    /// active payload remain unchanged; unavailable metadata cannot establish exclusion.
+    /// Consume one represented value into a distinct wider shape, preserving its selected payload.
+    /// A callable receipt encodes the receiving case ordinal; unavailable data proves no exclusion.
     Transport {
         source: Place,
         destination: Place,

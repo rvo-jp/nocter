@@ -328,3 +328,160 @@ fn transport_retains_an_adjacent_captured_environment_across_storage_failures() 
     }
     assert!(failures > 0 && successes > 0);
 }
+
+fn callable_types() -> Vec<Type> {
+    let mut codes = ArenaBuilder::new();
+    let first = codes.insert(());
+    let second = codes.insert(());
+    let third = codes.insert(());
+    vec![
+        Type::NamedFunction(first),
+        Type::NamedFunction(second),
+        Type::NamedFunction(third),
+        Type::CallableAlternatives(vec![1, 0].into()),
+        Type::CallableAlternatives(vec![0, 2, 1].into()),
+    ]
+}
+
+#[test]
+fn whole_callable_transport_encodes_injection_and_reindexes_original_cases() {
+    let (code, _) = code_ids();
+    for (source, input, expected) in [
+        (0, Value::unit(), Value::callable(0, Value::unit())),
+        (1, Value::unit(), Value::callable(2, Value::unit())),
+        (2, Value::unit(), Value::callable(1, Value::unit())),
+        (
+            3,
+            Value::callable(0, Value::unit()),
+            Value::callable(2, Value::unit()),
+        ),
+        (
+            3,
+            Value::callable(1, Value::unit()),
+            Value::callable(0, Value::unit()),
+        ),
+    ] {
+        let program = Program::new(
+            callable_types(),
+            BTreeMap::from([(code.into(), plan(source, 4, &input))]),
+            BTreeMap::new(),
+        )
+        .unwrap();
+        let mut budget = Budget::new(Limits::default());
+        let actual = Executor::new(&program, &mut budget, 0)
+            .evaluate_initializer(code)
+            .unwrap();
+        assert_eq!(actual, expected);
+        drop(actual);
+        assert_eq!(budget.storage_used(), 0);
+    }
+}
+
+#[test]
+fn callable_transport_rejects_missing_cases_narrowing_and_unqualified_nested_encoding() {
+    let types = callable_types();
+    let program = Program::new(types.clone(), BTreeMap::new(), BTreeMap::new()).unwrap();
+    for (source, target) in [(2, 3), (4, 3), (3, 0), (4, 0)] {
+        assert!(!super::super::transport::permits(&program, source, target, || Ok(())).unwrap());
+    }
+    let mut nested = types;
+    nested.push(Type::Record(vec![0].into()));
+    nested.push(Type::Record(vec![4].into()));
+    let program = Program::new(nested, BTreeMap::new(), BTreeMap::new()).unwrap();
+    assert!(!super::super::transport::permits(&program, 5, 6, || Ok(())).unwrap());
+}
+
+#[test]
+fn callable_encoding_releases_failed_work_and_storage_before_a_healthy_retry() {
+    let (code, _) = code_ids();
+    let input = Value::callable(0, Value::unit());
+    let program = Program::new(
+        callable_types(),
+        BTreeMap::from([(code.into(), plan(3, 4, &input))]),
+        BTreeMap::new(),
+    )
+    .unwrap();
+    let mut failed = false;
+    let mut succeeded = false;
+    for limit in 1..64 {
+        let mut budget = Budget::new(Limits::new(
+            CompileTimeEvaluationLimits::default(),
+            NonZeroU64::new(limit).unwrap(),
+        ));
+        match Executor::new(&program, &mut budget, 0).evaluate_initializer(code) {
+            Ok(value) => {
+                assert_eq!(value, Value::callable(2, Value::unit()));
+                drop(value);
+                succeeded = true;
+            }
+            Err(error) => {
+                assert_eq!(error.rule, Rule::StorageLimit);
+                failed = true;
+            }
+        }
+        assert_eq!(budget.storage_used(), 0);
+    }
+    assert!(failed && succeeded);
+    let mut budget = Budget::new(CompileTimeEvaluationLimits::new(
+        NonZeroU64::new(4).unwrap(),
+        NonZeroU32::new(64).unwrap(),
+    ));
+    assert_eq!(
+        Executor::new(&program, &mut budget, 0)
+            .evaluate_initializer(code)
+            .unwrap_err()
+            .rule,
+        Rule::StepLimit
+    );
+    assert_eq!(budget.storage_used(), 0);
+    let mut healthy = Budget::new(Limits::default());
+    let answer = Executor::new(&program, &mut healthy, 0)
+        .evaluate_initializer(code)
+        .unwrap();
+    assert_eq!(answer, Value::callable(2, Value::unit()));
+    drop(answer);
+    assert_eq!(healthy.storage_used(), 0);
+}
+
+#[test]
+fn whole_callable_injection_preserves_complete_maximum_length_environments() {
+    let (code, named) = code_ids();
+    let closure = nocter_model::ValueClosure {
+        owner: code.into(),
+        slot: 0,
+    };
+    let types = vec![
+        Type::Integer(nocter_model::BuiltinType::I32),
+        Type::Array {
+            element: 0,
+            length: u64::MAX,
+        },
+        Type::CapturedFunction {
+            code: closure,
+            environment: 1,
+        },
+        Type::NamedFunction(named),
+        Type::CallableAlternatives(vec![3, 2].into()),
+    ];
+    let payload = Value::aggregate(vec![Value::repeated(
+        Value::integer(42),
+        NonZeroU64::new(u64::MAX).unwrap(),
+    )]);
+    let program = Program::new(
+        types,
+        BTreeMap::from([(code.into(), plan(2, 4, &payload))]),
+        BTreeMap::new(),
+    )
+    .unwrap();
+    let mut budget = Budget::new(Limits::new(
+        CompileTimeEvaluationLimits::default(),
+        NonZeroU64::new(64).unwrap(),
+    ));
+    let answer = Executor::new(&program, &mut budget, 0)
+        .evaluate_initializer(code)
+        .unwrap();
+    assert_eq!(answer, Value::callable(1, payload));
+    assert!(budget.storage_used() < 32);
+    drop(answer);
+    assert_eq!(budget.storage_used(), 0);
+}

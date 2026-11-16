@@ -204,15 +204,11 @@ fn validate_types(program: &Program, first: usize) -> Result<()> {
                 if case >= id {
                     return Err(INVALID);
                 }
-                let identity = match program.types.get(case) {
-                    Some(Type::NamedFunction(code)) => {
-                        (nocter_model::ValueCode::Declaration(*code), None)
-                    }
-                    Some(Type::CapturedFunction { code, environment }) => {
-                        (nocter_model::ValueCode::Closure(*code), Some(*environment))
-                    }
-                    _ => return Err(INVALID),
-                };
+                let identity = program
+                    .types
+                    .get(case)
+                    .and_then(Type::function_identity)
+                    .ok_or(INVALID)?;
                 if !identities.insert(identity) {
                     return Err(INVALID);
                 }
@@ -780,7 +776,7 @@ fn check_effect(program: &Program, plan: &View<'_>, effect: &Effect) -> Result<(
         } => {
             let from = program.types.get(owned(source)?).ok_or(INVALID)?;
             let to = program.types.get(owned(destination)?).ok_or(INVALID)?;
-            if !same_function_payload(from, to) {
+            if !from.same_function_payload(to) {
                 return Err(INVALID);
             }
         }
@@ -891,24 +887,6 @@ fn check_receipt_context(
         compatible_receipt(program, initial, received, &destination.fields)?;
     }
     Ok(())
-}
-
-// Invocation permission is a producer fact; this check preserves its exact payload representation.
-pub(super) fn same_function_payload(from: &Type, to: &Type) -> bool {
-    match (from, to) {
-        (Type::NamedFunction(a), Type::NamedFunction(b)) => a == b,
-        (
-            Type::CapturedFunction {
-                code: a,
-                environment: left,
-            },
-            Type::CapturedFunction {
-                code: b,
-                environment: right,
-            },
-        ) => a == b && left == right,
-        _ => false,
-    }
 }
 
 fn check_assembly(

@@ -171,6 +171,10 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Project complete declaration-owned callable domains into shared evaluator choice shapes,
   preserving canonical order, concrete/formal equivalence, unsupported environments and the
   separate final-publication boundary. Keep producer encoding and selected calls unqualified.
+- [x] Encode whole evaluator callable injection and domain reindexing through one exact case
+  mapping, retaining the selected immutable environment and ordinary retirement/receipt.
+  Qualify missing-case/narrowing rejection and work/storage failure cleanup; keep nested
+  positive conversion and source invocation separate.
 - [ ] Close the [positive callable alternative obligations](design/compiler-realization.md#positive-callable-alternatives)
   through the canonical data-instance graph, guarded source transport, evaluator/target plans,
   native selection and cleanup before widening source admission. The value-context fixture

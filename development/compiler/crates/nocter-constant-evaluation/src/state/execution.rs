@@ -719,9 +719,16 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         if !super::transport::permits(&self.program, from, to, || self.budget.step())? {
             return Err(Rule::InvalidPlan);
         }
-        // The checked relation preserves every active logical payload. Values retain original
-        // tags and immutable graphs, so no excluded field is read or physical byte layout reused.
-        self.move_value(frame, source, destination, true)
+        let value = self.read(frame, source)?;
+        let value = super::transport::encode(
+            &self.program,
+            from,
+            to,
+            &value,
+            &self.memory.storage,
+            || self.budget.step(),
+        )?;
+        self.receive_value(frame, source, destination, value, true)
     }
     fn move_value(
         &mut self,
@@ -731,6 +738,16 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         construct: bool,
     ) -> Result<()> {
         let value = self.read(frame, source)?;
+        self.receive_value(frame, source, destination, value, construct)
+    }
+    fn receive_value(
+        &mut self,
+        frame: usize,
+        source: &Place,
+        destination: &Place,
+        value: Value,
+        construct: bool,
+    ) -> Result<()> {
         self.memory
             .retire(&self.memory.address(&self.program, frame, source)?, false)?;
         let destination = self.memory.address(&self.program, frame, destination)?;
