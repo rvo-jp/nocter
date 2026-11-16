@@ -1,0 +1,19 @@
+primitive func create_failure(code: str, message: str): error
+primitive func context_error(take value: error, message: str): error
+const func identity(value: i32): i32 { value }
+func owning(value: i32): func(i32): i32 {
+    let reason = context_error(create_failure("scoped", "leaf"), "outer")
+    (reason^, value; amount: i32): i32 { value + amount }
+}
+func wrap(take callback: func(i32): i32): func(i32): i32 {
+    (callback^; amount: i32): i32 { callback(amount) }
+}
+func run(): i32 {
+    var pair = (wrap(owning(20)), owning(40))
+    edit selected = pair.0
+    selected = wrap(identity)
+    let first = selected(42)
+    selected = wrap(owning(1))
+    let second = selected(41)
+    if first == 42 && second == 42 && pair.1(2) == 42 { 42 } else { 0 }
+}

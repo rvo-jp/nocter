@@ -547,3 +547,30 @@ fn fallible_cleanup_emits_both_success_owner_and_failure_error_helpers() {
         1
     );
 }
+
+#[test]
+fn scoped_growth_requires_stable_retained_offsets_and_complete_local_carriers() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-scoped-growth.nct"
+    ));
+    compile(source);
+    let prefix = source.split("const func straight()").next().unwrap();
+    for (body, accepted) in [
+        (
+            "var pair = (wrap(addition(20)), 2)\nread sibling = pair.1\nedit selected = pair.0\nselected = wrap(identity)\nselected(40) + sibling",
+            false,
+        ),
+        (
+            "var pair = (wrap(addition(20)), 2)\nread sibling = pair.1\nlet saved = sibling\nedit selected = pair.0\nselected = wrap(identity)\nselected(40) + saved",
+            true,
+        ),
+        (
+            "var pair = (wrap(addition(20)), addition(2))\nlet saved = pair.1^\nedit selected = pair.0\nselected = wrap(identity)\nselected(40) + saved(0)",
+            false,
+        ),
+    ] {
+        let source = format!("{prefix}\nfunc run(): i32 {{ {body} }}");
+        assert_eq!(lower(&source).is_ok(), accepted, "{body}");
+    }
+}

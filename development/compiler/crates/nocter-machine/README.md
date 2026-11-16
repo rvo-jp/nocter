@@ -57,8 +57,10 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
   against each schema; an unknown coordinate requires agreement for every existing coordinate,
   including the zero-offset singleton case. Empty arrays supply no selected element, and maximum
   zero-size arrays require no expansion. This offset query supplies no shared root address,
-  capacity, initialized storage, source/type correspondence or relocation permission. Existing
-  executable geometry constraints continue to require complete geometry;
+  capacity, initialized storage, source/type correspondence or relocation permission. Complete
+  geometry requirements still use the full comparison. Qualified local scoped Repack requirements
+  instead validate every retained endpoint offset supplied by MIR after its independent owning-slot,
+  initialization and sibling-preservation checks. Shifted live siblings still reject;
   root capacity alone cannot authorize shifted sibling fields. Callers establish canonical
   source-schema correspondence before this physical check. The iterative pair walk shares DAG
   work, compares arrays by count/stride rather than element expansion, and requires no empty-array

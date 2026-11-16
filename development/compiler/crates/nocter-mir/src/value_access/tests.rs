@@ -1929,3 +1929,64 @@ fn selected_callable_bodies_keep_distinct_zero_byte_environment_identities() {
     call.cases[0].target = call.cases[1].target;
     assert!(validate::program(&changed).is_err());
 }
+
+#[test]
+fn scoped_repacking_pairs_retirement_with_original_retained_projection_constraints() {
+    let program = lower(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-scoped-growth.nct"
+    )));
+    validate::program(&program).unwrap();
+    let (id, index) = program
+        .bodies
+        .iter()
+        .find_map(|(&id, body)| {
+            body.geometry
+                .iter()
+                .position(|constraint| {
+                    matches!(
+                        constraint.requirement,
+                        GeometryRequirement::ProjectionOffsets(_)
+                    )
+                })
+                .map(|index| (id, index))
+        })
+        .unwrap();
+    let constraint = &program.bodies[&id].geometry[index];
+    let GeometryRequirement::ProjectionOffsets(paths) = &constraint.requirement else {
+        panic!()
+    };
+    assert!(!paths.is_empty());
+    let action = &program.bodies[&id].actions[&constraint.at];
+    assert!(action.alternatives.iter().any(|alternative| alternative.after.windows(2).any(|effects| matches!(effects, [Effect::Dispose { .. }, Effect::Repack { before, destination, .. }] if *before == constraint.before && destination.root == constraint.after))));
+    for corruption in 0..3 {
+        let mut changed = program.clone();
+        let body = changed.bodies.get_mut(&id).unwrap();
+        let constraint = &mut body.geometry[index];
+        match corruption {
+            0 => constraint.requirement = GeometryRequirement::ProjectionOffsets(Box::new([])),
+            1 => {
+                constraint.requirement = GeometryRequirement::ProjectionOffsets(
+                    vec![nocter_model::ValuePath::new([
+                        nocter_model::ValueProjection::Tuple(999),
+                    ])]
+                    .into(),
+                );
+            }
+            2 => {
+                let action = body.actions.get_mut(&constraint.at).unwrap();
+                for alternative in &mut action.alternatives {
+                    for effect in alternative.before.iter_mut().chain(&mut alternative.after) {
+                        if let Effect::Repack { destination, .. } = effect {
+                            *effect = Effect::Initialize(destination.clone());
+                        }
+                    }
+                }
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            matches!(validate::program(&changed), Err(Failure::InvalidBody(found)) if found == id)
+        );
+    }
+}

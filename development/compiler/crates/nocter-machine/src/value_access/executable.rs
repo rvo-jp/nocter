@@ -56,7 +56,18 @@ fn prepare_layouts(program: &mir::Program) -> Result<MachineLayoutPlan, Failure>
         MachineLayoutPlan::from_runtime(program.runtime(), roots).map_err(Failure::Layout)?;
     for (&id, body) in program.bodies() {
         for pair in body.geometry() {
-            if !layouts.has_same_geometry(pair.before, pair.after) {
+            let valid = match &pair.requirement {
+                mir::GeometryRequirement::Complete => {
+                    layouts.has_same_geometry(pair.before, pair.after)
+                }
+                mir::GeometryRequirement::ProjectionOffsets(paths) => {
+                    !paths.is_empty()
+                        && paths.iter().all(|path| {
+                            layouts.has_same_projection_offset(pair.before, pair.after, path)
+                        })
+                }
+            };
+            if !valid {
                 return Err(Failure::InvalidBody(id));
             }
         }

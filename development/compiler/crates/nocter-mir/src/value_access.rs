@@ -311,12 +311,21 @@ pub struct Action {
     pub alternatives: Box<[Alternative]>,
 }
 
+/// Independent physical obligations; neither supplies ownership or source correspondence.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum GeometryRequirement {
+    Complete,
+    /// Every retained logical endpoint keeps its offset within one common owning allocation.
+    ProjectionOffsets(Box<[nocter_model::ValuePath<Option<u64>>]>),
+}
+
 /// Physical compatibility for an original scoped write or adapter exit, not a resource effect.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct GeometryConstraint {
     pub at: Location,
     pub before: RuntimeDataId,
     pub after: RuntimeDataId,
+    pub requirement: GeometryRequirement,
 }
 
 #[derive(Clone, Debug)]

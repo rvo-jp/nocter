@@ -18,12 +18,12 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify scoped replacement's current alias-root selections across representation-changing
-partial writes. Reproduce the boundary through an edit alias to a tuple component, independently
-of a surviving sibling reference. Preserve separate retirement/receipt contexts, original source
-operands, initialized sibling transport, backing capacity and actual error cleanup. An alias's
-binding-time snapshot cannot substitute for its later referent. Keep source admission conservative
-until checking, evaluator and native geometry agree.
+Extend scoped local relocation to stable sparse carriers using the original matched resource
+conditions. Preserve missing sibling exclusions independently of retired/supplied payloads, exact
+alias-root selections, retained endpoint offsets, maximum owning-slot capacity and actual cleanup.
+Complete local tuple/singleton carriers are qualified; partial carriers and external aliases still
+retain the conservative full-geometry boundary. Do not infer missing state from layout or replay
+another ownership engine.
 
 Complete occurrence-sensitive value/capture transport under the
 [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances).
@@ -75,10 +75,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [ ] Retain scoped replacement's independent retired/supplied obligations and actual alias-root
   selections through evaluator plans and changing partial-carrier geometry. An alias binding's
   immutable snapshot is not a later read of its referent; keep dependent source admission closed.
-  A tuple component updated through `edit selected = pair.0` from a captured wrapper to
-  `wrap(identity)` and back can evaluate to 42 but fails native Machine geometry validation, even
-  without a surviving sibling reference. Preserve selected alias addresses and initialized
-  siblings through a qualified physical transition; equal capacity alone is insufficient.
+  Complete local tuple/singleton scoped carriers now pass the paired physical transition;
+  preserve the same independent constraints when extending original sparse carrier state.
+  Equal capacity alone cannot authorize shifted retained addresses.
 - [x] Retain original node/reservation component regions before and after each analyzed action,
   unioned across alternatives. Derive existing root-absence queries from that one product;
   qualify alias expiry, staged reservations, conditional liveness and known/unknown indexed
@@ -93,6 +92,11 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   keep partial carriers, source-component moves and external edit inputs outside this annotation.
   The lifecycle fact supplies no capacity or address-stability proof and does not widen native
   geometry admission; retain separate retired/supplied obligations and original containing roots.
+- [x] Qualify whole edit-alias receipts inside complete local tuple/singleton carriers through
+  original initialized-carrier facts, exact virtual-root selections and all retained endpoint
+  offsets. Reuse structural sibling preservation after old-value disposal and reserve both
+  representations in one owning slot. Qualify required/native shrink/growth, nesting, actual
+  error environments and rejection of shifted live siblings, sparse carriers and invalid MIR.
 - [ ] Close carrier representation coherence under the
   [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances)
   before admitting context-changing writes and retained sibling references.

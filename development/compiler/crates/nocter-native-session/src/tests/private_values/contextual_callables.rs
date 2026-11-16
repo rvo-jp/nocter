@@ -2704,3 +2704,27 @@ fn private_interrupted_anonymous_field_receivers_keep_static_availability_and_cl
         &[("void", "")],
     );
 }
+
+#[test]
+fn private_scoped_growth_preserves_live_selected_aliases_and_initialized_siblings() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-scoped-growth.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "scoped-growth", 42);
+    let machine = trusted_error_machine(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-scoped-growth-errors.nct"
+    )));
+    assert!(
+        machine
+            .functions()
+            .flat_map(|(_, function)| function.body().operations())
+            .any(|(_, operation)| matches!(
+                operation.kind(),
+                nocter_machine::MachineOperationKind::ReleaseError { .. }
+            ))
+    );
+    execute_native_status(&image(&machine), &package.0, "scoped-growth-errors", 42);
+}

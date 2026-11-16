@@ -1457,8 +1457,13 @@ respectively requiring absence on both sides or on normal completion. There is n
 root-retention registry. Expired aliases disappear according to ordinary liveness; staged places
 and argument reservations retain their original selected regions. A retained logical path alone
 does not authorize relocation or reuse of an address staged for the operation. MIR combines them with
-the original owning transition, completed selection and its own structural sibling projection. General changing-holder registration, external alias carriers and the
-remaining source-admission boundary stay unqualified.
+the original owning transition, completed selection and its own structural sibling projection.
+`contextual-scoped-growth.nct` now qualifies complete local tuple/singleton carriers written through
+a retained whole edit alias, with repeated environment shrink/growth, original cleanup, unchanged
+endpoint offsets and actual native error environments. Its initialized carrier evidence and
+physical proof belong to the [MIR owner](../nocter-mir/README.md). A shifted live sibling, a sparse
+carrier, external aliases and unsupported containing paths retain their qualification boundary.
+General changing-holder registration and remaining source-admission work stay separate.
 Place, boundary, guard, component and index
 views select their metadata from the represented source slot; read/edit local bindings and forwarded
 views preserve that selection. Physical component lookup has one evaluator authority and does not

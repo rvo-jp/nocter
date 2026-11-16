@@ -114,7 +114,8 @@ first-element context. Plain targets require absence of retained addresses/reser
 sides of the action. Evaluated targets require absence on completion: the original selection and
 bounds effects have finished, assignment emits no separate computation, and its receipt projects
 the new root at the sealed numeric/resource coordinate rather than reusing the old staged pointer.
-Both absence queries include all alternatives; surviving views/reservations still reject relocation.
+Both absence queries include all alternatives. Direct owning relocation still rejects surviving
+views/reservations; the separately qualified scoped case below carries retained endpoint checks.
 Each selected lifecycle resource step supplies its original destination's entry-state holes.
 Different sibling holes keep distinct original guards through lifecycle simplification and MIR;
 no downstream scan requires unrelated alternatives to agree. For the qualified assignment,
@@ -156,9 +157,30 @@ even for a singleton prefix.
 Original `MoveArrayElement` delivery consumes its ordered payload and retained selection address;
 it cannot query a fresh contextual operand at a later resource phase. Required/native cases cover
 empty, partial and complete prefixes, counter mutation, bounds traps and actual error cleanup.
-Other partial moves keep the before/after geometry constraint. Live aliases, unresolved represented
-alternatives, external carriers and general relocation remain separate qualifications. The [checking owner](../nocter-checking/README.md#context-bound-callable-captures)
+Other partial moves keep the before/after geometry constraint. Unresolved represented alternatives,
+external carriers and general relocation remain separate qualifications. The [checking owner](../nocter-checking/README.md#context-bound-callable-captures)
 defines the qualified ordinary-source capture scope.
+Scoped replacement through a whole edit alias can repack a single corresponding owned local
+carrier when its original lifecycle proves complete initialization at entry, the operation boundary
+and normal exit. Both virtual-root leaves must exactly match that carrier's original before/after
+selection. Tuple and singleton-array containing paths reuse the structural preservation authority;
+no missing sibling is assumed initialized. One payload slot registers both complete carrier
+representations, preserving its base and reserving their maximum size/alignment. The old alias
+value is disposed first; the existing Repack effect snapshots initialized siblings before writing
+new offsets and receiving the separately supplied value.
+
+The paired GeometryRequirement::ProjectionOffsets retains every original before/after access
+region for that owner, including reservations and known/unknown coordinates. Machine validates
+all endpoint offsets independently of the full-layout equality used by ordinary scoped writes
+and adapter exits. A live sibling whose offset changes still rejects; an expired alias does not
+create a constraint. Missing region evidence, incomplete carriers, external inputs and unsupported
+containing paths retain the full-geometry boundary. Closed MIR validation requires nonempty valid
+paths and a matching Repack at the same original action. The shared
+`contextual-scoped-growth.nct` source qualifies repeated shrinking/growth, nested tuples and a
+singleton array through required/native execution; its error variant retires real old captures
+and preserves/cleans actual owned sibling environments. This does not qualify sparse scoped
+carriers, general external aliases or changing retained endpoint offsets.
+
 Adapter cleanup likewise selects its completed full carrier in the original argument slot before
 projecting the completed environment. Its selected environment data must match the cleanup
 payload, and its entry/completed carrier pair becomes an original-call geometry constraint.

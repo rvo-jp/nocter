@@ -1,3 +1,4 @@
+mod scoped;
 use super::{
     Action, Alternative, BitValue, Body, Disposal, Effect, Failure, Location, Place, Projection,
     Slot, SlotKey, Storage,
@@ -556,6 +557,7 @@ impl Builder<'_> {
             },
             before,
             after,
+            requirement: super::GeometryRequirement::Complete,
         });
         Ok(())
     }
@@ -654,64 +656,6 @@ impl Builder<'_> {
                 },
             ),
         )
-    }
-    fn scoped_replacement(
-        &mut self,
-        replacement: &lifecycle::ScopedReplacement,
-    ) -> Result<[Effect; 2], Failure> {
-        let Step::ReplaceReferent {
-            destination,
-            source,
-            retired,
-            payload,
-        } = replacement.operation()
-        else {
-            return Err(self.invalid());
-        };
-        if replacement.root_before().data() != replacement.root_after().data() {
-            return Err(self.invalid());
-        }
-        let program = self.instances.unit().program();
-        let carriers = replacement.carriers();
-        let after = carriers.after().ok_or_else(|| self.invalid())?;
-        if carriers.before().len() != after.len() {
-            return Err(self.invalid());
-        }
-        for (before, after) in carriers.before().iter().zip(after) {
-            if before.selection().slot != after.selection().slot
-                || before.selection().path != after.selection().path
-                || before.instance().data() != after.instance().data()
-            {
-                return Err(self.invalid());
-            }
-            self.constrain_geometry(
-                self.storage
-                    .instance(program, before.instance())
-                    .map_err(Failure::Storage)?,
-                self.storage
-                    .instance(program, after.instance())
-                    .map_err(Failure::Storage)?,
-            )?;
-        }
-        let before = self
-            .storage
-            .instance(program, replacement.root_before())
-            .map_err(Failure::Storage)?;
-        let after = self
-            .storage
-            .instance(program, replacement.root_after())
-            .map_err(Failure::Storage)?;
-        self.constrain_geometry(before, after)?;
-        let retired = Effect::Dispose {
-            source: self.place_with_root(destination, self.payload_data(retired)?, Some(before))?,
-            disposal: self.disposal(retired)?,
-        };
-        let supplied = self.payload_data(payload)?;
-        let transfer = Effect::Transfer {
-            source: self.resource_place(source, supplied, replacement.data())?,
-            destination: self.place_with_root(destination, supplied, Some(after))?,
-        };
-        Ok([retired, transfer])
     }
     #[allow(clippy::too_many_lines)]
     fn effects(

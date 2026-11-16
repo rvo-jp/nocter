@@ -772,13 +772,42 @@ impl Context<'_> {
     }
 }
 
-fn validate_body(program: &Program, id: AccessInstanceId, body: &Body) -> Result<(), Failure> {
-    let context = Context { program, body, id };
+fn validate_geometry(context: &Context<'_>) -> Result<(), Failure> {
+    let (program, body) = (context.program, context.body);
     for constraint in &body.geometry {
         context.require(body.actions.contains_key(&constraint.at))?;
         context.require(program.runtime.types().get(constraint.before).is_some())?;
         context.require(program.runtime.types().get(constraint.after).is_some())?;
+        if let super::GeometryRequirement::ProjectionOffsets(paths) = &constraint.requirement {
+            context.require(!paths.is_empty())?;
+            let action = body
+                .actions
+                .get(&constraint.at)
+                .ok_or_else(|| context.invalid())?;
+            context.require(action.alternatives.iter().any(|alternative| alternative.before.iter().chain(&alternative.after).any(|effect| matches!(effect,
+                Effect::Repack { before, destination, .. } if *before == constraint.before && destination.root == constraint.after
+            ))))?;
+            for path in paths {
+                for data in [constraint.before, constraint.after] {
+                    context.require(
+                        program
+                            .runtime
+                            .value_path(data, path.fields(), |index, length| match index {
+                                Some(index) => *index < length,
+                                None => length > 0,
+                            })
+                            .is_some(),
+                    )?;
+                }
+            }
+        }
     }
+    Ok(())
+}
+
+fn validate_body(program: &Program, id: AccessInstanceId, body: &Body) -> Result<(), Failure> {
+    let context = Context { program, body, id };
+    validate_geometry(&context)?;
     let mut bound = BTreeSet::new();
     for &(slot, id) in &body.statics {
         let data = program.statics.get(&id).ok_or_else(|| context.invalid())?;

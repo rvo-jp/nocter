@@ -1,0 +1,41 @@
+struct Item { value: i32 }
+const func identity(value: i32): i32 { value }
+const func addition(value: i32): func(i32): i32 {
+    let item = Item { value: value }
+    (item^; amount: i32): i32 { item.value + amount }
+}
+const func wrap(take callback: func(i32): i32): func(i32): i32 {
+    (callback^; amount: i32): i32 { callback(amount) }
+}
+const func straight(): i32 {
+    var pair = (wrap(addition(20)), 2)
+    edit selected = pair.0
+    selected = wrap(identity)
+    let first = selected(42)
+    selected = wrap(addition(1))
+    let second = selected(41)
+    if first == 42 && second == 42 && pair.1 == 2 { 42 } else { 0 }
+}
+const func nested(): i32 {
+    var pair = ((wrap(addition(20)), 3), 2)
+    edit selected = pair.0.0
+    selected = wrap(identity)
+    let first = selected(42)
+    selected = wrap(addition(1))
+    let second = selected(41)
+    if first == 42 && second == 42 && pair.1 == 2 && pair.0.1 == 3 { 42 } else { 0 }
+}
+const func singleton(): i32 {
+    var pair = ([wrap(addition(20))], 2)
+    edit selected = pair.0[0]
+    selected = wrap(identity)
+    let first = selected(42)
+    selected = wrap(addition(1))
+    let second = selected(41)
+    if first == 42 && second == 42 && pair.1 == 2 { 42 } else { 0 }
+}
+const func calculate(): i32 {
+    if straight() == 42 && nested() == 42 && singleton() == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { if ANSWER == 42 { calculate() } else { 0 } }
