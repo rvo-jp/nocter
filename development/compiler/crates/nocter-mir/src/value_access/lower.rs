@@ -540,8 +540,11 @@ impl Builder<'_> {
         }
         let mut missing = BTreeSet::new();
         for hole in holes {
-            let Some(path) = hole.value() else {
-                return Ok(None);
+            let (path, frontier) = match hole {
+                flow::resources::Missing::Value(path) => (path, None),
+                flow::resources::Missing::ArrayPrefix { array, frontier } => {
+                    (array, Some(*frontier))
+                }
             };
             if target.fields().is_prefix_of(path) {
                 continue;
@@ -549,7 +552,26 @@ impl Builder<'_> {
             if path.is_prefix_of(target.fields()) {
                 return Ok(None);
             }
-            missing.insert(self.resource_path(path)?);
+            let projections = self.resource_path(path)?;
+            let data = super::repack::hole_data(self.runtime, before, &projections)
+                .ok_or_else(|| self.invalid())?;
+            let place = Place {
+                slot: destination.slot,
+                root: before,
+                projections,
+                data,
+            };
+            missing.insert(if let Some(frontier) = frontier {
+                let data = self.index_data()?;
+                super::RemainderExclusion::ArrayPrefix {
+                    array: place,
+                    endpoint: self
+                        .root(Holder::ArrayFrontier(frontier), data, false)?
+                        .slot,
+                }
+            } else {
+                super::RemainderExclusion::Value(place)
+            });
         }
         let missing = missing.into_iter().collect::<Box<[_]>>();
         Ok(
@@ -821,11 +843,13 @@ impl Builder<'_> {
                         } => {
                             let data = self.payload_data(payload)?;
                             output.push(Effect::Transfer {
-                                source: self.referent(
-                                    nocter_checking::value_access::Referent::Evaluated(
-                                        index.selection(),
-                                    ),
+                                // This is the original selected address, retained across the
+                                // resource phase. Its payload comes from the ordered projection;
+                                // there is no fresh operand occurrence to query here.
+                                source: self.root(
+                                    Holder::Expression(index.selection()),
                                     data,
+                                    false,
                                 )?,
                                 destination: self.root(*destination, data, false)?,
                             });

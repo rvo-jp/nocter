@@ -2264,8 +2264,14 @@ remain separate obligations.
 required/native execution of both Boolean inputs in the same callable instance. The matching
 error fixture executes actual conditional withdrawal, retirement and remaining-owner cleanup.
 Lifecycle retains each original destination condition through guard simplification; the
-[MIR owner](../nocter-mir/README.md) defines receipt-time relocation. Live addresses, general
-range holes and unresolved represented contexts do not acquire that permission.
+[MIR owner](../nocter-mir/README.md) defines receipt-time relocation. Live addresses and
+unresolved represented contexts do not acquire that permission.
+`contextual-prefix-hole-growth.nct` qualifies empty, partial and complete prefix withdrawal before
+context-changing tuple-component writes, retaining the original endpoint after loop-counter mutation.
+Native variants cover singleton prefixes and maximum-count zero-byte storage. The matching
+error fixture executes withdrawn and remaining owning-graph cleanup. The
+[MIR owner](../nocter-mir/README.md) owns exclusion validation and sparse preservation; this does
+not establish prefix proofs across opaque captured-call writes.
 `contextual-component-replacement.nct` additionally qualifies same-geometry partial replacement
 and restoration while a disjoint sibling reference survives, including repeated writes through
 one local edit alias. Original carrier selections match its actual containing owner. The evaluator

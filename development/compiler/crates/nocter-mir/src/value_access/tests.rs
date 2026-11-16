@@ -157,7 +157,7 @@ fn dynamic_hole_paths_require_an_original_saved_number_with_the_matching_array_b
         let effect = changed.bodies.values_mut().flat_map(|body| body.actions.values_mut())
             .flat_map(|action| &mut action.alternatives)
             .flat_map(|alternative| alternative.before.iter_mut().chain(&mut alternative.after))
-            .find(|effect| matches!(effect, Effect::Repack { missing, .. } if missing.iter().any(|path| path.iter().any(|part| matches!(part, Projection::Index(_)))))).unwrap();
+            .find(|effect| matches!(effect, Effect::Repack { missing, .. } if missing.iter().any(|path| path.place().projections.iter().any(|part| matches!(part, Projection::Index(_)))))).unwrap();
         let Effect::Repack {
             missing,
             destination,
@@ -168,7 +168,11 @@ fn dynamic_hole_paths_require_an_original_saved_number_with_the_matching_array_b
         };
         let index = missing
             .iter_mut()
-            .flat_map(|path| path.iter_mut())
+            .filter_map(|hole| match hole {
+                RemainderExclusion::Value(place) => Some(place.projections.iter_mut()),
+                RemainderExclusion::ArrayPrefix { .. } => None,
+            })
+            .flatten()
             .find(|part| matches!(part, Projection::Index(_)))
             .unwrap();
         *index = match invalid {
@@ -271,8 +275,11 @@ fn singleton_hole_repacking_keeps_the_initialized_element_field_and_skips_its_pa
                 continue;
             }
             assert_eq!(
-                missing.as_ref(),
-                &[Box::from([field(1), element, field(0)])]
+                missing
+                    .iter()
+                    .map(|hole| hole.place().projections.as_ref())
+                    .collect::<Vec<_>>(),
+                vec![&[field(1), element, field(0)][..]]
             );
             let paths = preserved
                 .iter()
@@ -312,7 +319,13 @@ fn sparse_tuple_repacking_never_snapshots_a_missing_subtree_or_its_parent() {
         unreachable!()
     };
     let field = |index| Projection::Field(nocter_model::ValueField::Tuple(index));
-    assert_eq!(missing.as_ref(), &[Box::from([field(1), field(0)])]);
+    assert_eq!(
+        missing
+            .iter()
+            .map(|hole| hole.place().projections.as_ref())
+            .collect::<Vec<_>>(),
+        vec![&[field(1), field(0)][..]]
+    );
     let paths = preserved
         .iter()
         .map(|part| part.source.projections.clone())
@@ -334,16 +347,21 @@ fn sparse_tuple_repacking_never_snapshots_a_missing_subtree_or_its_parent() {
         let Effect::Repack { missing, .. } = effect else {
             unreachable!()
         };
+        let corrupt = |path: Box<[Projection]>| {
+            let mut place = missing[0].place().clone();
+            place.projections = path;
+            RemainderExclusion::Value(place)
+        };
         match corruption {
             0 => *missing = Box::new([]),
             1 => *missing = vec![missing[0].clone(), missing[0].clone()].into(),
-            2 => *missing = vec![Box::from([field(1)]), missing[0].clone()].into(),
-            3 => *missing = vec![Box::from([field(0)])].into(),
-            4 => *missing = vec![Box::from([field(99)])].into(),
+            2 => *missing = vec![corrupt(Box::from([field(1)])), missing[0].clone()].into(),
+            3 => *missing = vec![corrupt(Box::from([field(0)]))].into(),
+            4 => *missing = vec![corrupt(Box::from([field(99)]))].into(),
             5 => {
-                *missing = vec![Box::from([Projection::Field(
+                *missing = vec![corrupt(Box::from([Projection::Field(
                     nocter_model::ValueField::Array(0),
-                )])]
+                )]))]
                 .into();
             }
             _ => unreachable!(),
@@ -1605,4 +1623,69 @@ fn mixed_remainder_prefixes_require_their_own_frontier_role_and_bound() {
         validate::program(&program),
         Err(Failure::InvalidBody(_))
     ));
+}
+
+#[test]
+fn prefix_repacking_retains_the_original_frontier_and_rejects_invalid_exclusions() {
+    let program = lower(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-prefix-hole-growth.nct"
+    )));
+    validate::program(&program).unwrap();
+    for corruption in 0..5 {
+        let mut changed = program.clone();
+        let effect = changed
+            .bodies
+            .values_mut()
+            .flat_map(|body| body.actions.values_mut())
+            .flat_map(|action| &mut action.alternatives)
+            .flat_map(|alternative| alternative.before.iter_mut().chain(&mut alternative.after))
+            .find(|effect| {
+                matches!(effect, Effect::Repack { missing, .. }
+                if missing.iter().any(|hole| hole.endpoint().is_some()))
+            })
+            .unwrap();
+        let Effect::Repack {
+            missing,
+            destination,
+            preserved,
+            ..
+        } = effect
+        else {
+            unreachable!()
+        };
+        assert!(
+            preserved
+                .iter()
+                .any(|part| part.kind == Preservation::ArrayRemainder)
+        );
+        match corruption {
+            0 => *missing = Box::new([]),
+            1 => *missing = vec![missing[0].clone(), missing[0].clone()].into(),
+            2 => {
+                let RemainderExclusion::ArrayPrefix { endpoint, .. } = &mut missing[0] else {
+                    unreachable!()
+                };
+                *endpoint = destination.slot;
+            }
+            3 => {
+                let RemainderExclusion::ArrayPrefix { array, .. } = &mut missing[0] else {
+                    unreachable!()
+                };
+                array.root = destination.root;
+            }
+            4 => {
+                preserved
+                    .iter_mut()
+                    .find(|part| part.kind == Preservation::ArrayRemainder)
+                    .unwrap()
+                    .kind = Preservation::Complete;
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            validate::program(&changed).is_err(),
+            "corruption {corruption}"
+        );
+    }
 }

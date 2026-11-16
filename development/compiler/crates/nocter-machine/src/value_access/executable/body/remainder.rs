@@ -17,6 +17,23 @@ struct Exclusion {
     prefix: Option<MirLocalId>,
 }
 
+impl Exclusion {
+    fn relative(source: &mir::Place, exclusion: &mir::RemainderExclusion) -> Result<Self, Failure> {
+        let hole = exclusion.place();
+        if hole.slot != source.slot
+            || hole.root != source.root
+            || !hole.projections.starts_with(&source.projections)
+        {
+            return Err(Builder::invalid());
+        }
+        Ok(Self {
+            path: hole.projections[source.projections.len()..].to_vec(),
+            conditions: Vec::new(),
+            prefix: exclusion.endpoint(),
+        })
+    }
+}
+
 impl Builder<'_> {
     pub(super) fn dispose_array_remainder(
         &mut self,
@@ -28,25 +45,7 @@ impl Builder<'_> {
         }
         let exclusions = missing
             .iter()
-            .map(|exclusion| {
-                let (hole, prefix) = match exclusion {
-                    mir::RemainderExclusion::Value(hole) => (hole, None),
-                    mir::RemainderExclusion::ArrayPrefix { array, endpoint } => {
-                        (array, Some(*endpoint))
-                    }
-                };
-                if hole.slot != source.slot
-                    || hole.root != source.root
-                    || !hole.projections.starts_with(&source.projections)
-                {
-                    return Err(Self::invalid());
-                }
-                Ok(Exclusion {
-                    path: hole.projections[source.projections.len()..].to_vec(),
-                    conditions: Vec::new(),
-                    prefix,
-                })
-            })
+            .map(|exclusion| Exclusion::relative(source, exclusion))
             .collect::<Result<Vec<_>, Failure>>()?;
         let address = self.place(source)?;
         let pointer = self.value(
@@ -62,17 +61,13 @@ impl Builder<'_> {
         logical: &mir::Place,
         source: MachineAddressId,
         destination: MachineAddressId,
-        missing: &[Box<[mir::Projection]>],
+        missing: &[mir::RemainderExclusion],
     ) -> Result<(), Failure> {
         let exclusions = missing
             .iter()
-            .filter(|hole| hole.starts_with(&logical.projections))
-            .map(|hole| Exclusion {
-                path: hole[logical.projections.len()..].to_vec(),
-                conditions: Vec::new(),
-                prefix: None,
-            })
-            .collect::<Vec<_>>();
+            .filter(|hole| hole.place().projections.starts_with(&logical.projections))
+            .map(|hole| Exclusion::relative(logical, hole))
+            .collect::<Result<Vec<_>, Failure>>()?;
         if exclusions.is_empty() {
             return Err(Self::invalid());
         }

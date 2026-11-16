@@ -85,6 +85,21 @@ pub enum RemainderExclusion {
     Value(Place),
     ArrayPrefix { array: Place, endpoint: MirLocalId },
 }
+impl RemainderExclusion {
+    #[must_use]
+    pub const fn place(&self) -> &Place {
+        match self {
+            Self::Value(place) | Self::ArrayPrefix { array: place, .. } => place,
+        }
+    }
+    #[must_use]
+    pub const fn endpoint(&self) -> Option<MirLocalId> {
+        match self {
+            Self::Value(_) => None,
+            Self::ArrayPrefix { endpoint, .. } => Some(*endpoint),
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Preservation {
@@ -119,8 +134,8 @@ pub enum Effect {
         source: Place,
         destination: Place,
         before: RuntimeDataId,
-        /// Original prefix-free missing component paths outside the replaced subtree.
-        missing: Box<[Box<[Projection]>]>,
+        /// Original value and prefix exclusions outside the replaced subtree.
+        missing: Box<[RemainderExclusion]>,
         preserved: Box<[Preserved]>,
     },
     /// A distinct guarded wider representation, with separate source/destination payload layouts.

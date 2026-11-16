@@ -92,8 +92,11 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Preserve dynamic array holes through the shared retained-path converter and exact saved-number
   roles/bounds. Qualify both coordinates, index-variable mutation, bounds traps, conditional snapshot
   presence, actual owned errors and original restoration proofs without rereading the changed index.
-- [ ] Extend relocation's initialized-subtree selection to range holes and unresolved represented
-  alternatives, preserving original saved coordinates without element expansion.
+- [x] Extend relocation to original array-prefix exclusions, sharing typed missing-region metadata
+  and native sparse traversal with cleanup. Preserve original frontier roles/bounds, later counter
+  mutation, empty/partial/complete prefixes, bounds traps and actual owning-error cleanup.
+- [ ] Extend relocation's initialized-subtree selection to unresolved represented alternatives
+  and remaining range combinations, preserving original saved coordinates without element expansion.
 - [x] Qualify same-geometry contextual callable component replacement and restoration with a
   surviving disjoint sibling reference. Carry each partial receipt's original containing roots
   into MIR and physical geometry checks without fusing separate retirement/receipt operations.

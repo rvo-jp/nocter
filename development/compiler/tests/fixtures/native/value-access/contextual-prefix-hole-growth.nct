@@ -1,0 +1,38 @@
+struct Item { value: i32 }
+
+const func identity(value: i32): i32 { value }
+
+const func addition(value: i32): func(i32): i32 {
+    let item = Item { value: value }
+    (item^; amount: i32): i32 { item.value + amount }
+}
+
+const func subtraction(value: i32): func(i32): i32 {
+    let item = Item { value: value }
+    (item^; amount: i32): i32 { item.value - amount }
+}
+
+const func wrap(take callback: func(i32): i32): func(i32): i32 {
+    (callback^; amount: i32): i32 { callback(amount) }
+}
+
+const func calculate(count: usize): i32 {
+    let empty = identity(42)
+    var pair = (wrap(identity), [wrap(addition(2)), wrap(addition(7))], 3)
+    var cursor: usize = 0
+    while cursor < count {
+        let withdrawn = pair.1[cursor]^
+        cursor += 1
+    }
+    let traversed = cursor
+    cursor = 99
+    pair.0 = wrap(addition(20))
+    pair.0 = wrap(subtraction(50))
+    let saved = pair.0^
+    pair.0 = wrap(addition(1))
+    pair.0 = wrap(identity)
+    if traversed == count && cursor == 99 && pair.2 == 3 && empty == 42 && pair.0(42) == 42 && saved(8) == 42 { 42 } else { 0 }
+}
+
+const ANSWER: i32 = if calculate(0) == 42 && calculate(1) == 42 && calculate(2) == 42 { 42 } else { 0 }
+func run(): i32 { if ANSWER == 42 && calculate(0) == 42 && calculate(1) == 42 && calculate(2) == 42 { 42 } else { 0 } }

@@ -62,7 +62,10 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
   destination write, then transfers the supplied value. Complete subtrees use independent values;
   sparse arrays use an unowned temporary buffer and two passes over initialized fields only.
   Cleanup and sparse transport share `body::remainder`'s structural/exclusion traversal, including
-  conditional element guards. No element list is expanded from array cardinality, and zero-byte
+  conditional element guards. Both consume MIR's typed `RemainderExclusion` through one relative
+  exclusion constructor; prefix transport reads the original frontier, never the current loop
+  variable. Empty, partial and complete prefixes retain distinct captured values and actual
+  remaining error graphs across representation changes. No element list is expanded from array cardinality, and zero-byte
   transport skips traversal even at maximum usize cardinality. The scratch bytes introduce no
   owner, clone, Copy proof or cleanup. Original disposal remains before receipt. Checking owns
   the absence of surviving addresses/reservations; maximum root capacity cannot replace it.

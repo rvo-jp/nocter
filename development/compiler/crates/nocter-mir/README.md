@@ -92,7 +92,7 @@ the same selected container root as the cleanup operation. Partial destinations 
 receipt still require independently closed or bound-input data. Matched owning partial moves use
 their original after-container for placement, preserving the preceding separate disposal.
 For direct owning assignments through tuple and singleton-array paths, `Effect::Repack` retains
-the original before-container, prefix-free missing component paths outside the replaced subtree and
+the original before-container, value/prefix exclusions outside the replaced subtree and
 all initialized disjoint siblings. Its shared structural projection requires unchanged sibling
 data. A singleton array contributes its one established resource coordinate, never a guessed
 first-element context. Plain targets require absence of retained addresses/reservations on both
@@ -123,8 +123,15 @@ element data; body validation independently checks each saved-number role, usize
 array bound. A local value of the same type or a snapshot from another bound cannot substitute.
 Singleton coordinates keep their established constant selection. Machine snapshots and restores
 only remaining fields through its shared sparse walk, without acquiring another owner or Copy
-proof. Other partial moves keep the before/after geometry constraint. Live aliases, range holes,
-external carriers and general relocation remain separate qualifications. The [checking owner](../nocter-checking/README.md#context-bound-callable-captures)
+proof. Prefix exclusions use the same `RemainderExclusion` as cleanup, with a typed original
+array place and its saved `ArrayFrontier` endpoint. Structural validation checks the old root,
+array schema and disjoint destination; body validation requires the frontier role, usize storage
+and exact containing bound. Sparse arrays stay one preservation part even for a singleton prefix.
+Original `MoveArrayElement` delivery consumes its ordered payload and retained selection address;
+it cannot query a fresh contextual operand at a later resource phase. Required/native cases cover
+empty, partial and complete prefixes, counter mutation, bounds traps and actual error cleanup.
+Other partial moves keep the before/after geometry constraint. Live aliases, unresolved represented
+alternatives, external carriers and general relocation remain separate qualifications. The [checking owner](../nocter-checking/README.md#context-bound-callable-captures)
 defines the qualified ordinary-source capture scope.
 Adapter cleanup likewise selects its completed full carrier in the original argument slot before
 projecting the completed environment. Its selected environment data must match the cleanup

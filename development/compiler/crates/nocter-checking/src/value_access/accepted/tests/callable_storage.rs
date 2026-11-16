@@ -757,3 +757,15 @@ fn a_unique_coordinate_does_not_allow_overwriting_a_still_used_element_reference
         "{failure:?}"
     );
 }
+
+#[test]
+fn contextual_prefix_holes_preserve_required_evaluation_after_counter_mutation() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-prefix-hole-growth.nct"
+    ));
+    assert_eq!(
+        super::initializers::answer(source, "ANSWER"),
+        nocter_constant_evaluation::state::Value::integer(42)
+    );
+}

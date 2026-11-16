@@ -22,7 +22,7 @@ impl Builder<'_> {
         source: &mir::Place,
         destination: &mir::Place,
         preserved: &[mir::Preserved],
-        missing: &[Box<[mir::Projection]>],
+        missing: &[mir::RemainderExclusion],
     ) -> Result<(), Failure> {
         let mut snapshots = Vec::new();
         for part in preserved {

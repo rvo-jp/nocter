@@ -1539,6 +1539,58 @@ fn private_contextual_indexed_growth_preserves_actual_owned_capture_and_sibling_
 }
 
 #[test]
+fn private_contextual_prefix_holes_preserve_original_endpoint_and_remaining_storage() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-prefix-hole-growth.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "prefix-hole-growth", 42);
+    let singleton = source
+        .replace(
+            "[wrap(addition(2)), wrap(addition(7))]",
+            "[wrap(addition(2))]",
+        )
+        .replace(" && calculate(2) == 42", "");
+    assert_ne!(singleton, source);
+    execute_native_status(
+        &compile(&singleton),
+        &package.0,
+        "prefix-hole-singleton",
+        42,
+    );
+    let empty_storage = source.replace(
+        "[wrap(addition(2)), wrap(addition(7))]",
+        "[(); 18446744073709551615]",
+    );
+    assert_ne!(empty_storage, source);
+    execute_native_status(
+        &compile(&empty_storage),
+        &package.0,
+        "prefix-hole-zero-bytes",
+        42,
+    );
+    let trapped = source.replace("func run(): i32 { if ANSWER == 42 && calculate(0) == 42 && calculate(1) == 42 && calculate(2) == 42 { 42 } else { 0 } }", "func run(): i32 { calculate(3) }");
+    assert_ne!(trapped, source);
+    execute_native_signal(&compile(&trapped), &package.0, "prefix-hole-bounds", 5);
+}
+
+#[test]
+fn private_contextual_prefix_holes_preserve_actual_owned_error_cleanup() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-prefix-hole-errors.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &image(&trusted_error_machine(source)),
+        &package.0,
+        "prefix-hole-errors",
+        42,
+    );
+}
+
+#[test]
 fn private_contextual_dynamic_holes_use_the_saved_original_index_during_relocation() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

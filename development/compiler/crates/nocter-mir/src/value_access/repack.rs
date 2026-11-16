@@ -1,5 +1,5 @@
 //! Structural complement of one tuple destination; ownership and address freedom are separate.
-use super::{Place, Preservation, Preserved, Projection};
+use super::{Place, Preservation, Preserved, Projection, RemainderExclusion};
 use nocter_model::ValueField;
 use nocter_runtime_contract::{
     RuntimeDataId, RuntimeEnvironment, RuntimeTypeRepresentation, RuntimeValueFieldRepresentation,
@@ -9,20 +9,43 @@ pub(super) fn preserved(
     runtime: &RuntimeEnvironment,
     before: RuntimeDataId,
     destination: &Place,
-    missing: &[Box<[Projection]>],
+    missing: &[RemainderExclusion],
 ) -> Option<Box<[Preserved]>> {
     if destination.projections.is_empty() {
         return None;
     }
-    for (index, path) in missing.iter().enumerate() {
+    let whole_holes = missing
+        .iter()
+        .filter_map(|hole| match hole {
+            RemainderExclusion::Value(place) => Some(place.projections.as_ref()),
+            RemainderExclusion::ArrayPrefix { .. } => None,
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    for (index, exclusion) in missing.iter().enumerate() {
+        let hole = exclusion.place();
+        let path = &hole.projections;
         if path.is_empty()
+            || hole.slot != destination.slot
+            || hole.root != before
             || path.starts_with(&destination.projections)
             || destination.projections.starts_with(path)
-            || index > 0 && (missing[index - 1] >= *path || path.starts_with(&missing[index - 1]))
+            || index > 0 && missing[index - 1] >= *exclusion
+            || hole_data(runtime, before, path)? != hole.data
         {
             return None;
         }
-        hole_data(runtime, before, path)?;
+        if exclusion.endpoint().is_some() {
+            let (_, length) = runtime.types().get(hole.data)?.array()?;
+            if length == 0 {
+                return None;
+            }
+        }
+        // A missing whole value cannot contain another exclusion. Prefixes may contain
+        // later point holes, which remain independent original resource facts.
+        let end = path.len() + usize::from(exclusion.endpoint().is_some());
+        if (0..end).any(|length| whole_holes.contains(&path[..length])) {
+            return None;
+        }
     }
     let mut left = before;
     let mut right = destination.root;
@@ -71,21 +94,31 @@ pub(super) fn preserved(
     if right != destination.data {
         return None;
     }
-    initialized(runtime, retained, missing)
+    let mut paths = missing
+        .iter()
+        .map(|hole| (hole.place().projections.as_ref(), hole.endpoint().is_some()))
+        .collect::<Vec<_>>();
+    paths.sort_unstable();
+    if paths.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+        return None;
+    }
+    initialized(runtime, retained, &paths)
 }
 
 /// Split only ancestors of actual holes; shared schema branches without holes stay opaque.
 fn initialized(
     runtime: &RuntimeEnvironment,
     mut pending: Vec<(Place, Place)>,
-    missing: &[Box<[Projection]>],
+    missing: &[(&[Projection], bool)],
 ) -> Option<Box<[Preserved]>> {
     let mut retained = Vec::new();
     while let Some((source, target)) = pending.pop() {
-        let index = missing.partition_point(|hole| hole.as_ref() < source.projections.as_ref());
-        match missing.get(index) {
-            Some(hole) if hole.as_ref() == source.projections.as_ref() => continue,
-            Some(hole) if hole.starts_with(&source.projections) => {}
+        let index = missing.partition_point(|(path, _)| *path < source.projections.as_ref());
+        let prefix = match missing.get(index) {
+            Some((path, false)) if *path == source.projections.as_ref() => continue,
+            Some((path, prefix)) if path.starts_with(&source.projections) => {
+                *prefix && *path == source.projections.as_ref()
+            }
             _ => {
                 retained.push(Preserved {
                     source,
@@ -94,12 +127,12 @@ fn initialized(
                 });
                 continue;
             }
-        }
+        };
         if runtime
             .types()
             .get(source.data)?
             .array()
-            .is_some_and(|(_, length)| length > 1)
+            .is_some_and(|(_, length)| length > 1 || prefix)
         {
             retained.push(Preserved {
                 source,

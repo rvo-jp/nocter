@@ -252,7 +252,7 @@ impl Context<'_> {
         source: &Place,
         destination: &Place,
         before: nocter_runtime_contract::RuntimeDataId,
-        missing: &[Box<[Projection]>],
+        missing: &[super::RemainderExclusion],
         preserved: &[super::Preserved],
     ) -> Result<(), Failure> {
         self.place(source)?;
@@ -276,15 +276,22 @@ impl Context<'_> {
             super::repack::preserved(&self.program.runtime, before, destination, missing)
                 .is_some_and(|expected| expected.as_ref() == preserved),
         )?;
-        for path in missing {
-            let data = super::repack::hole_data(&self.program.runtime, before, path)
-                .ok_or_else(|| self.invalid())?;
-            self.place(&Place {
-                slot: destination.slot,
-                root: before,
-                projections: path.clone(),
-                data,
-            })?;
+        for exclusion in missing {
+            self.place(exclusion.place())?;
+            if let Some(endpoint) = exclusion.endpoint() {
+                let (_, length) = self
+                    .program
+                    .runtime
+                    .types()
+                    .get(exclusion.place().data)
+                    .and_then(RuntimeType::array)
+                    .ok_or_else(|| self.invalid())?;
+                self.require(matches!(
+                    self.body.slots.get(endpoint).map(|slot| slot.key),
+                    Some(SlotKey::ArrayFrontier(_))
+                ))?;
+                self.range_index(endpoint, length)?;
+            }
         }
         for part in preserved {
             self.place(&part.source)?;

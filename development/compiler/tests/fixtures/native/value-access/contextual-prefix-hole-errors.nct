@@ -1,0 +1,44 @@
+primitive func create_failure(code: str, message: str): error
+primitive func context_error(take value: error, message: str): error
+
+func inspect(value: error): i32 { 42 }
+
+func identity(value: i32): i32 { value }
+
+func addition(value: i32): func(i32): i32 {
+    let reason = context_error(create_failure("addition", "leaf"), "outer")
+    (reason^, value; amount: i32): i32 { value + amount }
+}
+
+func subtraction(value: i32): func(i32): i32 {
+    let reason = context_error(create_failure("subtraction", "leaf"), "outer")
+    (reason^, value; amount: i32): i32 { value - amount }
+}
+
+func wrap(take callback: func(i32): i32): func(i32): i32 {
+    (callback^; amount: i32): i32 { callback(amount) }
+}
+
+func calculate(count: usize): i32 {
+    let first = wrap(addition(20))
+    let second = wrap(subtraction(50))
+    let third = wrap(addition(1))
+    var pair = (1, wrap(identity), ([context_error(create_failure("first", "leaf"), "outer"), context_error(create_failure("second", "leaf"), "outer")], 2), 3)
+    var cursor: usize = 0
+    while cursor < count {
+        let withdrawn = pair.2.0[cursor]^
+        cursor += 1
+    }
+    let traversed = cursor
+    cursor = 99
+    pair.1 = first^
+    let small = pair.2.1
+    pair.1 = second^
+    let saved_callback = pair.1^
+    pair.1 = third^
+    pair.1 = wrap(identity)
+    let large = pair.2.1
+    if pair.1(42) == 42 && saved_callback(8) == 42 && traversed == count && cursor == 99 && small == 2 && large == 2 && pair.0 == 1 && pair.3 == 3 { 42 } else { 0 }
+}
+
+func run(): i32 { if calculate(0) == 42 && calculate(1) == 42 && calculate(2) == 42 { 42 } else { 0 } }
