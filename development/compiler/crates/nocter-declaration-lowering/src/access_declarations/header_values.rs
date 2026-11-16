@@ -86,11 +86,19 @@ impl Context<'_> {
                     return Err(SourceMismatch::InconsistentSyntax);
                 }
                 for field in actual.fields {
-                    let slot = record
+                    let field_id = record
                         .resolve_field(field.name)
-                        .and_then(|id| self.program().fields().get(id))
                         .ok_or(SourceMismatch::InconsistentSyntax)?;
-                    if self.program().existing_data_reference(&field.data) != Some(slot.data()) {
+                    let slot = self
+                        .program()
+                        .fields()
+                        .get(field_id)
+                        .ok_or(SourceMismatch::InconsistentSyntax)?;
+                    if self
+                        .program()
+                        .existing_field_data_reference(field_id, &field.data)
+                        != Some(slot.data())
+                    {
                         return Err(SourceMismatch::InconsistentSyntax);
                     }
                 }

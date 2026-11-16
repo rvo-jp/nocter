@@ -659,9 +659,17 @@ Deep nested metadata remains a graph of type references rather than an expanded 
 
 These contracts are not formal inputs, result producers or concrete witnesses. They gain no Copy,
 owned-payload eligibility, environment, runtime layout or const permission. Unsupported lifecycle
-and execution consumers reject them explicitly. The model also reserves field-owned identity, but
-source record-field publication and nested callable header signatures remain unqualified; this
-body-owned metadata constructor does not widen their source admission. The
+and execution consumers reject them explicitly. Record-field publication uses the same contract
+identity under each reserved field. Its structural fold publishes every nested contract, field and
+type in one atomic step; invalid signatures or positive non-Copy fields in a Copy record publish
+none. Zero arrays supply no callable payload. Payload dependency/Copy walks stop at the callable
+value rather than following its signature, so a signature returning the containing record is not
+a recursive stored payload. Each immutable field owns its shared signature graph; header snapshots
+reuse the existing persistent field arena rather than cloning a global contract table. Header
+lineage and body replay preserve these field contracts exactly. Read-only field-recipe reconciliation
+uses that field's contract ordinals through the same structural fold as publication.
+Original source value binding, contextual payloads, invocation and nested callable headers remain
+separately unqualified; publishing a contract alone does not admit its value construction. The
 [realization contract](../../../design/compiler-realization.md#callable-type-contracts) owns the
 remaining integration obligations.
 

@@ -280,3 +280,5 @@ fn missing_definitions_can_be_loaded_without_changing_slots_or_established_contr
     );
     assert!(complete.records().get(parent).unwrap().copyable());
 }
+
+mod field_contracts;

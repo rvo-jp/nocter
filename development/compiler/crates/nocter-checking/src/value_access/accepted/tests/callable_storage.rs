@@ -1066,3 +1066,29 @@ fn assert_retained_invocation_domain(
         *domain
     );
 }
+
+#[test]
+fn callable_record_fields_remain_unqualified_until_value_binding_is_supported() {
+    let text = "struct Handler { callback: func(i32): i32 }
+        const func identity(value: i32): i32 { value }
+        const func calculate(): i32 {
+            let holder = Handler { callback: identity }
+            holder.callback(42)
+        }
+        const ANSWER: i32 = calculate()";
+    let fixture = nocter_test_support::ValueSourceFixture::new(text);
+    let Err(SourceFailure::Checking(Failure::Body {
+        failure: crate::value_access::Failure::Rejected(diagnostic),
+        ..
+    })) = SourceUnit::prepare(fixture.syntax())
+    else {
+        panic!("an unqualified contract binding must reject at source");
+    };
+    assert_eq!(diagnostic.rule(), crate::value_access::Rule::TypeMismatch);
+    assert_eq!(
+        fixture
+            .syntax()
+            .text_at(diagnostic.source().primary().span().range()),
+        Some("identity")
+    );
+}

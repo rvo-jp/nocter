@@ -57,29 +57,33 @@ impl Record {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Field {
     owner: NominalTypeId,
     name: Symbol,
     position: usize,
     data: TypeId,
+    contracts: std::sync::Arc<[super::FunctionConstraint]>,
 }
 
 impl Field {
+    pub(super) fn callable_contracts(&self) -> &[super::FunctionConstraint] {
+        &self.contracts
+    }
     #[must_use]
-    pub const fn owner(self) -> NominalTypeId {
+    pub const fn owner(&self) -> NominalTypeId {
         self.owner
     }
     #[must_use]
-    pub const fn name(self) -> Symbol {
+    pub const fn name(&self) -> Symbol {
         self.name
     }
     #[must_use]
-    pub const fn position(self) -> usize {
+    pub const fn position(&self) -> usize {
         self.position
     }
     #[must_use]
-    pub const fn data(self) -> TypeId {
+    pub const fn data(&self) -> TypeId {
         self.data
     }
 }
@@ -222,7 +226,9 @@ impl Builder {
                     report(position, DeclarationRule::RepeatedFailure);
                 }
                 field.data.visit_leaves(|data| {
-                    if let Some(rule) = data_rule(data, self) {
+                    if !matches!(data, DataReference::Function(_))
+                        && let Some(rule) = data_rule(data, self)
+                    {
                         report(position, rule);
                     }
                 });

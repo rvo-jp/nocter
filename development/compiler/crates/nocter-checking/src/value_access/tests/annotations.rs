@@ -9,7 +9,6 @@ fn grouped_flat_callable_annotations_share_ordinary_witness_checking() {
 #[test]
 fn nested_callable_data_reports_missing_type_evidence_at_the_current_header() {
     for source in [
-        "struct Data { action: func(): i32 }",
         "func f(input: func(func(): i32): i32): void {}",
         "func f(): func(): func(): i32 { loop {} }",
     ] {
@@ -35,6 +34,30 @@ fn nested_callable_data_reports_missing_type_evidence_at_the_current_header() {
         "func f(): void { let action: (func(): i32)? = none }",
         Rule::UnsupportedData,
     );
+}
+
+#[test]
+fn callable_record_field_headers_supply_contracts_without_concrete_payload_evidence() {
+    let fixture =
+        nocter_test_support::ValueSourceFixture::new("struct Data { action: func(): i32 }");
+    let unit = accepted::SourceUnit::prepare(fixture.syntax())
+        .unwrap()
+        .into_unit();
+    let program = unit.program();
+    let (_, record) = program.records().iter().next().unwrap();
+    let field = record.fields()[0];
+    let data = program.fields().get(field).unwrap().data();
+    let Some(nocter_declarations::value_access::PayloadSchema::Function(selected)) =
+        program.data_schema(data)
+    else {
+        panic!("field signature")
+    };
+    assert!(
+        matches!(selected.origin, nocter_model::ValueFunctionOrigin::Contract(contract) if contract.owner == nocter_model::ValueContractOwner::Field(field))
+    );
+    assert!(program.function_contract(selected).is_some());
+    assert!(program.concrete_witness(selected).is_err());
+    assert!(program.instantiate_closed_data(record.data()).is_err());
 }
 
 #[test]

@@ -86,8 +86,8 @@ impl Publication {
                             .get(*child)
                             .expect("ready child schema")
                             .copyable(),
-                        DataReference::Function(_)
-                        | DataReference::Tuple(_)
+                        DataReference::Function(_) => false,
+                        DataReference::Tuple(_)
                         | DataReference::Array { .. }
                         | DataReference::Optional { .. }
                         | DataReference::Fallible(_) => {
@@ -112,7 +112,11 @@ impl Publication {
         for &field_id in &reservation.fields {
             let slot = definitions.fields.get(field_id).expect("reserved field");
             let field = &definition.fields[slot.position];
-            let data = super::super::data::resolved_data(&mut types, &field.data);
+            let (data, nested) = super::super::functions::contracts::resolve(
+                &mut types,
+                nocter_model::ValueContractOwner::Field(field_id),
+                &field.data,
+            );
             fields.push((
                 field_id,
                 Field {
@@ -120,6 +124,11 @@ impl Publication {
                     name: field.name,
                     position: slot.position,
                     data,
+                    contracts: nested
+                        .into_iter()
+                        .map(|(_, contract)| contract)
+                        .collect::<Vec<_>>()
+                        .into(),
                 },
             ));
         }

@@ -283,7 +283,8 @@ incremental reuse, package discovery or the ordinary compiler/editor workflow.
 values and requires existing published type/constraint identities to agree. It reuses the same
 header/data projection for callable inputs/results, callback contracts and record fields, including
 selected root fields. The semantic owner performs read-only structural identity lookup through its
-publication fold; reconciliation neither interns a type nor executes another value. Complete header
+publication fold, retaining each field's own callable contract identities; reconciliation neither
+interns a type nor executes another value. Complete header
 metadata and equal source bytes alone do not prove that supplied count data came from execution.
 
 The reusable result owns a single immutable value-access declaration program, its exact neutral

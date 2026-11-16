@@ -85,7 +85,7 @@ fn records_share_the_program_authority_and_preserve_canonical_ids() {
     assert_eq!(record.fields().len(), 2);
     assert_ne!(record.fields()[0], record.fields()[1]);
     for (position, &id) in record.fields().iter().enumerate() {
-        let f = *a.fields().get(id).unwrap();
+        let f = a.fields().get(id).unwrap();
         assert_eq!(f.owner(), outer);
         assert_eq!(f.position(), position);
         assert_eq!(record.resolve_field(f.name()), Some(id));

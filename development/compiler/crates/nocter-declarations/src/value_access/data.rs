@@ -128,8 +128,10 @@ impl DataReference {
                 }
                 Self::Function(contract) => {
                     visit(data);
-                    pending.push(&contract.result);
-                    pending.extend(contract.inputs.iter().rev().map(|(_, data)| data));
+                    if !payload_only {
+                        pending.push(&contract.result);
+                        pending.extend(contract.inputs.iter().rev().map(|(_, data)| data));
+                    }
                 }
                 _ => visit(data),
             }
@@ -243,6 +245,25 @@ impl Program {
                 ordinal,
             })
         })
+    }
+    /// Match field data against its own published callable contracts without interning or binding
+    /// a value. Equal signatures in another field do not substitute for this field's identities.
+    #[must_use]
+    pub fn existing_field_data_reference(
+        &self,
+        field: nocter_model::AccessFieldId,
+        data: &DataReference,
+    ) -> Option<TypeId> {
+        self.existing_callable_data_reference(
+            data,
+            self.fields().get(field)?.callable_contracts(),
+            |ordinal| {
+                nocter_model::ValueFunctionOrigin::Contract(nocter_model::ValueCallableContract {
+                    owner: nocter_model::ValueContractOwner::Field(field),
+                    ordinal,
+                })
+            },
+        )
     }
     /// Match a result recipe against that declaration's published callable-slot contracts.
     /// This performs no publication and supplies no producer or runtime result.

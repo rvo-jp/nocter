@@ -5,6 +5,7 @@ use nocter_model::{
     ValueInvocation,
 };
 mod compound_inputs;
+pub(super) mod contracts;
 mod patterns;
 mod result_components;
 mod substitution;
@@ -289,6 +290,19 @@ impl Program {
         }
         Some(witness)
     }
+    fn callable_contract(
+        &self,
+        id: nocter_model::ValueCallableContract,
+    ) -> Option<&FunctionConstraint> {
+        match id.owner {
+            nocter_model::ValueContractOwner::Body(_) => self.callable_contracts.get(&id),
+            nocter_model::ValueContractOwner::Field(field) => self
+                .fields()
+                .get(field)?
+                .callable_contracts()
+                .get(id.ordinal),
+        }
+    }
     /// The contract of an already selected concrete or formal witness. No candidate search occurs.
     #[must_use]
     pub fn function_contract(&self, witness: FunctionWitness) -> Option<FunctionConstraint> {
@@ -318,7 +332,7 @@ impl Program {
                 }
             }
             ValueFunctionOrigin::Parameter(id) => self.parameter_contract(id)?.clone(),
-            ValueFunctionOrigin::Contract(id) => self.callable_contracts.get(&id)?.clone(),
+            ValueFunctionOrigin::Contract(id) => self.callable_contract(id)?.clone(),
             ValueFunctionOrigin::Result(result) => self
                 .codes
                 .get(result.owner)?
@@ -360,7 +374,7 @@ impl Program {
                 self.parameter_contract(id)?;
             }
             ValueFunctionOrigin::Contract(id) => {
-                self.callable_contracts.get(&id)?;
+                self.callable_contract(id)?;
             }
             ValueFunctionOrigin::Result(result) => {
                 self.codes

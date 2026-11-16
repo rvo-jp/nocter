@@ -660,9 +660,12 @@ not a language restriction derived from the current realization boundary.
 - [x] Establish declaration-owned callable contract identities independently of input/return
   producers and physical value paths. Qualify nested signature construction, canonical replay,
   substitution, identity rejection and closed admission boundaries before source publication.
-- [ ] Publish callable record-field contracts atomically under reserved field identities. Preserve
+- [x] Publish callable record-field contracts atomically under reserved field identities. Preserve
   header lineage, payload-versus-signature dependency edges and conservative Copy checks before
   qualifying original source construction, contextual value binding and execution consumers.
+- [ ] Bind original named/captured values to callable field contracts without erasing code,
+  invocation or environment identity. Qualify construction, field invocation, forwarding and
+  retirement through required/native consumers; keep abstract contracts nonconcrete and non-Copy.
 - [ ] Complete nested callable data/witness support through header/data positions and the owning
   type authority. Keep valid formal structural descriptors separate from owned-payload admission.
   Qualify concrete representation, substitution and callable input/result evidence;

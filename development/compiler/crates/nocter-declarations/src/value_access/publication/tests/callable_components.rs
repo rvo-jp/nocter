@@ -191,7 +191,7 @@ fn compound_input_instances_retain_each_nested_witness_without_direct_bindings()
 
 #[test]
 fn unqualified_callable_data_positions_reject_atomically() {
-    for position in 0..4 {
+    for position in [0, 1, 3] {
         let symbols = SymbolTable::from_spellings(["run", "value", "Record"]);
         let mut reservations = Reservations::new(symbols.clone());
         let run = reservations.reserve(
@@ -205,7 +205,7 @@ fn unqualified_callable_data_positions_reject_atomically() {
             inputs: Box::new([]),
             result: callable(),
         };
-        // Result data, nested higher-order contracts and record fields have separate obligations.
+        // Result data and nested higher-order headers have separate obligations.
         let result = if position == 0 {
             ValueDefinition::Data(callable())
         } else {
