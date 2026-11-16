@@ -508,21 +508,29 @@ impl Builder<'_> {
         let Holder::Local(local) = target.holder() else {
             return Ok(None);
         };
-        if supplied.holder() == target.holder()
-            || !matches!(
-                self.checked
-                    .graph()
-                    .points()
-                    .get(at.point)
-                    .and_then(|block| block.actions.get(at.action))
-                    .map(|action| &action.operation),
-                Some(Operation::Assign { .. })
-            )
-            || !self
-                .checked
-                .access()
-                .root_unretained(at, flow::access::Root::Owned(local))
-        {
+        let Some(Operation::Assign {
+            target: referent, ..
+        }) = self
+            .checked
+            .graph()
+            .points()
+            .get(at.point)
+            .and_then(|block| block.actions.get(at.action))
+            .map(|action| &action.operation)
+        else {
+            return Ok(None);
+        };
+        let access = self.checked.access();
+        let root = flow::access::Root::Owned(local);
+        let unretained = match referent {
+            // The original bounds/selection computation has finished. The resource receipt uses
+            // its sealed logical coordinate with the new root, never the staged old pointer.
+            nocter_checking::value_access::Referent::Evaluated(_) => {
+                access.root_unretained_after(at, root)
+            }
+            nocter_checking::value_access::Referent::Place(_) => access.root_unretained(at, root),
+        };
+        if supplied.holder() == target.holder() || !unretained {
             return Ok(None);
         }
         let mut matched = None;

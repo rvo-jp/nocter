@@ -77,9 +77,11 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Extend tuple relocation to sparse missing sibling subtrees, preserving only initialized
   storage at its original resource phase. Keep the existing ownership ledger, saved owners and
   exact old/new contexts; do not load a whole sibling that contains a transferred field.
-- [ ] Qualify representation-changing indexed receipts through owned singleton arrays without
+- [x] Qualify representation-changing indexed receipts through owned singleton arrays without
   surviving addresses. Preserve the original evaluated selection, bounds effects and separate
   retirement/receipt; a unique logical coordinate does not stabilize pre-existing pointers.
+- [ ] Qualify missing descendants through singleton-array structure, preserving separately saved
+  owners and remaining sibling values without loading the absent element or expanding a schema.
 - [ ] Extend relocation's initialized-subtree selection to remaining array/range holes and
   context-dependent alternatives, preserving sparse source coordinates without element expansion.
 - [x] Qualify same-geometry contextual callable component replacement and restoration with a

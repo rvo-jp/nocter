@@ -1272,11 +1272,12 @@ contexts are constrained before their effects, destination contexts after receip
 retain distinct retired/supplied constraints. Whole owning-root moves emit the evaluator kernel's
 contextual receipt with the actual supplied data, preserving original retirement order. These
 constraints do not create values, access or owners. Publication rejects a mismatched constraint
-without retaining part of the plan. `flow::access::Analysis::root_unretained` projects the union
-of retained node/reservation roots before and after each reachable original action, across all
-alternatives. Missing action evidence never proves absence. This is neither an initialized-value
-nor a relocation proof; MIR combines it with the original owning transition and its own structural
-sibling projection. General changing-holder registration, external alias carriers and the
+without retaining part of the plan. `flow::access::Analysis` retains node/reservation roots
+separately before and after each reachable original action, unioned across its alternatives.
+`root_unretained` requires absence on both sides; `root_unretained_after` requires absence on normal
+completion. Missing action evidence never proves absence. Neither query proves initialization,
+relocation or permission to reuse an address staged for that operation. MIR combines them with
+the original owning transition, completed selection and its own structural sibling projection. General changing-holder registration, external alias carriers and the
 remaining source-admission boundary stay unqualified.
 Place, boundary, guard, component and index
 views select their metadata from the represented source slot; read/edit local bindings and forwarded
@@ -2256,6 +2257,11 @@ owner retain their actual contexts in required and native execution. The matchin
 retired, saved and received graph cleanup. A native negative case changes the initial environment
 size and must reject shifted sibling geometry before an executable can be published. General
 relocation with retained addresses and changing offsets remains unqualified.
+`contextual-indexed-growth.nct` qualifies changing representations through direct owning
+singleton-array receipts without surviving addresses. Required/native cases preserve calls,
+saved instances and surrounding tuple values. Native checks retain exactly-once index-selection
+effects, a bounds trap at the first write and actual owning capture/sibling cleanup. These receipts
+use the original numeric/resource coordinate, not a first-element type or a reusable old pointer.
 `contextual-indexed-replacement.nct` qualifies the same transport through a singleton array nested
 in a tuple, using a usize input as the evaluated index. Required/native execution preserves the
 sibling reference and saved callable, while a matching error fixture exercises actual cleanup.

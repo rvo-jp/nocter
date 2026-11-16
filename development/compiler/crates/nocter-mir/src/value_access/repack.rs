@@ -35,6 +35,17 @@ pub(super) fn preserved(
     let mut prefix = Vec::new();
     let mut retained = Vec::new();
     for projection in &destination.projections {
+        if *projection == Projection::Field(ValueField::Array(0)) {
+            let (old, old_length) = runtime.types().get(left)?.array()?;
+            let (new, new_length) = runtime.types().get(right)?.array()?;
+            if old_length != 1 || new_length != 1 {
+                return None;
+            }
+            left = old;
+            right = new;
+            prefix.push(*projection);
+            continue;
+        }
         let Projection::Field(ValueField::Tuple(selected)) = projection else {
             return None;
         };

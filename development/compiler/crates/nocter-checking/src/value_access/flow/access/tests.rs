@@ -171,3 +171,60 @@ fn relocation_excludes_live_views_reservations_and_all_control_alternatives() {
         ));
     }
 }
+
+#[test]
+fn evaluated_destination_addresses_end_at_assignment_but_sibling_views_survive() {
+    for (prefix, suffix, retained) in [
+        ("", "return pair.1", false),
+        ("read sibling = pair.1\n", "return sibling", true),
+    ] {
+        let source = format!(
+            "func run(index: usize): i32 {{ var pair = ([1], 2)\n{prefix}pair.0[index] = 3\n{suffix} }}"
+        );
+        let query = analyze(&source).pop().unwrap();
+        assert!(query.access().violations().is_empty());
+        let local = query
+            .typed()
+            .body()
+            .locals()
+            .iter()
+            .find(|(_, local)| {
+                matches!(
+                    query.typed().program().data_schema(local.data),
+                    Some(nocter_declarations::value_access::PayloadSchema::Aggregate(
+                        _
+                    ))
+                )
+            })
+            .map(|(id, _)| id)
+            .unwrap();
+        let mut found = 0;
+        for (point, block) in query.graph().points().iter() {
+            for (action, operation) in block.actions.iter().enumerate() {
+                if matches!(operation.operation, super::super::Operation::Assign { .. }) {
+                    let at = super::super::Location { point, action };
+                    assert!(
+                        !query
+                            .access()
+                            .root_unretained(at, super::Root::Owned(local))
+                    );
+                    assert_eq!(
+                        query
+                            .access()
+                            .root_unretained_after(at, super::Root::Owned(local)),
+                        !retained
+                    );
+                    found += 1;
+                }
+            }
+        }
+        assert_eq!(found, 1);
+        assert!(!query.access().root_unretained_after(
+            super::super::Location {
+                point: query.graph().entry(),
+                action: usize::MAX
+            },
+            super::Root::Owned(local)
+        ));
+    }
+}

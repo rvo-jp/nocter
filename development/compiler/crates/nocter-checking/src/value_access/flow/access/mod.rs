@@ -114,7 +114,12 @@ pub struct Analysis {
     liveness: Liveness,
     violations: Box<[Violation]>,
     resources: super::resources::Report,
-    retained_roots: BTreeMap<Location, BTreeSet<Root>>,
+    retained_roots: BTreeMap<Location, RetainedRoots>,
+}
+#[derive(Clone, Debug, Default)]
+struct RetainedRoots {
+    before: BTreeSet<Root>,
+    after: BTreeSet<Root>,
 }
 impl Analysis {
     /// No retained address or reservation names this root on either side of this action.
@@ -123,7 +128,15 @@ impl Analysis {
     pub fn root_unretained(&self, at: Location, root: Root) -> bool {
         self.retained_roots
             .get(&at)
-            .is_some_and(|roots| !roots.contains(&root))
+            .is_some_and(|roots| !roots.before.contains(&root) && !roots.after.contains(&root))
+    }
+    /// No address/reservation for this root survives normal completion of the original action.
+    /// A consumer must separately discharge any address used by the operation itself.
+    #[must_use]
+    pub fn root_unretained_after(&self, at: Location, root: Root) -> bool {
+        self.retained_roots
+            .get(&at)
+            .is_some_and(|roots| !roots.after.contains(&root))
     }
     #[must_use]
     pub const fn status(&self) -> Status {
@@ -164,7 +177,7 @@ pub(super) fn analyze(
     let mut pending = BTreeSet::from([(graph.entry(), entry)]);
     let mut entries: BTreeMap<_, BTreeSet<World>> = BTreeMap::new();
     let mut violations = BTreeSet::new();
-    let mut retained_roots: BTreeMap<Location, BTreeSet<Root>> = BTreeMap::new();
+    let mut retained_roots: BTreeMap<Location, RetainedRoots> = BTreeMap::new();
     while let Some((point, mut world)) = pending.pop_first() {
         world.trim(liveness.entry(point))?;
         if !entries.entry(point).or_default().insert(world.clone()) {
@@ -194,8 +207,8 @@ pub(super) fn analyze(
                         for (alternative, plan) in &mut alternatives {
                             alternative.trim(liveness.after(location))?;
                             let roots = retained_roots.entry(location).or_default();
-                            roots.extend(retained.iter().copied());
-                            roots.extend(alternative.retained_roots());
+                            roots.before.extend(retained.iter().copied());
+                            roots.after.extend(alternative.retained_roots());
                             resources.record(location, &before, plan, &alternative.resources);
                             next.push(alternative.clone());
                         }

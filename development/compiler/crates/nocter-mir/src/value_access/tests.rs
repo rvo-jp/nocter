@@ -93,6 +93,47 @@ fn tuple_repacking_retains_the_original_receipt_and_all_disjoint_siblings() {
 }
 
 #[test]
+fn indexed_repacking_uses_only_the_closed_singleton_coordinate() {
+    let program = lower(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-indexed-growth.nct"
+    )));
+    let mut found = 0;
+    for effect in program
+        .bodies
+        .values()
+        .flat_map(|body| body.actions.values())
+        .flat_map(|action| &action.alternatives)
+        .flat_map(|alternative| alternative.before.iter().chain(&alternative.after))
+    {
+        if let Effect::Repack {
+            destination,
+            preserved,
+            ..
+        } = effect
+        {
+            assert_eq!(
+                destination.projections.as_ref(),
+                &[
+                    Projection::Field(nocter_model::ValueField::Tuple(0)),
+                    Projection::Field(nocter_model::ValueField::Array(0))
+                ]
+            );
+            assert_eq!(preserved.len(), 1);
+            assert_eq!(
+                preserved[0].0.projections.as_ref(),
+                &[Projection::Field(nocter_model::ValueField::Tuple(1))]
+            );
+            found += 1;
+        }
+    }
+    assert!(
+        found >= 2,
+        "both growth and shrinkage need original receipts"
+    );
+}
+
+#[test]
 fn sparse_tuple_repacking_never_snapshots_a_missing_subtree_or_its_parent() {
     let program = lower(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

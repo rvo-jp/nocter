@@ -1491,6 +1491,54 @@ fn private_contextual_callable_replacement_disposes_retired_received_and_saved_e
 }
 
 #[test]
+fn private_contextual_indexed_growth_keeps_the_original_selection_and_sibling_values() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-indexed-growth.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "indexed-growth", 42);
+    let counted = source
+        .replace("var pair =", "var count: usize = 0\n    var pair =")
+        .replace("pair.0[index]", "pair.0[select(count, index)]")
+        .replace("if small_sibling", "if count == 10 && small_sibling");
+    let counted = format!(
+        "const func select(edit count: usize, index: usize): usize {{ count += 1\nindex }}\n{counted}"
+    );
+    execute_native_status(&compile(&counted), &package.0, "indexed-growth-once", 42);
+    let trapped = source
+        .replace("const ANSWER: i32 = calculate(0)", "")
+        .replace(
+            "if ANSWER == 42 { calculate(0) } else { 0 }",
+            "calculate(0)",
+        )
+        .replace(
+            "pair.0[index] = wrap(addition(20))",
+            "pair.0[shifted(index)] = wrap(addition(20))",
+        );
+    let trapped = format!("const func shifted(index: usize): usize {{ index + 1 }}\n{trapped}");
+    execute_native_signal(&compile(&trapped), &package.0, "indexed-growth-bounds", 5);
+}
+
+#[test]
+fn private_contextual_indexed_growth_preserves_actual_owned_capture_and_sibling_cleanup() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-component-growth-errors.nct"
+    ));
+    let source = source
+        .replace("(1, wrap(identity),", "(1, [wrap(identity)],")
+        .replace("pair.1", "pair.1[0]");
+    let package = TempPackage::new();
+    execute_native_status(
+        &image(&trusted_error_machine(&source)),
+        &package.0,
+        "indexed-growth-errors",
+        42,
+    );
+}
+
+#[test]
 fn private_contextual_component_growth_preserves_sparse_holes_and_restores_saved_owners() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

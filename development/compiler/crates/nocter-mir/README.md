@@ -91,17 +91,22 @@ independent roots keep their declaration-closed representation. Array remainder 
 the same selected container root as the cleanup operation. Partial destinations without an exact
 receipt still require independently closed or bound-input data. Matched owning partial moves use
 their original after-container for placement, preserving the preceding separate disposal.
-For direct owning tuple assignments, `Effect::Repack` retains the original before-container,
-prefix-free missing tuple paths outside the replaced subtree and all initialized disjoint siblings.
-Its shared structural projection requires unchanged sibling data and tuple-only paths. Checking
-must prove that neither a retained address nor a prepared reservation names the owning root on
-either side of the action, across all alternatives. Original matching transitions must agree on
+For direct owning assignments through tuple and singleton-array paths, `Effect::Repack` retains
+the original before-container, prefix-free missing tuple paths outside the replaced subtree and
+all initialized disjoint siblings. Its shared structural projection requires unchanged sibling
+data. A singleton array contributes its one established resource coordinate, never a guessed
+first-element context. Plain targets require absence of retained addresses/reservations on both
+sides of the action. Evaluated targets require absence on completion: the original selection and
+bounds effects have finished, assignment emits no separate computation, and its receipt projects
+the new root at the sealed numeric/resource coordinate rather than reusing the old staged pointer.
+Both absence queries include all alternatives; surviving views/reservations still reject relocation. Original matching transitions must agree on
 external holes; holes inside the replaced subtree remain covered by its original retirement.
 The structural complement splits only ancestors of actual missing paths, leaving unaffected
 shared schemas opaque; it never snapshots a hole or a partially initialized parent as a whole.
 Machine snapshots every preserved source before writing any new offsets and then performs the
 original receipt. Nested tuples, environment growth/shrinkage, multiple holes, saved-instance
-restoration, partially retired targets and owned sibling cleanup have ordinary source/native
+restoration, partially retired targets, exactly-once index effects, original bounds traps and owned
+sibling cleanup have ordinary source/native
 coverage. Other partial moves keep the before/after geometry constraint. Live aliases, array holes,
 external carriers and general relocation remain separate qualifications. The [checking owner](../nocter-checking/README.md#context-bound-callable-captures)
 defines the qualified ordinary-source capture scope.

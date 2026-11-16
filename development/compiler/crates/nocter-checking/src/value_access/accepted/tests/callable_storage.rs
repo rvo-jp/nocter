@@ -589,6 +589,37 @@ fn contextual_replacement_cannot_overwrite_a_still_used_reference() {
 }
 
 #[test]
+fn contextual_indexed_growth_keeps_the_original_selection_and_sibling_values() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-indexed-growth.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Value::integer(42));
+    for (changed, expected) in [
+        (
+            source.replace(
+                "pair.0[index] = wrap(addition(20))",
+                "pair.0[index + 1] = wrap(addition(20))",
+            ),
+            crate::value_access::evaluation::Rule::Execution(
+                nocter_constant_evaluation::state::Rule::IndexOutOfBounds,
+            ),
+        ),
+        (
+            source.replace("[wrap(identity)]", "[wrap(identity), wrap(identity)]"),
+            crate::value_access::evaluation::Rule::UnresolvedContext,
+        ),
+    ] {
+        assert_ne!(changed, source);
+        let (sources, tree) = input(&changed);
+        let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+        assert!(
+            matches!(failure, SourceFailure::Checking(Failure::Evaluation { diagnostic, .. }) if diagnostic.rule() == expected)
+        );
+    }
+}
+
+#[test]
 fn contextual_component_growth_preserves_sparse_holes_and_separate_saved_owners() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
