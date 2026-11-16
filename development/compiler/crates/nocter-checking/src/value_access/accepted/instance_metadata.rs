@@ -63,6 +63,24 @@ impl InstanceMetadata {
     ) -> Result<CodeInstanceKey, InstantiationFailure> {
         self.query(work).call(self.control.frame(), site)
     }
+    /// Retain complete candidate frames under this original control selection.
+    /// This supplies no runtime selector, prepared value or executable call.
+    /// # Errors
+    /// Rejects foreign/missing calls, unresolved candidate inputs and exhausted work.
+    pub fn invocation_domain(
+        &self,
+        site: ValueApplication,
+        work: &mut WorkBudget,
+    ) -> Result<crate::value_access::InvocationDomain, InstantiationFailure> {
+        results::instantiate_controlled_invocation_domain(
+            &self.unit.program,
+            &self.unit.result_evidence,
+            self.control.frame(),
+            site,
+            &self.control,
+            work,
+        )
+    }
     /// Resolve a callable witness without granting an initialized value or executable body.
     /// # Errors
     /// Rejects missing sources, ambiguous contexts and exhausted work.

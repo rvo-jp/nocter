@@ -505,6 +505,11 @@ product retains the Unit rather than accepting a control map supplied from anoth
 Evaluator projection and bound const checks borrow their already selected control through the
 same query engine. Metadata sharing spends the existing work quota and grants no runtime value,
 layout, source access or executable body.
+`InstanceMetadata::invocation_domain` reuses that same original control for complete candidate
+frames and prepared bundles. It uses the existing domain resolver without rediscovering control or
+creating a second binding policy. Single-frame selection remains strict; an interrupted candidate
+request publishes no partial result and a healthy retry preserves every original environment.
+
 
 Concrete callable-witness queries and original reference-root queries before/after an operation
 consume the same selected-frame data query. They retain the chosen code/environment through a

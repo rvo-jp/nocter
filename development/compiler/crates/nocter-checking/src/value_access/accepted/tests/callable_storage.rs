@@ -861,7 +861,7 @@ fn invocation_domains_keep_original_preparations_and_each_candidate_environment(
     use nocter_constant_evaluation::state::WorkBudget;
     use nocter_model::ValueApplication;
     use std::num::NonZeroU64;
-    let unit = joined_runtime_unit();
+    let unit = std::sync::Arc::new(joined_runtime_unit());
     let program = unit.program();
     let code = program
         .resolve(program.symbols().get("calculate").unwrap())
@@ -897,6 +897,7 @@ fn invocation_domains_keep_original_preparations_and_each_candidate_environment(
     let domain = unit
         .instantiate_invocation_domain(&caller, site, &mut budget())
         .unwrap();
+    assert_retained_invocation_domain(&unit, &caller, site, &domain);
     assert_eq!(domain.caller(), &caller);
     assert_eq!(domain.site(), site);
     assert_eq!(domain.cases().len(), 2);
@@ -1045,4 +1046,34 @@ fn original_expression_merges_retain_common_receipts_without_replacing_actual_de
         .instantiate_value_data_map(&frame, &mut budget())
         .unwrap();
     assert_eq!(retried.receipt(expression), Some(receipt));
+}
+
+fn assert_retained_invocation_domain(
+    unit: &std::sync::Arc<Unit>,
+    caller: &nocter_declarations::value_access::CodeInstanceKey,
+    site: nocter_model::ValueApplication,
+    domain: &crate::value_access::InvocationDomain,
+) {
+    use crate::value_access::InstantiationFailure;
+    use nocter_constant_evaluation::state::WorkBudget;
+    use std::num::NonZeroU64;
+    let budget = || WorkBudget::new(NonZeroU64::new(100_000).unwrap());
+    let retained = unit.instance_metadata(caller, &mut budget()).unwrap();
+    assert_eq!(
+        retained.invocation_domain(site, &mut budget()).unwrap(),
+        *domain
+    );
+    assert_eq!(
+        retained.invocation(site, &mut budget()),
+        Err(InstantiationFailure::Unresolved)
+    );
+    let mut exhausted = WorkBudget::new(NonZeroU64::new(1).unwrap());
+    assert_eq!(
+        retained.invocation_domain(site, &mut exhausted),
+        Err(InstantiationFailure::WorkLimit)
+    );
+    assert_eq!(
+        retained.invocation_domain(site, &mut budget()).unwrap(),
+        *domain
+    );
 }

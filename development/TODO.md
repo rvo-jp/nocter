@@ -154,6 +154,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Qualify bare positive callable payload contracts and whole-value retirement without choosing
   a representative environment. Preserve exact descriptors, complete case cleanup and existing
   symbolic-environment rejection; keep general invocation and epoch normalization separate.
+- [x] Reuse retained original instance control for invocation-domain discovery, preserving source
+  bundles, complete frames, work exhaustion and retry without turning candidate metadata into
+  executable selection. Use this boundary for per-case input/adapter binding.
 - [ ] Close the [positive callable alternative obligations](design/compiler-realization.md#positive-callable-alternatives)
   through the canonical data-instance graph, guarded source transport, evaluator/target plans,
   native selection and cleanup before widening source admission. The value-context fixture
