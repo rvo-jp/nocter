@@ -2245,8 +2245,12 @@ sibling in addition to retired/received captures. The [MIR owner](../nocter-mir/
 the relocation proof and exact preserved-subtree boundary.
 `contextual-component-growth-holes.nct` additionally qualifies multiple missing tuple fields,
 saved-owner restoration and replacement of a partially retired subtree. Native execution also
-preserves a separately saved error graph while relocating its remaining siblings. Live addresses,
-array holes and disagreeing alternative contexts do not acquire that permission.
+preserves a separately saved error graph while relocating its remaining siblings.
+`contextual-singleton-hole-growth.nct` retains missing descendants inside singleton arrays, saved
+owner restoration and initialized fields in the same element through required/native execution.
+Native checks also preserve a saved owning error element and reject the corresponding larger-array
+hole. Live addresses, general array/range holes and disagreeing alternative contexts do not acquire
+that permission.
 `contextual-component-replacement.nct` additionally qualifies same-geometry partial replacement
 and restoration while a disjoint sibling reference survives, including repeated writes through
 one local edit alias. Original carrier selections match its actual containing owner. The evaluator

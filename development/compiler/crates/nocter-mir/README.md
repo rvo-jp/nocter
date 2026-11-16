@@ -92,7 +92,7 @@ the same selected container root as the cleanup operation. Partial destinations 
 receipt still require independently closed or bound-input data. Matched owning partial moves use
 their original after-container for placement, preserving the preceding separate disposal.
 For direct owning assignments through tuple and singleton-array paths, `Effect::Repack` retains
-the original before-container, prefix-free missing tuple paths outside the replaced subtree and
+the original before-container, prefix-free missing tuple/singleton paths outside the replaced subtree and
 all initialized disjoint siblings. Its shared structural projection requires unchanged sibling
 data. A singleton array contributes its one established resource coordinate, never a guessed
 first-element context. Plain targets require absence of retained addresses/reservations on both
@@ -107,8 +107,11 @@ Machine snapshots every preserved source before writing any new offsets and then
 original receipt. Nested tuples, environment growth/shrinkage, multiple holes, saved-instance
 restoration, partially retired targets, exactly-once index effects, original bounds traps and owned
 sibling cleanup have ordinary source/native
-coverage. Other partial moves keep the before/after geometry constraint. Live aliases, array holes,
-external carriers and general relocation remain separate qualifications. The [checking owner](../nocter-checking/README.md#context-bound-callable-captures)
+coverage. Missing descendants can likewise traverse singleton arrays, preserving initialized
+fields inside their one element without copying the missing element or a partially initialized
+parent. Destination, missing-path and preserved-subtree projections share one singleton-length
+check. Other partial moves keep the before/after geometry constraint. Live aliases, larger array
+or range holes, external carriers and general relocation remain separate qualifications. The [checking owner](../nocter-checking/README.md#context-bound-callable-captures)
 defines the qualified ordinary-source capture scope.
 Adapter cleanup likewise selects its completed full carrier in the original argument slot before
 projecting the completed environment. Its selected environment data must match the cleanup

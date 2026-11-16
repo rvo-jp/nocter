@@ -105,7 +105,7 @@ pub enum Effect {
         source: Place,
         destination: Place,
         before: RuntimeDataId,
-        /// Original prefix-free missing tuple paths outside the replaced subtree.
+        /// Original prefix-free missing tuple/singleton paths outside the replaced subtree.
         missing: Box<[Box<[Projection]>]>,
         preserved: Box<[(Place, Place)]>,
     },

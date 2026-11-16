@@ -1539,6 +1539,16 @@ fn private_contextual_indexed_growth_preserves_actual_owned_capture_and_sibling_
 }
 
 #[test]
+fn private_contextual_singleton_holes_preserve_saved_instances_and_initialized_element_fields() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-singleton-hole-growth.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "singleton-hole-growth", 42);
+}
+
+#[test]
 fn private_contextual_component_growth_preserves_sparse_holes_and_restores_saved_owners() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -1653,26 +1663,42 @@ fn private_contextual_component_growth_moves_only_initialized_siblings_and_prese
 }
 
 #[test]
-fn private_contextual_component_growth_does_not_load_an_unqualified_array_hole() {
+fn private_contextual_singleton_holes_keep_saved_errors_and_reject_larger_arrays() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../tests/fixtures/native/value-access/contextual-component-growth-errors.nct"
     ));
     let original = "(context_error(create_failure(\"sibling\", \"leaf\"), \"outer\"), 2)";
-    let replacement = "([context_error(create_failure(\"sibling\", \"leaf\"), \"outer\")], 2)";
     assert!(source.contains(original));
-    let changed = source
-        .replace(original, replacement)
-        .replace(
-            "let empty =",
-            "let saved_sibling = pair.2.0[0]^\n    let empty =",
-        )
-        .replace("inspect(pair.2.0)", "inspect(saved_sibling)");
-    let unit = trusted_error_unit(&changed);
-    assert!(matches!(
-        machine_unit(unit),
-        Err(nocter_machine::value_access::ExecutableFailure::InvalidBody(_))
-    ));
+    for length in [1, 2] {
+        let value = "context_error(create_failure(\"sibling\", \"leaf\"), \"outer\")";
+        let elements = std::iter::repeat_n(value, length)
+            .collect::<Vec<_>>()
+            .join(", ");
+        let replacement = format!("([{elements}], 2)");
+        let changed = source
+            .replace(original, &replacement)
+            .replace(
+                "let empty =",
+                "let saved_sibling = pair.2.0[0]^\n    let empty =",
+            )
+            .replace("inspect(pair.2.0)", "inspect(saved_sibling)");
+        let unit = trusted_error_unit(&changed);
+        if length == 1 {
+            let package = TempPackage::new();
+            execute_native_status(
+                &image(&machine_unit(unit).unwrap()),
+                &package.0,
+                "singleton-saved-error",
+                42,
+            );
+        } else {
+            assert!(matches!(
+                machine_unit(unit),
+                Err(nocter_machine::value_access::ExecutableFailure::InvalidBody(_))
+            ));
+        }
+    }
 }
 
 #[test]

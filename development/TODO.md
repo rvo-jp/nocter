@@ -80,7 +80,7 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Qualify representation-changing indexed receipts through owned singleton arrays without
   surviving addresses. Preserve the original evaluated selection, bounds effects and separate
   retirement/receipt; a unique logical coordinate does not stabilize pre-existing pointers.
-- [ ] Qualify missing descendants through singleton-array structure, preserving separately saved
+- [x] Qualify missing descendants through singleton-array structure, preserving separately saved
   owners and remaining sibling values without loading the absent element or expanding a schema.
 - [ ] Extend relocation's initialized-subtree selection to remaining array/range holes and
   context-dependent alternatives, preserving sparse source coordinates without element expansion.

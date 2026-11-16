@@ -134,6 +134,50 @@ fn indexed_repacking_uses_only_the_closed_singleton_coordinate() {
 }
 
 #[test]
+fn singleton_hole_repacking_keeps_the_initialized_element_field_and_skips_its_parent() {
+    let program = lower(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-singleton-hole-growth.nct"
+    )));
+    let field = |index| Projection::Field(nocter_model::ValueField::Tuple(index));
+    let element = Projection::Field(nocter_model::ValueField::Array(0));
+    let mut found = 0;
+    for effect in program
+        .bodies
+        .values()
+        .flat_map(|body| body.actions.values())
+        .flat_map(|action| &action.alternatives)
+        .flat_map(|alternative| alternative.before.iter().chain(&alternative.after))
+    {
+        if let Effect::Repack {
+            missing, preserved, ..
+        } = effect
+        {
+            if missing.is_empty() {
+                continue;
+            }
+            assert_eq!(
+                missing.as_ref(),
+                &[Box::from([field(1), element, field(0)])]
+            );
+            let paths = preserved
+                .iter()
+                .map(|(source, _)| source.projections.clone())
+                .collect::<std::collections::BTreeSet<_>>();
+            assert_eq!(
+                paths,
+                std::collections::BTreeSet::from([
+                    Box::from([field(1), element, field(1)]),
+                    Box::from([field(2)])
+                ])
+            );
+            found += 1;
+        }
+    }
+    assert!(found >= 2);
+}
+
+#[test]
 fn sparse_tuple_repacking_never_snapshots_a_missing_subtree_or_its_parent() {
     let program = lower(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

@@ -24,10 +24,13 @@ pub(super) fn preserved(
         }
         let mut data = before;
         for projection in path {
-            let Projection::Field(field @ ValueField::Tuple(_)) = projection else {
-                return None;
+            data = match projection {
+                Projection::Field(field @ ValueField::Tuple(_)) => {
+                    runtime.value_field(data, *field)?
+                }
+                Projection::Field(ValueField::Array(0)) => singleton_element(runtime, data)?,
+                _ => return None,
             };
-            data = runtime.value_field(data, *field)?;
         }
     }
     let mut left = before;
@@ -36,13 +39,8 @@ pub(super) fn preserved(
     let mut retained = Vec::new();
     for projection in &destination.projections {
         if *projection == Projection::Field(ValueField::Array(0)) {
-            let (old, old_length) = runtime.types().get(left)?.array()?;
-            let (new, new_length) = runtime.types().get(right)?.array()?;
-            if old_length != 1 || new_length != 1 {
-                return None;
-            }
-            left = old;
-            right = new;
+            left = singleton_element(runtime, left)?;
+            right = singleton_element(runtime, right)?;
             prefix.push(*projection);
             continue;
         }
@@ -102,7 +100,13 @@ fn initialized(
                 continue;
             }
         }
-        for field in tuple_fields(runtime, source.data)? {
+        let tuple = tuple_fields(runtime, source.data);
+        let singleton = singleton_element(runtime, source.data)
+            .map(|element| RuntimeValueFieldRepresentation::new(ValueField::Array(0), element));
+        if tuple.is_none() && singleton.is_none() {
+            return None;
+        }
+        for field in tuple.into_iter().flatten().copied().chain(singleton) {
             let mut path = source.projections.to_vec();
             path.push(Projection::Field(field.field()));
             pending.push((
@@ -136,4 +140,9 @@ fn tuple_fields(
         .enumerate()
         .all(|(index, field)| field.field() == ValueField::Tuple(index))
         .then_some(fields)
+}
+
+fn singleton_element(runtime: &RuntimeEnvironment, data: RuntimeDataId) -> Option<RuntimeDataId> {
+    let (element, length) = runtime.types().get(data)?.array()?;
+    (length == 1).then_some(element)
 }
