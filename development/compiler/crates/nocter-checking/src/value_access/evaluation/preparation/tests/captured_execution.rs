@@ -232,3 +232,37 @@ fn indexed_callable_invocation_keeps_prepared_indices_and_environment_operations
         "/../../tests/fixtures/native/value-access/direct-indexed-callables.nct"
     )));
 }
+
+#[test]
+fn original_positive_expression_receipts_compute_return_store_and_retirement() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/value-contexts/contextual-joined-sibling-growth.nct"
+    ));
+    let (definitions, _) = source.split_once("\nconst func calculate").unwrap();
+    for optional in [false, true] {
+        let definitions = if optional {
+            definitions.to_owned()
+        } else {
+            definitions.replace(
+                "const func maybe(present: bool): (func(i32): i32)?",
+                "const func maybe(present: bool): func(i32): i32",
+            )
+        };
+        assert_answer_42(&format!(
+            "{definitions}\nconst func hold(present: bool): i32 {{ let first = maybe(present)\nlet second = first^\n42 }}\nconst ANSWER: i32 = if hold(false) == 42 && hold(true) == 42 {{ 42 }} else {{ 0 }}"
+        ));
+    }
+}
+
+#[test]
+fn required_nested_callable_receipts_preserve_original_three_way_choices() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/value-contexts/contextual-joined-sibling-growth.nct"
+    ));
+    let (definitions, _) = source.split_once("\nconst func maybe").unwrap();
+    assert_answer_42(&format!(
+        "{definitions}\nconst func choose(which: i32): func(i32): i32 {{ if which == 0 {{ wrap(identity) }} else {{ if which == 1 {{ wrap(addition(2)) }} else {{ wrap(subtraction(50)) }} }} }}\nconst func hold(which: i32): i32 {{ let value = choose(which)\nlet saved = value^\n42 }}\nconst ANSWER: i32 = if hold(0) == 42 && hold(1) == 42 && hold(2) == 42 {{ 42 }} else {{ 0 }}"
+    ));
+}

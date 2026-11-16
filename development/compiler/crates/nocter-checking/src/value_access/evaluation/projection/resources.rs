@@ -119,16 +119,29 @@ impl Builder<'_, '_> {
         }
         Ok(())
     }
+    fn receiving_key(&self, holder: Holder) -> Result<Option<&DataInstanceKey>> {
+        let Holder::Expression(expression) = holder else {
+            return Ok(None);
+        };
+        if self.holder_contract(holder)?.1 != plan::Storage::Owned {
+            return Ok(None);
+        }
+        Ok(self.values.receipt(expression))
+    }
+    fn holder_data(&mut self, holder: Holder, key: &DataInstanceKey) -> Result<usize> {
+        let key = self.receiving_key(holder)?.unwrap_or(key).clone();
+        Ok(self.types.get_instance(self.program, key)?)
+    }
     fn register_holder(&mut self, holder: Holder, key: &DataInstanceKey) -> Result<()> {
         let (_, storage) = self.holder_contract(holder)?;
-        let data = self.types.get_instance(self.program, key.clone())?;
+        let data = self.holder_data(holder, key)?;
         self.slot_data(Key::Resource(holder), data, storage)?;
         Ok(())
     }
     fn root_context(&mut self, holder: Holder, data: &DataInstanceKey) -> Result<plan::Effect> {
         Ok(plan::Effect::Context {
             place: plan::Place::root(self.holder(holder)?),
-            data: self.types.get_instance(self.program, data.clone())?,
+            data: self.holder_data(holder, data)?,
         })
     }
     pub(super) fn source_contexts(
@@ -161,6 +174,41 @@ impl Builder<'_, '_> {
         }
         Ok((entry, completion))
     }
+    fn payload_contexts(
+        &mut self,
+        original: &Step,
+        projected: &Step<InstantiatedPayload>,
+    ) -> Result<(Vec<plan::Effect>, Vec<plan::Effect>)> {
+        let mut before = Vec::new();
+        let mut after = Vec::new();
+        let actual = projected.try_map_payloads_at::<super::Failure, ()>(|site, payload| {
+            let data = match site {
+                PayloadSite::Source(place) if place.fields().is_root() => {
+                    self.holder_data(place.holder(), payload.instance())?
+                }
+                PayloadSite::Destination(holder) => self.holder_data(holder, payload.instance())?,
+                PayloadSite::Source(_) => self
+                    .types
+                    .get_instance(self.program, payload.instance().clone())?,
+            };
+            match site {
+                PayloadSite::Source(place) => before.push(plan::Effect::Context {
+                    place: self.resource(place)?,
+                    data,
+                }),
+                PayloadSite::Destination(holder) => after.push(plan::Effect::Context {
+                    place: plan::Place::root(self.holder(holder)?),
+                    data,
+                }),
+            }
+            Ok(())
+        })?;
+        let expected = original.try_map_payloads_at::<super::Failure, ()>(|_, _| Ok(()))?;
+        if actual != expected {
+            return Err(INVALID);
+        }
+        Ok((before, after))
+    }
     pub(super) fn effects(
         &mut self,
         original: &[Step],
@@ -173,28 +221,7 @@ impl Builder<'_, '_> {
         let mut effects = Vec::new();
         for (original, selected) in original.iter().zip(projected) {
             let projected = selected.operation();
-            let mut before = Vec::new();
-            let mut after = Vec::new();
-            let actual = projected.try_map_payloads_at::<super::Failure, ()>(|site, payload| {
-                let data = self
-                    .types
-                    .get_instance(self.program, payload.instance().clone())?;
-                match site {
-                    PayloadSite::Source(place) => before.push(plan::Effect::Context {
-                        place: self.resource(place)?,
-                        data,
-                    }),
-                    PayloadSite::Destination(holder) => after.push(plan::Effect::Context {
-                        place: plan::Place::root(self.holder(holder)?),
-                        data,
-                    }),
-                }
-                Ok(())
-            })?;
-            let expected = original.try_map_payloads_at::<super::Failure, ()>(|_, _| Ok(()))?;
-            if actual != expected {
-                return Err(INVALID);
-            }
+            let (mut before, mut after) = self.payload_contexts(original, projected)?;
             let mut effect = self.effect(original)?;
             if let Step::Move {
                 destination,
@@ -202,16 +229,35 @@ impl Builder<'_, '_> {
                 ..
             } = projected
             {
-                let data = self
-                    .types
-                    .get_instance(self.program, payload.instance().clone())?;
+                let data = if destination.fields().is_root() {
+                    self.holder_data(destination.holder(), payload.instance())?
+                } else {
+                    self.types
+                        .get_instance(self.program, payload.instance().clone())?
+                };
                 if let plan::Effect::Move {
                     source,
                     destination: target,
                 } = &effect
                     && self.holder_contract(destination.holder())?.1 == plan::Storage::Owned
                 {
-                    if let Some(roots) = selected.destination_roots() {
+                    if target.fields.is_empty()
+                        && let Some(receiving) = self.receiving_key(destination.holder())?.cloned()
+                        && !payload
+                            .instance()
+                            .has_same_representation(self.program, &receiving)
+                    {
+                        if !payload
+                            .instance()
+                            .permits_value_transport(self.program, &receiving)
+                        {
+                            return Err(INVALID);
+                        }
+                        effect = plan::Effect::Transport {
+                            source: source.clone(),
+                            destination: target.clone(),
+                        };
+                    } else if let Some(roots) = selected.destination_roots() {
                         if roots.destination() != destination {
                             return Err(INVALID);
                         }

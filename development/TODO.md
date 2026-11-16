@@ -179,6 +179,10 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   a metered iterative typed-value DAG walk. Preserve sharing, sparse maximum-length storage,
   inactive variants, original case mapping and atomic work/storage failure cleanup before
   widening ordinary source producer or invocation admission.
+- [x] Qualify original-source evaluator expression receipts through common owned merge
+  registration and actual incoming transport. Cover bare/optional callable return, local movement,
+  whole retirement and nested three-way choices; reject missing encoding in generated plans.
+  Keep selected invocation, local/loop joins and retained references separately unqualified.
 - [ ] Close the [positive callable alternative obligations](design/compiler-realization.md#positive-callable-alternatives)
   through the canonical data-instance graph, guarded source transport, evaluator/target plans,
   native selection and cleanup before widening source admission. The value-context fixture

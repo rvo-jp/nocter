@@ -837,8 +837,14 @@ the declaration-owned budgeted join. Concrete definitions remain unchanged. Thes
 join the existing storage-root inventory and grant neither initialized storage nor a second owner.
 Closed definitions require no new merge traversal, keeping ordinary scalar preparation on its
 existing work path. MIR consumes a receiving key only at an actual checked whole-value move into
-that expression; it must encode the value before a later merged read. Local/loop epochs and retained
-references require their own physical qualification rather than inheriting this scope.
+that expression; it must encode the value before a later merged read. The evaluator likewise uses
+the common key for owned expression-slot registration and source/completion constraints. Each
+original incoming move requires declaration-owned directed transport proof before lowering to
+`state::Effect::Transport`; constraints alone cannot manufacture a selector. Required source
+probes cover bare/optional callable returns, local receipt and whole retirement across both
+original branches and nested three-way choices. Generated-plan mutations reject replacing the
+incoming transports by ordinary or context-changing moves. Selected evaluator invocation,
+local/loop epochs and retained references remain separate qualification boundaries.
 
 `ValueData` retains actual instantiated payload contracts without adding owners or granting source
 access, materialization or executable-body permission. Target-program occurrence projection consumes

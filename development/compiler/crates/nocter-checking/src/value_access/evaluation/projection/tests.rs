@@ -424,3 +424,79 @@ fn partial_writes_constrain_complete_carriers_at_both_source_boundaries() {
     }
     program.extend(extension).unwrap();
 }
+
+#[test]
+fn original_callable_receiving_plans_reject_missing_selector_encoding() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/value-contexts/contextual-joined-sibling-growth.nct"
+    ));
+    let (definitions, _) = source.split_once("\nconst func calculate").unwrap();
+    let checked = checked(definitions);
+    let root = checked
+        .program
+        .resolve_code(checked.program.symbols().get("maybe").unwrap())
+        .unwrap();
+    let mut work = plan::WorkBudget::new(plan::Limits::default().steps());
+    let (program, mut source) =
+        Source::prepare(&checked, root.into(), BTreeMap::new(), |_| None, &mut work).unwrap();
+    let id = plan::CodeInstance::from(root);
+    let extension = source.load(id).unwrap();
+    let body = &extension.plans[&id];
+    let count = body
+        .points
+        .iter()
+        .flat_map(|(_, point)| point.actions.iter())
+        .flat_map(|action| &action.alternatives)
+        .flat_map(|alternative| alternative.before.iter().chain(&alternative.after))
+        .filter(|effect| matches!(effect, plan::Effect::Transport { .. }))
+        .count();
+    assert!(
+        count >= 2,
+        "each original incoming case needs encoding: {count}"
+    );
+    for root_receipt in [false, true] {
+        let mut changed = copy_extension(&extension);
+        let body = changed.plans.get_mut(&id).unwrap();
+        let slots = body.slots.clone();
+        let mut replaced = 0;
+        body.points = body.points.map(|_, point| {
+            let mut point = point.clone();
+            for action in &mut point.actions {
+                for alternative in &mut action.alternatives {
+                    for effect in alternative.before.iter_mut().chain(&mut alternative.after) {
+                        if let plan::Effect::Transport {
+                            source,
+                            destination,
+                        } = effect
+                        {
+                            assert!(source.fields.is_empty());
+                            *effect = if root_receipt {
+                                plan::Effect::MoveRoot {
+                                    source: source.clone(),
+                                    destination: destination.clone(),
+                                    data: slots[source.slot].data,
+                                }
+                            } else {
+                                plan::Effect::Move {
+                                    source: source.clone(),
+                                    destination: destination.clone(),
+                                }
+                            };
+                            replaced += 1;
+                        }
+                    }
+                }
+            }
+            point
+        });
+        assert_eq!(replaced, count);
+        let mut invalid = program.clone();
+        assert!(
+            matches!(invalid.extend(changed), Err(plan::Rule::InvalidPlan)),
+            "root receipt: {root_receipt}"
+        );
+    }
+    let mut healthy = program;
+    healthy.extend(extension).unwrap();
+}
