@@ -12,6 +12,10 @@ use nocter_model::{
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet, btree_map::Entry as MapEntry};
 mod creations;
+mod invocations;
+use invocations::CaseKey;
+pub(in crate::value_access) use invocations::controlled_domain;
+pub use invocations::{InvocationCase, InvocationDomain};
 #[cfg(test)]
 mod tests;
 mod values;
@@ -29,6 +33,7 @@ enum Key {
     Result(CodeInstanceKey, ValuePath<()>),
     DataResult(CodeInstanceKey, ValuePath<()>, TypeId),
     Call(CodeInstanceKey, ValueApplication),
+    Invocations(CodeInstanceKey, ValueApplication),
     Creation(CodeInstanceKey, nocter_model::ValueClosure),
     Value(CodeInstanceKey, super::ValueSourceId, ValuePath<()>),
     Data(CodeInstanceKey, super::ValueSourceId, ValuePath<()>, TypeId),
@@ -59,6 +64,7 @@ enum Fact {
     Empty,
     Witness(ConcreteWitness),
     Frame(CodeInstanceKey),
+    Invocations(BTreeSet<CaseKey>),
     Data(DataInstanceKey),
     Unavailable,
 }
@@ -66,6 +72,10 @@ impl Fact {
     fn join(self, other: Self) -> Self {
         match (self, other) {
             (Self::Empty, fact) | (fact, Self::Empty) => fact,
+            (Self::Invocations(mut left), Self::Invocations(right)) => {
+                left.extend(right);
+                Self::Invocations(left)
+            }
             (left, right) if left == right => left,
             _ => Self::Unavailable,
         }
@@ -434,11 +444,12 @@ impl<'a, 'work> Query<'a, 'work> {
                 .adapt_witness(&witness, view)
                 .map_or(Fact::Unavailable, Fact::Witness),
             Fact::Empty | Fact::Unavailable => fact,
-            Fact::Frame(_) | Fact::Data(_) => Fact::Unavailable,
+            Fact::Frame(_) | Fact::Data(_) | Fact::Invocations(_) => Fact::Unavailable,
         }
     }
     fn evaluate(&mut self, key: &Key) -> Result<Fact, InstantiationFailure> {
         match key {
+            Key::Invocations(frame, site) => self.source_invocation_domain(key, frame, *site),
             Key::Witness(frame, selected) => self.witness(key, frame, *selected),
             Key::Result(frame, path) if self.evidence.value_sources(frame.code()).is_some() => {
                 self.source_result(key, frame, path)

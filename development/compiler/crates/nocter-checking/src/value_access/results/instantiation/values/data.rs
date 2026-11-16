@@ -44,7 +44,20 @@ impl Query<'_, '_> {
             return Ok(fact);
         }
         if matches!(schema, PayloadSchema::Function(_)) {
-            return self.source_function_data(owner, frame, value, path, target);
+            if let Some(selected) = self.source_function_data(owner, frame, value, path, target)? {
+                return Ok(selected);
+            }
+            // Forward an unresolved concrete selection as data only along an original value
+            // edge. Declaration-closed shape alone cannot invent a positive producer.
+            if matches!(
+                node.value,
+                ValueSource::Function(_)
+                    | ValueSource::Closure { .. }
+                    | ValueSource::Input { .. }
+                    | ValueSource::Opaque
+            ) {
+                return Ok(Fact::Unavailable);
+            }
         }
         // Representation only: no seed execution, positive payload or numeric proof is supplied.
         let source_data = node.data.and_then(|data| {
@@ -56,7 +69,18 @@ impl Query<'_, '_> {
         {
             return Ok(Fact::Data(data));
         }
-        match node.value {
+        self.source_structural_data(owner, frame, value, path, target, node.value)
+    }
+    fn source_structural_data(
+        &mut self,
+        owner: &Key,
+        frame: &CodeInstanceKey,
+        value: ValueSourceId,
+        path: &ValuePath<()>,
+        target: TypeId,
+        kind: ValueSource,
+    ) -> Result {
+        match kind {
             ValueSource::Input { local, origin } => {
                 match self.projected_input_data(frame, local, origin, path) {
                     Some(key) if key.data() == target => Ok(Fact::Data(key)),
@@ -121,15 +145,17 @@ impl Query<'_, '_> {
         value: ValueSourceId,
         path: &ValuePath<()>,
         target: TypeId,
-    ) -> Result {
+    ) -> std::result::Result<Option<Fact>, super::InstantiationFailure> {
         Ok(
             match self.read(owner, Key::Value(frame.clone(), value, path.clone()))? {
-                Fact::Witness(actual) => self
-                    .program
-                    .instantiate_function(target, &actual)
-                    .map_or(Fact::Unavailable, Fact::Data),
-                Fact::Empty => Fact::Empty,
-                _ => Fact::Unavailable,
+                Fact::Witness(actual) => Some(
+                    self.program
+                        .instantiate_function(target, &actual)
+                        .map_or(Fact::Unavailable, Fact::Data),
+                ),
+                Fact::Empty => Some(Fact::Empty),
+                Fact::Unavailable => None,
+                _ => Some(Fact::Unavailable),
             },
         )
     }

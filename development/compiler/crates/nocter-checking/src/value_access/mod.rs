@@ -24,10 +24,11 @@ mod required;
 mod results;
 pub use results::InstanceControl;
 pub use results::{
-    CallValueSources, CreationRecipe, InputProducers, InstantiationFailure, InvocationRecipe,
-    PreparedData, PreparedDataFailure, ProducerRelation, ProducerShape, ProducerTerm, ValueSource,
-    ValueSourceBoundary, ValueSourceCarrier, ValueSourceFlow, ValueSourceId, ValueSourceInput,
-    ValueSourceNode, ValueSourceRead, ValueSourceSelection, ValueSourceSlot, ValueSources,
+    CallValueSources, CreationRecipe, InputProducers, InstantiationFailure, InvocationCase,
+    InvocationDomain, InvocationRecipe, PreparedData, PreparedDataFailure, ProducerRelation,
+    ProducerShape, ProducerTerm, ValueSource, ValueSourceBoundary, ValueSourceCarrier,
+    ValueSourceFlow, ValueSourceId, ValueSourceInput, ValueSourceNode, ValueSourceRead,
+    ValueSourceSelection, ValueSourceSlot, ValueSources,
 };
 pub use results::{
     PartialRootContracts, ResourceDataFailure, ResourceDataProjection, ResourceDataStep,

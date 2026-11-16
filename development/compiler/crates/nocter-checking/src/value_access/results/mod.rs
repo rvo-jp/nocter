@@ -15,8 +15,9 @@ mod instantiation;
 pub use control::InstanceControl;
 pub(in crate::value_access) use control::from_graph as instantiate_graph_control;
 pub(in crate::value_access) use control::instantiate as instantiate_control;
-pub use instantiation::InstantiationFailure;
 pub(in crate::value_access) use instantiation::Query as InstantiationQuery;
+pub(super) use instantiation::controlled_domain as instantiate_controlled_invocation_domain;
+pub use instantiation::{InstantiationFailure, InvocationCase, InvocationDomain};
 pub(super) use instantiation::{
     call as instantiate_invocation, call_with_control as instantiate_controlled_invocation,
     completed_input as instantiate_source_completed_input_data, data as instantiate_value_data,

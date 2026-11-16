@@ -8,6 +8,17 @@ const RECEIVED_OUTCOMES: &str = include_str!(concat!(
     "/../../tests/fixtures/native/value-access/received-excluded-outcome-inputs.nct"
 ));
 
+const JOINED_SIBLINGS: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../tests/fixtures/value-contexts/contextual-joined-sibling-growth.nct"
+));
+fn joined_runtime_unit() -> Unit {
+    let (definitions, _) = JOINED_SIBLINGS
+        .split_once("\nconst ANSWER:")
+        .expect("required fixture entry");
+    accepted(&format!("{definitions}\nfunc run(): i32 {{ 0 }}\n"))
+}
+
 #[test]
 fn received_outcome_inputs_preserve_application_specific_empty_domains() {
     use crate::value_access::{ExpressionKind, InstantiationFailure};
@@ -799,10 +810,7 @@ fn contextual_optional_siblings_preserve_original_tags_and_received_contexts() {
 
 #[test]
 fn conflicting_positive_callable_contexts_remain_unqualified_without_executable_selection() {
-    let source = include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../tests/fixtures/value-contexts/contextual-joined-sibling-growth.nct"
-    ));
+    let source = JOINED_SIBLINGS;
     let (sources, tree) = input(source);
     let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
     assert!(
@@ -816,17 +824,7 @@ fn positive_source_result_domains_keep_both_original_creation_contexts() {
     use nocter_constant_evaluation::state::WorkBudget;
     use nocter_declarations::value_access::InstanceSchema;
     use std::num::NonZeroU64;
-    let source = include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../tests/fixtures/value-contexts/contextual-joined-sibling-growth.nct"
-    ));
-    let mut runtime = source
-        .lines()
-        .filter(|line| !line.starts_with("const ANSWER:") && !line.starts_with("func run():"))
-        .collect::<Vec<_>>()
-        .join("\n");
-    runtime.push_str("\nfunc run(): i32 { 0 }\n");
-    let unit = accepted(&runtime);
+    let unit = joined_runtime_unit();
     let program = unit.program();
     let code = program
         .resolve(program.symbols().get("maybe").unwrap())
@@ -854,5 +852,140 @@ fn positive_source_result_domains_keep_both_original_creation_contexts() {
         unit.instantiate_result_contract(&frame, &mut healthy)
             .unwrap(),
         domain
+    );
+}
+
+#[test]
+fn invocation_domains_keep_original_preparations_and_each_candidate_environment() {
+    use crate::value_access::{CallKind, ExpressionKind, InstantiationFailure};
+    use nocter_constant_evaluation::state::WorkBudget;
+    use nocter_model::ValueApplication;
+    use std::num::NonZeroU64;
+    let unit = joined_runtime_unit();
+    let program = unit.program();
+    let code = program
+        .resolve(program.symbols().get("calculate").unwrap())
+        .unwrap();
+    let caller = program.bind_code(code.into(), []).unwrap();
+    let body = unit.code_body(caller.code()).unwrap();
+    let call = body
+        .typed()
+        .body()
+        .expressions()
+        .iter()
+        .filter_map(|(call, expression)| {
+            matches!(
+                expression.kind,
+                ExpressionKind::Call {
+                    kind: CallKind::Value,
+                    ..
+                }
+            )
+            .then_some(call)
+        })
+        .last()
+        .unwrap();
+    let site = ValueApplication {
+        owner: caller.code(),
+        call,
+    };
+    let budget = || WorkBudget::new(NonZeroU64::new(100_000).unwrap());
+    assert_eq!(
+        unit.instantiate_invocation(&caller, site, &mut budget()),
+        Err(InstantiationFailure::Unresolved)
+    );
+    let domain = unit
+        .instantiate_invocation_domain(&caller, site, &mut budget())
+        .unwrap();
+    assert_eq!(domain.caller(), &caller);
+    assert_eq!(domain.site(), site);
+    assert_eq!(domain.cases().len(), 2);
+    let cases = domain.cases();
+    assert_eq!(cases[0].source(), cases[1].source());
+    assert_eq!(cases[0].callee().code(), cases[1].callee().code());
+    assert_ne!(
+        cases[0].callee().environment(),
+        cases[1].callee().environment()
+    );
+    for case in cases {
+        assert_eq!(case.frame().code(), case.callee().code());
+        assert_eq!(case.frame().environment(), case.callee().environment());
+        assert_eq!(case.source().kind, CallKind::Value);
+        assert_eq!(case.source().arguments.len(), 2);
+        let action = &body
+            .graph()
+            .points()
+            .get(case.source().origin.point)
+            .unwrap()
+            .actions[case.source().origin.action];
+        assert_eq!(
+            action.operation,
+            crate::value_access::flow::Operation::CommitCall(call)
+        );
+    }
+    let mut exhausted = WorkBudget::new(NonZeroU64::new(1).unwrap());
+    assert_eq!(
+        unit.instantiate_invocation_domain(&caller, site, &mut exhausted),
+        Err(InstantiationFailure::WorkLimit)
+    );
+    assert_eq!(
+        unit.instantiate_invocation_domain(&caller, site, &mut budget())
+            .unwrap(),
+        domain
+    );
+    assert_invocation_domain_budget(&unit, &caller, site, &domain);
+    let root = program
+        .resolve(program.symbols().get("run").unwrap())
+        .unwrap();
+    let root = program.bind_code(root.into(), []).unwrap();
+    let foreign = ValueApplication {
+        owner: root.code(),
+        call,
+    };
+    assert_eq!(
+        unit.instantiate_invocation_domain(&caller, foreign, &mut budget()),
+        Err(InstantiationFailure::WrongOwner)
+    );
+    assert_eq!(
+        unit.instantiate_invocation_domain(&root, foreign, &mut budget()),
+        Err(InstantiationFailure::MissingCall)
+    );
+}
+
+fn assert_invocation_domain_budget(
+    unit: &Unit,
+    caller: &nocter_declarations::value_access::CodeInstanceKey,
+    site: nocter_model::ValueApplication,
+    expected: &crate::value_access::InvocationDomain,
+) {
+    use crate::value_access::InstantiationFailure;
+    use nocter_constant_evaluation::state::WorkBudget;
+    use std::num::NonZeroU64;
+    let mut low = 1;
+    let mut high = 100_000;
+    while low < high {
+        let middle = low + (high - low) / 2;
+        let mut work = WorkBudget::new(NonZeroU64::new(middle).unwrap());
+        match unit.instantiate_invocation_domain(caller, site, &mut work) {
+            Ok(actual) => {
+                assert_eq!(&actual, expected);
+                high = middle;
+            }
+            Err(InstantiationFailure::WorkLimit) => low = middle + 1,
+            Err(other) => panic!("unexpected metadata failure: {other:?}"),
+        }
+    }
+    assert!(low > 1);
+    let mut late = WorkBudget::new(NonZeroU64::new(low - 1).unwrap());
+    assert_eq!(
+        unit.instantiate_invocation_domain(caller, site, &mut late),
+        Err(InstantiationFailure::WorkLimit)
+    );
+    let mut exact = WorkBudget::new(NonZeroU64::new(low).unwrap());
+    assert_eq!(
+        &unit
+            .instantiate_invocation_domain(caller, site, &mut exact)
+            .unwrap(),
+        expected
     );
 }

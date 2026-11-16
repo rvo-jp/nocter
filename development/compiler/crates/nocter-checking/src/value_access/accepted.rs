@@ -414,6 +414,29 @@ impl Unit {
             work,
         )
     }
+    /// Retain original prepared call bundles and all validated positive candidate frames.
+    /// This grants no active selector, initialized input, const permission or executable call.
+    /// # Errors
+    /// Rejects wrong/missing calls, unresolved candidate inputs and exhausted metadata work.
+    pub fn instantiate_invocation_domain(
+        &self,
+        caller: &nocter_declarations::value_access::CodeInstanceKey,
+        site: nocter_model::ValueApplication,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<super::InvocationDomain, super::InstantiationFailure> {
+        if caller.code() != site.owner {
+            return Err(super::InstantiationFailure::WrongOwner);
+        }
+        let control = self.instantiate_control(caller, work)?;
+        super::results::instantiate_controlled_invocation_domain(
+            &self.program,
+            &self.result_evidence,
+            caller,
+            site,
+            &control,
+            work,
+        )
+    }
     /// Resolve a callable source value in this exact frame without granting a runtime value.
     /// # Errors
     /// Rejects absent/ambiguous provenance, unsupported effects and exhausted metadata work.

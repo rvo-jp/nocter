@@ -121,6 +121,15 @@ impl Query<'_, '_> {
             Key::Value(frame.clone(), bundle.callee, ValuePath::default()),
         )?;
         let selected = self.adapt(selected, bundle.invocation);
+        self.source_bound_bundle(owner, frame, bundle, selected)
+    }
+    pub(super) fn source_bound_bundle(
+        &mut self,
+        owner: &Key,
+        frame: &CodeInstanceKey,
+        bundle: &CallValueSources,
+        selected: Fact,
+    ) -> Result {
         let mut pending = matches!(selected, Fact::Empty);
         let mut unavailable = !matches!(selected, Fact::Empty | Fact::Witness(_));
         let mut bindings = Vec::new();
@@ -248,7 +257,7 @@ impl Query<'_, '_> {
             fact
         })
     }
-    fn source_node(
+    pub(super) fn source_node(
         &self,
         frame: &CodeInstanceKey,
         value: ValueSourceId,

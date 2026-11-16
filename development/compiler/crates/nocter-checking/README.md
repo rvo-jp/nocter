@@ -925,9 +925,23 @@ collapsing it to a representative witness. The original incoming/control edges r
 the joined metadata supplies no active selector. Domain traversal charges the same request budget,
 keeps unresolved facts distinct from explicit empty domains, and drops an interrupted query before
 healthy retry. Source-result tests retain the same wrapper's two original captured contexts.
-Witness/value and invocation-frame queries still require one concrete selection. Completion/write
-consumers and homogeneous element construction retain their separate qualification requirements;
-metadata alternatives alone do not qualify those operations, const execution or target storage.
+Existing single-value and single-invocation queries still require one concrete selection.
+Completion/write consumers and homogeneous element construction retain their separate qualification
+requirements; metadata alternatives alone do not qualify those operations, const execution or target storage.
+
+`Unit::instantiate_invocation_domain` retains each positive callee with its original prepared bundle
+and separately bound candidate frame. Candidate binding reuses the single-call input/compound-input
+validator and invocation-view adaptation; it cannot search for matching code by signature. Cases
+share one immutable bundle annotation, preserving the callee source, argument order and original
+commit location. A uniquely witnessed function value uses the existing constructor's view and
+write-context normalization; a failed binding remains a rejection. When the concrete selection is
+unresolved, data forwarding can retain its domain through original selections, adaptations and
+result edges. Function/creation/input/opaque leaves cannot invent a positive producer from a
+closed declaration shape. Wrong owners, absent calls and unresolved candidate
+inputs reject. Candidate discovery and final bundle/case publication charge the same request
+budget; late exhaustion publishes no partial domain and a healthy retry retains identical cases.
+This domain selects no active case, grants no const/body capability and changes no ownership plan.
+Dynamic invocation, result transport, cancellation and cleanup remain separate consumer obligations.
 
 For a value-receiver update with dependent context, the metadata solver preserves the actual callable's code while
 selecting its completed environment from that exact invocation frame. The unique original capture
