@@ -449,3 +449,97 @@ fn anonymous_access_errors_precede_unknown_payload_requirements() {
         assert!(source[range.start().get() as usize..range.end().get() as usize].contains("value"));
     }
 }
+
+const INTERRUPTED_READINESS: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../tests/fixtures/native/value-access/interrupted-signature-record-readiness.nct"
+));
+
+#[test]
+fn interrupted_preparation_retains_prefix_receipts_without_an_invocation_or_result_value() {
+    use crate::value_access::{ExpressionKind, InstantiationFailure};
+    use nocter_constant_evaluation::state::WorkBudget;
+    use nocter_declarations::value_access::PayloadSchema;
+    use nocter_model::{ValueApplication, ValueFunctionOrigin};
+    for result in ["void {}", "Data { loop {} }", "func(i32): i32 { identity }"] {
+        let source = INTERRUPTED_READINESS.replace(
+            "take value: Data): void {}",
+            &format!("take value: Data): {result}"),
+        );
+        assert_eq!(
+            super::initializers::answer(&source, "SIZE"),
+            state::Value::integer(42)
+        );
+        let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+        let unit = SourceUnit::prepare(fixture.syntax()).unwrap().into_unit();
+        let program = unit.program();
+        let named = |name| {
+            program
+                .resolve_code(program.symbols().get(name).unwrap())
+                .unwrap()
+        };
+        let frame = program.bind_code(named("size").into(), []).unwrap();
+        let typed = unit.code_body(frame.code()).unwrap().typed();
+        let (call, expression) = typed.body().expressions().iter().find(|(_, expression)| matches!(expression.kind, ExpressionKind::Call { target: ValueFunctionOrigin::Declaration(code), .. } if code == named("receive"))).unwrap();
+        assert!(!expression.ty.may_complete());
+        assert!(
+            unit.value_sources(frame.code())
+                .unwrap()
+                .call(call)
+                .is_none()
+        );
+        let mut work = WorkBudget::new(state::Limits::default().steps());
+        assert_eq!(
+            unit.instantiate_invocation(
+                &frame,
+                ValueApplication {
+                    owner: frame.code(),
+                    call
+                },
+                &mut work
+            ),
+            Err(InstantiationFailure::MissingCall)
+        );
+        if let Some(PayloadSchema::Function(witness)) =
+            program.data_schema(expression.ty.access().unwrap().data())
+        {
+            assert!(program.concrete_witness(witness).is_err());
+        }
+    }
+}
+
+#[test]
+fn interrupted_preparation_still_requires_real_prefix_payloads_and_valid_callee_definitions() {
+    let source = "struct Data { values: [i32; size()] }\nconst func receive(value: Data, later: i32): void {}\nconst func size(): usize { receive(Data { values: [0] }, if true { return 42 } else { loop {} })\n0 }";
+    let fixture = nocter_test_support::ValueSourceFixture::new(source);
+    let Err(SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })) =
+        SourceUnit::prepare(fixture.syntax())
+    else {
+        panic!("the prepared record needs its payload");
+    };
+    assert_eq!(diagnostic.rule(), evaluation::Rule::DependencyCycle);
+    let source = INTERRUPTED_READINESS.replace(
+        "take value: Data): void {}",
+        "take value: Data): void { missing_name }",
+    );
+    let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+    let Err(SourceFailure::Checking(Failure::Body {
+        failure: BodyFailure::Rejected(diagnostic),
+        ..
+    })) = SourceUnit::prepare(fixture.syntax())
+    else {
+        panic!("an uninvoked definition is still checked by complete-unit closure");
+    };
+    assert_eq!(diagnostic.rule(), Rule::UnknownName);
+    let source = INTERRUPTED_READINESS.replace("const func receive", "func receive");
+    let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+    let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+        SourceUnit::prepare(fixture.syntax())
+    else {
+        panic!("type readiness does not weaken the declared const domain");
+    };
+    assert!(matches!(
+        diagnostic.rule(),
+        crate::value_access::constant::Rule::RuntimeCall(_)
+    ));
+}

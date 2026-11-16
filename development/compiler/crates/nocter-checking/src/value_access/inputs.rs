@@ -136,15 +136,25 @@ impl Checker<'_, '_> {
         self.require_data(value, expected.data, syntax)?;
         let mode = expected.operation.access_mode();
         let action = if let Some(actual) = self.ty(value).normal() {
-            if let Some((place, adapters)) = self.deferred_transfer(value) {
+            let transfer = self.deferred_transfer(value);
+            let place = self.expression_referent(value);
+            if transfer.is_none()
+                && mode == Mode::Update
+                && let Some(referent) = place
+            {
+                self.require_writable_referent(referent, syntax, Rule::InvalidUpdate)?;
+            }
+            super::checker::payload_requirements::data(
+                self.program(),
+                actual.data(),
+                nocter_syntax::SyntaxOrigin::Node(syntax),
+            )?;
+            if let Some((place, adapters)) = transfer {
                 ArgumentAction::ReserveTransfer { place, adapters }
-            } else if let Some(place) = self.expression_referent(value) {
+            } else if let Some(place) = place {
                 match mode {
                     Mode::Read => ArgumentAction::ReserveRead(place),
-                    Mode::Update => {
-                        self.require_writable_referent(place, syntax, Rule::InvalidUpdate)?;
-                        ArgumentAction::ReserveUpdate(place)
-                    }
+                    Mode::Update => ArgumentAction::ReserveUpdate(place),
                     Mode::Own => {
                         use super::supply::PlaceSupply;
                         match super::supply::select(self.program(), actual.data())? {

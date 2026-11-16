@@ -1086,6 +1086,17 @@ native execution. A body operation needed to compute its own record count still 
 value-dependency cycle. General symbolic reference geometry and dependent captures retain their
 separate qualification boundaries.
 
+`interrupted-signature-record-readiness.nct` separates prepared argument payloads from invocation
+payloads. Each normally supplied argument requests its own actual data before preparation; a call
+whose arguments cannot complete demands neither its remaining input/result layout nor its target
+body for required evaluation. Static type/access and declared const-domain checks remain intact,
+and complete-unit closure still checks uninvoked definitions. For a callable result of such a call,
+producer closure records an uncommitted application with no produced value instead of deriving a
+witness from an uninvoked body. Strict invocation queries still report a missing committed call.
+The shared source qualifies a record's required count through a prepared owning callback prefix,
+with void, record and callable result signatures. Native probes additionally retire actual owned
+error captures on the canceled prefix. Real prefix record construction retains its own count cycle.
+
 Original call-result witness and data queries can inspect a complete positive invocation domain
 when strict single-frame selection is unresolved. They query every original candidate's returned
 source at the same receiving path and descriptor. Only agreeing result facts close a uniform

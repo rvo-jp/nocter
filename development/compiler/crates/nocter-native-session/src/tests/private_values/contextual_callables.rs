@@ -2620,3 +2620,44 @@ fn private_anonymous_signatures_wait_for_actual_record_body_use() {
         42,
     );
 }
+
+#[test]
+fn private_interrupted_signature_calls_keep_original_prepared_cleanup() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/interrupted-signature-record-readiness.nct"
+    ));
+    let package = TempPackage::new();
+    for result in ["void {}", "Data { loop {} }", "func(i32): i32 { identity }"] {
+        let source = source.replace(
+            "take value: Data): void {}",
+            &format!("take value: Data): {result}"),
+        );
+        execute_native_status(
+            &compile(&source),
+            &package.0,
+            "interrupted-signature-readiness",
+            42,
+        );
+        let (definitions, _) = source.split_once("\nfunc run():").unwrap();
+        let owned = format!(
+            "primitive func create_failure(code: str, message: str): error\nprimitive func context_error(take value: error, message: str): error\n{definitions}\nfunc run(): i32 {{ let reason = context_error(create_failure(\"interrupted\", \"prefix\"), \"outer\")\nlet action = (reason^; value: i32): i32 {{ value }}\nreceive(1, action^, if true {{ return 42 }} else {{ loop {{}} }})\n0 }}"
+        );
+        let machine = trusted_error_machine(&owned);
+        assert!(
+            machine
+                .functions()
+                .flat_map(|(_, function)| function.body().operations())
+                .any(|(_, operation)| matches!(
+                    operation.kind(),
+                    nocter_machine::MachineOperationKind::ReleaseError { .. }
+                ))
+        );
+        execute_native_status(
+            &image(&machine),
+            &package.0,
+            "interrupted-signature-owned-errors",
+            42,
+        );
+    }
+}

@@ -18,11 +18,12 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Avoid invocation-only payload requirements when argument preparation cannot commit a call.
-Preserve static type/access validation and actual prepared-prefix payload, alias and cleanup
-obligations. Qualify the required-count reproducer below against original source/control evidence
-without inventing a committed call or runtime value. Keep unknown nominal input facts conservative;
-the unoptimized evaluator stack failure retains its independent investigation item.
+Remove host recursion from constant-evaluator call execution. The original implementation also
+aborts on the default-depth regression under the unoptimized dev profile, before the language's
+configured depth limit can be reported. Preserve explicit semantic frames, work/storage accounting,
+original error locations/caller traces and ownership effects while driving calls iteratively.
+Qualify both ordinary and selected callable execution without increasing host-stack requirements
+or weakening shipped limits.
 
 Complete occurrence-sensitive value/capture transport under the
 [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances).
@@ -712,25 +713,24 @@ not a language restriction derived from the current realization boundary.
   read/edit/take inputs, unused higher-order input signatures and actual required/native record
   operations. Value/alias and owned-capture operations must request their actual payloads with
   original source diagnostics; unknown metadata grants no witness, ownership or absence proof.
-- [ ] Avoid invocation-only payload requirements when argument preparation terminates before
-  a call can commit. Reproduced `Data { values: [i32; size()] }`, where `size()` calls
-  `receive(if true { return 42 } else { loop {} })` and `receive(Data): void`. No Data value or
-  call is produced, but the eager invocation query introduces a false count cycle. Preserve
-  static type/access checks and the real payload, alias and cleanup obligations of any actually
-  prepared prefix arguments; do not invent a committed call or ABI value.
+- [x] Separate actual prepared argument payloads from invocation-only requirements when
+  preparation cannot commit a call. Preserve static type/access and const-domain checks, actual
+  prefix payloads, original cleanup and complete-unit definition closure. Required/native tests
+  cover void, record and callable results, an owning prefix and actual error captures; strict
+  invocation queries retain MissingCall and interrupted applications produce no callable witness.
 - [ ] Complete nested callable data/witness support through header/data positions and the owning
   type authority. Keep valid formal structural descriptors separate from owned-payload admission.
   Qualify concrete representation, substitution and callable input/result evidence;
   one recognized type tree and a matching signature do not erase code/environment identity.
   Any final callable-value extension must satisfy the separate constant/static serialization
   contract; callable environments cannot inherit final-value eligibility from grammar recognition.
-- [ ] Investigate host stack exhaustion in
+- [ ] Remove host-stack dependence from constant-evaluator calls. The regression
   `value_access::accepted::tests::initializers::shipped_limits_bound_recursive_execution_and_deep_initializer_dependencies`
-  when the checking suite is run with `cargo test --profile dev -p nocter-checking` (using the
-  compiler workspace manifest). The process aborts with a Rust test-thread stack overflow.
-  Standard configured test-profile qualification is separate. Compare the parent implementation
-  before attributing this to nominal-readiness changes; establish bounded host-stack behavior
-  without weakening shipped evaluator limits or expected failures.
+  aborts with a Rust test-thread stack overflow under `cargo test --profile dev -p nocter-checking`
+  with the compiler workspace manifest, including on the implementation preceding nominal-readiness
+  changes. Configured optimized tests pass. The evaluator stores explicit semantic frames but
+  recursively invokes its Rust execution path. Preserve shipped semantic limits, storage/work
+  accounting, ownership transitions and original failure traces with bounded host-stack execution.
 - [ ] Investigate the unclassified status-1 failure of the released native test
   `network_and_tls::public_tls_and_https_reject_plain_peers_and_https_advertises_http1`.
   It is not consistently reproducible. Native exit assertions identify the sync/async image,

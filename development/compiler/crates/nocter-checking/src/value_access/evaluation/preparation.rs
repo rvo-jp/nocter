@@ -462,7 +462,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
                 ExpressionKind::Call {
                     target: ValueFunctionOrigin::Declaration(target),
                     ..
-                } => {
+                } if crate::value_access::instances::is_completed_call(&expression.kind) => {
                     if demand == Demand::Invoke {
                         Some((target.into(), Demand::Invoke))
                     } else if !query
@@ -481,7 +481,11 @@ impl<'a, 'source> Preparation<'a, 'source> {
                 ExpressionKind::Call {
                     target: ValueFunctionOrigin::Closure(target),
                     ..
-                } if demand == Demand::Invoke => Some((ValueCode::Closure(target), Demand::Invoke)),
+                } if demand == Demand::Invoke
+                    && crate::value_access::instances::is_completed_call(&expression.kind) =>
+                {
+                    Some((ValueCode::Closure(target), Demand::Invoke))
+                }
                 _ => None,
             };
             if let Some((target, demand)) = target {

@@ -195,6 +195,20 @@ fn close_applications(
             if result.created.is_empty() {
                 continue;
             }
+            if !crate::value_access::instances::is_completed_call(&expression.kind) {
+                // Interrupted preparation produces no application value. A signature still
+                // constrains this leaf, but cannot demand an uninvoked body's result producer.
+                for application in result.created {
+                    if committed.contains(&application) {
+                        return Err(INVALID);
+                    }
+                    equations.insert(
+                        Term::Application(application),
+                        Relation::Union(Producers::new()),
+                    );
+                }
+                continue;
+            }
             let site = nocter_model::ValueApplication {
                 owner: query.code(),
                 call: id,

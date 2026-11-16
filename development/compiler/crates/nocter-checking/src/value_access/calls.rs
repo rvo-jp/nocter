@@ -273,11 +273,6 @@ impl Checker<'_, '_> {
         if arguments.len() != contract.inputs.len() {
             return self.reject(Rule::InvalidCall, node);
         }
-        super::checker::payload_requirements::invocation(
-            self.program(),
-            &contract,
-            nocter_syntax::SyntaxOrigin::Node(self.first_child(node)?),
-        )?;
         let mut plans = Vec::new();
         let mut continues = selected.completes;
         let kind = if selected.environment.is_some() {
@@ -288,10 +283,17 @@ impl Checker<'_, '_> {
         if let Some((value, expected)) = selected.environment {
             plans.push(self.input_plan(self.first_child(node)?, value, expected, None)?);
         }
-        for (syntax, expected) in arguments.into_iter().zip(contract.inputs) {
+        for (syntax, expected) in arguments.into_iter().zip(contract.inputs.iter().copied()) {
             let value = self.input_expression(syntax, expected, reachable && continues)?;
             continues &= self.ty(value).may_complete();
             plans.push(self.prepare_input(syntax, value, expected)?);
+        }
+        if super::instances::completed(&plans) {
+            super::checker::payload_requirements::invocation(
+                self.program(),
+                &contract,
+                nocter_syntax::SyntaxOrigin::Node(self.first_child(node)?),
+            )?;
         }
         let requires_application = matches!(
             self.program().data_schema(contract.result),
