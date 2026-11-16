@@ -1219,3 +1219,103 @@ fn callable_field_const_contracts_remain_checked_in_dormant_source_paths() {
         }
     }
 }
+
+const SELECTED_CONTEXT_RESULTS: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../tests/fixtures/value-contexts/selected-contextual-results.nct"
+));
+
+#[test]
+fn selected_calls_return_and_forward_original_contextual_field_values() {
+    assert_eq!(
+        answer(SELECTED_CONTEXT_RESULTS, "ANSWER"),
+        Value::integer(42)
+    );
+}
+
+#[test]
+fn selected_call_results_keep_every_candidate_and_the_original_receiving_definition() {
+    use crate::value_access::{CallKind, ExpressionKind, InstantiationFailure, ValueSourceSlot};
+    use nocter_constant_evaluation::state::{Limits, WorkBudget};
+    let (definitions, _) = SELECTED_CONTEXT_RESULTS
+        .split_once("\nconst ANSWER:")
+        .unwrap();
+    let unit = accepted(&definitions.replace("const func", "func"));
+    let program = unit.program();
+    let code = program
+        .resolve_code(program.symbols().get("calculate").unwrap())
+        .unwrap();
+    let frame = program.bind_code(code.into(), []).unwrap();
+    let body = unit.code_body(frame.code()).unwrap();
+    let call = body
+        .typed()
+        .body()
+        .expressions()
+        .iter()
+        .find_map(|(id, expression)| {
+            (matches!(
+                expression.kind,
+                ExpressionKind::Call {
+                    kind: CallKind::Value,
+                    ..
+                }
+            ) && expression
+                .ty
+                .access()
+                .is_some_and(|access| program.record_identity(access.data()).is_some()))
+            .then_some(id)
+        })
+        .unwrap();
+    let site = nocter_model::ValueApplication {
+        owner: frame.code(),
+        call,
+    };
+    let budget = || WorkBudget::new(Limits::default().steps());
+    assert_eq!(
+        unit.instantiate_invocation(&frame, site, &mut budget()),
+        Err(InstantiationFailure::Unresolved)
+    );
+    let domain = unit
+        .instantiate_invocation_domain(&frame, site, &mut budget())
+        .unwrap();
+    assert_eq!(domain.cases().len(), 2);
+    let values = unit
+        .instantiate_value_data_map(&frame, &mut budget())
+        .unwrap();
+    for case in domain.cases() {
+        let result = unit
+            .instantiate_result_contract(case.frame(), &mut budget())
+            .unwrap();
+        assert!(!result.is_context_free());
+        let receiving = values
+            .definition(case.source().origin, ValueSourceSlot::Expression(call))
+            .unwrap()
+            .instance();
+        assert!(receiving.has_same_representation(program, &result));
+    }
+}
+
+#[test]
+fn selected_contextual_results_reject_a_nonuniform_candidate_without_an_internal_error() {
+    let source = SELECTED_CONTEXT_RESULTS
+        .replace(
+            "const func first()",
+            "const func identity(value: i32): i32 { value }\nconst func first()",
+        )
+        .replace(
+            "const func second(): Handler { make(41) }",
+            "const func second(): Handler { Handler { callback: identity } }",
+        );
+    let (definitions, _) = source.split_once("\nconst ANSWER:").unwrap();
+    accepted(&definitions.replace("const func", "func"));
+    let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+    let Err(SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })) =
+        SourceUnit::prepare(fixture.syntax())
+    else {
+        panic!("a nonuniform contextual result needs an original-source rejection");
+    };
+    assert_eq!(
+        diagnostic.rule(),
+        crate::value_access::evaluation::Rule::UnresolvedContext
+    );
+}

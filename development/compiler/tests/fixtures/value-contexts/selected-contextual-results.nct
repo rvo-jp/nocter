@@ -1,0 +1,27 @@
+struct Item { value: i32 }
+struct Handler { callback: func(i32): i32 }
+const func make(value: i32): Handler {
+    let item = Item { value: value }
+    Handler { callback: (item^; amount: i32): i32 { item.value + amount } }
+}
+const func relay(take holder: Handler): Handler { holder^ }
+const func first(): Handler { make(40) }
+const func second(): Handler { make(41) }
+const func wrap(take action: func(): Handler): func(): Handler {
+    (action^;): Handler { action() }
+}
+const func choose(present: bool): (func(): Handler)? {
+    if present { wrap(first) } else { wrap(second) }
+}
+const func calculate(present: bool): i32 {
+    var pair = (wrap(first), choose(present), 3)
+    pair.0 = wrap(second)
+    let retained = pair.1^
+    let action = retained^ otherwise { return 0 }
+    let holder = relay(action())
+    if pair.2 != 3 || holder.callback(if present { 2 } else { 1 }) != 42 { return 0 }
+    let callback = holder.callback^
+    callback(if present { 2 } else { 1 })
+}
+const ANSWER: i32 = if calculate(false) == 42 && calculate(true) == 42 { 42 } else { 0 }
+func run(): i32 { if calculate(false) == 42 && calculate(true) == 42 { 42 } else { 0 } }

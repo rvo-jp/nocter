@@ -89,10 +89,7 @@ impl Builder<'_, '_> {
                 Ok((witness, key.clone()))
             })
             .collect::<Result<BTreeMap<_, _>>>()?;
-        let result = self
-            .program
-            .instantiate_closed_data(self.data(id)?)
-            .map_err(|_| Failure::UnresolvedContext(None))?;
+        let result = self.choice_result(id, &domain)?;
         let mut frames = BTreeMap::new();
         for case in domain.cases() {
             self.work.step().map_err(|_| Failure::WorkLimit(None))?;
@@ -121,6 +118,34 @@ impl Builder<'_, '_> {
             })
             .collect::<Result<Box<[_]>>>()?;
         Ok(Selection::Choice { cases, result })
+    }
+    fn choice_result(
+        &mut self,
+        id: AccessExpressionId,
+        domain: &crate::value_access::InvocationDomain,
+    ) -> Result<DataInstanceKey> {
+        let mut receiving = None;
+        for case in domain.cases() {
+            self.work.step().map_err(|_| Failure::WorkLimit(None))?;
+            let result = self
+                .values
+                .definition(
+                    case.source().origin,
+                    crate::value_access::ValueSourceSlot::Expression(id),
+                )
+                .ok_or(Failure::UnresolvedContext(None))?
+                .instance();
+            if receiving
+                .as_ref()
+                .is_some_and(|previous: &DataInstanceKey| {
+                    !previous.has_same_representation(self.program, result)
+                })
+            {
+                return Err(Failure::UnresolvedContext(None));
+            }
+            receiving = Some(result.clone());
+        }
+        receiving.ok_or(Failure::UnresolvedContext(None))
     }
     fn check_choice_frame(
         &mut self,

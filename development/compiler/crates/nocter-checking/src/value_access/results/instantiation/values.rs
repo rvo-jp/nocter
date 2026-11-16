@@ -405,13 +405,7 @@ impl Query<'_, '_> {
                 if self.evidence.uncommitted_application(site) {
                     Fact::Empty
                 } else {
-                    match self.read(owner, Key::Call(frame.clone(), site))? {
-                        Fact::Frame(callee) => {
-                            self.read(owner, Key::Result(callee, path.clone()))?
-                        }
-                        Fact::Empty => Fact::Empty,
-                        _ => Fact::Unavailable,
-                    }
+                    self.source_invocation_result(owner, frame, site, path, None)?
                 }
             }
             ValueSource::CallWrite { .. } => {

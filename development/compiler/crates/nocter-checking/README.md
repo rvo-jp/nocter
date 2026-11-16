@@ -1022,6 +1022,13 @@ factory, taking inputs, returned carriers, field invocation and partial field tr
 required evaluation and native execution. Native qualification also retains actual owned-error
 capture cleanup. Abstract contracts remain non-Copy and unavailable as closed payloads.
 
+Original call-result witness and data queries can inspect a complete positive invocation domain
+when strict single-frame selection is unresolved. They query every original candidate's returned
+source at the same receiving path and descriptor. Only agreeing result facts close a uniform
+context; disagreement remains unavailable. The strict invocation query still refuses to select a
+representative frame. This metadata supplies neither an active selector nor an executable body;
+execution separately validates all candidate channels and the original encoded carrier.
+
 The code-summary/creation-recipe resolver remains available for original metadata fixtures and
 definition-contract reasoning without a matched value graph. Failure of an actual source-value
 query cannot fall back to that hypothesis. A matched result-code summary may close directly only when the declaration authority proves
@@ -1649,14 +1656,18 @@ changes invalidate header reuse while unrelated body edits do not.
 
 Retained-read finite callable invocation uses the original controlled invocation domain and prepared
 argument bundle. Each complete stored case must identify exactly one actual body frame; every
-candidate must have the same independently closed result and represented explicit read/edit/take
-input contracts. A captured candidate additionally requires its exact read-only environment channel.
+candidate must have the same represented result and explicit read/edit/take input contracts.
+The result comes from every original receiving definition, independently checked against each
+candidate body's own result channel; it may retain a complete contextual callable carrier. A captured candidate additionally requires its exact read-only environment channel.
 Canonical stored case order determines `state::Operation::SelectedCall`; candidate discovery order
 does not. The operation reads the actual encoded carrier and invokes only its selected body, using
 the ordinary argument preparation and handoff protections. Original-source probes qualify both
 nested environments of `contextual-joined-sibling-growth.nct` during required evaluation, as well
-as independent return boundaries. Consuming environments, nonuniform or dependent result channels,
-primitive candidates and local/loop joins without encoded selectors remain unqualified. A prepared
+as independent return boundaries. `selected-contextual-results.nct` also qualifies contextual
+record results, forwarding and field transfer, preserving distinct runtime capture values in both
+required evaluation and native execution. Native qualification includes actual owned-error capture
+cleanup. Consuming environments, nonuniform result channels, primitive candidates and local/loop
+joins without encoded selectors remain unqualified. A prepared
 domain cannot relabel a single-case local slot into a choice; this source boundary reports an
 unresolved context rather than publishing an invalid evaluator plan.
 
@@ -1673,7 +1684,11 @@ complete retains no invocation-capability obligation. Environment formation, rec
 transfers and cleanup keep their own clauses. Fixed forbidden source calls remain definition
 errors even when their preparation cannot complete. The dependency coordinator discovers actual
 formal-call targets after ordinary result closure and requests their existing checked drafts without
-source body retyping.
+source body retyping. `evaluation::preparation::invocations` owns this actual-call discovery pass.
+It publishes each complete newly discovered candidate batch before using their result bodies in
+later calls. Unresolved dependent calls retain their first source diagnostic while independent
+work can discover missing bodies; without new body progress, that diagnostic rejects the request.
+Retries consume the same condition-work scope and cannot turn missing metadata into eligibility.
 Exact required-condition checks use `constant::requirements::bound` to resolve each call lazily
 once for one caller frame. Invocation eligibility, receiving-input eligibility and subsequent body
 traversal consume those same derived keys. Clause order remains intact; a violation discards the

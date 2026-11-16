@@ -119,12 +119,46 @@ pub(in crate::value_access) fn controlled_domain(
 }
 
 impl Query<'_, '_> {
+    /// Common result metadata from every original candidate, never a selected executable frame.
+    pub(super) fn source_invocation_result(
+        &mut self,
+        owner: &Key,
+        caller: &CodeInstanceKey,
+        site: ValueApplication,
+        path: &ValuePath<()>,
+        data: Option<nocter_model::TypeId>,
+    ) -> Result<Fact, InstantiationFailure> {
+        let result = |frame| match data {
+            Some(data) => Key::DataResult(frame, path.clone(), data),
+            None => Key::Result(frame, path.clone()),
+        };
+        match self.read(owner, Key::Call(caller.clone(), site))? {
+            Fact::Frame(frame) => return self.read(owner, result(frame)),
+            Fact::Empty => return Ok(Fact::Empty),
+            Fact::Unavailable if self.evidence.invocation(site).is_some() => {}
+            _ => return Ok(Fact::Unavailable),
+        }
+        let candidates = self.read(owner, Key::Invocations(caller.clone(), site))?;
+        let Fact::Invocations(candidates) = candidates else {
+            return Ok(candidates);
+        };
+        let mut fact = Fact::Empty;
+        for candidate in candidates {
+            self.step()?;
+            let incoming = self.read(owner, result(candidate.frame))?;
+            fact = fact.join(incoming);
+        }
+        Ok(fact)
+    }
     pub(super) fn source_invocation_domain(
         &mut self,
         owner: &Key,
         frame: &CodeInstanceKey,
         site: ValueApplication,
     ) -> Result<Fact, InstantiationFailure> {
+        if frame.code() != site.owner {
+            return Ok(Fact::Unavailable);
+        }
         let Some(bundles) = self
             .evidence
             .value_sources(frame.code())
@@ -184,5 +218,59 @@ impl Query<'_, '_> {
         } else {
             Ok(Fact::Invocations(cases))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::value_access::{ExpressionKind, accepted::SourceUnit};
+    use nocter_constant_evaluation::state::Limits;
+
+    #[test]
+    fn internal_candidate_queries_reject_foreign_sites_with_equal_call_slots() {
+        let source = nocter_test_support::ValueSourceFixture::new(
+            "func identity(value: i32): i32 { value }\nfunc make(): func(i32): i32 { identity }\nfunc first(): func(i32): i32 { make() }\nfunc second(): func(i32): i32 { make() }",
+        );
+        let unit = SourceUnit::prepare(source.syntax()).unwrap().into_unit();
+        let program = unit.program();
+        let code = |name| {
+            program
+                .resolve_code(program.symbols().get(name).unwrap())
+                .unwrap()
+        };
+        let first = code("first");
+        let second = code("second");
+        let body = unit.code_body(first.into()).unwrap().typed();
+        let call = body
+            .body()
+            .expressions()
+            .iter()
+            .find_map(|(id, expression)| {
+                matches!(expression.kind, ExpressionKind::Call { .. }).then_some(id)
+            })
+            .unwrap();
+        let evidence = body.result_evidence.as_ref().unwrap();
+        let own = ValueApplication {
+            owner: first.into(),
+            call,
+        };
+        let foreign = ValueApplication {
+            owner: second.into(),
+            call,
+        };
+        assert!(evidence.invocation(own).is_some());
+        assert!(evidence.invocation(foreign).is_some());
+        let frame = program.bind_code(first.into(), []).unwrap();
+        let mut work = WorkBudget::new(Limits::default().steps());
+        let mut query = Query::new(program, evidence, &mut work);
+        assert!(matches!(
+            query.solve(&Key::Invocations(frame.clone(), own)).unwrap(),
+            Fact::Invocations(_)
+        ));
+        assert_eq!(
+            query.solve(&Key::Invocations(frame, foreign)).unwrap(),
+            Fact::Unavailable
+        );
     }
 }

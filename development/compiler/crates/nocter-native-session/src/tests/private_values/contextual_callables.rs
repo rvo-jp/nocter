@@ -2369,11 +2369,7 @@ fn private_callable_record_fields_preserve_names_captures_forwarding_and_owned_c
     );
     let package = TempPackage::new();
     execute_native_status(&compile(&runtime), &package.0, "callable-record-fields", 42);
-    let owned = runtime.replace("let item = Item { value: offset }", "let item = Item { value: offset }\nlet reason = context_error(create_failure(\"field\", \"owned capture\"), \"outer\")")
-        .replace("(item^;", "(item^, reason^;");
-    let owned = format!(
-        "primitive func create_failure(code: str, message: str): error\nprimitive func context_error(take value: error, message: str): error\n{owned}"
-    );
+    let owned = record_capture_with_owned_error(&runtime);
     let machine = trusted_error_machine(&owned);
     assert!(
         machine
@@ -2390,4 +2386,49 @@ fn private_callable_record_fields_preserve_names_captures_forwarding_and_owned_c
         "callable-record-fields-errors",
         42,
     );
+}
+
+#[test]
+fn private_selected_calls_return_forward_and_transfer_actual_contextual_fields() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/value-contexts/selected-contextual-results.nct"
+    ));
+    let (definitions, _) = source.split_once("\nconst ANSWER:").unwrap();
+    let runtime = format!(
+        "{}\nfunc run(): i32 {{ if calculate(false) == 42 && calculate(true) == 42 {{ 42 }} else {{ 0 }} }}",
+        definitions.replace("const func", "func")
+    );
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(&runtime),
+        &package.0,
+        "selected-contextual-results",
+        42,
+    );
+    let machine = trusted_error_machine(&record_capture_with_owned_error(&runtime));
+    assert!(
+        machine
+            .functions()
+            .flat_map(|(_, function)| function.body().operations())
+            .any(|(_, operation)| matches!(
+                operation.kind(),
+                nocter_machine::MachineOperationKind::ReleaseError { .. }
+            ))
+    );
+    execute_native_status(
+        &image(&machine),
+        &package.0,
+        "selected-contextual-result-errors",
+        42,
+    );
+}
+
+fn record_capture_with_owned_error(source: &str) -> String {
+    let formation = "    Handler { callback: (item^;";
+    assert_eq!(source.matches(formation).count(), 1);
+    let source = source.replace(formation, "    let reason = context_error(create_failure(\"field\", \"owned capture\"), \"outer\")\n    Handler { callback: (item^, reason^;");
+    format!(
+        "primitive func create_failure(code: str, message: str): error\nprimitive func context_error(take value: error, message: str): error\n{source}"
+    )
 }

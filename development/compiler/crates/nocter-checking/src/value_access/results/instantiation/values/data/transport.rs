@@ -232,13 +232,7 @@ impl Query<'_, '_> {
     ) -> Result {
         match kind {
             ValueSource::CallResult(site) => {
-                match self.read(owner, Key::Call(frame.clone(), *site))? {
-                    Fact::Frame(callee) => {
-                        self.read(owner, Key::DataResult(callee, path.clone(), target))
-                    }
-                    Fact::Empty => Ok(Fact::Empty),
-                    _ => Ok(Fact::Unavailable),
-                }
+                self.source_invocation_result(owner, frame, *site, path, Some(target))
             }
             ValueSource::Index { source, .. } => self.read(
                 owner,

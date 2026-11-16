@@ -18,12 +18,11 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify uniform contextual selected-call results using the callable record-field carrier. Original
-result witness/data queries still require a single selected frame; retain every original candidate
-and its independently proved result before projecting one common receiving channel. The original
-source reproducer fails when using or retiring the returned carrier. Preserve separate candidate
-frames, exact receiving definitions and source-backed rejection of nonuniform results. Nested
-callable headers retain their separate qualification boundary.
+Connect declaration-time contextual const checks to the configured condition-work scope. Preserve
+one request's remaining quota through required-value preparation and final whole-unit definition
+checks instead of creating a fixed default quota inside admission. Qualify dormant definitions,
+shared limits across definitions and source-backed exhaustion/retry. Keep general symbolic input
+and capture proofs separate from this work-policy correction.
 
 Complete occurrence-sensitive value/capture transport under the
 [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances).
@@ -207,10 +206,11 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Preserve the original failed operation and instance when lazy plan projection fails before
   entering the requested body. Keep source-context failures distinct from invalid plans and
   report the inner cause rather than only the caller's load site.
-- [ ] Qualify uniform contextual results of evaluator selected calls from their original receiving
-  definitions after nested callable/header contracts are qualified. Preserve every candidate's
-  complete result channel and reject nonuniform outputs; cover returned callable carriers,
-  forwarding, actual selection and ordinary native execution.
+- [x] Qualify uniform contextual results of evaluator selected calls from their original receiving
+  definitions through callable record-field carriers. Preserve every candidate's complete result
+  channel and reject nonuniform outputs; qualify forwarding, field transfer, actual selection,
+  native owned-error cleanup and dependency discovery before consuming newly found result bodies.
+  General nested callable headers retain their separate qualification boundary.
 - [ ] Close the [positive callable alternative obligations](design/compiler-realization.md#positive-callable-alternatives)
   through the canonical data-instance graph, guarded source transport, evaluator/target plans,
   native selection and cleanup before widening source admission. The value-context fixture

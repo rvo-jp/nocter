@@ -20,6 +20,7 @@ mod tests;
 type Failure = accepted::Failure;
 type QueryError = DependencyQueryError<Request, SourceFailure>;
 mod headers;
+mod invocations;
 use headers::{Headers, ModuleHeaders};
 struct Preparation<'a, 'source> {
     context: Context<'source>,
@@ -489,111 +490,6 @@ impl<'a, 'source> Preparation<'a, 'source> {
         }
         Ok(dependencies)
     }
-    /// Discover only actual invocation dependencies after ordinary result closure. Metadata
-    /// bindings do not demand the bodies of unused callback values or retype a source body.
-    fn bound_requirements(
-        &mut self,
-        resolved: &accepted::Resolved,
-        root: ValueCodeRoot,
-    ) -> Result<Vec<(ValueCode, Demand, CallOrigin)>, Failure> {
-        let program = resolved.program();
-        let scope = resolved.scope().map_err(Failure::Integrity)?;
-        let controls = resolved.controls().map_err(Failure::Integrity)?;
-        let mut discovery = super::discovery::Discovery::new(&scope);
-        discovery
-            .insert(
-                program,
-                program.bind_code(root.code(), []).map_err(|_| INVALID)?,
-            )
-            .map_err(Failure::Integrity)?;
-        let mut dependencies = Vec::new();
-        while let Some(key) = discovery.next() {
-            let Some(query) = scope.get(&key.code()) else {
-                continue;
-            };
-            let bound = query.bind(&self.context).map_err(|failure| Failure::Body {
-                callable: query.code().source_owner(),
-                failure,
-            })?;
-            let sources = query
-                .result_evidence
-                .as_ref()
-                .and_then(|evidence| evidence.value_sources(key.code()))
-                .ok_or(INVALID)?;
-            let mut control = None;
-            for (id, expression) in query.body().expressions().iter() {
-                if sources.call(id).is_none()
-                    || !crate::value_access::instances::is_completed_call(&expression.kind)
-                {
-                    continue;
-                }
-                let site = bound.expression_origin(id).ok_or(INVALID)?;
-                let primary = crate::value_access::source_origin(bound.syntax(), site).map_err(
-                    |failure| Failure::Body {
-                        callable: key.code().source_owner(),
-                        failure,
-                    },
-                )?;
-                if control.is_none() {
-                    let original = controls.get(&key.code()).ok_or(INVALID)?;
-                    control = Some(
-                        crate::value_access::results::instantiate_graph_control(
-                            program,
-                            query.result_evidence.as_ref().ok_or(INVALID)?,
-                            query,
-                            &original.graph,
-                            &key,
-                            &mut self.condition_work,
-                        )
-                        .map_err(|failure| {
-                            super::condition_failure(failure, key.code().source_owner(), primary)
-                        })?,
-                    );
-                }
-                if !control
-                    .as_ref()
-                    .ok_or(INVALID)?
-                    .call_reachable(sources, id)
-                    .map_err(Failure::Integrity)?
-                {
-                    continue;
-                }
-                let selected = crate::value_access::instances::condition_calls(
-                    query,
-                    &key,
-                    id,
-                    control.as_ref(),
-                    &mut self.condition_work,
-                )
-                .map_err(|failure| {
-                    super::condition_failure(failure, key.code().source_owner(), primary)
-                })?
-                .ok_or(INVALID)?;
-                for selected in selected {
-                    // The caller's bound domain check reports a missing authored capability. A
-                    // runtime-only actual value does not create an evaluator body dependency.
-                    if let ValueCode::Declaration(code) = selected.code()
-                        && program.codes().get(code).ok_or(INVALID)?.compile_time()
-                            != nocter_model::CompileTimeGuarantee::Evaluatable
-                    {
-                        continue;
-                    }
-                    dependencies.push((
-                        selected.code(),
-                        Demand::Invoke,
-                        CallOrigin {
-                            parent: key.code(),
-                            site,
-                        },
-                    ));
-                    discovery
-                        .insert(program, selected)
-                        .map_err(Failure::Integrity)?;
-                }
-            }
-        }
-        Ok(dependencies)
-    }
     fn graph(
         &mut self,
         requests: &Dependencies,
@@ -663,7 +559,9 @@ impl<'a, 'source> Preparation<'a, 'source> {
                 }
             }
             if pending.is_empty() {
-                for (target, demand, origin) in self.bound_requirements(&resolved, root)? {
+                for (target, demand, origin) in
+                    self.bound_requirements(&resolved, root, &selected)?
+                {
                     if selected
                         .get(&target)
                         .is_none_or(|needed| needed.demand < demand)
