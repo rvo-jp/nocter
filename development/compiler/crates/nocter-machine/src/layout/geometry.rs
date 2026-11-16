@@ -1,9 +1,81 @@
 //! Physical compatibility of already paired canonical carrier schemas; no source/ownership proof.
 use super::{MachineLayoutKind as Kind, MachineLayoutPlan};
+use nocter_model::{ValuePath, ValueProjection};
 use nocter_runtime_contract::RuntimeDataId as Data;
 use std::collections::BTreeSet;
 
 impl MachineLayoutPlan {
+    /// Compare relative offsets for corresponding logical projections. None denotes any
+    /// existing array coordinate; no active tag, index value/bounds, common root address,
+    /// backing capacity, source correspondence or relocation permission is established.
+    #[must_use]
+    pub fn has_same_projection_offset(
+        &self,
+        mut before: Data,
+        mut after: Data,
+        path: &ValuePath<Option<u64>>,
+    ) -> bool {
+        if self.get(before).is_none() || self.get(after).is_none() {
+            return false;
+        }
+        let (mut old_offset, mut new_offset) = (0u64, 0u64);
+        for projection in path.fields() {
+            if let ValueProjection::Array(None) = projection {
+                let (Some(left), Some(right)) = (self.get(before), self.get(after)) else {
+                    return false;
+                };
+                let (
+                    Kind::FixedArray {
+                        element: old,
+                        length: old_length,
+                        stride: old_stride,
+                    },
+                    Kind::FixedArray {
+                        element: new,
+                        length: new_length,
+                        stride: new_stride,
+                    },
+                ) = (left.kind(), right.kind())
+                else {
+                    return false;
+                };
+                if old_length != new_length
+                    || *old_length == 0
+                    || *old_length > 1 && old_stride != new_stride
+                {
+                    return false;
+                }
+                before = *old;
+                after = *new;
+                continue;
+            }
+            let field = match *projection {
+                ValueProjection::Record(field) => ValueProjection::Record(field),
+                ValueProjection::Tuple(index) => ValueProjection::Tuple(index),
+                ValueProjection::Variant(primary) => ValueProjection::Variant(primary),
+                ValueProjection::Array(Some(index)) => ValueProjection::Array(index),
+                ValueProjection::Array(None) => return false,
+            };
+            let (Some(old), Some(new)) = (
+                self.value_field(before, field),
+                self.value_field(after, field),
+            ) else {
+                return false;
+            };
+            let (Some(left), Some(right)) = (
+                old_offset.checked_add(old.offset()),
+                new_offset.checked_add(new.offset()),
+            ) else {
+                return false;
+            };
+            old_offset = left;
+            new_offset = right;
+            before = old.ty();
+            after = new.ty();
+        }
+        self.get(before).is_some() && self.get(after).is_some() && old_offset == new_offset
+    }
+
     /// Compare complete corresponding stored geometry, including nested member offsets and ABI
     /// classes. Callers must establish source-schema correspondence independently. This permits no
     /// relocation, initialized value, live reference or source operation. Missing layouts reject.

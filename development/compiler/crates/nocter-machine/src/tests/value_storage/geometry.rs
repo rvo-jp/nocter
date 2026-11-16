@@ -1,11 +1,21 @@
 //! Physical correspondence, independent of source admission and initialized values.
 use super::*;
+use nocter_model::{ValuePath, ValueProjection};
 use nocter_runtime_contract::{
-    RuntimeDataId as Data, RuntimePrimitive, RuntimeTypeRepresentationTable,
-    RuntimeTypeTableBuilder,
+    RuntimeDataId as Data, RuntimePrimitive, RuntimeTypeRepresentation,
+    RuntimeTypeRepresentationTable, RuntimeTypeTableBuilder, RuntimeValueFieldRepresentation,
 };
 
 fn plan(entries: impl IntoIterator<Item = (Data, RuntimeType)>) -> MachineLayoutPlan {
+    represented_plan(entries, std::collections::BTreeMap::new())
+}
+fn represented_plan(
+    entries: impl IntoIterator<Item = (Data, RuntimeType)>,
+    representations: std::collections::BTreeMap<
+        Data,
+        nocter_runtime_contract::RuntimeTypeRepresentation,
+    >,
+) -> MachineLayoutPlan {
     let mut types = RuntimeTypeTableBuilder::new();
     let mut roots = Vec::new();
     for (id, shape) in entries {
@@ -14,18 +24,17 @@ fn plan(entries: impl IntoIterator<Item = (Data, RuntimeType)>) -> MachineLayout
     }
     let runtime = RuntimeEnvironment::new(
         types.finish().unwrap(),
-        RuntimeTypeRepresentationTable::new(std::collections::BTreeMap::new()),
+        RuntimeTypeRepresentationTable::new(representations),
         RuntimeAbiIdentity::Arm64DarwinV1,
     )
     .unwrap();
     MachineLayoutPlan::from_runtime(&runtime, roots).unwrap()
 }
 
-#[test]
-fn equal_root_size_and_alignment_do_not_hide_shifted_sibling_fields() {
+fn shifted_sibling_types() -> ([Data; 8], [(Data, RuntimeType); 8]) {
     let ids: [Data; 8] = std::array::from_fn(|i| Data::Instance(u32::try_from(i).unwrap()));
     let [byte, word, wide, small, large, same, before, after] = ids;
-    let layouts = plan([
+    let entries = [
         (byte, RuntimeType::Primitive(RuntimePrimitive::Unsigned(8))),
         (word, RuntimeType::Primitive(RuntimePrimitive::Unsigned(32))),
         (wide, RuntimeType::Primitive(RuntimePrimitive::Unsigned(64))),
@@ -49,7 +58,14 @@ fn equal_root_size_and_alignment_do_not_hide_shifted_sibling_fields() {
         ),
         (before, RuntimeType::Tuple(vec![small, byte, wide].into())),
         (after, RuntimeType::Tuple(vec![large, byte, wide].into())),
-    ]);
+    ];
+    (ids, entries)
+}
+
+#[test]
+fn equal_root_size_and_alignment_do_not_hide_shifted_sibling_fields() {
+    let ([_, _, _, small, _, same, before, after], entries) = shifted_sibling_types();
+    let layouts = plan(entries.clone());
     let old = layouts.get(before).unwrap();
     let new = layouts.get(after).unwrap();
     assert_eq!((old.size(), old.alignment()), (new.size(), new.alignment()));
@@ -69,6 +85,72 @@ fn equal_root_size_and_alignment_do_not_hide_shifted_sibling_fields() {
     );
     assert!(layouts.has_same_geometry(before, before));
     assert!(!layouts.has_same_geometry(Data::Instance(999), Data::Instance(999)));
+}
+
+#[test]
+fn logical_projection_offsets_require_correspondence_and_distinguish_moved_siblings() {
+    let ([byte, _, wide, small, large, _, before, after], entries) = shifted_sibling_types();
+    let layouts = plan(entries.clone());
+    let fields = |values: &[Data]| RuntimeTypeRepresentation::ValueAggregate {
+        fields: values
+            .iter()
+            .enumerate()
+            .map(|(index, &data)| {
+                RuntimeValueFieldRepresentation::new(nocter_model::ValueField::Tuple(index), data)
+            })
+            .collect(),
+    };
+    let value_entries = entries.into_iter().map(|(id, shape)| {
+        (
+            id,
+            if id == before || id == after {
+                RuntimeType::Aggregate
+            } else {
+                shape
+            },
+        )
+    });
+    let offsets = represented_plan(
+        value_entries,
+        std::collections::BTreeMap::from([
+            (before, fields(&[small, byte, wide])),
+            (after, fields(&[large, byte, wide])),
+        ]),
+    );
+    assert!(offsets.has_same_projection_offset(
+        before,
+        after,
+        &ValuePath::new([ValueProjection::Tuple(0)])
+    ));
+    assert!(!offsets.has_same_projection_offset(
+        before,
+        after,
+        &ValuePath::new([ValueProjection::Tuple(1)])
+    ));
+    assert!(offsets.has_same_projection_offset(
+        before,
+        after,
+        &ValuePath::new([ValueProjection::Tuple(2)])
+    ));
+    assert!(!offsets.has_same_projection_offset(
+        before,
+        after,
+        &ValuePath::new([ValueProjection::Tuple(3)])
+    ));
+    assert!(!offsets.has_same_projection_offset(
+        Data::Instance(999),
+        Data::Instance(999),
+        &ValuePath::default()
+    ));
+
+    assert!(
+        !layouts.has_same_projection_offset(
+            before,
+            after,
+            &ValuePath::new([ValueProjection::Tuple(0)])
+        ),
+        "physical tuple order is not logical source correspondence"
+    );
 }
 
 #[test]
@@ -120,4 +202,75 @@ fn deeply_shared_geometry_walks_each_pair_without_expanding_its_logical_tree() {
     }
     let layouts = plan(entries);
     assert!(layouts.has_same_geometry(pair[0], pair[1]));
+}
+
+#[test]
+fn projection_offsets_distinguish_known_indices_from_all_existing_coordinates() {
+    let ids: [Data; 10] = std::array::from_fn(|i| Data::Instance(u32::try_from(i).unwrap()));
+    let [
+        byte,
+        word,
+        one_old,
+        one_new,
+        many_old,
+        many_new,
+        empty_old,
+        empty_new,
+        zst,
+        huge,
+    ] = ids;
+    let layouts = plan([
+        (byte, RuntimeType::Primitive(RuntimePrimitive::Unsigned(8))),
+        (word, RuntimeType::Primitive(RuntimePrimitive::Unsigned(32))),
+        (
+            one_old,
+            RuntimeType::FixedArray {
+                element: byte,
+                length: 1,
+            },
+        ),
+        (
+            one_new,
+            RuntimeType::FixedArray {
+                element: word,
+                length: 1,
+            },
+        ),
+        (
+            many_old,
+            RuntimeType::FixedArray {
+                element: byte,
+                length: 4,
+            },
+        ),
+        (
+            many_new,
+            RuntimeType::FixedArray {
+                element: word,
+                length: 4,
+            },
+        ),
+        (empty_old, RuntimeType::EmptyArray { element: byte }),
+        (empty_new, RuntimeType::EmptyArray { element: word }),
+        (zst, RuntimeType::Unit),
+        (
+            huge,
+            RuntimeType::FixedArray {
+                element: zst,
+                length: u64::MAX,
+            },
+        ),
+    ]);
+    let index = |index| ValuePath::new([ValueProjection::Array(index)]);
+    assert!(layouts.has_same_projection_offset(one_old, one_new, &index(None)));
+    assert!(layouts.has_same_projection_offset(many_old, many_new, &index(Some(0))));
+    assert!(!layouts.has_same_projection_offset(many_old, many_new, &index(Some(1))));
+    assert!(!layouts.has_same_projection_offset(many_old, many_new, &index(None)));
+    assert!(!layouts.has_same_projection_offset(many_old, many_new, &index(Some(4))));
+    assert!(!layouts.has_same_projection_offset(empty_old, empty_new, &index(None)));
+    assert!(!layouts.has_same_projection_offset(empty_old, empty_new, &index(Some(0))));
+    assert!(!layouts.has_same_projection_offset(one_old, many_old, &index(None)));
+    assert!(layouts.has_same_projection_offset(huge, huge, &index(None)));
+    assert!(layouts.has_same_projection_offset(huge, huge, &index(Some(u64::MAX - 1))));
+    assert!(!layouts.has_same_projection_offset(huge, huge, &index(Some(u64::MAX))));
 }

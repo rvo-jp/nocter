@@ -83,6 +83,11 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   unioned across alternatives. Derive existing root-absence queries from that one product;
   qualify alias expiry, staged reservations, conditional liveness and known/unknown indexed
   coordinates without granting address stability, initialized storage or relocation permission.
+- [x] Add a layout-owned relative projection-offset comparison, separate from complete geometry.
+  Require original logical member correspondence, preserve known/unknown array coordinates,
+  reject absent elements/missing layouts and qualify singleton and maximum zero-size arrays.
+  This supplies no common root, capacity, initialized storage or relocation permission; existing
+  executable geometry constraints remain unchanged pending the scoped transition proof.
 - [ ] Close carrier representation coherence under the
   [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances)
   before admitting context-changing writes and retained sibling references.
