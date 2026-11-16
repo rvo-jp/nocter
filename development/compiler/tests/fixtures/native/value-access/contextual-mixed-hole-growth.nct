@@ -1,0 +1,45 @@
+struct Item { value: i32 }
+
+const func identity(value: i32): i32 { value }
+
+const func addition(value: i32): func(i32): i32 {
+    let item = Item { value: value }
+    (item^; amount: i32): i32 { item.value + amount }
+}
+
+const func subtraction(value: i32): func(i32): i32 {
+    let item = Item { value: value }
+    (item^; amount: i32): i32 { item.value - amount }
+}
+
+const func wrap(take callback: func(i32): i32): func(i32): i32 {
+    (callback^; amount: i32): i32 { callback(amount) }
+}
+
+const func calculate(index: usize, count: usize): i32 {
+    var pair = (wrap(identity), [([Item { value: 20 }, Item { value: 20 }, Item { value: 1 }], Item { value: 2 }),
+                                ([Item { value: 0 }, Item { value: 0 }, Item { value: 0 }], Item { value: 3 })], 3)
+    var cursor: usize = 0
+    var total = 0
+    while cursor < count {
+        let withdrawn = pair.1[0].0[cursor]^
+        total += withdrawn.value
+        cursor += 1
+    }
+    let selected = pair.1[index].1^
+    let traversed = cursor
+    cursor = 99
+    pair.0 = wrap(addition(20))
+    pair.0 = wrap(subtraction(50))
+    let saved = pair.0^
+    pair.0 = wrap(addition(1))
+    pair.0 = wrap(identity)
+    let expected = if count == 0 { 0 } else { if count == 1 { 20 } else { if count == 2 { 40 } else { 41 } } }
+    if traversed == count && cursor == 99 && total == expected && selected.value == (if index == 0 { 2 } else { 3 }) && pair.2 == 3 && pair.0(42) == 42 && saved(8) == 42 { 42 } else { 0 }
+}
+
+const func verify(): i32 {
+    if calculate(0, 0) == 42 && calculate(1, 0) == 42 && calculate(0, 1) == 42 && calculate(1, 1) == 42 && calculate(0, 2) == 42 && calculate(1, 2) == 42 && calculate(0, 3) == 42 && calculate(1, 3) == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = verify()
+func run(): i32 { if ANSWER == 42 { verify() } else { 0 } }

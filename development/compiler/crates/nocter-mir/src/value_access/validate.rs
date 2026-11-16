@@ -156,6 +156,28 @@ impl Context<'_> {
                 && slot.representations.as_ref() == [data],
         )
     }
+    fn remainder_exclusion<'a>(
+        &self,
+        exclusion: &'a super::RemainderExclusion,
+    ) -> Result<&'a Place, Failure> {
+        let place = exclusion.place();
+        self.place(place)?;
+        if let Some(endpoint) = exclusion.endpoint() {
+            let (_, length) = self
+                .program
+                .runtime
+                .types()
+                .get(place.data)
+                .and_then(RuntimeType::array)
+                .ok_or_else(|| self.invalid())?;
+            self.require(matches!(
+                self.body.slots.get(endpoint).map(|slot| slot.key),
+                Some(SlotKey::ArrayFrontier(_))
+            ))?;
+            self.range_index(endpoint, length)?;
+        }
+        Ok(place)
+    }
     fn array_remainder(
         &self,
         source: &Place,
@@ -178,25 +200,7 @@ impl Context<'_> {
         )?;
         let mut seen = BTreeSet::new();
         for exclusion in missing {
-            let hole = match exclusion {
-                super::RemainderExclusion::Value(hole) => hole,
-                super::RemainderExclusion::ArrayPrefix { array, endpoint } => {
-                    let (_, length) = self
-                        .program
-                        .runtime
-                        .types()
-                        .get(array.data)
-                        .and_then(RuntimeType::array)
-                        .ok_or_else(|| self.invalid())?;
-                    self.require(matches!(
-                        self.body.slots.get(*endpoint).map(|slot| slot.key),
-                        Some(SlotKey::ArrayFrontier(_))
-                    ))?;
-                    self.range_index(*endpoint, length)?;
-                    array
-                }
-            };
-            self.place(hole)?;
+            let hole = self.remainder_exclusion(exclusion)?;
             self.require(
                 seen.insert(exclusion)
                     && hole.slot == source.slot
@@ -277,21 +281,7 @@ impl Context<'_> {
                 .is_some_and(|expected| expected.as_ref() == preserved),
         )?;
         for exclusion in missing {
-            self.place(exclusion.place())?;
-            if let Some(endpoint) = exclusion.endpoint() {
-                let (_, length) = self
-                    .program
-                    .runtime
-                    .types()
-                    .get(exclusion.place().data)
-                    .and_then(RuntimeType::array)
-                    .ok_or_else(|| self.invalid())?;
-                self.require(matches!(
-                    self.body.slots.get(endpoint).map(|slot| slot.key),
-                    Some(SlotKey::ArrayFrontier(_))
-                ))?;
-                self.range_index(endpoint, length)?;
-            }
+            self.remainder_exclusion(exclusion)?;
         }
         for part in preserved {
             self.place(&part.source)?;

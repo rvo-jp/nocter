@@ -1,0 +1,47 @@
+primitive func create_failure(code: str, message: str): error
+primitive func context_error(take value: error, message: str): error
+
+func inspect(value: error): i32 { 42 }
+
+func identity(value: i32): i32 { value }
+
+func addition(value: i32): func(i32): i32 {
+    let reason = context_error(create_failure("addition", "leaf"), "outer")
+    (reason^, value; amount: i32): i32 { value + amount }
+}
+
+func subtraction(value: i32): func(i32): i32 {
+    let reason = context_error(create_failure("subtraction", "leaf"), "outer")
+    (reason^, value; amount: i32): i32 { value - amount }
+}
+
+func wrap(take callback: func(i32): i32): func(i32): i32 {
+    (callback^; amount: i32): i32 { callback(amount) }
+}
+
+func calculate(index: usize, count: usize): i32 {
+    let first = wrap(addition(20))
+    let second = wrap(subtraction(50))
+    let third = wrap(addition(1))
+    var pair = (wrap(identity), [([context_error(create_failure("a", "leaf"), "outer"), context_error(create_failure("b", "leaf"), "outer"), context_error(create_failure("c", "leaf"), "outer")], context_error(create_failure("d", "leaf"), "outer")),
+                                ([context_error(create_failure("e", "leaf"), "outer"), context_error(create_failure("f", "leaf"), "outer"), context_error(create_failure("g", "leaf"), "outer")], context_error(create_failure("h", "leaf"), "outer"))], 3)
+    var cursor: usize = 0
+    while cursor < count {
+        let withdrawn = pair.1[0].0[cursor]^
+        cursor += 1
+    }
+    var selection = index
+    let selected = pair.1[selection].1^
+    selection = 1 - selection
+    cursor = 99
+    pair.0 = first^
+    pair.0 = second^
+    let saved = pair.0^
+    pair.0 = third^
+    pair.0 = wrap(identity)
+    if inspect(selected) == 42 && cursor == 99 && pair.2 == 3 && pair.0(42) == 42 && saved(8) == 42 { 42 } else { 0 }
+}
+
+func run(): i32 {
+    if calculate(0, 0) == 42 && calculate(1, 0) == 42 && calculate(0, 1) == 42 && calculate(1, 1) == 42 && calculate(0, 2) == 42 && calculate(1, 2) == 42 && calculate(0, 3) == 42 && calculate(1, 3) == 42 { 42 } else { 0 }
+}

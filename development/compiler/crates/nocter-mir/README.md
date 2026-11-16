@@ -126,7 +126,9 @@ only remaining fields through its shared sparse walk, without acquiring another 
 proof. Prefix exclusions use the same `RemainderExclusion` as cleanup, with a typed original
 array place and its saved `ArrayFrontier` endpoint. Structural validation checks the old root,
 array schema and disjoint destination; body validation requires the frontier role, usize storage
-and exact containing bound. Sparse arrays stay one preservation part even for a singleton prefix.
+and exact containing bound. Cleanup and repacking share one exclusion validator before applying
+their separate containing-source/receipt constraints. Sparse arrays stay one preservation part
+even for a singleton prefix.
 Original `MoveArrayElement` delivery consumes its ordered payload and retained selection address;
 it cannot query a fresh contextual operand at a later resource phase. Required/native cases cover
 empty, partial and complete prefixes, counter mutation, bounds traps and actual error cleanup.

@@ -769,3 +769,12 @@ fn contextual_prefix_holes_preserve_required_evaluation_after_counter_mutation()
         nocter_constant_evaluation::state::Value::integer(42)
     );
 }
+
+#[test]
+fn contextual_mixed_holes_preserve_distinct_prefix_and_point_coordinates() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-mixed-hole-growth.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Value::integer(42));
+}

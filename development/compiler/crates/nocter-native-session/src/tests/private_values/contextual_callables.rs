@@ -1926,3 +1926,39 @@ fn private_contextual_closures_keep_selected_contracts_in_runtime_instances() {
     let package = TempPackage::new();
     execute_native_status(&compile(source), &package.0, "contextual-closures", 42);
 }
+
+#[test]
+fn private_contextual_mixed_prefix_and_point_holes_keep_independent_original_coordinates() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-mixed-hole-growth.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "mixed-hole-growth", 42);
+    let mutated = source
+        .replace(
+            "    var cursor: usize = 0",
+            "    var selection = index\n    var cursor: usize = 0",
+        )
+        .replace(
+            "    let selected = pair.1[index].1^",
+            "    let selected = pair.1[selection].1^\n    selection = 1 - selection",
+        );
+    assert_ne!(mutated, source);
+    execute_native_status(&compile(&mutated), &package.0, "mixed-hole-snapshot", 42);
+}
+
+#[test]
+fn private_contextual_mixed_holes_preserve_withdrawn_and_remaining_error_graphs() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-mixed-hole-errors.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &image(&trusted_error_machine(source)),
+        &package.0,
+        "mixed-hole-errors",
+        42,
+    );
+}

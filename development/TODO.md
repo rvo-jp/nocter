@@ -95,8 +95,11 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Extend relocation to original array-prefix exclusions, sharing typed missing-region metadata
   and native sparse traversal with cleanup. Preserve original frontier roles/bounds, later counter
   mutation, empty/partial/complete prefixes, bounds traps and actual owning-error cleanup.
-- [ ] Extend relocation's initialized-subtree selection to unresolved represented alternatives
-  and remaining range combinations, preserving original saved coordinates without element expansion.
+- [x] Qualify mixed nested-prefix and dynamic field exclusions through one original owner,
+  preserving independent saved coordinates, counter/index mutation, all prefix lengths and actual
+  withdrawn/saved/remaining error cleanup. Share exclusion validation between cleanup and repacking.
+- [ ] Extend relocation's initialized-subtree selection to unresolved represented alternatives,
+  preserving original saved coordinates without element expansion.
 - [x] Qualify same-geometry contextual callable component replacement and restoration with a
   surviving disjoint sibling reference. Carry each partial receipt's original containing roots
   into MIR and physical geometry checks without fusing separate retirement/receipt operations.

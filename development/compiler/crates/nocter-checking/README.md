@@ -2272,6 +2272,10 @@ Native variants cover singleton prefixes and maximum-count zero-byte storage. Th
 error fixture executes withdrawn and remaining owning-graph cleanup. The
 [MIR owner](../nocter-mir/README.md) owns exclusion validation and sparse preservation; this does
 not establish prefix proofs across opaque captured-call writes.
+`contextual-mixed-hole-growth.nct` combines a nested array prefix with a dynamic field withdrawal
+from either containing element. Required/native execution covers each prefix length, the saved
+point's original coordinate after index mutation and representation growth/shrinkage. The matching
+error fixture executes actual withdrawn, independently saved and remaining graph cleanup.
 `contextual-component-replacement.nct` additionally qualifies same-geometry partial replacement
 and restoration while a disjoint sibling reference survives, including repeated writes through
 one local edit alias. Original carrier selections match its actual containing owner. The evaluator
