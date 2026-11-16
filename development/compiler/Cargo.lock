@@ -2165,15 +2165,20 @@ name = "nocter-session"
 version = "0.0.0"
 dependencies = [
  "nocter-checking",
+ "nocter-compile-input",
+ "nocter-compiler-computation",
  "nocter-declaration-lowering",
  "nocter-declarations",
  "nocter-diagnostics",
  "nocter-discovery",
+ "nocter-filesystem",
  "nocter-model",
+ "nocter-package",
  "nocter-runtime-contract",
  "nocter-semantic-product",
  "nocter-source",
  "nocter-source-index",
+ "nocter-syntax",
  "nocter-target-program",
  "nocter-toolchain-contract",
 ]

@@ -12,6 +12,8 @@ mod output;
 mod semantic_analysis;
 mod semantic_capabilities;
 mod test_selection;
+#[cfg(test)]
+mod value_access_tests;
 
 pub use analyzed_unit::{
     AnalyzedCompilationFailure, AnalyzedUnit, AnalyzedUnitStatus, SemanticAnalysisDomainError,

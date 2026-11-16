@@ -21,6 +21,18 @@ impl SourceFailureReport {
     }
 }
 
+impl std::fmt::Display for SourceFailureReport {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.diagnostics.first() {
+            Some(diagnostic) => {
+                write!(formatter, "{}: {}", diagnostic.code(), diagnostic.message())
+            }
+            None => formatter.write_str("value-access source analysis failed"),
+        }
+    }
+}
+impl std::error::Error for SourceFailureReport {}
+
 impl SourceFailure {
     /// Retains the original typed failure and only diagnostics established by its owning phase.
     /// An empty diagnostic set does not turn an internal/metadata failure into authored rejection.

@@ -75,7 +75,7 @@ impl AnalysisSnapshot {
     }
 
     #[must_use]
-    pub const fn status(&self) -> AnalysisStatus {
+    pub fn status(&self) -> AnalysisStatus {
         match self.state {
             AnalysisState::DiscoveryFailed(_) => AnalysisStatus::DiscoveryFailed,
             AnalysisState::Analyzed(ref analysis) => match analysis.status() {

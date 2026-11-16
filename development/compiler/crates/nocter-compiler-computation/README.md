@@ -28,15 +28,15 @@ owns no alternative header, typing, lifetime, cleanup or required-evaluation imp
 The accepted product seals its reusable `ModuleQuery` and complete checked Unit together.
 Source rejection retains checking's sealed `SourceFailureReport`, including its original typed
 cause and common diagnostics, without converting it into released declaration diagnostics. A failure
-to bind a report to its original input becomes a typed compiler-query projection failure. Incomplete syntax retains the
-exact discovery diagnostics and exposes no checked Unit or released recovery result.
+to bind a report to its original input becomes a typed compiler-query projection failure. Incomplete
+syntax retains the exact discovery diagnostics and exposes no checked Unit or released recovery result.
 
 This branch currently depends on the complete exact-current source input. An unchanged request
 reuses the result; a body edit recomputes the coordinator and its required values. Header binding
 may remain reusable, but old complete body/value evidence must reject the changed source. Fine-grained
-v2 body-query reuse and partial editor recovery remain unqualified. The ordinary session rejects
-this distinct product until its target, diagnostic and editor consumers are qualified; public CLI,
-installed library and ABI admission do not follow from query integration.
+v2 body-query reuse and partial editor recovery remain unqualified. The ordinary session retains
+this distinct evidence and its common failure report without released-program conversion. Target,
+native, editor, public CLI, installed library and ABI admission require their own qualification.
 
 ## Internal Responsibilities
 

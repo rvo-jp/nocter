@@ -23,9 +23,11 @@ that exact input through its ordinary declaration/body/required-value coordinato
 roots, complete paired headers, child/package boundaries and unused source-folder helpers retain
 their existing owners. The revision-owned unit-analysis query now selects this same coordinator
 for v2 input and retains accepted, rejected or incomplete syntax outcomes under exact-current source
-identity. It does not convert the result to released checking/recovery. This qualifies the physical
-and query-to-checking handoff, not ordinary session translation, an executable entry, a v2 standard
-library or public CLI. The [query owner](../../compiler/crates/nocter-compiler-computation/README.md#selected-value-access-query-scope)
+identity. Session retains that same query branch and the original common failure report in its
+exact-current envelope, without invoking checking or converting to released semantic views. Source
+checking remains separate from the explicitly unqualified executable-target boundary. This qualifies
+the physical, query and session evidence handoff, not executable entry/native/editor admission,
+a v2 standard library or public CLI. The [query owner](../../compiler/crates/nocter-compiler-computation/README.md#selected-value-access-query-scope)
 defines its reuse and recovery scope.
 
 ## Implemented Handoff

@@ -21,9 +21,11 @@ enum AnalyzedUnitState {
         semantic: Option<Box<SemanticEvidenceBundle>>,
     },
     Complete(Box<CompiledTarget>),
+    ValueAccess(Arc<nocter_semantic_product::ValueAccessAnalysis>),
 }
 
 /// The semantic completion state of one analyzed discovery snapshot.
+/// Complete source checking does not itself certify an executable target.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AnalyzedUnitStatus {
     SyntaxFailed,
@@ -80,11 +82,22 @@ pub struct AnalyzedUnit {
 
 impl AnalyzedUnit {
     #[must_use]
-    pub const fn status(&self) -> AnalyzedUnitStatus {
-        match self.state {
+    pub fn status(&self) -> AnalyzedUnitStatus {
+        match &self.state {
             AnalyzedUnitState::SyntaxFailed { .. } => AnalyzedUnitStatus::SyntaxFailed,
             AnalyzedUnitState::CompilationFailed { .. } => AnalyzedUnitStatus::CompilationFailed,
             AnalyzedUnitState::Complete(_) => AnalyzedUnitStatus::Complete,
+            AnalyzedUnitState::ValueAccess(analysis) => match &**analysis {
+                nocter_semantic_product::ValueAccessAnalysis::Accepted(_) => {
+                    AnalyzedUnitStatus::Complete
+                }
+                nocter_semantic_product::ValueAccessAnalysis::Rejected(_) => {
+                    AnalyzedUnitStatus::CompilationFailed
+                }
+                nocter_semantic_product::ValueAccessAnalysis::IncompleteSyntax => {
+                    AnalyzedUnitStatus::SyntaxFailed
+                }
+            },
         }
     }
 
@@ -106,6 +119,16 @@ impl AnalyzedUnit {
                 semantic.as_deref().map(SemanticEvidenceBundle::view)
             }
             AnalyzedUnitState::Complete(target) => Some(target.semantic_evidence()),
+            AnalyzedUnitState::ValueAccess(_) => None,
+        }
+    }
+
+    /// Exact query-owned value-access evidence, independent of released semantic/target views.
+    #[must_use]
+    pub fn value_access_analysis(&self) -> Option<&nocter_semantic_product::ValueAccessAnalysis> {
+        match &self.state {
+            AnalyzedUnitState::ValueAccess(analysis) => Some(analysis),
+            _ => None,
         }
     }
 
@@ -113,7 +136,8 @@ impl AnalyzedUnit {
     ///
     /// # Errors
     ///
-    /// Returns the exact syntax or semantic failure selected by the query-owned analysis branch.
+    /// Returns the exact syntax or semantic failure selected by the query-owned analysis branch,
+    /// or the explicit unqualified-target boundary for a checked value-access source.
     pub fn into_compilation_result(
         self,
     ) -> Result<CompiledTarget, Box<AnalyzedCompilationFailure>> {
@@ -135,6 +159,24 @@ impl AnalyzedUnit {
                         crate::CompileSessionError::SyntaxErrorsPresent,
                         continuations,
                     ),
+                    sources: unit.sources().clone(),
+                    diagnostics,
+                }))
+            }
+            AnalyzedUnitState::ValueAccess(analysis) => {
+                let error = match &*analysis {
+                    nocter_semantic_product::ValueAccessAnalysis::Accepted(_) => {
+                        crate::CompileSessionError::ValueAccessTargetUnqualified
+                    }
+                    nocter_semantic_product::ValueAccessAnalysis::Rejected(report) => {
+                        crate::CompileSessionError::ValueAccessSource(Arc::clone(report))
+                    }
+                    nocter_semantic_product::ValueAccessAnalysis::IncompleteSyntax => {
+                        crate::CompileSessionError::SyntaxErrorsPresent
+                    }
+                };
+                Err(Box::new(AnalyzedCompilationFailure {
+                    failure: CompileSessionFailure::single(error),
                     sources: unit.sources().clone(),
                     diagnostics,
                 }))
@@ -163,8 +205,23 @@ pub fn analyze_unit_from_query(
         nocter_semantic_product::UnitAnalysisOutcome::Complete(complete) => {
             analyzed_complete_unit(unit, complete)
         }
-        nocter_semantic_product::UnitAnalysisOutcome::ValueAccess(_) => {
-            Err(SemanticAnalysisDomainError::UnqualifiedValueAccess)
+        nocter_semantic_product::UnitAnalysisOutcome::ValueAccess(analysis) => {
+            let diagnostics = match &**analysis {
+                nocter_semantic_product::ValueAccessAnalysis::Accepted(_) => {
+                    Box::new([]) as Box<[_]>
+                }
+                nocter_semantic_product::ValueAccessAnalysis::Rejected(report) => {
+                    report.diagnostics().to_vec().into_boxed_slice()
+                }
+                nocter_semantic_product::ValueAccessAnalysis::IncompleteSyntax => {
+                    unit.syntax_diagnostics()
+                }
+            };
+            Ok(AnalyzedUnit {
+                unit,
+                diagnostics,
+                state: AnalyzedUnitState::ValueAccess(Arc::clone(analysis)),
+            })
         }
         nocter_semantic_product::UnitAnalysisOutcome::Incomplete(incomplete) => {
             Ok(analyzed_incomplete_unit(
@@ -248,7 +305,6 @@ fn analyzed_incomplete_unit(
 
 #[derive(Clone, Debug)]
 pub enum SemanticAnalysisDomainError {
-    UnqualifiedValueAccess,
     QueryFailure(Arc<nocter_semantic_product::SemanticQueryFailure>),
 }
 
@@ -256,9 +312,6 @@ impl std::fmt::Display for SemanticAnalysisDomainError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::QueryFailure(failure) => failure.fmt(formatter),
-            Self::UnqualifiedValueAccess => {
-                formatter.write_str("value-access session admission is not qualified")
-            }
         }
     }
 }
@@ -267,7 +320,6 @@ impl std::error::Error for SemanticAnalysisDomainError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::QueryFailure(failure) => Some(failure.as_ref()),
-            Self::UnqualifiedValueAccess => None,
         }
     }
 }

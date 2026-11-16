@@ -18,11 +18,11 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify session consumption of the selected v2 query result, retaining the exact discovery envelope
-and original diagnostics without invoking checking again or converting to released program evidence.
-Keep source acceptance separate from executable-entry/target/ABI qualification. Continue toward the
-ordinary native/editor workflow using the existing value-access consumers and one semantic pipeline;
-fine-grained v2 query reuse, partial editor recovery and the standard library remain open.
+Qualify the exact query/session-owned v2 Unit through the common private native path, selecting
+an explicit checked root without public entry/ABI admission or another source-checking pass. Then
+close executable-entry and target prerequisites against adopted contracts before choosing any
+ordinary CLI adapter. Fine-grained v2 query reuse, partial editor recovery and the standard library
+remain open; preserve one semantic pipeline and exact current-source evidence.
 
 ## Remaining Contextual Representation Qualification
 
@@ -692,6 +692,11 @@ not a language restriction derived from the current realization boundary.
   const eligibility, primitive/role and module errors. Reject foreign node/source generations,
   unselected spans/notes and invalid ranges; retain valid lexical-token identity across equal-source
   parsing. Keep spanless integrity/metadata causes and query projection failures distinct.
+- [x] Consume selected v2 query evidence in the common session envelope without checking again.
+  Retain accepted source evidence, the same shared rejection report and exact syntax diagnostics;
+  qualify failure-envelope source identity, absent released views and explicit target rejection.
+  Source completion is not executable admission. Verify CLI/workspace consumers compile and the
+  production session still cannot invoke compiler computation; target/native/editor work remains.
 - [ ] Integrate v2 into the ordinary compiler/CLI and editor workflow with one semantic pipeline,
   current diagnostics, formatting, presentation and revision/source reuse. Remove transitional private
   handoffs when their production replacement is qualified; retain no competing semantic authority.

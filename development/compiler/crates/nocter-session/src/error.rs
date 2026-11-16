@@ -5,6 +5,8 @@ use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic};
 /// A failure at one owned compilation-session boundary.
 #[derive(Debug)]
 pub enum CompileSessionError {
+    ValueAccessSource(std::sync::Arc<nocter_checking::value_access::SourceFailureReport>),
+    ValueAccessTargetUnqualified,
     SyntaxErrorsPresent,
     CompileInput(nocter_discovery::CompileInputError),
     Declaration(nocter_declaration_lowering::DeclarationLoweringError),
@@ -105,9 +107,11 @@ impl CompileSessionError {
     pub fn source_diagnostics(&self) -> &[SourceDiagnostic] {
         match self {
             Self::Declaration(error) => error.source_diagnostics(),
+            Self::ValueAccessSource(report) => report.diagnostics(),
             Self::Preparation(error) => error.source_diagnostic().map_or(&[], std::slice::from_ref),
             Self::Checking(error) => error.source_diagnostic().map_or(&[], std::slice::from_ref),
-            Self::SyntaxErrorsPresent
+            Self::ValueAccessTargetUnqualified
+            | Self::SyntaxErrorsPresent
             | Self::CompileInput(_)
             | Self::CurrentProjection(_)
             | Self::CurrentSymbols(_)
@@ -125,7 +129,9 @@ impl CompileSessionError {
     pub const fn diagnostic_code(&self) -> Option<DiagnosticCode> {
         match self {
             Self::TargetUnavailable(_) => Some(DiagnosticCode::E0701),
-            Self::SyntaxErrorsPresent
+            Self::ValueAccessSource(_)
+            | Self::ValueAccessTargetUnqualified
+            | Self::SyntaxErrorsPresent
             | Self::CompileInput(_)
             | Self::Declaration(_)
             | Self::CurrentProjection(_)
@@ -145,6 +151,10 @@ impl fmt::Display for CompileSessionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::SyntaxErrorsPresent => formatter.write_str("source contains syntax errors"),
+            Self::ValueAccessSource(report) => report.fmt(formatter),
+            Self::ValueAccessTargetUnqualified => {
+                formatter.write_str("value-access executable target admission is not qualified")
+            }
             Self::CompileInput(error) => error.fmt(formatter),
             Self::Declaration(error) => error.fmt(formatter),
             Self::CurrentProjection(error) => error.fmt(formatter),
@@ -166,7 +176,10 @@ impl fmt::Display for CompileSessionError {
 impl std::error::Error for CompileSessionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::SyntaxErrorsPresent | Self::MissingStandardPackage => None,
+            Self::SyntaxErrorsPresent
+            | Self::MissingStandardPackage
+            | Self::ValueAccessTargetUnqualified => None,
+            Self::ValueAccessSource(report) => Some(report.as_ref()),
             Self::CompileInput(error) => Some(error),
             Self::Declaration(error) => Some(error),
             Self::CurrentProjection(error) => Some(error),

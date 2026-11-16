@@ -31,7 +31,7 @@ impl AcceptedValueAccess {
 #[derive(Debug)]
 pub enum ValueAccessAnalysis {
     Accepted(AcceptedValueAccess),
-    Rejected(SourceFailureReport),
+    Rejected(std::sync::Arc<SourceFailureReport>),
     IncompleteSyntax,
 }
 
@@ -52,9 +52,9 @@ pub(super) fn analyze(
     Ok(match result {
         Ok(accepted) => ValueAccessAnalysis::Accepted(accepted),
         Err(failure) => {
-            ValueAccessAnalysis::Rejected(failure.project(input).map_err(|failure| {
-                super::SemanticQueryFailure::ValueAccessProjection(Box::new(failure))
-            })?)
+            ValueAccessAnalysis::Rejected(std::sync::Arc::new(failure.project(input).map_err(
+                |failure| super::SemanticQueryFailure::ValueAccessProjection(Box::new(failure)),
+            )?))
         }
     })
 }

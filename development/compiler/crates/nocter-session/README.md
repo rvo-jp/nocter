@@ -15,9 +15,16 @@ Recovery storage variants and phase order remain private. The crate does not imp
 invoke semantic compiler stages, implement editor queries, generate native code, or project
 protocol values.
 
-The distinct value-access query product currently receives an explicit unqualified-domain error.
-It cannot enter released program/target translation or recovery. Qualifying v2 session, diagnostics,
-target and editor evidence is a separate integration step; session does not run the private checker.
+The value-access query product retains its original accepted, rejected or incomplete-syntax branch
+inside the same exact-current session envelope. `value_access_analysis` exposes that query evidence;
+released semantic views are absent. Source acceptance means complete source checking, independently
+of target admission. Rejection shares checking's original `SourceFailureReport`, and syntax failure
+keeps discovery's exact diagnostics. Session runs no checking or diagnostic rule again.
+
+Converting a checked value-access source to compilation currently returns a distinct unqualified-target
+failure without a fabricated public diagnostic or executable. Rejected conversion retains the exact
+shared report and syntax conversion retains the authoritative syntax failure. V2 target/native and
+editor capabilities remain separate integration work.
 
 ## Internal Responsibilities
 
