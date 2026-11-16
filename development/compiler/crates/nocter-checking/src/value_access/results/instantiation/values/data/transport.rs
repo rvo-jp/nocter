@@ -156,7 +156,8 @@ impl Query<'_, '_> {
                         boundary,
                         ..selected.clone()
                     };
-                    fact = fact.join(self.read(owner, Key::Stored(frame.clone(), next, query))?);
+                    let incoming = self.read(owner, Key::Stored(frame.clone(), next, query))?;
+                    fact = self.join_data_facts(fact, incoming)?;
                 }
                 Ok(fact)
             }
@@ -178,7 +179,8 @@ impl Query<'_, '_> {
         let returned: Vec<_> = graph.returned().iter().copied().collect();
         let mut fact = Fact::Empty;
         for value in returned {
-            fact = fact.join(self.returned_value_data(owner, frame, value, path, target)?);
+            let incoming = self.returned_value_data(owner, frame, value, path, target)?;
+            fact = self.join_data_facts(fact, incoming)?;
         }
         Ok(fact)
     }

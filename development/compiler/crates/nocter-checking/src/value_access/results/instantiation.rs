@@ -1,8 +1,9 @@
-//! Request-local, budgeted fixed point for concrete invocation metadata, never executable admission.
+//! Request-local, budgeted invocation and representation metadata, never executable admission.
 use super::{Evidence, ProducerRelation, ProducerTerm};
 use nocter_constant_evaluation::state::WorkBudget;
 use nocter_declarations::value_access::{
-    CodeInstanceKey, ConcreteWitness, DataInstanceKey, FunctionWitness, Program,
+    CodeInstanceKey, ConcreteWitness, DataDomainJoinFailure, DataInstanceKey, FunctionWitness,
+    Program,
 };
 use nocter_model::{
     AccessLocalId, TypeId, ValueApplication, ValueCode, ValueFunctionOrigin as Origin,
@@ -34,6 +35,17 @@ enum Key {
     Representation(CodeInstanceKey, super::ValueSourceId, ValuePath<()>, TypeId),
     Stored(CodeInstanceKey, super::ValueSourceSelection, StoredQuery),
     CompletedInput(CodeInstanceKey, AccessLocalId, ValuePath<()>, TypeId),
+}
+impl Key {
+    fn is_data_domain(&self) -> bool {
+        matches!(
+            self,
+            Self::Data(..)
+                | Self::DataResult(..)
+                | Self::Representation(..)
+                | Self::Stored(_, _, StoredQuery::Data(_) | StoredQuery::ReturnedData(_))
+        )
+    }
 }
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum StoredQuery {
@@ -339,11 +351,21 @@ impl<'a, 'work> Query<'a, 'work> {
         while let Some(key) = self.pending.pop_first() {
             self.step()?;
             let fact = self.evaluate(&key)?;
+            let previous = self
+                .entries
+                .get(&key)
+                .ok_or(InstantiationFailure::Unresolved)?
+                .fact
+                .clone();
+            let joined = if key.is_data_domain() {
+                self.join_data_facts(previous, fact)?
+            } else {
+                previous.join(fact)
+            };
             let entry = self
                 .entries
                 .get_mut(&key)
                 .ok_or(InstantiationFailure::Unresolved)?;
-            let joined = entry.fact.clone().join(fact);
             if joined != entry.fact {
                 entry.fact = joined;
                 self.pending.extend(entry.dependents.iter().cloned());
@@ -355,6 +377,21 @@ impl<'a, 'work> Query<'a, 'work> {
             .ok_or(InstantiationFailure::Unresolved)
     }
 
+    fn join_data_facts(&mut self, left: Fact, right: Fact) -> Result<Fact, InstantiationFailure> {
+        match (left, right) {
+            (Fact::Data(left), Fact::Data(right)) if left != right => {
+                match self
+                    .program
+                    .join_data_domains(&left, &right, || self.work.step())
+                {
+                    Ok(domain) => Ok(Fact::Data(domain)),
+                    Err(DataDomainJoinFailure::Binding(_)) => Ok(Fact::Unavailable),
+                    Err(DataDomainJoinFailure::Work(_)) => Err(InstantiationFailure::WorkLimit),
+                }
+            }
+            (left, right) => Ok(left.join(right)),
+        }
+    }
     fn step(&mut self) -> Result<(), InstantiationFailure> {
         self.work
             .step()

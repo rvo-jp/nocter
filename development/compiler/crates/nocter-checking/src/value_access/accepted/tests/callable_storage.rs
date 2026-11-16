@@ -798,7 +798,7 @@ fn contextual_optional_siblings_preserve_original_tags_and_received_contexts() {
 }
 
 #[test]
-fn conflicting_positive_callable_contexts_remain_unqualified_without_a_choice_representation() {
+fn conflicting_positive_callable_contexts_remain_unqualified_without_executable_selection() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../tests/fixtures/value-contexts/contextual-joined-sibling-growth.nct"
@@ -808,5 +808,51 @@ fn conflicting_positive_callable_contexts_remain_unqualified_without_a_choice_re
     assert!(
         matches!(failure, SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })
         if diagnostic.rule() == crate::value_access::evaluation::Rule::UnresolvedContext)
+    );
+}
+
+#[test]
+fn positive_source_result_domains_keep_both_original_creation_contexts() {
+    use nocter_constant_evaluation::state::WorkBudget;
+    use nocter_declarations::value_access::InstanceSchema;
+    use std::num::NonZeroU64;
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/value-contexts/contextual-joined-sibling-growth.nct"
+    ));
+    let mut runtime = source
+        .lines()
+        .filter(|line| !line.starts_with("const ANSWER:") && !line.starts_with("func run():"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    runtime.push_str("\nfunc run(): i32 { 0 }\n");
+    let unit = accepted(&runtime);
+    let program = unit.program();
+    let code = program
+        .resolve(program.symbols().get("maybe").unwrap())
+        .unwrap();
+    let frame = program.bind_code(code.into(), []).unwrap();
+    let mut work = WorkBudget::new(NonZeroU64::new(100_000).unwrap());
+    let domain = unit.instantiate_result_contract(&frame, &mut work).unwrap();
+    let primary = domain
+        .component(program, nocter_model::ValueField::Variant(true))
+        .unwrap();
+    let InstanceSchema::FunctionAlternatives(choices) = primary.schema(program).unwrap() else {
+        panic!("positive source choices")
+    };
+    assert_eq!(choices.len(), 2);
+    assert_eq!(choices[0].code(), choices[1].code());
+    assert_ne!(choices[0].environment(), choices[1].environment());
+    assert!(primary.function_representation(program).is_err());
+    let mut exhausted = WorkBudget::new(NonZeroU64::new(1).unwrap());
+    assert_eq!(
+        unit.instantiate_result_contract(&frame, &mut exhausted),
+        Err(crate::value_access::InstantiationFailure::WorkLimit)
+    );
+    let mut healthy = WorkBudget::new(NonZeroU64::new(100_000).unwrap());
+    assert_eq!(
+        unit.instantiate_result_contract(&frame, &mut healthy)
+            .unwrap(),
+        domain
     );
 }

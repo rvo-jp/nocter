@@ -7,7 +7,16 @@ use crate::value_access::{
 use nocter_model::{AccessFlowPointId, ValueField, ValueProjection};
 
 #[test]
-fn stored_queries_close_anchored_backedges_and_reject_different_carrier_contexts_at_a_join() {
+fn stored_queries_close_anchored_backedges() {
+    assert_loop_context(false);
+}
+
+#[test]
+fn stored_queries_retain_different_data_contexts_at_a_join() {
+    assert_loop_context(true);
+}
+
+fn assert_loop_context(update: bool) {
     let fixture = fixture_with_shape(1, false);
     let program = &fixture.program;
     let Origin::Closure(outer) = fixture.captured.origin else {
@@ -24,90 +33,114 @@ fn stored_queries_close_anchored_backedges_and_reject_different_carrier_contexts
         .unwrap();
     let frame = program.bind_instance(&selected, []).unwrap();
     let mut locals = ArenaBuilder::new();
-    let slot = ValueSourceSlot::Local(locals.insert(()));
+    let local = locals.insert(());
+    let slot = ValueSourceSlot::Local(local);
     let replaced = program
         .instantiate_components(
             environment.data(),
             [0, 1].map(|index| (ValueField::Tuple(index), leaves[1].clone())),
         )
         .unwrap();
-    for update in [false, true] {
-        let (positions, points) = loop_positions(slot, update);
-        let graph = ValueSources::test(
-            frame.code(),
-            data::replacement_nodes(environment.data(), program.function_data(wrapper)),
-            BTreeMap::new(),
-            BTreeSet::new(),
+    let (positions, points) = loop_positions(slot, update);
+    let graph = ValueSources::test(
+        frame.code(),
+        data::replacement_nodes(environment.data(), program.function_data(wrapper)),
+        BTreeMap::new(),
+        BTreeSet::new(),
+    )
+    .with_test_flow(positions);
+    let mut evidence = Evidence::default();
+    insert_graph(&mut evidence, graph, &[]);
+    assert_eq!(
+        Query::new(program, &evidence, &mut budget()).solve(&Key::CompletedInput(
+            frame.clone(),
+            local,
+            ValuePath::default(),
+            environment.data(),
+        )),
+        Ok(Fact::Empty),
+        "a known body with no normal endpoints contributes no final context"
+    );
+    let at = ValueSourceSelection {
+        boundary: ValueSourceBoundary {
+            point: points[1],
+            action: 0,
+        },
+        slot,
+        path: ValuePath::default(),
+    };
+    let expected = if update {
+        expected_loop_domain(program, environment.data(), &leaves)
+    } else {
+        environment.clone()
+    };
+    assert_eq!(
+        stored(
+            program,
+            &evidence,
+            &frame,
+            &at,
+            environment.data(),
+            &mut budget()
         )
-        .with_test_flow(positions);
-        let mut evidence = Evidence::default();
-        insert_graph(&mut evidence, graph, &[]);
-        let ValueSourceSlot::Local(local) = slot else {
-            unreachable!()
-        };
-        assert_eq!(
-            Query::new(program, &evidence, &mut budget()).solve(&Key::CompletedInput(
-                frame.clone(),
-                local,
-                ValuePath::default(),
-                environment.data(),
-            )),
-            Ok(Fact::Empty),
-            "a known body with no normal endpoints contributes no final context"
-        );
-        let at = ValueSourceSelection {
-            boundary: ValueSourceBoundary {
-                point: points[1],
-                action: 0,
-            },
-            slot,
-            path: ValuePath::default(),
-        };
-        let expected = if update {
-            Err(InstantiationFailure::Unresolved)
+        .unwrap(),
+        expected
+    );
+    let component = ValueSourceSelection {
+        path: ValuePath::new([ValueProjection::Tuple(1)]),
+        ..at.clone()
+    };
+    assert_stored_retry(program, &evidence, &frame, &component, &leaves[1]);
+    let after = ValueSourceSelection {
+        boundary: ValueSourceBoundary {
+            point: points[2],
+            action: 1,
+        },
+        ..at
+    };
+    assert_eq!(
+        stored(
+            program,
+            &evidence,
+            &frame,
+            &after,
+            environment.data(),
+            &mut budget()
+        )
+        .unwrap(),
+        if update {
+            replaced.clone()
         } else {
-            Ok(environment.clone())
+            environment.clone()
+        }
+    );
+}
+
+fn expected_loop_domain(
+    program: &Program,
+    data: TypeId,
+    leaves: &[DataInstanceKey],
+) -> DataInstanceKey {
+    let choices = leaves.iter().map(|key| {
+        let nocter_declarations::value_access::InstanceSchema::Function(actual) =
+            key.schema(program).unwrap()
+        else {
+            panic!("original leaf")
         };
-        assert_eq!(
-            stored(
-                program,
-                &evidence,
-                &frame,
-                &at,
-                environment.data(),
-                &mut budget()
-            ),
-            expected
-        );
-        let component = ValueSourceSelection {
-            path: ValuePath::new([ValueProjection::Tuple(1)]),
-            ..at.clone()
-        };
-        assert_stored_retry(program, &evidence, &frame, &component, &leaves[1]);
-        let after = ValueSourceSelection {
-            boundary: ValueSourceBoundary {
-                point: points[2],
-                action: 1,
-            },
-            ..at
-        };
-        assert_eq!(
-            stored(
-                program,
-                &evidence,
-                &frame,
-                &after,
-                environment.data(),
-                &mut budget()
-            )
-            .unwrap(),
-            if update {
-                replaced.clone()
-            } else {
-                environment.clone()
-            }
-        );
-    }
+        actual
+    });
+    let first = program
+        .instantiate_function_alternatives(leaves[0].data(), choices)
+        .unwrap();
+    program
+        .instantiate_components(
+            data,
+            [
+                (ValueField::Tuple(0), first),
+                (ValueField::Tuple(1), leaves[1].clone()),
+            ],
+        )
+        .unwrap()
 }
 
 fn loop_positions(

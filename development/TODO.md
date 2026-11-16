@@ -113,6 +113,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Preserve every positive alternative through equivalent source-descriptor and declaration-owned
   result-family reprojection. Reuse single-witness validation and exact invocation-view checks;
   reject foreign families and concrete-source mismatches before source joins are connected.
+- [x] Connect original source merge/return metadata to canonical domain joins under the existing
+  request budget. Preserve each source creation context, empty versus unresolved facts and
+  guarded branch correspondence while keeping unqualified invocation/storage admission closed.
 - [ ] Close the [positive callable alternative obligations](design/compiler-realization.md#positive-callable-alternatives)
   through the canonical data-instance graph, guarded source transport, evaluator/target plans,
   native selection and cleanup before widening source admission. The value-context fixture

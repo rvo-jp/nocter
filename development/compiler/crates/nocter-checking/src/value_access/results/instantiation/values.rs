@@ -74,7 +74,7 @@ impl Query<'_, '_> {
             {
                 continue;
             }
-            fact = fact.join(self.read(
+            let incoming = self.read(
                 owner,
                 Key::Stored(
                     frame.clone(),
@@ -85,7 +85,8 @@ impl Query<'_, '_> {
                     },
                     query,
                 ),
-            )?);
+            )?;
+            fact = self.join_data_facts(fact, incoming)?;
         }
         Ok(fact)
     }

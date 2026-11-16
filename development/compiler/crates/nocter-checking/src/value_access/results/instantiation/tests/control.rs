@@ -184,16 +184,22 @@ fn selected_return_data_excludes_inactive_normal_completion_boundaries() {
     let conservative = Query::new(program, evidence, &mut healthy())
         .solve(&result)
         .unwrap();
-    assert!(
-        matches!(conservative, Fact::Unavailable),
-        "{conservative:?}"
-    );
+    let Fact::Data(conservative) = conservative else {
+        panic!("represented result domain")
+    };
+    let InstanceSchema::FunctionAlternatives(choices) = conservative.schema(program).unwrap()
+    else {
+        panic!("unselected return alternatives")
+    };
+    assert_eq!(choices.len(), 2);
+    assert!(conservative.function_representation(program).is_err());
     let data = unit
         .instantiate_result_contract(&selected, &mut healthy())
         .unwrap();
     let InstanceSchema::Function(witness) = data.schema(program).unwrap() else {
         panic!("callable result")
     };
+    assert!(choices.contains(&witness));
     let invoked = unit
         .instantiate_invocation(
             &frame,

@@ -31,19 +31,20 @@ impl Query<'_, '_> {
         let Some(schema) = self.program.data_schema(target) else {
             return Ok(Fact::Unavailable);
         };
-        if matches!(schema, PayloadSchema::Function(_)) {
-            return self.source_function_data(owner, frame, value, path, target);
-        }
         if matches!(
             node.value,
             ValueSource::Merge { .. } | ValueSource::Alternatives(_)
         ) {
             let mut fact = Fact::Empty;
             for input in self.incoming_values(frame, &node)? {
-                fact = fact
-                    .join(self.read(owner, Key::Data(frame.clone(), input, path.clone(), target))?);
+                let incoming =
+                    self.read(owner, Key::Data(frame.clone(), input, path.clone(), target))?;
+                fact = self.join_data_facts(fact, incoming)?;
             }
             return Ok(fact);
+        }
+        if matches!(schema, PayloadSchema::Function(_)) {
+            return self.source_function_data(owner, frame, value, path, target);
         }
         // Representation only: no seed execution, positive payload or numeric proof is supplied.
         let source_data = node.data.and_then(|data| {

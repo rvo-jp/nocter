@@ -918,6 +918,17 @@ formation and application/result edges. Opaque contextual effects and unqualifie
 remain unresolved. A declaration-closed callable schema can identify context-free metadata, but
 never proves that a value exists or can be accessed.
 
+Representation-domain queries (`Data`, `DataResult`, `Representation` and stored data/return
+metadata) retain positive alternatives from original source merges and normal-return edges through
+the declaration-owned `join_data_domains`. Their fixed point can grow a canonical domain without
+collapsing it to a representative witness. The original incoming/control edges remain authoritative;
+the joined metadata supplies no active selector. Domain traversal charges the same request budget,
+keeps unresolved facts distinct from explicit empty domains, and drops an interrupted query before
+healthy retry. Source-result tests retain the same wrapper's two original captured contexts.
+Witness/value and invocation-frame queries still require one concrete selection. Completion/write
+consumers and homogeneous element construction retain their separate qualification requirements;
+metadata alternatives alone do not qualify those operations, const execution or target storage.
+
 For a value-receiver update with dependent context, the metadata solver preserves the actual callable's code while
 selecting its completed environment from that exact invocation frame. The unique original capture
 input and its schema must match the closure; missing bodies or unresolved completion contexts
@@ -971,13 +982,13 @@ metadata quota. Actual function leaves retain complete occurrence contexts in th
 component DAG; carrier assembly preserves different contexts at two same-source-type positions.
 The completed environment binds directly to the selected closure without flattening its free
 parameter names. An alternative producer set at one position must independently resolve to one
-witness. Missing creation records, foreign creator frames, incompatible views and alternative
-contexts remain unresolved rather than borrowing current outer formal names.
+witness for a concrete invocation. Missing creation records, foreign creator frames, incompatible
+views and unresolved concrete selections cannot borrow current outer formal names.
 This closes metadata substitution only; per-value/component executable representation and
 additional source admission still require their separate qualification.
 
-Different concrete alternatives remain unresolved rather than selecting the first witness or
-enumerating a Cartesian set of joint frames. Empty facts supply no success receipt. Anchored
+Different alternatives in a concrete witness/frame query remain unresolved rather than selecting
+the first witness or enumerating a Cartesian set of joint frames. Empty facts supply no success receipt. Anchored
 recursive forwarding can close through the same positive fixed point without host-recursive
 resolution. Work failure drops the request-local draft and cannot publish partial state or poison
 a retry. Foreign owners and absent committed calls reject before resolution. The returned key is
