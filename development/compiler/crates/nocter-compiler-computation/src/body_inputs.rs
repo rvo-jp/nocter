@@ -24,7 +24,8 @@ pub(crate) fn collect(
             .sources()
             .find_by_name(path)
             .expect("a discovered source resolves in its owning source map");
-        let surface = crate::source_syntax::declaration_surface(database, source)?;
+        let surface =
+            crate::source_syntax::declaration_surface(database, source, unit.source_goal())?;
         publications.extend(
             surface
                 .body_surfaces()

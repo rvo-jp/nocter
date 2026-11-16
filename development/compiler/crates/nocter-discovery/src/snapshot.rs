@@ -113,6 +113,18 @@ impl DiscoveredUnit {
         self.compile_input.target()
     }
 
+    /// Returns the source grammar selected by this immutable discovery snapshot.
+    /// Authored syntax/target diagnostics do not replace that grammar.
+    ///
+    /// # Panics
+    /// Panics if the internal discovery snapshot lost its validated source selection.
+    #[must_use]
+    pub fn source_goal(&self) -> nocter_syntax::ParseGoal {
+        self.compile_input
+            .source_goal()
+            .expect("discovery retains its exact syntax selection")
+    }
+
     #[must_use]
     pub const fn source_overlay(&self) -> &SourceOverlay {
         &self.source_overlay

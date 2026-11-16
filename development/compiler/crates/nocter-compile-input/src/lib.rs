@@ -743,6 +743,18 @@ impl<'syntax> CompileUnitInput<'syntax> {
         self.target
     }
 
+    /// Returns the grammar retained by the exact source selection, including when an authored
+    /// target name is invalid. This is not source or target acceptance.
+    ///
+    /// # Errors
+    /// Rejects inconsistent source snapshots; no grammar is guessed from source contents.
+    pub fn source_goal(&self) -> Result<ParseGoal, TargetSelectionError> {
+        self.target_selection
+            .as_ref()
+            .map(TargetSelection::source_goal)
+            .map_err(|error| *error)
+    }
+
     /// Returns discovery's sole syntax-owned target selection.
     ///
     /// # Errors
@@ -887,6 +899,42 @@ mod tests {
     }
 
     #[test]
+    fn selected_grammar_survives_authored_target_errors_without_accepting_them() {
+        for goal in [ParseGoal::SourceFile, ParseGoal::V2CoreUnit] {
+            let mut sources = SourceMap::new();
+            let id = sources
+                .add_bytes(
+                    SourceName::new("source.nct"),
+                    b"#target: \"unknown\"\nfunc run(): void {}\n",
+                )
+                .unwrap();
+            let tree = parse(sources.get(id).unwrap(), goal);
+            assert!(!tree.has_errors());
+            let module = ModuleInput::new(
+                ModuleIdentity::new(PackageIdentity::new("single:app"), Vec::<&str>::new()),
+                vec![ModuleSourceInput::new(
+                    "source.nct",
+                    ModuleSourceKind::SingleFile,
+                    &tree,
+                )],
+            );
+            let input = CompileUnitInput::for_goal(
+                goal,
+                CompilationTarget::Arm64Darwin,
+                &sources,
+                Vec::new(),
+                vec![module],
+                Vec::new(),
+            );
+            assert_eq!(input.source_goal(), Ok(goal));
+            assert!(matches!(
+                input.target_selection(),
+                Err(TargetSelectionError::UnknownTarget(_))
+            ));
+        }
+    }
+
+    #[test]
     fn compile_input_rejects_target_selection_from_another_source_domain() {
         let mut old_sources = SourceMap::new();
         let old_id = old_sources
@@ -929,5 +977,9 @@ mod tests {
             input.target_selection(),
             Err(TargetSelectionError::InconsistentSnapshot)
         ));
+        assert_eq!(
+            input.source_goal(),
+            Err(TargetSelectionError::InconsistentSnapshot)
+        );
     }
 }

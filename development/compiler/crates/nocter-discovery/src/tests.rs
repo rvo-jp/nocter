@@ -132,6 +132,49 @@ fn minimal_toolchain(package: &str) -> ToolchainInput {
 }
 
 #[test]
+fn empty_topology_retains_grammar_independently_of_physical_sources() {
+    let snapshot = |goal| {
+        let sources = Arc::new(nocter_source::SourceMap::new());
+        let selection = nocter_target_selection::TargetSelectionBuilder::for_goal(
+            goal,
+            CompilationTarget::Arm64Darwin,
+        )
+        .finish();
+        let compile_input = nocter_compile_input::CompileUnitInput::from_shared_target_selection(
+            CompilationTarget::Arm64Darwin,
+            Arc::clone(&sources),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            selection,
+        )
+        .with_toolchain(minimal_toolchain("workspace:std"));
+        DiscoveredUnit {
+            source_overlay: SourceOverlay::empty(),
+            sources,
+            syntax: Vec::new().into(),
+            packages: Vec::new(),
+            modules: Vec::new(),
+            module_dependencies: Vec::new(),
+            compile_input,
+        }
+    };
+    // Internal snapshots qualify invalidation, not v2 filesystem/package discovery.
+    let released = snapshot(nocter_syntax::ParseGoal::SourceFile);
+    let future = snapshot(nocter_syntax::ParseGoal::V2CoreUnit);
+    assert_eq!(released.source_goal(), nocter_syntax::ParseGoal::SourceFile);
+    assert_eq!(future.source_goal(), nocter_syntax::ParseGoal::V2CoreUnit);
+    assert_eq!(
+        released.current_source_surface().unwrap(),
+        future.current_source_surface().unwrap()
+    );
+    assert_ne!(
+        released.semantic_topology_surface().unwrap(),
+        future.semantic_topology_surface().unwrap()
+    );
+}
+
+#[test]
 fn discovery_reuses_the_package_graphs_exact_root_syntax() {
     let tree = TempTree::new();
     tree.source(

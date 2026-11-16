@@ -29,7 +29,8 @@ impl ModuleSurfaceKey {
                     .sources()
                     .find_by_name(source.canonical_path())
                     .expect("a discovered source resolves in its owning source map");
-                let surface = source_syntax::declaration_surface(database, source_file)?;
+                let surface =
+                    source_syntax::declaration_surface(database, source_file, unit.source_goal())?;
                 Ok(ModuleSourceKey {
                     path: source.canonical_path().into(),
                     kind: source.kind(),

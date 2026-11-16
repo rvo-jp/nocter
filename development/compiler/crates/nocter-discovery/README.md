@@ -48,6 +48,8 @@ semantics. It does not lower declarations or interpret body semantics.
   rejects a missing or duplicate retained tree and never reparses that source.
 - A newly ingested module source requests the source-file parse goal exactly once through the
   supplied provider.
+- The snapshot derives its source grammar from the retained compile-input selection, including
+  authored target errors. Semantic topology includes that grammar independently of source contents.
 - The semantic topology surface contains no `SourceId`, `NodeId`, syntax coordinates, body-local
   import, or source contents. Its ordering and vocabulary come from owning contracts rather than
   Rust enum discriminants or discovery traversal order.

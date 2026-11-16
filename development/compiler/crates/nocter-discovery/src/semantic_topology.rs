@@ -37,6 +37,7 @@ impl DiscoveredUnit {
         let sources = canonical_sources(self)?;
         let mut canonical = Vec::new();
         encode(self.target().name().as_bytes(), &mut canonical);
+        encode(self.source_goal().as_str().as_bytes(), &mut canonical);
         encode_packages(self, &mut canonical);
         encode_modules(self, &mut canonical);
         encode_resolutions(self, &sources, &mut canonical)?;

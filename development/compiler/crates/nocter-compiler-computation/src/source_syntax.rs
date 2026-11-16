@@ -161,9 +161,9 @@ impl Query for SourceDeclarationSurfaceQuery {
 pub(crate) fn declaration_surface(
     database: &Database,
     source: &SourceFile,
+    goal: ParseGoal,
 ) -> Result<Arc<SourceDeclarationSurfaceProduct>, ComputationError> {
-    database
-        .query::<SourceDeclarationSurfaceQuery>(SourceSyntaxKey::new(source, ParseGoal::SourceFile))
+    database.query::<SourceDeclarationSurfaceQuery>(SourceSyntaxKey::new(source, goal))
 }
 
 fn tagged_fingerprint(tag: u8, bytes: &[u8]) -> Fingerprint {
@@ -340,6 +340,71 @@ mod tests {
     use nocter_filesystem::SourceOverride;
 
     use super::*;
+
+    fn source(sources: &mut SourceMap, text: &str) -> nocter_source::SourceId {
+        sources
+            .add_bytes(SourceName::new("/virtual/source.nct"), text.as_bytes())
+            .unwrap()
+    }
+
+    #[test]
+    fn declaration_queries_preserve_the_selected_grammar_and_reuse_its_parse() {
+        let text = "func run(take value: i32): i32 { value }";
+        let mut sources = SourceMap::new();
+        let id = source(&mut sources, text);
+        let file = sources.get(id).unwrap();
+        let mut overlay = SourceOverlay::builder();
+        overlay
+            .insert_source(
+                PathBuf::from(file.name().as_str()),
+                SourceOverride::new(text.as_bytes()),
+            )
+            .unwrap();
+        let database = Database::new();
+        let overlay = overlay.finish();
+        let mut provider = ComputedSourceSyntax::new(&database, &overlay);
+        let parsed = provider.parsed_syntax(file, ParseGoal::V2CoreUnit).unwrap();
+        assert!(!parsed.bind(file).unwrap().has_errors());
+        let selected = declaration_surface(&database, file, ParseGoal::V2CoreUnit).unwrap();
+        assert_eq!(selected.body_surfaces().len(), 1);
+        assert_eq!(execution_count(&database), 1);
+        assert_eq!(declaration_surface_execution_count(&database), 1);
+        let released = declaration_surface(&database, file, ParseGoal::SourceFile).unwrap();
+        assert_ne!(
+            selected.semantic_fingerprint(),
+            released.semantic_fingerprint()
+        );
+        assert_eq!(execution_count(&database), 2);
+        assert_eq!(declaration_surface_execution_count(&database), 2);
+        let again = declaration_surface(&database, file, ParseGoal::V2CoreUnit).unwrap();
+        assert!(Arc::ptr_eq(&selected, &again));
+        assert_eq!(execution_count(&database), 2);
+    }
+
+    #[test]
+    fn v2_body_edits_reuse_declarations_without_reusing_exact_bodies() {
+        let database = Database::new();
+        let mut before = SourceMap::new();
+        let old = source(&mut before, "func run(take value: i32): i32 { value + 1 }");
+        let mut after = SourceMap::new();
+        let new = source(&mut after, "func run(take value: i32): i32 { value + 2 }");
+        let before =
+            declaration_surface(&database, before.get(old).unwrap(), ParseGoal::V2CoreUnit)
+                .unwrap();
+        let after =
+            declaration_surface(&database, after.get(new).unwrap(), ParseGoal::V2CoreUnit).unwrap();
+        assert_eq!(before.semantic_fingerprint(), after.semantic_fingerprint());
+        assert_eq!(before.body_surfaces().len(), 1);
+        assert_eq!(after.body_surfaces().len(), 1);
+        assert_eq!(
+            before.body_surfaces()[0].locator(),
+            after.body_surfaces()[0].locator()
+        );
+        assert_ne!(
+            before.body_surfaces()[0].canonical_bytes(),
+            after.body_surfaces()[0].canonical_bytes()
+        );
+    }
 
     #[test]
     fn computed_syntax_accepts_only_the_admitted_source_value() {

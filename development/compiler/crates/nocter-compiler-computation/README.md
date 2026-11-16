@@ -36,9 +36,12 @@ interpret editor requests.
 - The computed syntax provider accepts only a normalized source value matching the canonical path
   and bytes observed through its admitted overlay. Validation reuses the overlay's frozen first
   observation; the parse query key then owns the exact normalized text and never opens a path.
-- Declaration-surface queries consume the same content-addressed parse product. Module-surface
-  queries consume declaration surfaces rather than raw source identity, so body-only edits do not
-  invalidate module contracts.
+- Declaration-surface queries consume the same content-addressed parse product with the grammar
+  retained by discovery, including diagnostic recovery. Exact-body publication uses that same
+  selected grammar; neither path silently reparses with another goal. Module-surface queries consume
+  declaration surfaces rather than raw source identity, so body-only edits do not invalidate module
+  contracts. This preserves a query boundary; it does not admit v2 package metadata or checking into
+  the ordinary production entry.
 - A source token from another owner or an earlier overlay generation is rejected before any query
   is supplied or semantic input is published. Discovery additionally rejects a package graph built
   from an independently created overlay, even when its explicit overrides are byte-identical.
