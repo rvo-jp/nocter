@@ -134,6 +134,54 @@ fn indexed_repacking_uses_only_the_closed_singleton_coordinate() {
 }
 
 #[test]
+fn dynamic_hole_paths_require_an_original_saved_number_with_the_matching_array_bound() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-dynamic-hole-growth.nct"
+    ));
+    let source = source.replace("    var pair =", "    var other = [1, 2, 3]\n    let temporary = other[index]^\n    other[index] = temporary^\n    var pair =");
+    let program = lower(&source);
+    validate::program(&program).unwrap();
+    let foreign = program
+        .bodies
+        .values()
+        .find_map(|body| {
+            body.slots.iter().find_map(|(id, slot)| {
+                matches!(slot.key, SlotKey::IndexSnapshot(index) if index.bound() == 3)
+                    .then_some(id)
+            })
+        })
+        .unwrap();
+    for invalid in 0..3 {
+        let mut changed = program.clone();
+        let effect = changed.bodies.values_mut().flat_map(|body| body.actions.values_mut())
+            .flat_map(|action| &mut action.alternatives)
+            .flat_map(|alternative| alternative.before.iter_mut().chain(&mut alternative.after))
+            .find(|effect| matches!(effect, Effect::Repack { missing, .. } if missing.iter().any(|path| path.iter().any(|part| matches!(part, Projection::Index(_)))))).unwrap();
+        let Effect::Repack {
+            missing,
+            destination,
+            ..
+        } = effect
+        else {
+            unreachable!()
+        };
+        let index = missing
+            .iter_mut()
+            .flat_map(|path| path.iter_mut())
+            .find(|part| matches!(part, Projection::Index(_)))
+            .unwrap();
+        *index = match invalid {
+            0 => Projection::Field(nocter_model::ValueField::Array(2)),
+            1 => Projection::Index(destination.slot),
+            2 => Projection::Index(foreign),
+            _ => unreachable!(),
+        };
+        assert!(validate::program(&changed).is_err());
+    }
+}
+
+#[test]
 fn partial_array_preservation_cannot_become_a_complete_load() {
     let program = lower(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

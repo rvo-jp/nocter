@@ -276,6 +276,16 @@ impl Context<'_> {
             super::repack::preserved(&self.program.runtime, before, destination, missing)
                 .is_some_and(|expected| expected.as_ref() == preserved),
         )?;
+        for path in missing {
+            let data = super::repack::hole_data(&self.program.runtime, before, path)
+                .ok_or_else(|| self.invalid())?;
+            self.place(&Place {
+                slot: destination.slot,
+                root: before,
+                projections: path.clone(),
+                data,
+            })?;
+        }
         for part in preserved {
             self.place(&part.source)?;
             self.place(&part.destination)?;

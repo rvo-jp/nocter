@@ -1539,6 +1539,60 @@ fn private_contextual_indexed_growth_preserves_actual_owned_capture_and_sibling_
 }
 
 #[test]
+fn private_contextual_dynamic_holes_use_the_saved_original_index_during_relocation() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-dynamic-hole-growth.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "dynamic-hole-growth", 42);
+    let mutated = source.replace("let saved_sibling = pair.1[index].0^", "var selected = index\n    let saved_sibling = pair.1[selected].0^\n    selected = 1 - selected");
+    assert_ne!(mutated, source);
+    execute_native_status(&compile(&mutated), &package.0, "dynamic-hole-snapshot", 42);
+    let conditional = source
+        .replace(
+            "calculate(index: usize, amount: i32)",
+            "calculate(index: usize, amount: i32, withdraw: bool)",
+        )
+        .replace(
+            "let saved_sibling = pair.1[index].0^",
+            "if withdraw { let withdrawn = pair.1[index].0^ }",
+        )
+        .replace("    pair.1[index].0 = saved_sibling^\n", "")
+        .replace("    let restored = pair.1[index].0(amount)\n", "")
+        .replace("pair.1[0].0(40) == 42 && ", "")
+        .replace("restored == 42 && ", "")
+        .replace("pair.1[1].0(35) == 42 && ", "")
+        .replace("calculate(0, 40)", "calculate(0, 40, false)")
+        .replace("calculate(1, 35)", "calculate(1, 35, true)");
+    execute_native_status(
+        &compile(&conditional),
+        &package.0,
+        "conditional-dynamic-hole",
+        42,
+    );
+    let trapped = source.replace("const ANSWER: i32 = if calculate(0, 40) == 42 && calculate(1, 35) == 42 { 42 } else { 0 }", "")
+        .replace("if ANSWER == 42 && calculate(0, 40) == 42 && calculate(1, 35) == 42 { 42 } else { 0 }", "calculate(2, 40)");
+    assert_ne!(trapped, source);
+    execute_native_signal(&compile(&trapped), &package.0, "dynamic-hole-bounds", 5);
+}
+
+#[test]
+fn private_contextual_dynamic_holes_preserve_original_coordinates_and_actual_error_cleanup() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-dynamic-hole-errors.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &image(&trusted_error_machine(source)),
+        &package.0,
+        "dynamic-hole-errors",
+        42,
+    );
+}
+
+#[test]
 fn private_contextual_array_holes_skip_zero_byte_storage_at_maximum_cardinality() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

@@ -22,15 +22,7 @@ pub(super) fn preserved(
         {
             return None;
         }
-        let mut data = before;
-        for projection in path {
-            data = match projection {
-                Projection::Field(field @ (ValueField::Tuple(_) | ValueField::Array(_))) => {
-                    runtime.value_field(data, *field)?
-                }
-                _ => return None,
-            };
-        }
+        hole_data(runtime, before, path)?;
     }
     let mut left = before;
     let mut right = destination.root;
@@ -161,4 +153,28 @@ fn tuple_fields(
 fn singleton_element(runtime: &RuntimeEnvironment, data: RuntimeDataId) -> Option<RuntimeDataId> {
     let (element, length) = runtime.types().get(data)?.array()?;
     (length == 1).then_some(element)
+}
+
+/// Structural identity only; the body validator separately checks saved-number slots and bounds.
+pub(super) fn hole_data(
+    runtime: &RuntimeEnvironment,
+    mut data: RuntimeDataId,
+    path: &[Projection],
+) -> Option<RuntimeDataId> {
+    for projection in path {
+        data = match projection {
+            Projection::Field(field @ (ValueField::Tuple(_) | ValueField::Array(_))) => {
+                runtime.value_field(data, *field)?
+            }
+            Projection::Index(_) => {
+                let (element, length) = runtime.types().get(data)?.array()?;
+                if length <= 1 {
+                    return None;
+                }
+                element
+            }
+            _ => return None,
+        };
+    }
+    Some(data)
 }

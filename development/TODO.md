@@ -89,8 +89,11 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   MIR parts and shared native cleanup/transport traversal. Snapshot initialized fields before
   overlapping writes, retain one owner and qualify distinct captured values, actual error graphs,
   restoration and maximum-cardinality zero-byte storage without element expansion.
-- [ ] Extend relocation's initialized-subtree selection to dynamic/range holes and unresolved
-  represented alternatives, preserving original saved coordinates without element expansion.
+- [x] Preserve dynamic array holes through the shared retained-path converter and exact saved-number
+  roles/bounds. Qualify both coordinates, index-variable mutation, bounds traps, conditional snapshot
+  presence, actual owned errors and original restoration proofs without rereading the changed index.
+- [ ] Extend relocation's initialized-subtree selection to range holes and unresolved represented
+  alternatives, preserving original saved coordinates without element expansion.
 - [x] Qualify same-geometry contextual callable component replacement and restoration with a
   surviving disjoint sibling reference. Carry each partial receipt's original containing roots
   into MIR and physical geometry checks without fusing separate retirement/receipt operations.
@@ -450,11 +453,13 @@ ownership, sparse cleanup and the original source bounds disposition. A recipe k
 proves equal numbers across a backedge. Do not add a parallel ownership registry, N element owners,
 layout fields, generated operations, an arbitrary iteration cutoff or a constant-index-only policy.
 
-- [ ] Extend call write summaries to externally dependent captures, user destruction and general
-  escaping alias provenance. Generalize evaluated index relations beyond ordered prefix bundles
+- [ ] Preserve provably independent array histories across captured invocations rather than
+  invalidating every array at an opaque call. Extend call write summaries to externally dependent
+  captures, user destruction and general escaping alias provenance. Generalize evaluated index relations beyond ordered prefix bundles
   while preserving lifetime-specific evidence for retained aliases across re-evaluation.
-- [ ] Extend saved-index identity and initialization/cleanup to conditional restoration and
-  general numeric relations among holes within one array. Keep
+- [ ] Extend saved-index identity and initialization/cleanup to conditional restoration, including
+  projected dynamic holes withdrawn on only one branch, and general numeric relations among holes
+  within one array. Keep
   unproved relations local and explicit. Do not read uninitialized alternative backing or choose
   guards from numeric equality alone; preserve actual original-index mutation and empty/MAX spans.
 - [ ] Extend actual owned-error array cleanup to externally dependent captures and their

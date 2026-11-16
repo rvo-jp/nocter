@@ -117,10 +117,14 @@ with concrete missing paths remain one `Preserved` subtree tagged `ArrayRemainde
 expanded element list or a complete initialized load. `Complete` subtrees contain no missing
 storage; validation reconstructs that distinction through the same structural projection and
 rejects changing a sparse array to `Complete`. The missing paths remain the single exclusion
-authority. Machine snapshots and restores only remaining fields through its shared sparse walk,
-without acquiring another owner or Copy proof. Other partial moves keep the before/after geometry
-constraint. Live aliases, dynamic/range holes, external carriers and general relocation remain
-separate qualifications. The [checking owner](../nocter-checking/README.md#context-bound-callable-captures)
+authority. Dynamic descendants retain their original `Projection::Index` snapshot slot through
+the same resource-path converter as ordinary places. Structural projection selects only the array
+element data; body validation independently checks each saved-number role, usize storage and exact
+array bound. A local value of the same type or a snapshot from another bound cannot substitute.
+Singleton coordinates keep their established constant selection. Machine snapshots and restores
+only remaining fields through its shared sparse walk, without acquiring another owner or Copy
+proof. Other partial moves keep the before/after geometry constraint. Live aliases, range holes,
+external carriers and general relocation remain separate qualifications. The [checking owner](../nocter-checking/README.md#context-bound-callable-captures)
 defines the qualified ordinary-source capture scope.
 Adapter cleanup likewise selects its completed full carrier in the original argument slot before
 projecting the completed environment. Its selected environment data must match the cleanup

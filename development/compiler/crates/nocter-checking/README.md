@@ -2252,12 +2252,20 @@ Native checks also preserve saved and remaining owning error elements across one
 three-element arrays. `contextual-array-hole-growth.nct` qualifies concrete missing descendants
 inside larger unchanged arrays, with distinct captured values, initialized element fields and
 saved-owner restoration through required/native execution. Native zero-byte storage covers maximum
-usize cardinality without expanding the schema or performing an empty copy traversal. `contextual-conditional-hole-growth.nct` qualifies branch-dependent sibling holes through
+usize cardinality without expanding the schema or performing an empty copy traversal.
+`contextual-dynamic-hole-growth.nct` qualifies original saved-index holes, restoration and
+initialized element fields through required/native execution at both array coordinates. Native
+variants mutate the index variable, retain the original bounds trap and cover conditional
+withdrawal without reading the other route's uninitialized snapshot. The matching error fixture
+executes actual saved/remaining graph cleanup. These cases keep opaque invocations outside the
+restoration interval; proving independent captured-call writes and general conditional restoration
+remain separate obligations.
+`contextual-conditional-hole-growth.nct` qualifies branch-dependent sibling holes through
 required/native execution of both Boolean inputs in the same callable instance. The matching
 error fixture executes actual conditional withdrawal, retirement and remaining-owner cleanup.
 Lifecycle retains each original destination condition through guard simplification; the
 [MIR owner](../nocter-mir/README.md) defines receipt-time relocation. Live addresses, general
-dynamic/range holes and unresolved represented contexts do not acquire that permission.
+range holes and unresolved represented contexts do not acquire that permission.
 `contextual-component-replacement.nct` additionally qualifies same-geometry partial replacement
 and restoration while a disjoint sibling reference survives, including repeated writes through
 one local edit alias. Original carrier selections match its actual containing owner. The evaluator

@@ -304,9 +304,14 @@ impl Builder<'_> {
         } else {
             self.root(source.holder(), data, !source.fields().is_root())?
         };
-        place.projections = source
-            .fields()
-            .fields()
+        place.projections = self.resource_path(source.fields())?;
+        Ok(place)
+    }
+    fn resource_path(
+        &mut self,
+        path: &flow::resources::Path,
+    ) -> Result<Box<[Projection]>, Failure> {
+        path.fields()
             .iter()
             .map(|field| {
                 Ok(match *field {
@@ -332,8 +337,7 @@ impl Builder<'_> {
                     }
                 })
             })
-            .collect::<Result<_, Failure>>()?;
-        Ok(place)
+            .collect()
     }
     fn resource_place(
         &mut self,
@@ -487,7 +491,7 @@ impl Builder<'_> {
         Ok(())
     }
     fn repack(
-        &self,
+        &mut self,
         original: &Step<Payload>,
         before: RuntimeDataId,
         source: &Place,
@@ -545,16 +549,7 @@ impl Builder<'_> {
             if path.is_prefix_of(target.fields()) {
                 return Ok(None);
             }
-            let Some(path) = path.concrete() else {
-                return Ok(None);
-            };
-            missing.insert(
-                path.fields()
-                    .iter()
-                    .copied()
-                    .map(Projection::Field)
-                    .collect::<Box<[_]>>(),
-            );
+            missing.insert(self.resource_path(path)?);
         }
         let missing = missing.into_iter().collect::<Box<[_]>>();
         Ok(
