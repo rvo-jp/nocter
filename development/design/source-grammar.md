@@ -15,22 +15,10 @@ EmptyStringLiteral, BuiltinScalarType, trivia/newline/eof, gap and jointness, an
 NonEmptyList and LineSequence notation. No released expression or declaration root is inherited.
 Type lookup cannot change a parse.
 
-## Package Metadata
-
-Exact schemas, file roles, dependency selection, entry and target behavior remain unresolved.
-
-```text
-V2PackageDirectives = V2PackageDirective (newline+ V2PackageDirective)*
-V2PackageDirective = "#" ("package" | "dependencies" | "executable" | "test")
-                      ":" V2DirectiveValue
-V2DirectiveValue = StringLiteral | integer_literal | "{" List(V2DirectiveField) "}"
-V2DirectiveField = Name ":" V2DirectiveValue
-```
-
 ## Expressions, Control and Typed Literals
 
 The following block connects the adopted productions to the remaining block, expression,
-package, region, interpolation and async-traversal questions. Typed construction and explicit
+region, interpolation and async-traversal questions. Typed construction and explicit
 conversion productions come from the adopted grammar. An allocation override still needs a
 declared input/authority mapping; it is not an implicit parameter of the adopted literal entries.
 This draft does not adopt a for-await protocol, dynamic sequence type or allocation override.

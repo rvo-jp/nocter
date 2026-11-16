@@ -162,7 +162,9 @@ pub(super) fn declarations(syntax: BoundSyntax<'_>) -> Result<Vec<NodeId>, Failu
             !tree.node(*item).is_some_and(|node| {
                 matches!(
                     node.kind(),
-                    NodeKind::SourceVisibilityDeclaration | NodeKind::UseDeclaration
+                    NodeKind::SourceVisibilityDeclaration
+                        | NodeKind::UseDeclaration
+                        | NodeKind::PackageDirective
                 )
             })
         })

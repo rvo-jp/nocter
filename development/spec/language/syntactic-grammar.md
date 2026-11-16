@@ -94,8 +94,9 @@ another block for mappings. Empty binding blocks and duplicate bindings are inva
 
 These envelopes deliberately depend on the separately owned value/access productions below,
 lexical names/lists/trivia, and the [whole-source draft](../../design/source-grammar.md)
-for still-unclosed package metadata, special operation and expression
-productions. Recognizing an envelope does not migrate those dependencies into adopted semantics.
+for still-unclosed special operation and expression productions.
+[Package metadata](packages.md#grammar) supplies the selected package-prefix productions.
+Recognizing an envelope does not migrate those dependencies into adopted semantics.
 Typed sequence/string entries and explicit conversions have their
 [construction](literal-construction.md) and [conversion](explicit-conversions.md) owners.
 Recognition does not establish source/evaluator implementation. Generic solving, primitives,

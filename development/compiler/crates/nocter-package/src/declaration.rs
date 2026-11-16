@@ -245,7 +245,7 @@ pub fn decode_package_declaration(
     if tree.has_errors()
         || tree
             .node(tree.root_id())
-            .is_none_or(|root| root.kind() != NodeKind::SourceFile)
+            .is_none_or(|root| !matches!(root.kind(), NodeKind::SourceFile | NodeKind::V2CoreUnit))
     {
         return Err(error(
             tree.root_id(),
@@ -659,13 +659,44 @@ mod tests {
     use super::*;
 
     fn decode(text: &str) -> Result<PackageDeclaration, PackageDeclarationError> {
+        decode_for_goal(text, ParseGoal::SourceFile)
+    }
+
+    fn decode_for_goal(
+        text: &str,
+        goal: ParseGoal,
+    ) -> Result<PackageDeclaration, PackageDeclarationError> {
         let mut sources = SourceMap::new();
         let source = sources
             .add_bytes(SourceName::new("/package/index.nct"), text.as_bytes())
             .unwrap();
         let source = sources.get(source).unwrap();
-        let syntax = parse(source, ParseGoal::SourceFile);
+        let syntax = parse(source, goal);
         decode_package_declaration(BoundSyntax::new(source, &syntax).unwrap())
+    }
+
+    #[test]
+    fn v2_metadata_uses_the_same_schema_and_original_diagnostics() {
+        let prefix = "#package: { name: \"app\", version: \"2.0.0\" }\n";
+        for suffix in [
+            "#dependencies: { local: { path: \"./local\" } }\n#executable: { name: \"app\" }",
+            "#dependencies: { local: { path: \"./local\", commit: \"bad\" } }",
+            "#dependencies: { std: { path: \"./std\" } }",
+            "#executable: { name: \"app\", module: \"../escape\" }",
+            "#test: { name: \"unit\" }",
+            "#package: { name: \"duplicate\", version: \"2.0.0\" }",
+        ] {
+            let text = format!("{prefix}{suffix}");
+            match (decode(&text), decode_for_goal(&text, ParseGoal::V2CoreUnit)) {
+                (Ok(before), Ok(after)) => {
+                    assert_eq!(before.name().value(), after.name().value());
+                    assert_eq!(before.dependencies().len(), after.dependencies().len());
+                    assert_eq!(before.targets().len(), after.targets().len());
+                }
+                (Err(before), Err(after)) => assert_eq!(before.rule(), after.rule()),
+                _ => panic!("package schema changed with the grammar: {text}"),
+            }
+        }
     }
 
     #[test]

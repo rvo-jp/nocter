@@ -7,6 +7,10 @@ contracts, and publish accepted or explicitly recoverable declaration evidence.
 
 ## Contract
 
+Selected v2 package metadata is omitted from value headers after topology validates its package-root
+ownership. Ordinary and single-file roles reject it; its presence cannot authorize a root body or
+initializer. Package data remains decoded by `nocter-package`, not by this declaration path.
+
 The crate consumes syntax, compile-unit topology, target selection, toolchain/runtime contracts, and
 model construction authority. It produces `DeclarationProgram`, `AcceptedDeclarationProgram`, and
 one source-neutral `ReusableDeclarations` result containing the accepted authority, primitive,

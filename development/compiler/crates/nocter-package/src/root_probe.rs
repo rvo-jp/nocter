@@ -20,16 +20,30 @@ use nocter_syntax::{
 #[derive(Clone, Debug)]
 pub struct PackageRootCatalog {
     source_overlay: SourceOverlay,
+    source_goal: ParseGoal,
     roots: BTreeMap<PathBuf, PackageRootProbe>,
 }
 
 impl PackageRootCatalog {
     #[must_use]
     pub fn new(source_overlay: SourceOverlay) -> Self {
+        Self::for_goal(source_overlay, ParseGoal::SourceFile)
+    }
+
+    /// Selects the grammar for this entire immutable catalog and every package rooted in it.
+    /// This selects syntax only, not library, ABI, command or executable admission.
+    #[must_use]
+    pub fn for_goal(source_overlay: SourceOverlay, source_goal: ParseGoal) -> Self {
         Self {
             source_overlay,
+            source_goal,
             roots: BTreeMap::new(),
         }
+    }
+
+    #[must_use]
+    pub const fn source_goal(&self) -> ParseGoal {
+        self.source_goal
     }
 
     #[must_use]
@@ -108,6 +122,11 @@ impl PackageRootCatalogBuilder {
         self.catalog.source_overlay()
     }
 
+    #[must_use]
+    pub const fn source_goal(&self) -> ParseGoal {
+        self.catalog.source_goal()
+    }
+
     fn probe(
         &mut self,
         directory: &Path,
@@ -158,7 +177,7 @@ impl PackageRootCatalogBuilder {
             .get(source)
             .ok_or_else(|| PackageRootProbeError::MissingSource(path.clone()))?;
         let syntax = source_syntax
-            .parsed_syntax(source_file, ParseGoal::SourceFile)
+            .parsed_syntax(source_file, self.catalog.source_goal)
             .map_err(|source| PackageRootProbeError::SourceSyntax {
                 path: path.clone(),
                 source,
@@ -168,6 +187,9 @@ impl PackageRootCatalogBuilder {
             .ok_or_else(|| PackageRootProbeError::MissingSource(path.clone()))?;
         let syntax_view = BoundSyntax::new(source_file, &tree)
             .ok_or_else(|| PackageRootProbeError::MissingSource(path.clone()))?;
+        if tree.root().kind() != self.catalog.source_goal.root_kind() {
+            return Err(PackageRootProbeError::InconsistentGrammar(path));
+        }
         let is_package = has_package_directive(syntax_view);
         Ok(Some(PackageRootSource {
             path,
@@ -248,6 +270,7 @@ pub enum PackageRootProbeError {
         source: SourceError,
     },
     MissingSource(PathBuf),
+    InconsistentGrammar(PathBuf),
     SourceSyntax {
         path: PathBuf,
         source: SourceSyntaxError,
@@ -266,6 +289,13 @@ impl fmt::Display for PackageRootProbeError {
             Self::MissingSource(path) => {
                 write!(formatter, "package probe lost source {}", path.display())
             }
+            Self::InconsistentGrammar(path) => {
+                write!(
+                    formatter,
+                    "package probe received another grammar for {}",
+                    path.display()
+                )
+            }
             Self::SourceSyntax { path, source } => {
                 write!(formatter, "could not parse {}: {source}", path.display())
             }
@@ -279,7 +309,7 @@ impl std::error::Error for PackageRootProbeError {
             Self::Filesystem { source, .. } => Some(source),
             Self::Source { source, .. } => Some(source),
             Self::SourceSyntax { source, .. } => Some(source),
-            Self::MissingSource(_) => None,
+            Self::MissingSource(_) | Self::InconsistentGrammar(_) => None,
         }
     }
 }
@@ -289,6 +319,51 @@ mod tests {
     use std::fs;
 
     use super::*;
+
+    #[test]
+    fn selected_grammar_rejects_and_retains_a_mismatched_provider_product() {
+        struct WrongGrammar(usize);
+        impl SourceSyntaxProvider for WrongGrammar {
+            fn parsed_syntax(
+                &mut self,
+                source: &nocter_source::SourceFile,
+                goal: ParseGoal,
+            ) -> Result<Arc<ParsedSyntax>, SourceSyntaxError> {
+                assert_eq!(goal, ParseGoal::V2CoreUnit);
+                self.0 += 1;
+                Ok(Arc::new(nocter_syntax::parse_reusable(
+                    source,
+                    ParseGoal::SourceFile,
+                )))
+            }
+        }
+        let directory = Path::new("/virtual/nocter-v2-package");
+        let mut overlay = SourceOverlay::builder();
+        overlay
+            .insert_source(
+                directory.join("index.nct"),
+                nocter_filesystem::SourceOverride::new(
+                    &b"#package: { name: \"app\", version: \"2.0.0\" }"[..],
+                ),
+            )
+            .unwrap();
+        let mut catalog =
+            PackageRootCatalog::for_goal(overlay.finish(), ParseGoal::V2CoreUnit).into_builder();
+        let mut provider = WrongGrammar(0);
+        let first = catalog
+            .has_package_declaration(directory, &mut provider)
+            .unwrap_err();
+        assert!(matches!(
+            &*first,
+            PackageRootProbeError::InconsistentGrammar(_)
+        ));
+        let second = catalog
+            .has_package_declaration(directory, &mut provider)
+            .unwrap_err();
+        assert!(Arc::ptr_eq(&first, &second));
+        assert_eq!(provider.0, 1);
+        assert_eq!(catalog.source_goal(), ParseGoal::V2CoreUnit);
+    }
 
     #[test]
     fn retains_one_parsed_source_for_repeated_root_queries() {

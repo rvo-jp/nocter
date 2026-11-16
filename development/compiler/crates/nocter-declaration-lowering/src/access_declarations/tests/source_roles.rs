@@ -133,3 +133,32 @@ fn visibility_is_a_root_contract_directive_not_an_implementation_or_single_file_
     let (sources, tree) = input("#visibility: \"/\"\nfunc run(): i32", ParseGoal::V2CoreUnit);
     validate_source_role(bound(&sources, &tree), ModuleSourceKind::Root).unwrap();
 }
+
+#[test]
+fn package_prefix_does_not_authorize_single_source_or_executable_contracts() {
+    let prefix = "#package: { name: \"app\", version: \"2.0.0\" }\n";
+    let (sources, tree) = input(prefix, ParseGoal::V2CoreUnit);
+    let syntax = bound(&sources, &tree);
+    validate_source_role(syntax, ModuleSourceKind::Root).unwrap();
+    for role in [
+        ModuleSourceKind::Implementation,
+        ModuleSourceKind::SingleFile,
+    ] {
+        let Err(Failure::SourceRole(error)) = validate_source_role(syntax, role) else {
+            panic!("package placement")
+        };
+        assert_eq!(error.rule(), SourceRoleRule::PackageMetadataOutsideContract);
+        assert_eq!(error.source().code(), "E0276");
+    }
+    assert!(matches!(
+        Query::prepare(syntax),
+        Err(Failure::SourceRole(_))
+    ));
+    for body in ["func run(): i32 { 42 }", "const RESULT: i32 = 42"] {
+        let (sources, tree) = input(&format!("{prefix}{body}"), ParseGoal::V2CoreUnit);
+        assert!(matches!(
+            validate_source_role(bound(&sources, &tree), ModuleSourceKind::Root),
+            Err(Failure::SourceRole(_))
+        ));
+    }
+}

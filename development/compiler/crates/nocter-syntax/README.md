@@ -55,6 +55,9 @@ package or discovery code. It does not resolve names or apply semantic rules.
   order. `throw` requires an operand under ordinary incomplete-statement newline rules.
   Plain single/multiline strings use the shared literal recognizer and lossless string node.
   Interpolation has no fallback into the released expression grammar.
+  The selected package-data prefix shares one recognizer with released parsing: declarative
+  records/strings/integers precede dependencies and items, without an expression fallback. This
+  recognizes metadata without authorizing its source role or package schema.
   `primitive func` recognizes a bodyless header only. Ordinary function bodies, record braces and
   constant/static initializers may be omitted in syntax; host-selected source-role validation
   distinguishes contract headers from implementation definitions before semantic admission.

@@ -33,6 +33,10 @@ choose compiler semantics, or publish files. Acquisition and mutation use separa
 - An authored exact selection stores the validated `ExactDependencyLock`; downstream resolution
   cannot bypass validation or reconstruct a lock from trusted text.
 - Resolution is deterministic and independent of filesystem enumeration order.
+- A root catalog selects one explicit source grammar for its complete package graph. Released
+  construction defaults to `SourceFile`; `for_goal` also supports the selected v2 metadata prefix.
+  Probing rejects another grammar from a provider and retains failed probes. The common decoder
+  validates the same selected metadata schema; grammar selection grants no entry, library or ABI.
 - One root catalog retains the exact bytes and result behind every package-boundary decision.
   Package loading binds the same retained parse product to its semantic source identity, while
   discovery reuses the decision instead of reopening, reparsing, or reclassifying the root.

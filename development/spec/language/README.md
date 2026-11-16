@@ -32,5 +32,6 @@ to [development design](../../design/README.md).
 25. [Optional Values and Recoverable Failure](outcomes.md)
 26. [Inferred Execution Effects](execution-effects.md)
 27. [Asynchronous Computations and Cancellation](asynchronous-computations.md)
+28. [Packages and Package Metadata](packages.md)
 
 The [development specification](../README.md) defines version scope and promotion policy.

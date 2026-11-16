@@ -37,6 +37,7 @@ one source scope are errors rather than an ordered search. A contract and its ch
 are one identity, not a collision. Imports and any synthetic prelude are source-local; seeing a
 source does not inherit its imports. Compiler-managed fallback names do not become authored
 exports. This chapter selects no v2.0.0 prelude export list or package discovery implementation.
+[Package metadata](packages.md) owns the separately selected package data and source roles.
 
 ## Direct see Dependencies
 
@@ -111,7 +112,8 @@ publish a private declaration. No executable body or value initializer may occur
 The root can name a package entry contract such as `main`, but its body belongs in an ordinary
 source. Metadata does not export a name. A root's `impl Type` is a container of contracts, not an
 executable implementation. A signature-only private helper in the root is not a private exception.
-Target/primitive/package metadata requires its own selected contract; this table does not supply it.
+Target/primitive metadata requires its own selected contract; this table does not supply it.
+Package metadata follows its [own selected contract](packages.md).
 
 The root remains the authored contract when a compiler product carries inferred facts.
 [Conditional const eligibility](constant-evaluation.md#published-facts-and-contract-views), like

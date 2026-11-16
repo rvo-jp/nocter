@@ -701,3 +701,30 @@ fn qualified_type_names_and_record_heads_preserve_one_path_without_accepting_com
         assert!(tree(text, ParseGoal::V2CoreUnit).has_errors(), "{text}");
     }
 }
+
+#[test]
+fn package_metadata_uses_the_shared_data_prefix_without_admitting_late_directives() {
+    let prefix = "#package: { name: \"app\", version: \"2.0.0\" }\n#dependencies: { local: { path: \"./local\" } }\n#executable: { name: \"app\" }\n#test: { name: \"unit\", module: \"./tests/unit\" }\n";
+    let parsed = tree(
+        &format!("{prefix}see ./body.nct\nfunc run(): i32"),
+        ParseGoal::V2CoreUnit,
+    );
+    assert!(!parsed.has_errors(), "{:?}", parsed.diagnostics());
+    assert_eq!(
+        parsed
+            .nodes()
+            .filter(|(_, node)| node.kind() == NodeKind::PackageDirective)
+            .count(),
+        4
+    );
+    for text in [
+        "see ./body.nct\n#package: { name: \"app\", version: \"2.0.0\" }",
+        "func run(): void {}\n#package: { name: \"app\", version: \"2.0.0\" }",
+        "#visibility: \"/\"\n#package: { name: \"app\", version: \"2.0.0\" }",
+        "#package: { name: compute(), version: \"2.0.0\" }",
+        "#package: { name: \"app\" version: \"2.0.0\" }",
+    ] {
+        let parsed = tree(text, ParseGoal::V2CoreUnit);
+        assert!(parsed.has_errors(), "{text}");
+    }
+}

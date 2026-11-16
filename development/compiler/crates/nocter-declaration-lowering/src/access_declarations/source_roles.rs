@@ -15,6 +15,7 @@ pub enum SourceRoleRule {
     MissingInitializer,
     MissingRepresentation,
     VisibilityOutsideContract,
+    PackageMetadataOutsideContract,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SourceRoleDiagnostic {
@@ -50,6 +51,15 @@ pub fn validate_source_role(
             .min_by_key(|(_, node)| node.range().start())
     {
         return reject(syntax, SourceRoleRule::VisibilityOutsideContract, node);
+    }
+    if !root
+        && let Some(node) = nocter_syntax::direct_node(
+            syntax.tree(),
+            syntax.tree().root_id(),
+            NodeKind::PackageDirective,
+        )
+    {
+        return reject(syntax, SourceRoleRule::PackageMetadataOutsideContract, node);
     }
     for declaration in headers::declarations(syntax)? {
         let kind = syntax
@@ -113,6 +123,10 @@ fn reject(syntax: BoundSyntax<'_>, rule: SourceRoleRule, subject: NodeId) -> Res
         SourceRoleRule::VisibilityOutsideContract => (
             DiagnosticCode::E0238,
             "visibility directives belong to eligible index.nct contracts",
+        ),
+        SourceRoleRule::PackageMetadataOutsideContract => (
+            DiagnosticCode::E0276,
+            "package metadata belongs to the package root index.nct",
         ),
         SourceRoleRule::MissingRepresentation => (
             DiagnosticCode::E0231,

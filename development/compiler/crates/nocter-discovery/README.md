@@ -46,8 +46,11 @@ semantics. It does not lower declarations or interpret body semantics.
   and bypass compiler-computation source authority.
 - A package root that becomes a module source keeps the graph's sole exact syntax tree. Discovery
   rejects a missing or duplicate retained tree and never reparses that source.
-- A newly ingested module source requests the source-file parse goal exactly once through the
-  supplied provider.
+- A newly ingested module source requests the package-root catalog's selected grammar through
+  the supplied provider. The same selection owns target activity and the final compile input;
+  retained package roots are not reinterpreted. Explicit v2 catalogs qualify directory inventory,
+  module/see resolutions and the common private checking handoff, not public CLI/session admission
+  or an installed v2 standard library.
 - The snapshot derives its source grammar from the retained compile-input selection, including
   authored target errors. Semantic topology includes that grammar independently of source contents.
 - The semantic topology surface contains no `SourceId`, `NodeId`, syntax coordinates, body-local

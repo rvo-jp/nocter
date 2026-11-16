@@ -18,10 +18,11 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Close the package-metadata integration prerequisite with an explicit v2 owner for retained package
-notation and data rules, keeping contract-only roots and executable bodies separate. Connect that
-selected grammar through the existing package-root catalog and discovery authority; no implicit
-released fallback, parallel manifest decoder, public CLI admission or standard-library qualification.
+Connect the selected v2 discovery input to the revision-owned semantic query branch, using the
+existing module/header/body/required-evaluation coordinator. Preserve exact-current source guards,
+complete/incomplete separation, retained diagnostics and grammar-specific cache identities. Do not
+run v2 trees through released declaration lowering or create a second semantic checking engine.
+Public session/native/editor admission and the standard library remain independently unqualified.
 
 Re-evaluate the ordinary package/session and module entry paths against the qualified v2 core.
 Identify the next production-integration dependency and close a source-backed vertical slice without
@@ -679,6 +680,11 @@ not a language restriction derived from the current realization boundary.
   Reuse the exact parse, separate both grammar domains, retain invalid-target diagnostics and reject
   foreign source selection. Qualify body-only declaration reuse with exact changed body inputs and
   empty-source topology separation; this does not admit v2 package discovery or production checking.
+- [x] Select retained package-data notation/rules explicitly for v2, sharing one prefix recognizer,
+  decoder and grammar-selected root catalog. Connect physical directory discovery to the existing
+  v2 module coordinator; qualify original root identity, child imports, target metadata and required
+  values. Reject wrong provider grammars, misplaced metadata, executable roots, cross-boundary see
+  and unsafe unused helpers. Preserve released behavior and publication/entry/library boundaries.
 - [ ] Complete directory modules, contract-only index files, visibility, see hints and package/platform
   integration. Close the intended v2 platform and ABI scope with executable and negative source cases.
 - [ ] Integrate v2 into the ordinary compiler/CLI and editor workflow with one semantic pipeline,

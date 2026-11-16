@@ -3,6 +3,7 @@ mod block;
 mod declaration;
 mod expression;
 mod newline;
+mod package;
 mod place;
 mod requirements;
 mod root;

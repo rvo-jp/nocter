@@ -22,6 +22,8 @@ use crate::{
 
 #[path = "tests/standard_contract.rs"]
 mod standard_contract;
+#[path = "tests/v2_packages.rs"]
+mod v2_packages;
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 

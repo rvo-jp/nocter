@@ -168,6 +168,7 @@ impl<'syntax> Builder<'syntax> {
             pending.insert(Work::SingleFile { module, path });
         }
 
+        let source_goal = package_roots.source_goal();
         Ok(Self {
             target,
             packages,
@@ -182,7 +183,7 @@ impl<'syntax> Builder<'syntax> {
             source_visibility_resolutions: Vec::new(),
             use_resolutions: Vec::new(),
             package_target_resolutions,
-            target_selection: TargetSelectionBuilder::new(target),
+            target_selection: TargetSelectionBuilder::for_goal(source_goal, target),
             pending,
             toolchain,
             source_syntax,
@@ -367,7 +368,7 @@ impl<'syntax> Builder<'syntax> {
                 &mut self.sources,
                 &mut self.syntax,
                 &path,
-                ParseGoal::SourceFile,
+                self.target_selection.selection().source_goal(),
                 self.source_syntax,
             )?
         };

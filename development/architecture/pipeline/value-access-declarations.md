@@ -15,6 +15,15 @@ through complete invocation preparation, including selected callable adapters. T
 not establish general capabilities, public modules, general outcomes or async.
 The [realization plan](../../design/compiler-realization.md) owns remaining integrated obligations.
 
+An explicitly selected v2 package-root catalog now carries the adopted
+[package metadata](../../spec/language/packages.md) through the common package decoder and physical
+discovery. Root parse products, directory ownership, direct `see`, module imports, target selections
+and source diagnostics become the existing immutable compile input. `ModuleSourceUnit` consumes
+that exact input through its ordinary declaration/body/required-value coordinator. Contract-only
+roots, complete paired headers, child/package boundaries and unused source-folder helpers retain
+their existing owners. This qualifies the selected physical-to-private checking handoff, not the
+ordinary session/query semantic branch, an executable entry, a v2 standard library or public CLI.
+
 ## Implemented Handoff
 
 ```text
@@ -315,8 +324,8 @@ the whole original body set before exposing any exact-current projection. No loo
 dispatch, or flow computation is repeated by that projection.
 
 This is closed front-end evidence for the exact private fragment, not a code-generation
-certificate. Module/package integration, general dependencies, user destructors, general outcomes and
-async remain outside its admitted source scope. There is no released
+certificate. General module/package product integration, general dependencies, user destructors,
+general outcomes and async remain outside its admitted source scope. There is no released
 checked-program conversion or public compatibility mode.
 
 ## Private Instance Closure Handoff

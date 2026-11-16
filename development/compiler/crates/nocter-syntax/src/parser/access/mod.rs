@@ -16,6 +16,7 @@ use crate::{
 pub(super) fn unit(parser: &mut Parser<'_>) {
     let marker = parser.start();
     parser.eat_newlines();
+    super::package::prefix(parser);
     let mut declarations_started = false;
     while !parser.at(TokenKind::Eof) {
         if parser.at_keyword(Keyword::See) {
