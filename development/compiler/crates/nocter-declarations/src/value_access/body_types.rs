@@ -4,6 +4,7 @@ use nocter_model::{TypeCursor, TypeId, TypeKind, ValueCode, ValueCodeRoot, Value
 use std::collections::BTreeMap;
 mod applications;
 mod containment;
+mod contracts;
 mod inputs;
 mod resolution;
 pub use resolution::ResolvedBodyTypes;
@@ -344,6 +345,7 @@ impl Program {
                 }
                 PayloadSchema::Function(witness) => match witness.origin {
                     ValueFunctionOrigin::Declaration(_) => {}
+                    ValueFunctionOrigin::Contract(_) => return None,
                     ValueFunctionOrigin::Closure(id) => {
                         pending.push(self.closure(id)?.environment());
                     }
@@ -399,6 +401,7 @@ impl Program {
         let mut closures = BTreeMap::new();
         let mut closure_parameters = BTreeMap::new();
         let mut applications = BTreeMap::new();
+        let mut callable_contracts = BTreeMap::new();
         for (owner, body) in bodies {
             if body.type_scope != TypeScope::Body(owner)
                 || !self.preserves_headers(body)
@@ -419,6 +422,17 @@ impl Program {
                     return Err(BodyTypeError::InvalidApplication);
                 }
             }
+            for (&id, contract) in &body.callable_contracts {
+                if id.owner != nocter_model::ValueContractOwner::Body(owner) {
+                    return Err(BodyTypeError::InvalidExtension);
+                }
+                let projected = contract.try_map_data(|data| {
+                    project_type(prefix, &projection, data).ok_or(BodyTypeError::InvalidExtension)
+                })?;
+                if callable_contracts.insert(id, projected).is_some() {
+                    return Err(BodyTypeError::InvalidExtension);
+                }
+            }
             for (&parameter, contract) in &body.closure_parameters {
                 let closure = inputs::owner(parameter).ok_or(BodyTypeError::InvalidExtension)?;
                 if closure.owner != owner || body.closure(closure).is_none() {
@@ -427,11 +441,7 @@ impl Program {
                 let project = |data| {
                     project_type(prefix, &projection, data).ok_or(BodyTypeError::InvalidExtension)
                 };
-                let mut contract = contract.clone();
-                contract.result = project(contract.result)?;
-                for input in &mut contract.inputs {
-                    input.data = project(input.data)?;
-                }
+                let contract = contract.try_map_data(project)?;
                 if closure_parameters.insert(parameter, contract).is_some() {
                     return Err(BodyTypeError::InvalidExtension);
                 }
@@ -445,10 +455,7 @@ impl Program {
                 };
                 let mut schema = schema.clone();
                 schema.environment = project(schema.environment)?;
-                schema.contract.result = project(schema.contract.result)?;
-                for input in &mut schema.contract.inputs {
-                    input.data = project(input.data)?;
-                }
+                schema.contract = schema.contract.try_map_data(project)?;
                 if closures.insert(id, schema).is_some() {
                     return Err(BodyTypeError::InvalidExtension);
                 }
@@ -460,6 +467,7 @@ impl Program {
         program.closures = closures;
         program.closure_parameters = closure_parameters;
         program.applications = applications;
+        program.callable_contracts = callable_contracts;
         program.types = types
             .commit(&self.types)
             .map_err(|_| BodyTypeError::InvalidExtension)?;
@@ -548,6 +556,16 @@ fn replay_types(
                 inputs::owner(*parameter).is_some_and(|closure| closure.owner == owner)
                     && body
                         .parameter_contract(*parameter)
+                        .is_some_and(|contract| contract.invocation.can_supply(*invocation))
+            }
+            TypeKind::ValueFunction {
+                origin: ValueFunctionOrigin::Contract(id),
+                invocation,
+            } => {
+                id.owner == nocter_model::ValueContractOwner::Body(owner)
+                    && body
+                        .callable_contracts
+                        .get(id)
                         .is_some_and(|contract| contract.invocation.can_supply(*invocation))
             }
             TypeKind::ValueFunction {

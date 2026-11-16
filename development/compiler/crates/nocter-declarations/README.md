@@ -649,6 +649,22 @@ bodies cannot substitute for each other. Header programs stay unchanged and reus
 extended program cannot masquerade as a fresh header base. Checking rewrites all body data
 slots through this projection before closing relations.
 
+`BodyTypes::callable_contract` constructs body-owned callable type contracts with a distinct
+`ValueCallableContract` identity and complete invocation/input/result signature. Child contracts
+may occur directly or inside structural signature data. Duplicate ordinals and unsupported data
+reject before publishing a type or signature. One shared contract-data projection preserves nested
+references through canonical body replay and result substitution, including raw-ID collisions
+between independent body suffixes. Equal signatures do not merge different contract identities.
+Deep nested metadata remains a graph of type references rather than an expanded value tree.
+
+These contracts are not formal inputs, result producers or concrete witnesses. They gain no Copy,
+owned-payload eligibility, environment, runtime layout or const permission. Unsupported lifecycle
+and execution consumers reject them explicitly. The model also reserves field-owned identity, but
+source record-field publication and nested callable header signatures remain unqualified; this
+body-owned metadata constructor does not widen their source admission. The
+[realization contract](../../../design/compiler-realization.md#callable-type-contracts) owns the
+remaining integration obligations.
+
 Outcome/capability/generic/user-destructor schemas, nested callback contracts and general captured
 environments remain outside the accepted private fragment. Exact
 scalar/unit/error independence is checked under its owning data contracts, never inferred from Copy or value receipt for arbitrary future types.

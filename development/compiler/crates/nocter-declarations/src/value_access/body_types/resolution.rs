@@ -111,16 +111,14 @@ impl Program {
         let mut program = self.clone();
         for schema in program.closures.values_mut() {
             schema.environment = project(schema.environment)?;
-            schema.contract.result = project(schema.contract.result)?;
-            for input in &mut schema.contract.inputs {
-                input.data = project(input.data)?;
-            }
+            schema.contract = schema.contract.try_map_data(project)?;
         }
-        for contract in program.closure_parameters.values_mut() {
-            contract.result = project(contract.result)?;
-            for input in &mut contract.inputs {
-                input.data = project(input.data)?;
-            }
+        for contract in program
+            .closure_parameters
+            .values_mut()
+            .chain(program.callable_contracts.values_mut())
+        {
+            *contract = contract.try_map_data(project)?;
         }
         program.types = types
             .commit(&self.types)

@@ -36,6 +36,7 @@ fn mut_view_keeps_static_dispatch_and_prepares_the_environment_before_explicit_i
                     nocter_model::ValueFunctionOrigin::Declaration(id) => id,
                     nocter_model::ValueFunctionOrigin::Closure(_)
                     | nocter_model::ValueFunctionOrigin::Parameter(_)
+                    | nocter_model::ValueFunctionOrigin::Contract(_)
                     | nocter_model::ValueFunctionOrigin::Result(_)
                     | nocter_model::ValueFunctionOrigin::Application(_) =>
                         panic!("concrete target"),

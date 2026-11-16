@@ -200,6 +200,10 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Preserve the original failed operation and instance when lazy plan projection fails before
   entering the requested body. Keep source-context failures distinct from invalid plans and
   report the inner cause rather than only the caller's load site.
+- [ ] Qualify uniform contextual results of evaluator selected calls from their original receiving
+  definitions after nested callable/header contracts are qualified. Preserve every candidate's
+  complete result channel and reject nonuniform outputs; cover returned callable carriers,
+  forwarding, actual selection and ordinary native execution.
 - [ ] Close the [positive callable alternative obligations](design/compiler-realization.md#positive-callable-alternatives)
   through the canonical data-instance graph, guarded source transport, evaluator/target plans,
   native selection and cleanup before widening source admission. The value-context fixture
@@ -653,6 +657,12 @@ not a language restriction derived from the current realization boundary.
   value provenance. Qualify changing cleanup contexts through ordinary source and all consumers.
   Preserve exact received-input
   probes and exact compound-context traversal/discovery rather than same-typed capture defaults.
+- [x] Establish declaration-owned callable contract identities independently of input/return
+  producers and physical value paths. Qualify nested signature construction, canonical replay,
+  substitution, identity rejection and closed admission boundaries before source publication.
+- [ ] Publish callable record-field contracts atomically under reserved field identities. Preserve
+  header lineage, payload-versus-signature dependency edges and conservative Copy checks before
+  qualifying original source construction, contextual value binding and execution consumers.
 - [ ] Complete nested callable data/witness support through header/data positions and the owning
   type authority. Keep valid formal structural descriptors separate from owned-payload admission.
   Qualify concrete representation, substitution and callable input/result evidence;

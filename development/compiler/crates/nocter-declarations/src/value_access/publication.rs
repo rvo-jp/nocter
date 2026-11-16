@@ -335,6 +335,7 @@ impl HeaderPublication {
         Program {
             closures: BTreeMap::new(),
             closure_parameters: BTreeMap::new(),
+            callable_contracts: BTreeMap::new(),
             applications: BTreeMap::new(),
             symbols: self.definitions.symbols.clone(),
             types: self.types.clone(),

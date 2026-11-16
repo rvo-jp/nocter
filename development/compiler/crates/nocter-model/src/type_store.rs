@@ -556,8 +556,8 @@ pub enum TypeKind {
         arguments: GenericApplication,
     },
     Callable(CallableType),
-    /// A v2 function witness with its selected invocation view. A formal input is a symbolic
-    /// witness, not a structural contract or an erased runtime function pointer.
+    /// A v2 callable identity and invocation view: concrete code, a symbolic value origin or
+    /// a declaration-owned type contract. The identity alone grants no stored function value.
     ValueFunction {
         origin: crate::ValueFunctionOrigin,
         invocation: crate::ValueInvocation,
@@ -870,6 +870,7 @@ impl TypeProperties {
                 matches!(
                     origin,
                     crate::ValueFunctionOrigin::Parameter(_)
+                        | crate::ValueFunctionOrigin::Contract(_)
                         | crate::ValueFunctionOrigin::Closure(_)
                         | crate::ValueFunctionOrigin::Result(_)
                         | crate::ValueFunctionOrigin::Application(_)

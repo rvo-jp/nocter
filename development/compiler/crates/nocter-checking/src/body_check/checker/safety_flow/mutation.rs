@@ -169,6 +169,7 @@ impl BodyChecker<'_, '_> {
                     origin:
                         nocter_model::ValueFunctionOrigin::Closure(_)
                         | nocter_model::ValueFunctionOrigin::Parameter(_)
+                        | nocter_model::ValueFunctionOrigin::Contract(_)
                         | nocter_model::ValueFunctionOrigin::Result(_)
                         | nocter_model::ValueFunctionOrigin::Application(_),
                     ..

@@ -38,6 +38,27 @@ pub struct FunctionConstraint<Data = TypeId> {
     pub inputs: Box<[FunctionInput<Data>]>,
     pub result: Data,
 }
+impl<Data: Copy> FunctionConstraint<Data> {
+    pub(super) fn try_map_data<Target, Error>(
+        &self,
+        mut project: impl FnMut(Data) -> Result<Target, Error>,
+    ) -> Result<FunctionConstraint<Target>, Error> {
+        Ok(FunctionConstraint {
+            invocation: self.invocation,
+            inputs: self
+                .inputs
+                .iter()
+                .map(|input| {
+                    Ok(FunctionInput {
+                        data: project(input.data)?,
+                        operation: input.operation,
+                    })
+                })
+                .collect::<Result<_, Error>>()?,
+            result: project(self.result)?,
+        })
+    }
+}
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FunctionMismatch {
     Data {
@@ -297,6 +318,7 @@ impl Program {
                 }
             }
             ValueFunctionOrigin::Parameter(id) => self.parameter_contract(id)?.clone(),
+            ValueFunctionOrigin::Contract(id) => self.callable_contracts.get(&id)?.clone(),
             ValueFunctionOrigin::Result(result) => self
                 .codes
                 .get(result.owner)?
@@ -336,6 +358,9 @@ impl Program {
             }
             ValueFunctionOrigin::Parameter(id) => {
                 self.parameter_contract(id)?;
+            }
+            ValueFunctionOrigin::Contract(id) => {
+                self.callable_contracts.get(&id)?;
             }
             ValueFunctionOrigin::Result(result) => {
                 self.codes

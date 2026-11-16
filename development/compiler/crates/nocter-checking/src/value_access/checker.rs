@@ -436,6 +436,8 @@ impl<'a, 's> Checker<'a, 's> {
                 "{} witness `{}`",
                 super::annotations::invocation_label(witness.invocation),
                 match witness.origin {
+                    nocter_model::ValueFunctionOrigin::Contract(_) =>
+                        Some("callable type contract".to_owned()),
                     nocter_model::ValueFunctionOrigin::Closure(id) =>
                         self.program().root_label(id.owner),
                     nocter_model::ValueFunctionOrigin::Declaration(id) =>

@@ -149,6 +149,7 @@ fn prove_exclusion<'a>(
 
 fn values(term: FunctionWitness, known: &Solutions) -> Result<Producers, ()> {
     let selected = match term.origin {
+        Origin::Contract(_) => return Err(()),
         Origin::Declaration(_) | Origin::Closure(_) | Origin::Parameter(_) => {
             Producers::from([term])
         }

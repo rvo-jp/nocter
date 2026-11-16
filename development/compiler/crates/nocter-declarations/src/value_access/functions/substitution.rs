@@ -31,7 +31,9 @@ impl FunctionWitness {
                     invocation: self.invocation,
                 }))
             }
-            ValueFunctionOrigin::Result(_) | ValueFunctionOrigin::Application(_) => Ok(None),
+            ValueFunctionOrigin::Contract(_)
+            | ValueFunctionOrigin::Result(_)
+            | ValueFunctionOrigin::Application(_) => Ok(None),
         }
     }
 }

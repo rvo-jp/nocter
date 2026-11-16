@@ -92,10 +92,25 @@ pub enum ValueFunctionOrigin {
     Declaration(crate::AccessCodeId),
     Closure(ValueClosure),
     Parameter(ValueParameter),
+    /// A callable type contract, not a stored value or a source producer.
+    Contract(ValueCallableContract),
     /// A declared callable result, closed by checking its reachable return producers.
     Result(ValueCallableResult),
     /// One statically selected call application, independent of source coordinates and type IDs.
     Application(ValueAppliedResult),
+}
+
+/// Declaration-owned scope for callable contracts embedded in other contracts or fields.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum ValueContractOwner {
+    Body(ValueCodeRoot),
+    Field(crate::AccessFieldId),
+}
+/// One written callable contract in a scope; its ordinal is neither a value path nor an input.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct ValueCallableContract {
+    pub owner: ValueContractOwner,
+    pub ordinal: usize,
 }
 
 /// One callable leaf in a declared result, in written payload-descriptor order. A result that
@@ -170,7 +185,7 @@ impl ValueFunctionOrigin {
         match self {
             Self::Declaration(id) => Some(ValueCode::Declaration(id)),
             Self::Closure(id) => Some(ValueCode::Closure(id)),
-            Self::Parameter(_) | Self::Result(_) | Self::Application(_) => None,
+            Self::Parameter(_) | Self::Contract(_) | Self::Result(_) | Self::Application(_) => None,
         }
     }
 }
@@ -295,7 +310,7 @@ mod tests {
     use super::*;
     use crate::{AccessCodeId, ArenaBuilder, TypeAuthority, TypeKind};
     #[test]
-    fn code_projection_does_not_treat_formals_results_or_applications_as_code() {
+    fn code_projection_does_not_treat_contracts_formals_results_or_applications_as_code() {
         let code = ArenaBuilder::<AccessCodeId, ()>::new().insert(());
         let closure = ValueClosure {
             owner: code.into(),
@@ -308,6 +323,10 @@ mod tests {
         let call = ArenaBuilder::<crate::AccessExpressionId, ()>::new().insert(());
         for symbolic in [
             ValueFunctionOrigin::Parameter(parameter.into()),
+            ValueFunctionOrigin::Contract(ValueCallableContract {
+                owner: ValueContractOwner::Body(code.into()),
+                ordinal: 0,
+            }),
             ValueFunctionOrigin::Result(code.into()),
             ValueFunctionOrigin::Application(
                 ValueApplication {

@@ -236,6 +236,27 @@ Keep original bounds effects and old/new destruction observable. These are compi
 obligations, not a request for user annotations, a second owner registry or a permanent ban on
 context-changing updates. Unsupported cases remain explicitly unqualified until those proofs close.
 
+#### Callable Type Contracts
+
+A callable annotation nested in another callable signature constrains a future value; it is not
+another input, returned producer or stored component of the containing function value. Record
+fields likewise own type contracts independently of the code that later constructs their values.
+Give these contracts declaration-owned identities in the existing type graph, scoped to an original
+body root or reserved field and a deterministic contract ordinal. An ordinal names written semantic
+structure, never an extra runtime parameter or a physical value path.
+
+Keep each contract's invocation view and full input/result signature in the declaration authority.
+Signatures reference canonical data IDs, including child callable contracts. Canonical body replay
+and result substitution must project these signatures with the same type projection as their
+containing shapes. Equal signatures at different contract identities must remain distinct;
+publication, duplicate rejection and interrupted requests cannot leak partial contracts.
+
+A contract supplies no concrete function witness, environment, input value, producer, Copy proof,
+const capability or runtime layout. Existing source-value evidence must bind an actual complete
+witness before payload or executable admission. Until each consumer qualifies that binding, retain
+its explicit rejection. Do not encode a nested signature as an independent flat input, follow an
+uninvoked function as a storage path, or substitute the containing code's capture environment.
+
 #### Positive Callable Alternatives
 
 A runtime choice between positive callable contexts needs an explicit canonical domain, not a

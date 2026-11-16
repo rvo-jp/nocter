@@ -36,14 +36,17 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
 - one builtin numeric profile and its mathematical integer bounds, independent of host word size
 - one source-visible index-check disposition, reexported by checking, MIR and Machine rather than
   copied into separate enum definitions or conversion classifiers
-- future function-witness keys pairing a concrete declaration, symbolic formal input or symbolic
-  result family or selected call application with an invocation view; projection preserves them
+- future callable keys pairing concrete code, symbolic value origins or declaration-owned type
+  contracts with an invocation view; projection preserves them
   without source names or runtime layout. Applications pair caller/operation/callee identities.
   `ValueCallableResult` identifies a result's callable leaf by declaration owner and written
   ordinal; a result that is itself callable has the sole ordinal zero. An identity grants no
   published contract or produced value. Declaration/checking owners qualify each supported slot.
   `ValueAppliedResult` pairs the original whole-call identity with its callable-result ordinal;
   different leaves neither create extra invocations nor inherit another leaf's code or payload.
+  `ValueCallableContract` identifies a written type contract by body-root or field scope and
+  contract ordinal. Its identity is independent of runtime inputs, value paths and producers;
+  the [declaration owner](../nocter-declarations/README.md) owns its qualified signature construction.
   Formal/result/application witnesses remain nonconcrete and may carry storage; named witnesses
   are concrete capture-free leaves. Canonical body replay and result closure retain one authority
 - root/captured body code identities: `AccessCodeId` identifies reserved declarations and header
@@ -53,7 +56,7 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
   body, independently of its source owner. Applications retain that actual lexical `ValueCode`,
   so equal expression IDs in a root and its closures remain distinct. A body-local expression has no function origin;
   declaration roles and callable witnesses remain declaration-owned facts. `ValueFunctionOrigin::code`
-  extracts only stored declaration/closure keys; symbolic formal/result/application terms are not
+  extracts only stored declaration/closure keys; type contracts and symbolic value origins are not
   code, and the projection grants no domain or invocation admission
 - body-owned closure code keys independent of runtime environments; data/schema owners, rather
   than the key or invocation view, establish capture Copy and destruction properties
