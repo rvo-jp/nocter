@@ -156,6 +156,7 @@ pub struct Code {
     parameters: Box<[AccessParameterId]>,
     result: TypeId,
     result_contracts: Box<[FunctionConstraint]>,
+    type_contracts: std::sync::Arc<[FunctionConstraint]>,
 }
 
 impl Code {
@@ -195,6 +196,7 @@ pub struct Parameter {
     operation: ValueInputOperation,
     contract: Option<FunctionConstraint>,
     components: Box<[FunctionConstraint]>,
+    type_contracts: std::sync::Arc<[FunctionConstraint]>,
 }
 
 impl Parameter {
@@ -990,24 +992,12 @@ fn validate_value(
             rule: DeclarationRule::RepeatedFailure,
         });
     }
-    let component_value = allow_components
-        && matches!(value, ValueDefinition::Data(data) if !matches!(data, DataReference::Function(_)));
     value.visit_data(|data| {
-        if let DataReference::Function(contract) = data
-            && component_value
+        if matches!(data, DataReference::Function(_))
+            && allow_components
+            && !matches!(value, ValueDefinition::Data(DataReference::Function(_)))
         {
-            let mut nested = false;
-            for data in contract
-                .inputs
-                .iter()
-                .map(|(_, data)| data)
-                .chain(std::iter::once(&contract.result))
-            {
-                data.visit_leaves(|leaf| nested |= matches!(leaf, DataReference::Function(_)));
-            }
-            if !nested {
-                return;
-            }
+            return;
         }
         validate_data(callable, position, data, records, violations);
     });

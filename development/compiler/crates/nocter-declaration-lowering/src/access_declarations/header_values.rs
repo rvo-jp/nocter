@@ -4,8 +4,8 @@ use super::{
     definitions::{self, HeaderScope, Projection},
     headers,
 };
-use nocter_declarations::value_access::{FunctionConstraint, Program, ValueDefinition};
-use nocter_model::{AccessCodeId, FrozenData, TypeId};
+use nocter_declarations::value_access::Program;
+use nocter_model::{AccessCodeId, FrozenData};
 
 impl Context<'_> {
     /// Require source header counts to reproduce this snapshot's established type identities.
@@ -133,62 +133,9 @@ fn matches_code(
                 program.parameters().get(*id).is_some_and(|parameter| {
                     parameter.name() == expected.name
                         && parameter.operation() == expected.operation
-                        && match (&expected.data, parameter.contract()) {
-                            (ValueDefinition::Data(data), None) => {
-                                program.existing_input_data_reference(*id, data)
-                                    == Some(parameter.data())
-                            }
-                            _ => matches_value(
-                                program,
-                                &expected.data,
-                                parameter.data(),
-                                parameter.contract(),
-                            ),
-                        }
+                        && program.existing_input_value_reference(*id, &expected.data)
+                            == Some(parameter.data())
                 })
             })
-        && match &expected.result {
-            ValueDefinition::Data(data) => {
-                program.existing_result_data_reference(id, data) == Some(code.result())
-            }
-            ValueDefinition::Function(_) => {
-                matches!(
-                    program.data_schema(code.result()),
-                    Some(nocter_declarations::value_access::PayloadSchema::Function(
-                        _
-                    ))
-                ) && matches_value(
-                    program,
-                    &expected.result,
-                    code.result(),
-                    code.result_contracts().first(),
-                )
-            }
-        }
-}
-fn matches_value(
-    program: &Program,
-    expected: &ValueDefinition,
-    data: TypeId,
-    contract: Option<&FunctionConstraint>,
-) -> bool {
-    match (expected, contract) {
-        (ValueDefinition::Data(expected), None) => {
-            program.existing_data_reference(expected) == Some(data)
-        }
-        (ValueDefinition::Function(expected), Some(actual)) => {
-            expected.invocation == actual.invocation
-                && expected.inputs.len() == actual.inputs.len()
-                && expected
-                    .inputs
-                    .iter()
-                    .zip(&actual.inputs)
-                    .all(|((operation, data), actual)| {
-                        *operation == actual.operation
-                            && program.existing_data_reference(data) == Some(actual.data)
-                    })
-                && program.existing_data_reference(&expected.result) == Some(actual.result)
-        }
-        _ => false,
-    }
+        && program.existing_result_value_reference(id, &expected.result) == Some(code.result())
 }

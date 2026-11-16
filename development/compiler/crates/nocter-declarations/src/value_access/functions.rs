@@ -297,6 +297,12 @@ impl Program {
     ) -> Option<&FunctionConstraint> {
         match id.owner {
             nocter_model::ValueContractOwner::Body(_) => self.callable_contracts.get(&id),
+            nocter_model::ValueContractOwner::Parameter(input) => {
+                self.parameters.get(input)?.type_contracts.get(id.ordinal)
+            }
+            nocter_model::ValueContractOwner::Result(code) => {
+                self.codes.get(code)?.type_contracts.get(id.ordinal)
+            }
             nocter_model::ValueContractOwner::Field(field) => self
                 .fields()
                 .get(field)?

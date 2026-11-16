@@ -12,7 +12,7 @@ pub(in crate::value_access) fn resolve(
     let mut contracts = Vec::new();
     let data = resolve_reference(data, |node| match node {
         ReferenceNode::Data(kind) => types.intern(kind).ok(),
-        ReferenceNode::Function(contract) => {
+        ReferenceNode::Function { contract, .. } => {
             let id = ValueCallableContract {
                 owner,
                 ordinal: contracts.len(),

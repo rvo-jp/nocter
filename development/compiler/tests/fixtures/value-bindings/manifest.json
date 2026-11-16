@@ -952,11 +952,10 @@
       "diagnostic": "E0370"
     },
     {
-      "id": "h09-nested-callable-witness",
-      "file": "h09-nested-callable-witness.nct",
-      "expectation": "header-reject",
-      "reason": "Nested callable data needs witness/type-model qualification; type recognition alone grants no evidence.",
-      "diagnostic": "E0291"
+      "id": "nested-callable-header",
+      "file": "nested-callable-header.nct",
+      "expectation": "accept",
+      "reason": "An unused higher-order input has an immutable nested type contract, without creating a runtime witness or another formal input."
     },
     {
       "id": "a76-function-view-replacement",

@@ -18,12 +18,12 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify nested callable signatures in ordinary declaration headers. Publish their type-only
-contract graph atomically with its owning declaration, independently of formal inputs and result
-producers. Preserve header lineage, read-only source reconciliation, canonical body replay and
-invariant nested views. Match authored nested contract nodes without weakening exact contextual
-witness checks. Qualify original higher-order supplied/receiving contexts through every consumer
-before claiming source invocation; symbolic definition-context proof remains separate.
+Qualify authored nested header contract conformance without weakening exact contextual witness
+checks. Keep the immutable published signature graph separate from actual supplied code and
+environments. Carry original higher-order supplied/receiving contexts through source checking,
+substitution, evaluator/native invocation and cleanup before claiming executable support;
+symbolic definition-context proof remains separate. Audit ordinary root-callable record readiness
+against actual payload requirements while preserving lazy header lineage and source diagnostics.
 
 Complete occurrence-sensitive value/capture transport under the
 [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances).
@@ -694,6 +694,14 @@ not a language restriction derived from the current realization boundary.
   and received contexts: optional absence/injection, independent tuple positions, homogeneous
   captured arrays and zero arrays. Preserve signatures, actual ownership/ordinals and native
   owned-error cleanup; fresh inactive type constraints create no witness or hidden parameter.
+- [x] Publish nested callable header signatures atomically under immutable parameter/result owners.
+  Preserve original formal/component/result identities, read-only source reconciliation and
+  canonical body replay; signature children create no physical input, runtime value or const proof.
+- [ ] Match authored nested header contract nodes without weakening exact contextual witness
+  constraints. Qualify original supplied/receiving callable contexts through source checking,
+  substitution, evaluation, native invocation and cleanup; header publication alone grants none.
+  Audit ordinary root-callable signature record readiness separately from stored payload
+  prerequisites before widening lazy source invocation.
 - [ ] Complete nested callable data/witness support through header/data positions and the owning
   type authority. Keep valid formal structural descriptors separate from owned-payload admission.
   Qualify concrete representation, substitution and callable input/result evidence;

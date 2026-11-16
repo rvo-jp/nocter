@@ -7,29 +7,27 @@ fn grouped_flat_callable_annotations_share_ordinary_witness_checking() {
 }
 
 #[test]
-fn nested_callable_data_reports_missing_type_evidence_at_the_current_header() {
-    for source in [
+fn nested_callable_headers_publish_contracts_without_proving_a_runtime_value() {
+    let fixture = nocter_test_support::ValueSourceFixture::new(
         "func f(input: func(func(): i32): i32): void {}",
-        "func f(): func(): func(): i32 { loop {} }",
-    ] {
-        let fixture = nocter_test_support::ValueSourceFixture::new(source);
-        let Err(accepted::SourceFailure::Declarations(declarations::Failure::Headers(diagnostics))) =
-            accepted::SourceUnit::prepare(fixture.syntax())
-        else {
-            panic!("nested callable evidence: {source}");
-        };
-        assert!(diagnostics.iter().any(|diagnostic| diagnostic.source().code() == "E0291" && diagnostic.violation().rule == nocter_declarations::value_access::DeclarationRule::UnsupportedCallableData));
-        for diagnostic in &diagnostics {
-            assert_eq!(
-                diagnostic.source().primary().source(),
-                fixture.syntax().tree().source()
-            );
-            let range = diagnostic.source().primary().span().range();
-            assert!(
-                source[range.start().get() as usize..range.end().get() as usize].contains("func")
-            );
-        }
-    }
+    );
+    let unit = accepted::SourceUnit::prepare(fixture.syntax())
+        .unwrap()
+        .into_unit();
+    assert_eq!(unit.program().codes().len(), 1);
+    let (_, code) = unit.program().codes().iter().next().unwrap();
+    assert_eq!(code.parameters().len(), 1);
+    let fixture =
+        nocter_test_support::ValueSourceFixture::new("func f(): func(): func(): i32 { loop {} }");
+    assert!(declarations::Query::prepare(fixture.syntax()).is_ok());
+    let Err(accepted::SourceFailure::Checking(accepted::Failure::Body {
+        failure: Failure::Rejected(diagnostic),
+        ..
+    })) = accepted::SourceUnit::prepare(fixture.syntax())
+    else {
+        panic!("a result contract has no runtime producer");
+    };
+    assert_eq!(diagnostic.rule(), Rule::TypeMismatch);
     reject(
         "func f(): void { let action: (func(): i32)? = none }",
         Rule::UnsupportedData,

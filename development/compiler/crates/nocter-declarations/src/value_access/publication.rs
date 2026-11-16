@@ -1,8 +1,8 @@
 //! Incremental publication of complete contracts into one persistent header lineage.
 use super::{
     Builder, Code, DeclarationId, DeclarationRule, DeclarationViolation, FieldDefinition,
-    FunctionConstraint, FunctionInput, Parameter, ParameterDefinition, Program, ValueDefinition,
-    data::resolved_data, functions, records, validate_definition,
+    FunctionConstraint, Parameter, ParameterDefinition, Program, ValueDefinition, functions,
+    records, validate_definition,
 };
 use nocter_dependency_query::{
     DependencyProgress, DependencyQuery, DependencyQueryError, DependencyStep,
@@ -274,11 +274,14 @@ impl HeaderPublication {
                     .expect("reserved parameter");
                 let parameter = &definition.parameters[slot.position];
                 let mut components = Vec::new();
+                let mut type_contracts = Vec::new();
                 let (data, contract) = publish_value(
                     &mut types,
                     ValueFunctionOrigin::Parameter(id.into()),
                     &parameter.data,
                     &mut components,
+                    nocter_model::ValueContractOwner::Parameter(id),
+                    &mut type_contracts,
                 );
                 (
                     id,
@@ -290,16 +293,20 @@ impl HeaderPublication {
                         operation: parameter.operation,
                         contract,
                         components: components.into(),
+                        type_contracts: type_contracts.into(),
                     },
                 )
             })
             .collect();
         let mut result_contracts = Vec::new();
+        let mut type_contracts = Vec::new();
         let (result, root_contract) = publish_value(
             &mut types,
             ValueFunctionOrigin::Result(id.into()),
             &definition.result_data,
             &mut result_contracts,
+            nocter_model::ValueContractOwner::Result(id),
+            &mut type_contracts,
         );
         if let Some(contract) = root_contract {
             assert!(
@@ -325,6 +332,7 @@ impl HeaderPublication {
                     parameters: reservation.parameters.clone(),
                     result,
                     result_contracts: result_contracts.into(),
+                    type_contracts: type_contracts.into(),
                 },
             )
             .expect("define-once reserved callable");
@@ -388,60 +396,63 @@ fn publish_value(
     origin: ValueFunctionOrigin,
     definition: &ValueDefinition,
     components: &mut Vec<FunctionConstraint>,
+    owner: nocter_model::ValueContractOwner,
+    type_contracts: &mut Vec<FunctionConstraint>,
 ) -> (nocter_model::TypeId, Option<FunctionConstraint>) {
-    let definition = match definition {
-        ValueDefinition::Data(data) => {
-            let data = super::data::resolve_reference(data, |node| {
-                Some(match node {
-                    super::data::ReferenceNode::Data(nocter_model::TypeKind::Builtin(data)) => {
-                        types.builtin(data)
+    let mut construct = |node| {
+        Some(match node {
+            super::data::ReferenceNode::Data(kind) => {
+                types.intern(kind).expect("validated data reference")
+            }
+            super::data::ReferenceNode::Function {
+                contract,
+                in_signature,
+            } => {
+                let selected = if in_signature {
+                    ValueFunctionOrigin::Contract(nocter_model::ValueCallableContract {
+                        owner,
+                        ordinal: type_contracts.len(),
+                    })
+                } else {
+                    match origin {
+                        ValueFunctionOrigin::Parameter(
+                            nocter_model::ValueParameter::Declaration(input),
+                        ) => ValueFunctionOrigin::Parameter(
+                            nocter_model::ValueParameter::Component {
+                                input: input.into(),
+                                ordinal: components.len(),
+                            },
+                        ),
+                        ValueFunctionOrigin::Result(result) if result.ordinal == 0 => {
+                            ValueFunctionOrigin::Result(nocter_model::ValueCallableResult {
+                                owner: result.owner,
+                                ordinal: components.len(),
+                            })
+                        }
+                        _ => unreachable!("declaration-owned callable component"),
                     }
-                    super::data::ReferenceNode::Data(kind) => {
-                        types.intern(kind).expect("validated data reference")
-                    }
-                    super::data::ReferenceNode::Function(contract) => {
-                        let origin = match origin {
-                            ValueFunctionOrigin::Parameter(
-                                nocter_model::ValueParameter::Declaration(input),
-                            ) => ValueFunctionOrigin::Parameter(
-                                nocter_model::ValueParameter::Component {
-                                    input: input.into(),
-                                    ordinal: components.len(),
-                                },
-                            ),
-                            ValueFunctionOrigin::Result(result) if result.ordinal == 0 => {
-                                ValueFunctionOrigin::Result(nocter_model::ValueCallableResult {
-                                    owner: result.owner,
-                                    ordinal: components.len(),
-                                })
-                            }
-                            _ => unreachable!(
-                                "callable components require a declaration-owned input or result"
-                            ),
-                        };
-                        let data = functions::intern_views(types, origin, contract.invocation);
-                        components.push(contract);
-                        data
-                    }
-                })
-            })
-            .expect("validated input descriptor");
-            return (data, None);
+                };
+                let data = functions::intern_views(types, selected, contract.invocation);
+                if in_signature {
+                    type_contracts.push(contract);
+                } else {
+                    components.push(contract);
+                }
+                data
+            }
+        })
+    };
+    match definition {
+        ValueDefinition::Data(data) => (
+            super::data::resolve_reference(data, &mut construct)
+                .expect("validated input descriptor"),
+            None,
+        ),
+        ValueDefinition::Function(definition) => {
+            let contract = super::data::resolve_function_definition(definition, construct)
+                .expect("validated callable signature");
+            let selected = functions::intern_views(types, origin, contract.invocation);
+            (selected, Some(contract))
         }
-        ValueDefinition::Function(definition) => definition,
-    };
-    let contract = FunctionConstraint {
-        invocation: definition.invocation,
-        inputs: definition
-            .inputs
-            .iter()
-            .map(|(operation, data)| FunctionInput {
-                data: resolved_data(types, data),
-                operation: *operation,
-            })
-            .collect(),
-        result: resolved_data(types, &definition.result),
-    };
-    let selected = super::functions::intern_views(types, origin, contract.invocation);
-    (selected, Some(contract))
+    }
 }

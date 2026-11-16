@@ -2,6 +2,7 @@
 use super::{AggregateForm, DeclarationId, Program};
 use nocter_model::{BuiltinType, FieldPath, NominalTypeId, SymbolTable, TypeId, TypeKind};
 use std::collections::BTreeMap;
+mod header_values;
 mod uninhabited;
 
 /// The exact closed shapes admitted by this declaration product, not a general type classifier.
@@ -226,24 +227,7 @@ impl Program {
         resolve_reference(data, |node| match node {
             ReferenceNode::Data(TypeKind::Builtin(data)) if !supported(data) => None,
             ReferenceNode::Data(kind) => self.types.store().identity(&kind),
-            ReferenceNode::Function(_) => None,
-        })
-    }
-    /// Reconcile a compound input recipe with that input's already published callable leaves.
-    /// No ordinal can be inferred without its reserved input owner. This interns nothing and
-    /// grants no body, source-value or payload evidence.
-    #[must_use]
-    pub fn existing_input_data_reference(
-        &self,
-        input: nocter_model::AccessParameterId,
-        data: &DataReference,
-    ) -> Option<TypeId> {
-        let parameter = self.parameters.get(input)?;
-        self.existing_callable_data_reference(data, &parameter.components, |ordinal| {
-            nocter_model::ValueFunctionOrigin::Parameter(nocter_model::ValueParameter::Component {
-                input: input.into(),
-                ordinal,
-            })
+            ReferenceNode::Function { .. } => None,
         })
     }
     /// Match field data against its own published callable contracts without interning or binding
@@ -265,25 +249,6 @@ impl Program {
             },
         )
     }
-    /// Match a result recipe against that declaration's published callable-slot contracts.
-    /// This performs no publication and supplies no producer or runtime result.
-    #[must_use]
-    pub fn existing_result_data_reference(
-        &self,
-        owner: nocter_model::AccessCodeId,
-        data: &DataReference,
-    ) -> Option<TypeId> {
-        self.existing_callable_data_reference(
-            data,
-            self.codes.get(owner)?.result_contracts(),
-            |ordinal| {
-                nocter_model::ValueFunctionOrigin::Result(nocter_model::ValueCallableResult {
-                    owner,
-                    ordinal,
-                })
-            },
-        )
-    }
     fn existing_callable_data_reference(
         &self,
         data: &DataReference,
@@ -294,7 +259,7 @@ impl Program {
         let resolved = resolve_reference(data, |node| match node {
             ReferenceNode::Data(TypeKind::Builtin(data)) if !supported(data) => None,
             ReferenceNode::Data(kind) => self.types.store().identity(&kind),
-            ReferenceNode::Function(contract) => {
+            ReferenceNode::Function { contract, .. } => {
                 let selected = origin(ordinal);
                 let expected = contracts.get(ordinal);
                 ordinal += 1;
@@ -542,30 +507,50 @@ pub(super) fn data_reference(
         DeclarationId::Code(_) => None,
     }
 }
-pub(super) fn resolved_data(
-    types: &mut nocter_model::TypeTransaction,
-    data: &DataReference,
-) -> TypeId {
-    resolve_reference(data, |node| match node {
-        ReferenceNode::Data(TypeKind::Builtin(data)) => Some(types.builtin(data)),
-        ReferenceNode::Data(kind) => types.intern(kind).ok(),
-        ReferenceNode::Function(_) => None,
-    })
-    .expect("validated data reference")
-}
-
 /// The same structural fold supplies publication and read-only identity reconciliation.
 pub(super) enum ReferenceNode {
     Data(TypeKind),
-    Function(super::FunctionConstraint),
+    Function {
+        contract: super::FunctionConstraint,
+        in_signature: bool,
+    },
 }
 pub(super) fn resolve_reference(
     data: &DataReference,
+    construct: impl FnMut(ReferenceNode) -> Option<TypeId>,
+) -> Option<TypeId> {
+    resolve_reference_scoped(data, false, construct)
+}
+
+pub(super) fn resolve_function_definition(
+    definition: &super::FunctionDefinition,
+    mut construct: impl FnMut(ReferenceNode) -> Option<TypeId>,
+) -> Option<super::FunctionConstraint> {
+    let inputs = definition
+        .inputs
+        .iter()
+        .map(|(operation, data)| {
+            Some(super::FunctionInput {
+                operation: *operation,
+                data: resolve_reference_scoped(data, true, &mut construct)?,
+            })
+        })
+        .collect::<Option<_>>()?;
+    Some(super::FunctionConstraint {
+        invocation: definition.invocation,
+        inputs,
+        result: resolve_reference_scoped(&definition.result, true, construct)?,
+    })
+}
+
+fn resolve_reference_scoped(
+    data: &DataReference,
+    in_signature: bool,
     mut construct: impl FnMut(ReferenceNode) -> Option<TypeId>,
 ) -> Option<TypeId> {
-    let mut pending = vec![(data, false)];
+    let mut pending = vec![(data, false, in_signature)];
     let mut resolved = Vec::new();
-    while let Some((data, expanded)) = pending.pop() {
+    while let Some((data, expanded, in_signature)) = pending.pop() {
         let data = match data {
             DataReference::Builtin(data) => {
                 construct(ReferenceNode::Data(TypeKind::Builtin(*data)))?
@@ -575,30 +560,39 @@ pub(super) fn resolve_reference(
             }
             DataReference::Function(contract) => {
                 if !expanded {
-                    pending.push((data, true));
-                    pending.push((&contract.result, false));
-                    pending.extend(contract.inputs.iter().rev().map(|(_, data)| (data, false)));
+                    pending.push((data, true, in_signature));
+                    pending.push((&contract.result, false, true));
+                    pending.extend(
+                        contract
+                            .inputs
+                            .iter()
+                            .rev()
+                            .map(|(_, data)| (data, false, true)),
+                    );
                     continue;
                 }
                 let result = resolved.pop().expect("resolved callable result");
                 let inputs = resolved.split_off(resolved.len() - contract.inputs.len());
-                construct(ReferenceNode::Function(super::FunctionConstraint {
-                    invocation: contract.invocation,
-                    inputs: inputs
-                        .into_iter()
-                        .zip(contract.inputs.iter())
-                        .map(|(data, (operation, _))| super::FunctionInput {
-                            data,
-                            operation: *operation,
-                        })
-                        .collect(),
-                    result,
-                }))?
+                construct(ReferenceNode::Function {
+                    in_signature,
+                    contract: super::FunctionConstraint {
+                        invocation: contract.invocation,
+                        inputs: inputs
+                            .into_iter()
+                            .zip(contract.inputs.iter())
+                            .map(|(data, (operation, _))| super::FunctionInput {
+                                data,
+                                operation: *operation,
+                            })
+                            .collect(),
+                        result,
+                    },
+                })?
             }
             DataReference::Fallible(payload) => {
                 if !expanded {
-                    pending.push((data, true));
-                    pending.push((payload, false));
+                    pending.push((data, true, in_signature));
+                    pending.push((payload, false, in_signature));
                     continue;
                 }
                 construct(ReferenceNode::Data(TypeKind::Fallible(
@@ -607,8 +601,8 @@ pub(super) fn resolve_reference(
             }
             DataReference::Optional { payload, layers } => {
                 if !expanded {
-                    pending.push((data, true));
-                    pending.push((payload, false));
+                    pending.push((data, true, in_signature));
+                    pending.push((payload, false, in_signature));
                     continue;
                 }
                 let mut payload = resolved.pop().expect("resolved optional payload");
@@ -619,8 +613,8 @@ pub(super) fn resolve_reference(
             }
             DataReference::Array { element, length } => {
                 if !expanded {
-                    pending.push((data, true));
-                    pending.push((element, false));
+                    pending.push((data, true, in_signature));
+                    pending.push((element, false, in_signature));
                     continue;
                 }
                 let element = resolved.pop().expect("resolved array element");
@@ -631,8 +625,14 @@ pub(super) fn resolve_reference(
             }
             DataReference::Tuple(fields) => {
                 if !expanded {
-                    pending.push((data, true));
-                    pending.extend(fields.as_slice().iter().rev().map(|field| (field, false)));
+                    pending.push((data, true, in_signature));
+                    pending.extend(
+                        fields
+                            .as_slice()
+                            .iter()
+                            .rev()
+                            .map(|field| (field, false, in_signature)),
+                    );
                     continue;
                 }
                 let fields = resolved.split_off(resolved.len() - fields.as_slice().len());

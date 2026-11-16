@@ -119,7 +119,7 @@ fn compound_result_contracts_are_distinct_deterministic_and_not_runtime_inputs_o
             assert!(!program.owned_payload_supported(code.result()));
             assert!(program.instantiate_closed_data(code.result()).is_err());
             assert_eq!(
-                program.existing_result_data_reference(id, &result()),
+                program.existing_result_value_reference(id, &result().into()),
                 Some(code.result())
             );
             assert_eq!(program.existing_data_reference(&result()), None);
@@ -131,7 +131,10 @@ fn compound_result_contracts_are_distinct_deterministic_and_not_runtime_inputs_o
                 },
                 [],
             ));
-            assert_eq!(program.existing_result_data_reference(id, &changed), None);
+            assert_eq!(
+                program.existing_result_value_reference(id, &changed.into()),
+                None
+            );
         }
         assert_ne!(roots[0], roots[1]);
         orders.push(origins);
@@ -258,19 +261,14 @@ fn result_descriptor_paths_preserve_outcomes_and_empty_array_metadata_without_va
 }
 
 #[test]
-fn invalid_result_slots_and_unqualified_signature_or_initializer_positions_publish_nothing() {
-    for case in 0..4 {
+fn invalid_result_slots_and_initializer_positions_publish_nothing() {
+    for case in [0, 2, 3] {
         let symbols = SymbolTable::from_spellings(["factory"]);
         let mut reservations = Reservations::new(symbols.clone());
         let id = reservations.reserve(symbols.get("factory").unwrap(), 0);
         let mut builder = reservations.finish().unwrap();
         let leaf = match case {
             0 => callable(BuiltinType::F64),
-            1 => DataReference::Function(Box::new(FunctionDefinition {
-                invocation: ValueInvocation::Read,
-                inputs: Box::new([]),
-                result: callable(BuiltinType::I32),
-            })),
             _ => callable(BuiltinType::I32),
         };
         let data = DataReference::Array {

@@ -325,7 +325,7 @@ witnesses keep exact code identity, nominal types keep identity, and even zero-l
 their declared element contract. A shared pair traversal and parent-linked diagnostic paths avoid
 expanding deep shared signatures or large array cardinalities. This comparison creates no type,
 concrete witness, capture environment, payload or const capability. Direct higher-order field invocation consumes original-context evidence through checking;
-general nested header publication and wider compound channels retain separate qualification.
+general nested header invocation and wider compound channels retain separate qualification.
 
 `Program::callable_input_parameters` is the sole classifier of direct callback inputs by original
 explicit ordinal and actual code-owned formal ID. Ordinary frame binding and source-instance
@@ -687,16 +687,26 @@ a recursive stored payload. Each immutable field owns its shared signature graph
 reuse the existing persistent field arena rather than cloning a global contract table. Header
 lineage and body replay preserve these field contracts exactly. Read-only field-recipe reconciliation
 uses that field's contract ordinals through the same structural fold as publication.
+Ordinary callable headers publish signature children under their original parameter or result
+owner. The direct callable input/result and its compound payload leaves retain their existing
+formal/result identities; entering a callable signature creates type contracts instead of more
+physical inputs or result producers. Each immutable header row owns its shared child-signature
+graph, and the header transaction publishes the entire graph together. The same scope-aware
+structural fold reconciles source recipes read-only, including complete direct callable headers;
+source lowering does not maintain a second signature matcher. Header lineage and canonical body
+replay retain these identities. Header construction alone does not qualify higher-order invocation,
+body-dependent results, concrete environments or payload layout.
+
 `Program::function_binding` checks actual callable values against these receiving contracts while
 keeping the complete source code, invocation view and environment in the instantiated value key.
 The stricter same-origin `function_adapter` relation remains separate. A raw contract still cannot
 instantiate a closed payload. Payload dependency queries report contracts separately from formal
 inputs and result producers; batched roots share one schema traversal. Original field construction,
 forwarding and retained-read invocation now consume that value evidence through checking and native
-execution. Nested callable headers and wider invocation channels remain separately unqualified. The
+execution. Nested header invocation and wider invocation channels remain separately unqualified. The
 [realization contract](../../../design/compiler-realization.md#callable-type-contracts) owns the
 remaining integration obligations.
 
-Outcome/capability/generic/user-destructor schemas, nested callback contracts and general captured
+Outcome/capability/generic/user-destructor schemas, general higher-order execution and general captured
 environments remain outside the accepted private fragment. Exact
 scalar/unit/error independence is checked under its owning data contracts, never inferred from Copy or value receipt for arbitrary future types.

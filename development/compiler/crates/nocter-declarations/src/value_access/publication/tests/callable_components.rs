@@ -126,7 +126,7 @@ fn compound_callable_leaves_have_stable_distinct_contracts_without_extra_paramet
             [],
         ));
         assert_eq!(
-            program.existing_input_data_reference(parameters[0], &recipe),
+            program.existing_input_value_reference(parameters[0], &recipe.clone().into()),
             Some(input.data())
         );
         assert_eq!(program.existing_data_reference(&recipe), None);
@@ -190,78 +190,41 @@ fn compound_input_instances_retain_each_nested_witness_without_direct_bindings()
 }
 
 #[test]
-fn unqualified_callable_data_positions_reject_atomically() {
-    for position in [0, 1, 3] {
-        let symbols = SymbolTable::from_spellings(["run", "value", "Record"]);
+fn raw_root_callable_data_requires_an_explicit_value_contract() {
+    for input in [false, true] {
+        let symbols = SymbolTable::from_spellings(["run", "value"]);
         let mut reservations = Reservations::new(symbols.clone());
-        let run = reservations.reserve(
-            symbols.get("run").unwrap(),
-            usize::from(position == 1 || position == 3),
-        );
-        let record = reservations.reserve_record(symbols.get("Record").unwrap(), 1);
+        let run = reservations.reserve(symbols.get("run").unwrap(), usize::from(input));
         let mut builder = reservations.finish().unwrap();
-        let mut contract = FunctionDefinition {
-            invocation: ValueInvocation::Read,
-            inputs: Box::new([]),
-            result: callable(),
-        };
-        // Result data and nested higher-order headers have separate obligations.
-        let result = if position == 0 {
-            ValueDefinition::Data(callable())
-        } else {
-            BuiltinType::Void.into()
-        };
-        let inputs = if position == 3 {
+        let parameters = if input {
             vec![ParameterDefinition {
                 name: symbols.get("value").unwrap(),
                 operation: nocter_model::ValueInputOperation::Read,
                 data: callable().into(),
             }]
-        } else if position == 1 {
-            vec![ParameterDefinition {
-                name: symbols.get("value").unwrap(),
-                operation: nocter_model::ValueInputOperation::Read,
-                data: DataReference::Tuple(TupleData::new(
-                    DataReference::Function(Box::new(contract.clone())),
-                    BuiltinType::I32.into(),
-                    [],
-                ))
-                .into(),
-            }]
         } else {
             vec![]
+        };
+        let result: ValueDefinition = if input {
+            BuiltinType::Void.into()
+        } else {
+            callable().into()
         };
         builder
             .define(
                 run,
                 CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
-                inputs,
+                parameters,
                 result,
             )
             .unwrap();
-        contract.result = BuiltinType::I32.into();
-        builder
-            .define_record(
-                record,
-                false,
-                [FieldDefinition {
-                    name: symbols.get("value").unwrap(),
-                    data: DataReference::Function(Box::new(contract)),
-                }],
-            )
-            .unwrap();
         let mut publication = builder.into_publication();
-        let id = if position == 2 {
-            DeclarationId::Record(record)
-        } else {
-            DeclarationId::Code(run)
-        };
         let before = publication.snapshot();
         assert!(
-            matches!(publication.publish(id), Err(HeaderFailure::Rejected(rules)) if rules.iter().any(|v| v.rule == DeclarationRule::UnsupportedCallableData))
+            matches!(publication.publish(run), Err(HeaderFailure::Rejected(rules)) if rules.iter().any(|v| v.rule == DeclarationRule::UnsupportedCallableData))
         );
         let after = publication.snapshot();
-        assert!(!after.header_ready(id));
+        assert!(!after.header_ready(run));
         assert!(after.preserves_headers(&before));
         assert!(after.parameters().is_empty());
     }

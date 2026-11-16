@@ -105,6 +105,8 @@ pub enum ValueFunctionOrigin {
 pub enum ValueContractOwner {
     Body(ValueCodeRoot),
     Field(crate::AccessFieldId),
+    Parameter(crate::AccessParameterId),
+    Result(crate::AccessCodeId),
 }
 /// One written callable contract in a scope; its ordinal is neither a value path nor an input.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
