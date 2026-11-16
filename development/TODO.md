@@ -157,6 +157,10 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Reuse retained original instance control for invocation-domain discovery, preserving source
   bundles, complete frames, work exhaustion and retry without turning candidate metadata into
   executable selection. Use this boundary for per-case input/adapter binding.
+- [x] Close retained-read positive callable target channels through the existing single-call
+  binder, retaining every complete stored case and actual body environment. Require common
+  explicit input/result contracts, complete coverage and unambiguous original-bundle mapping;
+  qualify bounded failure/retry and keep MIR execution closed until selected dispatch exists.
 - [ ] Close the [positive callable alternative obligations](design/compiler-realization.md#positive-callable-alternatives)
   through the canonical data-instance graph, guarded source transport, evaluator/target plans,
   native selection and cleanup before widening source admission. The value-context fixture

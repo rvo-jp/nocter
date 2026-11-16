@@ -1,5 +1,7 @@
 //! Frozen caller-to-body input channels and normal adapter cleanup, without target selection.
+mod alternatives;
 use super::{Failure, InstanceKey, Payload};
+pub(super) use alternatives::bind_domain;
 use nocter_checking::value_access::{BodyInput, CallKind, CallValueSources, accepted::Unit};
 use nocter_constant_evaluation::state::WorkBudget;
 use nocter_model::{AccessExpressionId, AccessInstanceId, TypeId, ValueCode, ValueInputOperation};
@@ -30,6 +32,10 @@ pub enum Environment {
         carrier: Payload,
         exit: EnvironmentExit,
     },
+    /// Physical carrier of a finite choice; per-case environment channels live in `cases()`.
+    Selected {
+        carrier: Payload,
+    },
     Capture {
         /// The supplied instance: a Copy snapshot can differ from its source owner.
         argument: usize,
@@ -53,35 +59,59 @@ pub struct InputBinding {
 pub enum CallTarget {
     Body(AccessInstanceId),
     Primitive(PrimitiveRole),
+    /// Finite checked cases requiring an original runtime selector, not a direct callee.
+    Selected,
 }
 impl CallTarget {
     #[must_use]
     pub const fn instance(self) -> Option<AccessInstanceId> {
         match self {
             Self::Body(id) => Some(id),
-            Self::Primitive(_) => None,
+            Self::Primitive(_) | Self::Selected => None,
         }
     }
+}
+/// One complete stored callable case and its independently checked body channels.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct InvocationCase {
+    pub callee: nocter_declarations::value_access::DataInstanceKey,
+    pub target: CallTarget,
+    pub environment: Environment,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum Dispatch {
+    Direct {
+        target: CallTarget,
+        environment: Environment,
+    },
+    Selected {
+        carrier: Payload,
+        cases: Box<[InvocationCase]>,
+    },
 }
 /// One reached invocation, paired with its concrete target and checked input-slot mapping.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Invocation {
-    target: CallTarget,
+    dispatch: Dispatch,
     kind: CallKind,
     inputs: Box<[InputBinding]>,
-    environment: Environment,
     result: Payload,
 }
 impl Invocation {
     /// Actual payload of one committed argument; no new argument inventory or input order.
     #[must_use]
     pub fn argument_payload(&self, index: usize) -> Option<&Payload> {
-        match &self.environment {
-            Environment::CodeToken {
-                argument, carrier, ..
-            }
-            | Environment::Capture {
-                argument, carrier, ..
+        match &self.dispatch {
+            Dispatch::Selected { carrier, .. } if index == 0 => Some(carrier),
+            Dispatch::Direct {
+                environment:
+                    Environment::CodeToken {
+                        argument, carrier, ..
+                    }
+                    | Environment::Capture {
+                        argument, carrier, ..
+                    },
+                ..
             } if *argument == index => Some(carrier),
             _ => self
                 .inputs
@@ -90,9 +120,20 @@ impl Invocation {
                 .map(|input| &input.payload),
         }
     }
+    /// Complete cases; an empty slice denotes an ordinary direct binding.
+    #[must_use]
+    pub fn cases(&self) -> &[InvocationCase] {
+        match &self.dispatch {
+            Dispatch::Selected { cases, .. } => cases,
+            Dispatch::Direct { .. } => &[],
+        }
+    }
     #[must_use]
     pub const fn target(&self) -> CallTarget {
-        self.target
+        match self.dispatch {
+            Dispatch::Direct { target, .. } => target,
+            Dispatch::Selected { .. } => CallTarget::Selected,
+        }
     }
     #[must_use]
     pub const fn kind(&self) -> CallKind {
@@ -104,7 +145,12 @@ impl Invocation {
     }
     #[must_use]
     pub fn environment(&self) -> Environment {
-        self.environment.clone()
+        match &self.dispatch {
+            Dispatch::Direct { environment, .. } => environment.clone(),
+            Dispatch::Selected { carrier, .. } => Environment::Selected {
+                carrier: carrier.clone(),
+            },
+        }
     }
     #[must_use]
     pub fn result(&self) -> Payload {
@@ -137,6 +183,7 @@ pub(super) fn bind(
         call,
         body_frame,
         target,
+        case: None,
         work,
     };
     let mut selected = None;
@@ -162,6 +209,7 @@ struct Binding<'a, 'work> {
     call: AccessExpressionId,
     body_frame: &'a InstanceKey,
     target: CallTarget,
+    case: Option<&'a Payload>,
     work: &'work mut WorkBudget,
 }
 impl Binding<'_, '_> {
@@ -192,6 +240,7 @@ impl Binding<'_, '_> {
         let result = self.result(expression.ty.normal().ok_or(INVALID)?.data(), bundle)?;
         let body = unit.code_body(code).map(|body| body.typed().body());
         let expected: Vec<_> = match target {
+            CallTarget::Selected => return Err(INVALID),
             CallTarget::Body(_) => body
                 .ok_or(INVALID)?
                 .inputs()
@@ -257,10 +306,12 @@ impl Binding<'_, '_> {
             });
         }
         Ok(Invocation {
-            target,
+            dispatch: Dispatch::Direct {
+                target,
+                environment,
+            },
             kind,
             inputs: inputs.into(),
-            environment,
             result,
         })
     }
@@ -371,6 +422,11 @@ impl Binding<'_, '_> {
         index: usize,
         argument: &nocter_checking::value_access::Argument,
     ) -> Result<Payload, Failure> {
+        if index == 0
+            && let Some(case) = self.case
+        {
+            return Ok(case.clone());
+        }
         let data = self
             .caller
             .typed()

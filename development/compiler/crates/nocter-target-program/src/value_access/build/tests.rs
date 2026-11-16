@@ -34,7 +34,7 @@ fn compound_result_edges_reject_swapped_contexts_of_the_same_callable_code() {
         .get(call.target().instance().unwrap())
         .unwrap()
         .clone();
-    validate_body_edge(&unit, &callee, call).unwrap();
+    validate_body_edge(&unit, &callee, call.environment(), call).unwrap();
     let original = callee.result().payload().unwrap();
     let fields = [0, 1].map(|position| {
         let key = original
@@ -70,7 +70,7 @@ fn compound_result_edges_reject_swapped_contexts_of_the_same_callable_code() {
             .unwrap(),
     );
     assert_eq!(
-        validate_body_edge(&unit, &callee, call),
+        validate_body_edge(&unit, &callee, call.environment(), call),
         Err(Failure::InvalidAcceptedUnit)
     );
 }
@@ -100,7 +100,7 @@ fn frozen_body_edge_checks_the_environment_independently_of_explicit_inputs_and_
         .get(call.target().instance().unwrap())
         .unwrap()
         .clone();
-    validate_body_edge(&unit, &callee, call).unwrap();
+    validate_body_edge(&unit, &callee, call.environment(), call).unwrap();
     let body = unit.code_body(callee.key().code()).unwrap().typed().body();
     let input = body.inputs().environment().unwrap();
     let integer = unit.program().data_type(BuiltinType::I32).unwrap();
@@ -114,10 +114,67 @@ fn frozen_body_edge_checks_the_environment_independently_of_explicit_inputs_and_
         .unwrap();
     callee.metadata.insert(key);
     // Unrelated independently closed storage metadata does not select a bound channel.
-    validate_body_edge(&unit, &callee, call).unwrap();
+    validate_body_edge(&unit, &callee, call.environment(), call).unwrap();
     callee.inputs.insert(input.local, wrong);
     assert_eq!(
-        validate_body_edge(&unit, &callee, call),
+        validate_body_edge(&unit, &callee, call.environment(), call),
+        Err(Failure::InvalidAcceptedUnit)
+    );
+}
+
+#[test]
+fn selected_callable_edges_reject_swapped_complete_capture_contexts() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/value-contexts/contextual-joined-sibling-growth.nct"
+    ));
+    let (definitions, _) = source.split_once("\nconst ANSWER:").unwrap();
+    let fixture = ValueSourceFixture::new(&format!(
+        "{definitions}\nfunc run(): i32 {{ calculate(true) }}"
+    ));
+    let unit = Arc::new(SourceUnit::prepare(fixture.syntax()).unwrap().into_unit());
+    let root = unit
+        .program()
+        .resolve(unit.program().symbols().get("run").unwrap())
+        .unwrap();
+    let graph = InstanceProgram::prepare(unit.clone(), root).unwrap();
+    let call = graph
+        .instances()
+        .iter()
+        .flat_map(|(_, instance)| instance.calls().values())
+        .find(|call| call.cases().len() == 2)
+        .unwrap();
+    let [first, second] = call.cases() else {
+        panic!("two cases");
+    };
+    assert_eq!(
+        validate_edge(
+            &unit,
+            graph.instances(),
+            first.target,
+            first.environment.clone(),
+            call
+        ),
+        Ok(())
+    );
+    assert_eq!(
+        validate_edge(
+            &unit,
+            graph.instances(),
+            second.target,
+            second.environment.clone(),
+            call
+        ),
+        Ok(())
+    );
+    assert_eq!(
+        validate_edge(
+            &unit,
+            graph.instances(),
+            first.target,
+            second.environment.clone(),
+            call
+        ),
         Err(Failure::InvalidAcceptedUnit)
     );
 }

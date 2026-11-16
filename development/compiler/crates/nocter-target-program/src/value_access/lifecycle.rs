@@ -337,7 +337,7 @@ fn completion(instance: &Instance, operation: &Operation) -> Result<Option<Step>
     };
     let selected = instance.calls().get(call).ok_or(INVALID)?;
     let (argument, part, exit) = match selected.environment() {
-        Environment::None => return Ok(None),
+        Environment::None | Environment::Selected { .. } => return Ok(None),
         Environment::CodeToken { argument, exit, .. } => {
             (argument, EnvironmentPart::CodeToken, exit)
         }

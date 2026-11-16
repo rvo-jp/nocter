@@ -32,6 +32,14 @@ impl Builder {
         self.pending.push(id);
         id
     }
+    fn target(&mut self, unit: &Unit, frame: &InstanceKey) -> CallTarget {
+        if let nocter_model::ValueCode::Declaration(id) = frame.code()
+            && let Some(role) = unit.primitives().role(id)
+        {
+            return CallTarget::Primitive(role);
+        }
+        CallTarget::Body(self.intern(frame.clone()))
+    }
     fn define(
         &mut self,
         unit: &Arc<Unit>,
@@ -75,23 +83,25 @@ impl Builder {
                 owner: key.code(),
                 call,
             };
-            let selected = queries
-                .invocation(site, work)
-                .map_err(|failure| Failure::Invocation { site, failure })?;
-            let code = selected.code();
-            let target = match code {
-                nocter_model::ValueCode::Declaration(id)
-                    if unit.primitives().role(id).is_some() =>
-                {
-                    CallTarget::Primitive(
-                        unit.primitives()
-                            .role(id)
-                            .ok_or(Failure::InvalidAcceptedUnit)?,
-                    )
+            let edge = match queries.invocation(site, work) {
+                Ok(selected) => {
+                    let target = self.target(unit, &selected);
+                    invocation::bind(&queries, body, call, &selected, target, work)?
                 }
-                _ => CallTarget::Body(self.intern(selected.clone())),
+                Err(nocter_checking::value_access::InstantiationFailure::Unresolved) => {
+                    let domain = queries
+                        .invocation_domain(site, work)
+                        .map_err(|failure| Failure::Invocation { site, failure })?;
+                    invocation::bind_domain(
+                        &queries,
+                        body,
+                        &domain,
+                        |frame| self.target(unit, frame),
+                        work,
+                    )?
+                }
+                Err(failure) => return Err(Failure::Invocation { site, failure }),
             };
-            let edge = invocation::bind(&queries, body, call, &selected, target, work)?;
             let nocter_checking::value_access::ExpressionKind::Call { arguments, .. } = &body
                 .typed()
                 .body()
@@ -175,12 +185,19 @@ pub(super) fn close(
     })?;
     for (_, instance) in instances.iter() {
         for call in instance.calls.values() {
-            let CallTarget::Body(target) = call.target() else {
-                validate_primitive(&unit, call)?;
-                continue;
-            };
-            let callee = instances.get(target).ok_or(Failure::InvalidAcceptedUnit)?;
-            validate_body_edge(&unit, callee, call)?;
+            if call.cases().is_empty() {
+                validate_edge(&unit, &instances, call.target(), call.environment(), call)?;
+            } else {
+                for case in call.cases() {
+                    validate_edge(
+                        &unit,
+                        &instances,
+                        case.target,
+                        case.environment.clone(),
+                        call,
+                    )?;
+                }
+            }
         }
     }
     Ok(InstanceProgram {
@@ -190,14 +207,34 @@ pub(super) fn close(
     })
 }
 
+fn validate_edge(
+    unit: &Unit,
+    instances: &nocter_model::Arena<AccessInstanceId, Instance>,
+    target: CallTarget,
+    environment: super::Environment,
+    call: &invocation::Invocation,
+) -> Result<(), Failure> {
+    match target {
+        CallTarget::Body(id) => validate_body_edge(
+            unit,
+            instances.get(id).ok_or(Failure::InvalidAcceptedUnit)?,
+            environment,
+            call,
+        ),
+        CallTarget::Primitive(role) => validate_primitive(unit, role, call),
+        CallTarget::Selected => Err(Failure::InvalidAcceptedUnit),
+    }
+}
+
 fn validate_body_edge(
     unit: &Unit,
     callee: &Instance,
+    environment: super::Environment,
     call: &invocation::Invocation,
 ) -> Result<(), Failure> {
     let invalid = Failure::InvalidAcceptedUnit;
     let body = unit.code_body(callee.key().code()).ok_or(invalid)?.typed();
-    match (body.body().inputs().environment(), call.environment()) {
+    match (body.body().inputs().environment(), environment) {
         (
             Some(input),
             super::Environment::Capture {
@@ -240,10 +277,11 @@ fn validate_body_edge(
     Ok(())
 }
 
-fn validate_primitive(unit: &Unit, call: &invocation::Invocation) -> Result<(), Failure> {
-    let CallTarget::Primitive(role) = call.target() else {
-        return Err(Failure::InvalidAcceptedUnit);
-    };
+fn validate_primitive(
+    unit: &Unit,
+    role: nocter_runtime_contract::PrimitiveRole,
+    call: &invocation::Invocation,
+) -> Result<(), Failure> {
     let signature = role.value_signature().ok_or(Failure::InvalidAcceptedUnit)?;
     if unit.program().data_kind(call.result().data()) != Some(signature.result())
         || call.inputs().len() != signature.inputs().len()

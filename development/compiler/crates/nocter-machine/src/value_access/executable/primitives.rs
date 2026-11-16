@@ -22,7 +22,7 @@ pub(super) fn prepare(program: &Program, layouts: &MachineLayoutPlan) -> Result<
         .filter_map(|operation| match operation {
             Operation::Call(call) => match call.target {
                 CallTarget::Primitive(role) => Some(role),
-                CallTarget::Body(_) => None,
+                CallTarget::Body(_) | CallTarget::Selected => None,
             },
             _ => None,
         })

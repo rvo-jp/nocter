@@ -605,6 +605,7 @@ impl Context<'_> {
             Operation::Call(call) => {
                 self.place(&call.answer)?;
                 let (inputs, result) = match call.target {
+                    CallTarget::Selected => return Err(self.invalid()),
                     CallTarget::Body(target) => {
                         let callee = self
                             .program

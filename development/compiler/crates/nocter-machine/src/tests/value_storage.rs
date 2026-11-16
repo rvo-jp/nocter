@@ -496,6 +496,7 @@ fn dependent_and_captured_source_witnesses_reach_closed_layouts() {
                 }
                 assert_eq!(call.inputs().len(), signature.explicit().len());
                 match call.environment() {
+                    Environment::Selected { .. } => panic!("fixture requires a single target"),
                     Environment::None | Environment::CodeToken { .. } => {
                         assert!(signature.environment().is_none());
                     }

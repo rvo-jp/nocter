@@ -206,6 +206,16 @@ adapter-owned environment before result delivery. Copy supply refers to its prep
 not its original source owner. No unwind/cancellation guarantee is inferred from this normal exit
 recipe. Explicit bindings retain their ordinal, operation and payload; body-local identities remain
 with the body's input layout instead of being duplicated in every caller edge.
+For a retained read invocation with several positive callable cases, the graph can close every
+candidate through that same single-call binder. The original prepared carrier remains separate
+from each complete stored code/view/environment case and its selected body environment. Cases
+follow the carrier's canonical order, cover the entire domain and must share exact explicit
+input and result contracts. Repeated original bundles may share a case only when its full target
+and environment binding agree. Incomplete coverage, correlated varying explicit contracts and
+adapter-owned or consuming environments remain unqualified. This closes target metadata only;
+MIR and native invocation continue to reject these selected calls until selected-case execution
+is implemented.
+
 Binding retains the exact selected callee frame instead of reducing it to code identity. An
 adapter-owned captured environment has separate entry payloads and normal-exit carrier/environment
 contracts. Exit metadata uses the original body's environment schema: independently closed

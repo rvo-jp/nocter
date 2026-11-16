@@ -285,6 +285,9 @@ impl Builder<'_> {
             .get(&id)
             .cloned()
             .ok_or_else(|| self.invalid())?;
+        if selected.target() == super::CallTarget::Selected {
+            return Err(self.invalid());
+        }
         let mut inputs = Vec::new();
         if let Environment::Capture {
             argument, input, ..

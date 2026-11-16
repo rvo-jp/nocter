@@ -605,6 +605,7 @@ impl<'a> Builder<'a> {
             );
         }
         let target = match call.target {
+            mir::CallTarget::Selected => return Err(Self::invalid()),
             mir::CallTarget::Body(id) => MachineCallTarget::Direct(
                 *self.context.functions.get(&id).ok_or_else(Self::invalid)?,
             ),

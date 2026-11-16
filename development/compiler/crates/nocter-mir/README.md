@@ -187,7 +187,10 @@ unsupported roles and substituted signatures reject. Only body edges participate
 reachability. The Machine consumer owns their physical ABI qualification.
 
 `computation` consumes selected operation kinds and frozen call edges; it does not infer Copy,
-access, result witnesses or dispatch. Private required constants arrive as ordinary primitive
+access, result witnesses or dispatch. Retained-read finite callable cases can already have closed
+candidate channels in the target graph; this does not grant an active selector. Lowering and MIR
+validation explicitly reject `CallTarget::Selected` until selected-case invocation is qualified.
+Private required constants arrive as ordinary primitive
 literals or model-owned frozen literal DAGs; this product has no unresolved declaration-reference
 operation or evaluation service. Frozen aggregates initialize one ordinary owning result through
 its existing lifecycle phases. Validation checks component shapes against the exact runtime

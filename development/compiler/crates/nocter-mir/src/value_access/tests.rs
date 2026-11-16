@@ -1829,3 +1829,33 @@ fn original_expression_receipts_require_encoding_before_any_common_domain_read()
         );
     }
 }
+
+#[test]
+fn finite_callable_channel_metadata_does_not_grant_mir_invocation() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/value-contexts/contextual-joined-sibling-growth.nct"
+    ));
+    let (definitions, _) = source.split_once("\nconst ANSWER:").unwrap();
+    let fixture = ValueSourceFixture::new(&format!(
+        "{definitions}\nfunc run(): i32 {{ calculate(true) }}"
+    ));
+    let unit = Arc::new(SourceUnit::prepare(fixture.syntax()).unwrap().into_unit());
+    let root = unit
+        .program()
+        .resolve(unit.program().symbols().get("run").unwrap())
+        .unwrap();
+    let instances = Arc::new(InstanceProgram::prepare(unit, root).unwrap());
+    assert!(
+        instances
+            .instances()
+            .iter()
+            .flat_map(|(_, instance)| instance.calls().values())
+            .any(|call| call.target() == CallTarget::Selected)
+    );
+    let lifecycle = lifecycle::Program::prepare(instances).unwrap();
+    assert!(matches!(
+        Program::lower(&lifecycle, RuntimeAbiIdentity::Arm64DarwinV1),
+        Err(Failure::InvalidBody(_))
+    ));
+}

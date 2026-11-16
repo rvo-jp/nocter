@@ -7,7 +7,9 @@ pub mod storage;
 #[cfg(test)]
 mod tests;
 
-pub use invocation::{CallTarget, Environment, EnvironmentExit, InputBinding, Invocation};
+pub use invocation::{
+    CallTarget, Environment, EnvironmentExit, InputBinding, Invocation, InvocationCase,
+};
 use nocter_checking::value_access::{accepted::Unit, flow};
 use nocter_declarations::value_access::DataInstanceKey;
 use nocter_model::{
