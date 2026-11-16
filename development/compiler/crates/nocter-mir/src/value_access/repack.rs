@@ -141,13 +141,13 @@ fn initialized(
             });
             continue;
         }
-        let tuple = tuple_fields(runtime, source.data);
+        let aggregate = aggregate_fields(runtime, source.data);
         let singleton = singleton_element(runtime, source.data)
             .map(|element| RuntimeValueFieldRepresentation::new(ValueField::Array(0), element));
-        if tuple.is_none() && singleton.is_none() {
+        if aggregate.is_none() && singleton.is_none() {
             return None;
         }
-        for field in tuple.into_iter().flatten().copied().chain(singleton) {
+        for field in aggregate.into_iter().flatten().copied().chain(singleton) {
             let mut path = source.projections.to_vec();
             path.push(Projection::Field(field.field()));
             pending.push((
@@ -167,7 +167,7 @@ fn initialized(
     Some(retained.into())
 }
 
-fn tuple_fields(
+fn aggregate_fields(
     runtime: &RuntimeEnvironment,
     data: RuntimeDataId,
 ) -> Option<&[RuntimeValueFieldRepresentation]> {
@@ -176,6 +176,14 @@ fn tuple_fields(
     else {
         return None;
     };
+    Some(fields)
+}
+
+fn tuple_fields(
+    runtime: &RuntimeEnvironment,
+    data: RuntimeDataId,
+) -> Option<&[RuntimeValueFieldRepresentation]> {
+    let fields = aggregate_fields(runtime, data)?;
     fields
         .iter()
         .enumerate()
@@ -196,9 +204,9 @@ pub(super) fn hole_data(
 ) -> Option<RuntimeDataId> {
     for projection in path {
         data = match projection {
-            Projection::Field(field @ (ValueField::Tuple(_) | ValueField::Array(_))) => {
-                runtime.value_field(data, *field)?
-            }
+            Projection::Field(
+                field @ (ValueField::Record(_) | ValueField::Tuple(_) | ValueField::Array(_)),
+            ) => runtime.value_field(data, *field)?,
             Projection::Index(_) => {
                 let (element, length) = runtime.types().get(data)?.array()?;
                 if length <= 1 {

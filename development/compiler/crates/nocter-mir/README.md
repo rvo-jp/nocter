@@ -107,6 +107,11 @@ external holes remain unchanged between entry and receipt; holes inside the repl
 stay covered by its original retirement.
 The structural complement splits only ancestors of actual missing paths, leaving unaffected
 shared schemas opaque; it never snapshots a hole or a partially initialized parent as a whole.
+Unchanged record siblings use the same runtime aggregate fields, preserving canonical nominal field
+identities rather than rebuilding a record map. Missing fields remain separate owners until their
+original restoration; initialized siblings retain their own field identities even when their data
+is identical. Required/native cases cover nested records and actual saved/remaining error graphs.
+This broadens preservation, not the tuple/singleton destination qualification.
 Machine snapshots every preserved source before writing any new offsets and then performs the
 original receipt. Nested tuples, environment growth/shrinkage, multiple holes, saved-instance
 restoration, partially retired targets, exactly-once index effects, original bounds traps and owned

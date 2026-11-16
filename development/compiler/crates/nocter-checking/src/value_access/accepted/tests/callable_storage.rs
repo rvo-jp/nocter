@@ -778,3 +778,12 @@ fn contextual_mixed_holes_preserve_distinct_prefix_and_point_coordinates() {
     ));
     assert_eq!(answer(source, "ANSWER"), Value::integer(42));
 }
+
+#[test]
+fn contextual_record_holes_preserve_nominal_fields_and_restore_saved_owners() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-record-hole-growth.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Value::integer(42));
+}

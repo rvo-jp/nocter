@@ -98,6 +98,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Qualify mixed nested-prefix and dynamic field exclusions through one original owner,
   preserving independent saved coordinates, counter/index mutation, all prefix lengths and actual
   withdrawn/saved/remaining error cleanup. Share exclusion validation between cleanup and repacking.
+- [x] Qualify missing record fields through the shared runtime aggregate schema during sibling
+  relocation. Preserve nominal field identity, initialized siblings, separately saved owners and
+  original restoration/cleanup; avoid a tuple-specific duplicate projection model.
 - [ ] Extend relocation's initialized-subtree selection to unresolved represented alternatives,
   preserving original saved coordinates without element expansion.
 - [x] Qualify same-geometry contextual callable component replacement and restoration with a

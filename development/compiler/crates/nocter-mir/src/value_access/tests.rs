@@ -1689,3 +1689,44 @@ fn prefix_repacking_retains_the_original_frontier_and_rejects_invalid_exclusions
         );
     }
 }
+
+#[test]
+fn record_repacking_keeps_nominal_field_identity_and_never_loads_the_partial_parent() {
+    let program = lower(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-record-hole-growth.nct"
+    )));
+    validate::program(&program).unwrap();
+    let mut changed = program.clone();
+    let effect = changed
+        .bodies
+        .values_mut()
+        .flat_map(|body| body.actions.values_mut())
+        .flat_map(|action| &mut action.alternatives)
+        .flat_map(|alternative| alternative.before.iter_mut().chain(&mut alternative.after))
+        .find(|effect| matches!(effect, Effect::Repack { missing, .. } if !missing.is_empty()))
+        .unwrap();
+    let Effect::Repack {
+        missing, preserved, ..
+    } = effect
+    else {
+        unreachable!()
+    };
+    let hole = missing[0].place();
+    let part = preserved
+        .iter_mut()
+        .find(|part| {
+            part.source.projections.iter().any(|projection| {
+                matches!(
+                    projection,
+                    Projection::Field(nocter_model::ValueField::Record(_))
+                )
+            })
+        })
+        .unwrap();
+    assert_eq!(part.source.data, hole.data);
+    assert_ne!(part.source.projections, hole.projections);
+    assert_eq!(part.kind, Preservation::Complete);
+    part.source.projections = hole.projections.clone();
+    assert!(validate::program(&changed).is_err());
+}

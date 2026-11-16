@@ -1962,3 +1962,28 @@ fn private_contextual_mixed_holes_preserve_withdrawn_and_remaining_error_graphs(
         42,
     );
 }
+
+#[test]
+fn private_contextual_record_holes_preserve_initialized_fields_and_saved_owners() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-record-hole-growth.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "record-hole-growth", 42);
+}
+
+#[test]
+fn private_contextual_record_holes_preserve_actual_saved_and_remaining_error_graphs() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-record-hole-errors.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &image(&trusted_error_machine(source)),
+        &package.0,
+        "record-hole-errors",
+        42,
+    );
+}
