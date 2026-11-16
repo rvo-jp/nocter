@@ -384,3 +384,68 @@ fn invalid_arity_rejects_before_a_call_can_request_record_payloads() {
         );
     }
 }
+
+#[test]
+fn unused_anonymous_inputs_keep_nominal_signatures_without_payload_dependencies() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/anonymous-signature-record-readiness.nct"
+    ));
+    for inferred in [false, true] {
+        let source = if inferred {
+            source.replace("value: Data): void {}", "value): void {}")
+        } else {
+            source.to_owned()
+        };
+        assert_eq!(
+            super::initializers::answer(&source, "ANSWER"),
+            state::Value::integer(42)
+        );
+    }
+}
+
+#[test]
+fn anonymous_body_operations_request_their_original_nominal_payload() {
+    for body in [
+        "let _ = value.values[0]",
+        "let copied = value",
+        "read alias = value",
+        "let inner = (value;): void {}",
+    ] {
+        let source = format!(
+            "struct Data {{ values: [i32; size()] }}\nconst func count(action: func(Data): void): usize {{ 42 }}\nconst func size(): usize {{ count((value: Data): void {{ {body} }}) }}\nfunc run(): usize {{ size() }}"
+        );
+        let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+        let Err(SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })) =
+            SourceUnit::prepare(fixture.syntax())
+        else {
+            panic!("the body operation needs the record payload: {body}");
+        };
+        assert_eq!(diagnostic.rule(), evaluation::Rule::DependencyCycle);
+        let range = diagnostic.source().primary().span().range();
+        assert!(source[range.start().get() as usize..range.end().get() as usize].contains("value"));
+    }
+}
+
+#[test]
+fn anonymous_access_errors_precede_unknown_payload_requirements() {
+    for (body, expected) in [
+        ("edit alias = value", Rule::InvalidUpdate),
+        ("let inner = (value^;): void {}", Rule::MissingTransfer),
+    ] {
+        let source = format!(
+            "struct Data {{ values: [i32; size()] }}\nconst func count(action: func(Data): void): usize {{ 42 }}\nconst func size(): usize {{ count((value: Data): void {{ {body} }}) }}"
+        );
+        let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+        let Err(SourceFailure::Checking(Failure::Body {
+            failure: BodyFailure::Rejected(diagnostic),
+            ..
+        })) = SourceUnit::prepare(fixture.syntax())
+        else {
+            panic!("access rights are known before record payloads: {body}");
+        };
+        assert_eq!(diagnostic.rule(), expected);
+        let range = diagnostic.source().primary().span().range();
+        assert!(source[range.start().get() as usize..range.end().get() as usize].contains("value"));
+    }
+}

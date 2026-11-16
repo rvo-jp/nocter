@@ -2605,3 +2605,18 @@ fn private_callable_signature_record_identity_breaks_no_payload_dependency_cycle
         42,
     );
 }
+
+#[test]
+fn private_anonymous_signatures_wait_for_actual_record_body_use() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/anonymous-signature-record-readiness.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "anonymous-signature-readiness",
+        42,
+    );
+}

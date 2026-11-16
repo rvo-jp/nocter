@@ -192,10 +192,10 @@ impl Checker<'_, '_> {
         use nocter_declaration_lowering::access_declarations::TypeSyntax;
         match self.annotation_syntax(node)? {
             TypeSyntax::Callable(contract) => self
-                .callable_annotation(&contract)
+                .callable_annotation_in(&contract, true)
                 .map(Annotation::Function),
             data => self
-                .annotation_data_in(&data, false, &mut Some((position, 0)))
+                .annotation_data_in(&data, true, &mut Some((position, 0)))
                 .map(Annotation::Data),
         }
     }

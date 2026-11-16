@@ -18,11 +18,11 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Remove unnecessary nominal readiness from unused anonymous callable inputs without weakening
-actual body, capture, Copy, lifecycle or ABI obligations. Start with signature-only annotation
-resolution and original source probes, then qualify real payload operations and complete source/native
-consumers. Preserve the separate validated named-body, invocation and static payload requirements;
-wider compound higher-order channels remain separately qualified.
+Avoid invocation-only payload requirements when argument preparation cannot commit a call.
+Preserve static type/access validation and actual prepared-prefix payload, alias and cleanup
+obligations. Qualify the required-count reproducer below against original source/control evidence
+without inventing a committed call or runtime value. Keep unknown nominal input facts conservative;
+the unoptimized evaluator stack failure retains its independent investigation item.
 
 Complete occurrence-sensitive value/capture transport under the
 [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances).
@@ -700,29 +700,37 @@ not a language restriction derived from the current realization boundary.
   result contexts. Preserve exact contextual witness checks, original formal ordinals, invariant
   nested views, result-producer substitution and actual const-failure notes; verify required/native
   named/captured read/edit/take calls and interrupted owned-error cleanup.
-- [x] Audit ordinary root-callable signature record readiness separately from stored payload
-  prerequisites. Qualify actual body/ABI demands and lazy header/source diagnostics before
-  extending admission; knowing a signature does not require allocating its input/result payloads.
-  Reproduced a false required-value cycle: a record has `[i32; size()]`, `size()` calls
-  `count(ignore)`, `count` only reads a `func(Data): void` value and returns 1, and `ignore(Data)`
-  is never invoked. Publication currently requires Data's payload from the callable signature
-  before computing Data's own count. Preserve genuine payload/value cycles while removing this
-  metadata-only dependency.
+- [x] Separate ordinary callable signature identities from positive record payload readiness.
+  Named body entry, actual invocation, static access and value operations request the payloads
+  they use, while signature-only callbacks can participate in a record's required array count.
+  Preserve true value/payload cycles, complete-unit closure, original sites and header lineage.
 - [x] Reject an invalid argument count before querying invocation payload prerequisites.
-  Reproduced `Data { values: [i32; size()] }`, where `size()` calls `produce(0)` but
-  `produce(): Data` has no parameters. The actual local arity error currently becomes a false
-  required-count cycle through Data; preserve valid-call readiness and original error sites.
-- [ ] Remove anonymous callable formation's signature-only nominal payload dependency when its
-  checked body does not use that payload. Reproduced `Data { values: [i32; size()] }` where
-  `size()` passes `(value: Data): void {}` to an unused `func(Data): void` input. Inline annotation
-  checking still requests Data and creates a false required-count cycle. Preserve actual body,
-  capture, call, Copy, lifecycle and ABI requirements while qualifying this separate body path.
+  Both excess and missing arguments report the original call error without introducing a
+  dependency on a result record's required count; valid calls retain their payload requirements.
+- [x] Qualify anonymous input annotations as nominal signature identity independently of payload
+  readiness. Preserve unknown producer/tag facts until fields are known; cover explicit/inferred
+  read/edit/take inputs, unused higher-order input signatures and actual required/native record
+  operations. Value/alias and owned-capture operations must request their actual payloads with
+  original source diagnostics; unknown metadata grants no witness, ownership or absence proof.
+- [ ] Avoid invocation-only payload requirements when argument preparation terminates before
+  a call can commit. Reproduced `Data { values: [i32; size()] }`, where `size()` calls
+  `receive(if true { return 42 } else { loop {} })` and `receive(Data): void`. No Data value or
+  call is produced, but the eager invocation query introduces a false count cycle. Preserve
+  static type/access checks and the real payload, alias and cleanup obligations of any actually
+  prepared prefix arguments; do not invent a committed call or ABI value.
 - [ ] Complete nested callable data/witness support through header/data positions and the owning
   type authority. Keep valid formal structural descriptors separate from owned-payload admission.
   Qualify concrete representation, substitution and callable input/result evidence;
   one recognized type tree and a matching signature do not erase code/environment identity.
   Any final callable-value extension must satisfy the separate constant/static serialization
   contract; callable environments cannot inherit final-value eligibility from grammar recognition.
+- [ ] Investigate host stack exhaustion in
+  `value_access::accepted::tests::initializers::shipped_limits_bound_recursive_execution_and_deep_initializer_dependencies`
+  when the checking suite is run with `cargo test --profile dev -p nocter-checking` (using the
+  compiler workspace manifest). The process aborts with a Rust test-thread stack overflow.
+  Standard configured test-profile qualification is separate. Compare the parent implementation
+  before attributing this to nominal-readiness changes; establish bounded host-stack behavior
+  without weakening shipped evaluator limits or expected failures.
 - [ ] Investigate the unclassified status-1 failure of the released native test
   `network_and_tls::public_tls_and_https_reject_plain_peers_and_https_advertises_http1`.
   It is not consistently reproducible. Native exit assertions identify the sync/async image,

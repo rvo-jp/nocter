@@ -1,0 +1,24 @@
+struct Data { values: [i32; size()] }
+const func count(action: func(Data): void): usize { 42 }
+const func count_edit(action: func(edit Data): void): usize { 42 }
+const func count_take(action: func(take Data): void): usize { 42 }
+const func count_nested(action: func(func(Data): void): void): usize { 42 }
+const func size(): usize {
+    let first = count((value: Data): void {})
+    let second = count_edit((edit value: Data): void {})
+    let third = count_take((take value: Data): void {})
+    let fourth = count_nested((action: func(Data): void): void {})
+    if first == 42 && second == 42 && third == 42 && fourth == 42 { 42 } else { 0 }
+}
+const func calculate(): i32 {
+    let inspect = (value: Data): i32 { value.values[0] }
+    let change = (edit value: Data): void { value.values[0] += 1 }
+    let consume = (take value: Data): i32 { value.values[0] }
+    var data = Data { values: [40; 42] }
+    if inspect(data) != 40 { return 1 }
+    change(data)
+    if consume(data^) != 41 { return 2 }
+    if size() == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { calculate() }

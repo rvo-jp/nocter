@@ -123,3 +123,57 @@ fn an_array_write_retains_other_elements_without_mixing_disjoint_element_fields(
         "a new fact does not mutate an earlier snapshot"
     );
 }
+
+#[test]
+fn an_unready_nominal_input_keeps_unknown_facts_without_proving_absence() {
+    use nocter_declarations::value_access::{CodeKind, FieldDefinition, Reservations};
+    use nocter_model::{BuiltinType, CompileTimeGuarantee, SymbolTable};
+    let symbols = SymbolTable::from_spellings(["Data", "value", "run"]);
+    let mut reservations = Reservations::new(symbols.clone());
+    let record = reservations.reserve_record(symbols.get("Data").unwrap(), 1);
+    let run = reservations.reserve(symbols.get("run").unwrap(), 0);
+    let mut builder = reservations.finish().unwrap();
+    builder
+        .define_record(
+            record,
+            false,
+            [FieldDefinition {
+                name: symbols.get("value").unwrap(),
+                data: BuiltinType::Bool.into(),
+            }],
+        )
+        .unwrap();
+    builder
+        .define(
+            run,
+            CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            [],
+            BuiltinType::Void,
+        )
+        .unwrap();
+    let mut publication = builder.into_publication();
+    publication.publish(run).unwrap();
+    let early = publication.snapshot();
+    let data = early.record_type_identity(record).unwrap();
+    let mut store = Store::default();
+    let facts = store.received(&early, data, false).unwrap();
+    assert_eq!(facts, Store::unknown());
+    assert_ne!(facts, Facts::default());
+    assert_eq!(store.nodes[facts.0].tag.primary(), None);
+    let absent = store.outcome(BTreeMap::new());
+    let joined = store.join(facts, absent);
+    assert_eq!(store.nodes[joined.0].tag.primary(), None);
+    assert!(early.instantiate_closed_data(data).is_err());
+    publication.publish(record).unwrap();
+    let ready = publication.snapshot();
+    assert!(ready.preserves_headers(&early));
+    let known = store.received(&ready, data, false).unwrap();
+    let field = ready.records().get(record).unwrap().fields()[0];
+    assert!(
+        store.nodes[known.0]
+            .children
+            .contains_key(&ValueField::Record(field))
+    );
+    assert_eq!(store.nodes[known.0].tag.primary(), None);
+    assert_ne!(known, facts);
+}

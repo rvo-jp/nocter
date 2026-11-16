@@ -739,50 +739,7 @@ impl<'a, 's> Checker<'a, 's> {
             )?;
             actual = expected;
         }
-        let place = self.expression_referent(source);
-        let action = if expected.mode() == Mode::Own && !self.ty(source).may_complete() {
-            BoundaryAction::Unproduced
-        } else {
-            match expected.mode() {
-                Mode::Read => {
-                    if place.is_none() {
-                        return self.reject(Rule::TypeMismatch, node);
-                    }
-                    BoundaryAction::ReadPlace
-                }
-                Mode::Update => {
-                    if let Some(referent) = place {
-                        self.require_writable_referent(referent, node, Rule::InvalidUpdate)?;
-                        BoundaryAction::DelegateUpdate
-                    } else {
-                        return self.reject(Rule::InvalidUpdate, node);
-                    }
-                }
-                Mode::Own => {
-                    if let Some(local) = place {
-                        use super::supply::PlaceSupply;
-                        match super::supply::select(self.program(), actual.data())? {
-                            PlaceSupply::Pending => BoundaryAction::PendingValue,
-                            PlaceSupply::Copy => BoundaryAction::CopyPayload,
-                            PlaceSupply::MissingCopy => {
-                                if let Some(place) = local.place() {
-                                    return self.reject_local(
-                                        Rule::MissingTransfer,
-                                        node,
-                                        self.selected_place(place).local,
-                                    );
-                                }
-                                return self.reject(Rule::MissingTransfer, node);
-                            }
-                        }
-                    } else if actual.mode() == Mode::Own {
-                        BoundaryAction::TakeValue
-                    } else {
-                        return Err(Failure::InconsistentSyntax);
-                    }
-                }
-            }
-        };
+        let action = self.value_supply_action(node, source, expected, actual)?;
         self.emit(
             node,
             ValueType::known(expected).with_continuation(self.ty(source).may_complete()),

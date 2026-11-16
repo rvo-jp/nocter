@@ -1073,6 +1073,19 @@ ABI/lifecycle use retain their ordinary independent evidence.
 A record construction needed to compute its own count still reports the original value dependency
 cycle. The shared source also executes through the ordinary private native path.
 
+Anonymous input annotations likewise resolve nominal identities without requiring their payloads.
+`anonymous-signature-record-readiness.nct` qualifies explicit and inferred read/edit/take inputs,
+including an unused callable input whose own signature mentions the record, while computing that
+record's required array count. The producer analysis retains an unready nominal input as unknown
+facts, never an empty producer/tag certificate or executable value. Actual field use, value/alias
+boundaries and owned capture formation request their payloads at the original body operations.
+Supply validates known access rights before requesting payload properties, so a read-only input's
+invalid update or transfer is diagnosed locally rather than becoming a false count dependency.
+The shared source later invokes read/edit/take bodies on real record values through required and
+native execution. A body operation needed to compute its own record count still reports a source
+value-dependency cycle. General symbolic reference geometry and dependent captures retain their
+separate qualification boundaries.
+
 Original call-result witness and data queries can inspect a complete positive invocation domain
 when strict single-frame selection is unresolved. They query every original candidate's returned
 source at the same receiving path and descriptor. Only agreeing result facts close a uniform

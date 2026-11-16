@@ -5,7 +5,8 @@ use super::{
 };
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::{PayloadReadiness, Program};
-use nocter_model::{AccessExpressionId, TypeId};
+use nocter_model::{AccessExpressionId, TypeId, ValueAccess, ValueAccessMode as Mode};
+use nocter_syntax::{NodeId, SyntaxOrigin};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum PlaceSupply {
@@ -28,6 +29,63 @@ pub(super) fn select(program: &Program, data: TypeId) -> Result<PlaceSupply, Fai
             PlaceSupply::MissingCopy
         },
     )
+}
+
+impl super::checker::Checker<'_, '_> {
+    /// Validate access before asking for payload properties, then freeze the single supply action.
+    pub(super) fn value_supply_action(
+        &self,
+        node: NodeId,
+        source: AccessExpressionId,
+        expected: ValueAccess,
+        actual: ValueAccess,
+    ) -> Result<BoundaryAction, Failure> {
+        if expected.mode() == Mode::Own && !self.ty(source).may_complete() {
+            return Ok(BoundaryAction::Unproduced);
+        }
+        let place = self.expression_referent(source);
+        match expected.mode() {
+            Mode::Read if place.is_none() => return self.reject(Rule::TypeMismatch, node),
+            Mode::Update => {
+                let Some(referent) = place else {
+                    return self.reject(Rule::InvalidUpdate, node);
+                };
+                self.require_writable_referent(referent, node, Rule::InvalidUpdate)?;
+            }
+            Mode::Own if place.is_none() && actual.mode() != Mode::Own => {
+                return Err(Failure::InconsistentSyntax);
+            }
+            Mode::Read | Mode::Own => {}
+        }
+        super::checker::payload_requirements::data(
+            self.program(),
+            actual.data(),
+            SyntaxOrigin::Node(node),
+        )?;
+        match expected.mode() {
+            Mode::Read => Ok(BoundaryAction::ReadPlace),
+            Mode::Update => Ok(BoundaryAction::DelegateUpdate),
+            Mode::Own => {
+                let Some(local) = place else {
+                    return Ok(BoundaryAction::TakeValue);
+                };
+                match select(self.program(), actual.data())? {
+                    PlaceSupply::Pending => Ok(BoundaryAction::PendingValue),
+                    PlaceSupply::Copy => Ok(BoundaryAction::CopyPayload),
+                    PlaceSupply::MissingCopy => {
+                        if let Some(place) = local.place() {
+                            return self.reject_local(
+                                Rule::MissingTransfer,
+                                node,
+                                self.selected_place(place).local,
+                            );
+                        }
+                        self.reject(Rule::MissingTransfer, node)
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// Resolve this expression's pending plans during the sole identity-projection traversal.

@@ -154,6 +154,17 @@ impl Checker<'_, '_> {
             }
             let place = self.place_name(capture_token, Rule::UnknownName)?;
             let component = self.place_ty(place).data();
+            let captured = if self.has(capture_node, nocter_syntax::Punctuation::Caret) {
+                self.transfer_place(capture_node, place)?
+            } else {
+                let captured = self.emit_place(capture_node, place)?;
+                self.boundary(capture_node, captured, Boundary::Value(component))?
+            };
+            super::checker::payload_requirements::data(
+                self.program(),
+                component,
+                SyntaxOrigin::Node(capture_node),
+            )?;
             if self.program().payload_dependencies(component).is_none() {
                 return self.reject_message(
                     Rule::TypeMismatch,
@@ -162,12 +173,6 @@ impl Checker<'_, '_> {
                     Vec::new(),
                 );
             }
-            let captured = if self.has(capture_node, nocter_syntax::Punctuation::Caret) {
-                self.transfer_place(capture_node, place)?
-            } else {
-                let captured = self.emit_place(capture_node, place)?;
-                self.boundary(capture_node, captured, Boundary::Value(component))?
-            };
             tokens.push(capture_token);
             fields.push(FieldValue {
                 field: nocter_model::ValueField::Tuple(index),
