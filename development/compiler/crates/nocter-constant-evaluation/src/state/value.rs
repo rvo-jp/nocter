@@ -33,6 +33,22 @@ pub enum Data {
         replacements: BTreeMap<u64, Value>,
     },
 }
+impl Data {
+    /// Decode only the physical selector/payload pair; the owning Type validates its case.
+    #[must_use]
+    pub fn callable(&self) -> Option<(u64, &Value)> {
+        let Self::Aggregate(fields) = self else {
+            return None;
+        };
+        let [tag, payload] = fields.as_ref() else {
+            return None;
+        };
+        let Self::Integer(tag) = tag.data() else {
+            return None;
+        };
+        Some((u64::try_from(*tag).ok()?, payload))
+    }
+}
 struct Node {
     data: Data,
     allocation: Option<Lease>,
@@ -76,6 +92,11 @@ impl Value {
     #[must_use]
     pub fn aggregate(fields: impl Into<Box<[Self]>>) -> Self {
         Self::plain(Data::Aggregate(fields.into()))
+    }
+    /// Internal typed callable-choice representation, using ordinary shared aggregate storage.
+    #[must_use]
+    pub fn callable(case: u64, payload: Self) -> Self {
+        Self::aggregate(vec![Self::integer(i128::from(case)), payload])
     }
     #[must_use]
     pub fn repeated(element: Self, length: NonZeroU64) -> Self {

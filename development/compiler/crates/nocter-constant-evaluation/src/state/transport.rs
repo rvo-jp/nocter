@@ -34,6 +34,8 @@ pub(super) fn permits(
             (Type::Integer(a), Type::Integer(b)) if a == b => {}
             (Type::NamedFunction(_) | Type::CapturedFunction { .. }, _)
                 if super::validation::same_function_payload(from, to) => {}
+            (Type::CallableAlternatives(left), Type::CallableAlternatives(right))
+                if left == right => {}
             (Type::Record(left), Type::Record(right)) if left.len() == right.len() => {
                 pending.extend(
                     left.iter()
@@ -90,6 +92,7 @@ fn complete(
         match program.types.get(data) {
             None | Some(Type::Unavailable) => return Ok(false),
             Some(Type::Record(fields)) => pending.extend(fields),
+            Some(Type::CallableAlternatives(cases)) => pending.extend(cases),
             Some(
                 Type::Array { element, .. }
                 | Type::CapturedFunction {

@@ -293,6 +293,25 @@ publication or serialize a runtime object. Checking's
 [initializer boundary](../nocter-checking/README.md#required-private-initializers) owns source
 admission, exact-generation reuse and the currently supported final-value scope.
 
+### Stored Callable Choices
+
+The closed evaluator type table can retain `Type::CallableAlternatives` in the upstream canonical
+case order. Every case names one earlier named or captured function shape, including its complete
+environment identity. Empty or singleton sets, duplicate callable payload identities, missing
+cases, nested choice sets and non-callable cases reject before execution. This metadata grants no
+invocation view, source Copy permission or active-case evidence.
+
+`Value::callable` stores one ordinal and its selected static callable value through the ordinary
+immutable aggregate DAG. `Data::callable` is the sole decoder of that internal selector/payload
+pair; typed validation checks the ordinal and the exact selected payload schema. Ordinary type
+component projection exposes neither case. Whole-value handoff, import, equality, sparse repeated
+environments and iterative destruction use the existing shared-value and lease machinery. An
+exhausted import cannot retain partial storage; logical array cardinality is never expanded.
+Closed-plan probes qualify complete captured contexts and bounded maximum-length environments.
+Source shape projection, positive injection/reindexing, selected invocation and final publication
+remain separate consumers; stored choice values alone do not widen source admission. Exact
+whole-choice transport preserves its existing selector; broader transports remain rejected.
+
 ### Evaluated Array Addresses
 
 The closed stateful domain retains positive fixed arrays as homogeneous element-type/target-u64-length

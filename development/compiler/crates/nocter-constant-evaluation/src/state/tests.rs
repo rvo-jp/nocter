@@ -4,6 +4,7 @@ use crate::CompileTimeEvaluationLimits;
 use nocter_model::ArenaBuilder;
 use std::num::{NonZeroU32, NonZeroU64};
 mod arrays;
+mod callable_choices;
 mod captured_invocation;
 mod captured_values;
 mod contexts;

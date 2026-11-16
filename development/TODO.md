@@ -165,6 +165,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   execution. Reuse the canonical tag switch and ordinary call ABI; preserve original preparation,
   complete case correspondence, common read/edit/take explicit inputs, one result and actual
   error cleanup. Keep consuming/primitive/nonuniform candidates and evaluator selection separate.
+- [x] Qualify closed evaluator callable-choice schemas and selected immutable values through
+  exact typed validation, ordinary shared storage, bounded maximum-array environments and
+  storage-failure release. Keep source projection, injection/reindexing and invocation separate.
 - [ ] Close the [positive callable alternative obligations](design/compiler-realization.md#positive-callable-alternatives)
   through the canonical data-instance graph, guarded source transport, evaluator/target plans,
   native selection and cleanup before widening source admission. The value-context fixture

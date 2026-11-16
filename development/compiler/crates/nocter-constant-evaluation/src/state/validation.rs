@@ -113,6 +113,18 @@ pub(super) fn value(program: &Program, data: usize, value: &Value) -> bool {
                     _ => return false,
                 }
             }
+            (Some(Type::CallableAlternatives(cases)), encoded) => {
+                let Some((case, payload)) = encoded.callable() else {
+                    return false;
+                };
+                let Some(data) = usize::try_from(case)
+                    .ok()
+                    .and_then(|index| cases.get(index))
+                else {
+                    return false;
+                };
+                pending.push((*data, payload.clone()));
+            }
             (Some(Type::CapturedFunction { environment, .. }), Data::Aggregate(values))
                 if values.len() == 1 =>
             {
@@ -182,6 +194,29 @@ fn validate_types(program: &Program, first: usize) -> Result<()> {
             && *environment >= id
         {
             return Err(INVALID);
+        }
+        if let Type::CallableAlternatives(cases) = data {
+            let mut identities = BTreeSet::new();
+            if cases.len() < 2 {
+                return Err(INVALID);
+            }
+            for &case in cases {
+                if case >= id {
+                    return Err(INVALID);
+                }
+                let identity = match program.types.get(case) {
+                    Some(Type::NamedFunction(code)) => {
+                        (nocter_model::ValueCode::Declaration(*code), None)
+                    }
+                    Some(Type::CapturedFunction { code, environment }) => {
+                        (nocter_model::ValueCode::Closure(*code), Some(*environment))
+                    }
+                    _ => return Err(INVALID),
+                };
+                if !identities.insert(identity) {
+                    return Err(INVALID);
+                }
+            }
         }
         if let Type::Array { element, length } = data
             && (*length == 0 || *element >= id)

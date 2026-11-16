@@ -53,6 +53,9 @@ pub enum Type {
         code: nocter_model::ValueClosure,
         environment: usize,
     },
+    /// A stored selector and one complete static callable payload. Cases are metadata;
+    /// ordinary component projection exposes neither selector nor inactive environments.
+    CallableAlternatives(Box<[usize]>),
     Bool,
     /// A descriptor of immutable program-extent UTF-8, with no writable components.
     Text,
