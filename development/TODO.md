@@ -183,6 +183,10 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   registration and actual incoming transport. Cover bare/optional callable return, local movement,
   whole retirement and nested three-way choices; reject missing encoding in generated plans.
   Keep selected invocation, local/loop joins and retained references separately unqualified.
+- [x] Qualify closed evaluator selected-call contracts and execution with exact ordered
+  code/environment cases, read-only invocation backing and common explicit input/result channels.
+  Reuse ordinary handoff protection; cover inactive deferred bodies, read/edit/take inputs,
+  rejected mutable environments and bounded failure cleanup before source call admission.
 - [ ] Close the [positive callable alternative obligations](design/compiler-realization.md#positive-callable-alternatives)
   through the canonical data-instance graph, guarded source transport, evaluator/target plans,
   native selection and cleanup before widening source admission. The value-context fixture

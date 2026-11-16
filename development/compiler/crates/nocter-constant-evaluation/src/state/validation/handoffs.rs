@@ -10,11 +10,7 @@ pub(super) struct Handoffs<'a> {
 impl<'a> Handoffs<'a> {
     pub(super) fn new(operation: &'a Operation) -> Self {
         Self {
-            inputs: if let Operation::Call { inputs, .. } = operation {
-                Some(inputs)
-            } else {
-                None
-            },
+            inputs: operation.call_inputs(),
             protected: BTreeSet::new(),
         }
     }

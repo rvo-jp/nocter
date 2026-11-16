@@ -323,6 +323,20 @@ injection, reordered sparse maximum-length arrays, deeply shared graphs and ever
 storage cutoff. Source producer encoding and selected invocation remain separately qualified
 consumers; stored choice values alone do not widen source admission.
 
+`Operation::SelectedCall` links every ordered case to its exact code specialization, complete
+environment type and common explicit input/result contract. The stored ordinal selects only one
+body. A selected captured environment must be read-only and use that body's existing private
+invocation backing; its immutable handle grants no source owner or Copy permission. No ordinary
+projection exposes inactive case data. Named cases supply no environment. Call input protection,
+read/edit address binding, protected taking values and result receipt reuse the ordinary call
+machinery with explicit-channel ordinals. The backing and temporary input entries use the same
+live-storage meter and disappear on normal return or failure. Inactive linked bodies need no
+executable plan until actually selected. Closed-plan probes qualify mixed named/captured cases,
+case/code/coverage errors, rejected mutable environments, all explicit input operations and
+work/storage-cutoff cleanup. Source candidate/const admission and plan projection remain separate;
+this opcode alone grants no source-level selected invocation.
+
+
 ### Evaluated Array Addresses
 
 The closed stateful domain retains positive fixed arrays as homogeneous element-type/target-u64-length

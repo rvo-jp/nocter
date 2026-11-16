@@ -1,5 +1,6 @@
 //! Taking invocation views reuse one body's ordered inputs and frame-local adapter storage.
 use super::*;
+mod selected_calls;
 use nocter_model::{ValueClosure, ValueInputOperation as Op};
 
 fn action(

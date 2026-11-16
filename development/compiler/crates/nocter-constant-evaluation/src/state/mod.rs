@@ -260,6 +260,13 @@ pub struct Alternative {
     pub before: Box<[Effect]>,
     pub after: Box<[Effect]>,
 }
+/// One complete stored callable case and its independently linked code specialization.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CallCase {
+    pub data: usize,
+    pub target: CodeInstance,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Operation {
     None,
@@ -326,6 +333,22 @@ pub enum Operation {
         target: CodeInstance,
         inputs: Box<[Input]>,
     },
+    /// Only the stored selector's complete case may provide its read environment.
+    SelectedCall {
+        destination: usize,
+        callee: Place,
+        cases: Box<[CallCase]>,
+        /// Common explicit channels; environment binding belongs to the selected case.
+        inputs: Box<[Input]>,
+    },
+}
+impl Operation {
+    fn call_inputs(&self) -> Option<&[Input]> {
+        match self {
+            Self::Call { inputs, .. } | Self::SelectedCall { inputs, .. } => Some(inputs),
+            _ => None,
+        }
+    }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Input {

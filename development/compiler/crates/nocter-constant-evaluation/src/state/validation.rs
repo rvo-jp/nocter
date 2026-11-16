@@ -4,6 +4,7 @@ mod contexts;
 mod guards;
 mod handoffs;
 mod receipts;
+mod selected_calls;
 use super::slot_types::{Contexts, SlotTypes, View as Slots};
 pub(super) use receipts::compatible_receipt;
 struct View<'a> {
@@ -496,6 +497,12 @@ fn operation(program: &Program, plan: &View<'_>, op: &Operation) -> Result<()> {
             target,
             inputs,
         } => call(program, plan, *destination, *target, inputs),
+        Operation::SelectedCall {
+            destination,
+            callee,
+            cases,
+            inputs,
+        } => selected_calls::check(program, plan, *destination, callee, cases, inputs),
     }
 }
 fn variant_view(
@@ -632,17 +639,18 @@ fn call(
                 _ => false,
             };
         if (!environment_adapter && input.operation() != operation)
-            || match input {
-                super::Input::Take(data) => *data,
-                super::Input::Read(source) | super::Input::Edit(source) => {
-                    place(program, plan, source)?
-                }
-            } != parameter.data
+            || input_data(program, plan, input)? != parameter.data
         {
             return Err(INVALID);
         }
     }
     Ok(())
+}
+fn input_data(program: &Program, plan: &View<'_>, input: &super::Input) -> Result<usize> {
+    match input {
+        super::Input::Take(data) => Ok(*data),
+        super::Input::Read(source) | super::Input::Edit(source) => place(program, plan, source),
+    }
 }
 fn bounded_array(
     program: &Program,

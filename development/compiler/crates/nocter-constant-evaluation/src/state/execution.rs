@@ -1,3 +1,4 @@
+mod selected_calls;
 use super::slot_types::SlotTypes;
 use super::{
     Action, Budget, Data, Effect, Input, Operation, Place, Plan, Program, Site, Terminator, Value,
@@ -371,12 +372,8 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         let alternative = selected.ok_or(Rule::InvalidPlan)?;
         // Invoke records the exact protection point after committed materializations and before
         // source retirement/reclamation. Scoped addresses are bound after the before phase.
-        let inputs = if let Operation::Call { inputs, .. } = &action.operation {
-            inputs.as_ref()
-        } else {
-            &[]
-        };
-        let _taken_storage = if matches!(action.operation, Operation::Call { .. }) {
+        let inputs = action.operation.call_inputs().unwrap_or(&[]);
+        let _taken_storage = if action.operation.call_inputs().is_some() {
             Some(self.memory.storage.items(inputs.len())?)
         } else {
             None
@@ -540,6 +537,15 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                     )?,
                 )
             }
+            Operation::SelectedCall {
+                destination,
+                callee,
+                cases,
+                inputs,
+            } => (
+                *destination,
+                self.selected_call(frame, callee, cases, inputs, taken)?,
+            ),
             Operation::Call {
                 destination,
                 target,
