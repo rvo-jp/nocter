@@ -264,8 +264,19 @@ Original expression-merge receipts qualify a narrower native source path: a bare
 optional result may carry either of two complete environments of the same lexical wrapper, be
 received into locals, and retire as a whole. Source tests require both tagged constructors and selected cleanup to be
 generated, then execute both runtime branches with trivial and actual error-bearing captures.
-General callable invocation, local/loop-epoch joins and retained-address changes remain separate
-qualification boundaries. Metadata possibility alone never selects a case.
+Retained-read body invocation with uniform explicit input/result contracts consumes MIR's
+`SelectedCall`. The original callable argument supplies the tag at commit; the common explicit
+argument channels are prepared once. Each tag branch alone forms its own environment address,
+calls the corresponding already closed body ABI and stores the common answer before normal
+result receipt. The same selector emitter serves transport, invocation and destruction, including
+invalid-tag rejection. Ordinary and selected calls share argument and answer ABI emission.
+Source probes execute both original branches with trivial and error-bearing environments;
+separate input probes cover once-only read preparation, updates and owned-error arguments.
+Nested three-case source choices also require an actual two-case-to-three-case transport before
+selected invocation, preserving canonical tag correspondence across both receiving domains. Primitive cases, consuming or
+adapter-owned environments, nonuniform channels, local/loop-epoch joins, evaluator selection and
+retained-address changes remain separate qualification boundaries. Metadata possibility alone
+never selects a case.
 
 ## Private Array Execution
 

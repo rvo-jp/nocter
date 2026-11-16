@@ -1,0 +1,42 @@
+primitive func create_failure(code: str, message: str): error
+
+func increment(edit value: i32): i32 { value += 1
+value }
+func increment_twice(edit value: i32): i32 { value += 2
+value }
+func wrap_edit(take callback: func(edit i32): i32): func(edit i32): i32 {
+    (callback^; edit value: i32): i32 { callback(value) }
+}
+func choose_edit(first: bool): func(edit i32): i32 {
+    if first { wrap_edit(increment) } else { wrap_edit(increment_twice) }
+}
+func check_edit(first: bool): i32 {
+    var value = 40
+    let callback = choose_edit(first)
+    let result = callback(value)
+    if first {
+        if result == 41 && value == 41 { 42 } else { 0 }
+    } else {
+        if result == 42 && value == 42 { 42 } else { 0 }
+    }
+}
+
+func take_first(take reason: error): i32 { 41 }
+func take_second(take reason: error): i32 { 42 }
+func wrap_take(take callback: func(take error): i32): func(take error): i32 {
+    (callback^; take reason: error): i32 { callback(reason^) }
+}
+func choose_take(first: bool): func(take error): i32 {
+    if first { wrap_take(take_first) } else { wrap_take(take_second) }
+}
+func check_take(first: bool): i32 {
+    let callback = choose_take(first)
+    let result = callback(create_failure("selected", "owned argument"))
+    if first { if result == 41 { 42 } else { 0 } } else { if result == 42 { 42 } else { 0 } }
+}
+
+func run(): i32 {
+    if check_edit(false) != 42 || check_edit(true) != 42 { return 0 }
+    if check_take(false) != 42 || check_take(true) != 42 { return 0 }
+    42
+}

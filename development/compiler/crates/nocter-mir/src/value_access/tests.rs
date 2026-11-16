@@ -1831,7 +1831,7 @@ fn original_expression_receipts_require_encoding_before_any_common_domain_read()
 }
 
 #[test]
-fn finite_callable_channel_metadata_does_not_grant_mir_invocation() {
+fn finite_callable_invocations_keep_complete_ordered_cases_and_guarded_environments() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../tests/fixtures/value-contexts/contextual-joined-sibling-growth.nct"
@@ -1854,8 +1854,78 @@ fn finite_callable_channel_metadata_does_not_grant_mir_invocation() {
             .any(|call| call.target() == CallTarget::Selected)
     );
     let lifecycle = lifecycle::Program::prepare(instances).unwrap();
-    assert!(matches!(
-        Program::lower(&lifecycle, RuntimeAbiIdentity::Arm64DarwinV1),
-        Err(Failure::InvalidBody(_))
+    let program = Program::lower(&lifecycle, RuntimeAbiIdentity::Arm64DarwinV1).unwrap();
+    let (owner, at, position) = program
+        .bodies
+        .iter()
+        .find_map(|(&owner, body)| {
+            body.actions.iter().find_map(|(&at, action)| {
+                action
+                    .operations
+                    .iter()
+                    .position(|op| matches!(op, Operation::SelectedCall(_)))
+                    .map(|position| (owner, at, position))
+            })
+        })
+        .unwrap();
+    for corruption in 0..5 {
+        let mut changed = program.clone();
+        let Operation::SelectedCall(call) = &mut changed
+            .bodies
+            .get_mut(&owner)
+            .unwrap()
+            .actions
+            .get_mut(&at)
+            .unwrap()
+            .operations[position]
+        else {
+            unreachable!();
+        };
+        assert_eq!(call.cases.len(), 2);
+        match corruption {
+            0 => call.cases.swap(0, 1),
+            1 => call.cases = call.cases[..1].into(),
+            2 => call.cases[0].target = call.cases[1].target,
+            3 => call.inputs = Box::new([]),
+            4 => call.carrier.data = call.cases[0].data,
+            _ => unreachable!(),
+        }
+        assert!(
+            validate::program(&changed).is_err(),
+            "corruption {corruption}"
+        );
+    }
+}
+
+#[test]
+fn selected_callable_bodies_keep_distinct_zero_byte_environment_identities() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/positive-callable-inputs.nct"
     ));
+    let source = source
+        .strip_prefix("primitive func create_failure(code: str, message: str): error\n")
+        .unwrap();
+    let (definitions, _) = source.split_once("\nfunc take_first").unwrap();
+    let program = lower(&format!(
+        "{definitions}\nfunc run(): i32 {{ if check_edit(false) == 42 && check_edit(true) == 42 {{ 42 }} else {{ 0 }} }}"
+    ));
+    let mut changed = program.clone();
+    let call = changed
+        .bodies
+        .values_mut()
+        .flat_map(|body| body.actions.values_mut())
+        .flat_map(|action| &mut action.operations)
+        .find_map(|operation| {
+            if let Operation::SelectedCall(call) = operation {
+                Some(call)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    assert_ne!(call.cases[0].target, call.cases[1].target);
+    assert_ne!(call.cases[0].data, call.cases[1].data);
+    call.cases[0].target = call.cases[1].target;
+    assert!(validate::program(&changed).is_err());
 }

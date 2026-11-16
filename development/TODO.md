@@ -160,7 +160,11 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Close retained-read positive callable target channels through the existing single-call
   binder, retaining every complete stored case and actual body environment. Require common
   explicit input/result contracts, complete coverage and unambiguous original-bundle mapping;
-  qualify bounded failure/retry and keep MIR execution closed until selected dispatch exists.
+  qualify bounded failure/retry independently of executable selection.
+- [x] Qualify retained-read positive body invocation through guarded MIR selection and native
+  execution. Reuse the canonical tag switch and ordinary call ABI; preserve original preparation,
+  complete case correspondence, common read/edit/take explicit inputs, one result and actual
+  error cleanup. Keep consuming/primitive/nonuniform candidates and evaluator selection separate.
 - [ ] Close the [positive callable alternative obligations](design/compiler-realization.md#positive-callable-alternatives)
   through the canonical data-instance graph, guarded source transport, evaluator/target plans,
   native selection and cleanup before widening source admission. The value-context fixture

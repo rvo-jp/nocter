@@ -1,4 +1,4 @@
-//! Closed private control, computation and lifecycle bodies. No released or native admission.
+//! Closed private control, computation and lifecycle bodies; released admission stays separate.
 mod computation;
 mod lower;
 mod repack;
@@ -196,6 +196,22 @@ pub struct Call {
     pub answer: Place,
 }
 
+/// Complete static case identity paired by checking with its actual body specialization.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SelectedCallee {
+    pub data: RuntimeDataId,
+    pub target: AccessInstanceId,
+}
+/// Invoke one retained read environment under the original carrier's stored selector.
+/// Case environments cannot be projected outside this operation.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SelectedCall {
+    pub carrier: Place,
+    pub cases: Box<[SelectedCallee]>,
+    pub inputs: Box<[CallInput]>,
+    pub answer: Place,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Operation {
     /// A terminal source bounds failure; no element payload or selected address exists.
@@ -250,6 +266,7 @@ pub enum Operation {
         check: crate::MirArithmeticCheck,
     },
     Call(Call),
+    SelectedCall(SelectedCall),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

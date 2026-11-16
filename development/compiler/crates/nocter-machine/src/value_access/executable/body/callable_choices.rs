@@ -1,4 +1,4 @@
-//! Shared selected-case control for moving and destroying complete callable environments.
+//! Shared selected-case control for moving, invoking and destroying callable environments.
 use super::{Builder, Failure};
 use crate::{
     MachineAddress, MachineAddressId, MachineAddressRoot, MachineBlockId, MachineBranchTarget,

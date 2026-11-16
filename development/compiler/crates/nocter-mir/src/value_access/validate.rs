@@ -44,10 +44,16 @@ pub(super) fn program(program: &Program) -> Result<(), Failure> {
         }
         let body = program.bodies.get(&id).ok_or(Failure::InvalidBody(id))?;
         for operation in body.actions.values().flat_map(|action| &action.operations) {
-            if let Operation::Call(call) = operation
-                && let CallTarget::Body(target) = call.target
-            {
-                pending.insert(target);
+            match operation {
+                Operation::Call(call) => {
+                    if let CallTarget::Body(target) = call.target {
+                        pending.insert(target);
+                    }
+                }
+                Operation::SelectedCall(call) => {
+                    pending.extend(call.cases.iter().map(|case| case.target));
+                }
+                _ => {}
             }
         }
     }
@@ -602,6 +608,7 @@ impl Context<'_> {
                     }
                 })
             }
+            Operation::SelectedCall(call) => self.selected_call(call),
             Operation::Call(call) => {
                 self.place(&call.answer)?;
                 let (inputs, result) = match call.target {
@@ -670,6 +677,98 @@ impl Context<'_> {
                 Ok(())
             }
         }
+    }
+}
+
+impl Context<'_> {
+    fn selected_call(&self, call: &super::SelectedCall) -> Result<(), Failure> {
+        self.place(&call.carrier)?;
+        self.place(&call.answer)?;
+        let Some(RuntimeType::CallableAlternatives(cases)) =
+            self.program.runtime.types().get(call.carrier.data)
+        else {
+            return Err(self.invalid());
+        };
+        self.require(cases.len() == call.cases.len())?;
+        let carrier = self
+            .body
+            .slots
+            .get(call.carrier.slot)
+            .ok_or_else(|| self.invalid())?;
+        let SlotKey::Argument {
+            call: site,
+            index: 0,
+        } = carrier.key
+        else {
+            return Err(self.invalid());
+        };
+        self.require(carrier.storage == Storage::Address && call.carrier.projections.is_empty())?;
+        self.require(
+            self.body
+                .slots
+                .get(call.answer.slot)
+                .is_some_and(|slot| slot.key == SlotKey::Answer(site)),
+        )?;
+        for (index, input) in call.inputs.iter().enumerate() {
+            self.require(
+                self.body.slots.get(input.source.slot).is_some_and(|slot| {
+                    slot.key
+                        == SlotKey::Argument {
+                            call: site,
+                            index: index + 1,
+                        }
+                }) && input.source.projections.is_empty(),
+            )?;
+        }
+        self.require(self.body.slots.get(call.answer.slot).is_some_and(|slot| {
+            slot.storage == Storage::Payload && matches!(slot.key, SlotKey::Answer(_))
+        }))?;
+        for (data, case) in cases.iter().zip(&call.cases) {
+            self.require(*data == case.data)?;
+            let Some(RuntimeType::StaticCallable { environment }) =
+                self.program.runtime.types().get(case.data)
+            else {
+                return Err(self.invalid());
+            };
+            let signature = &self
+                .program
+                .bodies
+                .get(&case.target)
+                .ok_or_else(|| self.invalid())?
+                .signature;
+            match (environment, signature.environment()) {
+                (None, None) => {}
+                (Some(data), Some(input)) => self
+                    .require(*data == input.data && input.operation == ValueInputOperation::Read)?,
+                _ => return Err(self.invalid()),
+            }
+            self.require(
+                call.inputs.len() == signature.explicit().len()
+                    && self
+                        .program
+                        .runtime
+                        .has_same_value_representation(call.answer.data, signature.result()),
+            )?;
+            for (actual, expected) in call.inputs.iter().zip(signature.explicit()) {
+                self.place(&actual.source)?;
+                self.require(
+                    actual.operation == expected.operation
+                        && self
+                            .program
+                            .runtime
+                            .has_same_value_representation(actual.source.data, expected.data),
+                )?;
+                if actual.operation == ValueInputOperation::Take {
+                    self.require(
+                        self.body
+                            .slots
+                            .get(actual.source.slot)
+                            .is_some_and(|slot| slot.storage == Storage::Payload),
+                    )?;
+                }
+            }
+        }
+        Ok(())
     }
 }
 

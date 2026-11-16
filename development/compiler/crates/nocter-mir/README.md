@@ -187,9 +187,13 @@ unsupported roles and substituted signatures reject. Only body edges participate
 reachability. The Machine consumer owns their physical ABI qualification.
 
 `computation` consumes selected operation kinds and frozen call edges; it does not infer Copy,
-access, result witnesses or dispatch. Retained-read finite callable cases can already have closed
-candidate channels in the target graph; this does not grant an active selector. Lowering and MIR
-validation explicitly reject `CallTarget::Selected` until selected-case invocation is qualified.
+access, result witnesses or dispatch. `SelectedCall` retains a finite callable carrier, its ordered
+complete runtime cases, the corresponding body instances, common explicit inputs and one answer
+slot. It admits only the target graph's retained-read body cases. Validation checks complete
+canonical coverage, each body's read environment and explicit/result signature, the original
+argument ordinals and answer identity. Candidate environments have no general `Place` projection;
+they are available only inside selected invocation. Every candidate contributes a body reachability
+edge. An ordinary `Call` still rejects the unresolved `CallTarget::Selected` marker.
 Private required constants arrive as ordinary primitive
 literals or model-owned frozen literal DAGs; this product has no unresolved declaration-reference
 operation or evaluation service. Frozen aggregates initialize one ordinary owning result through

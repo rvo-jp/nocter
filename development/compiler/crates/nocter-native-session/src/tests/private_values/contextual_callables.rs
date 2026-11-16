@@ -2179,3 +2179,179 @@ fn assert_positive_cleanup(owned: &nocter_machine::MachineProgram) {
             ))
     );
 }
+
+#[test]
+fn private_positive_callable_domains_invoke_only_the_original_runtime_case() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/value-contexts/contextual-joined-sibling-growth.nct"
+    ));
+    let (definitions, _) = source.split_once("\nconst ANSWER:").unwrap();
+    let source = format!(
+        "{}\nfunc run(): i32 {{ if calculate(false) == 42 && calculate(true) == 42 {{ 42 }} else {{ 0 }} }}",
+        definitions.replace("const func", "func")
+    );
+    let plain = machine(&source);
+    assert_positive_constructors(&plain);
+    assert_positive_invocation(&plain);
+    let package = TempPackage::new();
+    execute_native_status(
+        &image(&plain),
+        &package.0,
+        "positive-callable-invocation",
+        42,
+    );
+    let owned = trusted_error_machine(&owned_choice_source(&source));
+    assert_positive_constructors(&owned);
+    assert_positive_cleanup(&owned);
+    execute_native_status(&image(&owned), &package.0, "positive-owned-invocation", 42);
+}
+
+fn assert_positive_invocation(machine: &nocter_machine::MachineProgram) {
+    use nocter_machine::{MachineCallTarget, MachineOperationKind, MachineTerminator};
+    assert!(
+        machine.functions().any(|(_, function)| {
+            let body = function.body();
+            body.blocks().any(|(_, block)| {
+                let MachineTerminator::SwitchValue {
+                    cases, fallback, ..
+                } = block.terminator()
+                else {
+                    return false;
+                };
+                if cases.len() < 2
+                    || !matches!(
+                        body.block(fallback.block()).unwrap().terminator(),
+                        MachineTerminator::Unreachable
+                    )
+                {
+                    return false;
+                }
+                let targets: Option<std::collections::BTreeSet<_>> = cases
+                    .iter()
+                    .map(|case| {
+                        body.block(case.target().block())
+                            .unwrap()
+                            .operations()
+                            .iter()
+                            .find_map(|&id| {
+                                let MachineOperationKind::Call(call) =
+                                    body.operation(id).unwrap().kind()
+                                else {
+                                    return None;
+                                };
+                                let MachineCallTarget::Direct(target) = call.target() else {
+                                    return None;
+                                };
+                                Some(*target)
+                            })
+                    })
+                    .collect();
+                targets.is_some_and(|targets| targets.len() == cases.len())
+            })
+        }),
+        "each runtime tag must select its own body, with invalid tags rejected"
+    );
+}
+
+#[test]
+fn private_positive_callable_domains_preserve_edit_and_take_explicit_inputs() {
+    let machine = trusted_error_machine(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/positive-callable-inputs.nct"
+    )));
+    assert_positive_constructors(&machine);
+    assert_positive_invocation(&machine);
+    let package = TempPackage::new();
+    execute_native_status(&image(&machine), &package.0, "positive-callable-inputs", 42);
+}
+
+#[test]
+fn private_positive_callable_domains_evaluate_read_inputs_once_for_bare_and_optional_values() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/value-contexts/contextual-joined-sibling-growth.nct"
+    ));
+    let (definitions, _) = source.split_once("\nconst func calculate").unwrap();
+    for optional in [false, true] {
+        let mut definitions = definitions.replace("const func", "func");
+        if !optional {
+            definitions = definitions.replace(
+                "func maybe(present: bool): (func(i32): i32)?",
+                "func maybe(present: bool): func(i32): i32",
+            );
+        }
+        let fallback = if optional {
+            " otherwise { return 0 }"
+        } else {
+            ""
+        };
+        let source = format!(
+            "{definitions}\nfunc advance(edit count: i32): i32 {{ count += 1\ncount }}\nfunc invoke(present: bool): i32 {{\nvar count = 0\nlet candidate = maybe(present)\nlet callback = candidate^{fallback}\nlet result = callback(advance(count))\nif count != 1 {{ return 0 }}\nif present {{ if result == 3 {{ 42 }} else {{ 0 }} }} else {{ if result == 1 {{ 42 }} else {{ 0 }} }}\n}}\nfunc run(): i32 {{ if invoke(false) == 42 && invoke(true) == 42 {{ 42 }} else {{ 0 }} }}"
+        );
+        let plain = machine(&source);
+        assert_positive_constructors(&plain);
+        assert_positive_invocation(&plain);
+        let package = TempPackage::new();
+        execute_native_status(&image(&plain), &package.0, "positive-read-input-once", 42);
+        let owned = trusted_error_machine(&owned_choice_source(&source));
+        assert_positive_invocation(&owned);
+        assert_positive_cleanup(&owned);
+        execute_native_status(
+            &image(&owned),
+            &package.0,
+            "positive-owned-read-input-once",
+            42,
+        );
+    }
+}
+
+#[test]
+fn private_positive_callable_domains_widen_nested_choices_before_selected_invocation() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/value-contexts/contextual-joined-sibling-growth.nct"
+    ));
+    let (definitions, _) = source.split_once("\nconst func maybe").unwrap();
+    let source = format!(
+        "{}\nfunc choose(which: i32): func(i32): i32 {{\nif which == 0 {{ wrap(identity) }} else {{ if which == 1 {{ wrap(addition(2)) }} else {{ wrap(subtraction(50)) }} }}\n}}\nfunc invoke(which: i32): i32 {{\nlet callback = choose(which)\nif which == 0 {{ callback(42) }} else {{ if which == 1 {{ callback(40) }} else {{ callback(8) }} }}\n}}\nfunc run(): i32 {{ if invoke(0) == 42 && invoke(1) == 42 && invoke(2) == 42 {{ 42 }} else {{ 0 }} }}",
+        definitions.replace("const func", "func")
+    );
+    let plain = machine(&source);
+    assert_positive_invocation(&plain);
+    assert_positive_widening(&plain);
+    let package = TempPackage::new();
+    execute_native_status(&image(&plain), &package.0, "positive-nested-invocation", 42);
+    let owned = trusted_error_machine(&owned_choice_source(&source));
+    assert_positive_invocation(&owned);
+    assert_positive_widening(&owned);
+    assert_positive_cleanup(&owned);
+    execute_native_status(
+        &image(&owned),
+        &package.0,
+        "positive-owned-nested-invocation",
+        42,
+    );
+}
+
+fn assert_positive_widening(machine: &nocter_machine::MachineProgram) {
+    assert!(
+        machine.functions().any(|(_, function)| {
+            let body = function.body();
+            let [source, target] = body.parameters() else {
+                return false;
+            };
+            let cases = |parameter| {
+                let data = body.stack(parameter)?.ty();
+                let nocter_machine::MachineLayoutKind::CallableAlternatives { cases, .. } =
+                    machine.layouts().get(data)?.kind()
+                else {
+                    return None;
+                };
+                Some(cases.len())
+            };
+            cases(*source) == Some(2) && cases(*target) == Some(3)
+        }),
+        "nested original choices need an actual two-case to three-case transport"
+    );
+}

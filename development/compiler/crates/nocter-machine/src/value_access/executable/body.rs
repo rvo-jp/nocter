@@ -17,6 +17,7 @@ use nocter_runtime_contract::RuntimeType;
 use std::collections::{BTreeMap, BTreeSet};
 mod arrays;
 mod callable_choices;
+mod calls;
 mod destruction;
 mod outcomes;
 pub(super) use destruction::build as cleanup;
@@ -157,6 +158,26 @@ impl<'a> Builder<'a> {
         let id = MachineAddressId::new(self.addresses.len());
         self.addresses.push(address);
         id
+    }
+    fn offset_address(
+        &mut self,
+        base: MachineAddressId,
+        data: RuntimeDataId,
+        offset: u64,
+    ) -> Result<MachineAddressId, Failure> {
+        let pointer = self.value(
+            self.addresses[base.index()].ty(),
+            true,
+            MachineOperationKind::AddressOf { source: base },
+        )?;
+        let layout = self.context.layouts.get(data).ok_or_else(Self::invalid)?;
+        Ok(self.address(MachineAddress::new(
+            data,
+            layout.size(),
+            layout.alignment(),
+            MachineAddressRoot::Pointer { value: pointer },
+            [MachineAddressStep::Offset(offset)],
+        )))
     }
     fn slot_address(&mut self, slot: MachineStackId) -> MachineAddressId {
         let object = self.stack[slot.index()];
@@ -581,53 +602,8 @@ impl<'a> Builder<'a> {
                 self.store(destination, value)?;
             }
             mir::Operation::Call(call) => self.call(call)?,
+            mir::Operation::SelectedCall(call) => self.selected_call(call)?,
         }
-        Ok(())
-    }
-    fn call(&mut self, call: &mir::Call) -> Result<(), Failure> {
-        let mut arguments = Vec::new();
-        for input in &call.inputs {
-            // Body read/edit channels receive an address. The trusted runtime's closed ABI
-            // receives the descriptor value at that address; this load grants no source Copy.
-            arguments.push(
-                if input.operation == ValueInputOperation::Take
-                    || matches!(call.target, mir::CallTarget::Primitive(_))
-                {
-                    self.load(&input.source)?
-                } else {
-                    let source = self.place(&input.source)?;
-                    self.value(
-                        input.source.data,
-                        true,
-                        MachineOperationKind::AddressOf { source },
-                    )?
-                },
-            );
-        }
-        let target = match call.target {
-            mir::CallTarget::Selected => return Err(Self::invalid()),
-            mir::CallTarget::Body(id) => MachineCallTarget::Direct(
-                *self.context.functions.get(&id).ok_or_else(Self::invalid)?,
-            ),
-            mir::CallTarget::Primitive(role) => MachineCallTarget::Primitive(
-                self.context
-                    .primitives
-                    .get(&role)
-                    .ok_or_else(Self::invalid)?
-                    .clone(),
-            ),
-        };
-        let value = self.value(
-            call.answer.data,
-            false,
-            MachineOperationKind::Call(MachineCall::new(
-                target,
-                arguments,
-                MachineCallAllocation::Inherit,
-                None,
-            )),
-        )?;
-        self.store(&call.answer, value)?;
         Ok(())
     }
     fn action(&mut self, action: &mir::Action) -> Result<(), Failure> {

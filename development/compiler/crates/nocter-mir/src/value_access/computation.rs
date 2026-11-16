@@ -278,16 +278,13 @@ impl Builder<'_> {
         source.data = data;
         Ok(source)
     }
-    fn call(&mut self, id: AccessExpressionId) -> Result<Call, Failure> {
+    fn call(&mut self, id: AccessExpressionId) -> Result<Operation, Failure> {
         let selected = self
             .instance
             .calls()
             .get(&id)
             .cloned()
             .ok_or_else(|| self.invalid())?;
-        if selected.target() == super::CallTarget::Selected {
-            return Err(self.invalid());
-        }
         let mut inputs = Vec::new();
         if let Environment::Capture {
             argument, input, ..
@@ -309,12 +306,34 @@ impl Builder<'_> {
         }
         let data = self.expression(id)?;
         let answer = self.snapshot(SlotKey::Answer(id), data)?;
-        Ok(Call {
-            target: selected.target(),
-            inputs: inputs.into(),
-            answer,
-        })
+        if selected.target() == super::CallTarget::Selected {
+            let carrier = self.argument(id, 0)?;
+            let cases = selected
+                .cases()
+                .iter()
+                .map(|case| {
+                    let super::CallTarget::Body(target) = case.target else {
+                        return Err(self.invalid());
+                    };
+                    let data = self.case_data(case)?;
+                    Ok(super::SelectedCallee { data, target })
+                })
+                .collect::<Result<Box<[_]>, Failure>>()?;
+            Ok(Operation::SelectedCall(super::SelectedCall {
+                carrier,
+                cases,
+                inputs: inputs.into(),
+                answer,
+            }))
+        } else {
+            Ok(Operation::Call(Call {
+                target: selected.target(),
+                inputs: inputs.into(),
+                answer,
+            }))
+        }
     }
+
     fn prepare_argument(
         &mut self,
         call: AccessExpressionId,
@@ -394,7 +413,7 @@ impl Builder<'_> {
                     .prepare_argument(call, argument)
                     .map(|operation| operation.into_iter().collect());
             }
-            flow::Operation::CommitCall(id) => Operation::Call(self.call(id)?),
+            flow::Operation::CommitCall(id) => self.call(id)?,
             flow::Operation::Bind { local, value } => {
                 let item = self
                     .checked

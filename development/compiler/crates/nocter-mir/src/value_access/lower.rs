@@ -92,6 +92,14 @@ impl Builder<'_> {
                 .ok_or_else(|| self.invalid())?,
         )
     }
+    pub(super) fn case_data(
+        &self,
+        case: &nocter_target_program::value_access::InvocationCase,
+    ) -> Result<RuntimeDataId, Failure> {
+        self.storage
+            .instance(self.instances.unit().program(), &case.callee)
+            .map_err(Failure::Storage)
+    }
     fn payload_data(&self, payload: &Payload) -> Result<RuntimeDataId, Failure> {
         self.storage
             .instance(self.instances.unit().program(), payload.instance())

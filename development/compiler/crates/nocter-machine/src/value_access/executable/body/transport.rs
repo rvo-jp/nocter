@@ -127,29 +127,9 @@ impl Builder<'_> {
         target: MachineAddressId,
         field: &Field,
     ) -> Result<(), Failure> {
-        let from = self.transport_address(source, field.pair.0, field.source)?;
-        let to = self.transport_address(target, field.pair.1, field.target)?;
+        let from = self.offset_address(source, field.pair.0, field.source)?;
+        let to = self.offset_address(target, field.pair.1, field.target)?;
         self.transport_value(field.pair, from, to)
-    }
-    fn transport_address(
-        &mut self,
-        base: MachineAddressId,
-        data: nocter_runtime_contract::RuntimeDataId,
-        offset: u64,
-    ) -> Result<MachineAddressId, Failure> {
-        let pointer = self.value(
-            self.addresses[base.index()].ty(),
-            true,
-            MachineOperationKind::AddressOf { source: base },
-        )?;
-        let layout = self.context.layouts.get(data).ok_or_else(Self::invalid)?;
-        Ok(self.address(MachineAddress::new(
-            data,
-            layout.size(),
-            layout.alignment(),
-            MachineAddressRoot::Pointer { value: pointer },
-            [MachineAddressStep::Offset(offset)],
-        )))
     }
     pub(super) fn transport_value(
         &mut self,
