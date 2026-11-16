@@ -583,3 +583,28 @@ fn complete_callable_environment_keeps_mixed_contexts_through_storage_and_payloa
         &environment
     );
 }
+
+#[test]
+fn positive_callable_alternatives_do_not_choose_a_materialized_environment() {
+    let fixture = fixture();
+    let program = &fixture.program;
+    let actuals = fixture.keys.iter().map(|key| {
+        let selected = key.component(program, ValueField::Tuple(0)).unwrap();
+        let InstanceSchema::Function(actual) = selected.schema(program).unwrap() else {
+            panic!("function")
+        };
+        actual
+    });
+    let domain = program
+        .instantiate_function_alternatives(fixture.captured, actuals)
+        .unwrap();
+    let mut builder = Builder::new(program);
+    assert!(matches!(
+        builder.intern(domain),
+        Err(Failure::InvalidPayload(_))
+    ));
+    assert!(builder.ids.is_empty());
+    assert!(builder.pending.is_empty());
+    assert_eq!(builder.next, 0);
+    assert!(builder.intern(fixture.keys[0].clone()).is_ok());
+}

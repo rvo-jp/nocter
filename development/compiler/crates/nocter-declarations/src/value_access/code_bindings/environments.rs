@@ -96,6 +96,8 @@ impl Program {
             match &*key.context {
                 Context::Closed | Context::Uninhabited => {}
                 Context::Components(children) => pending.extend(children.values()),
+                // An ordinary concrete frame cannot choose a domain's active witness.
+                Context::FunctionAlternatives(_) => return Err(CodeBindingError::InvalidWitness),
                 Context::Function(actual) => {
                     let Some(PayloadSchema::Function(wanted)) = self.data_schema(key.data()) else {
                         return Err(CodeBindingError::InvalidWitness);
@@ -201,7 +203,10 @@ impl Validation<'_> {
                 continue;
             }
             match &*key.context {
-                Context::Closed => return Err(CodeBindingError::InvalidWitness),
+                // Closed nodes are omitted canonically. A concrete frame cannot choose a domain.
+                Context::Closed | Context::FunctionAlternatives(_) => {
+                    return Err(CodeBindingError::InvalidWitness);
+                }
                 Context::Uninhabited => {}
                 Context::Function(actual) => {
                     self.program

@@ -9,6 +9,9 @@ runner and does not own expected compiler behavior; each consuming crate test ow
   value-binding private-module corpus. Production syntax/declaration/accepted-unit consumers own
   its assertions. These passes are bounded front-end evidence, not native or full-language support.
 - `fixtures/syntax/` contains parser and semantic-boundary source corpora plus structural snapshots.
+- `fixtures/value-contexts/` contains shared contextual value programs for metadata and source
+  qualification. Consuming tests own admission assertions; a case can remain explicitly unqualified
+  without being presented as a native executable test or language-level rejection.
 - `fixtures/standard/` contains source programs used by command and editor integration tests against
   the physical standard library.
 - `fixtures/native/` contains source programs for native executable checks. The `session/` subtree

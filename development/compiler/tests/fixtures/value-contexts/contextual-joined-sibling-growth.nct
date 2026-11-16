@@ -1,0 +1,37 @@
+struct Item { value: i32 }
+
+const func identity(value: i32): i32 { value }
+
+const func addition(value: i32): func(i32): i32 {
+    let item = Item { value: value }
+    (item^; amount: i32): i32 { item.value + amount }
+}
+
+const func subtraction(value: i32): func(i32): i32 {
+    let item = Item { value: value }
+    (item^; amount: i32): i32 { item.value - amount }
+}
+
+const func wrap(take callback: func(i32): i32): func(i32): i32 {
+    (callback^; amount: i32): i32 { callback(amount) }
+}
+
+const func maybe(present: bool): (func(i32): i32)? {
+    if present { wrap(addition(2)) } else { wrap(identity) }
+}
+
+const func calculate(present: bool): i32 {
+    var pair = (wrap(identity), maybe(present), 3)
+    pair.0 = wrap(addition(20))
+    pair.0 = wrap(subtraction(50))
+    let saved = pair.0^
+    pair.0 = wrap(addition(1))
+    pair.0 = wrap(identity)
+    if pair.2 != 3 || pair.0(42) != 42 || saved(8) != 42 { return 0 }
+    let retained = pair.1^
+    let callback = retained^ otherwise { return 0 }
+    if callback(if present { 40 } else { 42 }) == 42 { 42 } else { 0 }
+}
+
+const ANSWER: i32 = if calculate(false) == 42 && calculate(true) == 42 { 42 } else { 0 }
+func run(): i32 { if ANSWER == 42 && calculate(false) == 42 && calculate(true) == 42 { 42 } else { 0 } }

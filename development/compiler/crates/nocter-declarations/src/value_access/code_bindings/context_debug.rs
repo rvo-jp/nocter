@@ -75,6 +75,13 @@ fn format(root: Node<'_>, name: &str, formatter: &mut fmt::Formatter<'_>) -> fmt
                     Context::Function(witness) => {
                         format!("Function({})", graph.intern(Node::Callable(witness)))
                     }
+                    Context::FunctionAlternatives(alternatives) => {
+                        let nodes = alternatives
+                            .iter()
+                            .map(|witness| graph.intern(Node::Callable(witness)))
+                            .collect::<Vec<_>>();
+                        format!("FunctionAlternatives({nodes:?})")
+                    }
                     Context::Components(children) => {
                         let children: Vec<_> = children
                             .iter()

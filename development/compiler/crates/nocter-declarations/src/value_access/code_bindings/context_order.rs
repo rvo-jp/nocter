@@ -11,10 +11,23 @@ use std::{
 enum Pending<'a> {
     Witness(&'a ConcreteWitness, &'a ConcreteWitness),
     Data(&'a DataInstanceKey, &'a DataInstanceKey),
+    Alternatives(
+        std::slice::Iter<'a, ConcreteWitness>,
+        std::slice::Iter<'a, ConcreteWitness>,
+    ),
     Children(
         btree_map::Iter<'a, ValueField, DataInstanceKey>,
         btree_map::Iter<'a, ValueField, DataInstanceKey>,
     ),
+}
+fn context_rank(context: &Context) -> u8 {
+    match context {
+        Context::Closed => 0,
+        Context::Uninhabited => 1,
+        Context::Function(_) => 2,
+        Context::FunctionAlternatives(_) => 3,
+        Context::Components(_) => 4,
+    }
 }
 fn compare(root: Pending<'_>) -> Ordering {
     let mut pending = vec![root];
@@ -51,24 +64,31 @@ fn compare(root: Pending<'_>) -> Ordering {
                 match (&*left.context, &*right.context) {
                     (Context::Closed, Context::Closed)
                     | (Context::Uninhabited, Context::Uninhabited) => Ordering::Equal,
-                    (Context::Closed, _) | (Context::Function(_), Context::Components(_)) => {
-                        Ordering::Less
-                    }
-                    (_, Context::Closed) | (Context::Components(_), Context::Function(_)) => {
-                        Ordering::Greater
-                    }
-                    (Context::Uninhabited, _) => Ordering::Less,
-                    (_, Context::Uninhabited) => Ordering::Greater,
                     (Context::Function(left), Context::Function(right)) => {
                         pending.push(Pending::Witness(left, right));
+                        Ordering::Equal
+                    }
+                    (Context::FunctionAlternatives(left), Context::FunctionAlternatives(right)) => {
+                        pending.push(Pending::Alternatives(left.iter(), right.iter()));
                         Ordering::Equal
                     }
                     (Context::Components(left), Context::Components(right)) => {
                         pending.push(Pending::Children(left.iter(), right.iter()));
                         Ordering::Equal
                     }
+                    (left, right) => context_rank(left).cmp(&context_rank(right)),
                 }
             }
+            Pending::Alternatives(mut left, mut right) => match (left.next(), right.next()) {
+                (Some(a), Some(b)) => {
+                    pending.push(Pending::Alternatives(left, right));
+                    pending.push(Pending::Witness(a, b));
+                    Ordering::Equal
+                }
+                (None, None) => Ordering::Equal,
+                (None, Some(_)) => Ordering::Less,
+                (Some(_), None) => Ordering::Greater,
+            },
             Pending::Children(mut left, mut right) => match (left.next(), right.next()) {
                 (Some((lk, lv)), Some((rk, rv))) => {
                     let order = lk.cmp(rk);

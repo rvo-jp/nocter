@@ -54,6 +54,10 @@ impl DataInstanceKey {
                         ) => {}
                 (InstanceSchema::Builtin(a), InstanceSchema::Builtin(b)) if a == b => {}
                 (InstanceSchema::Function(a), InstanceSchema::Function(b)) if a == b => {}
+                (
+                    InstanceSchema::FunctionAlternatives(a),
+                    InstanceSchema::FunctionAlternatives(b),
+                ) if a == b => {}
                 (InstanceSchema::Aggregate(a), InstanceSchema::Aggregate(b)) => {
                     if a.len() != b.len() {
                         return false;

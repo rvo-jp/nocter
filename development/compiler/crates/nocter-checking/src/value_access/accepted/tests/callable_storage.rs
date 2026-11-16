@@ -796,3 +796,17 @@ fn contextual_optional_siblings_preserve_original_tags_and_received_contexts() {
     ));
     assert_eq!(answer(source, "ANSWER"), Value::integer(42));
 }
+
+#[test]
+fn conflicting_positive_callable_contexts_remain_unqualified_without_a_choice_representation() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/value-contexts/contextual-joined-sibling-growth.nct"
+    ));
+    let (sources, tree) = input(source);
+    let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
+    assert!(
+        matches!(failure, SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })
+        if diagnostic.rule() == crate::value_access::evaluation::Rule::UnresolvedContext)
+    );
+}

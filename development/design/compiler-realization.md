@@ -236,6 +236,39 @@ Keep original bounds effects and old/new destruction observable. These are compi
 obligations, not a request for user annotations, a second owner registry or a permanent ban on
 context-changing updates. Unsupported cases remain explicitly unqualified until those proofs close.
 
+#### Positive Callable Alternatives
+
+A runtime choice between positive callable contexts needs an explicit canonical domain, not a
+representative witness. Keep that domain within the declaration-owned data-instance graph.
+Each alternative retains one complete concrete witness, including its selected code, invocation
+view and captured environment key. Deduplicate equal alternatives, normalize singleton domains
+through the existing witness constructor and retain complete environments rather than independently
+joining their fields and inventing combinations. An empty positive set is not unknown metadata;
+use the existing uninhabited domain only when exclusion is actually established.
+
+Original producer/application terms retain the correspondence between each branch and its
+selected witness. The metadata domain describes possible representations; it creates neither a
+runtime selector nor a committed source, owner, Copy proof or invocation. A consumer may narrow
+that domain only with its original checked control/value evidence. Equality, reprojection,
+substitution and comparisons must preserve all positive identities, including distinct captured
+contexts of the same lexical closure. Source descriptor/result-family validation still applies
+to every alternative. Never choose the first producer or use matching signatures as identity.
+
+A positive-context join and transport into that join are separate operations. Transport must
+preserve which complete source alternative was delivered. Evaluator plans, target closure, ABI,
+storage, invocation and cleanup must agree on that selection before ordinary source admission
+widens. Native execution must carry a selector established by the original value/control path and
+operate on the matching environment; it cannot dispatch or destroy a possible inactive environment.
+Required evaluation must likewise retain the active witness rather than replacing it with the
+domain. Layout capacity alone grants neither stable component offsets nor surviving addresses.
+
+Keep shared component graphs and homogeneous array schemas; do not enumerate array elements or
+expand independent alternatives into a Cartesian product. Meter alternative discovery and graph
+work under the existing request budget, preserving atomic failure and healthy retry. Retain source
+rejection while any requested consumer lacks the choice contract. Qualify named/owned contexts,
+the same lexical wrapper with distinct nested callbacks, required/runtime branches, captured error
+graphs, forwarding, partial carriers, backedges and bounds/trap effects before declaring completion.
+
 #### Guarded Representation Transport
 
 Representation equality and directed value transport are distinct relations over the canonical
@@ -265,8 +298,9 @@ shared value graph. A caller's destination constraint cannot replace a callee's 
 descriptor when resolving the supplied value. Select destination callable contexts only from
 actual positive producers and matched consumer/result constraints; absence contributes no code or
 captured environment. Preserve exact source keys even when a destination uses a wider domain.
-Metadata joins may select a represented domain containing an excluded alternative, but cannot
-merge different positive callable contexts or turn an empty/pending witness fact into a function.
+Metadata joins may select a represented domain containing an excluded alternative. Distinct
+positive contexts require the [positive alternative contract](#positive-callable-alternatives);
+never collapse them into one concrete witness or turn an empty/pending witness fact into a function.
 Retain the existing work budgets, fixed-point dependencies and atomic failed-request behavior.
 
 A constructed inactive tag can exclude an active callable along an original invocation input and

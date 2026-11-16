@@ -402,3 +402,159 @@ fn function_occurrence_construction_keeps_context_without_guessing_an_outer_fram
     };
     assert_eq!(selected, taken);
 }
+
+#[test]
+fn positive_callable_alternatives_are_canonical_without_selecting_a_witness() {
+    use crate::value_access::InstanceSchema;
+    let fixture = fixture();
+    let program = &fixture.program;
+    let data = program.function_data(fixture.captured).unwrap();
+    let actuals = fixture.callbacks.map(|callback| {
+        program
+            .bind_code(fixture.creator.into(), [(fixture.formal, callback)])
+            .unwrap()
+            .resolve(program, fixture.captured)
+            .unwrap()
+    });
+    assert_eq!(actuals[0].code(), actuals[1].code());
+    assert_ne!(actuals[0].environment(), actuals[1].environment());
+    let first = program.instantiate_function(data, &actuals[0]).unwrap();
+    assert_eq!(
+        program
+            .instantiate_function_alternatives(data, [actuals[0].clone(), actuals[0].clone()])
+            .unwrap(),
+        first
+    );
+    assert!(program.instantiate_function_alternatives(data, []).is_err());
+    let domain = program
+        .instantiate_function_alternatives(data, actuals.clone())
+        .unwrap();
+    let reverse = program
+        .instantiate_function_alternatives(
+            data,
+            actuals.iter().rev().cloned().chain(actuals.clone()),
+        )
+        .unwrap();
+    assert_eq!(domain, reverse);
+    assert_ne!(domain, first);
+    assert_eq!(domain.data(), data);
+    let InstanceSchema::FunctionAlternatives(choices) = domain.schema(program).unwrap() else {
+        panic!("positive domain")
+    };
+    assert_eq!(choices.len(), 2);
+    assert!(choices.windows(2).all(|pair| pair[0] < pair[1]));
+    for actual in actuals {
+        assert!(choices.contains(&actual));
+    }
+    assert!(domain.has_same_representation(program, &reverse));
+    assert!(!domain.has_same_representation(program, &first));
+    assert!(!first.permits_guarded_transport(program, &domain));
+    assert!(!domain.permits_guarded_transport(program, &first));
+    assert!(domain.function_representation(program).is_err());
+    assert!(domain.environment(program).is_err());
+    assert_eq!(domain.reproject(program, data).unwrap(), domain);
+    let pair = program
+        .instantiate_components(
+            fixture.pair,
+            [
+                (nocter_model::ValueField::Tuple(0), domain.clone()),
+                (nocter_model::ValueField::Tuple(1), first),
+            ],
+        )
+        .unwrap();
+    assert_eq!(
+        pair.component(program, nocter_model::ValueField::Tuple(0))
+            .unwrap(),
+        domain
+    );
+    assert!(program.bind_callable_data(fixture.mixed, &pair).is_err());
+    assert!(format!("{domain:?}").contains("FunctionAlternatives"));
+}
+
+#[test]
+fn positive_callable_alternatives_validate_every_complete_witness_and_source_descriptor() {
+    let fixture = fixture();
+    let program = &fixture.program;
+    let formal = program
+        .function_data(FunctionWitness {
+            origin: ValueFunctionOrigin::Parameter(fixture.formal),
+            invocation: ValueInvocation::Read,
+        })
+        .unwrap();
+    let actuals = fixture
+        .callbacks
+        .map(|callback| program.concrete_witness(callback).unwrap());
+    assert!(
+        program
+            .instantiate_function_alternatives(formal, actuals.clone())
+            .is_ok()
+    );
+    let concrete = program.function_data(fixture.callbacks[0]).unwrap();
+    assert!(
+        program
+            .instantiate_function_alternatives(concrete, actuals.clone())
+            .is_err()
+    );
+    assert!(
+        program
+            .instantiate_function_alternatives(
+                program.data_type(BuiltinType::Void).unwrap(),
+                actuals.clone()
+            )
+            .is_err()
+    );
+    let wrong = program
+        .concrete_witness(
+            program
+                .resolve_code(program.symbols().get("wrong").unwrap())
+                .unwrap()
+                .into(),
+        )
+        .unwrap();
+    assert!(
+        program
+            .instantiate_function_alternatives(formal, [actuals[0].clone(), wrong])
+            .is_err()
+    );
+    let result = program.codes().get(fixture.creator).unwrap().result();
+    assert!(
+        program
+            .instantiate_function_alternatives(result, actuals)
+            .is_err()
+    );
+}
+
+#[test]
+fn positive_callable_alternatives_compare_shared_deep_environments_without_expansion() {
+    let fixture = fixture();
+    let program = &fixture.program;
+    let build = |callback| {
+        let mut witness = program.concrete_witness(callback).unwrap();
+        for _ in 0..64 {
+            witness = program
+                .bind_callable_environment(
+                    fixture.branching,
+                    fixture
+                        .inputs
+                        .into_iter()
+                        .map(|parameter| (parameter, witness.clone())),
+                )
+                .unwrap();
+        }
+        witness
+    };
+    let data = program.function_data(fixture.branching).unwrap();
+    let a = build(fixture.callbacks[0]);
+    let equal = build(fixture.callbacks[0]);
+    let b = build(fixture.callbacks[1]);
+    let first = program
+        .instantiate_function_alternatives(data, [a, b.clone()])
+        .unwrap();
+    let second = program
+        .instantiate_function_alternatives(data, [b, equal])
+        .unwrap();
+    assert_eq!(first, second);
+    assert_eq!(first.cmp(&second), std::cmp::Ordering::Equal);
+    assert_eq!(format!("{first:?}"), format!("{second:?}"));
+    assert!(format!("{first:?}").len() < 200_000);
+}

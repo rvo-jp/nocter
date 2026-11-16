@@ -226,6 +226,8 @@ impl<'a> Builder<'a> {
         let invalid = || Failure::InvalidPayload(key.data());
         Ok(match key.schema(self.program).map_err(|_| invalid())? {
             InstanceSchema::Uninhabited => RuntimeType::Uninhabited,
+            // Metadata alternatives grant no selector, ABI or active environment backing.
+            InstanceSchema::FunctionAlternatives(_) => return Err(invalid()),
             InstanceSchema::Array(array) if array.is_empty() => RuntimeType::EmptyArray {
                 // Metadata only: no element binding, payload or geometry is manufactured.
                 element: RuntimeDataId::Source(array.element()),

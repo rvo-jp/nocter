@@ -104,8 +104,16 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Qualify complete optional/fallible siblings whose active outcome remains runtime-selected
   during contextual relocation. Preserve original tags, captured payloads, absent/failed cases and
   actual owning-error cleanup without interpreting an inactive payload as initialized storage.
-- [ ] Extend relocation's initialized-subtree selection to unresolved represented alternatives,
-  preserving original saved coordinates without element expansion.
+- [x] Retain finite positive callable domains in the declaration-owned graph with complete
+  code/view/environment identities, canonical normalization, iterative comparison, source-contract
+  validation and explicit rejection by unqualified frame/storage consumers.
+- [ ] Close the [positive callable alternative obligations](design/compiler-realization.md#positive-callable-alternatives)
+  through the canonical data-instance graph, guarded source transport, evaluator/target plans,
+  native selection and cleanup before widening source admission. The value-context fixture
+  `contextual-joined-sibling-growth.nct` currently rejects at required callable-context selection;
+  its two positive branches create the same wrapper with distinct nested environments. Preserve
+  that rejection until the complete selected alternative can be realized, then qualify relocation
+  and forwarding without source annotations or element expansion.
 - [x] Qualify same-geometry contextual callable component replacement and restoration with a
   surviving disjoint sibling reference. Carry each partial receipt's original containing roots
   into MIR and physical geometry checks without fusing separate retirement/receipt operations.

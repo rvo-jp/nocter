@@ -452,6 +452,17 @@ Inhabited function leaves retain complete selected witnesses; carriers retain on
 so two fields of the identical source type can keep different captured substitutions. Context-free
 children are omitted canonically. Equality and ordering walk shared graphs iteratively rather than
 expanding repeated subtrees or array cardinality.
+`instantiate_function_alternatives` retains a finite positive function domain in that same graph.
+It validates every complete witness through ordinary function instantiation, sorts/deduplicates
+full code/view/environment identities, rejects empty input and normalizes a singleton to the
+existing single-witness key. `InstanceSchema::FunctionAlternatives` exposes the domain without
+selecting an active value. Comparison, ordering and debug output share the existing iterative
+context traversal. Single-function/environment selection and concrete frame binding reject a
+domain rather than choosing a representative. Exact domain comparison and same-descriptor
+metadata projection do not qualify positive injection, cross-descriptor reprojection, an executable
+selector, ABI or storage; target materialization remains closed. The
+[positive alternative contract](../../../design/compiler-realization.md#positive-callable-alternatives)
+owns those integrated obligations, including budgeted source discovery and healthy retry.
 `has_same_representation` and `permits_guarded_transport` share that structural comparison. The
 second relation is directed and permits only compatible excluded alternatives to widen; positive
 callable contexts and nominal identities remain exact, and an empty root has no transferable value.

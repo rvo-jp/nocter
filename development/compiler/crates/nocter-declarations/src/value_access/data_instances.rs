@@ -5,6 +5,7 @@ use super::{
 };
 use nocter_model::{BuiltinType, FieldPath, TypeId, ValueCode, ValueField};
 use std::{collections::BTreeMap, sync::Arc};
+mod alternatives;
 mod graph;
 mod representation;
 mod reprojection;
@@ -19,6 +20,7 @@ pub(super) enum Context {
     Closed,
     Uninhabited,
     Function(ConcreteWitness),
+    FunctionAlternatives(Arc<[ConcreteWitness]>),
     Components(BTreeMap<ValueField, DataInstanceKey>),
 }
 /// One canonical representation domain; inhabited callable leaves retain complete witnesses.
@@ -32,6 +34,8 @@ pub enum InstanceSchema<'a> {
     Optional(TypeId),
     Fallible(TypeId),
     Function(ConcreteWitness),
+    /// A finite positive domain; no active selector, invocation or storage is supplied.
+    FunctionAlternatives(Arc<[ConcreteWitness]>),
 }
 impl DataInstanceKey {
     #[must_use]
@@ -48,6 +52,16 @@ impl DataInstanceKey {
     pub fn is_uninhabited(&self) -> bool {
         matches!(&*self.context, Context::Uninhabited)
     }
+    fn selected_function(
+        &self,
+        program: &Program,
+    ) -> Result<Option<ConcreteWitness>, CodeBindingError> {
+        match self.schema(program)? {
+            InstanceSchema::Function(selected) => Ok(Some(selected)),
+            InstanceSchema::FunctionAlternatives(_) => Err(CodeBindingError::InvalidWitness),
+            _ => Ok(None),
+        }
+    }
     /// Select the actual function leaf's representation key without relabelling its carrier.
     /// The original instance retains its semantic identity; only the selected callable changes.
     /// # Errors
@@ -56,7 +70,7 @@ impl DataInstanceKey {
         &self,
         program: &Program,
     ) -> Result<Option<Self>, CodeBindingError> {
-        let InstanceSchema::Function(selected) = self.schema(program)? else {
+        let Some(selected) = self.selected_function(program)? else {
             return Ok(None);
         };
         let data = program
@@ -84,15 +98,16 @@ impl DataInstanceKey {
                 PayloadSchema::Array(data) => InstanceSchema::Array(data),
                 PayloadSchema::Optional(data) => InstanceSchema::Optional(data),
                 PayloadSchema::Fallible(data) => InstanceSchema::Fallible(data),
-                PayloadSchema::Function(witness) => {
-                    InstanceSchema::Function(match &*self.context {
-                        Context::Closed => program.concrete_witness(witness)?,
-                        Context::Function(selected) => selected.clone(),
-                        Context::Components(_) | Context::Uninhabited => {
-                            return Err(CodeBindingError::InvalidWitness);
-                        }
-                    })
-                }
+                PayloadSchema::Function(witness) => match &*self.context {
+                    Context::Closed => InstanceSchema::Function(program.concrete_witness(witness)?),
+                    Context::Function(selected) => InstanceSchema::Function(selected.clone()),
+                    Context::FunctionAlternatives(alternatives) => {
+                        InstanceSchema::FunctionAlternatives(alternatives.clone())
+                    }
+                    Context::Components(_) | Context::Uninhabited => {
+                        return Err(CodeBindingError::InvalidWitness);
+                    }
+                },
             },
         )
     }
@@ -143,7 +158,7 @@ impl DataInstanceKey {
     /// # Errors
     /// Rejects a missing schema, unresolved producer or incompatible captured dependency.
     pub fn environment(&self, program: &Program) -> Result<Option<Self>, CodeBindingError> {
-        let InstanceSchema::Function(selected) = self.schema(program)? else {
+        let Some(selected) = self.selected_function(program)? else {
             return Ok(None);
         };
         program.bound_environment(selected.code(), selected.environment())
