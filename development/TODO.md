@@ -194,7 +194,7 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Qualify original-source evaluator retained-read selection through complete stored-case/body
   correspondence, common closed result and explicit input channels. Preserve actual return receipts,
   original preparations and unencoded local/loop rejection; reconcile source tests and consumers.
-- [ ] Preserve the original failed operation and instance when lazy plan projection fails before
+- [x] Preserve the original failed operation and instance when lazy plan projection fails before
   entering the requested body. Keep source-context failures distinct from invalid plans and
   report the inner cause rather than only the caller's load site.
 - [ ] Close the [positive callable alternative obligations](design/compiler-realization.md#positive-callable-alternatives)

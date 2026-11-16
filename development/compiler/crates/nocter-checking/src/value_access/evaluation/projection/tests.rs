@@ -97,7 +97,10 @@ callback(35) }",
     program.extend(extension).unwrap();
     assert!(matches!(
         source.load(linked),
-        Err(plan::Rule::UnavailablePlan)
+        Err(plan::PlanFailure {
+            rule: plan::Rule::UnavailablePlan,
+            ..
+        })
     ));
 }
 
@@ -133,7 +136,10 @@ fn linking_a_scoped_out_captured_body_preserves_its_environment_without_an_execu
     program.extend(extension).unwrap();
     assert!(matches!(
         source.load(linked),
-        Err(plan::Rule::UnavailablePlan)
+        Err(plan::PlanFailure {
+            rule: plan::Rule::UnavailablePlan,
+            ..
+        })
     ));
 }
 
@@ -149,7 +155,7 @@ fn boundary_cache_rejects_partial_work_and_reuses_complete_metadata_without_work
     let mut limited = plan::WorkBudget::new(std::num::NonZeroU64::new(1).unwrap());
     assert!(matches!(
         instances.boundary(&checked, &frame, &mut limited),
-        Err(Failure::WorkLimit)
+        Err(Failure::WorkLimit(None))
     ));
     let expected = instances
         .boundary(

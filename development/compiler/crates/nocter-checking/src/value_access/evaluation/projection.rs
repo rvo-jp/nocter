@@ -26,8 +26,25 @@ use std::collections::BTreeMap;
 #[derive(Clone, Copy, Debug)]
 pub(super) enum Failure {
     Integrity,
-    WorkLimit,
-    UnresolvedContext,
+    WorkLimit(Option<plan::Site>),
+    UnresolvedContext(Option<plan::Site>),
+}
+impl Failure {
+    fn at(self, site: plan::Site) -> Self {
+        match self {
+            Self::Integrity => Self::Integrity,
+            Self::WorkLimit(cause) => Self::WorkLimit(cause.or(Some(site))),
+            Self::UnresolvedContext(cause) => Self::UnresolvedContext(cause.or(Some(site))),
+        }
+    }
+    pub(super) fn into_plan(self) -> plan::PlanFailure {
+        let (rule, site) = match self {
+            Self::Integrity => (plan::Rule::InvalidPlan, None),
+            Self::WorkLimit(site) => (plan::Rule::PlanWorkLimit, site),
+            Self::UnresolvedContext(site) => (plan::Rule::UnresolvedContext, site),
+        };
+        plan::PlanFailure { rule, site }
+    }
 }
 impl From<flow::IntegrityError> for Failure {
     fn from(_: flow::IntegrityError) -> Self {
@@ -37,8 +54,8 @@ impl From<flow::IntegrityError> for Failure {
 impl From<crate::value_access::InstantiationFailure> for Failure {
     fn from(failure: crate::value_access::InstantiationFailure) -> Self {
         match failure {
-            crate::value_access::InstantiationFailure::WorkLimit => Self::WorkLimit,
-            crate::value_access::InstantiationFailure::Unresolved => Self::UnresolvedContext,
+            crate::value_access::InstantiationFailure::WorkLimit => Self::WorkLimit(None),
+            crate::value_access::InstantiationFailure::Unresolved => Self::UnresolvedContext(None),
             _ => Self::Integrity,
         }
     }
@@ -970,6 +987,53 @@ impl Builder<'_, '_> {
             })
             .transpose()
     }
+    fn site(&self, location: flow::Location) -> plan::Site {
+        plan::Site {
+            code: self.instance.code(),
+            point: location.point,
+            action: location.action,
+        }
+    }
+    fn action(&mut self, location: flow::Location, action: &flow::Action) -> Result<plan::Action> {
+        let mut alternatives = Vec::new();
+        let projected = self.resources.remove(&location).ok_or(INVALID)?;
+        if projected.len() != self.query.access().resources().at(location).count() {
+            return Err(INVALID);
+        }
+        for (transition, projected) in self.query.access().resources().at(location).zip(projected) {
+            let owned = transition
+                .condition()
+                .owned()
+                .map(|(holder, holes)| {
+                    Ok((
+                        self.holder(holder)?,
+                        holes
+                            .iter()
+                            .map(|path| self.missing(path))
+                            .collect::<Result<_>>()?,
+                    ))
+                })
+                .collect::<Result<_>>()?;
+            let (mut before, mut completion) = self.source_contexts(&projected)?;
+            before.extend(self.effects(
+                transition.before_steps(),
+                &projected.before,
+                &projected.roots,
+            )?);
+            let mut after =
+                self.effects(transition.after_steps(), &projected.after, &projected.roots)?;
+            after.append(&mut completion);
+            alternatives.push(plan::Alternative {
+                owned,
+                before: before.into(),
+                after: after.into(),
+            });
+        }
+        Ok(plan::Action {
+            operation: self.computation(&action.operation)?,
+            alternatives: alternatives.into(),
+        })
+    }
     fn point(&mut self, id: AccessFlowPointId, point: &flow::Point) -> Result<plan::Point> {
         let reachable = self.control.reachable(id);
         let mut actions = Vec::new();
@@ -979,46 +1043,11 @@ impl Builder<'_, '_> {
                     point: id,
                     action: index,
                 };
-                let mut alternatives = Vec::new();
-                let projected = self.resources.remove(&location).ok_or(INVALID)?;
-                if projected.len() != self.query.access().resources().at(location).count() {
-                    return Err(INVALID);
-                }
-                for (transition, projected) in
-                    self.query.access().resources().at(location).zip(projected)
-                {
-                    let owned = transition
-                        .condition()
-                        .owned()
-                        .map(|(holder, holes)| {
-                            Ok((
-                                self.holder(holder)?,
-                                holes
-                                    .iter()
-                                    .map(|path| self.missing(path))
-                                    .collect::<Result<_>>()?,
-                            ))
-                        })
-                        .collect::<Result<_>>()?;
-                    let (mut before, mut completion) = self.source_contexts(&projected)?;
-                    before.extend(self.effects(
-                        transition.before_steps(),
-                        &projected.before,
-                        &projected.roots,
-                    )?);
-                    let mut after =
-                        self.effects(transition.after_steps(), &projected.after, &projected.roots)?;
-                    after.append(&mut completion);
-                    alternatives.push(plan::Alternative {
-                        owned,
-                        before: before.into(),
-                        after: after.into(),
-                    });
-                }
-                actions.push(plan::Action {
-                    operation: self.computation(&action.operation)?,
-                    alternatives: alternatives.into(),
-                });
+                let site = self.site(location);
+                actions.push(
+                    self.action(location, action)
+                        .map_err(|failure| failure.at(site))?,
+                );
             }
         }
         let terminator = if reachable {

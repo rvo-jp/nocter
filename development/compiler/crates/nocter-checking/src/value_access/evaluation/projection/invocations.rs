@@ -53,13 +53,13 @@ impl Builder<'_, '_> {
             .ok_or(INVALID)?
             .kind
         else {
-            return Err(Failure::UnresolvedContext);
+            return Err(Failure::UnresolvedContext(None));
         };
         if arguments
             .first()
             .is_none_or(|argument| argument.operation != ValueInputOperation::Read)
         {
-            return Err(Failure::UnresolvedContext);
+            return Err(Failure::UnresolvedContext(None));
         }
         let domain = self.checked.instantiate_invocation_domain(
             self.instance,
@@ -76,7 +76,7 @@ impl Builder<'_, '_> {
             .map_err(|_| INVALID)?
             .ok_or(INVALID)?;
         if expected.len() < 2 {
-            return Err(Failure::UnresolvedContext);
+            return Err(Failure::UnresolvedContext(None));
         }
         let by_witness = expected
             .iter()
@@ -92,10 +92,10 @@ impl Builder<'_, '_> {
         let result = self
             .program
             .instantiate_closed_data(self.data(id)?)
-            .map_err(|_| Failure::UnresolvedContext)?;
+            .map_err(|_| Failure::UnresolvedContext(None))?;
         let mut frames = BTreeMap::new();
         for case in domain.cases() {
-            self.work.step().map_err(|_| Failure::WorkLimit)?;
+            self.work.step().map_err(|_| Failure::WorkLimit(None))?;
             if case.source().kind != CallKind::Value
                 || case.source().arguments.len() != arguments.len()
             {
@@ -104,12 +104,12 @@ impl Builder<'_, '_> {
             let key = by_witness.get(case.callee()).ok_or(INVALID)?;
             self.check_choice_frame(id, arguments, key, case.frame(), &result)?;
             if frames.get(key).is_some_and(|frame| frame != case.frame()) {
-                return Err(Failure::UnresolvedContext);
+                return Err(Failure::UnresolvedContext(None));
             }
             frames.insert(key.clone(), case.frame().clone());
         }
         if frames.len() != expected.len() {
-            return Err(Failure::UnresolvedContext);
+            return Err(Failure::UnresolvedContext(None));
         }
         let cases = expected
             .iter()
@@ -144,7 +144,7 @@ impl Builder<'_, '_> {
                         .data
                         .has_same_representation(self.program, &environment)
                 {
-                    return Err(Failure::UnresolvedContext);
+                    return Err(Failure::UnresolvedContext(None));
                 }
                 1
             }
@@ -157,14 +157,14 @@ impl Builder<'_, '_> {
             .has_same_representation(self.program, result)
             || explicit.len() + 1 != arguments.len()
         {
-            return Err(Failure::UnresolvedContext);
+            return Err(Failure::UnresolvedContext(None));
         }
         for (index, input) in explicit.iter().enumerate() {
             let supplied = self.prepared.get(id, index + 1).ok_or(INVALID)?;
             if input.operation != arguments[index + 1].operation
                 || !input.data.has_same_representation(self.program, supplied)
             {
-                return Err(Failure::UnresolvedContext);
+                return Err(Failure::UnresolvedContext(None));
             }
         }
         Ok(())
@@ -203,7 +203,7 @@ impl Builder<'_, '_> {
         // Until incoming local/loop edges are normalized, retain the unqualified boundary.
         let represented = self.types.get_instance(self.program, data)?;
         if self.place_data(&callee)? != represented {
-            return Err(Failure::UnresolvedContext);
+            return Err(Failure::UnresolvedContext(None));
         }
         let cases = cases
             .iter()

@@ -137,10 +137,22 @@ impl Program {
     }
 }
 
+/// A deferred plan failure with an optional original operation in the requested body.
+/// The request itself retains the complete code specialization; no plan need exist yet.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PlanFailure {
+    pub rule: Rule,
+    pub site: Option<super::Site>,
+}
+impl From<Rule> for PlanFailure {
+    fn from(rule: Rule) -> Self {
+        Self { rule, site: None }
+    }
+}
 /// Supply only already selected immutable code/metadata, never semantic lookup or body checking.
 /// The executor validates and atomically installs every batch before entering its requested body.
 pub trait PlanSource {
     /// # Errors
     /// Reports preparation limits or invalid/unavailable matched code.
-    fn load(&mut self, code: CodeInstance) -> Result<ProgramExtension, Rule>;
+    fn load(&mut self, code: CodeInstance) -> Result<ProgramExtension, PlanFailure>;
 }

@@ -100,16 +100,44 @@ fn inhabited_received_domains_keep_conflicting_loop_exits_unresolved() {
         env!("CARGO_MANIFEST_DIR"),
         "/../../tests/fixtures/native/value-access/received-loop-exit-contexts.nct"
     ));
-    let source = source.replace("{ none }", "{ identity }");
-    let fixture = nocter_test_support::ValueSourceFixture::new(&source);
-    let Err(failure) = SourceUnit::prepare(fixture.syntax()) else {
-        panic!("source case remains unqualified");
-    };
-    assert!(
-        matches!(&failure, SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })
-        if diagnostic.rule() == crate::value_access::evaluation::Rule::UnresolvedContext),
-        "{failure:?}"
-    );
+    for relay in [false, true] {
+        let mut source = source.replace("{ none }", "{ identity }");
+        if relay {
+            source = source.replace(
+                "const ANSWER: i32 = choose(absent())",
+                "const func relay(): i32 { choose(absent()) }\nconst ANSWER: i32 = relay()",
+            );
+        }
+        let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+        let Err(SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })) =
+            SourceUnit::prepare(fixture.syntax())
+        else {
+            panic!("source case remains unqualified");
+        };
+        assert_eq!(
+            diagnostic.rule(),
+            crate::value_access::evaluation::Rule::UnresolvedContext
+        );
+        assert_eq!(
+            fixture
+                .syntax()
+                .text_at(diagnostic.source().primary().span().range()),
+            Some("action(2)")
+        );
+        for caller in if relay {
+            &["choose(absent())", "relay()"] as &[_]
+        } else {
+            &["choose(absent())"]
+        } {
+            assert!(
+                diagnostic.source().notes().iter().any(|note| fixture
+                    .syntax()
+                    .text_at(note.origin().span().range())
+                    == Some(*caller)),
+                "missing caller: {caller}"
+            );
+        }
+    }
 }
 
 #[test]

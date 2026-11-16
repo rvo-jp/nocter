@@ -811,8 +811,13 @@ inputs; received compound ordinals still exclude that prefix. Missing environmen
 body-dependent result families remain unresolved. Linking that boundary grants no const capability
 or executable implementation; loading a missing body reports `UnavailablePlan`.
 An unresolved value context discovered during initial or lazy plan projection retains
-`UnresolvedContext` through the evaluator boundary and its E0323 diagnostic. It is not converted
-into an invalid-plan/integrity error merely because capability discovery advanced farther.
+`UnresolvedContext` through the evaluator boundary and its E0323 diagnostic. Original argument
+preparation, source-value, resource and action failures retain their matched operation when it is
+available. A lazy failure passes that location in `state::PlanFailure`; the executor retains the
+requested complete code instance and ordinary caller chain even though it never entered the body.
+The diagnostic points to the inner cause rather than its caller's load operation. Missing original
+locations retain the normal calling-site fallback. No partial plan, source capability or additional
+instance registry is created, and unresolved context is not converted into an integrity error.
 
 
 One evaluator request caches only complete boundaries by canonical code frame, sharing them

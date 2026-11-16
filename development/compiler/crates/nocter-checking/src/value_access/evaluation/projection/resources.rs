@@ -51,73 +51,76 @@ impl Builder<'_, '_> {
             }
             for action in 0..block.actions.len() {
                 let at = flow::Location { point, action };
-                let mut alternatives = Vec::new();
-                for transition in query.access().resources().at(at) {
-                    let mut projection = self.checked.project_resource_data(
-                        self.instance,
-                        at,
-                        &self.control,
-                        self.work,
-                    )?;
-                    let roots = transition
-                        .before_steps()
-                        .iter()
-                        .chain(transition.after_steps())
-                        .filter_map(|step| match step {
-                            Step::ReplaceReferent { destination, .. } => Some(destination),
-                            _ => None,
-                        })
-                        .map(|destination| {
-                            let (target, carriers) =
-                                projection.replacement_carriers(destination)?;
-                            Ok(Roots {
-                                destination: destination.clone(),
-                                before: self.values.root(at, target).ok_or(INVALID)?.clone(),
-                                after: self.values.root_after(at, target).ok_or(INVALID)?.clone(),
-                                carriers,
-                            })
-                        })
-                        .collect::<Result<Vec<_>>>()?;
-                    let before = projection.steps_with_roots(transition.before_steps())?;
-                    let after = projection.after_steps_with_roots(transition.after_steps())?;
-                    drop(projection);
-                    // Locals may observe multiple referent contexts, but source-boundary
-                    // constraints and actual receipts must still match the plan's exact phases.
-                    // Registration supplies no initialized value or enclosing-allocation geometry.
-                    for root in &roots {
-                        self.register_holder(root.destination.holder(), &root.before)?;
-                        self.register_holder(root.destination.holder(), &root.after)?;
-                        for carrier in root
-                            .carriers
-                            .before()
-                            .iter()
-                            .chain(root.carriers.after().into_iter().flatten())
-                        {
-                            self.register_holder(
-                                source_holder(carrier.selection().slot)?,
-                                carrier.instance(),
-                            )?;
-                        }
-                    }
-                    for step in before.iter().chain(&after) {
-                        self.resource_data(step.operation())?;
-                        if let Some(roots) = step.destination_roots() {
-                            self.register_holder(roots.destination().holder(), roots.before())?;
-                            self.register_holder(roots.destination().holder(), roots.after())?;
-                        }
-                    }
-                    alternatives.push(Projected {
-                        before,
-                        after,
-                        roots,
-                    });
-                }
+                let site = self.site(at);
+                let alternatives = self
+                    .resource_action(at)
+                    .map_err(|failure| failure.at(site))?;
                 if self.resources.insert(at, alternatives).is_some() {
                     return Err(INVALID);
                 }
             }
         }
         Ok(())
+    }
+    fn resource_action(&mut self, at: flow::Location) -> Result<Vec<Projected>> {
+        let mut alternatives = Vec::new();
+        for transition in self.query.access().resources().at(at) {
+            let mut projection =
+                self.checked
+                    .project_resource_data(self.instance, at, &self.control, self.work)?;
+            let roots = transition
+                .before_steps()
+                .iter()
+                .chain(transition.after_steps())
+                .filter_map(|step| match step {
+                    Step::ReplaceReferent { destination, .. } => Some(destination),
+                    _ => None,
+                })
+                .map(|destination| {
+                    let (target, carriers) = projection.replacement_carriers(destination)?;
+                    Ok(Roots {
+                        destination: destination.clone(),
+                        before: self.values.root(at, target).ok_or(INVALID)?.clone(),
+                        after: self.values.root_after(at, target).ok_or(INVALID)?.clone(),
+                        carriers,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
+            let before = projection.steps_with_roots(transition.before_steps())?;
+            let after = projection.after_steps_with_roots(transition.after_steps())?;
+            drop(projection);
+            // Locals may observe multiple referent contexts, but source-boundary
+            // constraints and actual receipts must still match the plan's exact phases.
+            // Registration supplies no initialized value or enclosing-allocation geometry.
+            for root in &roots {
+                self.register_holder(root.destination.holder(), &root.before)?;
+                self.register_holder(root.destination.holder(), &root.after)?;
+                for carrier in root
+                    .carriers
+                    .before()
+                    .iter()
+                    .chain(root.carriers.after().into_iter().flatten())
+                {
+                    self.register_holder(
+                        source_holder(carrier.selection().slot)?,
+                        carrier.instance(),
+                    )?;
+                }
+            }
+            for step in before.iter().chain(&after) {
+                self.resource_data(step.operation())?;
+                if let Some(roots) = step.destination_roots() {
+                    self.register_holder(roots.destination().holder(), roots.before())?;
+                    self.register_holder(roots.destination().holder(), roots.after())?;
+                }
+            }
+            alternatives.push(Projected {
+                before,
+                after,
+                roots,
+            });
+        }
+        Ok(alternatives)
     }
     fn receiving_key(&self, holder: Holder) -> Result<Option<&DataInstanceKey>> {
         if holder == Holder::Return {

@@ -149,8 +149,36 @@ impl<'a, 'work, F: Fn(AccessCodeId) -> Option<plan::Value>> Source<'a, 'work, F>
         let key = self.instances.keys.get(&id).ok_or(INVALID)?.clone();
         let query = self.checked.code(key.code()).ok_or(INVALID)?;
         let program = &self.checked.program;
-        let prepared = self.checked.instantiate_prepared_data(&key, self.work)?;
-        let values = self.checked.instantiate_value_data_map(&key, self.work)?;
+        let prepared = self.checked.instantiate_prepared_data(&key, self.work).map_err(|failure| {
+            let cause = match failure {
+                crate::value_access::PreparedDataFailure::Argument { site, index, .. } => {
+                    query.graph().points().iter().find_map(|(point, block)| {
+                        block.actions.iter().enumerate().find_map(|(action, operation)| {
+                            matches!(operation.operation, flow::Operation::PrepareArgument { call, argument }
+                                if call == site.call && argument == index).then_some(plan::Site { code: key.code(), point, action })
+                        })
+                    })
+                }
+                _ => None,
+            };
+            let failure = super::Failure::from(failure);
+            cause.map_or(failure, |site| failure.at(site))
+        })?;
+        let values = self
+            .checked
+            .instantiate_value_data_map(&key, self.work)
+            .map_err(|failure| {
+                let cause = match failure {
+                    crate::value_access::ValueDataFailure::Value { at, .. } => Some(plan::Site {
+                        code: key.code(),
+                        point: at.point,
+                        action: at.action,
+                    }),
+                    _ => None,
+                };
+                let failure = super::Failure::from(failure);
+                cause.map_or(failure, |site| failure.at(site))
+            })?;
         let control = self.checked.instantiate_control(&key, self.work)?;
         let conditions = self.conditions.get(&key).into_iter().flatten().map(|condition| {
             let action = query.graph().points().get(condition.cause.point)
@@ -213,7 +241,7 @@ impl<F: Fn(AccessCodeId) -> Option<plan::Value>> plan::PlanSource for Source<'_,
     fn load(
         &mut self,
         code: plan::CodeInstance,
-    ) -> std::result::Result<plan::ProgramExtension, plan::Rule> {
+    ) -> std::result::Result<plan::ProgramExtension, plan::PlanFailure> {
         self.work.step().map_err(|_| plan::Rule::PlanWorkLimit)?;
         let key = self
             .instances
@@ -221,13 +249,9 @@ impl<F: Fn(AccessCodeId) -> Option<plan::Value>> plan::PlanSource for Source<'_,
             .get(&code)
             .ok_or(plan::Rule::InvalidPlan)?;
         if self.checked.code(key.code()).is_none() {
-            return Err(plan::Rule::UnavailablePlan);
+            return Err(plan::Rule::UnavailablePlan.into());
         }
-        self.realize(code).map_err(|failure| match failure {
-            super::Failure::WorkLimit => plan::Rule::PlanWorkLimit,
-            super::Failure::Integrity => plan::Rule::InvalidPlan,
-            super::Failure::UnresolvedContext => plan::Rule::UnresolvedContext,
-        })
+        self.realize(code).map_err(super::Failure::into_plan)
     }
 }
 
@@ -262,7 +286,10 @@ mod tests {
         .unwrap();
         assert!(matches!(
             source.load(root.into()),
-            Err(plan::Rule::InvalidPlan)
+            Err(plan::PlanFailure {
+                rule: plan::Rule::InvalidPlan,
+                ..
+            })
         ));
         assert!(source.statics.is_empty());
         ready.set(true);
@@ -309,7 +336,7 @@ const func second(value: i32): i32 { value }",
         let mut failed = plan::ProgramExtension::default();
         assert!(matches!(
             source.contracts(&mut failed),
-            Err(super::super::Failure::WorkLimit)
+            Err(super::super::Failure::WorkLimit(None))
         ));
         assert!(failed.contracts.is_empty());
         assert_eq!(source.instances.pending, pending);

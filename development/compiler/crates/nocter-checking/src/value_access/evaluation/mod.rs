@@ -203,17 +203,14 @@ fn plan_failure(
     code: nocter_model::ValueCodeRoot,
     failure: projection::Failure,
 ) -> Failure {
-    let rule = match failure {
-        projection::Failure::Integrity => {
-            return Failure::Integrity(flow::IntegrityError::InconsistentTypedBody);
-        }
-        projection::Failure::WorkLimit => state::Rule::PlanWorkLimit,
-        projection::Failure::UnresolvedContext => state::Rule::UnresolvedContext,
-    };
+    if matches!(failure, projection::Failure::Integrity) {
+        return Failure::Integrity(flow::IntegrityError::InconsistentTypedBody);
+    }
+    let failure = failure.into_plan();
     let error = state::Error {
         instance: None,
-        rule,
-        site: None,
+        rule: failure.rule,
+        site: failure.site,
         code,
         trace: Box::new([]),
     };

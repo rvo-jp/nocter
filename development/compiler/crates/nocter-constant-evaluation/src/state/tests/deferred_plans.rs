@@ -86,10 +86,10 @@ fn deferred_loading_preserves_exact_keys_caches_bodies_and_recovers_after_prepar
         omit: bool,
     }
     impl PlanSource for Bodies {
-        fn load(&mut self, code: CodeInstance) -> Result<ProgramExtension, Rule> {
+        fn load(&mut self, code: CodeInstance) -> Result<ProgramExtension, PlanFailure> {
             self.calls.push(code);
             if std::mem::take(&mut self.fail) {
-                return Err(Rule::PlanWorkLimit);
+                return Err(Rule::PlanWorkLimit.into());
             }
             if std::mem::take(&mut self.omit) {
                 return Ok(ProgramExtension {
@@ -239,4 +239,80 @@ fn every_failed_append_phase_rolls_back_types_contracts_bodies_and_statics_befor
     );
     assert_eq!(program.statics[&static_id].value, Value::integer(42));
     assert_eq!(budget.storage_used(), 0);
+}
+
+#[test]
+fn deferred_failure_preserves_inner_operation_specialization_and_call_path() {
+    struct FailedBody {
+        failure: PlanFailure,
+        expected: CodeInstance,
+    }
+    impl PlanSource for FailedBody {
+        fn load(&mut self, code: CodeInstance) -> Result<ProgramExtension, PlanFailure> {
+            assert_eq!(code, self.expected);
+            Err(self.failure)
+        }
+    }
+    let (root, target) = code_ids();
+    let target = CodeInstance {
+        source: target.into(),
+        instance: 37,
+    };
+    let mut root_plan = literal();
+    root_plan.points = root_plan.points.map(|_, point| {
+        let mut point = point.clone();
+        point.actions[0].operation = Operation::Call {
+            destination: 0,
+            target,
+            inputs: Box::new([]),
+        };
+        point
+    });
+    let caller = Site {
+        code: root.into(),
+        point: root_plan.entry,
+        action: 0,
+    };
+    let mut target_plan = literal();
+    target_plan.initializer = false;
+    let inner = Site {
+        code: target.source,
+        point: target_plan.entry,
+        action: 0,
+    };
+    let program = Program::linked(
+        [Type::Integer(nocter_model::BuiltinType::I32)],
+        BTreeMap::from([
+            (root.into(), CallContract::from_plan(&root_plan).unwrap()),
+            (target, CallContract::from_plan(&target_plan).unwrap()),
+        ]),
+        BTreeMap::from([(root.into(), root_plan)]),
+        BTreeMap::new(),
+    )
+    .unwrap();
+    for rule in [Rule::UnresolvedContext, Rule::PlanWorkLimit] {
+        for foreign in [false, true] {
+            let mut source = FailedBody {
+                failure: PlanFailure {
+                    rule,
+                    site: Some(if foreign { caller } else { inner }),
+                },
+                expected: target,
+            };
+            let mut budget = Budget::new(Limits::default());
+            let error = Executor::with_source(program.clone(), &mut source, &mut budget, 0)
+                .evaluate_initializer(root)
+                .unwrap_err();
+            if foreign {
+                assert_eq!(error.rule, Rule::InvalidPlan);
+                assert_eq!(error.site, Some(caller));
+            } else {
+                assert_eq!(error.rule, rule);
+                assert_eq!(error.site, Some(inner));
+                assert_eq!(error.instance.as_deref(), Some(&target));
+                assert_eq!(&*error.trace, &[caller]);
+            }
+            assert_eq!(budget.storage_used(), 0);
+        }
+    }
 }

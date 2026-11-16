@@ -420,7 +420,9 @@ pub struct Static {
     pub value: Value,
 }
 mod program;
-pub use program::{CallContract, InputContract, PlanSource, Program, ProgramExtension};
+pub use program::{
+    CallContract, InputContract, PlanFailure, PlanSource, Program, ProgramExtension,
+};
 
 #[cfg(test)]
 mod tests;

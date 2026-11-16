@@ -139,11 +139,27 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             return Err(Rule::InvalidPlan);
         }
         if !self.program.plans.contains_key(&code) {
-            let extension = self
+            let loaded = self
                 .source
                 .as_mut()
                 .ok_or(Rule::UnavailablePlan)?
-                .load(code)?;
+                .load(code);
+            let extension = match loaded {
+                Ok(extension) => extension,
+                Err(failure) => {
+                    if let Some(site) = failure.site {
+                        if site.code != code.source {
+                            return Err(Rule::InvalidPlan);
+                        }
+                        self.failed_site = Some(site);
+                        self.failed_instance = Some(code);
+                        if let Some(caller) = self.site {
+                            self.trace.push(caller);
+                        }
+                    }
+                    return Err(failure.rule);
+                }
+            };
             if !extension.plans.contains_key(&code) {
                 return Err(Rule::InvalidPlan);
             }
