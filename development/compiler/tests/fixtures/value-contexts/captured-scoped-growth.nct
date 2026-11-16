@@ -1,0 +1,18 @@
+const func identity(value: i32): i32 { value }
+const func addition(value: i32): func(i32): i32 {
+    (value; amount: i32): i32 { value + amount }
+}
+const func wrap(take callback: func(i32): i32): func(i32): i32 {
+    (callback^; amount: i32): i32 { callback(amount) }
+}
+const func calculate(): i32 {
+    let pair = (wrap(identity), 42)
+    var consume = (pair^;): i32 {
+        edit selected = pair.0
+        selected = wrap(addition(1))
+        if selected(41) == 42 && pair.1 == 42 { 42 } else { 0 }
+    }
+    consume()
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { calculate() }

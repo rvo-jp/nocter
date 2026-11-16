@@ -19,6 +19,53 @@ pub(super) enum Selection {
     },
 }
 impl Builder<'_, '_> {
+    /// A mutable captured body cannot change the caller's environment representation until
+    /// the original post-call carrier transport is qualified. Metadata is not a receipt.
+    pub(super) fn check_captured_completion(
+        &mut self,
+        at: crate::value_access::flow::Location,
+        call: AccessExpressionId,
+    ) -> Result<()> {
+        let Selection::One(frame) = self.invocation(call)? else {
+            return Ok(());
+        };
+        if !matches!(frame.code(), ValueCode::Closure(_)) {
+            return Ok(());
+        }
+        let Some(query) = self.checked.code(frame.code()) else {
+            // Body availability belongs to the existing lazy loader, not this context guard.
+            return Ok(());
+        };
+        let environment = query.typed().body().inputs().environment().ok_or(INVALID)?;
+        if environment.operation != ValueInputOperation::Edit {
+            return Ok(());
+        }
+        let control = self.checked.instantiate_control(&frame, self.work)?;
+        if !query.graph().points().iter().any(|(point, block)| {
+            control.reachable(point)
+                && matches!(
+                    block.terminator,
+                    crate::value_access::flow::Terminator::Return
+                )
+        }) {
+            return Ok(());
+        }
+        let before = self
+            .instances
+            .boundary(self.checked, &frame, self.work)?
+            .inputs
+            .first()
+            .ok_or(INVALID)?
+            .data
+            .clone();
+        let after =
+            self.checked
+                .instantiate_completed_input_data(&frame, environment.local, self.work)?;
+        if !before.has_same_representation(self.program, &after) {
+            return Err(Failure::UnresolvedContext(Some(self.site(at))));
+        }
+        Ok(())
+    }
     pub(super) fn invocation(&mut self, id: AccessExpressionId) -> Result<Selection> {
         if let Some(selected) = self.invocations.get(&id) {
             return Ok(selected.clone());

@@ -668,6 +668,23 @@ impl Checked {
             work,
         )
     }
+    pub(super) fn instantiate_completed_input_data(
+        &self,
+        frame: &nocter_declarations::value_access::CodeInstanceKey,
+        local: nocter_model::AccessLocalId,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<nocter_declarations::value_access::DataInstanceKey, super::InstantiationFailure>
+    {
+        super::results::instantiate_completed_input_data(
+            &self.program,
+            &self.result_evidence,
+            self.code(frame.code())
+                .ok_or(super::InstantiationFailure::Unresolved)?,
+            frame,
+            local,
+            work,
+        )
+    }
     pub(super) fn instantiate_control(
         &self,
         frame: &nocter_declarations::value_access::CodeInstanceKey,

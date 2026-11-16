@@ -1710,3 +1710,61 @@ fn nested_header_contracts_preserve_source_mismatch_paths_and_actual_const_failu
         &runtime[range.start().get() as usize..range.end().get() as usize] == "identity"
     }));
 }
+
+#[test]
+fn captured_scoped_growth_rejects_at_its_call_without_an_internal_error() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/value-contexts/captured-scoped-growth.nct"
+    ));
+    let (definitions, _) = source.split_once("\nconst ANSWER:").unwrap();
+    accepted(definitions);
+    for (source, cause) in [
+        (source.to_owned(), "consume()"),
+        (source.replace("consume()", "consume^()"), "consume^()"),
+    ] {
+        let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+        let diagnostic = match SourceUnit::prepare(fixture.syntax()) {
+            Err(SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })) => diagnostic,
+            Err(failure) => {
+                panic!("an original-source evaluation diagnostic for {cause}: {failure:?}")
+            }
+            Ok(_) => panic!("a changing captured carrier is not qualified"),
+        };
+        assert_eq!(
+            diagnostic.rule(),
+            crate::value_access::evaluation::Rule::UnresolvedContext
+        );
+        assert_eq!(diagnostic.source().code(), "E0323");
+        assert_eq!(
+            fixture
+                .syntax()
+                .text_at(diagnostic.source().primary().span().range()),
+            Some(cause)
+        );
+        let stable = source.replace("wrap(identity), 42", "wrap(addition(20)), 42");
+        assert_eq!(answer(&stable, "ANSWER"), Value::integer(42));
+    }
+}
+
+#[test]
+fn nonreturning_mutable_captures_keep_execution_limits_without_a_completion_contract() {
+    let fixture = nocter_test_support::ValueSourceFixture::new(
+        "const func forever(): i32 { let value = 0\nvar action = (value;): i32 { value += 1\nloop {} }\naction() }\nconst BAD: i32 = forever()",
+    );
+    let limits = nocter_constant_evaluation::CompileTimeEvaluationLimits::new(
+        std::num::NonZeroU64::new(10_000).unwrap(),
+        std::num::NonZeroU32::new(8).unwrap(),
+    );
+    let Err(SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })) =
+        SourceUnit::prepare_with_limits(fixture.syntax(), limits)
+    else {
+        panic!("a nonreturning captured body must reach its execution limit");
+    };
+    assert_eq!(
+        diagnostic.rule(),
+        crate::value_access::evaluation::Rule::Execution(
+            nocter_constant_evaluation::state::Rule::StepLimit
+        )
+    );
+}

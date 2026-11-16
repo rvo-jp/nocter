@@ -106,11 +106,11 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Fix ARM64 incoming payload sizing: use original ABI data size (pointer size for read/edit),
   independently of the receiving slot's capacity for later representations. Qualify register,
   stack and indirect paths, enlarged capacity and undersized-storage rejection.
-- [ ] Resolve a source integrity failure when a mutable closure updates a captured owning tuple's
-  callable component through an edit alias during required evaluation. The source is accepted
-  without the required initializer, while native layout qualification rejects changing captured
-  storage. Required evaluation reports `Checking(Integrity(InconsistentTypedBody))`; preserve a
-  local diagnostic until captured-carrier and native geometry contracts are qualified.
+- [x] Diagnose unqualified mutable captured-environment representation changes at the original
+  call before evaluator slot registration. Use shared body entry/completion queries and metadata
+  budgets; qualify ordinary and taking invocation views, same-context updates and nonreturning
+  execution limits without confusing absent bodies or normal completion with execution permission.
+  Context-changing post-call environment transport and native geometry remain separate work.
 - [ ] Close carrier representation coherence under the
   [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances)
   before admitting context-changing writes and retained sibling references.

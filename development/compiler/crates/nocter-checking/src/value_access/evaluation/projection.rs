@@ -1080,6 +1080,21 @@ impl Builder<'_, '_> {
             .ordered()
             .map(|i| Ok((self.holder(Holder::Local(i.local))?, i.operation)))
             .collect::<Result<_>>()?;
+        // Qualify post-call environments before slot registration observes future cleanup
+        // contracts. A changed materialized receiver must produce a source diagnostic, not
+        // an inconsistent pair of immutable temporary-slot types.
+        for (point, block) in self.query.graph().points().iter() {
+            if self.control.reachable(point) {
+                for (action, operation) in block.actions.iter().enumerate() {
+                    if let flow::Operation::CommitCall(call) = operation.operation {
+                        let at = flow::Location { point, action };
+                        let site = self.site(at);
+                        self.check_captured_completion(at, call)
+                            .map_err(|failure| failure.at(site))?;
+                    }
+                }
+            }
+        }
         self.prepare_value_data()?;
         self.prepare_resource_data()?;
         let mut points = nocter_model::ArenaBuilder::new();

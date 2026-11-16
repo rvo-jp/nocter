@@ -762,7 +762,14 @@ the matched pair for virtual-root selection. Evaluator planning retains both vir
 their enclosing carrier contracts as constraints at the original source entry and completion
 boundaries. Reference-view registration remains strict; a binding-time snapshot cannot authorize
 a changed referent. These constraints allocate metadata only, not initialized storage or stable
-enclosing allocation geometry.
+enclosing allocation geometry. A mutable captured call whose original environment input changes
+representation has no qualified post-call environment transport in the evaluator. Required
+evaluation rejects that call with `E0323` at its original action, before producing an invalid
+cleanup plan, including an owning invocation view that lends its temporary environment to a
+mutable body. Entry/completion data comes from the shared body-channel queries, with the same
+metadata budget. Calls with no reachable return do not acquire a fictional completion. Ordinary
+same-context captured updates and consuming captured bodies remain supported. This boundary
+supplies no native relocation permission.
 Guarded carrier views likewise retain their actual referent source before payload selection. A tag
 assertion does not replace the carrier with its payload, choose an alternative or prove availability.
 
