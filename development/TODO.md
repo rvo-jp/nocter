@@ -18,12 +18,13 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify remaining owning record-input paths for scoped representation changes. Separate native
-carrier transport from conditional const admission: a source probe reaches `ValueInvocation`
-for an edit alias of a received callable field after a known assignment. Reuse original stored
-sources and definition/instance contracts rather than equating a formal witness with a concrete
-callee. Record destinations, stable sparse exclusions and consumed closure input capacity are
-qualified; external reference transport remains separate.
+Qualify conditional const admission for callable fields in received record/compound inputs.
+Ordinary native owning record, tuple and singleton input transport is qualified. A const version
+of the owning-record fixture still reaches the conservative `ValueInvocation` definition filter
+at an edit-alias invocation after a known assignment. Reuse original committed receiver sources,
+keep definition-only capability queries separate from actual frame/data receipts, and preserve
+fixed runtime-call rejection, source-local causes and configured work limits. External reference
+transport and changing mutable captured environments remain separate qualifications.
 
 Complete occurrence-sensitive value/capture transport under the
 [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances).
@@ -108,8 +109,10 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   field identities. Qualify direct/scoped growth, nested records, missing siblings and actual
   owning errors; reject tuple-position substitution and shifted live record siblings. Preserve
   existing tuple/singleton rules and one sibling-preservation authority.
-- [ ] Qualify remaining named/formal owning inputs across context-changing scoped replacement;
-  preserve canonical received contracts, original ABI transport and caller storage isolation.
+- [x] Qualify ordinary native owning record inputs across scoped replacement, including nominal
+  fields inside tuple/singleton inputs, three distinct received callable contexts, original input
+  keys/ABI, preserved siblings and actual old/new error cleanup. Statically witnessed parameters
+  retain their code-identity constraints; conditional const field admission remains separate.
 - [x] Qualify stable dynamic-index and array-prefix holes during scoped repacking, preserving
   original snapshots/frontiers after source-variable mutation, both coordinates, every prefix
   length, required/native bounds failures and actual saved/withdrawn/remaining error cleanup.

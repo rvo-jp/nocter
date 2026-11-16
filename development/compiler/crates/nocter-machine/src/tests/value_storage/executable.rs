@@ -593,3 +593,35 @@ fn record_component_growth_uses_logical_fields_and_rejects_shifted_live_siblings
         );
     assert!(lower(&source).is_err());
 }
+
+#[test]
+fn owning_record_inputs_retain_scoped_repacking_and_their_original_abi() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-scoped-record-input-growth.nct"
+    ));
+    let instances = close(&ValueSourceFixture::new(source));
+    let program = instances.unit().program();
+    let inside = program
+        .resolve(program.symbols().get("inside").unwrap())
+        .unwrap();
+    let mut received = std::collections::BTreeSet::new();
+    let mut count = 0;
+    for (id, instance) in instances.instances().iter() {
+        if instance.key().code() == nocter_model::ValueCode::Declaration(inside) {
+            let input = instances
+                .body(id)
+                .unwrap()
+                .typed()
+                .body()
+                .inputs()
+                .explicit()[0];
+            let data = instance.input(input.local).unwrap().instance();
+            assert_eq!(instance.key().input_data(0), Some(data));
+            received.insert(data.clone());
+            count += 1;
+        }
+    }
+    assert_eq!((count, received.len()), (3, 3));
+    compile(source);
+}

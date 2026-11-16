@@ -195,6 +195,11 @@ record destinations and saved missing sibling fields through required/native exe
 owning-error cleanup. Corresponding aggregate fields must retain their logical identities and
 unchanged sibling data. A record field cannot become a tuple position, and a shifted live record
 sibling still rejects at Machine geometry qualification.
+`contextual-scoped-record-input-growth.nct` qualifies ordinary native owning record inputs,
+including tuple/singleton containers, distinct received function environments and real old/new
+error cleanup. These retain actual input contexts and the original ABI rather than selecting a
+frame-wide field default. Conditional const admission for abstract received field invocations
+remains a separate checking obligation; native transport supplies no const capability.
 
 The same owning-carrier proof applies to a consumed closure's environment input. The shared
 `contextual-owning-scoped-growth.nct` source qualifies direct and indirect incoming environments

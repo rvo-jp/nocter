@@ -1,0 +1,36 @@
+struct Item { value: i32 }
+const func identity(value: i32): i32 { value }
+const func addition(value: i32): func(i32): i32 {
+    let item = Item { value: value }
+    (item^; amount: i32): i32 { item.value + amount }
+}
+const func wrap(take callback: func(i32): i32): func(i32): i32 {
+    (callback^; amount: i32): i32 { callback(amount) }
+}
+struct Holder { action: func(i32): i32
+    sentinel: i32 }
+func inside(take holder: Holder): i32 {
+    edit selected = holder.action
+    selected = wrap(addition(1))
+    if selected(41) == 42 && holder.sentinel == 42 { 42 } else { 0 }
+}
+func tuple_input(take pair: (Holder, i32)): i32 {
+    edit selected = pair.0.action
+    selected = wrap(addition(1))
+    if selected(41) == 42 && pair.0.sentinel == 42 && pair.1 == 43 { 42 } else { 0 }
+}
+func singleton_input(take holders: [Holder; 1]): i32 {
+    edit selected = holders[0].action
+    selected = wrap(addition(1))
+    if selected(41) == 42 && holders[0].sentinel == 42 { 42 } else { 0 }
+}
+func calculate(): i32 {
+    let first = Holder { action: wrap(identity), sentinel: 42 }
+    let second = Holder { action: wrap(addition(20)), sentinel: 42 }
+    let third = Holder { action: identity, sentinel: 42 }
+    let pair = (Holder { action: wrap(identity), sentinel: 42 }, 43)
+    let holders = [Holder { action: wrap(identity), sentinel: 42 }]
+    if inside(first^) == 42 && inside(second^) == 42 && inside(third^) == 42
+        && tuple_input(pair^) == 42 && singleton_input(holders^) == 42 { 42 } else { 0 }
+}
+func run(): i32 { calculate() }

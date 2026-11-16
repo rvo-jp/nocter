@@ -2774,7 +2774,10 @@ fn private_scoped_record_growth_preserves_named_siblings_and_error_cleanup() {
 
 /// Real owning errors use the same source behavior as the ordinary Item-based callback fixture.
 fn owning_addition_machine(source: &str) -> nocter_machine::MachineProgram {
-    let (definitions, _) = source.split_once("\nconst ANSWER:").unwrap();
+    let (definitions, _) = source
+        .split_once("\nconst ANSWER:")
+        .or_else(|| source.split_once("\nfunc run():"))
+        .unwrap();
     let runtime = definitions.replace("const func", "func");
     let owned = runtime.replace(
         "let item = Item { value: value }\n    (item^; amount: i32): i32 { item.value + amount }",
@@ -2795,4 +2798,20 @@ fn owning_addition_machine(source: &str) -> nocter_machine::MachineProgram {
             ))
     );
     machine
+}
+
+#[test]
+fn private_scoped_owning_record_inputs_preserve_received_siblings_and_cleanup() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-scoped-record-input-growth.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "scoped-record-input", 42);
+    execute_native_status(
+        &image(&owning_addition_machine(source)),
+        &package.0,
+        "scoped-record-input-errors",
+        42,
+    );
 }
