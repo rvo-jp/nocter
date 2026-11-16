@@ -67,6 +67,21 @@ fn check_instances(
     root: CodeInstanceKey,
     work: &mut nocter_constant_evaluation::state::WorkBudget,
 ) -> Result<ConstConditions, Failure> {
+    check_scope(program, availability, verified, root, work, Scope::Instance)
+}
+#[derive(Clone, Copy)]
+enum Scope {
+    Instance,
+    Definition,
+}
+fn check_scope(
+    program: &Program,
+    availability: &constant::Catalog,
+    verified: &results::Verified<'_, '_>,
+    root: CodeInstanceKey,
+    work: &mut nocter_constant_evaluation::state::WorkBudget,
+    scope: Scope,
+) -> Result<ConstConditions, Failure> {
     let mut conditions_by_frame = BTreeMap::new();
     let mut traversal = availability.traversal();
     let mut parents: BTreeMap<_, Option<Parent>> = BTreeMap::from([(root.clone(), None)]);
@@ -83,10 +98,18 @@ fn check_instances(
         let bound = query
             .bind_verified(verified)
             .map_err(|failure| Failure::Body { callable, failure })?;
-        let (calls, control, conditions) = match requirements
-            .check_bound(&|code| availability.permitted_template(code), &key, work)
-            .map_err(|error| bound_failure(error, &bound, callable))?
-        {
+        let checked = match scope {
+            Scope::Instance => {
+                requirements.check_bound(&|code| availability.permitted_template(code), &key, work)
+            }
+            Scope::Definition => requirements.check_definition(
+                &|code| availability.permitted_template(code),
+                &key,
+                work,
+            ),
+        }
+        .map_err(|error| bound_failure(error, &bound, callable))?;
+        let (calls, control, conditions) = match checked {
             constant::BoundCheck::Calls {
                 calls,
                 control,
@@ -258,7 +281,8 @@ fn check_definition_context(
     let declared_function = matches!(root, nocter_model::ValueCodeRoot::Declaration(id)
         if program.codes().get(id).is_some_and(|code| !code.kind().is_initializer()));
     if declared_function && (item.needs_value_context() || contextual.is_some()) {
-        let frame = program.bind_code(root.code(), []).ok().filter(|frame| {
+        let hypothesis = program.bind_code(root.code(), []).ok();
+        let frame = hypothesis.as_ref().filter(|frame| {
             root.code().origin().is_none_or(|origin| {
                 program
                     .compound_input_contracts(nocter_declarations::value_access::FunctionWitness {
@@ -274,16 +298,35 @@ fn check_definition_context(
         });
         match frame {
             Some(frame) => {
-                check_instances(program, availability, verified, frame, definition_work)?;
+                check_instances(
+                    program,
+                    availability,
+                    verified,
+                    frame.clone(),
+                    definition_work,
+                )?;
             }
             None => {
                 if let Some(violation) = contextual {
-                    // General symbolic input/environment contexts remain outside this source scope.
+                    // A hypothesis carries no actual compound input or executable frame receipt.
                     let callable = root.source_owner();
                     let bound = item
                         .body()
                         .bind_verified(verified)
                         .map_err(|failure| Failure::Body { callable, failure })?;
+                    if let Some(hypothesis) = &hypothesis {
+                        // Shared transitive negative checking, not an executable input binding.
+                        // Unresolved data clauses remain in the catalog for every actual instance.
+                        check_scope(
+                            program,
+                            availability,
+                            verified,
+                            hypothesis.clone(),
+                            definition_work,
+                            Scope::Definition,
+                        )?;
+                        return Ok(());
+                    }
                     let diagnostic = violation
                         .project(&bound)
                         .map_err(|failure| Failure::Body { callable, failure })?;

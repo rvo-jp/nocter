@@ -1687,10 +1687,17 @@ Callable field contracts provide definition-only hypotheses, never const capabil
 named const definitions with contextual field operations use the same actual-source instance
 admission as required roots, so even a dormant definition rejects a runtime-only stored callee.
 A shared reverse-call filter retains transitive contextual obligations; it is not an eligibility
-proof. Definitions without independently complete input/capture contexts conservatively reject
-contextual invocation until symbolic context proof is qualified. Interrupted field calls likewise
-reject when no committed occurrence supplies an actual callee; a type signature cannot stand in for
-that missing capability evidence. Constructor-only generic carriers retain their separate conditions. Definition checks consume an explicitly supplied condition-work scope. During required-root
+proof. When a declared compound input prevents a complete definition frame, a negative definition
+scan uses the same clause kernel and transitive original-source call traversal. It may retain an
+unresolved data/cleanup clause for actual-instance checking; it cannot defer an unresolved call,
+control selection, invalid source relation or exhausted work. Known runtime callees remain failures,
+including hidden callbacks in unused definitions. No definition scan publishes eligibility, an
+executable frame or a materialization receipt. Every retained clause remains mandatory before a
+required instance can execute. Source tests qualify known field replacement through owning record,
+tuple and singleton inputs, and preserve rejection of an actual owning-error input outside the
+const domain. General unresolved symbolic invocation remains outside this qualification.
+Interrupted field calls likewise reject when no original prepared receiver supplies capability;
+a type signature cannot stand in for that missing evidence. Constructor-only generic carriers retain their separate conditions. Definition checks consume an explicitly supplied condition-work scope. During required-root
 preparation they share that root's remaining quota with dependency discovery and admission.
 Final whole-unit definition checking has one fresh scope using the same configured step limit,
 shared across all definitions. The ordinary preparation product carries that policy to final

@@ -74,6 +74,11 @@ pub struct Requirements {
     body: Arc<flow::Query>,
     clauses: Box<[Clause]>,
 }
+#[derive(Clone, Copy)]
+enum CheckMode {
+    Exact,
+    Definition,
+}
 impl Requirements {
     #[must_use]
     pub fn code(&self) -> ValueCode {
@@ -153,7 +158,7 @@ impl Requirements {
         &self,
         available: &dyn Fn(ValueClosure) -> bool,
     ) -> Result<Option<Violation>, flow::IntegrityError> {
-        self.check_clauses(available, None, None)
+        self.check_clauses(available, None, None, CheckMode::Exact)
             .map_err(|error| match error {
                 BoundCheckFailure::Integrity(error) => error,
                 BoundCheckFailure::Invocation { .. }
@@ -166,12 +171,11 @@ impl Requirements {
         available: &dyn Fn(ValueClosure) -> bool,
         instance: Option<&CodeInstanceKey>,
         mut calls: Option<&mut BoundContext<'_, '_>>,
+        mode: CheckMode,
     ) -> Result<Option<Violation>, BoundCheckFailure> {
         if instance.is_some_and(|key| key.code() != self.code()) {
             return Err(INVALID.into());
         }
-        let program = self.body.typed().program();
-        let expressions = self.body.typed().body().expressions();
         let mut domain = evaluation::Types::default();
         for clause in &self.clauses {
             if let Some(calls) = calls.as_deref()
@@ -179,78 +183,102 @@ impl Requirements {
             {
                 continue;
             }
-            let violation = match clause {
-                Clause::Invocation {
-                    expression: id,
-                    input_resource,
-                    receiver,
+            let violation = match self.check_clause(
+                clause,
+                available,
+                instance,
+                calls.as_deref_mut(),
+                &mut domain,
+            ) {
+                // Definition-only queries have no observed input payload. Retain the original
+                // data/cleanup clause for exact-instance admission; this proves no eligibility.
+                Err(BoundCheckFailure::Data {
+                    failure: crate::value_access::InstantiationFailure::Unresolved,
                     ..
-                } => {
-                    let violation = self.invocation_clause(
-                        *id,
-                        receiver.as_ref(),
-                        available,
-                        calls.as_deref_mut(),
-                    )?;
-                    if let (Some(violation), Some(calls)) = (violation, calls.as_deref_mut()) {
-                        if calls.defer_invocation(
-                            &self.body,
-                            *id,
-                            input_resource.as_ref(),
-                            violation,
-                        )? {
-                            None
-                        } else {
-                            Some(violation)
-                        }
-                    } else {
-                        violation
-                    }
-                }
-                Clause::Inputs(id) => {
-                    let callees = match calls.as_deref_mut() {
-                        Some(calls) => calls.resolve_all(*id)?,
-                        None => None,
-                    };
-                    let expression = &expressions.get(*id).ok_or(INVALID)?.kind;
-                    first_violation(callees, |callee| {
-                        super::call_inputs(program, expression, &mut domain, callee)
-                    })?
-                }
-                Clause::Data(condition) => {
-                    let supported = match calls.as_deref_mut() {
-                        Some(calls) => calls.expression(&self.body, condition, &mut domain)?,
-                        None => super::supports(
-                            program,
-                            condition.data(&self.body)?,
-                            &mut domain,
-                            instance,
-                        )?,
-                    };
-                    (!supported).then_some(condition.violation())
-                }
-                Clause::Cleanup(condition) => {
-                    let data = condition.data(&self.body)?;
-                    let supported = match calls.as_deref_mut() {
-                        Some(calls) => domain
-                            .supports_instance(program, calls.cleanup(&self.body, condition)?)?,
-                        None => super::supports(program, data, &mut domain, instance)?,
-                    };
-                    (!supported).then_some(condition.violation())
-                }
-                Clause::Drop(condition) => {
-                    let supported = match calls.as_deref_mut() {
-                        Some(calls) => calls.drop(&self.body, condition, &mut domain)?,
-                        None => super::supports(program, condition.data()?, &mut domain, instance)?,
-                    };
-                    (!supported).then_some(condition.violation())
-                }
+                }) if matches!(mode, CheckMode::Definition) => continue,
+                result => result?,
             };
             if violation.is_some() {
                 return Ok(violation);
             }
         }
         Ok(None)
+    }
+    fn check_clause(
+        &self,
+        clause: &Clause,
+        available: &dyn Fn(ValueClosure) -> bool,
+        instance: Option<&CodeInstanceKey>,
+        mut calls: Option<&mut BoundContext<'_, '_>>,
+        domain: &mut evaluation::Types,
+    ) -> Result<Option<Violation>, BoundCheckFailure> {
+        let program = self.body.typed().program();
+        let expressions = self.body.typed().body().expressions();
+        Ok(match clause {
+            Clause::Invocation {
+                expression: id,
+                input_resource,
+                receiver,
+                ..
+            } => {
+                let violation = self.invocation_clause(
+                    *id,
+                    receiver.as_ref(),
+                    available,
+                    calls.as_deref_mut(),
+                )?;
+                if let (Some(violation), Some(calls)) = (violation, calls.as_deref_mut()) {
+                    if calls.defer_invocation(
+                        &self.body,
+                        *id,
+                        input_resource.as_ref(),
+                        violation,
+                    )? {
+                        None
+                    } else {
+                        Some(violation)
+                    }
+                } else {
+                    violation
+                }
+            }
+            Clause::Inputs(id) => {
+                let callees = match calls.as_deref_mut() {
+                    Some(calls) => calls.resolve_all(*id)?,
+                    None => None,
+                };
+                let expression = &expressions.get(*id).ok_or(INVALID)?.kind;
+                first_violation(callees, |callee| {
+                    super::call_inputs(program, expression, domain, callee)
+                })?
+            }
+            Clause::Data(condition) => {
+                let supported = match calls.as_deref_mut() {
+                    Some(calls) => calls.expression(&self.body, condition, domain)?,
+                    None => {
+                        super::supports(program, condition.data(&self.body)?, domain, instance)?
+                    }
+                };
+                (!supported).then_some(condition.violation())
+            }
+            Clause::Cleanup(condition) => {
+                let data = condition.data(&self.body)?;
+                let supported = match calls.as_deref_mut() {
+                    Some(calls) => {
+                        domain.supports_instance(program, calls.cleanup(&self.body, condition)?)?
+                    }
+                    None => super::supports(program, data, domain, instance)?,
+                };
+                (!supported).then_some(condition.violation())
+            }
+            Clause::Drop(condition) => {
+                let supported = match calls {
+                    Some(calls) => calls.drop(&self.body, condition, domain)?,
+                    None => super::supports(program, condition.data()?, domain, instance)?,
+                };
+                (!supported).then_some(condition.violation())
+            }
+        })
     }
     fn invocation_clause(
         &self,

@@ -298,12 +298,21 @@ impl BoundContext<'_, '_> {
 }
 
 impl Requirements {
-    pub(in crate::value_access) fn check_bound(
+    /// Definition-only metadata retains unresolved payload clauses for exact-instance admission.
+    /// The returned selections carry no executable frame or const-eligibility receipt.
+    pub(in crate::value_access) fn check_definition(
         &self,
         available: &dyn Fn(ValueClosure) -> bool,
         caller: &CodeInstanceKey,
         work: &mut nocter_constant_evaluation::state::WorkBudget,
     ) -> Result<BoundCheck, BoundCheckFailure> {
+        self.check_in(available, caller, work, super::CheckMode::Definition)
+    }
+    fn bound_context<'a, 'work>(
+        &'a self,
+        caller: &'a CodeInstanceKey,
+        work: &'work mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<BoundContext<'a, 'work>, BoundCheckFailure> {
         let query = self.body.typed();
         let control = crate::value_access::results::instantiate_control(
             query.program(),
@@ -313,7 +322,7 @@ impl Requirements {
             work,
         )
         .map_err(BoundCheckFailure::Control)?;
-        let mut calls = BoundContext {
+        Ok(BoundContext {
             query: self.body.typed(),
             caller,
             work,
@@ -321,8 +330,27 @@ impl Requirements {
             resources: std::collections::BTreeMap::new(),
             conditions: std::collections::BTreeMap::new(),
             control,
-        };
-        if let Some(violation) = self.check_clauses(available, Some(caller), Some(&mut calls))? {
+        })
+    }
+    pub(in crate::value_access) fn check_bound(
+        &self,
+        available: &dyn Fn(ValueClosure) -> bool,
+        caller: &CodeInstanceKey,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<BoundCheck, BoundCheckFailure> {
+        self.check_in(available, caller, work, super::CheckMode::Exact)
+    }
+    fn check_in(
+        &self,
+        available: &dyn Fn(ValueClosure) -> bool,
+        caller: &CodeInstanceKey,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+        mode: super::CheckMode,
+    ) -> Result<BoundCheck, BoundCheckFailure> {
+        let mut calls = self.bound_context(caller, work)?;
+        if let Some(violation) =
+            self.check_clauses(available, Some(caller), Some(&mut calls), mode)?
+        {
             return Ok(BoundCheck::Violation(violation));
         }
         Ok(BoundCheck::Calls {
@@ -345,6 +373,48 @@ mod tests {
     use nocter_test_support::ValueSourceFixture;
     use std::{collections::BTreeMap, num::NonZeroU64};
 
+    #[test]
+    fn definition_payload_residuals_never_defer_work_exhaustion_and_can_retry() {
+        let fixture = ValueSourceFixture::new(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/native/value-access/contextual-scoped-record-input-growth.nct"
+        )));
+        let unit = crate::value_access::accepted::SourceUnit::prepare(fixture.syntax())
+            .unwrap()
+            .into_unit();
+        let program = unit.program();
+        let inside = program
+            .resolve(program.symbols().get("inside").unwrap())
+            .unwrap();
+        let hypothesis = program.bind_code(inside.into(), []).unwrap();
+        assert!(hypothesis.input_data(0).is_none());
+        let requirements = unit.const_requirements(inside.into()).unwrap();
+        let mut work = WorkBudget::new(NonZeroU64::new(1).unwrap());
+        work.step().unwrap();
+        let Err(failure) = requirements.check_definition(&|_| true, &hypothesis, &mut work) else {
+            panic!("definition scanning must not defer metadata exhaustion");
+        };
+        assert!(matches!(
+            failure,
+            BoundCheckFailure::Control(crate::value_access::InstantiationFailure::WorkLimit)
+                | BoundCheckFailure::Data {
+                    failure: crate::value_access::InstantiationFailure::WorkLimit,
+                    ..
+                }
+                | BoundCheckFailure::Invocation {
+                    failure: crate::value_access::InstantiationFailure::WorkLimit,
+                    ..
+                }
+        ));
+        let mut work = WorkBudget::new(Limits::default().steps());
+        let BoundCheck::Calls { calls, .. } = requirements
+            .check_definition(&|_| true, &hypothesis, &mut work)
+            .unwrap()
+        else {
+            panic!("a healthy negative scan can retain payload conditions");
+        };
+        assert!(!calls.is_empty());
+    }
     #[test]
     fn invocation_cache_reuses_the_original_frame_after_metadata_work_is_exhausted() {
         let source = ValueSourceFixture::new(

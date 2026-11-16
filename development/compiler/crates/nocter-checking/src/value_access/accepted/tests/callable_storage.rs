@@ -1794,3 +1794,75 @@ fn scoped_sparse_receipts_preserve_saved_selections_and_original_bounds_failures
         assert_eq!(diagnostic.source().code(), "E0325");
     }
 }
+
+#[test]
+fn owning_record_field_const_conditions_preserve_actual_input_domain_obligations() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-scoped-record-input-growth.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Value::integer(42));
+    let forbidden = source.replace("wrap(addition(1))", "wrap(runtime)");
+    let forbidden = format!("func runtime(value: i32): i32 {{ value }}\n{forbidden}");
+    let (forbidden, _) = forbidden.split_once("\nconst func calculate():").unwrap();
+    let fixture = nocter_test_support::ValueSourceFixture::new(forbidden);
+    let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+        SourceUnit::prepare(fixture.syntax())
+    else {
+        panic!("a known runtime callback must reject an unused const definition");
+    };
+    assert!(matches!(
+        diagnostic.rule(),
+        crate::value_access::constant::Rule::RuntimeCall(_)
+    ));
+    let (definitions, _) = source.split_once("\nconst func calculate():").unwrap();
+    let external = format!(
+        "{definitions}\nfunc caller(take reason: error): i32 {{ let action = (reason^; amount: i32): i32 {{ amount }}\nlet holder = Holder {{ action: action^, sentinel: 42 }}\ninside(holder^) }}"
+    );
+    let unit = accepted(&external);
+    let caller = named(&unit, "caller");
+    let program = unit.program();
+    let frame = program.bind_code(caller.typed().code(), []).unwrap();
+    let call = caller
+        .typed()
+        .body()
+        .expressions()
+        .iter()
+        .find_map(|(id, expression)| {
+            matches!(
+                expression.kind,
+                crate::value_access::ExpressionKind::Call { .. }
+            )
+            .then_some(id)
+        })
+        .unwrap();
+    let mut work = nocter_constant_evaluation::state::WorkBudget::new(
+        nocter_constant_evaluation::state::Limits::default().steps(),
+    );
+    let selected = unit
+        .instantiate_invocation(
+            &frame,
+            nocter_model::ValueApplication {
+                owner: frame.code(),
+                call,
+            },
+            &mut work,
+        )
+        .unwrap();
+    let requirements = unit.const_requirements(selected.code()).unwrap();
+    let checked = requirements
+        .check_bound(&|_| true, &selected, &mut work)
+        .unwrap();
+    let crate::value_access::constant::BoundCheck::Violation(violation) = checked else {
+        panic!("the actual owning-error input must retain its const-domain obligation");
+    };
+    assert!(
+        matches!(
+            violation.rule(),
+            crate::value_access::constant::Rule::UnsupportedData(_)
+                | crate::value_access::constant::Rule::UnsupportedCleanup(_)
+        ),
+        "the actual error-bearing environment must remain outside the const domain: {:?}",
+        violation.rule()
+    );
+}

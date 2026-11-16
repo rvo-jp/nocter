@@ -18,13 +18,13 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify conditional const admission for callable fields in received record/compound inputs.
-Ordinary native owning record, tuple and singleton input transport is qualified. A const version
-of the owning-record fixture still reaches the conservative `ValueInvocation` definition filter
-at an edit-alias invocation after a known assignment. Reuse original committed receiver sources,
-keep definition-only capability queries separate from actual frame/data receipts, and preserve
-fixed runtime-call rejection, source-local causes and configured work limits. External reference
-transport and changing mutable captured environments remain separate qualifications.
+Extend conditional const admission from independently selected field writes to stable received
+callable-field invocations. Attribute unresolved receiver capability to original input paths under
+the existing metadata budget, sharing source projection with nullable guards rather than creating
+a second provenance solver. Keep actual instance checks strict, fixed runtime operations visible,
+mutated/ambiguous paths conservative and every retained data/cleanup obligation intact. Known
+field-write definitions and owning record/tuple/singleton transport are qualified; external
+representation changes and mutable captured-environment transport remain separate.
 
 Complete occurrence-sensitive value/capture transport under the
 [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances).
@@ -719,6 +719,11 @@ not a language restriction derived from the current realization boundary.
 - [x] Publish callable record-field contracts atomically under reserved field identities. Preserve
   header lineage, payload-versus-signature dependency edges and conservative Copy checks before
   qualifying original source construction, contextual value binding and execution consumers.
+- [x] Qualify negative definition scans for independently selected callable fields with incomplete
+  compound input payloads. Share strict clause checking and transitive source-call traversal;
+  retain only unresolved data/cleanup clauses for actual-instance checks. Qualify owning
+  record/tuple/singleton CTFE/native results, unused hidden runtime rejection, actual error-domain
+  rejection, shared work exhaustion and healthy retry. Publish no eligibility or executable receipt.
 - [ ] Qualify symbolic definition-context proofs for callable field invocations whose function,
   compound-input or capture contexts are not independently closed. Preserve dormant runtime-call
   rejection and original input provenance before removing conservative contextual-call rejection.
