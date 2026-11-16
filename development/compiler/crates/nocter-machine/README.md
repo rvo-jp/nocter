@@ -46,6 +46,10 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
   projection addresses remain distinct even at equal byte offsets. Lifecycle predicates become
   logical drop flags; an action selects its alternative before either phase and retains that
   continuation through normal call completion. Cleanup helpers are shared per concrete data shape.
+- An owning payload stack object reserves the maximum size and alignment of all its admitted MIR
+  representations, including an owning environment input. Its initial call ABI still describes the
+  original incoming value. Frame capacity supplies no additional incoming bytes or initialized
+  storage; target parameter receipt must retain that distinction.
 - Data identity and physical carrier are independent. Address values and stack objects retain the
   referent data identity but use the selected pointer ABI. Forwarding, storage alias proofs and
   dense remapping must preserve the carrier; no synthetic source pointer type supplies it.

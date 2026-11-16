@@ -18,12 +18,12 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify owning-input and captured-carrier boundaries for scoped local relocation. Verify that
-original incoming payloads occupy the owning slot reserved for every admitted representation,
-including growth across indirect native ABI transport. Preserve stable sparse exclusions,
-independent retired/supplied obligations and retained endpoint offsets. External edit aliases,
-changing missing selections and shifted retained endpoints keep the conservative geometry boundary;
-do not infer ownership or capacity from a virtual root.
+Qualify retained dynamic-index and array-prefix exclusions through scoped local relocation.
+Reuse original saved coordinates, prefix frontiers and bounds effects while index/counter variables
+change. Verify required/native results, original bounds traps and actual remaining/saved error
+cleanup without expanding schemas or relaxing shifted-endpoint/external-alias constraints.
+Consuming closure environments now retain their original direct/indirect ABI payload sizes while
+using a maximum-capacity owning slot; remaining named/formal input transport stays separate.
 
 Complete occurrence-sensitive value/capture transport under the
 [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances).
@@ -101,8 +101,13 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   boundary and exit. Share direct-receipt exclusion conversion, preserve saved owners and initialized
   tuple/array siblings, meter freezing and qualify required/native execution, actual owned errors,
   invalid MIR rejection and healthy retry. Keep external aliases and changing exclusions closed.
-- [ ] Qualify owning inputs and captured carriers across scoped representation growth, including
-  indirect ABI input transport, maximum owning-slot capacity and caller storage isolation.
+- [x] Qualify consumed closure-environment input growth through the same scoped owning-carrier
+  proof. Cover direct 4-to-36-byte and indirect 36-to-68-byte receipt, exact incoming instruction
+  widths, maximum owning capacity, caller sentinels, required/native results and real owned errors.
+- [ ] Qualify remaining named/formal owning inputs across context-changing scoped replacement;
+  preserve canonical received contracts, original ABI transport and caller storage isolation.
+- [ ] Qualify stable dynamic-index and array-prefix holes during scoped repacking, preserving
+  original snapshots/frontiers after source-variable mutation, bounds traps and actual error cleanup.
 - [x] Fix ARM64 incoming payload sizing: use original ABI data size (pointer size for read/edit),
   independently of the receiving slot's capacity for later representations. Qualify register,
   stack and indirect paths, enlarged capacity and undersized-storage rejection.

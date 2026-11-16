@@ -1,0 +1,42 @@
+struct Item { value: i32 }
+const func medium(v: i32): func(i32): i32 {
+    let data = (v, 2, 3, 4, 5, 6, 7, 8)
+    (data; x: i32): i32 { data.0 + x }
+}
+const func wide(v: i32): func(i32): i32 {
+    let data = (v, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)
+    (data; x: i32): i32 { data.0 + x }
+}
+const func wrap(take callback: func(i32): i32): func(i32): i32 {
+    (callback^; x: i32): i32 { callback(x) }
+}
+const func indirect_case(): i32 {
+    let sentinels = (777, 888, 999)
+    let pair = (wrap(medium(20)), Item { value: 12345 })
+    let consume = (pair^;): i32 {
+        edit selected = pair.0
+        selected = wrap(wide(1))
+        let result = selected(41)
+        let saved = pair.1^
+        if result == 42 && saved.value == 12345 { 42 } else { 0 }
+    }
+    let answer = consume^()
+    if sentinels.0 == 777 && sentinels.1 == 888 && sentinels.2 == 999 { answer } else { 0 }
+}
+const func identity(value: i32): i32 { value }
+const func direct_case(): i32 {
+    let pair = (wrap(identity), Item { value: 42 })
+    let consume = (pair^;): i32 {
+        edit selected = pair.0
+        selected = wrap(medium(1))
+        let result = selected(41)
+        let saved = pair.1^
+        if result == 42 && saved.value == 42 { 42 } else { 0 }
+    }
+    consume^()
+}
+const func calculate(): i32 {
+    if direct_case() == 42 && indirect_case() == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { if ANSWER == 42 { calculate() } else { 0 } }

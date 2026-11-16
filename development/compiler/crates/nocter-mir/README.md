@@ -175,7 +175,7 @@ The paired GeometryRequirement::ProjectionOffsets retains every original before/
 region for that owner, including reservations and known/unknown coordinates. Machine validates
 all endpoint offsets independently of the full-layout equality used by ordinary scoped writes
 and adapter exits. A live sibling whose offset changes still rejects; an expired alias does not
-create a constraint. Missing region evidence, changing ownership exclusions, external inputs and
+create a constraint. Missing region evidence, changing ownership exclusions, external reference inputs and
 unsupported containing paths retain the full-geometry boundary. Closed MIR validation requires nonempty valid
 paths and a matching Repack at the same original action. The shared
 `contextual-scoped-growth.nct` source qualifies repeated shrinking/growth, nested tuples and a
@@ -185,6 +185,14 @@ captures and preserves/cleans actual saved and remaining owned environments. Exc
 preservation-kind mutations reject, and exhausted metadata work permits a healthy retry. This
 does not qualify changing sparse states, general external aliases or changing retained endpoint
 offsets.
+
+The same owning-carrier proof applies to a consumed closure's environment input. The shared
+`contextual-owning-scoped-growth.nct` source qualifies direct and indirect incoming environments
+that grow during scoped component replacement, preserve siblings and leave caller sentinels
+unchanged, through required/native execution. Backend instruction tests verify that input receipt
+copies only the original ABI payload into the maximum-capacity owning slot; the larger capacity
+is not an incoming value. The error variant moves a saved sibling and cleans real old/new owning
+error environments. Mutable calls that retain their external environment remain outside this proof.
 
 Adapter cleanup likewise selects its completed full carrier in the original argument slot before
 projecting the completed environment. Its selected environment data must match the cleanup

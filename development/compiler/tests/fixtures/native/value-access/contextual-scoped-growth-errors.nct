@@ -29,6 +29,17 @@ func sparse_case(): i32 {
     if first == 42 && second == 42 && saved(2) == 42 && pair.1[0].1 == 42
         && pair.1[1].0(1) == 42 && pair.1[1].1 == 43 { 42 } else { 0 }
 }
+func owning_environment_case(): i32 {
+    let pair = (wrap(identity), owning(40))
+    let consume = (pair^;): i32 {
+        edit selected = pair.0
+        selected = wrap(owning(1))
+        let first = selected(41)
+        let saved = pair.1^
+        if first == 42 && saved(2) == 42 { 42 } else { 0 }
+    }
+    consume^()
+}
 func run(): i32 {
-    if complete_case() == 42 && sparse_case() == 42 { 42 } else { 0 }
+    if complete_case() == 42 && sparse_case() == 42 && owning_environment_case() == 42 { 42 } else { 0 }
 }

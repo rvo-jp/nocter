@@ -2713,6 +2713,11 @@ fn private_scoped_growth_preserves_live_selected_aliases_and_initialized_sibling
     ));
     let package = TempPackage::new();
     execute_native_status(&compile(source), &package.0, "scoped-growth", 42);
+    let owning = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-owning-scoped-growth.nct"
+    ));
+    execute_native_status(&compile(owning), &package.0, "scoped-owning-growth", 42);
     let machine = trusted_error_machine(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../tests/fixtures/native/value-access/contextual-scoped-growth-errors.nct"

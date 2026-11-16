@@ -63,3 +63,72 @@ fn incoming_abi_sizes_survive_larger_receiving_capacity_and_preserve_address_car
         .collect::<Vec<_>>();
     assert_eq!(copied, [20]);
 }
+
+#[test]
+fn growing_owned_environments_copy_only_the_original_direct_or_indirect_input() {
+    let machine = crate::test_support::lower_value_machine(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-owning-scoped-growth.nct"
+    )));
+    let mut direct = 0;
+    let mut indirect = 0;
+    for (owner, function) in machine.functions() {
+        let MachineFunctionKind::Callable(abi) = function.kind() else {
+            continue;
+        };
+        for (&stack, argument) in function.body().parameters().iter().zip(abi.arguments()) {
+            let object = function.body().stack(stack).unwrap();
+            let incoming = machine.layouts().get(argument.ty()).unwrap().size();
+            if object.carrier() != nocter_machine::MachineValueCarrier::Data
+                || object.size() <= incoming
+            {
+                continue;
+            }
+            let selected = crate::Arm64SelectedFunction::build(&machine, owner).unwrap();
+            let target = selected.frame().stack_object(stack).unwrap();
+            let destination = |address: &Arm64SelectedMemoryAddress| {
+                matches!(address,
+                    Arm64SelectedMemoryAddress::Stack(Arm64SelectedStackAddress::FrameObject { object, .. }) if *object == target
+                )
+            };
+            match argument.class() {
+                MachineValueClass::Direct { words: 1 } => {
+                    assert_eq!((incoming, object.size()), (4, 36));
+                    let stored = selected
+                        .entry_instructions()
+                        .iter()
+                        .filter_map(|instruction| match instruction {
+                            Arm64SelectedInstruction::StoreMemory {
+                                bytes,
+                                destination: address,
+                                ..
+                            } if destination(address) => Some(*bytes),
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>();
+                    assert_eq!(stored, [4]);
+                    direct += 1;
+                }
+                MachineValueClass::Indirect => {
+                    assert_eq!((incoming, object.size()), (36, 68));
+                    let copied = selected
+                        .entry_instructions()
+                        .iter()
+                        .filter_map(|instruction| match instruction {
+                            Arm64SelectedInstruction::CopyMemoryNonOverlapping {
+                                bytes,
+                                destination: address,
+                                ..
+                            } if destination(address) => Some(*bytes),
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>();
+                    assert_eq!(copied, [36]);
+                    indirect += 1;
+                }
+                class => panic!("unexpected growing input: {class:?}"),
+            }
+        }
+    }
+    assert_eq!((direct, indirect), (1, 1));
+}
