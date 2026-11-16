@@ -101,6 +101,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Qualify missing record fields through the shared runtime aggregate schema during sibling
   relocation. Preserve nominal field identity, initialized siblings, separately saved owners and
   original restoration/cleanup; avoid a tuple-specific duplicate projection model.
+- [x] Qualify complete optional/fallible siblings whose active outcome remains runtime-selected
+  during contextual relocation. Preserve original tags, captured payloads, absent/failed cases and
+  actual owning-error cleanup without interpreting an inactive payload as initialized storage.
 - [ ] Extend relocation's initialized-subtree selection to unresolved represented alternatives,
   preserving original saved coordinates without element expansion.
 - [x] Qualify same-geometry contextual callable component replacement and restoration with a

@@ -1,0 +1,48 @@
+primitive func create_failure(code: str, message: str): error
+primitive func context_error(take value: error, message: str): error
+
+func inspect(value: error): i32 { 42 }
+
+func identity(value: i32): i32 { value }
+
+func addition(value: i32): func(i32): i32 {
+    let reason = context_error(create_failure("addition", "leaf"), "outer")
+    (reason^, value; amount: i32): i32 { value + amount }
+}
+
+func subtraction(value: i32): func(i32): i32 {
+    let reason = context_error(create_failure("subtraction", "leaf"), "outer")
+    (reason^, value; amount: i32): i32 { value - amount }
+}
+
+func wrap(take callback: func(i32): i32): func(i32): i32 {
+    (callback^; amount: i32): i32 { callback(amount) }
+}
+
+func choose(present: bool): (func(i32): i32)? {
+    if present { wrap(addition(2)) } else { none }
+}
+func attempt(present: bool): (func(i32): i32)! {
+    if present { wrap(addition(2)) } else { throw context_error(create_failure("failed", "leaf"), "outer") }
+}
+func calculate(present: bool): i32 {
+    var pair = (wrap(identity), choose(present), attempt(present), 3)
+    pair.0 = wrap(addition(20))
+    pair.0 = wrap(subtraction(50))
+    let saved = pair.0^
+    pair.0 = wrap(addition(1))
+    pair.0 = wrap(identity)
+    if pair.3 != 3 || pair.0(42) != 42 || saved(8) != 42 { return 0 }
+    let optional = pair.1^
+    let outcome = pair.2^
+    let callback = optional^ otherwise {
+        let unexpected = outcome^ catch reason {
+            if !present && inspect(reason) == 42 { return 42 }
+            return 0
+        }
+        return 0
+    }
+    let success = outcome^ catch reason { return 0 }
+    if present && callback(40) == 42 && success(40) == 42 { 42 } else { 0 }
+}
+func run(): i32 { if calculate(false) == 42 && calculate(true) == 42 { 42 } else { 0 } }

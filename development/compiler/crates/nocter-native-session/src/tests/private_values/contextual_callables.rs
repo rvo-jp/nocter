@@ -1987,3 +1987,28 @@ fn private_contextual_record_holes_preserve_actual_saved_and_remaining_error_gra
         42,
     );
 }
+
+#[test]
+fn private_contextual_optional_siblings_keep_original_tags_and_contexts_across_relocation() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-optional-sibling-growth.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "optional-sibling-growth", 42);
+}
+
+#[test]
+fn private_contextual_outcome_siblings_preserve_active_payloads_and_actual_error_cleanup() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-outcome-sibling-errors.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &image(&trusted_error_machine(source)),
+        &package.0,
+        "outcome-sibling-errors",
+        42,
+    );
+}

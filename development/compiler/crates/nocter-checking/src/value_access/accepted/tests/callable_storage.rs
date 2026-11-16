@@ -787,3 +787,12 @@ fn contextual_record_holes_preserve_nominal_fields_and_restore_saved_owners() {
     ));
     assert_eq!(answer(source, "ANSWER"), Value::integer(42));
 }
+
+#[test]
+fn contextual_optional_siblings_preserve_original_tags_and_received_contexts() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-optional-sibling-growth.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Value::integer(42));
+}
