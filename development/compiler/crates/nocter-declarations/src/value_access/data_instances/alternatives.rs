@@ -45,3 +45,38 @@ impl Program {
         }
     }
 }
+
+impl DataInstanceKey {
+    pub(super) fn concrete_function_representation(
+        program: &Program,
+        selected: &ConcreteWitness,
+    ) -> Result<Self, CodeBindingError> {
+        let data = program
+            .function_data(selected.witness())
+            .ok_or(CodeBindingError::InvalidWitness)?;
+        program.instantiate_function(data, selected)
+    }
+
+    /// Project every complete callable case onto its concrete representation descriptor.
+    /// Order follows the canonical source domain. This supplies no active selector or transfer.
+    /// Non-callable data returns `None`; single callables retain one case.
+    /// # Errors
+    /// Rejects unresolved witnesses, missing descriptors or captured contexts.
+    pub fn function_representations(
+        &self,
+        program: &Program,
+    ) -> Result<Option<Box<[Self]>>, CodeBindingError> {
+        match self.schema(program)? {
+            InstanceSchema::Function(selected) => {
+                Self::concrete_function_representation(program, &selected)
+                    .map(|key| Some(vec![key].into_boxed_slice()))
+            }
+            InstanceSchema::FunctionAlternatives(cases) => cases
+                .iter()
+                .map(|case| Self::concrete_function_representation(program, case))
+                .collect::<Result<Box<[_]>, _>>()
+                .map(Some),
+            _ => Ok(None),
+        }
+    }
+}

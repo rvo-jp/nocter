@@ -44,8 +44,9 @@ manufactured for this storage form.
 
 This descriptor supplies neither an active selector nor source, invocation, ownership or transport
 permission. Exact representation comparison still preserves runtime identities; directed guarded
-transport does not inject positive cases into a choice. The target source materializer continues to
-reject positive domains until selected-case construction, transport, invocation and cleanup close.
+transport does not inject positive cases into a choice. Target storage can project complete canonical
+domains, while ordinary source execution remains unqualified until selected-case construction,
+transport, invocation and cleanup close.
 The [Machine layout owner](../nocter-machine/README.md#finite-callable-choice-layout) describes the
 stored geometry independently of that admission boundary.
 

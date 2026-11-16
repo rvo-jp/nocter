@@ -75,10 +75,7 @@ impl DataInstanceKey {
         let Some(selected) = self.selected_function(program)? else {
             return Ok(None);
         };
-        let data = program
-            .function_data(selected.witness())
-            .ok_or(CodeBindingError::InvalidWitness)?;
-        program.instantiate_function(data, &selected).map(Some)
+        Self::concrete_function_representation(program, &selected).map(Some)
     }
     /// Select the frozen shape without interning a new semantic type or granting representation.
     /// # Errors

@@ -134,3 +134,55 @@ fn shared_maximum_array_domain_joins_are_bounded_and_retry_without_partial_publi
     assert_eq!(joined, repeated);
     assert_eq!(keys, original);
 }
+
+#[test]
+fn callable_case_projection_retains_order_code_view_and_nested_environment() {
+    let fixture = fixture();
+    let program = &fixture.program;
+    let data = program.function_data(fixture.captured).unwrap();
+    let keys = fixture.callbacks.map(|callback| {
+        let frame = program
+            .bind_code(fixture.creator.into(), [(fixture.formal, callback)])
+            .unwrap();
+        program.instantiate_data(data, &frame).unwrap()
+    });
+    let domain = program
+        .join_data_domains(&keys[0], &keys[1], || Ok::<_, ()>(()))
+        .unwrap();
+    let InstanceSchema::FunctionAlternatives(actuals) = domain.schema(program).unwrap() else {
+        panic!("domain")
+    };
+    let cases = domain.function_representations(program).unwrap().unwrap();
+    for (actual, case) in actuals.iter().zip(cases.iter()) {
+        let InstanceSchema::Function(selected) = case.schema(program).unwrap() else {
+            panic!("case")
+        };
+        assert_eq!(&selected, actual);
+        assert_eq!(
+            case.data(),
+            program.function_data(actual.witness()).unwrap()
+        );
+        assert_eq!(
+            case.function_representation(program).unwrap().as_ref(),
+            Some(case)
+        );
+        assert_eq!(
+            case.function_representations(program)
+                .unwrap()
+                .unwrap()
+                .as_ref(),
+            std::slice::from_ref(case)
+        );
+    }
+    assert_ne!(cases[0], cases[1]);
+    assert_ne!(
+        cases[0].environment(program).unwrap(),
+        cases[1].environment(program).unwrap()
+    );
+    let empty = program.instantiate_uninhabited_data(data).unwrap();
+    assert!(empty.function_representations(program).unwrap().is_none());
+    let unit = program
+        .instantiate_closed_data(program.data_type(BuiltinType::Void).unwrap())
+        .unwrap();
+    assert!(unit.function_representations(program).unwrap().is_none());
+}

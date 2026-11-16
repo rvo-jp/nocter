@@ -242,8 +242,8 @@ supplies no code identity, active-case, initialization, reference stability or t
 
 Closed runtime fixtures qualify tag-width boundaries, empty and differently aligned environments,
 case ordering, overflow and recursive dependencies. They are layout checks, not executable source
-qualification. The private source materializer and complete cleanup consumer remain closed to this
-form until original selected-case transport and invocation are qualified together.
+qualification. The complete cleanup consumer remains closed to this form, and ordinary source
+execution remains unqualified until original selected-case transport and invocation close together.
 
 ## Private Array Execution
 

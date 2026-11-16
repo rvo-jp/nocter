@@ -314,6 +314,16 @@ roots without acquiring a dependency on lifecycle permission. Additional roots s
 source value nor an executable code instance, and a failed/missing request cannot mutate an older
 Prepared product.
 
+`storage::prepare_data` projects explicit declaration-owned data domains without constructing an
+executable instance graph. It shares the same interner and frozen `Prepared` lookup as ordinary
+instance storage. Finite callable domains retain every complete concrete case in canonical order,
+each with its own environment edge, as `RuntimeType::CallableAlternatives`. Equivalent received
+callable descriptors reuse the same ordered physical domain through concrete-case normalization;
+they do not acquire a representative environment. Structural carriers still retain one shared
+array element schema. This is stored metadata only: original selected-case construction, invocation,
+transport and destruction remain separately unqualified. Real joined-call source continues to reject
+in instance preparation until those consumers close.
+
 The iterative graph walk selects every positive child by its declaration-validated field through
 the same contextual instance authority. Function environments use their explicit environment edge,
 not a source tuple field. Intrinsic representation primitives are independently closed roots.

@@ -460,7 +460,11 @@ selecting an active value. Comparison, ordering and debug output share the exist
 context traversal. Single-function/environment selection and concrete frame binding reject a
 domain rather than choosing a representative. Exact domain comparison and same-descriptor
 metadata projection do not qualify positive injection, an executable selector, ABI or storage;
-target materialization remains closed. The
+source execution remains unqualified. `function_representations` projects each complete case onto
+its actual callable descriptor in canonical domain order, using the same concrete-leaf validator as
+single representation selection. It retains distinct nested environments and invocation views;
+non-callable and explicitly empty data supply no cases. This metadata projection grants neither
+selection nor conversion. The
 [positive alternative contract](../../../design/compiler-realization.md#positive-callable-alternatives)
 owns those integrated obligations, including budgeted source discovery and healthy retry.
 `join_data_domains` unions already validated domains under the same source descriptor. It uses

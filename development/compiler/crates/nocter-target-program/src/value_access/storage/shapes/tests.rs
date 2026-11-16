@@ -585,26 +585,83 @@ fn complete_callable_environment_keeps_mixed_contexts_through_storage_and_payloa
 }
 
 #[test]
-fn positive_callable_alternatives_do_not_choose_a_materialized_environment() {
+fn positive_callable_storage_retains_every_complete_environment_in_canonical_order() {
     let fixture = fixture();
     let program = &fixture.program;
-    let actuals = fixture.keys.iter().map(|key| {
-        let selected = key.component(program, ValueField::Tuple(0)).unwrap();
-        let InstanceSchema::Function(actual) = selected.schema(program).unwrap() else {
-            panic!("function")
-        };
-        actual
-    });
+    let keys = fixture
+        .keys
+        .iter()
+        .map(|key| key.component(program, ValueField::Tuple(0)).unwrap())
+        .collect::<Vec<_>>();
     let domain = program
-        .instantiate_function_alternatives(fixture.captured, actuals)
+        .join_data_domains(&keys[0], &keys[1], || Ok::<_, ()>(()))
         .unwrap();
-    let mut builder = Builder::new(program);
-    assert!(matches!(
-        builder.intern(domain),
-        Err(Failure::InvalidPayload(_))
-    ));
-    assert!(builder.ids.is_empty());
-    assert!(builder.pending.is_empty());
-    assert_eq!(builder.next, 0);
-    assert!(builder.intern(fixture.keys[0].clone()).is_ok());
+    let cases = domain.function_representations(program).unwrap().unwrap();
+    let creator = program
+        .resolve_code(program.symbols().get("creator").unwrap())
+        .unwrap();
+    let parameter = program.codes().get(creator).unwrap().parameters()[0];
+    let formal = program.parameters().get(parameter).unwrap().data();
+    let received = domain.reproject(program, formal).unwrap();
+    let array = program
+        .instantiate_components(fixture.array, [(ValueField::Array(0), domain.clone())])
+        .unwrap();
+    assert_eq!(cases.len(), 2);
+    assert!(domain.function_representation(program).is_err());
+    assert!(domain.environment(program).is_err());
+    let prepared = super::super::prepare_data(
+        program,
+        RuntimeAbiIdentity::Arm64DarwinV1,
+        [
+            domain.clone(),
+            received.clone(),
+            array.clone(),
+            fixture.keys[0].clone(),
+            fixture.keys[1].clone(),
+        ],
+    )
+    .unwrap();
+    let id = prepared.instance(program, &domain).unwrap();
+    assert_eq!(prepared.instance(program, &received).unwrap(), id);
+    assert_eq!(
+        prepared
+            .environment()
+            .types()
+            .get(prepared.instance(program, &array).unwrap()),
+        Some(&RuntimeType::FixedArray {
+            element: id,
+            length: 2
+        })
+    );
+    let expected = cases
+        .iter()
+        .map(|case| prepared.instance(program, case).unwrap())
+        .collect::<Box<[_]>>();
+    assert_ne!(expected[0], expected[1]);
+    let runtime = prepared.environment();
+    assert_eq!(
+        runtime.types().get(id),
+        Some(&RuntimeType::CallableAlternatives(expected.clone()))
+    );
+    let environments = expected
+        .iter()
+        .map(|case| match runtime.types().get(*case).unwrap() {
+            RuntimeType::StaticCallable { environment } => *environment,
+            _ => panic!("complete static case"),
+        })
+        .collect::<Vec<_>>();
+    assert_ne!(environments[0], environments[1]);
+    for (case, expected) in cases.iter().zip(expected.iter()) {
+        let key = case.environment(program).unwrap().unwrap();
+        assert_eq!(
+            runtime.types().get(*expected),
+            Some(&RuntimeType::StaticCallable {
+                environment: Some(prepared.instance(program, &key).unwrap()),
+            })
+        );
+    }
+    let reverse = program
+        .join_data_domains(&keys[1], &keys[0], || Ok::<_, ()>(()))
+        .unwrap();
+    assert_eq!(prepared.instance(program, &reverse).unwrap(), id);
 }

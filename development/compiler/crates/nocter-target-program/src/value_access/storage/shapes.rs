@@ -14,6 +14,7 @@ mod tests;
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum StructuralShape {
     Uninhabited,
+    CallableAlternatives(Box<[RuntimeDataId]>),
     Tuple(Box<[RuntimeDataId]>),
     Array { element: RuntimeDataId, length: u64 },
     Optional(RuntimeDataId),
@@ -94,10 +95,7 @@ impl<'a> Builder<'a> {
         {
             return Err(invalid());
         }
-        Ok(key
-            .function_representation(self.program)
-            .map_err(|_| invalid())?
-            .unwrap_or(key))
+        representation_key(self.program, key)
     }
     fn reserve(&mut self, key: DataInstanceKey) -> Result<RuntimeDataId, Failure> {
         let invalid = || Failure::InvalidPayload(key.data());
@@ -118,6 +116,12 @@ impl<'a> Builder<'a> {
     ) -> Result<Option<Vec<DataInstanceKey>>, Failure> {
         let invalid = || Failure::InvalidPayload(key.data());
         let fields = match key.schema(self.program).map_err(|_| invalid())? {
+            InstanceSchema::FunctionAlternatives(_) => {
+                return key
+                    .function_representations(self.program)
+                    .map(|cases| cases.map(<[DataInstanceKey]>::into_vec))
+                    .map_err(|_| invalid());
+            }
             InstanceSchema::Uninhabited => vec![],
             InstanceSchema::Aggregate(schema)
                 if matches!(
@@ -153,6 +157,9 @@ impl<'a> Builder<'a> {
             .collect::<Result<Vec<_>, _>>()?;
         Ok(match key.schema(self.program).map_err(|_| invalid())? {
             InstanceSchema::Uninhabited => StructuralShape::Uninhabited,
+            InstanceSchema::FunctionAlternatives(_) => {
+                StructuralShape::CallableAlternatives(children.into())
+            }
             InstanceSchema::Aggregate(_) => StructuralShape::Tuple(children.into()),
             InstanceSchema::Array(array) => StructuralShape::Array {
                 element: *children.first().ok_or_else(invalid)?,
@@ -226,8 +233,18 @@ impl<'a> Builder<'a> {
         let invalid = || Failure::InvalidPayload(key.data());
         Ok(match key.schema(self.program).map_err(|_| invalid())? {
             InstanceSchema::Uninhabited => RuntimeType::Uninhabited,
-            // Metadata alternatives grant no selector, ABI or active environment backing.
-            InstanceSchema::FunctionAlternatives(_) => return Err(invalid()),
+            InstanceSchema::FunctionAlternatives(_) => {
+                let cases = key
+                    .function_representations(self.program)
+                    .map_err(|_| invalid())?
+                    .ok_or_else(invalid)?;
+                let cases = cases
+                    .into_vec()
+                    .into_iter()
+                    .map(|case| self.intern(case))
+                    .collect::<Result<Box<[_]>, _>>()?;
+                RuntimeType::CallableAlternatives(cases)
+            }
             InstanceSchema::Array(array) if array.is_empty() => RuntimeType::EmptyArray {
                 // Metadata only: no element binding, payload or geometry is manufactured.
                 element: RuntimeDataId::Source(array.element()),
@@ -306,4 +323,22 @@ impl<'a> Builder<'a> {
             _ => return Err(Failure::InvalidPayload(source)),
         })
     }
+}
+
+/// Normalize single concrete leaves without interpreting a finite domain as its first case.
+pub(super) fn representation_key(
+    program: &Program,
+    key: DataInstanceKey,
+) -> Result<DataInstanceKey, Failure> {
+    let invalid = || Failure::InvalidPayload(key.data());
+    if matches!(
+        key.schema(program).map_err(|_| invalid())?,
+        InstanceSchema::FunctionAlternatives(_)
+    ) {
+        return Ok(key);
+    }
+    Ok(key
+        .function_representation(program)
+        .map_err(|_| invalid())?
+        .unwrap_or(key))
 }

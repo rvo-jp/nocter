@@ -43,10 +43,7 @@ impl Prepared {
         key: &DataInstanceKey,
     ) -> Result<RuntimeDataId, Failure> {
         let invalid = || Failure::InvalidPayload(key.data());
-        let key = key
-            .function_representation(program)
-            .map_err(|_| invalid())?
-            .unwrap_or_else(|| key.clone());
+        let key = shapes::representation_key(program, key.clone())?;
         self.ids.get(&key).copied().ok_or_else(invalid)
     }
 }
@@ -82,6 +79,22 @@ pub fn signature(
     let payload = instance.result().payload().ok_or_else(invalid)?;
     let result = storage.instance(instances.unit().program(), payload.instance())?;
     Ok(RuntimeValueSignature::new(environment, explicit, result))
+}
+
+/// Projects explicit canonical data domains without constructing an executable instance graph.
+/// Stored shapes grant no active selector, source admission, ownership or invocation permission.
+/// # Errors
+/// Rejects unresolved, unsupported or inconsistent storage graphs without publishing a partial table.
+pub fn prepare_data(
+    program: &Program,
+    abi: RuntimeAbiIdentity,
+    data: impl IntoIterator<Item = DataInstanceKey>,
+) -> Result<Prepared, Failure> {
+    let mut shapes = shapes::Builder::new(program);
+    for key in data {
+        shapes.intern(key)?;
+    }
+    shapes.finish(abi)
 }
 
 /// Projects instance data and explicitly requested actual payload keys through one interner.

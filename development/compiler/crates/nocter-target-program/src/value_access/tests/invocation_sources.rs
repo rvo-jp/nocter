@@ -59,3 +59,18 @@ fn has_primary_construction(
     }
     false
 }
+
+#[test]
+fn positive_domain_storage_does_not_admit_unqualified_source_invocations() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/value-contexts/contextual-joined-sibling-growth.nct"
+    ));
+    let (definitions, _) = source.split_once("\nconst ANSWER:").unwrap();
+    let fixture = ValueSourceFixture::new(&format!(
+        "{definitions}\nfunc run(): i32 {{ calculate(true) }}"
+    ));
+    let unit = accepted(&fixture);
+    let root = callable(&unit, "run");
+    assert!(InstanceProgram::prepare(unit, root).is_err());
+}

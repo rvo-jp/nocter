@@ -177,6 +177,10 @@ fn positive_domain_reprojection_preserves_every_context_and_exact_result_family(
         )
         .unwrap();
     assert!(returned.has_same_representation(program, &domain));
+    assert_eq!(
+        returned.function_representations(program).unwrap(),
+        domain.function_representations(program).unwrap()
+    );
     assert!(
         domain
             .reproject_result(
