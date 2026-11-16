@@ -168,6 +168,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Qualify closed evaluator callable-choice schemas and selected immutable values through
   exact typed validation, ordinary shared storage, bounded maximum-array environments and
   storage-failure release. Keep source projection, injection/reindexing and invocation separate.
+- [x] Project complete declaration-owned callable domains into shared evaluator choice shapes,
+  preserving canonical order, concrete/formal equivalence, unsupported environments and the
+  separate final-publication boundary. Keep producer encoding and selected calls unqualified.
 - [ ] Close the [positive callable alternative obligations](design/compiler-realization.md#positive-callable-alternatives)
   through the canonical data-instance graph, guarded source transport, evaluator/target plans,
   native selection and cleanup before widening source admission. The value-context fixture

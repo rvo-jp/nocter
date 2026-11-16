@@ -1,7 +1,9 @@
 //! One evaluator shape authority for domain checks, publication and plan projection.
 use super::super::flow;
 use nocter_constant_evaluation::state::Type;
-use nocter_declarations::value_access::{CodeInstanceKey, DataInstanceKey, PayloadSchema, Program};
+use nocter_declarations::value_access::{
+    CodeInstanceKey, DataInstanceKey, InstanceSchema, PayloadSchema, Program,
+};
 use nocter_model::{TypeId, ValueField};
 use std::collections::{BTreeMap, BTreeSet};
 #[cfg(test)]
@@ -17,15 +19,42 @@ enum ShapeKey {
 }
 impl ShapeKey {
     fn instantiated(program: &Program, instance: DataInstanceKey) -> Result<Self> {
-        let instance = instance
-            .function_representation(program)
-            .map_err(|_| INVALID)?
-            .unwrap_or(instance);
+        let instance = if matches!(
+            instance.schema(program).map_err(|_| INVALID)?,
+            InstanceSchema::FunctionAlternatives(_)
+        ) {
+            instance
+        } else {
+            instance
+                .function_representation(program)
+                .map_err(|_| INVALID)?
+                .unwrap_or(instance)
+        };
         Ok(if instance.is_context_free() {
             Self::Raw(instance.data())
         } else {
             Self::Instance(instance)
         })
+    }
+    fn alternatives(&self, program: &Program) -> Result<Option<Vec<Self>>> {
+        let Self::Instance(instance) = self else {
+            return Ok(None);
+        };
+        if !matches!(
+            instance.schema(program).map_err(|_| INVALID)?,
+            InstanceSchema::FunctionAlternatives(_)
+        ) {
+            return Ok(None);
+        }
+        instance
+            .function_representations(program)
+            .map_err(|_| INVALID)?
+            .ok_or(INVALID)?
+            .into_vec()
+            .into_iter()
+            .map(|key| Self::instantiated(program, key))
+            .collect::<Result<Vec<_>>>()
+            .map(Some)
     }
     fn data(&self) -> TypeId {
         match self {
@@ -80,6 +109,7 @@ fn component_support(schema: &PayloadSchema<'_>, mut values: impl Iterator<Item 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum StructuralShape {
     Uninhabited,
+    CallableAlternatives(Box<[usize]>),
     Tuple(Box<[usize]>),
     Array { element: usize, length: u64 },
     Optional(usize),
@@ -272,58 +302,64 @@ impl Types {
                 self.insert(data, Type::Unavailable, false);
                 continue;
             };
-            let children: Vec<_> = match schema {
-                PayloadSchema::Builtin(builtin) => {
-                    let ty = Type::builtin(builtin);
-                    let supported = ty.is_some();
-                    self.insert(data, ty.unwrap_or(Type::Unavailable), supported);
-                    continue;
-                }
-                PayloadSchema::Fallible(_) => vec![
-                    data.component(program, ValueField::Variant(true))?,
-                    data.component(program, ValueField::Variant(false))?,
-                ],
-                PayloadSchema::Function(witness) => match witness.origin {
-                    nocter_model::ValueFunctionOrigin::Closure(code) => {
-                        vec![data.environment(program, code)?]
-                    }
-                    origin => {
-                        let conditional =
-                            matches!(origin, nocter_model::ValueFunctionOrigin::Parameter(_))
-                                && matches!(&data, ShapeKey::Raw(_));
-                        let ty = match origin {
-                            nocter_model::ValueFunctionOrigin::Declaration(code) => {
-                                Type::NamedFunction(code)
-                            }
-                            _ => Type::Unavailable,
-                        };
-                        let supported = !matches!(ty, Type::Unavailable);
-                        let id = self.insert(data, ty, supported);
-                        self.shapes[id].contract_supported |= conditional;
-                        self.shapes[id].serializable = false;
+            let alternatives = data.alternatives(program)?;
+            let is_alternatives = alternatives.is_some();
+            let children: Vec<_> = if let Some(cases) = alternatives {
+                cases
+            } else {
+                match schema {
+                    PayloadSchema::Builtin(builtin) => {
+                        let ty = Type::builtin(builtin);
+                        let supported = ty.is_some();
+                        self.insert(data, ty.unwrap_or(Type::Unavailable), supported);
                         continue;
                     }
-                },
-                PayloadSchema::Array(array) if array.is_empty() => {
-                    // Retain element classification in the source-key table without inventing
-                    // an element in the executable value. All empty runtime arrays are the same
-                    // value shape; no representative callable is selected from their metadata.
-                    if let Some(id) = self.empty_array {
-                        self.ids.insert(data, id);
-                    } else {
-                        let id = self.insert(data, Type::EmptyArray, true);
-                        self.empty_array = Some(id);
+                    PayloadSchema::Fallible(_) => vec![
+                        data.component(program, ValueField::Variant(true))?,
+                        data.component(program, ValueField::Variant(false))?,
+                    ],
+                    PayloadSchema::Function(witness) => match witness.origin {
+                        nocter_model::ValueFunctionOrigin::Closure(code) => {
+                            vec![data.environment(program, code)?]
+                        }
+                        origin => {
+                            let conditional =
+                                matches!(origin, nocter_model::ValueFunctionOrigin::Parameter(_))
+                                    && matches!(&data, ShapeKey::Raw(_));
+                            let ty = match origin {
+                                nocter_model::ValueFunctionOrigin::Declaration(code) => {
+                                    Type::NamedFunction(code)
+                                }
+                                _ => Type::Unavailable,
+                            };
+                            let supported = !matches!(ty, Type::Unavailable);
+                            let id = self.insert(data, ty, supported);
+                            self.shapes[id].contract_supported |= conditional;
+                            self.shapes[id].serializable = false;
+                            continue;
+                        }
+                    },
+                    PayloadSchema::Array(array) if array.is_empty() => {
+                        // Retain element classification in the source-key table without inventing
+                        // an element in the executable value. All empty runtime arrays are the same
+                        // value shape; no representative callable is selected from their metadata.
+                        if let Some(id) = self.empty_array {
+                            self.ids.insert(data, id);
+                        } else {
+                            let id = self.insert(data, Type::EmptyArray, true);
+                            self.empty_array = Some(id);
+                        }
+                        roots.push((ShapeKey::Raw(array.element()), true));
+                        continue;
                     }
-                    roots.push((ShapeKey::Raw(array.element()), true));
-                    continue;
-                }
-                PayloadSchema::Aggregate(aggregate) => aggregate
-                    .components()
-                    .map(|component| data.component(program, component.field))
-                    .collect::<Result<Vec<_>>>()?,
-                PayloadSchema::Array(_) => vec![data.component(program, ValueField::Array(0))?],
-                PayloadSchema::Optional(_) => {
-                    vec![data.component(program, ValueField::Variant(true))?]
+                    PayloadSchema::Aggregate(aggregate) => aggregate
+                        .components()
+                        .map(|component| data.component(program, component.field))
+                        .collect::<Result<Vec<_>>>()?,
+                    PayloadSchema::Array(_) => vec![data.component(program, ValueField::Array(0))?],
+                    PayloadSchema::Optional(_) => {
+                        vec![data.component(program, ValueField::Variant(true))?]
+                    }
                 }
             };
             if !expanded {
@@ -339,7 +375,7 @@ impl Types {
                 .into_iter()
                 .map(|child| self.ids.get(&child).copied().ok_or(INVALID))
                 .collect::<Result<Vec<_>>>()?;
-            self.compose(data, schema, children)?;
+            self.compose(data, schema, children, is_alternatives)?;
         }
         Ok(())
     }
@@ -348,28 +384,35 @@ impl Types {
         data: ShapeKey,
         schema: PayloadSchema<'_>,
         children: Vec<usize>,
+        alternatives: bool,
     ) -> Result<()> {
-        let structure = match schema {
-            PayloadSchema::Aggregate(schema)
-                if matches!(
-                    schema.form(),
-                    nocter_declarations::value_access::AggregateForm::Tuple(_)
-                ) =>
-            {
-                Some(StructuralShape::Tuple(children.clone().into()))
+        let structure = if alternatives {
+            Some(StructuralShape::CallableAlternatives(
+                children.clone().into(),
+            ))
+        } else {
+            match schema {
+                PayloadSchema::Aggregate(schema)
+                    if matches!(
+                        schema.form(),
+                        nocter_declarations::value_access::AggregateForm::Tuple(_)
+                    ) =>
+                {
+                    Some(StructuralShape::Tuple(children.clone().into()))
+                }
+                PayloadSchema::Array(array) => Some(StructuralShape::Array {
+                    element: *children.first().ok_or(INVALID)?,
+                    length: array.length(),
+                }),
+                PayloadSchema::Optional(_) => {
+                    Some(StructuralShape::Optional(*children.first().ok_or(INVALID)?))
+                }
+                PayloadSchema::Fallible(_) => Some(StructuralShape::Fallible {
+                    primary: *children.first().ok_or(INVALID)?,
+                    alternate: *children.get(1).ok_or(INVALID)?,
+                }),
+                _ => None,
             }
-            PayloadSchema::Array(array) => Some(StructuralShape::Array {
-                element: *children.first().ok_or(INVALID)?,
-                length: array.length(),
-            }),
-            PayloadSchema::Optional(_) => {
-                Some(StructuralShape::Optional(*children.first().ok_or(INVALID)?))
-            }
-            PayloadSchema::Fallible(_) => Some(StructuralShape::Fallible {
-                primary: *children.first().ok_or(INVALID)?,
-                alternate: *children.get(1).ok_or(INVALID)?,
-            }),
-            _ => None,
         };
         if let Some(id) = structure
             .as_ref()
@@ -399,30 +442,34 @@ impl Types {
                 .iter()
                 .filter(|&&id| !variant || self.shapes[id].supported)
                 .all(|&id| self.shapes[id].serializable);
-        let ty = match schema {
-            PayloadSchema::Aggregate(_) => Type::Record(children.into()),
-            PayloadSchema::Optional(_) => Type::Variant {
-                primary: *children.first().ok_or(INVALID)?,
-                alternate: None,
-            },
-            PayloadSchema::Fallible(_) => Type::Variant {
-                primary: *children.first().ok_or(INVALID)?,
-                alternate: Some(*children.get(1).ok_or(INVALID)?),
-            },
-            PayloadSchema::Array(array) => Type::Array {
-                element: *children.first().ok_or(INVALID)?,
-                length: array.length(),
-            },
-            PayloadSchema::Function(witness) => {
-                let nocter_model::ValueFunctionOrigin::Closure(code) = witness.origin else {
-                    return Err(INVALID);
-                };
-                Type::CapturedFunction {
-                    code,
-                    environment: *children.first().ok_or(INVALID)?,
+        let ty = if alternatives {
+            Type::CallableAlternatives(children.into())
+        } else {
+            match schema {
+                PayloadSchema::Aggregate(_) => Type::Record(children.into()),
+                PayloadSchema::Optional(_) => Type::Variant {
+                    primary: *children.first().ok_or(INVALID)?,
+                    alternate: None,
+                },
+                PayloadSchema::Fallible(_) => Type::Variant {
+                    primary: *children.first().ok_or(INVALID)?,
+                    alternate: Some(*children.get(1).ok_or(INVALID)?),
+                },
+                PayloadSchema::Array(array) => Type::Array {
+                    element: *children.first().ok_or(INVALID)?,
+                    length: array.length(),
+                },
+                PayloadSchema::Function(witness) => {
+                    let nocter_model::ValueFunctionOrigin::Closure(code) = witness.origin else {
+                        return Err(INVALID);
+                    };
+                    Type::CapturedFunction {
+                        code,
+                        environment: *children.first().ok_or(INVALID)?,
+                    }
                 }
+                PayloadSchema::Builtin(_) => return Err(INVALID),
             }
-            PayloadSchema::Builtin(_) => return Err(INVALID),
         };
         let id = self.insert(data, ty, supported);
         self.shapes[id].contract_supported = contract_supported;

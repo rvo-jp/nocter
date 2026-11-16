@@ -607,3 +607,78 @@ fn an_environment_input_uses_its_complete_frame_instead_of_reconstructing_type_b
     );
     assert!(!types.supports(program, fixture.tuple).unwrap());
 }
+
+#[test]
+fn callable_choice_shapes_preserve_all_complete_environments_without_selecting_one() {
+    let fixture = fixture();
+    let program = &fixture.program;
+    let actuals = fixture.callbacks.map(|callback| {
+        program
+            .bind_callable_environment(
+                match program.data_schema(fixture.captured).unwrap() {
+                    PayloadSchema::Function(witness) => witness,
+                    _ => unreachable!(),
+                },
+                [(
+                    fixture.parameter,
+                    program.concrete_witness(callback).unwrap(),
+                )],
+            )
+            .unwrap()
+    });
+    assert_eq!(actuals[0].code(), actuals[1].code());
+    assert_ne!(actuals[0].environment(), actuals[1].environment());
+    let domain = program
+        .instantiate_function_alternatives(fixture.captured, actuals.clone())
+        .unwrap();
+    assert!(domain.environment(program).is_err());
+    assert!(domain.function_representation(program).is_err());
+    let expected = domain.function_representations(program).unwrap().unwrap();
+    let mut types = Types::default();
+    let id = types.get_instance(program, domain.clone()).unwrap();
+    let cases: Vec<_> = expected
+        .into_vec()
+        .into_iter()
+        .map(|key| types.get_instance(program, key).unwrap())
+        .collect();
+    assert_ne!(cases[0], cases[1]);
+    assert_eq!(
+        types.shapes[id].ty,
+        Type::CallableAlternatives(cases.into())
+    );
+    assert!(types.supports_instance(program, domain).unwrap());
+    assert!(!types.shapes[id].serializable);
+    let alias = program
+        .instantiate_function_alternatives(fixture.formal, actuals)
+        .unwrap();
+    assert_eq!(types.get_instance(program, alias).unwrap(), id);
+    assert!(!types.supports(program, fixture.formal).unwrap());
+}
+
+#[test]
+fn unsupported_choice_environments_do_not_gain_executable_or_publication_evidence() {
+    let fixture = configured_fixture(true);
+    let program = &fixture.program;
+    let actuals = fixture.callbacks.map(|callback| {
+        program
+            .bind_callable_environment(
+                match program.data_schema(fixture.captured).unwrap() {
+                    PayloadSchema::Function(witness) => witness,
+                    _ => unreachable!(),
+                },
+                [(
+                    fixture.parameter,
+                    program.concrete_witness(callback).unwrap(),
+                )],
+            )
+            .unwrap()
+    });
+    let domain = program
+        .instantiate_function_alternatives(fixture.captured, actuals)
+        .unwrap();
+    let mut types = Types::default();
+    let id = types.get_instance(program, domain.clone()).unwrap();
+    assert!(matches!(&types.shapes[id].ty, Type::CallableAlternatives(cases) if cases.len() == 2));
+    assert!(!types.supports_instance(program, domain).unwrap());
+    assert!(!types.shapes[id].serializable);
+}

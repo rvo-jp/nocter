@@ -1543,6 +1543,14 @@ same-typed captures; direct callable inputs retain their own witness bindings, a
 use their raw schema. The supported/unsupported decision follows the supplied input independently
 of the surrounding environment. Schema disagreement rejects rather than selecting another shape.
 A representable optional absence does not supply a missing contextual-input receipt.
+A closed finite callable domain projects every complete case through that same single-function
+shape path and retains the canonical order as `state::Type::CallableAlternatives`. Equivalent
+receiving and concrete domains share one structural choice shape, while differing captured
+contexts remain distinct cases. All cases must be supported for the domain to be executable;
+an unsupported environment is retained as metadata rather than replaced by another candidate.
+These shapes are never final-publication data and expose no unguarded environment projection.
+Shape support alone does not qualify source injection, runtime case selection or invocation.
+
 The selected function leaf uses its actual code/environment representation so a supplied value and
 its receiving formal agree on the evaluator type. Carrier identities remain intact. Instance
 support cannot strengthen the raw unbound descriptor, and contextual callable-bearing carriers
