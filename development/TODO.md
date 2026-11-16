@@ -18,11 +18,11 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Reject an invalid invocation argument count before requesting its input/result payload schemas.
-Preserve local source diagnostics, valid-call readiness and actual argument preparation. Then
-remove unnecessary nominal readiness from unused anonymous callable inputs without weakening
-real body, capture, Copy, lifecycle or ABI obligations. The concrete reproductions below own
-these remaining gaps; wider compound higher-order channels stay separately qualified.
+Remove unnecessary nominal readiness from unused anonymous callable inputs without weakening
+actual body, capture, Copy, lifecycle or ABI obligations. Start with signature-only annotation
+resolution and original source probes, then qualify real payload operations and complete source/native
+consumers. Preserve the separate validated named-body, invocation and static payload requirements;
+wider compound higher-order channels remain separately qualified.
 
 Complete occurrence-sensitive value/capture transport under the
 [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances).
@@ -708,7 +708,7 @@ not a language restriction derived from the current realization boundary.
   is never invoked. Publication currently requires Data's payload from the callable signature
   before computing Data's own count. Preserve genuine payload/value cycles while removing this
   metadata-only dependency.
-- [ ] Reject an invalid argument count before querying invocation payload prerequisites.
+- [x] Reject an invalid argument count before querying invocation payload prerequisites.
   Reproduced `Data { values: [i32; size()] }`, where `size()` calls `produce(0)` but
   `produce(): Data` has no parameters. The actual local arity error currently becomes a false
   required-count cycle through Data; preserve valid-call readiness and original error sites.

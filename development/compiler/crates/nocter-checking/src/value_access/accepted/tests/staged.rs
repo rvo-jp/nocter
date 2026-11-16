@@ -361,3 +361,26 @@ fn published_nominal_signatures_request_payloads_when_their_bodies_are_checked()
         assert!(TypedQuery::prepare(&later, code).is_ok());
     }
 }
+
+#[test]
+fn invalid_arity_rejects_before_a_call_can_request_record_payloads() {
+    for (parameters, arguments) in [("", "0"), ("value: Data", "")] {
+        let source = format!(
+            "struct Data {{ values: [i32; size()] }}\nconst func size(): usize {{ let _ = produce({arguments})\n42 }}\nconst func produce({parameters}): Data {{ loop {{}} }}"
+        );
+        let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+        let Err(SourceFailure::Checking(Failure::Body {
+            failure: BodyFailure::Rejected(diagnostic),
+            ..
+        })) = SourceUnit::prepare(fixture.syntax())
+        else {
+            panic!("arity is known without a record payload");
+        };
+        assert_eq!(diagnostic.rule(), Rule::InvalidCall);
+        let range = diagnostic.source().primary().span().range();
+        assert_eq!(
+            &source[range.start().get() as usize..range.end().get() as usize],
+            format!("produce({arguments})")
+        );
+    }
+}
