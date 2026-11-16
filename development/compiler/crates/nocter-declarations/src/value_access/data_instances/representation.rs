@@ -2,7 +2,12 @@
 use super::{DataInstanceKey, InstanceSchema, Program};
 use crate::value_access::AggregateForm;
 use nocter_model::ValueField;
-use std::sync::Arc;
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum Relation {
+    Exact,
+    Guarded,
+    Value,
+}
 
 impl DataInstanceKey {
     /// Compare concrete logical representations without erasing code/environment or nominal
@@ -10,7 +15,7 @@ impl DataInstanceKey {
     /// backing. Structural input constraints can name the same represented value differently.
     #[must_use]
     pub fn has_same_representation(&self, program: &Program, other: &Self) -> bool {
-        self.compare_representation(program, other, false)
+        self.compare_representation(program, other, Relation::Exact)
     }
     /// Check directed structural transport, permitting an excluded outcome alternative to enter
     /// a wider represented carrier. This is neither byte-copy compatibility nor an executed
@@ -18,17 +23,28 @@ impl DataInstanceKey {
     /// Empty roots, missing contexts and changed positive code/environment identities reject.
     #[must_use]
     pub fn permits_guarded_transport(&self, program: &Program, target: &Self) -> bool {
-        !self.is_uninhabited() && self.compare_representation(program, target, true)
+        !self.is_uninhabited() && self.compare_representation(program, target, Relation::Guarded)
     }
-    fn compare_representation(&self, program: &Program, other: &Self, transport: bool) -> bool {
+    /// Check structural value-domain injection, including complete positive callable choices.
+    /// Existing positives must occur unchanged in the target; guarded exclusions may widen.
+    /// This supplies no selector, initialized value, ownership, geometry or executed conversion.
+    #[must_use]
+    pub fn permits_value_transport(&self, program: &Program, target: &Self) -> bool {
+        !self.is_uninhabited() && self.compare_representation(program, target, Relation::Value)
+    }
+    #[allow(
+        clippy::too_many_lines,
+        reason = "Keep comparison modes on one exhaustive schema edge policy."
+    )]
+    fn compare_representation(&self, program: &Program, other: &Self, relation: Relation) -> bool {
         let mut pending = vec![(self.clone(), other.clone(), false)];
         let mut seen = std::collections::BTreeSet::new();
         while let Some((left, right, guarded)) = pending.pop() {
             if !seen.insert((
                 left.data,
-                Arc::as_ptr(&left.context),
+                left.context_identity(),
                 right.data,
-                Arc::as_ptr(&right.context),
+                right.context_identity(),
                 guarded,
             )) {
                 continue;
@@ -38,7 +54,7 @@ impl DataInstanceKey {
             };
             match (a, b) {
                 (InstanceSchema::Uninhabited, _)
-                    if transport
+                    if relation != Relation::Exact
                         && guarded
                         && program.matches_uninhabited_metadata_with(
                             left.data,
@@ -46,7 +62,7 @@ impl DataInstanceKey {
                             |_| true,
                         ) => {}
                 (InstanceSchema::Uninhabited, InstanceSchema::Uninhabited)
-                    if !transport
+                    if relation == Relation::Exact
                         && program.matches_uninhabited_metadata_with(
                             left.data,
                             right.data,
@@ -58,6 +74,15 @@ impl DataInstanceKey {
                     InstanceSchema::FunctionAlternatives(a),
                     InstanceSchema::FunctionAlternatives(b),
                 ) if a == b => {}
+                (
+                    InstanceSchema::Function(actual),
+                    InstanceSchema::FunctionAlternatives(target),
+                ) if relation == Relation::Value && target.binary_search(&actual).is_ok() => {}
+                (
+                    InstanceSchema::FunctionAlternatives(actual),
+                    InstanceSchema::FunctionAlternatives(target),
+                ) if relation == Relation::Value
+                    && actual.iter().all(|case| target.binary_search(case).is_ok()) => {}
                 (InstanceSchema::Aggregate(a), InstanceSchema::Aggregate(b)) => {
                     if a.len() != b.len() {
                         return false;

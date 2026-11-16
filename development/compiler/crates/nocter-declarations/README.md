@@ -478,7 +478,13 @@ Different source descriptors still require their existing validated reprojection
 `has_same_representation` and `permits_guarded_transport` share that structural comparison. The
 second relation is directed and permits only compatible excluded alternatives to widen; positive
 callable contexts and nominal identities remain exact, and an empty root has no transferable value.
-This metadata relation does not implement conversion or relax byte-copy equality. The
+`permits_value_transport` adds a third, explicit injection mode over that same graph walk: each
+complete positive source witness must remain unchanged in the destination domain. It permits neither
+positive narrowing nor substitution of an equal-signature environment. Equality and guarded-only
+queries retain their stricter meanings. Context-free comparison nodes use semantic descriptor
+identity rather than newly allocated closed handles, so repeated closed children reuse the same
+obligation instead of expanding shared schemas. None of these metadata relations implements a
+conversion, active selector or byte-copy equality. The
 [guarded transport contract](../../../design/compiler-realization.md#guarded-representation-transport)
 owns the remaining integrated obligations before broader source admission.
 `reproject` selects an equivalent existing declaration descriptor from the supplied instance,

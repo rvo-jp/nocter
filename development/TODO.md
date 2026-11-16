@@ -134,6 +134,11 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Extend shared cleanup dependency planning and generated helper selection to finite callable
   choices, following only the selected runtime tag at execution and retaining all possible case
   helpers without enumerating array cardinality. Keep source invocation/transport admission closed.
+- [x] Add explicit positive-domain injection comparisons in the canonical declaration/runtime
+  graphs, preserving stricter equality and guarded-only modes, exact complete cases, no narrowing
+  and shared-schema bounds. Keep native/source admission closed until physical selection closes.
+- [x] Normalize context-free nodes in declaration representation comparisons so freshly projected
+  closed child handles cannot expand a shared schema exponentially.
 - [ ] Close the [positive callable alternative obligations](design/compiler-realization.md#positive-callable-alternatives)
   through the canonical data-instance graph, guarded source transport, evaluator/target plans,
   native selection and cleanup before widening source admission. The value-context fixture

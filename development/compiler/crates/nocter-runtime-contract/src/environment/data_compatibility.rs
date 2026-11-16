@@ -1,14 +1,21 @@
-//! Exact value representation and directed guarded transport share one runtime graph comparison.
+//! Exact, guarded and positive-injection obligations share one runtime graph comparison.
 use super::RuntimeEnvironment;
 use crate::{RuntimeDataId, RuntimeType, RuntimeTypeRepresentation};
 use std::collections::{BTreeMap, BTreeSet};
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+enum Relation {
+    Exact,
+    Guarded,
+    Value,
+}
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 struct Key {
     actual: RuntimeDataId,
     expected: RuntimeDataId,
     guarded: bool,
-    transport: bool,
+    relation: Relation,
 }
 impl Key {
     fn child(self, actual: RuntimeDataId, expected: RuntimeDataId, guarded: bool) -> Self {
@@ -60,7 +67,15 @@ impl RuntimeEnvironment {
         self.value_relations()
             .permits_guarded_value_transport(actual, expected)
     }
+    /// Check structural domain injection, including complete positive callable alternatives.
+    /// This grants no source conversion, active selector, ownership or physical transport.
+    #[must_use]
+    pub fn permits_value_transport(&self, actual: RuntimeDataId, expected: RuntimeDataId) -> bool {
+        self.value_relations()
+            .permits_value_transport(actual, expected)
+    }
 }
+
 impl ValueRepresentationRelations<'_> {
     /// Preserve represented domains and every positive runtime identity.
     pub fn has_same_value_representation(
@@ -72,7 +87,7 @@ impl ValueRepresentationRelations<'_> {
             actual,
             expected,
             guarded: false,
-            transport: false,
+            relation: Relation::Exact,
         })
     }
     /// Permit only guarded excluded alternatives to widen. Empty roots and narrowing reject.
@@ -88,7 +103,24 @@ impl ValueRepresentationRelations<'_> {
             actual,
             expected,
             guarded: false,
-            transport: true,
+            relation: Relation::Guarded,
+        })
+    }
+    /// Permit complete positive cases to enter a wider domain as well as guarded exclusions.
+    /// The separate exact and guarded-only modes retain their stricter contracts and caches.
+    pub fn permits_value_transport(
+        &mut self,
+        actual: RuntimeDataId,
+        expected: RuntimeDataId,
+    ) -> bool {
+        !matches!(
+            self.environment.types().get(actual),
+            None | Some(RuntimeType::Uninhabited)
+        ) && self.compare(Key {
+            actual,
+            expected,
+            guarded: false,
+            relation: Relation::Value,
         })
     }
     fn compare(&mut self, root: Key) -> bool {
@@ -129,8 +161,19 @@ impl ValueRepresentationRelations<'_> {
         if key.actual == key.expected {
             return Some(Vec::new());
         }
+        if key.relation == Relation::Value
+            && matches!(b, RuntimeType::CallableAlternatives(_))
+            && self
+                .environment
+                .callable_case_targets(key.actual, key.expected)
+                .is_some()
+        {
+            return Some(Vec::new());
+        }
         match (a, b) {
-            (RuntimeType::Uninhabited, _) if key.transport && key.guarded => Some(Vec::new()),
+            (RuntimeType::Uninhabited, _) if key.relation != Relation::Exact && key.guarded => {
+                Some(Vec::new())
+            }
             (RuntimeType::EmptyArray { .. }, RuntimeType::EmptyArray { .. }) => Some(Vec::new()),
             (
                 RuntimeType::FixedArray {

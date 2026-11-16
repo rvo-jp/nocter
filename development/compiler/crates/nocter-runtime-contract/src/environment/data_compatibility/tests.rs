@@ -172,3 +172,72 @@ fn fixture() -> (RuntimeEnvironment, Id, Id) {
     .unwrap();
     (runtime, left, right)
 }
+
+#[test]
+fn positive_injection_reuses_shared_obligations_without_relaxing_guarded_or_exact_queries() {
+    let mut types = RuntimeTypeTableBuilder::new();
+    for (index, shape) in [
+        (0, Ty::StaticCallable { environment: None }),
+        (1, Ty::StaticCallable { environment: None }),
+        (
+            2,
+            Ty::CallableAlternatives(vec![Id::Instance(1), Id::Instance(0)].into()),
+        ),
+        (3, Ty::Optional(Id::Instance(0))),
+        (4, Ty::Optional(Id::Instance(2))),
+    ] {
+        types.insert(Id::Instance(index), shape).unwrap();
+    }
+    let mut representations = BTreeMap::new();
+    let (mut source, mut target) = (Id::Instance(3), Id::Instance(4));
+    for level in 0..32 {
+        let (left, right) = (Id::Instance(10 + level * 2), Id::Instance(11 + level * 2));
+        for (id, child) in [(left, source), (right, target)] {
+            types.insert(id, Ty::Aggregate).unwrap();
+            representations.insert(
+                id,
+                Representation::ValueAggregate {
+                    fields: [0, 1]
+                        .into_iter()
+                        .map(|index| {
+                            RuntimeValueFieldRepresentation::new(ValueField::Tuple(index), child)
+                        })
+                        .collect(),
+                },
+            );
+        }
+        (source, target) = (left, right);
+    }
+    let (left, right) = (Id::Instance(100), Id::Instance(101));
+    for (id, element) in [(left, source), (right, target)] {
+        types
+            .insert(
+                id,
+                Ty::FixedArray {
+                    element,
+                    length: u64::MAX,
+                },
+            )
+            .unwrap();
+    }
+    let runtime = RuntimeEnvironment::new(
+        types.finish().unwrap(),
+        RuntimeTypeRepresentationTable::new(representations),
+        RuntimeAbiIdentity::Arm64DarwinV1,
+    )
+    .unwrap();
+    let mut relations = runtime.value_relations();
+    for _ in 0..3 {
+        assert!(relations.permits_value_transport(left, right));
+        assert!(!relations.permits_guarded_value_transport(left, right));
+        assert!(!relations.has_same_value_representation(left, right));
+        assert!(!relations.permits_value_transport(right, left));
+    }
+    let known = relations.known.len();
+    assert!(
+        known < 300,
+        "shared schemas, not logical element count: {known}"
+    );
+    assert!(relations.permits_value_transport(source, target));
+    assert_eq!(relations.known.len(), known);
+}

@@ -53,6 +53,14 @@ choice-to-static narrowing reject. Matching environments or geometry alone canno
 static callable identities. This metadata mapping changes neither exact represented-domain equality
 nor guarded excluded-alternative transport, and supplies no runtime selector or transfer permission.
 
+`permits_value_transport` adds positive-domain injection through the same structural comparison
+engine. Each positive leaf uses complete callable-case correspondence; product, outcome and
+homogeneous array edges retain their ordinary schemas. Empty roots and positive narrowing reject.
+Exact, guarded-only and injection obligations have distinct cache modes, so an injection success
+cannot authorize copying or silently broaden an earlier query. Shared dependencies, including
+failed parents, are handled independently of logical array cardinality. MIR and native transport
+continue to use the narrower guarded relation until physical selected-case movement is qualified.
+
 This descriptor supplies neither an active selector nor source, invocation, ownership or transport
 permission. Exact representation comparison still preserves runtime identities; directed guarded
 transport does not inject positive cases into a choice. Target storage can project complete canonical

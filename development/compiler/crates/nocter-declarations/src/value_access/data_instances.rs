@@ -44,6 +44,14 @@ impl DataInstanceKey {
     pub const fn data(&self) -> TypeId {
         self.data
     }
+    /// Request-local graph identity. Recreated closed handles share their schema node.
+    fn context_identity(&self) -> usize {
+        if self.is_context_free() {
+            0
+        } else {
+            Arc::as_ptr(&self.context) as usize
+        }
+    }
     /// Whether the declared descriptor alone selects this representation domain.
     #[must_use]
     pub fn is_context_free(&self) -> bool {

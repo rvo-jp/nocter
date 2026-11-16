@@ -3,23 +3,12 @@ use super::{DataInstanceKey, InstanceSchema, Program};
 use crate::value_access::{AggregateForm, CodeBindingError, ConcreteWitness, PayloadSchema};
 use nocter_model::{AccessCodeId, TypeId, ValueField, ValuePath};
 mod results;
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
+use std::collections::{BTreeMap, BTreeSet};
 const INVALID: CodeBindingError = CodeBindingError::InvalidWitness;
 type Node = (TypeId, usize, TypeId);
 
 fn node(source: &DataInstanceKey, target: TypeId) -> Node {
-    (
-        source.data(),
-        if source.is_context_free() {
-            0
-        } else {
-            Arc::as_ptr(&source.context) as usize
-        },
-        target,
-    )
+    (source.data(), source.context_identity(), target)
 }
 
 impl DataInstanceKey {

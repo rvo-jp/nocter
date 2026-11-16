@@ -186,3 +186,43 @@ fn callable_case_projection_retains_order_code_view_and_nested_environment() {
         .unwrap();
     assert!(unit.function_representations(program).unwrap().is_none());
 }
+
+#[test]
+fn value_injection_keeps_every_positive_case_and_the_stricter_relations_separate() {
+    let fixture = fixture_with_depth(24);
+    let program = &fixture.program;
+    let keys = fixture.callbacks.map(|callback| {
+        let frame = program
+            .bind_code(fixture.creator.into(), [(fixture.formal, callback)])
+            .unwrap();
+        program.instantiate_data(fixture.large, &frame).unwrap()
+    });
+    let joined = program
+        .join_data_domains(&keys[0], &keys[1], || Ok::<_, ()>(()))
+        .unwrap();
+    for source in &keys {
+        assert!(source.permits_value_transport(program, &joined));
+        assert!(!source.permits_guarded_transport(program, &joined));
+        assert!(!source.has_same_representation(program, &joined));
+        assert!(!joined.permits_value_transport(program, source));
+    }
+    assert!(joined.permits_value_transport(program, &joined));
+    assert!(!keys[0].permits_value_transport(program, &keys[1]));
+    let empty = program.instantiate_uninhabited_data(joined.data()).unwrap();
+    assert!(!empty.permits_value_transport(program, &joined));
+}
+
+#[test]
+fn closed_shared_representation_queries_reuse_schema_pairs_without_fresh_arc_expansion() {
+    let (headers, [creator, ..]) = headers();
+    let mut data = headers.data_type(BuiltinType::I32).unwrap();
+    let mut body = headers.body_types(creator).unwrap();
+    for _ in 0..48 {
+        data = body.tuple(&[data, data]).unwrap();
+    }
+    let program = body.finish();
+    let key = program.instantiate_closed_data(data).unwrap();
+    assert!(key.has_same_representation(&program, &key));
+    assert!(key.permits_guarded_transport(&program, &key));
+    assert!(key.permits_value_transport(&program, &key));
+}

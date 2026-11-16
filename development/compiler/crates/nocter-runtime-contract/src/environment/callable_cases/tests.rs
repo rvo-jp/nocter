@@ -65,6 +65,10 @@ fn maps_complete_static_identity_and_remaps_original_choice_indices() {
                 .map(|(data, tag)| (RuntimeDataId::Instance(data), tag))
                 .collect::<Vec<_>>()
         );
+        assert!(runtime.permits_value_transport(
+            RuntimeDataId::Instance(source),
+            RuntimeDataId::Instance(target)
+        ));
         if source != target {
             assert!(!runtime.permits_guarded_value_transport(
                 RuntimeDataId::Instance(source),
@@ -93,6 +97,12 @@ fn refuses_missing_positive_cases_and_never_selects_from_geometry_or_exclusion()
         (999, 3),
         (0, 999),
     ] {
+        if source != target {
+            assert!(!runtime.permits_value_transport(
+                RuntimeDataId::Instance(source),
+                RuntimeDataId::Instance(target)
+            ));
+        }
         assert!(
             runtime
                 .callable_case_targets(

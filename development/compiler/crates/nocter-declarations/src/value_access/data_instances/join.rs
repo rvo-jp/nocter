@@ -1,11 +1,8 @@
 //! Budgeted metadata-domain joins retain the source descriptor and complete positive identities.
-use super::{Context, DataInstanceKey, InstanceSchema, Program};
+use super::{DataInstanceKey, InstanceSchema, Program};
 use crate::value_access::{CodeBindingError, ConcreteWitness, PayloadSchema};
 use nocter_model::TypeId;
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DataDomainJoinFailure<E> {
@@ -17,20 +14,12 @@ impl<E> From<CodeBindingError> for DataDomainJoinFailure<E> {
         Self::Binding(error)
     }
 }
-type Node = (TypeId, *const Context, *const Context);
+type Node = (TypeId, usize, usize);
 fn node(left: &DataInstanceKey, right: &DataInstanceKey) -> Node {
     (
         left.data(),
-        if left.is_context_free() {
-            std::ptr::null()
-        } else {
-            Arc::as_ptr(&left.context)
-        },
-        if right.is_context_free() {
-            std::ptr::null()
-        } else {
-            Arc::as_ptr(&right.context)
-        },
+        left.context_identity(),
+        right.context_identity(),
     )
 }
 
