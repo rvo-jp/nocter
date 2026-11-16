@@ -49,6 +49,14 @@ impl DataInstanceKey {
             )) {
                 continue;
             }
+            // Equal closed descriptors need one complete validity check, not fresh construction
+            // of every remaining suffix at each component of a deep or shared schema.
+            if left.data == right.data && left.is_context_free() && right.is_context_free() {
+                if program.instantiate_closed_data(left.data).is_err() {
+                    return false;
+                }
+                continue;
+            }
             let (Ok(a), Ok(b)) = (left.schema(program), right.schema(program)) else {
                 return false;
             };

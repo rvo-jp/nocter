@@ -142,6 +142,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Implement selected native callable-domain movement through canonical case correspondence,
   independent containing offsets and target tag reconstruction. Share tag switching with cleanup;
   qualify closed layout plans and preserve checking's source-admission boundary before execution.
+- [x] Eliminate repeated closed-subtree construction in declaration representation comparisons.
+  Preserve validation of foreign/unknown descriptors and exact relation semantics; qualify deep
+  closed schemas, contextual parents and consumer regression before removing local shortcuts.
 - [ ] Qualify positive local-merge and loop-epoch encoding at original incoming writes/edges.
   Reject mixed local representations that acquire a positive tag only through metadata until
   original control, retained aliases and complete physical normalization are preserved.

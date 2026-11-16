@@ -226,3 +226,67 @@ fn closed_shared_representation_queries_reuse_schema_pairs_without_fresh_arc_exp
     assert!(key.permits_guarded_transport(&program, &key));
     assert!(key.permits_value_transport(&program, &key));
 }
+
+#[test]
+fn deep_closed_representation_comparisons_validate_the_schema_once() {
+    let (headers, [creator, ..]) = headers();
+    let mut data = headers.data_type(BuiltinType::I32).unwrap();
+    let mut body = headers.body_types(creator).unwrap();
+    for _ in 0..10_000 {
+        data = body.optional(data).unwrap();
+    }
+    let program = body.finish();
+    let key = program.instantiate_closed_data(data).unwrap();
+    let independently_bound = program.instantiate_closed_data(data).unwrap();
+    assert!(key.is_context_free());
+    assert!(key.has_same_representation(&program, &independently_bound));
+    assert!(key.permits_guarded_transport(&program, &independently_bound));
+    assert!(key.permits_value_transport(&program, &independently_bound));
+    // A key's Closed marker from another graph is not a certificate for this Program.
+    assert!(program.data_schema(data).is_some());
+    assert!(headers.data_schema(data).is_none());
+    assert!(!key.has_same_representation(&headers, &independently_bound));
+    assert!(!key.permits_guarded_transport(&headers, &independently_bound));
+    assert!(!key.permits_value_transport(&headers, &independently_bound));
+}
+
+#[test]
+fn equal_closed_markers_still_reject_unresolved_contexts_in_the_requested_program() {
+    let fixture = fixture();
+    assert!(fixture.program.data_schema(fixture.large).is_some());
+    assert!(
+        fixture
+            .program
+            .instantiate_closed_data(fixture.large)
+            .is_err()
+    );
+    // Deliberately invalid metadata models a Closed key carried from an unrelated graph.
+    let key = crate::value_access::DataInstanceKey {
+        data: fixture.large,
+        context: std::sync::Arc::new(crate::value_access::data_instances::Context::Closed),
+    };
+    assert!(!key.has_same_representation(&fixture.program, &key));
+    assert!(!key.permits_guarded_transport(&fixture.program, &key));
+    assert!(!key.permits_value_transport(&fixture.program, &key));
+}
+
+#[test]
+fn closed_sibling_comparison_preserves_the_containing_callable_context() {
+    let fixture = fixture_with_closed_sibling(1_000);
+    let program = &fixture.program;
+    let keys = fixture.callbacks.map(|callback| {
+        let frame = program
+            .bind_code(fixture.creator.into(), [(fixture.formal, callback)])
+            .unwrap();
+        program.instantiate_data(fixture.pair, &frame).unwrap()
+    });
+    assert!(!keys[0].is_context_free());
+    for key in &keys {
+        assert!(key.has_same_representation(program, key));
+        assert!(key.permits_guarded_transport(program, key));
+        assert!(key.permits_value_transport(program, key));
+    }
+    assert!(!keys[0].has_same_representation(program, &keys[1]));
+    assert!(!keys[0].permits_guarded_transport(program, &keys[1]));
+    assert!(!keys[0].permits_value_transport(program, &keys[1]));
+}

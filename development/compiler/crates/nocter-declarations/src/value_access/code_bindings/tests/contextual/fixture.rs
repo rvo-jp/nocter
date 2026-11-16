@@ -21,6 +21,12 @@ pub(super) fn fixture() -> Fixture {
     fixture_with_depth(0)
 }
 pub(super) fn fixture_with_depth(depth: usize) -> Fixture {
+    fixture_with_shapes(depth, 0)
+}
+pub(super) fn fixture_with_closed_sibling(depth: usize) -> Fixture {
+    fixture_with_shapes(0, depth)
+}
+fn fixture_with_shapes(depth: usize, closed_depth: usize) -> Fixture {
     let (headers, [creator, _, plain, _, _]) = headers();
     let formal = headers.codes().get(creator).unwrap().parameters()[0].into();
     let data = headers
@@ -42,6 +48,13 @@ pub(super) fn fixture_with_depth(depth: usize) -> Fixture {
     let mut pair = body.tuple(&[captured_data, captured_data]).unwrap();
     for _ in 0..depth {
         pair = body.tuple(&[pair, pair]).unwrap();
+    }
+    if closed_depth != 0 {
+        let mut closed = body.program().data_type(BuiltinType::I32).unwrap();
+        for _ in 0..closed_depth {
+            closed = body.optional(closed).unwrap();
+        }
+        pair = body.tuple(&[pair, closed]).unwrap();
     }
     let large = body.array(pair, u64::MAX).unwrap();
     let mixed = body.reserve_closure().unwrap();

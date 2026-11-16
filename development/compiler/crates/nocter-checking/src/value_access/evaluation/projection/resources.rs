@@ -249,7 +249,6 @@ impl Builder<'_, '_> {
                 {
                     if target.fields.is_empty()
                         && let Some(receiving) = self.receiving_key(destination.holder())?.cloned()
-                        && payload.instance() != &receiving
                         && !payload
                             .instance()
                             .has_same_representation(self.program, &receiving)

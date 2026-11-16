@@ -483,7 +483,11 @@ complete positive source witness must remain unchanged in the destination domain
 positive narrowing nor substitution of an equal-signature environment. Equality and guarded-only
 queries retain their stricter meanings. Context-free comparison nodes use semantic descriptor
 identity rather than newly allocated closed handles, so repeated closed children reuse the same
-obligation instead of expanding shared schemas. None of these metadata relations implements a
+obligation instead of expanding shared schemas. Equal closed descriptors undergo one complete
+validation in the requested program, then discharge that subtree without rebuilding every remaining
+suffix. A Closed marker from a foreign graph cannot bypass unknown descriptors or unresolved
+callable contexts. Deep closed carriers use this same comparison authority; evaluator consumers
+need no local equality shortcut. None of these metadata relations implements a
 conversion, active selector or byte-copy equality. The
 [guarded transport contract](../../../design/compiler-realization.md#guarded-representation-transport)
 owns the remaining integrated obligations before broader source admission.
