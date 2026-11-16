@@ -200,7 +200,7 @@ pub(super) fn derives_from_input(
     fields: &[usize],
     work: &mut nocter_constant_evaluation::state::WorkBudget,
 ) -> Result<bool, crate::value_access::InstantiationFailure> {
-    use crate::value_access::{InstantiationFailure as Failure, ValueSource};
+    use crate::value_access::InstantiationFailure as Failure;
     let Some(input) = body
         .typed()
         .body()
@@ -230,15 +230,28 @@ pub(super) fn derives_from_input(
             }
         }
     }
+    let Some(expected) = expected_path(body, local, fields, work)? else {
+        return Ok(false);
+    };
+    derives_from_projection(body, control, expression, local, &expected, work)
+}
+
+/// Original input lineage only; this supplies no tag, bounds, value or invocation permission.
+fn derives_from_projection(
+    body: &flow::Query,
+    control: &crate::value_access::InstanceControl,
+    expression: nocter_model::AccessExpressionId,
+    local: AccessLocalId,
+    expected: &[nocter_model::ValueProjection<()>],
+    work: &mut nocter_constant_evaluation::state::WorkBudget,
+) -> Result<bool, crate::value_access::InstantiationFailure> {
+    use crate::value_access::{InstantiationFailure as Failure, ValueSource};
     let sources = body
         .typed()
         .result_evidence
         .as_ref()
         .and_then(|evidence| evidence.value_sources(body.typed().code()))
         .ok_or(Failure::Unresolved)?;
-    let Some(expected) = expected_path(body, local, fields, work)? else {
-        return Ok(false);
-    };
     let mut reached = false;
     for call in sources.call(expression).ok_or(Failure::Unresolved)? {
         if !control.reachable(call.origin.point) {
@@ -298,10 +311,129 @@ pub(super) fn derives_from_input(
     Ok(reached)
 }
 
+/// First qualified capability residual: an unmodified read input's direct nominal function field.
+/// Schema matching proposes a path; the shared original-source walk must independently prove it.
+pub(super) fn stable_callable_field_input(
+    body: &flow::Query,
+    control: &crate::value_access::InstanceControl,
+    expression: nocter_model::AccessExpressionId,
+    written: Option<&BTreeSet<AccessLocalId>>,
+    work: &mut nocter_constant_evaluation::state::WorkBudget,
+) -> Result<bool, crate::value_access::InstantiationFailure> {
+    use crate::value_access::{ExpressionKind, InstantiationFailure as Failure};
+    use nocter_declarations::value_access::AggregateForm;
+    use nocter_model::{ValueField, ValueInputOperation, ValueProjection};
+    let ExpressionKind::Call {
+        target: target @ ValueFunctionOrigin::Contract(_),
+        ..
+    } = &body
+        .typed()
+        .body()
+        .expressions()
+        .get(expression)
+        .ok_or(Failure::Unresolved)?
+        .kind
+    else {
+        return Ok(false);
+    };
+    let Some(written) = written else {
+        return Ok(false);
+    };
+    for input in body.typed().body().inputs().ordered() {
+        work.step().map_err(|_| Failure::WorkLimit)?;
+        if input.operation != ValueInputOperation::Read || written.contains(&input.local) {
+            continue;
+        }
+        let data = body
+            .typed()
+            .body()
+            .locals()
+            .get(input.local)
+            .ok_or(Failure::Unresolved)?
+            .data;
+        let Some(PayloadSchema::Aggregate(schema)) = body.typed().program().data_schema(data)
+        else {
+            continue;
+        };
+        let AggregateForm::Record(record) = schema.form() else {
+            continue;
+        };
+        for &field in record.fields() {
+            work.step().map_err(|_| Failure::WorkLimit)?;
+            let component = schema
+                .component(ValueField::Record(field))
+                .ok_or(Failure::Unresolved)?;
+            if matches!(body.typed().program().data_schema(component.data), Some(PayloadSchema::Function(witness)) if witness.origin == *target)
+                && derives_from_projection(
+                    body,
+                    control,
+                    expression,
+                    input.local,
+                    &[ValueProjection::Record(field)],
+                    work,
+                )?
+            {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    #[test]
+    fn stable_field_lineage_is_budgeted_and_retry_does_not_inherit_partial_proofs() {
+        use nocter_constant_evaluation::state::{Limits, WorkBudget};
+        let fixture = nocter_test_support::ValueSourceFixture::new(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/native/value-access/received-record-callable-conditions.nct"
+        )));
+        let unit = crate::value_access::accepted::SourceUnit::prepare(fixture.syntax())
+            .unwrap()
+            .into_unit();
+        let program = unit.program();
+        let invoke = program
+            .resolve(program.symbols().get("invoke").unwrap())
+            .unwrap();
+        let frame = program.bind_code(invoke.into(), []).unwrap();
+        let body = unit.code_body(invoke.into()).unwrap();
+        let call = body
+            .typed()
+            .body()
+            .expressions()
+            .iter()
+            .find_map(|(id, expression)| {
+                matches!(
+                    expression.kind,
+                    crate::value_access::ExpressionKind::Call { .. }
+                )
+                .then_some(id)
+            })
+            .unwrap();
+        let control = unit
+            .instantiate_control(&frame, &mut WorkBudget::new(Limits::default().steps()))
+            .unwrap();
+        let written = writes(body);
+        let mut exhausted = WorkBudget::new(std::num::NonZeroU64::new(1).unwrap());
+        exhausted.step().unwrap();
+        assert_eq!(
+            stable_callable_field_input(body, &control, call, written.as_ref(), &mut exhausted),
+            Err(crate::value_access::InstantiationFailure::WorkLimit)
+        );
+        assert_eq!(
+            stable_callable_field_input(
+                body,
+                &control,
+                call,
+                written.as_ref(),
+                &mut WorkBudget::new(Limits::default().steps())
+            ),
+            Ok(true)
+        );
+    }
     #[test]
     fn nullable_component_attribution_preserves_ambiguity_without_expanding_shared_schemas() {
         let source = nocter_test_support::ValueSourceFixture::new(

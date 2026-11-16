@@ -1,0 +1,24 @@
+struct Item { value: i32 }
+struct Handler { action: func(i32): i32
+    other: func(i32): i32
+    amount: i32 }
+const func identity(value: i32): i32 { value }
+const func addition(value: i32): func(i32): i32 {
+    let item = Item { value: value }
+    (item^; amount: i32): i32 { item.value + amount }
+}
+const func invoke(handler: Handler): i32 { handler.action(handler.amount) }
+const func via_alias(handler: Handler): i32 {
+    read action = handler.action
+    action(handler.amount)
+}
+const func invoke_other(handler: Handler): i32 { handler.other(handler.amount) }
+const func via_right(left: Handler, right: Handler): i32 { right.action(right.amount) }
+const func calculate(): i32 {
+    let first = Handler { action: identity, other: addition(1), amount: 42 }
+    let second = Handler { action: addition(1), other: identity, amount: 41 }
+    if invoke(first) == 42 && invoke(second) == 42 && via_alias(first) == 42 && via_alias(second) == 42
+        && invoke_other(first) == 43 && invoke_other(second) == 41 && via_right(first, second) == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { if ANSWER == 42 { calculate() } else { 0 } }

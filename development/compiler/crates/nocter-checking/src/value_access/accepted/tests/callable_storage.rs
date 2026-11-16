@@ -1866,3 +1866,35 @@ fn owning_record_field_const_conditions_preserve_actual_input_domain_obligations
         violation.rule()
     );
 }
+
+#[test]
+fn received_readonly_record_fields_retain_conditional_const_invocation() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-record-callable-conditions.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Value::integer(42));
+    let runtime = format!(
+        "func runtime(value: i32): i32 {{ value }}\n{}",
+        source.replace("action: identity, other:", "action: runtime, other:")
+    );
+    let fixture = nocter_test_support::ValueSourceFixture::new(&runtime);
+    let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+        SourceUnit::prepare(fixture.syntax())
+    else {
+        panic!("an actual runtime field cannot acquire const invocation capability");
+    };
+    assert!(matches!(
+        diagnostic.rule(),
+        crate::value_access::constant::Rule::RuntimeCall(_)
+    ));
+    let ignored = source
+        .replace(
+            "invoke_other(first) == 43 && invoke_other(second) == 41 && ",
+            "",
+        )
+        .replace("other: addition(1)", "other: runtime")
+        .replace("other: identity", "other: runtime");
+    let ignored = format!("func runtime(value: i32): i32 {{ value }}\n{ignored}");
+    assert_eq!(answer(&ignored, "ANSWER"), Value::integer(42));
+}

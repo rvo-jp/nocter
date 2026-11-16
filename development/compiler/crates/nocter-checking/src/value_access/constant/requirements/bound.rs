@@ -12,13 +12,15 @@ pub(in crate::value_access) struct InvocationCondition {
     pub cause: flow::Location,
     pub violation: Violation,
 }
-/// Exact call metadata discovered while checking local clauses; not recursive const admission.
+/// Selected call metadata and definition-only residuals; neither supplies const eligibility.
 pub(in crate::value_access) enum BoundCheck {
     Violation(Violation),
     Calls {
         calls: std::collections::BTreeMap<AccessExpressionId, Box<[CodeInstanceKey]>>,
         control: crate::value_access::InstanceControl,
         conditions: std::collections::BTreeMap<AccessExpressionId, InvocationCondition>,
+        /// Always empty in a strict instance report; these IDs are not selected call frames.
+        residual_calls: std::collections::BTreeSet<AccessExpressionId>,
     },
 }
 #[derive(Clone, Copy, Debug)]
@@ -47,8 +49,34 @@ pub(super) struct BoundContext<'a, 'work> {
     resources: std::collections::BTreeMap<(flow::Location, usize), cleanup::Projected>,
     control: crate::value_access::InstanceControl,
     conditions: std::collections::BTreeMap<AccessExpressionId, InvocationCondition>,
+    residual_calls: std::collections::BTreeSet<AccessExpressionId>,
 }
 impl BoundContext<'_, '_> {
+    pub(super) fn retain_input_capability(
+        &mut self,
+        body: &flow::Query,
+        expression: AccessExpressionId,
+        writes: Option<&std::collections::BTreeSet<nocter_model::AccessLocalId>>,
+    ) -> Result<bool, BoundCheckFailure> {
+        if self.residual_calls.contains(&expression) {
+            return Ok(true);
+        }
+        let retained = super::guards::stable_callable_field_input(
+            body,
+            &self.control,
+            expression,
+            writes,
+            self.work,
+        )
+        .map_err(|failure| BoundCheckFailure::Invocation {
+            expression,
+            failure,
+        })?;
+        if retained {
+            self.residual_calls.insert(expression);
+        }
+        Ok(retained)
+    }
     pub(super) fn defer_invocation(
         &mut self,
         body: &flow::Query,
@@ -329,6 +357,7 @@ impl Requirements {
             calls: std::collections::BTreeMap::new(),
             resources: std::collections::BTreeMap::new(),
             conditions: std::collections::BTreeMap::new(),
+            residual_calls: std::collections::BTreeSet::new(),
             control,
         })
     }
@@ -361,6 +390,7 @@ impl Requirements {
                 .collect(),
             control: calls.control,
             conditions: calls.conditions,
+            residual_calls: calls.residual_calls,
         })
     }
 }
@@ -373,6 +403,44 @@ mod tests {
     use nocter_test_support::ValueSourceFixture;
     use std::{collections::BTreeMap, num::NonZeroU64};
 
+    #[test]
+    fn readonly_field_definition_residuals_cannot_become_strict_instance_calls() {
+        let fixture = ValueSourceFixture::new(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/native/value-access/received-record-callable-conditions.nct"
+        )));
+        let unit = crate::value_access::accepted::SourceUnit::prepare(fixture.syntax())
+            .unwrap()
+            .into_unit();
+        let program = unit.program();
+        let invoke = program
+            .resolve(program.symbols().get("invoke").unwrap())
+            .unwrap();
+        let hypothesis = program.bind_code(invoke.into(), []).unwrap();
+        assert!(hypothesis.input_data(0).is_none());
+        let requirements = unit.const_requirements(invoke.into()).unwrap();
+        let mut work = WorkBudget::new(Limits::default().steps());
+        let BoundCheck::Calls {
+            calls,
+            residual_calls,
+            ..
+        } = requirements
+            .check_definition(&|_| true, &hypothesis, &mut work)
+            .unwrap()
+        else {
+            panic!("a stable field can retain an explicit definition capability condition");
+        };
+        assert_eq!(residual_calls.len(), 1);
+        assert!(residual_calls.iter().all(|call| !calls.contains_key(call)));
+        let mut work = WorkBudget::new(Limits::default().steps());
+        assert!(matches!(
+            requirements.check_bound(&|_| true, &hypothesis, &mut work),
+            Err(BoundCheckFailure::Invocation {
+                failure: crate::value_access::InstantiationFailure::Unresolved,
+                ..
+            })
+        ));
+    }
     #[test]
     fn definition_payload_residuals_never_defer_work_exhaustion_and_can_retry() {
         let fixture = ValueSourceFixture::new(include_str!(concat!(
@@ -453,6 +521,7 @@ mod tests {
             calls: BTreeMap::new(),
             resources: BTreeMap::new(),
             conditions: BTreeMap::new(),
+            residual_calls: std::collections::BTreeSet::new(),
             control: unit
                 .instantiate_control(&caller, &mut WorkBudget::new(Limits::default().steps()))
                 .unwrap(),
@@ -503,6 +572,7 @@ mod tests {
             calls: BTreeMap::new(),
             resources: BTreeMap::new(),
             conditions: BTreeMap::new(),
+            residual_calls: std::collections::BTreeSet::new(),
             control: unit
                 .instantiate_control(&caller, &mut WorkBudget::new(Limits::default().steps()))
                 .unwrap(),

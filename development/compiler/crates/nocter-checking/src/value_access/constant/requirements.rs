@@ -73,6 +73,7 @@ pub(in crate::value_access) use bound::{BoundCheck, BoundCheckFailure, Invocatio
 pub struct Requirements {
     body: Arc<flow::Query>,
     clauses: Box<[Clause]>,
+    input_writes: Option<std::collections::BTreeSet<nocter_model::AccessLocalId>>,
 }
 #[derive(Clone, Copy)]
 enum CheckMode {
@@ -152,6 +153,7 @@ impl Requirements {
         Ok(Self {
             body,
             clauses: clauses.into(),
+            input_writes,
         })
     }
     pub(in crate::value_access) fn check(
@@ -196,6 +198,23 @@ impl Requirements {
                     failure: crate::value_access::InstantiationFailure::Unresolved,
                     ..
                 }) if matches!(mode, CheckMode::Definition) => continue,
+                Err(BoundCheckFailure::Invocation {
+                    expression,
+                    failure: crate::value_access::InstantiationFailure::Unresolved,
+                }) if matches!(mode, CheckMode::Definition) => {
+                    let calls = calls.as_deref_mut().ok_or(INVALID)?;
+                    if calls.retain_input_capability(
+                        &self.body,
+                        expression,
+                        self.input_writes.as_ref(),
+                    )? {
+                        continue;
+                    }
+                    return Err(BoundCheckFailure::Invocation {
+                        expression,
+                        failure: crate::value_access::InstantiationFailure::Unresolved,
+                    });
+                }
                 result => result?,
             };
             if violation.is_some() {

@@ -109,12 +109,13 @@ fn check_scope(
             ),
         }
         .map_err(|error| bound_failure(error, &bound, callable))?;
-        let (calls, control, conditions) = match checked {
+        let (calls, control, conditions, residual_calls) = match checked {
             constant::BoundCheck::Calls {
                 calls,
                 control,
                 conditions,
-            } => (calls, control, conditions),
+                residual_calls,
+            } => (calls, control, conditions, residual_calls),
             constant::BoundCheck::Violation(violation) => {
                 let diagnostic =
                     bound_violation(availability, verified, &parents, &key, &bound, violation)?;
@@ -124,8 +125,14 @@ fn check_scope(
                 });
             }
         };
+        if matches!(scope, Scope::Instance) && !residual_calls.is_empty() {
+            return Err(INVALID);
+        }
         for call in requirements.completed_calls() {
             let id = call.expression();
+            if residual_calls.contains(&id) {
+                continue;
+            }
             if conditions.contains_key(&id) {
                 continue;
             }

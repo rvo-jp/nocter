@@ -2815,3 +2815,19 @@ fn private_scoped_owning_record_inputs_preserve_received_siblings_and_cleanup() 
         42,
     );
 }
+
+#[test]
+fn private_readonly_record_field_conditions_keep_distinct_fields_inputs_and_error_owners() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/received-record-callable-conditions.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "record-field-conditions", 42);
+    execute_native_status(
+        &image(&owning_addition_machine(source)),
+        &package.0,
+        "record-field-condition-errors",
+        42,
+    );
+}

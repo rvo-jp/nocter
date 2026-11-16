@@ -18,13 +18,12 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Extend conditional const admission from independently selected field writes to stable received
-callable-field invocations. Attribute unresolved receiver capability to original input paths under
-the existing metadata budget, sharing source projection with nullable guards rather than creating
-a second provenance solver. Keep actual instance checks strict, fixed runtime operations visible,
-mutated/ambiguous paths conservative and every retained data/cleanup obligation intact. Known
-field-write definitions and owning record/tuple/singleton transport are qualified; external
-representation changes and mutable captured-environment transport remain separate.
+Re-evaluate the ordinary package/session and module entry paths against the qualified v2 core.
+Identify the next production-integration dependency and close a source-backed vertical slice without
+adding a competing semantic authority. Preserve existing package/source revision validation and
+keep unqualified library/ABI/publication scope explicit. Stable read-record field capability
+conditions now share original-source lineage with nullable guards; nested/indexed/mutable-input
+conditions, external representation changes and mutable captured environments remain open.
 
 Complete occurrence-sensitive value/capture transport under the
 [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances).
@@ -724,6 +723,11 @@ not a language restriction derived from the current realization boundary.
   retain only unresolved data/cleanup clauses for actual-instance checks. Qualify owning
   record/tuple/singleton CTFE/native results, unused hidden runtime rejection, actual error-domain
   rejection, shared work exhaustion and healthy retry. Publish no eligibility or executable receipt.
+- [x] Retain conditional capability for a direct function field of an unmodified read record input.
+  Share original input-write facts and the nullable guard's budgeted source-path proof; retain
+  unresolved invocation IDs separately from actual callee frames. Qualify direct/aliased calls,
+  distinct same-signature fields/inputs, called versus unused runtime siblings, required/native
+  results, actual error owners, metadata exhaustion/retry and strict-instance rejection of residuals.
 - [ ] Qualify symbolic definition-context proofs for callable field invocations whose function,
   compound-input or capture contexts are not independently closed. Preserve dormant runtime-call
   rejection and original input provenance before removing conservative contextual-call rejection.

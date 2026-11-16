@@ -1689,13 +1689,24 @@ admission as required roots, so even a dormant definition rejects a runtime-only
 A shared reverse-call filter retains transitive contextual obligations; it is not an eligibility
 proof. When a declared compound input prevents a complete definition frame, a negative definition
 scan uses the same clause kernel and transitive original-source call traversal. It may retain an
-unresolved data/cleanup clause for actual-instance checking; it cannot defer an unresolved call,
-control selection, invalid source relation or exhausted work. Known runtime callees remain failures,
+unresolved data/cleanup clause for actual-instance checking. An unresolved invocation may also
+remain a capability condition only when the original receiver is proved to be a direct nominal
+function field of an unmodified read input. Schema matching proposes its logical field path; the
+same budgeted original-source projection used by nullable guards must prove that path through
+aliases and selected predecessors. Input-write metadata is derived once with the Requirements
+body and shared by both predicates. Opaque, changed, ambiguous or otherwise unresolved receivers,
+control selection, invalid source relations and exhausted work cannot be deferred. Known runtime callees remain failures,
 including hidden callbacks in unused definitions. No definition scan publishes eligibility, an
 executable frame or a materialization receipt. Every retained clause remains mandatory before a
 required instance can execute. Source tests qualify known field replacement through owning record,
 tuple and singleton inputs, and preserve rejection of an actual owning-error input outside the
-const domain. General unresolved symbolic invocation remains outside this qualification.
+const domain. `received-record-callable-conditions.nct` additionally qualifies direct/aliased
+read-only field invocation, separate same-signature fields and same-schema inputs, required/native
+execution and actual error owners. An invoked runtime field rejects, while an unused runtime
+sibling supplies no invocation obligation. Definition reports retain residual invocation IDs
+separately from selected callee frames; strict instance admission rejects any residual and must
+resolve the actual caller-supplied witness. General nested, indexed and mutable-input symbolic
+invocation remains outside this qualification.
 Interrupted field calls likewise reject when no original prepared receiver supplies capability;
 a type signature cannot stand in for that missing evidence. Constructor-only generic carriers retain their separate conditions. Definition checks consume an explicitly supplied condition-work scope. During required-root
 preparation they share that root's remaining quota with dependency discovery and admission.
