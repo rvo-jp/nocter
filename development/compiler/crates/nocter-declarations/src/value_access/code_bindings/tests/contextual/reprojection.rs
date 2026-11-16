@@ -130,3 +130,72 @@ fn shared_value(
         .instantiate_components(source_array, [(ValueField::Array(0), value)])
         .unwrap()
 }
+
+#[test]
+fn positive_domain_reprojection_preserves_every_context_and_exact_result_family() {
+    use crate::value_access::InstanceSchema;
+    let fixture = fixture();
+    let program = &fixture.program;
+    let data = program.function_data(fixture.captured).unwrap();
+    let keys = fixture.callbacks.map(|callback| {
+        let frame = program
+            .bind_code(fixture.creator.into(), [(fixture.formal, callback)])
+            .unwrap();
+        program.instantiate_data(data, &frame).unwrap()
+    });
+    let domain = program
+        .join_data_domains(&keys[0], &keys[1], || Ok::<_, ()>(()))
+        .unwrap();
+    let formal = program
+        .function_data(FunctionWitness {
+            origin: ValueFunctionOrigin::Parameter(fixture.formal),
+            invocation: ValueInvocation::Read,
+        })
+        .unwrap();
+    let projected = domain.reproject(program, formal).unwrap();
+    assert_eq!(projected.data(), formal);
+    assert!(domain.has_same_representation(program, &projected));
+    let InstanceSchema::FunctionAlternatives(original) = domain.schema(program).unwrap() else {
+        panic!("source domain")
+    };
+    let InstanceSchema::FunctionAlternatives(received) = projected.schema(program).unwrap() else {
+        panic!("received domain")
+    };
+    assert_eq!(original, received);
+    assert_eq!(projected.reproject(program, data).unwrap(), domain);
+    let factory = program
+        .resolve_code(program.symbols().get("factory").unwrap())
+        .unwrap();
+    let result = program.codes().get(factory).unwrap().result();
+    assert!(domain.reproject(program, result).is_err());
+    let returned = domain
+        .reproject_result(
+            program,
+            factory,
+            &nocter_model::ValuePath::default(),
+            result,
+        )
+        .unwrap();
+    assert!(returned.has_same_representation(program, &domain));
+    assert!(
+        domain
+            .reproject_result(
+                program,
+                fixture.creator,
+                &nocter_model::ValuePath::default(),
+                result
+            )
+            .is_err()
+    );
+    let concrete = program.function_data(fixture.callbacks[0]).unwrap();
+    assert!(projected.reproject(program, concrete).is_err());
+    let edit = program
+        .resolve_code(program.symbols().get("edit").unwrap())
+        .unwrap();
+    let edit_data = program
+        .parameters()
+        .get(program.codes().get(edit).unwrap().parameters()[0])
+        .unwrap()
+        .data();
+    assert!(projected.reproject(program, edit_data).is_err());
+}

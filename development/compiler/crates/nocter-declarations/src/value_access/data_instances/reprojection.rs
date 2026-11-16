@@ -1,6 +1,6 @@
 //! Retain each supplied occurrence while selecting an equivalent declaration descriptor.
 use super::{DataInstanceKey, InstanceSchema, Program};
-use crate::value_access::{AggregateForm, CodeBindingError, PayloadSchema};
+use crate::value_access::{AggregateForm, CodeBindingError, ConcreteWitness, PayloadSchema};
 use nocter_model::{AccessCodeId, TypeId, ValueField, ValuePath};
 mod results;
 use std::{
@@ -84,16 +84,22 @@ impl DataInstanceKey {
                         Some(program.instantiate_closed_data(target)?)
                     }
                     (InstanceSchema::Function(actual), PayloadSchema::Function(_)) => {
-                        let value = if results.contains(&target) {
-                            program.instantiate_function_context(target, actual)?
-                        } else {
-                            program.instantiate_function(target, actual)?
-                        };
-                        if !matches!(value.schema(program)?, InstanceSchema::Function(selected) if selected == *actual)
-                        {
-                            return Err(INVALID);
+                        Some(reproject_function(program, target, actual, results)?)
+                    }
+                    (
+                        InstanceSchema::FunctionAlternatives(alternatives),
+                        PayloadSchema::Function(_),
+                    ) => {
+                        let mut choices = BTreeSet::new();
+                        for actual in alternatives.iter() {
+                            let projected = reproject_function(program, target, actual, results)?;
+                            let InstanceSchema::Function(selected) = projected.schema(program)?
+                            else {
+                                return Err(INVALID);
+                            };
+                            choices.insert(selected);
                         }
-                        Some(value)
+                        Some(program.function_alternative_context(target, choices)?)
                     }
                     _ => None,
                 }
@@ -162,4 +168,23 @@ fn components(
         .into_iter()
         .map(|(field, data)| Ok((field, source.component(program, field)?, data)))
         .collect()
+}
+
+/// All positive alternatives use the same source/result-family and exact-view checks.
+fn reproject_function(
+    program: &Program,
+    target: TypeId,
+    actual: &ConcreteWitness,
+    results: &BTreeSet<TypeId>,
+) -> Result<DataInstanceKey, CodeBindingError> {
+    let value = if results.contains(&target) {
+        program.instantiate_function_context(target, actual)?
+    } else {
+        program.instantiate_function(target, actual)?
+    };
+    if !matches!(value.schema(program)?, InstanceSchema::Function(selected) if selected == *actual)
+    {
+        return Err(INVALID);
+    }
+    Ok(value)
 }

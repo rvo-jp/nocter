@@ -459,8 +459,8 @@ existing single-witness key. `InstanceSchema::FunctionAlternatives` exposes the 
 selecting an active value. Comparison, ordering and debug output share the existing iterative
 context traversal. Single-function/environment selection and concrete frame binding reject a
 domain rather than choosing a representative. Exact domain comparison and same-descriptor
-metadata projection do not qualify positive injection, cross-descriptor reprojection, an executable
-selector, ABI or storage; target materialization remains closed. The
+metadata projection do not qualify positive injection, an executable selector, ABI or storage;
+target materialization remains closed. The
 [positive alternative contract](../../../design/compiler-realization.md#positive-callable-alternatives)
 owns those integrated obligations, including budgeted source discovery and healthy retry.
 `join_data_domains` unions already validated domains under the same source descriptor. It uses
@@ -482,6 +482,9 @@ preserving each occurrence’s actual code, environment and empty domain. It reb
 same canonical component constructors and visits shared context/descriptor pairs once, including
 homogeneous arrays independently of their cardinality. It neither adapts callable invocation views
 nor widens an outcome representation; a missing positive context cannot be supplied by the target.
+Positive function domains reproject every complete alternative through the same single-witness
+validator, preserving all contexts and exact invocation views. Normalization uses the same domain
+constructor; a concrete-source mismatch in any alternative rejects the whole request.
 `reproject_result` additionally matches a receiving result family to one selected declaration-owned
 result path. A bounded schema-pair walk checks the exact result owner and leaf ordinal, including
 applied templates, before the same projection authority retains the supplied concrete contexts.
