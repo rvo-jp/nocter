@@ -310,7 +310,7 @@ owns the handoff to typed-only body checking and the still-required flow/safety 
 header publication. Its contexts share the source catalog and expose complete callable or record contracts
 as requested, without re-reading or checking a body. `finish` yields the complete reusable `Query`;
 the complete query entry drives those same steps through the construction dependency query.
-Required contracts close transitive record payloads, validating finite containment and Copy before exposing their field TypeIds.
+Required record contracts close transitive payloads, validating finite containment and Copy before exposing their field TypeIds.
 Raw source data names resolve as their selected recipes load; an unknown type in an unrelated
 header cannot block an independent required value. Complete closure still validates that header.
 `advance_with_values` exposes `HeaderProgress`: ready, required declaration headers or required

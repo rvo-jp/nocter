@@ -1,3 +1,4 @@
+pub(super) mod payload_requirements;
 use super::annotations::Annotation;
 use super::{
     BodyDiagnostic, Failure, Origins, Query, Rule, Site,
@@ -73,6 +74,7 @@ pub(super) fn prepare(
     let source = context
         .code_source(callable)
         .ok_or(Failure::UnknownCallable)?;
+    payload_requirements::body(context.program(), declaration, source)?;
     let syntax = context.syntax();
     let body_root = source.body().ok_or(Failure::InconsistentSyntax)?;
     let projection = BodySyntaxProjection::for_root(syntax.tree(), body_root)

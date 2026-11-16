@@ -418,6 +418,11 @@ impl Checker<'_, '_> {
             .static_declaration(id)
             .ok_or(Failure::InconsistentSyntax)?
             .result();
+        super::checker::payload_requirements::data(
+            self.program(),
+            data,
+            nocter_syntax::SyntaxOrigin::Token(token),
+        )?;
         let local = self.locals.insert(super::Local {
             data,
             kind: nocter_model::ValueBindingKind::ReadAlias,

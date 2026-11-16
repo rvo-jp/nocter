@@ -296,3 +296,68 @@ fn ordinary_body_value_requests_restart_outer_work_but_share_nested_work() {
         evaluation::Rule::Execution(state::Rule::StepLimit | state::Rule::PlanWorkLimit)
     ));
 }
+
+#[test]
+fn callable_signature_identity_does_not_cycle_through_an_unused_record_payload() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/signature-record-readiness.nct"
+    ));
+    let fixture = nocter_test_support::ValueSourceFixture::new(source);
+    let accepted = SourceUnit::prepare(fixture.syntax()).unwrap();
+    let program = accepted.unit().program();
+    let record = program
+        .resolve_record(program.symbols().get("Data").unwrap())
+        .unwrap();
+    let field = program.records().get(record).unwrap().fields()[0];
+    let data = program.fields().get(field).unwrap().data();
+    let Some(nocter_declarations::value_access::PayloadSchema::Array(array)) =
+        program.data_schema(data)
+    else {
+        panic!("evaluated record count");
+    };
+    assert_eq!(array.length(), 42);
+    assert!(program.headers_complete());
+}
+
+#[test]
+fn actual_record_construction_keeps_its_required_count_dependency_cycle() {
+    let source = "struct Data { values: [i32; size()] }\nconst func size(): usize { let value = Data { values: [0] }\n1 }\nfunc run(): usize { size() }";
+    let fixture = nocter_test_support::ValueSourceFixture::new(source);
+    let Err(SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })) =
+        SourceUnit::prepare(fixture.syntax())
+    else {
+        panic!("actual payload needs its count");
+    };
+    assert_eq!(
+        diagnostic.rule(),
+        crate::value_access::evaluation::Rule::DependencyCycle
+    );
+}
+
+#[test]
+fn published_nominal_signatures_request_payloads_when_their_bodies_are_checked() {
+    for header in [
+        "func inspect(value: Data): void {}",
+        "func inspect(): Data { loop {} }",
+    ] {
+        let source = format!("struct Data {{ value: i32 }}\n{header}");
+        let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+        let syntax = fixture.syntax();
+        let mut headers = declarations::Preparation::prepare(syntax).unwrap();
+        let code = headers.code_ids().next().unwrap();
+        let early = headers.context(code).unwrap();
+        let record = early
+            .program()
+            .resolve_record(early.program().symbols().get("Data").unwrap())
+            .unwrap();
+        assert!(early.program().header_ready(code));
+        assert!(!early.program().header_ready(record));
+        assert!(
+            matches!(TypedQuery::prepare(&early, code), Err(BodyFailure::RequiredHeader { declaration, .. }) if declaration == record.into())
+        );
+        let later = headers.context(record).unwrap();
+        assert!(later.program().preserves_headers(early.program()));
+        assert!(TypedQuery::prepare(&later, code).is_ok());
+    }
+}

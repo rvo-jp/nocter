@@ -126,9 +126,6 @@ impl ValueDefinition {
     pub(super) fn visit_data(&self, mut visit: impl FnMut(&DataReference)) {
         self.visit_references(|data| data.visit_leaves(&mut visit));
     }
-    pub(super) fn visit_payload_data(&self, mut visit: impl FnMut(&DataReference)) {
-        self.visit_references(|data| data.visit_payload_leaves(&mut visit));
-    }
     fn visit_references(&self, mut visit: impl FnMut(&DataReference)) {
         match self {
             Self::Data(data) => visit(data),

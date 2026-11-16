@@ -148,7 +148,7 @@ fn unknown_header_steps_preserve_every_ready_contract() {
 }
 
 #[test]
-fn callable_contracts_close_record_data_in_nested_callback_slots() {
+fn callable_headers_keep_record_identity_without_requiring_signature_payloads() {
     let symbols = SymbolTable::from_spellings(["Data", "run", "callback"]);
     let mut reservations = Reservations::new(symbols.clone());
     let record = reservations.reserve_record(symbols.get("Data").unwrap(), 0);
@@ -180,13 +180,10 @@ fn callable_contracts_close_record_data_in_nested_callback_slots() {
         )
         .unwrap();
     let mut headers = builder.into_publication();
-    assert_eq!(
-        headers.advance(run).unwrap(),
-        HeaderStep::Require(Box::new([record.into()]))
-    );
-    headers.publish(run).unwrap();
+    assert_eq!(headers.advance(run).unwrap(), HeaderStep::Ready);
     let program = headers.snapshot();
-    assert!(program.headers_complete());
+    assert!(!program.headers_complete());
+    assert!(!program.header_ready(record));
     let callback = program
         .parameters()
         .iter()
@@ -195,12 +192,25 @@ fn callable_contracts_close_record_data_in_nested_callback_slots() {
         .1
         .contract()
         .unwrap();
-    assert!(program.data_schema(callback.inputs[0].data).is_some());
+    assert_eq!(
+        program.record_identity(callback.inputs[0].data),
+        Some(record)
+    );
+    assert!(program.data_schema(callback.inputs[0].data).is_none());
+    assert_eq!(
+        program.payload_readiness(callback.result),
+        super::super::PayloadReadiness::Unsupported
+    );
     assert!(program.data_schema(callback.result).is_some());
     assert_eq!(
         program.codes().get(run).unwrap().result_contracts(),
         std::slice::from_ref(callback)
     );
+    headers.publish(record).unwrap();
+    let complete = headers.snapshot();
+    assert!(complete.headers_complete());
+    assert!(complete.preserves_headers(&program));
+    assert!(complete.data_schema(callback.inputs[0].data).is_some());
 }
 
 #[test]

@@ -81,8 +81,11 @@ its infallible `into_publication` transition opens `HeaderPublication` without r
 to be loaded. The writer retains that sole raw owner and permits defining remaining headers through
 the same define-once methods. It cannot append reservations or replace an established definition.
 This single writer validates and normalizes requested callable or record contracts and exposes
-immutable `Program` views containing only ready entries. Each contract first closes its positive
-by-value payload dependencies. Its consuming `finish` closes every remaining callable and record, including unused
+immutable `Program` views containing only ready entries. A record contract first closes its positive
+by-value payload dependencies. Callable headers need validated signature identities, not the payload
+schemas of their inputs/results or of nested callable signatures. Reserved nominal keys provide
+those identities before record counts or fields are ready. Source/body checking, invocation and ABI
+consumers independently require the actual payloads they use. Its consuming `finish` closes every remaining callable and record, including unused
 records. `Builder::finish` uses that same path. `record_identity` and `declaration_label` can
 identify/name a reserved nominal before its payload schema is ready; they grant no fields,
 containment, Copy or payload-readiness evidence.

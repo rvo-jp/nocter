@@ -269,6 +269,11 @@ impl Checker<'_, '_> {
             .program()
             .function_contract(selected.witness)
             .ok_or(Failure::InconsistentSyntax)?;
+        super::checker::payload_requirements::invocation(
+            self.program(),
+            &contract,
+            nocter_syntax::SyntaxOrigin::Node(self.first_child(node)?),
+        )?;
         let arguments = self.children(suffix);
         if arguments.len() != contract.inputs.len() {
             return self.reject(Rule::InvalidCall, node);

@@ -18,11 +18,11 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Remove signature-only record-readiness dependencies from ordinary callable headers. Reproduce
-and eliminate the false required-count cycle recorded below while preserving genuine payload/value
-cycles, actual body/ABI demands, complete-unit closure, header lineage and source diagnostics.
-Keep the authored nested-contract relation separate from original contextual witness identities;
-wider compound higher-order channels and symbolic definition-context proofs remain separate.
+Reject an invalid invocation argument count before requesting its input/result payload schemas.
+Preserve local source diagnostics, valid-call readiness and actual argument preparation. Then
+remove unnecessary nominal readiness from unused anonymous callable inputs without weakening
+real body, capture, Copy, lifecycle or ABI obligations. The concrete reproductions below own
+these remaining gaps; wider compound higher-order channels stay separately qualified.
 
 Complete occurrence-sensitive value/capture transport under the
 [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances).
@@ -700,7 +700,7 @@ not a language restriction derived from the current realization boundary.
   result contexts. Preserve exact contextual witness checks, original formal ordinals, invariant
   nested views, result-producer substitution and actual const-failure notes; verify required/native
   named/captured read/edit/take calls and interrupted owned-error cleanup.
-- [ ] Audit ordinary root-callable signature record readiness separately from stored payload
+- [x] Audit ordinary root-callable signature record readiness separately from stored payload
   prerequisites. Qualify actual body/ABI demands and lazy header/source diagnostics before
   extending admission; knowing a signature does not require allocating its input/result payloads.
   Reproduced a false required-value cycle: a record has `[i32; size()]`, `size()` calls
@@ -708,6 +708,15 @@ not a language restriction derived from the current realization boundary.
   is never invoked. Publication currently requires Data's payload from the callable signature
   before computing Data's own count. Preserve genuine payload/value cycles while removing this
   metadata-only dependency.
+- [ ] Reject an invalid argument count before querying invocation payload prerequisites.
+  Reproduced `Data { values: [i32; size()] }`, where `size()` calls `produce(0)` but
+  `produce(): Data` has no parameters. The actual local arity error currently becomes a false
+  required-count cycle through Data; preserve valid-call readiness and original error sites.
+- [ ] Remove anonymous callable formation's signature-only nominal payload dependency when its
+  checked body does not use that payload. Reproduced `Data { values: [i32; size()] }` where
+  `size()` passes `(value: Data): void {}` to an unused `func(Data): void` input. Inline annotation
+  checking still requests Data and creates a false required-count cycle. Preserve actual body,
+  capture, call, Copy, lifecycle and ABI requirements while qualifying this separate body path.
 - [ ] Complete nested callable data/witness support through header/data positions and the owning
   type authority. Keep valid formal structural descriptors separate from owned-payload admission.
   Qualify concrete representation, substitution and callable input/result evidence;

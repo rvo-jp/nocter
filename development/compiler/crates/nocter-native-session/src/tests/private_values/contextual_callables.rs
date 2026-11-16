@@ -2590,3 +2590,18 @@ fn private_nested_callable_headers_keep_original_contexts_and_cleanup() {
         );
     }
 }
+
+#[test]
+fn private_callable_signature_record_identity_breaks_no_payload_dependency_cycles() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/signature-record-readiness.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(source),
+        &package.0,
+        "signature-record-readiness",
+        42,
+    );
+}

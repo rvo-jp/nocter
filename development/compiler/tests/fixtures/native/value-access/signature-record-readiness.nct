@@ -1,0 +1,6 @@
+struct Data { values: [i32; size()] }
+const func ignore(value: Data): void {}
+const func count(action: func(Data): void): usize { 42 }
+const func size(): usize { count(ignore) }
+const SIZE: usize = size()
+func run(): i32 { if size() == SIZE && SIZE == 42 { 42 } else { 0 } }

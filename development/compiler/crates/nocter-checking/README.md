@@ -1057,8 +1057,21 @@ retain actual owned-error cleanup, including interrupted preparation. A runtime-
 callback still fails const admission with its original supplied-argument note, and nested invocation
 view mismatches retain their source path. Canonical result substitution validates the same authored
 signature relation before replacing a result leaf with its independently proved producer. Exact
-contextual and concrete-witness checks remain separate. Wider compound higher-order channels,
-ordinary root-signature record readiness and symbolic definition-context proofs remain open.
+contextual and concrete-witness checks remain separate. Wider compound higher-order channels and
+symbolic definition-context proofs remain open.
+
+Callable header readiness no longer requires nominal input/result payload schemas. The
+`signature-record-readiness.nct` source qualifies a record whose required array count passes an
+unused callback mentioning that same record: signature identity does not cycle through its payload
+construction. Beginning a named body independently requests positive direct input/result payloads
+at their original annotations before typing, Copy selection or cleanup can use them. Actual
+invocations query their direct input/result payloads at the original callee expression before
+argument preparation; static access queries its payload at the original name. One shared positive
+payload traversal serves these operations and stops at callable signature leaves and zero arrays.
+Complete-unit closure still validates every record and body. Construction, field access and
+ABI/lifecycle use retain their ordinary independent evidence.
+A record construction needed to compute its own count still reports the original value dependency
+cycle. The shared source also executes through the ordinary private native path.
 
 Original call-result witness and data queries can inspect a complete positive invocation domain
 when strict single-frame selection is unresolved. They query every original candidate's returned

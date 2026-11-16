@@ -273,10 +273,12 @@ fn array_identity_and_copy_use_one_element_descriptor_even_at_maximum_cardinalit
         early.data_copyable(early.codes().get(ids[0]).unwrap().result()),
         Some(true)
     );
-    assert_eq!(
-        headers.advance(ids[2]).unwrap(),
-        HeaderStep::Require(Box::new([item.into()]))
-    );
+    assert_eq!(headers.advance(ids[2]).unwrap(), HeaderStep::Ready);
+    let declared = headers.snapshot();
+    assert!(!declared.header_ready(item));
+    let positive = declared.codes().get(ids[2]).unwrap().result();
+    assert_eq!(declared.data_copyable(positive), None);
+    assert!(!declared.owned_payload_supported(positive));
     let program = headers.finish().unwrap();
     let data = ids.map(|id| program.codes().get(id).unwrap().result());
     assert_eq!(data[0], data[1]);
