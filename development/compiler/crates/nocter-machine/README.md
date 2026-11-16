@@ -254,6 +254,12 @@ qualification. Cleanup dependency planning follows every complete callable case 
 runtime-schema walker, keeping one helper per needed identity regardless of array cardinality.
 Generated choice cleanup loads the runtime-owned unsigned tag and switches to only that case's
 helper at the common payload offset. Trivial cases read no environment; an invalid tag traps.
+Callable movement uses that same tag-switch emitter. A static source transfers its sole complete
+case directly; a choice reads only the selected case, moves its bytes between independently selected
+payload offsets and writes the corresponding destination index using the target's tag primitive.
+Zero-byte cases still construct their destination tag. Mapping and layout plans reject positive
+narrowing rather than interpreting spare payload capacity as a conversion. Closed runtime fixtures
+qualify case correspondence and changed payload offsets; they do not establish source execution.
 Ordinary source execution remains unqualified until original selected-case construction, transport
 and invocation close together; this helper implementation is not source execution qualification.
 

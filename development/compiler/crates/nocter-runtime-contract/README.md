@@ -58,8 +58,11 @@ engine. Each positive leaf uses complete callable-case correspondence; product, 
 homogeneous array edges retain their ordinary schemas. Empty roots and positive narrowing reject.
 Exact, guarded-only and injection obligations have distinct cache modes, so an injection success
 cannot authorize copying or silently broaden an earlier query. Shared dependencies, including
-failed parents, are handled independently of logical array cardinality. MIR and native transport
-continue to use the narrower guarded relation until physical selected-case movement is qualified.
+failed parents, are handled independently of logical array cardinality. MIR transport validates this
+injection relation while retaining its separate fresh-slot and payload requirements. Machine plans
+preserve exact source-case bytes, independent containing offsets and reconstructed destination tags.
+Checking retains the stricter guarded-only source boundary until original value selection closes;
+these low-level plans alone do not qualify ordinary positive-choice execution.
 
 This descriptor supplies neither an active selector nor source, invocation, ownership or transport
 permission. Exact representation comparison still preserves runtime identities; directed guarded

@@ -156,12 +156,15 @@ value-representation comparison. Empty arrays have no positive element; their so
 remain intact. All positive leaf identities, including static callable tokens, must still agree.
 This check neither uses byte geometry as a type proof nor permits conversion between distinct
 nominal records. Machine consumes the same authority for selected place metadata.
-`Effect::Transport` retains separate source and destination places for guarded widening and uses
-the runtime contract's directed relation. It requires payload storage in different root slots and
-a whole destination; this qualification does not permit overlapping or in-place reconstruction.
+`Effect::Transport` retains separate source/destination places and validates structural domain
+injection, including guarded exclusions and complete positive callable cases. The runtime contract
+owns that directed relation separately from equality and guarded-only comparison. Transport still
+requires payload storage in different root slots and an unprojected destination; domain membership
+supplies no alias stability, initialized backing, overlapping or in-place reconstruction permission.
 Exact `Transfer` equality remains unchanged. Source-backed integrity mutations reject replacing
-transport with copying, reversing its direction or aliasing the two storage roots even when both
-representations are registered. Machine selects each side's own layout when executing the effect.
+transport with copying, reversing its direction or aliasing the roots even when both representations
+are registered. Machine selects each side's own layout. Checking's original source gate remains
+separate from this closed runtime validation.
 
 Static primitive edges retain their closed roles without adding a body or input locals. Validation
 checks their data and input operations against the runtime contract's sole value signature;

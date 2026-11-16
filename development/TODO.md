@@ -139,6 +139,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   and shared-schema bounds. Keep native/source admission closed until physical selection closes.
 - [x] Normalize context-free nodes in declaration representation comparisons so freshly projected
   closed child handles cannot expand a shared schema exponentially.
+- [x] Implement selected native callable-domain movement through canonical case correspondence,
+  independent containing offsets and target tag reconstruction. Share tag switching with cleanup;
+  qualify closed layout plans and preserve checking's source-admission boundary before execution.
 - [ ] Close the [positive callable alternative obligations](design/compiler-realization.md#positive-callable-alternatives)
   through the canonical data-instance graph, guarded source transport, evaluator/target plans,
   native selection and cleanup before widening source admission. The value-context fixture

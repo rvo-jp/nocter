@@ -248,7 +248,7 @@ impl Context<'_> {
         self.require(
             self.program
                 .runtime
-                .permits_guarded_value_transport(source.data, destination.data),
+                .permits_value_transport(source.data, destination.data),
         )
     }
     fn repack(

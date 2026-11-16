@@ -2,7 +2,10 @@
 use super::{Failure, mir};
 use crate::identity::MachineId;
 use crate::{MachineFunctionId, MachineLayoutKind, MachineLayoutPlan};
-use nocter_runtime_contract::{RuntimeDataId, RuntimeType};
+use nocter_runtime_contract::{RuntimeDataId, RuntimeEnvironment, RuntimeType};
+mod callable;
+#[cfg(test)]
+mod tests;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) type Pair = (RuntimeDataId, RuntimeDataId);
@@ -11,12 +14,20 @@ pub(super) struct Field {
     pub(super) source: u64,
     pub(super) target: u64,
 }
+pub(super) struct CallableCase {
+    pub(super) target_tag: u64,
+    pub(super) payload: Field,
+}
 pub(super) enum Alternative {
     Absent,
     Excluded,
     Payload(Field),
 }
 pub(super) enum Plan {
+    Callable {
+        source_choice: bool,
+        cases: Box<[CallableCase]>,
+    },
     Outcome {
         primary: Alternative,
         alternate: Alternative,
@@ -50,6 +61,7 @@ impl Plan {
                     }
                 })
                 .collect(),
+            Self::Callable { cases, .. } => cases.iter().map(|case| case.payload.pair).collect(),
             Self::Aggregate(fields) => fields.iter().map(|field| field.pair).collect(),
             Self::Array { pair, .. } => vec![*pair],
         }
@@ -86,14 +98,14 @@ pub(super) fn prepare(
         if !seen.insert(pair) {
             continue;
         }
-        if !relations.permits_guarded_value_transport(pair.0, pair.1) {
+        if !relations.permits_value_transport(pair.0, pair.1) {
             return Err(Failure::InvalidRoot);
         }
         if relations.has_same_value_representation(pair.0, pair.1) {
             copies.insert(pair);
             continue;
         }
-        let plan = select(program, layouts, pair)?;
+        let plan = select(program.runtime(), layouts, pair)?;
         pending.extend(plan.children());
         plans.insert(pair, plan);
     }
@@ -114,12 +126,15 @@ pub(super) fn prepare(
 }
 
 fn select(
-    program: &mir::Program,
+    runtime: &RuntimeEnvironment,
     layouts: &MachineLayoutPlan,
     pair: Pair,
 ) -> Result<Plan, Failure> {
     let from = layouts.get(pair.0).ok_or(Failure::InvalidRoot)?.kind();
     let to = layouts.get(pair.1).ok_or(Failure::InvalidRoot)?.kind();
+    if matches!(to, MachineLayoutKind::CallableAlternatives { .. }) {
+        return callable::select(runtime, layouts, pair);
+    }
     match (from, to) {
         (
             MachineLayoutKind::Outcome {
@@ -132,22 +147,18 @@ fn select(
             },
         ) => {
             let alternative = |primary| {
-                let source_data = program.runtime().types().outcome_payload(pair.0, primary);
+                let source_data = runtime.types().outcome_payload(pair.0, primary);
                 Ok::<_, Failure>(match source_data {
                     None => Alternative::Absent,
                     Some(data)
-                        if matches!(
-                            program.runtime().types().get(data),
-                            Some(RuntimeType::Uninhabited)
-                        ) =>
+                        if matches!(runtime.types().get(data), Some(RuntimeType::Uninhabited)) =>
                     {
                         Alternative::Excluded
                     }
                     Some(data) => Alternative::Payload(Field {
                         pair: (
                             data,
-                            program
-                                .runtime()
+                            runtime
                                 .types()
                                 .outcome_payload(pair.1, primary)
                                 .ok_or(Failure::InvalidRoot)?,

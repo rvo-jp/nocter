@@ -675,3 +675,52 @@ fn positive_callable_storage_retains_every_complete_environment_in_canonical_ord
         .unwrap();
     assert_eq!(prepared.instance(program, &reverse).unwrap(), id);
 }
+
+#[test]
+fn finite_domain_storage_closes_the_runtime_owned_tag_primitive_at_257_cases() {
+    use std::fmt::Write as _;
+    let mut source = String::new();
+    for index in 0..257 {
+        writeln!(source, "func case_{index}(): i32 {{ {index} }}").unwrap();
+    }
+    source.push_str("func creator(take action: func(): i32): i32 { action() }");
+    let fixture = ValueSourceFixture::new(&source);
+    let query =
+        nocter_declaration_lowering::access_declarations::Query::prepare(fixture.syntax()).unwrap();
+    let context = query.bind(fixture.syntax()).unwrap();
+    let program = context.program();
+    let creator = program
+        .resolve_code(program.symbols().get("creator").unwrap())
+        .unwrap();
+    let formal = program
+        .parameters()
+        .get(program.codes().get(creator).unwrap().parameters()[0])
+        .unwrap()
+        .data();
+    let actuals = (0..257).map(|index| {
+        let code = program
+            .resolve_code(program.symbols().get(&format!("case_{index}")).unwrap())
+            .unwrap();
+        program.concrete_witness(code.into()).unwrap()
+    });
+    let domain = program
+        .instantiate_function_alternatives(formal, actuals)
+        .unwrap();
+    let prepared =
+        super::super::prepare_data(program, RuntimeAbiIdentity::Arm64DarwinV1, [domain.clone()])
+            .unwrap();
+    let id = prepared.instance(program, &domain).unwrap();
+    let types = prepared.environment().types();
+    assert!(types.primitive(RuntimePrimitive::Unsigned(16)).is_some());
+    assert!(types.primitive(RuntimePrimitive::Unsigned(8)).is_none());
+    let Some(RuntimeType::CallableAlternatives(cases)) = types.get(id) else {
+        panic!("complete domain")
+    };
+    assert_eq!(cases.len(), 257);
+    for case in cases {
+        assert!(matches!(
+            types.get(*case),
+            Some(RuntimeType::StaticCallable { environment: None })
+        ));
+    }
+}

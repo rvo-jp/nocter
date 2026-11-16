@@ -1,5 +1,5 @@
 //! Guarded physical movement uses separate layouts and schema-shared helper bodies.
-use super::super::transport::{Alternative, Field, Helper, Pair, Plan};
+use super::super::transport::{Alternative, CallableCase, Field, Helper, Pair, Plan};
 use super::{Builder, Context, Failure};
 use crate::identity::MachineId;
 use crate::{
@@ -35,6 +35,12 @@ pub(crate) fn build(
     }
     let (source, target) = (roots[0], roots[1]);
     match &helper.plan {
+        Plan::Callable {
+            source_choice,
+            cases,
+        } => {
+            builder.transport_callable(source, target, pair, *source_choice, cases)?;
+        }
         Plan::Outcome { primary, alternate } => {
             let condition = builder.primary_condition(source, pair.0)?;
             let present = builder.block();
@@ -93,6 +99,28 @@ pub(crate) fn build(
 }
 
 impl Builder<'_> {
+    fn transport_callable(
+        &mut self,
+        source: MachineAddressId,
+        target: MachineAddressId,
+        pair: Pair,
+        source_choice: bool,
+        cases: &[CallableCase],
+    ) -> Result<(), Failure> {
+        let action = |builder: &mut Builder<'_>, index: usize| {
+            let case = cases.get(index).ok_or(Failure::InvalidRoot)?;
+            builder.transport_field(source, target, &case.payload)?;
+            builder.store_callable_tag(target, pair.1, case.target_tag)
+        };
+        if source_choice {
+            self.select_callable_case(source, pair.0, action)
+        } else {
+            if cases.len() != 1 {
+                return Err(Failure::InvalidRoot);
+            }
+            action(self, 0)
+        }
+    }
     fn transport_field(
         &mut self,
         source: MachineAddressId,

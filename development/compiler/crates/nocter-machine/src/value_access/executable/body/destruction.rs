@@ -111,36 +111,10 @@ fn cleanup_choice(
         MachineAddressRoot::Stack(MachineStackId::new(0)),
         [MachineAddressStep::Dereference],
     ));
-    let subject = builder.callable_tag(base, data)?;
-    let blocks = cases.iter().map(|_| builder.block()).collect::<Vec<_>>();
-    let fallback = builder.block();
-    let done = builder.block();
-    let branches = blocks
-        .iter()
-        .enumerate()
-        .map(|(index, block)| {
-            Ok(crate::MachineSwitchCase::new(
-                crate::MachineSwitchValue::Integer(
-                    i128::try_from(index).map_err(|_| Failure::InvalidRoot)?,
-                ),
-                crate::MachineBranchTarget::new(*block, []),
-            ))
-        })
-        .collect::<Result<Box<[_]>, Failure>>()?;
-    builder.terminate(MachineTerminator::SwitchValue {
-        subject,
-        cases: branches,
-        fallback: crate::MachineBranchTarget::new(fallback, []),
-    })?;
-    for (block, case) in blocks.into_iter().zip(cases) {
-        builder.current = block;
-        cleanup_field(builder, *case, payload_offset)?;
-        builder.go(done)?;
-    }
-    builder.current = fallback;
-    builder.terminate(MachineTerminator::Unreachable)?;
-    builder.current = done;
-    Ok(())
+    builder.select_callable_case(base, data, |builder, index| {
+        let case = cases.get(index).ok_or(Failure::InvalidRoot)?;
+        cleanup_field(builder, *case, payload_offset)
+    })
 }
 
 fn cleanup_field(
