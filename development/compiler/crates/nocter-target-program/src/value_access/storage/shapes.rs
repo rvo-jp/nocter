@@ -243,6 +243,13 @@ impl<'a> Builder<'a> {
                     .into_iter()
                     .map(|case| self.intern(case))
                     .collect::<Result<Box<[_]>, _>>()?;
+                let tag = RuntimePrimitive::callable_tag(cases.len()).ok_or_else(invalid)?;
+                let builtin = BuiltinType::ALL
+                    .iter()
+                    .copied()
+                    .find(|&builtin| RuntimePrimitive::for_builtin(builtin) == tag)
+                    .ok_or_else(invalid)?;
+                self.builtin(key, builtin)?;
                 RuntimeType::CallableAlternatives(cases)
             }
             InstanceSchema::Array(array) if array.is_empty() => RuntimeType::EmptyArray {

@@ -61,3 +61,30 @@ fn rejects_missing_case_before_layout() {
         }
     );
 }
+
+#[test]
+fn tag_width_uses_case_indices_including_the_largest_host_domain() {
+    assert_eq!(RuntimePrimitive::callable_tag(0), None);
+    assert_eq!(RuntimePrimitive::callable_tag(1), None);
+    for (count, bits) in [(2, 8), (256, 8), (257, 16), (65_536, 16), (65_537, 32)] {
+        assert_eq!(
+            RuntimePrimitive::callable_tag(count),
+            Some(RuntimePrimitive::Unsigned(bits))
+        );
+    }
+    if usize::BITS == 64 {
+        assert_eq!(
+            RuntimePrimitive::callable_tag(usize::MAX),
+            Some(RuntimePrimitive::Unsigned(64))
+        );
+        let boundary = usize::try_from(u64::from(u32::MAX) + 1).unwrap();
+        assert_eq!(
+            RuntimePrimitive::callable_tag(boundary),
+            Some(RuntimePrimitive::Unsigned(32))
+        );
+        assert_eq!(
+            RuntimePrimitive::callable_tag(boundary + 1),
+            Some(RuntimePrimitive::Unsigned(64))
+        );
+    }
+}

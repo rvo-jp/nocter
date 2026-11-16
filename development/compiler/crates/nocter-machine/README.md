@@ -231,8 +231,8 @@ checking component owns source admission and the remaining outcome operations.
 
 The closed runtime `CallableAlternatives` descriptor uses an unsigned case-index tag followed by one
 inline payload region. The region accommodates the largest case's complete environment, aligned for
-every case and the tag. Tags use the smallest of 8, 16, 32 and 64 bits that represents every index;
-two distinct empty environments still require a tag. Cases retain their upstream canonical order.
+every case and the tag. The runtime contract owns the unsigned tag width, which Machine consumes
+without a second width policy; two distinct empty environments still require a tag. Cases retain their upstream canonical order.
 This representation introduces no environment heap allocation, invoke pointer or source enum variant.
 
 Layout discovery reuses the ordinary iterative dependency walker, overflow checks and empty-array

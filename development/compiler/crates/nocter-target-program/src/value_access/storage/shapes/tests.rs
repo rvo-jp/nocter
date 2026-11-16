@@ -651,7 +651,17 @@ fn positive_callable_storage_retains_every_complete_environment_in_canonical_ord
         })
         .collect::<Vec<_>>();
     assert_ne!(environments[0], environments[1]);
-    for (case, expected) in cases.iter().zip(expected.iter()) {
+    assert!(
+        runtime
+            .types()
+            .primitive(RuntimePrimitive::Unsigned(8))
+            .is_some()
+    );
+    for (index, (case, expected)) in cases.iter().zip(expected.iter()).enumerate() {
+        let mapping = runtime.callable_case_targets(*expected, id).unwrap();
+        assert_eq!(mapping.len(), 1);
+        assert_eq!(mapping[0].data(), *expected);
+        assert_eq!(mapping[0].target(), u64::try_from(index).unwrap());
         let key = case.environment(program).unwrap().unwrap();
         assert_eq!(
             runtime.types().get(*expected),

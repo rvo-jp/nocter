@@ -1,4 +1,6 @@
+mod callable_cases;
 mod data_compatibility;
+pub use callable_cases::CallableCaseTarget;
 pub use data_compatibility::ValueRepresentationRelations;
 use std::collections::BTreeSet;
 

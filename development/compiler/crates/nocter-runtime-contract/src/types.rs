@@ -45,6 +45,23 @@ pub enum RuntimePrimitive {
 }
 
 impl RuntimePrimitive {
+    /// Unsigned index representation for a non-singleton finite callable domain.
+    /// This numeric contract supplies no selected case or primitive runtime identity.
+    #[must_use]
+    pub fn callable_tag(case_count: usize) -> Option<Self> {
+        let largest = case_count.checked_sub(1).filter(|_| case_count >= 2)?;
+        let bits = if u8::try_from(largest).is_ok() {
+            8
+        } else if u16::try_from(largest).is_ok() {
+            16
+        } else if u32::try_from(largest).is_ok() {
+            32
+        } else {
+            64
+        };
+        Some(Self::Unsigned(bits))
+    }
+
     /// The representation boundary for exact source builtin identities.
     #[must_use]
     pub fn for_builtin(builtin: nocter_model::BuiltinType) -> Self {

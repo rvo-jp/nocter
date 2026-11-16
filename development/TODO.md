@@ -125,6 +125,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Project complete canonical callable alternatives through one declaration representation
   authority and the existing target storage interner, retaining order and distinct nested
   environments without admitting unqualified source invocation or manufacturing an active case.
+- [x] Qualify complete runtime callable-case correspondence separately from transport permission,
+  preserving source order, explicit target indices and exact case identity. Share the runtime-owned
+  tag-width rule between target primitive closure and Machine geometry before native selection.
 - [ ] Close the [positive callable alternative obligations](design/compiler-realization.md#positive-callable-alternatives)
   through the canonical data-instance graph, guarded source transport, evaluator/target plans,
   native selection and cleanup before widening source admission. The value-context fixture

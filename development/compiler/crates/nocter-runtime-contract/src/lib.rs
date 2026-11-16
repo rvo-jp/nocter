@@ -79,7 +79,9 @@ pub use darwin_tls::{
     DarwinTlsCallbackRole, DarwinTlsConfigurationAbiSchema, DarwinTlsTrustAnchorAbiSchema,
 };
 pub use darwin_tls_import::{DarwinTlsAdapterData, DarwinTlsAdapterFunction};
-pub use environment::{RuntimeEnvironment, RuntimeEnvironmentError, ValueRepresentationRelations};
+pub use environment::{
+    CallableCaseTarget, RuntimeEnvironment, RuntimeEnvironmentError, ValueRepresentationRelations,
+};
 pub use import::{
     RuntimeDataImport, RuntimeFunctionImport, RuntimeImport, RuntimeImportError,
     RuntimeLibraryIdentity,

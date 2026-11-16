@@ -42,6 +42,17 @@ rejects missing, duplicate, non-callable and nested-choice entries. Each static 
 ordinary environment dependency. No nominal source variant or erased heap-callable identity is
 manufactured for this storage form.
 
+`RuntimePrimitive::callable_tag` owns the smallest unsigned index width for a domain of at least
+two cases. Target storage closes the corresponding primitive role; Machine consumes that same
+numeric contract. Empty and singleton counts supply no choice tag.
+
+`callable_case_targets` maps each complete source case to an identical case's destination index.
+Rows preserve source order, including when destination indices differ. A static source has one row;
+a positive choice retains every row. Missing positive cases, non-callables, unknown entries and
+choice-to-static narrowing reject. Matching environments or geometry alone cannot match distinct
+static callable identities. This metadata mapping changes neither exact represented-domain equality
+nor guarded excluded-alternative transport, and supplies no runtime selector or transfer permission.
+
 This descriptor supplies neither an active selector nor source, invocation, ownership or transport
 permission. Exact representation comparison still preserves runtime identities; directed guarded
 transport does not inject positive cases into a choice. Target storage can project complete canonical

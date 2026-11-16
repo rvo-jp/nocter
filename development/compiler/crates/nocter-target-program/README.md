@@ -317,7 +317,9 @@ Prepared product.
 `storage::prepare_data` projects explicit declaration-owned data domains without constructing an
 executable instance graph. It shares the same interner and frozen `Prepared` lookup as ordinary
 instance storage. Finite callable domains retain every complete concrete case in canonical order,
-each with its own environment edge, as `RuntimeType::CallableAlternatives`. Equivalent received
+each with its own environment edge, as `RuntimeType::CallableAlternatives`. The runtime-owned
+tag-width rule selects the unsigned primitive that the interner closes for later native operations.
+Equivalent received
 callable descriptors reuse the same ordered physical domain through concrete-case normalization;
 they do not acquire a representative environment. Structural carriers still retain one shared
 array element schema. This is stored metadata only: original selected-case construction, invocation,
