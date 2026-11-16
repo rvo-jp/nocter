@@ -141,8 +141,72 @@ impl BoundContext<'_, '_> {
         );
         Ok(true)
     }
+    pub(super) fn interrupted_invocation(
+        &mut self,
+        expression: AccessExpressionId,
+        selections: &[(flow::Location, crate::value_access::ValueSourceId)],
+        available: &dyn Fn(ValueClosure) -> bool,
+    ) -> Result<Option<Violation>, BoundCheckFailure> {
+        let typed = self
+            .query
+            .body()
+            .expressions()
+            .get(expression)
+            .ok_or(super::INVALID)?;
+        if !super::super::interrupted_contract_call(&typed.kind) {
+            return Err(super::INVALID.into());
+        }
+        let sources = self.query.result_evidence.as_ref().ok_or(super::INVALID)?;
+        let program = self.query.program();
+        let mut resolution = crate::value_access::results::InstantiationQuery::with_control(
+            program,
+            sources,
+            self.work,
+            &self.control,
+        );
+        let mut found = false;
+        for &(at, source) in selections {
+            if !self.control.reachable(at.point) {
+                continue;
+            }
+            found = true;
+            let witness = match resolution.value(self.caller, source) {
+                Ok(witness) => witness,
+                Err(crate::value_access::InstantiationFailure::WorkLimit) => {
+                    return Err(BoundCheckFailure::Invocation {
+                        expression,
+                        failure: crate::value_access::InstantiationFailure::WorkLimit,
+                    });
+                }
+                Err(_) => {
+                    return Ok(Some(Violation {
+                        site: super::Site::Expression(expression),
+                        rule: super::Rule::ValueInvocation,
+                    }));
+                }
+            };
+            if let Some(rule) = super::super::operation_rule(
+                program,
+                &typed.kind,
+                available,
+                Some(witness.witness().origin),
+            )? {
+                return Ok(Some(Violation {
+                    site: super::Site::Expression(expression),
+                    rule,
+                }));
+            }
+        }
+        Ok((!found).then_some(Violation {
+            site: super::Site::Expression(expression),
+            rule: super::Rule::ValueInvocation,
+        }))
+    }
     pub(super) fn active(&self, clause: &super::Clause) -> Result<bool, BoundCheckFailure> {
         Ok(match clause {
+            super::Clause::Invocation {
+                receiver: Some(_), ..
+            } => true,
             super::Clause::Invocation { expression, .. } | super::Clause::Inputs(expression) => {
                 let sources = self
                     .query

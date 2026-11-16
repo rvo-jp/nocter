@@ -78,7 +78,7 @@ fn operation_rule(
     program: &Program,
     kind: &ExpressionKind,
     available: &dyn Fn(nocter_model::ValueClosure) -> bool,
-    callee: Option<&CodeInstanceKey>,
+    callee: Option<ValueFunctionOrigin>,
 ) -> Result<Option<Rule>, flow::IntegrityError> {
     Ok(match kind {
         ExpressionKind::Call {
@@ -92,15 +92,16 @@ fn operation_rule(
             if uncommitted_parameter_call(*kind, *target, arguments) {
                 return Ok(None);
             }
-            // A field contract alone cannot establish a dormant callee's capability.
-            // No committed occurrence exists from which to recover its actual value context.
+            // A field signature supplies no capability. Interrupted preparation needs a
+            // witness from the original receiver independently of invocation completion.
             if matches!(target, ValueFunctionOrigin::Contract(_))
                 && !super::instances::completed(arguments)
+                && callee.is_none()
             {
                 return Ok(Some(Rule::ValueInvocation));
             }
             let target = match callee {
-                Some(callee) => callee.code().origin().ok_or(INVALID)?,
+                Some(callee) => callee,
                 None => *target,
             };
             invocation_rule(program, *kind, target, available)?
@@ -128,6 +129,14 @@ fn operation_rule(
         | ExpressionKind::Binary { .. }
         | ExpressionKind::If { .. } => None,
     })
+}
+
+fn interrupted_contract_call(expression: &ExpressionKind) -> bool {
+    matches!(expression, ExpressionKind::Call {
+        kind: CallKind::Value,
+        target: ValueFunctionOrigin::Contract(_),
+        arguments,
+    } if !super::instances::completed(arguments))
 }
 
 fn uncommitted_parameter_call(

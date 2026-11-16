@@ -15,6 +15,7 @@ enum Clause {
         // An input schema may permit this witness's payload to be absent. This attribution
         // grants no tag, initialization, source-value lineage or const eligibility proof.
         input_resource: Option<guards::InputResource>,
+        receiver: Option<receivers::Condition>,
     },
     Inputs(AccessExpressionId),
     Data(expressions::Condition),
@@ -62,6 +63,7 @@ mod cleanup;
 mod drops;
 mod expressions;
 mod guards;
+mod receivers;
 use bound::BoundContext;
 pub(in crate::value_access) use bound::{BoundCheck, BoundCheckFailure, InvocationCondition};
 
@@ -86,6 +88,7 @@ impl Requirements {
         let mut domain = evaluation::Types::default();
         let mut expression_data = expressions::collect(&body, &mut domain)?;
         let mut clauses = Vec::new();
+        let mut receivers = receivers::collect(&body)?;
         let input_writes = guards::writes(&body);
         let mut excluded_calls = std::collections::BTreeSet::new();
         let identity = program
@@ -117,6 +120,7 @@ impl Requirements {
                     expression: id,
                     template,
                     input_resource: guards::input_resource(&body, *target, input_writes.as_ref())?,
+                    receiver: receivers.remove(&id),
                 });
             }
         }
@@ -179,21 +183,15 @@ impl Requirements {
                 Clause::Invocation {
                     expression: id,
                     input_resource,
+                    receiver,
                     ..
                 } => {
-                    let callees = match calls.as_deref_mut() {
-                        Some(calls) => calls.resolve_all(*id)?,
-                        None => None,
-                    };
-                    let expression = &expressions.get(*id).ok_or(INVALID)?.kind;
-                    let violation = first_violation(callees, |callee| {
-                        super::operation_rule(program, expression, available, callee).map(|rule| {
-                            rule.map(|rule| Violation {
-                                site: Site::Expression(*id),
-                                rule,
-                            })
-                        })
-                    })?;
+                    let violation = self.invocation_clause(
+                        *id,
+                        receiver.as_ref(),
+                        available,
+                        calls.as_deref_mut(),
+                    )?;
                     if let (Some(violation), Some(calls)) = (violation, calls.as_deref_mut()) {
                         if calls.defer_invocation(
                             &self.body,
@@ -254,6 +252,47 @@ impl Requirements {
         }
         Ok(None)
     }
+    fn invocation_clause(
+        &self,
+        id: AccessExpressionId,
+        receiver: Option<&receivers::Condition>,
+        available: &dyn Fn(ValueClosure) -> bool,
+        calls: Option<&mut BoundContext<'_, '_>>,
+    ) -> Result<Option<Violation>, BoundCheckFailure> {
+        let expression = &self
+            .body
+            .typed()
+            .body()
+            .expressions()
+            .get(id)
+            .ok_or(INVALID)?
+            .kind;
+        if let Some(receiver) = receiver {
+            // Receiver eligibility is independent of an invocation edge or callee input frame.
+            return match calls {
+                Some(calls) => calls.interrupted_invocation(id, &receiver.selections, available),
+                None => Ok(None),
+            };
+        }
+        let callees = match calls {
+            Some(calls) => calls.resolve_all(id)?,
+            None => None,
+        };
+        first_violation(callees, |callee| {
+            let origin = callee
+                .map(|callee| callee.code().origin().ok_or(INVALID))
+                .transpose()?;
+            super::operation_rule(self.body.typed().program(), expression, available, origin).map(
+                |rule| {
+                    rule.map(|rule| Violation {
+                        site: Site::Expression(id),
+                        rule,
+                    })
+                },
+            )
+        })
+        .map_err(Into::into)
+    }
     pub(in crate::value_access) fn needs_value_context(&self) -> bool {
         self.body
             .typed()
@@ -276,6 +315,7 @@ impl Requirements {
                     expression,
                     template,
                     input_resource,
+                    ..
                 } => {
                     // A flat conjunction does not discharge a possible resource-state guard.
                     if input_resource.is_some() {
@@ -464,6 +504,7 @@ impl Requirements {
                 expression,
                 template: Some(template),
                 input_resource,
+                ..
             } => Some(CallEdge {
                 expression: *expression,
                 template,

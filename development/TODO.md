@@ -18,11 +18,11 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify definition-time constant eligibility for callable record fields against original supplied
-values. Begin with interrupted preparation: a closed const callable stored in a field currently
-reports ValueInvocation even when no call can commit. Preserve static rejection of known runtime
-witnesses, conservative unresolved contexts, original prefix operations/cleanup and MissingCall;
-never manufacture a callee frame, call receipt or result value from a field signature.
+Separate anonymous callable availability discovery from the set of actual invocations during
+staged required evaluation. Qualify the empty-closure interrupted-field reproducer below using
+the ordinary body and condition authorities, while retaining named/captured runtime rejection,
+original access validation and conservative unresolved payload/context handling. Static eligibility
+must not manufacture an invocation, physical argument/result receipt or evaluator plan.
 
 Complete occurrence-sensitive value/capture transport under the
 [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances).
@@ -672,12 +672,12 @@ not a language restriction derived from the current realization boundary.
   qualifying original source construction, contextual value binding and execution consumers.
 - [ ] Qualify symbolic definition-context proofs for callable field invocations whose function,
   compound-input or capture contexts are not independently closed. Preserve dormant runtime-call
-  rejection and original input provenance before removing conservative contextual-call rejection,
-  including interrupted field calls without a committed occurrence. A concrete reproducer is
-  `Holder { callback: func(Data): void }`, with Data's count computed by size, where size stores
-  a const receive in Holder and calls `holder.callback(if true { return 42 } else { loop {} })`.
-  This still reports ValueInvocation after invocation payload readiness has been separated;
-  no committed field call exists, so proof must use original receiver metadata.
+  rejection and original input provenance before removing conservative contextual-call rejection.
+- [x] Resolve interrupted callable-field receiver eligibility from original prepared operands in
+  matched closed definition contexts. Freeze source selections once per body, retain configured
+  metadata-work charging and reject known runtime or unresolved witnesses. Required/native probes
+  cover void, record and callable results, original prefix error cleanup, real payload cycles
+  and strict MissingCall without inventing a callee frame, invocation edge or result producer.
 - [x] Connect contextual declaration checks to the configured condition-work policy. Share the
   required root's remaining scope during preparation and one configured final scope across all
   definitions; qualify source-backed exhaustion and healthy retry without internal quota resets.
@@ -721,6 +721,13 @@ not a language restriction derived from the current realization boundary.
   prefix payloads, original cleanup and complete-unit definition closure. Required/native tests
   cover void, record and callable results, an owning prefix and actual error captures; strict
   invocation queries retain MissingCall and interrupted applications produce no callable witness.
+- [ ] Separate anonymous callable availability discovery from actual invocation selection during
+  staged required evaluation. `Holder { callback: func(i32): void }` with a local empty anonymous
+  callback and `holder.callback(if true { return 42 } else { loop {} })` still reports
+  CapturedCall, even though the callback's body has no forbidden operation. Prepared type-only
+  closures are excluded from the availability catalog by the invocation filter. Preserve actual
+  body/access validation, dormant runtime rejection, unresolved contexts and independent payload
+  readiness; admitting an availability proof must not create a call frame or executable receipt.
 - [ ] Complete nested callable data/witness support through header/data positions and the owning
   type authority. Keep valid formal structural descriptors separate from owned-payload admission.
   Qualify concrete representation, substitution and callable input/result evidence;

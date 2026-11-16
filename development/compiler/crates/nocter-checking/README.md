@@ -1097,6 +1097,17 @@ The shared source qualifies a record's required count through a prepared owning 
 with void, record and callable result signatures. Native probes additionally retire actual owned
 error captures on the canceled prefix. Real prefix record construction retains its own count cycle.
 
+`interrupted-field-record-readiness.nct` qualifies the same interrupted preparation through a
+record's callable field. Static eligibility conditions retain original prepared receiver operand
+selections from the shared value graph, independently of invocation recipes. In a matched closed
+definition context, those sources must resolve a concrete callable witness; the selected operation
+still requires authored named const capability or established anonymous availability. A known
+runtime witness is rejected at the original field call, and missing or ambiguous source context
+remains unavailable. No callee input frame, invocation edge, result producer or body-execution
+requirement is created for the interrupted call. Required/native cases cover void, record and
+callable result signatures and actual error-prefix cleanup. General symbolic received field and
+capture contexts remain separate qualification work.
+
 Original call-result witness and data queries can inspect a complete positive invocation domain
 when strict single-frame selection is unresolved. They query every original candidate's returned
 source at the same receiving path and descriptor. Only agreeing result facts close a uniform

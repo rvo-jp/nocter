@@ -543,3 +543,98 @@ fn interrupted_preparation_still_requires_real_prefix_payloads_and_valid_callee_
         crate::value_access::constant::Rule::RuntimeCall(_)
     ));
 }
+
+const INTERRUPTED_FIELD_READINESS: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../tests/fixtures/native/value-access/interrupted-field-record-readiness.nct"
+));
+
+#[test]
+fn interrupted_field_calls_check_actual_receivers_without_creating_an_invocation() {
+    use crate::value_access::{ExpressionKind, InstantiationFailure};
+    use nocter_constant_evaluation::state::WorkBudget;
+    use nocter_model::{ValueApplication, ValueFunctionOrigin};
+    for (result, body) in [
+        ("void", ""),
+        ("Data", "loop {}"),
+        ("func(i32): i32", "identity"),
+    ] {
+        let source = INTERRUPTED_FIELD_READINESS
+            .replace(
+                "take value: Data): void",
+                &format!("take value: Data): {result}"),
+            )
+            .replace("take Data): void", &format!("take Data): {result}"));
+        let source = source.replace(
+            &format!("take value: Data): {result} {{}}"),
+            &format!("take value: Data): {result} {{ {body} }}"),
+        );
+        assert_eq!(
+            super::initializers::answer(&source, "SIZE"),
+            state::Value::integer(42)
+        );
+        let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+        let unit = SourceUnit::prepare(fixture.syntax()).unwrap().into_unit();
+        let program = unit.program();
+        let code = program
+            .resolve_code(program.symbols().get("size").unwrap())
+            .unwrap();
+        let frame = program.bind_code(code.into(), []).unwrap();
+        let query = unit.code_body(frame.code()).unwrap().typed();
+        let (call, _) = query
+            .body()
+            .expressions()
+            .iter()
+            .find(|(_, expression)| {
+                matches!(
+                    expression.kind,
+                    ExpressionKind::Call {
+                        target: ValueFunctionOrigin::Contract(_),
+                        ..
+                    }
+                )
+            })
+            .unwrap();
+        assert!(
+            unit.value_sources(frame.code())
+                .unwrap()
+                .call(call)
+                .is_none()
+        );
+        let mut work = WorkBudget::new(state::Limits::default().steps());
+        assert_eq!(
+            unit.instantiate_invocation(
+                &frame,
+                ValueApplication {
+                    owner: frame.code(),
+                    call
+                },
+                &mut work
+            ),
+            Err(InstantiationFailure::MissingCall)
+        );
+    }
+}
+
+#[test]
+fn interrupted_field_calls_preserve_runtime_witness_rejection_and_prefix_payload_cycles() {
+    let source = INTERRUPTED_FIELD_READINESS.replace("const func receive", "func receive");
+    let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+    let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+        SourceUnit::prepare(fixture.syntax())
+    else {
+        panic!("a known runtime witness remains forbidden");
+    };
+    assert!(matches!(
+        diagnostic.rule(),
+        crate::value_access::constant::Rule::RuntimeCall(_)
+    ));
+    let source = "struct Receiver { invoke: func(take Data, i32): void }\nstruct Data { values: [i32; size()] }\nconst func receive(take value: Data, later: i32): void {}\nconst func size(): usize { let receiver = Receiver { invoke: receive }\nreceiver.invoke(Data { values: [0] }, if true { return 42 } else { loop {} })\n0 }";
+    let fixture = nocter_test_support::ValueSourceFixture::new(source);
+    let Err(SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })) =
+        SourceUnit::prepare(fixture.syntax())
+    else {
+        panic!("a real prefix record still requires its payload");
+    };
+    assert_eq!(diagnostic.rule(), evaluation::Rule::DependencyCycle);
+}
