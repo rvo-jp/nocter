@@ -1,8 +1,10 @@
 //! Consume checking's ordered resource data projection; no second source substitution model.
-use super::{Failure, Instance, Location, ResourceStep, Step};
+use super::{Condition, Failure, Instance, Location, Resource, ResourceStep, Step};
+use nocter_checking::value_access::flow::resources::{Missing, Place};
 use nocter_checking::value_access::{ResourceDataFailure, ResourceDataProjection};
 use nocter_constant_evaluation::state::WorkBudget;
 use nocter_model::AccessInstanceId;
+use std::{collections::BTreeMap, sync::Arc};
 #[cfg(test)]
 mod tests;
 
@@ -11,6 +13,7 @@ pub(super) struct Projection<'a, 'work> {
     id: AccessInstanceId,
     at: Location,
     instance: &'a Instance,
+    destinations: BTreeMap<Place, Arc<[Missing]>>,
 }
 fn failure(id: AccessInstanceId, at: Location, error: ResourceDataFailure) -> Failure {
     match error {
@@ -27,8 +30,15 @@ impl<'a, 'work> Projection<'a, 'work> {
         instance: &'a Instance,
         id: AccessInstanceId,
         at: Location,
+        condition: &Condition,
+        steps: &[ResourceStep],
         work: &'work mut WorkBudget,
     ) -> Result<Self, Failure> {
+        let destinations = destinations(steps, condition, work).map_err(|()| Failure::Payload {
+            instance: id,
+            at,
+            failure: nocter_checking::value_access::InstantiationFailure::WorkLimit,
+        })?;
         let inner = instance
             .queries
             .resource_data(at, work)
@@ -38,6 +48,7 @@ impl<'a, 'work> Projection<'a, 'work> {
             id,
             at,
             instance,
+            destinations,
         })
     }
     pub(super) fn steps(&mut self, steps: &[ResourceStep]) -> Result<Vec<Step>, Failure> {
@@ -77,20 +88,74 @@ impl<'a, 'work> Projection<'a, 'work> {
             self.inner.steps_with_roots(steps)
         }
         .map_err(|error| failure(self.id, self.at, error))?;
-        Ok(projected
+        projected
             .into_iter()
             .zip(roots)
-            .map(|(step, roots)| match roots {
-                Some((before, after, carriers)) => {
-                    Step::ScopedReplacement(super::ScopedReplacement {
+            .map(|(step, roots)| {
+                if let Some((before, after, carriers)) = roots {
+                    Ok(Step::ScopedReplacement(super::ScopedReplacement {
                         operation: Box::new(step),
                         before,
                         after,
                         carriers,
-                    })
+                    }))
+                } else {
+                    let destination_missing = step
+                        .destination_roots()
+                        .map(|roots| {
+                            self.destinations
+                                .get(roots.destination())
+                                .cloned()
+                                .ok_or(Failure::InvalidInstanceProgram)
+                        })
+                        .transpose()?;
+                    Ok(Step::Resource(Resource {
+                        data: step,
+                        destination_missing,
+                    }))
                 }
-                None => Step::Resource(step),
             })
-            .collect())
+            .collect()
     }
+}
+
+/// Freeze only partial receipt metadata before borrowing the shared data-projection budget.
+/// The map is discarded with this one action; emitted steps share each immutable annotation.
+fn destinations(
+    steps: &[ResourceStep],
+    condition: &Condition,
+    work: &mut WorkBudget,
+) -> Result<BTreeMap<Place, Arc<[Missing]>>, ()> {
+    let mut output = BTreeMap::new();
+    for step in steps {
+        let ResourceStep::Move { destination, .. } = step else {
+            continue;
+        };
+        if destination.fields().is_root() || output.contains_key(destination) {
+            continue;
+        }
+        work.step().map_err(|_| ())?;
+        for _ in destination.fields().fields() {
+            work.step().map_err(|_| ())?;
+        }
+        for (holder, missing) in condition.owned() {
+            work.step().map_err(|_| ())?;
+            if holder != destination.holder() {
+                continue;
+            }
+            for hole in missing {
+                work.step().map_err(|_| ())?;
+                let path = match hole {
+                    Missing::Value(path) => path,
+                    Missing::ArrayPrefix { array, .. } => array,
+                };
+                for _ in path.fields() {
+                    work.step().map_err(|_| ())?;
+                }
+            }
+            output.insert(destination.clone(), Arc::from(missing));
+            break;
+        }
+    }
+    Ok(output)
 }

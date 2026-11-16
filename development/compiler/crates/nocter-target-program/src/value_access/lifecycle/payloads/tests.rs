@@ -68,8 +68,9 @@ fn an_unmatched_replacement_is_rejected_before_projecting_its_prefix() {
         point: body.graph().entry(),
         action: 0,
     };
+    let condition = body.access().resources().at(at).next().unwrap().condition();
     let mut work = WorkBudget::new(std::num::NonZeroU64::new(1).unwrap());
-    let mut projection = Projection::new(instance, id, at, &mut work).unwrap();
+    let mut projection = Projection::new(instance, id, at, &condition, &[], &mut work).unwrap();
     assert_eq!(
         projection.steps(&[prefix.clone(), invalid]),
         Err(Failure::InvalidInstanceProgram)
@@ -80,6 +81,48 @@ fn an_unmatched_replacement_is_rejected_before_projecting_its_prefix() {
         "preflight failure must not start payload projection"
     );
     let mut work = WorkBudget::new(std::num::NonZeroU64::new(1_000).unwrap());
-    let mut projection = Projection::new(instance, id, at, &mut work).unwrap();
+    let mut projection = Projection::new(instance, id, at, &condition, &[], &mut work).unwrap();
     assert!(projection.steps(&[prefix]).is_ok());
+}
+
+#[test]
+fn destination_annotation_work_is_bounded_and_failed_freezing_can_retry() {
+    let fixture = ValueSourceFixture::new(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-conditional-hole-growth.nct"
+    )));
+    let unit = Arc::new(SourceUnit::prepare(fixture.syntax()).unwrap().into_unit());
+    let root = unit
+        .program()
+        .resolve_code(unit.program().symbols().get("run").unwrap())
+        .unwrap();
+    let instances = InstanceProgram::prepare(unit, root).unwrap();
+    let selected = instances.instances().iter().find_map(|(id, _)| {
+        let body = instances.body(id).unwrap();
+        for (point, block) in body.graph().points().iter() {
+            for action in 0..block.actions.len() {
+                for transition in body.access().resources().at(Location { point, action }) {
+                    let condition = transition.condition();
+                    if transition.steps().iter().any(|step| matches!(step, ResourceStep::Move { destination, .. } if !destination.fields().is_root() && condition.owned().any(|(holder, missing)| holder == destination.holder() && !missing.is_empty()))) {
+                        return Some((transition.steps().to_vec(), condition));
+                    }
+                }
+            }
+        }
+        None
+    }).unwrap();
+    let budget = |limit| WorkBudget::new(std::num::NonZeroU64::new(limit).unwrap());
+    let mut exhausted = budget(1);
+    assert_eq!(
+        destinations(&selected.0, &selected.1, &mut exhausted),
+        Err(())
+    );
+    assert!(exhausted.step().is_err());
+    let mut healthy = budget(1_000);
+    let complete = destinations(&selected.0, &selected.1, &mut healthy).unwrap();
+    assert!(complete.values().any(|missing| !missing.is_empty()));
+    assert_eq!(
+        complete,
+        destinations(&selected.0, &selected.1, &mut budget(1_000)).unwrap()
+    );
 }

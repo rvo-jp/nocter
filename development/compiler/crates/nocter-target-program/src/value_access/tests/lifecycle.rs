@@ -498,3 +498,60 @@ fn scoped_field_replacement_retains_carrier_roots_separately_from_leaf_cleanup()
         "the lexical alias retains its larger tuple carrier"
     );
 }
+
+#[test]
+fn partial_receipt_holes_survive_simplification_without_splitting_the_callable_instance() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-conditional-hole-growth.nct"
+    ));
+    let program = lower_source(source);
+    let (id, selected) = instance(program.instance_program(), "calculate");
+    assert_eq!(
+        program
+            .instance_program()
+            .instances()
+            .iter()
+            .filter(|(_, instance)| instance.key().code() == selected.key().code())
+            .count(),
+        1
+    );
+    let mut found = 0;
+    for action in program.bodies()[&id].actions().values() {
+        let receipts = action
+            .alternatives()
+            .iter()
+            .flat_map(|alternative| {
+                alternative
+                    .after()
+                    .iter()
+                    .filter_map(move |step| match step {
+                        Step::Resource(resource)
+                            if resource.data().destination_roots().is_some() =>
+                        {
+                            Some((alternative, resource))
+                        }
+                        _ => None,
+                    })
+            })
+            .collect::<Vec<_>>();
+        if receipts.len() != 2 || receipts[0].1.data() != receipts[1].1.data() {
+            continue;
+        }
+        let sizes = receipts
+            .iter()
+            .map(|(_, resource)| resource.destination_missing().unwrap().len())
+            .collect::<std::collections::BTreeSet<_>>();
+        if sizes != std::collections::BTreeSet::from([0, 1]) {
+            continue;
+        }
+        for (alternative, _) in receipts {
+            assert!(!alternative.flags().tests().is_empty());
+        }
+        found += 1;
+    }
+    assert!(
+        found >= 2,
+        "growth/shrinkage need distinct original guards even when data steps agree"
+    );
+}

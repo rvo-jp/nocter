@@ -1539,6 +1539,31 @@ fn private_contextual_indexed_growth_preserves_actual_owned_capture_and_sibling_
 }
 
 #[test]
+fn private_contextual_conditional_holes_select_their_original_owning_alternative() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-conditional-hole-growth.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "conditional-hole-growth", 42);
+}
+
+#[test]
+fn private_contextual_conditional_holes_preserve_actual_branch_and_capture_cleanup() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-conditional-hole-errors.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(
+        &image(&trusted_error_machine(source)),
+        &package.0,
+        "conditional-hole-errors",
+        42,
+    );
+}
+
+#[test]
 fn private_contextual_singleton_holes_preserve_saved_instances_and_initialized_element_fields() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

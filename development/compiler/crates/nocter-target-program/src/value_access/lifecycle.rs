@@ -22,7 +22,7 @@ pub enum EnvironmentPart {
 /// Resource operations retain their selected identity and exact concrete payload obligation.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Step {
-    Resource(nocter_checking::value_access::ResourceDataStep),
+    Resource(Resource),
     ScopedReplacement(ScopedReplacement),
     /// End the adapter-owned carrier and dispose its selected payload exactly once.
     /// Normal return only, after the callee protects its answer and before caller receipt.
@@ -32,6 +32,29 @@ pub enum Step {
         carrier: Payload,
         payload: Payload,
     },
+}
+/// Original data projection and the selected owning destination's entry-state holes.
+/// This is frozen evidence from the existing ledger, not another ownership analysis.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Resource {
+    data: nocter_checking::value_access::ResourceDataStep,
+    destination_missing: Option<Arc<[nocter_checking::value_access::flow::resources::Missing]>>,
+}
+impl Resource {
+    #[must_use]
+    pub const fn data(&self) -> &nocter_checking::value_access::ResourceDataStep {
+        &self.data
+    }
+    #[must_use]
+    pub fn operation(&self) -> &ResourceStep<Payload> {
+        self.data.operation()
+    }
+    #[must_use]
+    pub fn destination_missing(
+        &self,
+    ) -> Option<&[nocter_checking::value_access::flow::resources::Missing]> {
+        self.destination_missing.as_deref()
+    }
 }
 impl Step {
     /// The original resource operation, independently of its retained representation metadata.
@@ -199,7 +222,7 @@ impl Program {
                     for step in alternative.before.iter().chain(alternative.after.iter()) {
                         let resource = match step {
                             Step::Resource(step) => {
-                                keys.extend(step.roots().cloned());
+                                keys.extend(step.data().roots().cloned());
                                 Some(step.operation())
                             }
                             Step::ScopedReplacement(replacement) => {
@@ -264,7 +287,14 @@ fn lower(
                 let mut alternatives = BTreeMap::new();
                 for transition in checked.access().resources().at(at) {
                     let condition = transition.condition();
-                    let mut projection = payloads::Projection::new(instance, id, at, work)?;
+                    let mut projection = payloads::Projection::new(
+                        instance,
+                        id,
+                        at,
+                        &condition,
+                        transition.steps(),
+                        work,
+                    )?;
                     let before = projection.steps(transition.before_steps())?;
                     let mut after = completion.clone().into_iter().collect::<Vec<_>>();
                     after.extend(projection.after_steps(transition.after_steps())?);

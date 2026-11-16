@@ -99,15 +99,18 @@ first-element context. Plain targets require absence of retained addresses/reser
 sides of the action. Evaluated targets require absence on completion: the original selection and
 bounds effects have finished, assignment emits no separate computation, and its receipt projects
 the new root at the sealed numeric/resource coordinate rather than reusing the old staged pointer.
-Both absence queries include all alternatives; surviving views/reservations still reject relocation. Original matching transitions must agree on
-external holes; holes inside the replaced subtree remain covered by its original retirement.
+Both absence queries include all alternatives; surviving views/reservations still reject relocation.
+Each selected lifecycle resource step supplies its original destination's entry-state holes.
+Different sibling holes keep distinct original guards through lifecycle simplification and MIR;
+no downstream scan requires unrelated alternatives to agree. For the qualified assignment,
+external holes remain unchanged between entry and receipt; holes inside the replaced subtree
+stay covered by its original retirement.
 The structural complement splits only ancestors of actual missing paths, leaving unaffected
 shared schemas opaque; it never snapshots a hole or a partially initialized parent as a whole.
 Machine snapshots every preserved source before writing any new offsets and then performs the
 original receipt. Nested tuples, environment growth/shrinkage, multiple holes, saved-instance
 restoration, partially retired targets, exactly-once index effects, original bounds traps and owned
-sibling cleanup have ordinary source/native
-coverage. Missing descendants can likewise traverse singleton arrays, preserving initialized
+sibling cleanup have ordinary source/native coverage. Missing descendants can likewise traverse singleton arrays, preserving initialized
 fields inside their one element without copying the missing element or a partially initialized
 parent. Destination, missing-path and preserved-subtree projections share one singleton-length
 check. Other partial moves keep the before/after geometry constraint. Live aliases, larger array

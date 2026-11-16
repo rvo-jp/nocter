@@ -134,6 +134,43 @@ fn indexed_repacking_uses_only_the_closed_singleton_coordinate() {
 }
 
 #[test]
+fn conditional_repacking_keeps_separate_original_guards_for_different_missing_subtrees() {
+    let program = lower(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-conditional-hole-growth.nct"
+    )));
+    let mut found = 0;
+    for action in program
+        .bodies
+        .values()
+        .flat_map(|body| body.actions.values())
+    {
+        let receipts = action
+            .alternatives
+            .iter()
+            .filter_map(|alternative| {
+                alternative.after.iter().find_map(|effect| match effect {
+                    Effect::Repack { missing, .. } => Some((alternative, missing.len())),
+                    _ => None,
+                })
+            })
+            .collect::<Vec<_>>();
+        let sizes = receipts
+            .iter()
+            .map(|(_, size)| *size)
+            .collect::<std::collections::BTreeSet<_>>();
+        if sizes != std::collections::BTreeSet::from([0, 1]) {
+            continue;
+        }
+        for (alternative, _) in receipts {
+            assert!(!alternative.tests.is_empty());
+        }
+        found += 1;
+    }
+    assert!(found >= 2);
+}
+
+#[test]
 fn singleton_hole_repacking_keeps_the_initialized_element_field_and_skips_its_parent() {
     let program = lower(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

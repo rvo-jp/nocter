@@ -262,6 +262,14 @@ containing contracts and dependent partial-source roots through the same canonic
 Root receipts stay attached to their original resource step; no frame-wide type map or later
 phase guess supplies a local container. A partial owning move also retains its matched original
 destination's whole-container before/after contracts; both enter the shared storage interner.
+`lifecycle::Resource` pairs that original data step with the destination's missing selections from
+its selected entry-state condition. Only partial owning destinations retain this annotation; no
+unrelated owner state is copied into a step. Freezing meters selected paths under the same metadata
+budget before opening the data projection and shares each immutable annotation across emitted
+steps. A failed freeze publishes no projection and leaves the retained inputs reusable. Guard
+simplification compares this evidence too: equal data operations with different missing sibling
+subtrees must keep their distinct original guards. MIR consumes the selected annotation rather
+than rescanning all source alternatives or rebuilding an owner state.
 Enclosing allocation geometry and adapter completion remain
 separate responsibilities; these contracts grant no mutation or layout proof.
 
@@ -279,8 +287,9 @@ facts and bodies with no choices. A bounded guard simplifier shares equal operat
 sequences and removes complementary bit tests without changing those operations. The construction
 index is discarded after emission. Changes
 come from checked entry/intermediate/final snapshots, not an independent initialization solver.
-Draft snapshots are consumed before the public body is frozen. Public alternatives retain emitted
-bit guards; the checking report remains the owner of source ownership conditions. There is no
+Complete draft snapshots are consumed before the public body is frozen. Public alternatives retain
+emitted bit guards and their resource steps' selected destination annotations; the checking report
+remains the owner of source ownership conditions. There is no
 temporarily empty flag recipe in an accepted lifecycle program.
 
 The [lifecycle handoff](../../../architecture/pipeline/value-access-declarations.md#private-lifecycle-schedule-handoff)

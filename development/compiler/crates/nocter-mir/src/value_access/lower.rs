@@ -492,6 +492,7 @@ impl Builder<'_> {
         before: RuntimeDataId,
         source: &Place,
         destination: &Place,
+        holes: &[flow::resources::Missing],
     ) -> Result<Option<Effect>, Failure> {
         if before == destination.root {
             return Ok(None);
@@ -533,50 +534,29 @@ impl Builder<'_> {
         if supplied.holder() == target.holder() || !unretained {
             return Ok(None);
         }
-        let mut matched = None;
-        for transition in self.checked.access().resources().at(at) {
-            if !transition.steps().iter().any(|step| {
-                matches!(step, Step::Move { source, destination, .. }
-                    if source == supplied && destination == target)
-            }) {
-                continue;
-            }
-            let condition = transition.condition();
-            let Some((_, missing)) = condition
-                .owned()
-                .find(|(holder, _)| *holder == target.holder())
-            else {
+        let mut missing = BTreeSet::new();
+        for hole in holes {
+            let Some(path) = hole.value() else {
                 return Ok(None);
             };
-            let mut holes = BTreeSet::new();
-            for missing in missing {
-                let Some(path) = missing.value() else {
-                    return Ok(None);
-                };
-                if target.fields().is_prefix_of(path) {
-                    continue;
-                }
-                if path.is_prefix_of(target.fields()) {
-                    return Ok(None);
-                }
-                let Some(path) = path.concrete() else {
-                    return Ok(None);
-                };
-                holes.insert(
-                    path.fields()
-                        .iter()
-                        .copied()
-                        .map(Projection::Field)
-                        .collect::<Box<[_]>>(),
-                );
+            if target.fields().is_prefix_of(path) {
+                continue;
             }
-            let holes = holes.into_iter().collect::<Box<[_]>>();
-            if matched.as_ref().is_some_and(|previous| previous != &holes) {
+            if path.is_prefix_of(target.fields()) {
                 return Ok(None);
             }
-            matched = Some(holes);
+            let Some(path) = path.concrete() else {
+                return Ok(None);
+            };
+            missing.insert(
+                path.fields()
+                    .iter()
+                    .copied()
+                    .map(Projection::Field)
+                    .collect::<Box<[_]>>(),
+            );
         }
-        let missing = matched.ok_or_else(|| self.invalid())?;
+        let missing = missing.into_iter().collect::<Box<[_]>>();
         Ok(
             super::repack::preserved(self.runtime, before, destination, &missing).map(
                 |preserved| Effect::Repack {
@@ -682,298 +662,324 @@ impl Builder<'_> {
                         disposal: self.disposal(payload)?,
                     });
                 }
-                lifecycle::Step::Resource(projected) => match projected.operation() {
-                    Step::Capture {
-                        source,
-                        destination,
-                        payload,
-                        ..
-                    } => {
-                        let mut destination =
-                            self.root(*destination, self.payload_data(payload)?, false)?;
-                        let environment = self.capture_data(destination.data)?;
-                        let source = self.resource_place(source, environment, projected)?;
-                        destination.projections = Box::new([Projection::Environment]);
-                        destination.data = environment;
-                        output.push(Effect::Transfer {
+                lifecycle::Step::Resource(resource) => {
+                    let projected = resource.data();
+                    match projected.operation() {
+                        Step::Capture {
                             source,
                             destination,
-                        });
-                    }
-                    Step::AdaptFunction {
-                        source,
-                        destination,
-                        from,
-                        payload,
-                    } => {
-                        let source =
-                            self.resource_place(source, self.payload_data(from)?, projected)?;
-                        let destination =
-                            self.root(*destination, self.payload_data(payload)?, false)?;
-                        output.push(Effect::Reinterpret {
-                            source,
-                            destination,
-                        });
-                    }
-                    Step::Assemble {
-                        destination,
-                        payload,
-                        fields,
-                    } => {
-                        let destination =
-                            self.root(*destination, self.payload_data(payload)?, false)?;
-                        for (field, source) in fields {
-                            let data = self
-                                .runtime
-                                .value_field(destination.data, *field)
-                                .ok_or_else(|| self.invalid())?;
-                            let source = self.resource_place(source, data, projected)?;
-                            let mut selection = destination.clone();
-                            selection.projections = Box::new([Projection::Field(*field)]);
-                            selection.data = source.data;
+                            payload,
+                            ..
+                        } => {
+                            let mut destination =
+                                self.root(*destination, self.payload_data(payload)?, false)?;
+                            let environment = self.capture_data(destination.data)?;
+                            let source = self.resource_place(source, environment, projected)?;
+                            destination.projections = Box::new([Projection::Environment]);
+                            destination.data = environment;
                             output.push(Effect::Transfer {
                                 source,
-                                destination: selection,
-                            });
-                        }
-                        if let Some(
-                            kind @ (nocter_runtime_contract::RuntimeType::Optional(_)
-                            | nocter_runtime_contract::RuntimeType::Fallible(_)),
-                        ) = self.runtime.types().get(destination.data)
-                        {
-                            let primary = match (kind, fields.as_ref()) {
-                                (nocter_runtime_contract::RuntimeType::Optional(_), []) => false,
-                                (_, [(nocter_model::ValueField::Variant(primary), _)]) => *primary,
-                                _ => return Err(self.invalid()),
-                            };
-                            output.push(Effect::VariantTag {
-                                destination: destination.clone(),
-                                primary,
-                            });
-                        }
-                        output.push(Effect::Initialize(destination));
-                    }
-                    Step::Construct {
-                        destination,
-                        payload,
-                    } => {
-                        let destination =
-                            self.root(*destination, self.payload_data(payload)?, false)?;
-                        output.push(Effect::Initialize(destination));
-                    }
-                    Step::Receive {
-                        call,
-                        destination,
-                        payload,
-                    } => {
-                        let data = self.payload_data(payload)?;
-                        let slot = self.slot(SlotKey::Answer(*call), data, Storage::Payload)?;
-                        let source = Place {
-                            slot,
-                            root: data,
-                            data,
-                            projections: Box::new([]),
-                        };
-                        let destination = self.root(*destination, data, false)?;
-                        output.push(Effect::Transfer {
-                            source,
-                            destination,
-                        });
-                    }
-                    Step::Move {
-                        source,
-                        destination,
-                        payload,
-                    } => {
-                        let source =
-                            self.resource_place(source, self.payload_data(payload)?, projected)?;
-                        let destination = if let Some(roots) = projected.destination_roots() {
-                            if roots.destination() != destination {
-                                return Err(self.invalid());
-                            }
-                            let program = self.instances.unit().program();
-                            let before = self
-                                .storage
-                                .instance(program, roots.before())
-                                .map_err(Failure::Storage)?;
-                            let after = self
-                                .storage
-                                .instance(program, roots.after())
-                                .map_err(Failure::Storage)?;
-                            // Register both selected storage contexts independently of traversal order.
-                            self.root(destination.holder(), before, false)?;
-                            let destination = self.place_with_root(
                                 destination,
-                                self.payload_data(payload)?,
-                                Some(after),
-                            )?;
-                            if let Some(effect) =
-                                self.repack(projected.operation(), before, &source, &destination)?
-                            {
-                                output.push(effect);
-                                continue;
-                            }
-                            self.constrain_geometry(before, after)?;
-                            destination
-                        } else {
-                            self.place(destination, self.payload_data(payload)?)?
-                        };
-                        output.push(Effect::Transfer {
+                            });
+                        }
+                        Step::AdaptFunction {
                             source,
                             destination,
-                        });
-                    }
-                    Step::MoveArrayElement {
-                        index,
-                        destination,
-                        payload,
-                        ..
-                    } => {
-                        let data = self.payload_data(payload)?;
-                        output.push(Effect::Transfer {
-                            source: self.referent(
-                                nocter_checking::value_access::Referent::Evaluated(
-                                    index.selection(),
-                                ),
+                            from,
+                            payload,
+                        } => {
+                            let source =
+                                self.resource_place(source, self.payload_data(from)?, projected)?;
+                            let destination =
+                                self.root(*destination, self.payload_data(payload)?, false)?;
+                            output.push(Effect::Reinterpret {
+                                source,
+                                destination,
+                            });
+                        }
+                        Step::Assemble {
+                            destination,
+                            payload,
+                            fields,
+                        } => {
+                            let destination =
+                                self.root(*destination, self.payload_data(payload)?, false)?;
+                            for (field, source) in fields {
+                                let data = self
+                                    .runtime
+                                    .value_field(destination.data, *field)
+                                    .ok_or_else(|| self.invalid())?;
+                                let source = self.resource_place(source, data, projected)?;
+                                let mut selection = destination.clone();
+                                selection.projections = Box::new([Projection::Field(*field)]);
+                                selection.data = source.data;
+                                output.push(Effect::Transfer {
+                                    source,
+                                    destination: selection,
+                                });
+                            }
+                            if let Some(
+                                kind @ (nocter_runtime_contract::RuntimeType::Optional(_)
+                                | nocter_runtime_contract::RuntimeType::Fallible(_)),
+                            ) = self.runtime.types().get(destination.data)
+                            {
+                                let primary = match (kind, fields.as_ref()) {
+                                    (nocter_runtime_contract::RuntimeType::Optional(_), []) => {
+                                        false
+                                    }
+                                    (_, [(nocter_model::ValueField::Variant(primary), _)]) => {
+                                        *primary
+                                    }
+                                    _ => return Err(self.invalid()),
+                                };
+                                output.push(Effect::VariantTag {
+                                    destination: destination.clone(),
+                                    primary,
+                                });
+                            }
+                            output.push(Effect::Initialize(destination));
+                        }
+                        Step::Construct {
+                            destination,
+                            payload,
+                        } => {
+                            let destination =
+                                self.root(*destination, self.payload_data(payload)?, false)?;
+                            output.push(Effect::Initialize(destination));
+                        }
+                        Step::Receive {
+                            call,
+                            destination,
+                            payload,
+                        } => {
+                            let data = self.payload_data(payload)?;
+                            let slot = self.slot(SlotKey::Answer(*call), data, Storage::Payload)?;
+                            let source = Place {
+                                slot,
+                                root: data,
                                 data,
-                            )?,
-                            destination: self.root(*destination, data, false)?,
-                        });
-                    }
-                    Step::ConsolidateArrayPrefix {
-                        array,
-                        payload,
-                        frontier,
-                    } => {
-                        let data = self.index_data()?;
-                        output.push(Effect::ConsolidateArrayPrefix {
-                            source: self.resource_place(
-                                array,
-                                self.payload_data(payload)?,
-                                projected,
-                            )?,
-                            endpoint: self
-                                .root(Holder::ArrayFrontier(*frontier), data, false)?
-                                .slot,
-                        });
-                    }
-                    Step::Dispose { source, payload } => {
-                        let source =
-                            self.resource_place(source, self.payload_data(payload)?, projected)?;
-                        output.push(Effect::Dispose {
+                                projections: Box::new([]),
+                            };
+                            let destination = self.root(*destination, data, false)?;
+                            output.push(Effect::Transfer {
+                                source,
+                                destination,
+                            });
+                        }
+                        Step::Move {
                             source,
-                            disposal: self.disposal(payload)?,
-                        });
-                    }
-                    Step::DisposeArrayElements {
-                        source,
-                        payload,
-                        range,
-                    } => {
-                        output.push(Effect::DisposeArrayElements {
-                            source: self.resource_place(
+                            destination,
+                            payload,
+                        } => {
+                            let source = self.resource_place(
                                 source,
                                 self.payload_data(payload)?,
                                 projected,
-                            )?,
-                            range: range.try_map_index(|index| {
-                                let data = self.index_data()?;
-                                Ok(self.root(index.holder(), data, false)?.slot)
-                            })?,
-                        });
-                    }
-                    Step::DisposeArrayRemainder {
-                        source,
-                        payload,
-                        missing,
-                    } => {
-                        let array =
-                            self.resource_place(source, self.payload_data(payload)?, projected)?;
-                        let missing = missing
-                            .iter()
-                            .map(|hole| {
-                                let (path, frontier) = match hole {
-                                    flow::resources::Missing::Value(path) => (path, None),
-                                    flow::resources::Missing::ArrayPrefix { array, frontier } => {
-                                        (array, Some(*frontier))
-                                    }
-                                };
-                                let data = self
-                                    .runtime
-                                    .value_path(array.root, path.fields(), |index, length| {
-                                        match *index {
-                                            flow::resources::Index::Constant(index) => {
-                                                index < length
-                                            }
-                                            flow::resources::Index::Retained(snapshot) => {
-                                                snapshot.bound() <= length
-                                            }
-                                        }
-                                    })
-                                    .ok_or_else(|| self.invalid())?;
-                                let place = self.place_with_root(
-                                    &source.clone().with_fields(path.clone()),
-                                    data,
-                                    Some(array.root),
+                            )?;
+                            let destination = if let Some(roots) = projected.destination_roots() {
+                                if roots.destination() != destination {
+                                    return Err(self.invalid());
+                                }
+                                let program = self.instances.unit().program();
+                                let before = self
+                                    .storage
+                                    .instance(program, roots.before())
+                                    .map_err(Failure::Storage)?;
+                                let after = self
+                                    .storage
+                                    .instance(program, roots.after())
+                                    .map_err(Failure::Storage)?;
+                                // Register both selected storage contexts independently of traversal order.
+                                self.root(destination.holder(), before, false)?;
+                                let destination = self.place_with_root(
+                                    destination,
+                                    self.payload_data(payload)?,
+                                    Some(after),
                                 )?;
-                                Ok(if let Some(frontier) = frontier {
+                                if let Some(effect) = self.repack(
+                                    projected.operation(),
+                                    before,
+                                    &source,
+                                    &destination,
+                                    resource
+                                        .destination_missing()
+                                        .ok_or_else(|| self.invalid())?,
+                                )? {
+                                    output.push(effect);
+                                    continue;
+                                }
+                                self.constrain_geometry(before, after)?;
+                                destination
+                            } else {
+                                self.place(destination, self.payload_data(payload)?)?
+                            };
+                            output.push(Effect::Transfer {
+                                source,
+                                destination,
+                            });
+                        }
+                        Step::MoveArrayElement {
+                            index,
+                            destination,
+                            payload,
+                            ..
+                        } => {
+                            let data = self.payload_data(payload)?;
+                            output.push(Effect::Transfer {
+                                source: self.referent(
+                                    nocter_checking::value_access::Referent::Evaluated(
+                                        index.selection(),
+                                    ),
+                                    data,
+                                )?,
+                                destination: self.root(*destination, data, false)?,
+                            });
+                        }
+                        Step::ConsolidateArrayPrefix {
+                            array,
+                            payload,
+                            frontier,
+                        } => {
+                            let data = self.index_data()?;
+                            output.push(Effect::ConsolidateArrayPrefix {
+                                source: self.resource_place(
+                                    array,
+                                    self.payload_data(payload)?,
+                                    projected,
+                                )?,
+                                endpoint: self
+                                    .root(Holder::ArrayFrontier(*frontier), data, false)?
+                                    .slot,
+                            });
+                        }
+                        Step::Dispose { source, payload } => {
+                            let source = self.resource_place(
+                                source,
+                                self.payload_data(payload)?,
+                                projected,
+                            )?;
+                            output.push(Effect::Dispose {
+                                source,
+                                disposal: self.disposal(payload)?,
+                            });
+                        }
+                        Step::DisposeArrayElements {
+                            source,
+                            payload,
+                            range,
+                        } => {
+                            output.push(Effect::DisposeArrayElements {
+                                source: self.resource_place(
+                                    source,
+                                    self.payload_data(payload)?,
+                                    projected,
+                                )?,
+                                range: range.try_map_index(|index| {
                                     let data = self.index_data()?;
-                                    super::RemainderExclusion::ArrayPrefix {
-                                        array: place,
-                                        endpoint: self
-                                            .root(Holder::ArrayFrontier(frontier), data, false)?
-                                            .slot,
-                                    }
-                                } else {
-                                    super::RemainderExclusion::Value(place)
-                                })
-                            })
-                            .collect::<Result<_, Failure>>()?;
-                        output.push(Effect::DisposeArrayRemainder {
-                            source: array,
+                                    Ok(self.root(index.holder(), data, false)?.slot)
+                                })?,
+                            });
+                        }
+                        Step::DisposeArrayRemainder {
+                            source,
+                            payload,
                             missing,
-                        });
-                    }
-                    Step::ReleaseContainer { source, payload } => {
-                        output.push(Effect::End(self.resource_place(
+                        } => {
+                            let array = self.resource_place(
+                                source,
+                                self.payload_data(payload)?,
+                                projected,
+                            )?;
+                            let missing = missing
+                                .iter()
+                                .map(|hole| {
+                                    let (path, frontier) = match hole {
+                                        flow::resources::Missing::Value(path) => (path, None),
+                                        flow::resources::Missing::ArrayPrefix {
+                                            array,
+                                            frontier,
+                                        } => (array, Some(*frontier)),
+                                    };
+                                    let data = self
+                                        .runtime
+                                        .value_path(array.root, path.fields(), |index, length| {
+                                            match *index {
+                                                flow::resources::Index::Constant(index) => {
+                                                    index < length
+                                                }
+                                                flow::resources::Index::Retained(snapshot) => {
+                                                    snapshot.bound() <= length
+                                                }
+                                            }
+                                        })
+                                        .ok_or_else(|| self.invalid())?;
+                                    let place = self.place_with_root(
+                                        &source.clone().with_fields(path.clone()),
+                                        data,
+                                        Some(array.root),
+                                    )?;
+                                    Ok(if let Some(frontier) = frontier {
+                                        let data = self.index_data()?;
+                                        super::RemainderExclusion::ArrayPrefix {
+                                            array: place,
+                                            endpoint: self
+                                                .root(Holder::ArrayFrontier(frontier), data, false)?
+                                                .slot,
+                                        }
+                                    } else {
+                                        super::RemainderExclusion::Value(place)
+                                    })
+                                })
+                                .collect::<Result<_, Failure>>()?;
+                            output.push(Effect::DisposeArrayRemainder {
+                                source: array,
+                                missing,
+                            });
+                        }
+                        Step::ReleaseContainer { source, payload } => {
+                            output.push(Effect::End(self.resource_place(
+                                source,
+                                self.payload_data(payload)?,
+                                projected,
+                            )?));
+                        }
+                        Step::Invoke {
                             source,
-                            self.payload_data(payload)?,
-                            projected,
-                        )?));
-                    }
-                    Step::Invoke {
-                        source,
-                        call,
-                        index,
-                        payload,
-                    } => {
-                        let source =
-                            self.resource_place(source, self.payload_data(payload)?, projected)?;
-                        let destination = self.argument(*call, *index)?;
-                        output.push(Effect::Transfer {
+                            call,
+                            index,
+                            payload,
+                        } => {
+                            let source = self.resource_place(
+                                source,
+                                self.payload_data(payload)?,
+                                projected,
+                            )?;
+                            let destination = self.argument(*call, *index)?;
+                            output.push(Effect::Transfer {
+                                source,
+                                destination,
+                            });
+                        }
+                        Step::Transport {
                             source,
                             destination,
-                        });
+                            from,
+                            payload,
+                        } => {
+                            let source =
+                                self.resource_place(source, self.payload_data(from)?, projected)?;
+                            let destination =
+                                self.root(*destination, self.payload_data(payload)?, false)?;
+                            output.push(Effect::Transport {
+                                source,
+                                destination,
+                            });
+                        }
+                        Step::ReplaceReferent { .. } => {
+                            return Err(self.invalid());
+                        }
                     }
-                    Step::Transport {
-                        source,
-                        destination,
-                        from,
-                        payload,
-                    } => {
-                        let source =
-                            self.resource_place(source, self.payload_data(from)?, projected)?;
-                        let destination =
-                            self.root(*destination, self.payload_data(payload)?, false)?;
-                        output.push(Effect::Transport {
-                            source,
-                            destination,
-                        });
-                    }
-                    Step::ReplaceReferent { .. } => {
-                        return Err(self.invalid());
-                    }
-                },
+                }
             }
         }
         Ok(output.into())

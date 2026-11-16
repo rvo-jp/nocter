@@ -620,6 +620,15 @@ fn contextual_indexed_growth_keeps_the_original_selection_and_sibling_values() {
 }
 
 #[test]
+fn contextual_conditional_holes_preserve_both_original_value_paths() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-conditional-hole-growth.nct"
+    ));
+    assert_eq!(answer(source, "ANSWER"), Value::integer(42));
+}
+
+#[test]
 fn contextual_singleton_holes_preserve_saved_instances_and_initialized_element_fields() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

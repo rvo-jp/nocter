@@ -82,8 +82,11 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   retirement/receipt; a unique logical coordinate does not stabilize pre-existing pointers.
 - [x] Qualify missing descendants through singleton-array structure, preserving separately saved
   owners and remaining sibling values without loading the absent element or expanding a schema.
+- [x] Freeze each partial owning receipt's original destination holes through lifecycle guard
+  simplification and MIR, qualifying branch-dependent tuple/singleton holes in one callable
+  instance, required/native execution, actual error cleanup and bounded metadata retry.
 - [ ] Extend relocation's initialized-subtree selection to remaining array/range holes and
-  context-dependent alternatives, preserving sparse source coordinates without element expansion.
+  unresolved represented alternatives, preserving sparse source coordinates without element expansion.
 - [x] Qualify same-geometry contextual callable component replacement and restoration with a
   surviving disjoint sibling reference. Carry each partial receipt's original containing roots
   into MIR and physical geometry checks without fusing separate retirement/receipt operations.
