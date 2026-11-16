@@ -74,6 +74,7 @@ pub struct Place {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Disposal {
+    CallableAlternatives,
     Trivial,
     Error,
     Aggregate,

@@ -101,6 +101,8 @@ impl Place {
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Disposal {
+    /// A closed callable domain; its actual tag selects one complete case's cleanup.
+    CallableAlternatives,
     OwnedCapture,
     /// The supplied environment's destructor, retained symbolically until witness specialization.
     FunctionEnvironment,

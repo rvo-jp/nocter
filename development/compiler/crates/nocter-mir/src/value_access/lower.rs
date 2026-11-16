@@ -531,6 +531,7 @@ impl Builder<'_> {
             CheckedDisposal::OwnedError => Disposal::Error,
             CheckedDisposal::Aggregate => Disposal::Aggregate,
             CheckedDisposal::OwnedCapture => Disposal::Capture,
+            CheckedDisposal::CallableAlternatives => Disposal::CallableAlternatives,
             CheckedDisposal::FunctionEnvironment => return Err(self.invalid()),
         })
     }

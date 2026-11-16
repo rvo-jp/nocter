@@ -2078,41 +2078,10 @@ fn private_positive_callable_domains_return_store_and_retire_original_runtime_ch
         "positive-callable-retirement",
         42,
     );
-    let owned = source.replace("struct Item { value: i32 }", "struct Item { value: i32\nreason: error }")
-        .replace("Item { value: value }", "Item { value: value, reason: context_error(create_failure(\"choice\", \"leaf\"), \"outer\") }");
-    assert_ne!(owned, source);
-    let owned = format!(
-        "primitive func create_failure(code: str, message: str): error\nprimitive func context_error(take value: error, message: str): error\n{owned}"
-    );
+    let owned = owned_choice_source(&source);
     let owned = trusted_error_machine(&owned);
     assert_positive_constructors(&owned);
-    assert!(owned.functions().any(|(_, function)| {
-        let body = function.body();
-        body.parameters()
-            .first()
-            .and_then(|&id| body.stack(id))
-            .is_some_and(|slot| {
-                matches!(
-                    owned.layouts().get(slot.ty()).unwrap().kind(),
-                    nocter_machine::MachineLayoutKind::CallableAlternatives { .. }
-                )
-            })
-            && body.blocks().any(|(_, block)| {
-                matches!(
-                    block.terminator(),
-                    nocter_machine::MachineTerminator::SwitchValue { .. }
-                )
-            })
-    }));
-    assert!(
-        owned
-            .functions()
-            .flat_map(|(_, function)| function.body().operations())
-            .any(|(_, operation)| matches!(
-                operation.kind(),
-                nocter_machine::MachineOperationKind::ReleaseError { .. }
-            ))
-    );
+    assert_positive_cleanup(&owned);
     execute_native_status(&image(&owned), &package.0, "positive-owned-retirement", 42);
 }
 
@@ -2139,5 +2108,74 @@ fn assert_positive_constructors(machine: &nocter_machine::MachineProgram) {
     assert!(
         constructors >= 2,
         "both original cases need tagged construction: {constructors}"
+    );
+}
+
+#[test]
+fn private_bare_positive_callable_domains_retain_and_retire_complete_runtime_cases() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/value-contexts/contextual-joined-sibling-growth.nct"
+    ));
+    let (definitions, _) = source.split_once("\nconst func calculate").unwrap();
+    let source = format!(
+        "{}\nfunc run(): i32 {{ let first = maybe(false)\nlet second = maybe(true)\n42 }}",
+        definitions.replace("const func", "func").replace(
+            "func maybe(present: bool): (func(i32): i32)?",
+            "func maybe(present: bool): func(i32): i32"
+        )
+    );
+    let program = machine(&source);
+    assert_positive_constructors(&program);
+    let package = TempPackage::new();
+    execute_native_status(&image(&program), &package.0, "bare-positive-retirement", 42);
+    let owned = trusted_error_machine(&owned_choice_source(&source));
+    assert_positive_constructors(&owned);
+    assert_positive_cleanup(&owned);
+    execute_native_status(
+        &image(&owned),
+        &package.0,
+        "bare-positive-owned-retirement",
+        42,
+    );
+}
+
+fn owned_choice_source(source: &str) -> String {
+    assert!(source.contains("struct Item { value: i32 }"));
+    assert_eq!(source.matches("Item { value: value }").count(), 2);
+    let source = source.replace("struct Item { value: i32 }", "struct Item { value: i32\nreason: error }")
+        .replace("Item { value: value }", "Item { value: value, reason: context_error(create_failure(\"choice\", \"leaf\"), \"outer\") }");
+    format!(
+        "primitive func create_failure(code: str, message: str): error\nprimitive func context_error(take value: error, message: str): error\n{source}"
+    )
+}
+
+fn assert_positive_cleanup(owned: &nocter_machine::MachineProgram) {
+    assert!(owned.functions().any(|(_, function)| {
+        let body = function.body();
+        body.parameters()
+            .first()
+            .and_then(|&id| body.stack(id))
+            .is_some_and(|slot| {
+                matches!(
+                    owned.layouts().get(slot.ty()).unwrap().kind(),
+                    nocter_machine::MachineLayoutKind::CallableAlternatives { .. }
+                )
+            })
+            && body.blocks().any(|(_, block)| {
+                matches!(
+                    block.terminator(),
+                    nocter_machine::MachineTerminator::SwitchValue { .. }
+                )
+            })
+    }));
+    assert!(
+        owned
+            .functions()
+            .flat_map(|(_, function)| function.body().operations())
+            .any(|(_, operation)| matches!(
+                operation.kind(),
+                nocter_machine::MachineOperationKind::ReleaseError { .. }
+            ))
     );
 }

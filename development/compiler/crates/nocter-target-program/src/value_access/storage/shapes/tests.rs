@@ -724,3 +724,36 @@ fn finite_domain_storage_closes_the_runtime_owned_tag_primitive_at_257_cases() {
         ));
     }
 }
+
+#[test]
+fn bare_callable_payload_domains_retain_all_cases_and_one_selected_cleanup_obligation() {
+    use nocter_checking::value_access::flow::resources::{self, Disposal};
+    let fixture = fixture();
+    let program = &fixture.program;
+    let keys = fixture
+        .keys
+        .each_ref()
+        .map(|key| key.component(program, ValueField::Tuple(0)).unwrap());
+    let domain = program
+        .join_data_domains(&keys[0], &keys[1], || Ok::<_, ()>(()))
+        .unwrap();
+    let contract = resources::payload(program, fixture.captured).unwrap();
+    let selected = contract.instantiate(program, &domain).unwrap();
+    assert_eq!(selected.instance(), &domain);
+    assert_eq!(selected.disposal(), Disposal::CallableAlternatives);
+    assert!(selected.environment(program).is_err());
+    let environment = keys[0].environment(program).unwrap().unwrap();
+    assert!(selected.with_environment(program, &environment).is_err());
+    for key in &keys {
+        assert_eq!(
+            contract.instantiate(program, key).unwrap().disposal(),
+            Disposal::OwnedCapture
+        );
+    }
+    let empty = program
+        .instantiate_uninhabited_data(fixture.captured)
+        .unwrap();
+    assert!(contract.instantiate(program, &empty).is_err());
+    let wrong = resources::payload(program, fixture.optional).unwrap();
+    assert!(wrong.instantiate(program, &domain).is_err());
+}

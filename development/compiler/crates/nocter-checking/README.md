@@ -1321,8 +1321,15 @@ no element view. General changing partial-carrier roots, context-changing slot g
 dependent environments remain separate obligations.
 `resources::Payload::instantiate` binds an existing logical schema to the declaration-owned
 `DataInstanceKey`, preserving the actual callable representation and nested captured context.
-`InstantiatedPayload` retains that complete key with its concrete root cleanup obligation. Its
-environment projection follows the selected value's own context, rather than a caller-wide map of
+`InstantiatedPayload` retains that complete key with its concrete root cleanup obligation.
+A bare finite callable domain retains the full key and receives `CallableAlternatives` cleanup:
+every complete case is validated through the ordinary single-case payload contract, and the active
+runtime tag selects disposal. No case is chosen as an environment representative. Empty domains,
+foreign descriptors and unresolved symbolic cleanup still reject. `environment` and
+`with_environment` remain single-callable operations and reject a domain; this payload capability
+grants no invocation, Copy, selected-case or epoch conversion proof.
+For a single callable, environment projection follows the selected value's own context, rather
+than a caller-wide map of
 raw source type IDs. `InstantiatedPayload::with_environment` rebuilds that actual callable through
 the same canonical witness and payload authorities, preserving code and invocation view while
 selecting a matched new environment. The old receipt remains unchanged; non-callables, code tokens

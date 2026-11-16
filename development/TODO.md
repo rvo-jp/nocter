@@ -151,6 +151,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Qualify original-source positive callable construction, returned carrier storage and whole
   retirement through checking, MIR and native execution before admitting general invocation or
   changing retained addresses. Preserve original runtime choices and complete capture identities.
+- [x] Qualify bare positive callable payload contracts and whole-value retirement without choosing
+  a representative environment. Preserve exact descriptors, complete case cleanup and existing
+  symbolic-environment rejection; keep general invocation and epoch normalization separate.
 - [ ] Close the [positive callable alternative obligations](design/compiler-realization.md#positive-callable-alternatives)
   through the canonical data-instance graph, guarded source transport, evaluator/target plans,
   native selection and cleanup before widening source admission. The value-context fixture

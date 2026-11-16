@@ -260,9 +260,9 @@ payload offsets and writes the corresponding destination index using the target'
 Zero-byte cases still construct their destination tag. Mapping and layout plans reject positive
 narrowing rather than interpreting spare payload capacity as a conversion. Closed runtime fixtures
 qualify case correspondence and changed payload offsets; they do not establish source execution.
-Original expression-merge receipts qualify a narrower native source path: an optional result may
-carry either of two complete environments of the same lexical wrapper, be received into locals,
-and retire as a whole. Source tests require both tagged constructors and selected cleanup to be
+Original expression-merge receipts qualify a narrower native source path: a bare callable or
+optional result may carry either of two complete environments of the same lexical wrapper, be
+received into locals, and retire as a whole. Source tests require both tagged constructors and selected cleanup to be
 generated, then execute both runtime branches with trivial and actual error-bearing captures.
 General callable invocation, local/loop-epoch joins and retained-address changes remain separate
 qualification boundaries. Metadata possibility alone never selects a case.

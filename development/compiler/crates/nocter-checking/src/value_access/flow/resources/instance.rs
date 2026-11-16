@@ -66,6 +66,23 @@ impl Payload {
         if instance.is_uninhabited() || self.data != instance.data() {
             return Err(INVALID);
         }
+        if matches!(
+            instance.schema(program).map_err(|_| INVALID)?,
+            nocter_declarations::value_access::InstanceSchema::FunctionAlternatives(_)
+        ) {
+            let cases = instance
+                .function_representations(program)
+                .map_err(|_| INVALID)?
+                .ok_or(INVALID)?;
+            for case in &cases {
+                // The ordinary single-case contract validates every complete environment.
+                payload(program, case.data())?.instantiate(program, case)?;
+            }
+            return Ok(InstantiatedPayload {
+                instance: instance.clone(),
+                disposal: Disposal::CallableAlternatives,
+            });
+        }
         let instance = instance.clone();
         let instance = instance
             .function_representation(program)

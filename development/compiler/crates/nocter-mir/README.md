@@ -79,6 +79,11 @@ original supplied place into the common expression slot. Subsequent merged reads
 an encoded value, not a larger allocation containing bytes written in an older format. Original
 source-step availability and ownership stay unchanged. A concrete view that cannot use that
 receiving representation rejects rather than treating metadata as a physical conversion.
+Bare callable domains retain a dedicated `CallableAlternatives` disposal marker from their
+instantiated payload contract. The marker consumes the existing owner and delegates selected-case
+cleanup to Machine; it does not turn a symbolic environment into a single captured value or grant
+an invocation target.
+
 Integrity also rejects a mixed slot's positive-domain injection when its old registered cases would
 otherwise acquire a selector only through metadata. Local and loop-epoch conversion remains
 unqualified; sufficient slot capacity and equal dimensions cannot establish an active tag.
