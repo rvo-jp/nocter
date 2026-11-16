@@ -75,16 +75,20 @@ pub struct ScopedReplacement {
     before: nocter_declarations::value_access::DataInstanceKey,
     after: nocter_declarations::value_access::DataInstanceKey,
     carriers: nocter_checking::value_access::ReferentCarrierContracts,
-    initialized_carriers: Box<[nocter_checking::value_access::flow::resources::Holder]>,
+    carrier_missing: BTreeMap<
+        nocter_checking::value_access::flow::resources::Holder,
+        Arc<[nocter_checking::value_access::flow::resources::Missing]>,
+    >,
 }
 impl ScopedReplacement {
-    /// Original owning carriers complete at entry, the operation boundary and normal exit.
-    /// This supplies no address stability, backing capacity or relocation permission.
+    /// Original owning carrier exclusions equal at all three transition boundaries.
+    /// None proves no stable carrier; an empty slice identifies a complete owning carrier.
     #[must_use]
-    pub fn initialized_carriers(
+    pub fn carrier_missing(
         &self,
-    ) -> &[nocter_checking::value_access::flow::resources::Holder] {
-        &self.initialized_carriers
+        holder: nocter_checking::value_access::flow::resources::Holder,
+    ) -> Option<&[nocter_checking::value_access::flow::resources::Missing]> {
+        self.carrier_missing.get(&holder).map(AsRef::as_ref)
     }
     #[must_use]
     pub const fn carriers(&self) -> &nocter_checking::value_access::ReferentCarrierContracts {

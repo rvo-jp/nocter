@@ -228,6 +228,25 @@ impl Transition {
     pub fn after_condition(&self) -> Condition {
         self.after.condition()
     }
+    /// Original sparse ownership at entry. None means no owning carrier, not an empty one.
+    #[must_use]
+    pub fn missing_before(
+        &self,
+        holder: Holder,
+    ) -> Option<impl ExactSizeIterator<Item = &Missing>> {
+        self.before
+            .owned
+            .get(&holder)
+            .map(|value| value.missing.iter())
+    }
+    /// Original sparse ownership on normal exit, independently of source completion metadata.
+    #[must_use]
+    pub fn missing_after(&self, holder: Holder) -> Option<impl ExactSizeIterator<Item = &Missing>> {
+        self.after
+            .owned
+            .get(&holder)
+            .map(|value| value.missing.iter())
+    }
     #[must_use]
     pub fn initialized_before(&self, holder: Holder) -> bool {
         self.before.initialized_root(holder)

@@ -1990,3 +1990,88 @@ fn scoped_repacking_pairs_retirement_with_original_retained_projection_constrain
         );
     }
 }
+
+#[test]
+fn scoped_sparse_repacking_cannot_load_missing_siblings_or_lose_original_exclusions() {
+    let program = lower(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-scoped-growth.nct"
+    )));
+    let (id, at, alternative_index, effect_index) = program
+        .bodies
+        .iter()
+        .find_map(|(&id, body)| {
+            body.geometry
+                .iter()
+                .filter(|constraint| {
+                    matches!(
+                        constraint.requirement,
+                        GeometryRequirement::ProjectionOffsets(_)
+                    )
+                })
+                .find_map(|constraint| {
+                    body.actions[&constraint.at]
+                        .alternatives
+                        .iter()
+                        .enumerate()
+                        .find_map(|(index, alternative)| {
+                            alternative.after.iter().enumerate().find_map(
+                                |(effect_index, effect)| match effect {
+                                    Effect::Repack {
+                                        missing, preserved, ..
+                                    } if !missing.is_empty()
+                                        && preserved.iter().any(|part| {
+                                            part.kind == Preservation::ArrayRemainder
+                                        }) =>
+                                    {
+                                        Some((id, constraint.at, index, effect_index))
+                                    }
+                                    _ => None,
+                                },
+                            )
+                        })
+                })
+        })
+        .unwrap();
+    for corruption in 0..3 {
+        let mut changed = program.clone();
+        let effect = &mut changed
+            .bodies
+            .get_mut(&id)
+            .unwrap()
+            .actions
+            .get_mut(&at)
+            .unwrap()
+            .alternatives[alternative_index]
+            .after[effect_index];
+        let Effect::Repack {
+            missing,
+            preserved,
+            destination,
+            ..
+        } = effect
+        else {
+            panic!()
+        };
+        match corruption {
+            0 => *missing = Box::new([]),
+            1 => {
+                let RemainderExclusion::Value(place) = &mut missing[0] else {
+                    panic!()
+                };
+                place.root = destination.root;
+            }
+            2 => {
+                preserved
+                    .iter_mut()
+                    .find(|part| part.kind == Preservation::ArrayRemainder)
+                    .unwrap()
+                    .kind = Preservation::Complete;
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            matches!(validate::program(&changed), Err(Failure::InvalidBody(found)) if found == id)
+        );
+    }
+}

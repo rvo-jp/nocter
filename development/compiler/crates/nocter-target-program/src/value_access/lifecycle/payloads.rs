@@ -4,10 +4,7 @@ use nocter_checking::value_access::flow::resources::{Holder, Missing, Place, Tra
 use nocter_checking::value_access::{ResourceDataFailure, ResourceDataProjection};
 use nocter_constant_evaluation::state::WorkBudget;
 use nocter_model::AccessInstanceId;
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 #[cfg(test)]
 mod tests;
 
@@ -17,7 +14,7 @@ pub(super) struct Projection<'a, 'work> {
     at: Location,
     instance: &'a Instance,
     destinations: BTreeMap<Place, Arc<[Missing]>>,
-    complete: BTreeSet<Holder>,
+    stable: BTreeMap<Holder, Arc<[Missing]>>,
 }
 fn failure(id: AccessInstanceId, at: Location, error: ResourceDataFailure) -> Failure {
     match error {
@@ -39,7 +36,7 @@ impl<'a, 'work> Projection<'a, 'work> {
     ) -> Result<Self, Failure> {
         let condition = transition.condition();
         let steps = transition.steps();
-        let complete = complete_carriers(transition, work).map_err(|()| Failure::Payload {
+        let stable = stable_carriers(transition, work).map_err(|()| Failure::Payload {
             instance: id,
             at,
             failure: nocter_checking::value_access::InstantiationFailure::WorkLimit,
@@ -60,7 +57,7 @@ impl<'a, 'work> Projection<'a, 'work> {
             at,
             instance,
             destinations,
-            complete,
+            stable,
         })
     }
     pub(super) fn steps(&mut self, steps: &[ResourceStep]) -> Result<Vec<Step>, Failure> {
@@ -105,7 +102,7 @@ impl<'a, 'work> Projection<'a, 'work> {
             .zip(roots)
             .map(|(step, roots)| {
                 if let Some((before, after, carriers)) = roots {
-                    let initialized_carriers = carriers
+                    let carrier_missing = carriers
                         .before()
                         .iter()
                         .filter_map(|carrier| {
@@ -115,14 +112,14 @@ impl<'a, 'work> Projection<'a, 'work> {
                                 return None;
                             };
                             let holder = Holder::Local(local);
-                            self.complete.contains(&holder).then_some(holder)
+                            self.stable
+                                .get(&holder)
+                                .map(|missing| (holder, Arc::clone(missing)))
                         })
-                        .collect::<BTreeSet<_>>()
-                        .into_iter()
                         .collect();
                     Ok(Step::ScopedReplacement(super::ScopedReplacement {
                         operation: Box::new(step),
-                        initialized_carriers,
+                        carrier_missing,
                         before,
                         after,
                         carriers,
@@ -147,30 +144,43 @@ impl<'a, 'work> Projection<'a, 'work> {
     }
 }
 
-/// Freeze completeness only from the original matched transition. No payload or source
-/// operation is replayed, and a missing phase/holder can never prove initialization.
-fn complete_carriers(
+/// Stable sparse exclusions come from one matched original transition. This freezes metadata,
+/// without replaying ownership, inventing source initialization or selecting a physical layout.
+fn stable_carriers(
     transition: &Transition,
     work: &mut WorkBudget,
-) -> Result<BTreeSet<Holder>, ()> {
+) -> Result<BTreeMap<Holder, Arc<[Missing]>>, ()> {
     if !transition
         .steps()
         .iter()
         .any(|step| matches!(step, ResourceStep::ReplaceReferent { .. }))
     {
-        return Ok(BTreeSet::new());
+        return Ok(BTreeMap::new());
     }
-    let mut complete = BTreeSet::new();
+    let mut stable = BTreeMap::new();
     for (holder, missing) in transition.operation_condition().owned() {
         work.step().map_err(|_| ())?;
-        if missing.is_empty()
-            && transition.initialized_before(holder)
-            && transition.initialized_after(holder)
+        for hole in missing {
+            work.step().map_err(|_| ())?;
+            let path = match hole {
+                Missing::Value(path) => path,
+                Missing::ArrayPrefix { array, .. } => array,
+            };
+            for _ in path.fields() {
+                work.step().map_err(|_| ())?;
+            }
+        }
+        if transition
+            .missing_before(holder)
+            .is_some_and(|paths| paths.eq(missing.iter()))
+            && transition
+                .missing_after(holder)
+                .is_some_and(|paths| paths.eq(missing.iter()))
         {
-            complete.insert(holder);
+            stable.insert(holder, Arc::from(missing));
         }
     }
-    Ok(complete)
+    Ok(stable)
 }
 
 /// Freeze only partial receipt metadata before borrowing the shared data-projection budget.

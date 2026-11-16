@@ -1,7 +1,7 @@
 //! Qualified local scoped receipts preserve retained endpoints and initialized siblings.
 use super::{
-    BTreeSet, Builder, Effect, Failure, Holder, Location, Place, Projection, RuntimeDataId,
-    SlotKey, Step, ValueSourceSlot, lifecycle,
+    BTreeSet, Builder, Effect, Failure, Holder, Place, Projection, RuntimeDataId, SlotKey, Step,
+    ValueSourceSlot, lifecycle,
 };
 use nocter_checking::value_access::flow::access::{IndexFact, Root};
 use nocter_model::{ValueField, ValuePath, ValueProjection};
@@ -85,12 +85,11 @@ impl Builder<'_> {
         if !destination.fields().is_root() {
             return Ok(None);
         }
-        let Some(carrier) = initialized_local_carrier(replacement) else {
+        let Some(carrier) = stable_local_carrier(replacement) else {
             return Ok(None);
         };
         let (local, old, new) = (carrier.local, carrier.before, carrier.after);
         let holder = Holder::Local(local);
-        let at = self.at.ok_or_else(|| self.invalid())?;
         let Some(paths) = self.retained_offsets(local)? else {
             return Ok(None);
         };
@@ -132,7 +131,15 @@ impl Builder<'_> {
             data: supplied,
             projections,
         };
-        let Some(preserved) = super::super::repack::preserved(self.runtime, before, &target, &[])
+        let missing = carrier
+            .missing
+            .iter()
+            .map(|hole| self.repack_exclusion(before, slot, hole))
+            .collect::<Result<BTreeSet<_>, _>>()?
+            .into_iter()
+            .collect::<Box<[_]>>();
+        let Some(preserved) =
+            super::super::repack::preserved(self.runtime, before, &target, &missing)
         else {
             return Ok(None);
         };
@@ -151,24 +158,18 @@ impl Builder<'_> {
             disposal: self.disposal(retired)?,
         };
         let source = self.resource_place(source, supplied, replacement.data())?;
-        self.geometry.insert(super::super::GeometryConstraint {
-            at: Location {
-                point: at.point,
-                action: at.action,
-            },
+        self.constrain_geometry_requirement(
             before,
             after,
-            requirement: super::super::GeometryRequirement::ProjectionOffsets(
-                paths.into_iter().collect(),
-            ),
-        });
+            super::super::GeometryRequirement::ProjectionOffsets(paths.into_iter().collect()),
+        )?;
         Ok(Some([
             retired,
             Effect::Repack {
                 source,
                 destination: target,
                 before,
-                missing: Box::new([]),
+                missing,
                 preserved,
             },
         ]))
@@ -235,12 +236,11 @@ impl Builder<'_> {
 
 struct LocalCarrier<'a> {
     local: nocter_model::AccessLocalId,
+    missing: &'a [nocter_checking::value_access::flow::resources::Missing],
     before: &'a nocter_checking::value_access::ReferentCarrierData,
     after: &'a nocter_checking::value_access::ReferentCarrierData,
 }
-fn initialized_local_carrier(
-    replacement: &lifecycle::ScopedReplacement,
-) -> Option<LocalCarrier<'_>> {
+fn stable_local_carrier(replacement: &lifecycle::ScopedReplacement) -> Option<LocalCarrier<'_>> {
     let Step::ReplaceReferent { source, .. } = replacement.operation() else {
         return None;
     };
@@ -257,13 +257,13 @@ fn initialized_local_carrier(
     if old.selection().slot != new.selection().slot
         || old.selection().path != new.selection().path
         || old.instance().data() != new.instance().data()
-        || !replacement.initialized_carriers().contains(&holder)
         || source.holder() == holder
     {
         return None;
     }
     Some(LocalCarrier {
         local,
+        missing: replacement.carrier_missing(holder)?,
         before: old,
         after: new,
     })

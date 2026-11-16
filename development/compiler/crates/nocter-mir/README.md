@@ -161,10 +161,12 @@ Other partial moves keep the before/after geometry constraint. Unresolved repres
 external carriers and general relocation remain separate qualifications. The [checking owner](../nocter-checking/README.md#context-bound-callable-captures)
 defines the qualified ordinary-source capture scope.
 Scoped replacement through a whole edit alias can repack a single corresponding owned local
-carrier when its original lifecycle proves complete initialization at entry, the operation boundary
-and normal exit. Both virtual-root leaves must exactly match that carrier's original before/after
+carrier when its original lifecycle retains identical owning exclusions at entry, the operation
+boundary and normal exit. Both virtual-root leaves must exactly match that carrier's original before/after
 selection. Tuple and singleton-array containing paths reuse the structural preservation authority;
-no missing sibling is assumed initialized. One payload slot registers both complete carrier
+no missing sibling is assumed initialized. Scoped and direct receipts share the same missing-path
+conversion and structural complement; sparse arrays remain remainder preservation, never whole
+initialized loads. One payload slot registers both complete carrier
 representations, preserving its base and reserving their maximum size/alignment. The old alias
 value is disposed first; the existing Repack effect snapshots initialized siblings before writing
 new offsets and receiving the separately supplied value.
@@ -173,13 +175,16 @@ The paired GeometryRequirement::ProjectionOffsets retains every original before/
 region for that owner, including reservations and known/unknown coordinates. Machine validates
 all endpoint offsets independently of the full-layout equality used by ordinary scoped writes
 and adapter exits. A live sibling whose offset changes still rejects; an expired alias does not
-create a constraint. Missing region evidence, incomplete carriers, external inputs and unsupported
-containing paths retain the full-geometry boundary. Closed MIR validation requires nonempty valid
+create a constraint. Missing region evidence, changing ownership exclusions, external inputs and
+unsupported containing paths retain the full-geometry boundary. Closed MIR validation requires nonempty valid
 paths and a matching Repack at the same original action. The shared
 `contextual-scoped-growth.nct` source qualifies repeated shrinking/growth, nested tuples and a
-singleton array through required/native execution; its error variant retires real old captures
-and preserves/cleans actual owned sibling environments. This does not qualify sparse scoped
-carriers, general external aliases or changing retained endpoint offsets.
+singleton array through required/native execution. It also covers saved whole siblings, nested
+holes and a larger array containing a partial tuple element. Its error variant retires real old
+captures and preserves/cleans actual saved and remaining owned environments. Exclusion and
+preservation-kind mutations reject, and exhausted metadata work permits a healthy retry. This
+does not qualify changing sparse states, general external aliases or changing retained endpoint
+offsets.
 
 Adapter cleanup likewise selects its completed full carrier in the original argument slot before
 projecting the completed environment. Its selected environment data must match the cleanup

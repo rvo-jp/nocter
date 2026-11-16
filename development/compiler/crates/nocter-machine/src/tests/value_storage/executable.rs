@@ -567,7 +567,7 @@ fn scoped_growth_requires_stable_retained_offsets_and_complete_local_carriers() 
         ),
         (
             "var pair = (wrap(addition(20)), addition(2))\nlet saved = pair.1^\nedit selected = pair.0\nselected = wrap(identity)\nselected(40) + saved(0)",
-            false,
+            true,
         ),
     ] {
         let source = format!("{prefix}\nfunc run(): i32 {{ {body} }}");

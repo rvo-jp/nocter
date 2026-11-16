@@ -283,12 +283,14 @@ subtrees must keep their distinct original guards. MIR consumes the selected ann
 than rescanning all source alternatives or rebuilding an owner state.
 Enclosing allocation geometry and adapter completion remain
 separate responsibilities; these contracts grant no mutation or layout proof.
-The same scoped step retains owning carriers that are fully initialized at all three original
-transition boundaries: entry, after before-effects, and normal exit. This annotation comes from
-the matched checked transition, not a reconstructed state or an alias snapshot. Freezing charges
-the existing metadata-work budget; failed work publishes no partial lifecycle. Sparse/moved
-carriers and external edit inputs do not acquire the annotation. It supplies neither byte capacity
-nor address stability or relocation permission. The original before/after payload obligations and
+The same scoped step retains original owning carrier exclusions when entry, after before-effects,
+and normal exit agree on exactly the same sparse state. An empty exclusion slice identifies a
+complete owner; missing evidence or changed ownership proves no stable carrier. Read-only original
+transition queries supply entry/exit exclusions without another state replay. Freezing charges
+holders and missing paths to the existing metadata-work budget and shares immutable annotations;
+failed work publishes no partial lifecycle. Sparse local carriers retain their exact holes, while
+external edit inputs acquire no ownership annotation. This supplies neither byte capacity nor
+address stability or relocation permission. The original before/after payload obligations and
 containing contracts remain independent inputs to MIR's physical checks.
 
 `Program::prepare_with_budget` bounds contextual metadata work across the complete lifecycle

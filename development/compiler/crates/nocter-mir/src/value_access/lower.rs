@@ -549,6 +549,14 @@ impl Builder<'_> {
         before: RuntimeDataId,
         after: RuntimeDataId,
     ) -> Result<(), Failure> {
+        self.constrain_geometry_requirement(before, after, super::GeometryRequirement::Complete)
+    }
+    fn constrain_geometry_requirement(
+        &mut self,
+        before: RuntimeDataId,
+        after: RuntimeDataId,
+        requirement: super::GeometryRequirement,
+    ) -> Result<(), Failure> {
         let at = self.at.ok_or_else(|| self.invalid())?;
         self.geometry.insert(super::GeometryConstraint {
             at: Location {
@@ -557,9 +565,40 @@ impl Builder<'_> {
             },
             before,
             after,
-            requirement: super::GeometryRequirement::Complete,
+            requirement,
         });
         Ok(())
+    }
+    fn repack_exclusion(
+        &mut self,
+        before: RuntimeDataId,
+        slot: MirLocalId,
+        hole: &flow::resources::Missing,
+    ) -> Result<super::RemainderExclusion, Failure> {
+        let (path, frontier) = match hole {
+            flow::resources::Missing::Value(path) => (path, None),
+            flow::resources::Missing::ArrayPrefix { array, frontier } => (array, Some(*frontier)),
+        };
+        let projections = self.resource_path(path)?;
+        let data = super::repack::hole_data(self.runtime, before, &projections)
+            .ok_or_else(|| self.invalid())?;
+        let place = Place {
+            slot,
+            root: before,
+            projections,
+            data,
+        };
+        Ok(if let Some(frontier) = frontier {
+            let data = self.index_data()?;
+            super::RemainderExclusion::ArrayPrefix {
+                array: place,
+                endpoint: self
+                    .root(Holder::ArrayFrontier(frontier), data, false)?
+                    .slot,
+            }
+        } else {
+            super::RemainderExclusion::Value(place)
+        })
     }
     fn repack(
         &mut self,
@@ -611,11 +650,9 @@ impl Builder<'_> {
         }
         let mut missing = BTreeSet::new();
         for hole in holes {
-            let (path, frontier) = match hole {
-                flow::resources::Missing::Value(path) => (path, None),
-                flow::resources::Missing::ArrayPrefix { array, frontier } => {
-                    (array, Some(*frontier))
-                }
+            let path = match hole {
+                flow::resources::Missing::Value(path) => path,
+                flow::resources::Missing::ArrayPrefix { array, .. } => array,
             };
             if target.fields().is_prefix_of(path) {
                 continue;
@@ -623,26 +660,7 @@ impl Builder<'_> {
             if path.is_prefix_of(target.fields()) {
                 return Ok(None);
             }
-            let projections = self.resource_path(path)?;
-            let data = super::repack::hole_data(self.runtime, before, &projections)
-                .ok_or_else(|| self.invalid())?;
-            let place = Place {
-                slot: destination.slot,
-                root: before,
-                projections,
-                data,
-            };
-            missing.insert(if let Some(frontier) = frontier {
-                let data = self.index_data()?;
-                super::RemainderExclusion::ArrayPrefix {
-                    array: place,
-                    endpoint: self
-                        .root(Holder::ArrayFrontier(frontier), data, false)?
-                        .slot,
-                }
-            } else {
-                super::RemainderExclusion::Value(place)
-            });
+            missing.insert(self.repack_exclusion(before, destination.slot, hole)?);
         }
         let missing = missing.into_iter().collect::<Box<[_]>>();
         Ok(

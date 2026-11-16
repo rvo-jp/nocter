@@ -18,12 +18,12 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Extend scoped local relocation to stable sparse carriers using the original matched resource
-conditions. Preserve missing sibling exclusions independently of retired/supplied payloads, exact
-alias-root selections, retained endpoint offsets, maximum owning-slot capacity and actual cleanup.
-Complete local tuple/singleton carriers are qualified; partial carriers and external aliases still
-retain the conservative full-geometry boundary. Do not infer missing state from layout or replay
-another ownership engine.
+Qualify owning-input and captured-carrier boundaries for scoped local relocation. Verify that
+original incoming payloads occupy the owning slot reserved for every admitted representation,
+including growth across indirect native ABI transport. Preserve stable sparse exclusions,
+independent retired/supplied obligations and retained endpoint offsets. External edit aliases,
+changing missing selections and shifted retained endpoints keep the conservative geometry boundary;
+do not infer ownership or capacity from a virtual root.
 
 Complete occurrence-sensitive value/capture transport under the
 [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances).
@@ -97,6 +97,12 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   offsets. Reuse structural sibling preservation after old-value disposal and reserve both
   representations in one owning slot. Qualify required/native shrink/growth, nesting, actual
   error environments and rejection of shifted live siblings, sparse carriers and invalid MIR.
+- [x] Extend scoped local repacking to identical sparse exclusions at original entry, operation
+  boundary and exit. Share direct-receipt exclusion conversion, preserve saved owners and initialized
+  tuple/array siblings, meter freezing and qualify required/native execution, actual owned errors,
+  invalid MIR rejection and healthy retry. Keep external aliases and changing exclusions closed.
+- [ ] Qualify owning inputs and captured carriers across scoped representation growth, including
+  indirect ABI input transport, maximum owning-slot capacity and caller storage isolation.
 - [ ] Close carrier representation coherence under the
   [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances)
   before admitting context-changing writes and retained sibling references.

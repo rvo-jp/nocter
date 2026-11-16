@@ -34,8 +34,39 @@ const func singleton(): i32 {
     let second = selected(41)
     if first == 42 && second == 42 && pair.1 == 2 { 42 } else { 0 }
 }
+const func sparse(): i32 {
+    var pair = (wrap(addition(20)), addition(2))
+    let saved = pair.1^
+    edit selected = pair.0
+    selected = wrap(identity)
+    let first = selected(42)
+    selected = wrap(addition(1))
+    let second = selected(41)
+    if first == 42 && second == 42 && saved(0) == 2 { 42 } else { 0 }
+}
+const func sparse_nested(): i32 {
+    var pair = (wrap(addition(20)), (addition(2), 42))
+    let saved = pair.1.0^
+    edit selected = pair.0
+    selected = wrap(identity)
+    let first = selected(42)
+    selected = wrap(addition(1))
+    let second = selected(41)
+    if first == 42 && second == 42 && saved(0) == 2 && pair.1.1 == 42 { 42 } else { 0 }
+}
+const func sparse_array(): i32 {
+    var pair = (wrap(addition(20)), [(addition(2), 42), (addition(3), 43)])
+    let saved = pair.1[0].0^
+    edit selected = pair.0
+    selected = wrap(identity)
+    let first = selected(42)
+    selected = wrap(addition(1))
+    let second = selected(41)
+    if first == 42 && second == 42 && saved(0) == 2 && pair.1[0].1 == 42 && pair.1[1].0(0) == 3 && pair.1[1].1 == 43 { 42 } else { 0 }
+}
 const func calculate(): i32 {
-    if straight() == 42 && nested() == 42 && singleton() == 42 { 42 } else { 0 }
+    if straight() == 42 && nested() == 42 && singleton() == 42
+        && sparse() == 42 && sparse_nested() == 42 && sparse_array() == 42 { 42 } else { 0 }
 }
 const ANSWER: i32 = calculate()
 func run(): i32 { if ANSWER == 42 { calculate() } else { 0 } }

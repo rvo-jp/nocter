@@ -8,7 +8,7 @@ func owning(value: i32): func(i32): i32 {
 func wrap(take callback: func(i32): i32): func(i32): i32 {
     (callback^; amount: i32): i32 { callback(amount) }
 }
-func run(): i32 {
+func complete_case(): i32 {
     var pair = (wrap(owning(20)), owning(40))
     edit selected = pair.0
     selected = wrap(identity)
@@ -16,4 +16,19 @@ func run(): i32 {
     selected = wrap(owning(1))
     let second = selected(41)
     if first == 42 && second == 42 && pair.1(2) == 42 { 42 } else { 0 }
+}
+
+func sparse_case(): i32 {
+    var pair = (wrap(owning(20)), [(owning(40), 42), (owning(41), 43)])
+    let saved = pair.1[0].0^
+    edit selected = pair.0
+    selected = wrap(identity)
+    let first = selected(42)
+    selected = wrap(owning(1))
+    let second = selected(41)
+    if first == 42 && second == 42 && saved(2) == 42 && pair.1[0].1 == 42
+        && pair.1[1].0(1) == 42 && pair.1[1].1 == 43 { 42 } else { 0 }
+}
+func run(): i32 {
+    if complete_case() == 42 && sparse_case() == 42 { 42 } else { 0 }
 }

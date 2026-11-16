@@ -128,23 +128,23 @@ fn destination_annotation_work_is_bounded_and_failed_freezing_can_retry() {
 }
 
 #[test]
-fn scoped_carrier_completeness_requires_original_ownership_at_every_boundary() {
-    for (source, complete) in [
+fn scoped_carrier_exclusions_require_original_ownership_at_every_boundary() {
+    for (source, expected) in [
         (
             "func run(): i32 { var pair = (1, 2)\nedit selected = pair.0\nselected = 3\nselected + pair.1 }",
-            true,
+            Some(0),
         ),
         (
             "struct Item { value: i32 }\nfunc run(): i32 { var pair = (1, Item { value: 2 })\nlet saved = pair.1^\nedit selected = pair.0\nselected = 3\nselected + saved.value }",
-            false,
+            Some(1),
         ),
         (
             "func run(): i32 { var pair = (1, 2)\nedit selected = pair.0\nselected = pair.1^\nselected }",
-            false,
+            Some(1),
         ),
         (
             "func change(edit pair: (i32, i32)): void { edit selected = pair.0\nselected = 3 }\nfunc run(): i32 { var pair = (1, 2)\nchange(pair)\npair.0 }",
-            false,
+            None,
         ),
     ] {
         let fixture = ValueSourceFixture::new(source);
@@ -172,12 +172,10 @@ fn scoped_carrier_completeness_requires_original_ownership_at_every_boundary() {
                             panic!("a local source slot");
                         };
                         assert_eq!(
-                            replacement.initialized_carriers(),
-                            if complete {
-                                vec![Holder::Local(local)]
-                            } else {
-                                vec![]
-                            },
+                            replacement
+                                .carrier_missing(Holder::Local(local))
+                                .map(<[_]>::len),
+                            expected,
                             "{source}"
                         );
                         found += 1;
@@ -187,4 +185,52 @@ fn scoped_carrier_completeness_requires_original_ownership_at_every_boundary() {
         }
         assert_eq!(found, 1, "{source}");
     }
+}
+
+#[test]
+fn stable_sparse_freezing_meters_original_exclusions_and_recovers_without_partial_lifecycle() {
+    let fixture = ValueSourceFixture::new(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-scoped-growth.nct"
+    )));
+    let unit = Arc::new(SourceUnit::prepare(fixture.syntax()).unwrap().into_unit());
+    let root = unit
+        .program()
+        .resolve(unit.program().symbols().get("run").unwrap())
+        .unwrap();
+    let instances = Arc::new(InstanceProgram::prepare(unit, root).unwrap());
+    let mut found = false;
+    for (id, _) in instances.instances().iter() {
+        let body = instances.body(id).unwrap();
+        for (point, block) in body.graph().points().iter() {
+            for action in 0..block.actions.len() {
+                for transition in body.access().resources().at(Location { point, action }) {
+                    if !transition
+                        .steps()
+                        .iter()
+                        .any(|step| matches!(step, ResourceStep::ReplaceReferent { .. }))
+                        || !transition
+                            .operation_condition()
+                            .owned()
+                            .any(|(_, missing)| !missing.is_empty())
+                    {
+                        continue;
+                    }
+                    let mut work = WorkBudget::new(std::num::NonZeroU64::new(1).unwrap());
+                    work.step().unwrap();
+                    assert_eq!(stable_carriers(transition, &mut work), Err(()));
+                    let mut work = WorkBudget::new(std::num::NonZeroU64::new(1_000).unwrap());
+                    assert!(
+                        stable_carriers(transition, &mut work)
+                            .unwrap()
+                            .values()
+                            .any(|missing| !missing.is_empty())
+                    );
+                    found = true;
+                }
+            }
+        }
+    }
+    assert!(found);
+    assert!(super::super::Program::prepare(instances).is_ok());
 }
