@@ -67,6 +67,26 @@ fn same_kind(left: &Kind, right: &Kind, pending: &mut Vec<(Data, Data)>) -> bool
         (Kind::StaticCallable { environment: a }, Kind::StaticCallable { environment: b }) => {
             optional(*a, *b, pending)
         }
+        (
+            Kind::CallableAlternatives {
+                tag: a,
+                payload_offset: ap,
+                cases: ac,
+            },
+            Kind::CallableAlternatives {
+                tag: b,
+                payload_offset: bp,
+                cases: bc,
+            },
+        ) => {
+            a == b
+                && ap == bp
+                && members(
+                    ac.iter().map(|case| (*ap, *case)),
+                    bc.iter().map(|case| (*bp, *case)),
+                    pending,
+                )
+        }
         (Kind::Opaque { witness: a }, Kind::Opaque { witness: b }) => {
             pending.push((*a, *b));
             true

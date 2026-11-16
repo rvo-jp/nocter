@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
+mod callable_alternatives;
 mod geometry;
 
 use nocter_mir::{MirBody, MirCallTarget, MirOperationKind, MirProgram, MirRoot};
@@ -132,6 +133,12 @@ pub enum MachineLayoutKind {
     Unit,
     StaticCallable {
         environment: Option<RuntimeDataId>,
+    },
+    /// The case index selects one complete callable and its inline environment.
+    CallableAlternatives {
+        tag: MachineScalar,
+        payload_offset: u64,
+        cases: Box<[RuntimeDataId]>,
     },
     Scalar(MachineScalar),
     Pointer,
@@ -577,6 +584,7 @@ impl LayoutBuilder<'_> {
                     },
                 })
             }
+            RuntimeType::CallableAlternatives(cases) => self.callable_alternatives(ty, cases),
             RuntimeType::Storage(role) => {
                 let storage = role
                     .layout(self.abi)

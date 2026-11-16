@@ -1,4 +1,5 @@
 //! Actual private source -> concrete runtime shapes -> the shared Machine layout authority.
+mod callable_alternatives;
 mod executable;
 mod geometry;
 use std::{fmt::Write as _, sync::Arc};

@@ -227,6 +227,24 @@ retaining positive-cycle rejection and empty-array/pointer cuts. Flat optional s
 not require recursive host calls. Shared source qualifies required/frozen/native handoffs; the
 checking component owns source admission and the remaining outcome operations.
 
+## Finite Callable Choice Layout
+
+The closed runtime `CallableAlternatives` descriptor uses an unsigned case-index tag followed by one
+inline payload region. The region accommodates the largest case's complete environment, aligned for
+every case and the tag. Tags use the smallest of 8, 16, 32 and 64 bits that represents every index;
+two distinct empty environments still require a tag. Cases retain their upstream canonical order.
+This representation introduces no environment heap allocation, invoke pointer or source enum variant.
+
+Layout discovery reuses the ordinary iterative dependency walker, overflow checks and empty-array
+cuts. Positive recursive storage rejects. Physical geometry comparison pairs cases at corresponding
+tag indices and checks nested payload geometry; equal total size alone is insufficient. Geometry
+supplies no code identity, active-case, initialization, reference stability or transfer proof.
+
+Closed runtime fixtures qualify tag-width boundaries, empty and differently aligned environments,
+case ordering, overflow and recursive dependencies. They are layout checks, not executable source
+qualification. The private source materializer and complete cleanup consumer remain closed to this
+form until original selected-case transport and invocation are qualified together.
+
 ## Private Array Execution
 
 The private source path qualifies listed/repeated arrays, complete read/edit selections and

@@ -119,6 +119,9 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Retain original prepared call bundles with each validated positive callee/frame candidate
   under one budgeted invocation-domain query. Reuse single-call input binding, preserve original
   creation environments and reject unresolved inputs without inventing an active selector.
+- [x] Qualify closed inline storage and Machine geometry for finite callable choices, preserving
+  canonical case order, distinct complete static identities, bounded dependency traversal, tag-width
+  boundaries and explicit rejection by unqualified source/cleanup consumers.
 - [ ] Close the [positive callable alternative obligations](design/compiler-realization.md#positive-callable-alternatives)
   through the canonical data-instance graph, guarded source transport, evaluator/target plans,
   native selection and cleanup before widening source admission. The value-context fixture

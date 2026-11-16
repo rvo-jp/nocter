@@ -1,4 +1,6 @@
 use std::collections::BTreeMap;
+#[cfg(test)]
+mod callable_alternatives_tests;
 
 use nocter_model::{BorrowCapability, TypeId};
 
@@ -105,6 +107,9 @@ pub enum RuntimeType {
     StaticCallable {
         environment: Option<RuntimeDataId>,
     },
+    /// Inline finite choice of complete static callable identities. Order is the upstream
+    /// canonical witness order, not runtime-ID order. The selected case needs a runtime tag.
+    CallableAlternatives(Box<[RuntimeDataId]>),
     Pointer(RuntimeDataId),
     Borrow {
         capability: BorrowCapability,
@@ -224,6 +229,36 @@ impl RuntimeTypeTableBuilder {
         Ok(())
     }
 
+    fn validate_callable_alternatives(
+        &self,
+        owner: RuntimeDataId,
+        cases: &[RuntimeDataId],
+    ) -> Result<(), RuntimeTypeTableBuildError> {
+        let mut unique = std::collections::BTreeSet::new();
+        if cases.len() < 2 {
+            return Err(RuntimeTypeTableBuildError::InvalidCallableAlternatives(
+                owner,
+            ));
+        }
+        for case in cases {
+            match self.entries.get(case) {
+                None => {
+                    return Err(RuntimeTypeTableBuildError::UnknownReference {
+                        owner,
+                        referenced: *case,
+                    });
+                }
+                Some(RuntimeType::StaticCallable { .. }) if unique.insert(*case) => {}
+                _ => {
+                    return Err(RuntimeTypeTableBuildError::InvalidCallableAlternatives(
+                        owner,
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Freezes a closed table after validating every stored-payload reference. Empty-array
     /// element identities are established upstream and require no stored runtime entry.
     ///
@@ -240,6 +275,10 @@ impl RuntimeTypeTableBuilder {
                 | RuntimeType::Future(ty) => Some(*ty),
                 RuntimeType::Borrow { referent, .. } => Some(*referent),
                 RuntimeType::StaticCallable { environment } => *environment,
+                RuntimeType::CallableAlternatives(cases) => {
+                    self.validate_callable_alternatives(*owner, cases)?;
+                    None
+                }
                 RuntimeType::FixedArray { element, .. } => Some(*element),
                 RuntimeType::Tuple(elements) => {
                     if elements.len() < 2 {
@@ -297,6 +336,7 @@ impl RuntimeTypeTableBuilder {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RuntimeTypeTableBuildError {
     DuplicateType(RuntimeDataId),
+    InvalidCallableAlternatives(RuntimeDataId),
     DuplicatePrimitive(RuntimePrimitive),
     InvalidTupleArity {
         owner: RuntimeDataId,

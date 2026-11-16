@@ -33,6 +33,22 @@ or access proof. Layout offsets and actual ownership transitions remain their co
 responsibilities. The [private native materializer](../nocter-target-program/README.md#private-storage-projection)
 owns contextual graph construction and its current source-admission boundary.
 
+## Finite Callable Choice Storage
+
+`CallableAlternatives` retains an ordered list of at least two distinct `StaticCallable` runtime
+identities. Each identity denotes one complete code/view/environment alternative selected upstream;
+case order preserves canonical witness order rather than runtime-ID allocation order. Table closure
+rejects missing, duplicate, non-callable and nested-choice entries. Each static case retains its own
+ordinary environment dependency. No nominal source variant or erased heap-callable identity is
+manufactured for this storage form.
+
+This descriptor supplies neither an active selector nor source, invocation, ownership or transport
+permission. Exact representation comparison still preserves runtime identities; directed guarded
+transport does not inject positive cases into a choice. The target source materializer continues to
+reject positive domains until selected-case construction, transport, invocation and cleanup close.
+The [Machine layout owner](../nocter-machine/README.md#finite-callable-choice-layout) describes the
+stored geometry independently of that admission boundary.
+
 ## Internal Responsibilities
 
 - primitive role identities
