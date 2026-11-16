@@ -1037,8 +1037,16 @@ probes retain actual owned-error cleanup, including interrupted preparation with
 call. Runtime-only supplied callbacks still fail const admission at the inner invocation with an
 original argument note. A returned type contract remains a constraint on the value; it does not
 become an application-owned producer. Original selected body returns supply that context.
-General nested header publication and compound callback-argument channels remain separately
-unqualified. The declaration owner describes the structural binding relation.
+`compound-callable-field-inputs.nct` additionally qualifies optional absence and injection,
+independent tuple positions, homogeneous captured arrays and zero-length arrays through actual
+received compound keys. An explicit inactive primary can retain a known callable type contract
+without supplying a witness, just as a foreign receiving-input constraint can. This rule applies
+to original inactive constructions; it does not replace an existing input or invent a function.
+Source mismatch checks retain callback signatures even for zero-byte arrays, and a later supplied
+runtime-only callback retains its missing const capability. Native execution also qualifies
+separate owned-error captures in these containers. General nested header publication, nonuniform
+callback domains and wider retained-reference channels remain separately qualified subjects.
+The declaration owner describes the structural binding relation.
 
 Original call-result witness and data queries can inspect a complete positive invocation domain
 when strict single-frame selection is unresolved. They query every original candidate's returned

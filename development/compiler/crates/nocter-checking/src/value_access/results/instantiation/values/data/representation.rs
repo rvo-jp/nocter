@@ -96,10 +96,13 @@ impl Query<'_, '_> {
             Err(_)
                 if field == ValueField::Variant(true)
                     && receiving
-                    && foreign_input_component(self.program, frame, witness.origin) =>
+                    && (foreign_input_component(self.program, frame, witness.origin)
+                        || (matches!(witness.origin, ValueFunctionOrigin::Contract(_))
+                            && self.program.function_contract(witness).is_some())) =>
             {
                 // An explicit inactive alternative is a fresh construction under a foreign
-                // receiving constraint. It supplies no missing code and changes no existing input.
+                // receiving constraint, including a type-only callable contract. It supplies no
+                // missing code and changes no existing input.
                 Ok(None)
             }
             Err(error) => Err(error),

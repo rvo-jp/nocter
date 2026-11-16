@@ -18,12 +18,12 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify compound callback-bearing arguments of field type contracts. Keep original supplied
-witnesses through optional injection, tuples, homogeneous arrays and actual received input contexts.
-Reuse declaration-owned structural matching and the selected body's original explicit ordinals;
-keep nested invocation adapters separate from metadata compatibility. Preserve absence, transfer,
-cleanup and source-backed mismatch/capability diagnostics through required and native consumers.
-General nested header publication and symbolic definition-context proof remain separate.
+Qualify nested callable signatures in ordinary declaration headers. Publish their type-only
+contract graph atomically with its owning declaration, independently of formal inputs and result
+producers. Preserve header lineage, read-only source reconciliation, canonical body replay and
+invariant nested views. Match authored nested contract nodes without weakening exact contextual
+witness checks. Qualify original higher-order supplied/receiving contexts through every consumer
+before claiming source invocation; symbolic definition-context proof remains separate.
 
 Complete occurrence-sensitive value/capture transport under the
 [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances).
@@ -690,9 +690,10 @@ not a language restriction derived from the current realization boundary.
   named/captured callees and callbacks, read/edit/take, mutation, callable return contexts,
   interrupted preparation, actual native error cleanup and original const-failure argument notes.
   Keep result type contracts separate from producer/application identities.
-- [ ] Qualify compound callback-bearing arguments of field contracts through original supplied
-  and received contexts. Preserve optional absence/injection, tuples/arrays, nested view rules,
-  ownership, exact ordinals and native cleanup without flattening type signatures into parameters.
+- [x] Qualify compound callback-bearing arguments of field contracts through original supplied
+  and received contexts: optional absence/injection, independent tuple positions, homogeneous
+  captured arrays and zero arrays. Preserve signatures, actual ownership/ordinals and native
+  owned-error cleanup; fresh inactive type constraints create no witness or hidden parameter.
 - [ ] Complete nested callable data/witness support through header/data positions and the owning
   type authority. Keep valid formal structural descriptors separate from owned-payload admission.
   Qualify concrete representation, substitution and callable input/result evidence;

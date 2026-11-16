@@ -2511,3 +2511,35 @@ fn private_higher_order_field_preparation_retires_owned_callbacks_without_commit
         42,
     );
 }
+
+#[test]
+fn private_compound_field_inputs_preserve_absence_captures_and_owning_cleanup() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/compound-callable-field-inputs.nct"
+    ));
+    let (definitions, _) = source.split_once("\nconst ANSWER:").unwrap();
+    let runtime = format!(
+        "{}\nfunc run(): i32 {{ calculate() }}",
+        definitions.replace("const func", "func")
+    );
+    let package = TempPackage::new();
+    execute_native_status(&compile(&runtime), &package.0, "compound-field-inputs", 42);
+    let owned = callable_capture_with_owned_error(&runtime, "    (item^;");
+    let machine = trusted_error_machine(&owned);
+    assert!(
+        machine
+            .functions()
+            .flat_map(|(_, function)| function.body().operations())
+            .any(|(_, operation)| matches!(
+                operation.kind(),
+                nocter_machine::MachineOperationKind::ReleaseError { .. }
+            ))
+    );
+    execute_native_status(
+        &image(&machine),
+        &package.0,
+        "compound-field-input-errors",
+        42,
+    );
+}

@@ -1607,3 +1607,51 @@ fn callable_field_results_do_not_grant_returned_runtime_values_const_capability(
         );
     }
 }
+
+const COMPOUND_FIELD_INPUTS: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../tests/fixtures/native/value-access/compound-callable-field-inputs.nct"
+));
+
+#[test]
+fn compound_field_inputs_preserve_absence_tuple_coordinates_and_array_captures() {
+    assert_eq!(answer(COMPOUND_FIELD_INPUTS, "ANSWER"), Value::integer(42));
+}
+
+#[test]
+fn absent_compound_field_inputs_do_not_grant_runtime_callbacks_const_capability() {
+    let source = COMPOUND_FIELD_INPUTS
+        .replace("const func identity", "func identity")
+        .replace(
+            "optional_runner.callback(make(40))",
+            "optional_runner.callback(identity)",
+        );
+    let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+    let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+        SourceUnit::prepare(fixture.syntax())
+    else {
+        panic!("inactive constraints cannot grant a supplied runtime callback const capability");
+    };
+    assert!(matches!(
+        diagnostic.rule(),
+        crate::value_access::constant::Rule::RuntimeCall(_)
+    ));
+}
+
+#[test]
+fn zero_length_compound_inputs_retain_their_declared_callback_signature() {
+    let source = COMPOUND_FIELD_INPUTS.replace(
+        "const func empty(take values: [func(i32): i32; 0])",
+        "const func empty(take values: [func(i32): bool; 0])",
+    );
+    assert_ne!(source, COMPOUND_FIELD_INPUTS);
+    let fixture = nocter_test_support::ValueSourceFixture::new(&source);
+    let Err(SourceFailure::Checking(Failure::Body {
+        failure: crate::value_access::Failure::Rejected(diagnostic),
+        ..
+    })) = SourceUnit::prepare(fixture.syntax())
+    else {
+        panic!("zero-byte representation cannot erase a callback signature mismatch");
+    };
+    assert_eq!(diagnostic.rule(), crate::value_access::Rule::TypeMismatch);
+}
