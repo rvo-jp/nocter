@@ -28,6 +28,12 @@ analysis, implement backend rules, select command-line policy, or publish filesy
   closure bodies and required array lengths in a real native process. A shared trusted-error module
   corpus selects same-named primitives from different logical modules and executes owned graph
   construction, context attachment and release, including qualified function-value calls.
+  The query-session corpus additionally uses the revision-owned syntax provider, physical package
+  discovery, sole unit-analysis query and common session envelope before selecting an explicit
+  checked root for these same private native consumers. Two same-code factory closures from a
+  different module retain distinct captured values through required evaluation and native execution.
+  No source preparation is repeated after the session publishes its checked Unit. This qualifies
+  the bounded handoff, not an executable entry contract, public CLI, installed v2 library or ABI.
   A header-only query cannot replace source acceptance.
 - Native-specific source corpora live under `development/compiler/tests/fixtures/native/`.
   Cross-consumer module corpora live under `development/compiler/tests/fixtures/value-modules/` and are selected by

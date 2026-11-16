@@ -1,0 +1,10 @@
+see ./index.nct
+use ./math
+
+const func run(): i32 {
+    let first = math.make(19)
+    let second = math.make(23)
+    first() + second()
+}
+
+const ANSWER: i32 = run()

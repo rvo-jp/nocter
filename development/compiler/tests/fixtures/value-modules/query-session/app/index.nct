@@ -1,0 +1,5 @@
+#package: { name: "app", version: "2.0.0" }
+see ./body.nct
+use ./math
+const func run(): i32
+const ANSWER: i32

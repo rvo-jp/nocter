@@ -6,6 +6,7 @@ use nocter_target_program::value_access::{InstanceProgram, lifecycle};
 use nocter_test_support::ValueSourceFixture;
 use std::sync::Arc;
 mod contextual_callables;
+mod query_session;
 
 fn machine(source: &str) -> nocter_machine::MachineProgram {
     let fixture = ValueSourceFixture::new(source);
@@ -20,6 +21,13 @@ fn machine_unit(
         .program()
         .resolve(unit.program().symbols().get("run").unwrap())
         .unwrap();
+    machine_entry(unit, root)
+}
+
+fn machine_entry(
+    unit: Arc<nocter_checking::value_access::accepted::Unit>,
+    root: nocter_model::AccessCodeId,
+) -> Result<nocter_machine::MachineProgram, nocter_machine::value_access::ExecutableFailure> {
     let instances = Arc::new(InstanceProgram::prepare(unit, root).unwrap());
     let lifecycle = lifecycle::Program::prepare(instances).unwrap();
     let mir =

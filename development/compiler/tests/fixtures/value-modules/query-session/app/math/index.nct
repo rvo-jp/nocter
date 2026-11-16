@@ -1,0 +1,2 @@
+see ./body.nct
+const func make(take value: i32): func(): i32

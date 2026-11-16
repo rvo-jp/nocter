@@ -18,11 +18,12 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify the exact query/session-owned v2 Unit through the common private native path, selecting
-an explicit checked root without public entry/ABI admission or another source-checking pass. Then
-close executable-entry and target prerequisites against adopted contracts before choosing any
-ordinary CLI adapter. Fine-grained v2 query reuse, partial editor recovery and the standard library
-remain open; preserve one semantic pipeline and exact current-source evidence.
+Close the v2 executable-entry and target prerequisites explicitly before an ordinary CLI adapter.
+The private process root currently supports zero-input void/i32, whereas released entry policy also
+has usize, fallible and async forms; do not silently inherit that policy or call a probe root a
+qualified package entry. Preserve contract-only root lookup, original target/module identities,
+inferred effects, runtime diagnostics/cleanup and the common backend. Fine-grained v2 query reuse,
+partial editor recovery and the standard library remain open.
 
 ## Remaining Contextual Representation Qualification
 
@@ -697,6 +698,11 @@ not a language restriction derived from the current realization boundary.
   qualify failure-envelope source identity, absent released views and explicit target rejection.
   Source completion is not executable admission. Verify CLI/workspace consumers compile and the
   production session still cannot invoke compiler computation; target/native/editor work remains.
+- [x] Qualify physical v2 package -> revision query -> session -> existing private native consumers
+  using the same checked Unit and explicit root. The shared query-session corpus preserves two
+  same-code cross-module factory captures through required/native result 42, with original source
+  binding. Share the native test entry helper and requalify its existing direct-source path. This
+  does not admit package executable selection, broader process-root results, installed std or CLI.
 - [ ] Integrate v2 into the ordinary compiler/CLI and editor workflow with one semantic pipeline,
   current diagnostics, formatting, presentation and revision/source reuse. Remove transitional private
   handoffs when their production replacement is qualified; retain no competing semantic authority.

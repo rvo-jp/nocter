@@ -334,6 +334,14 @@ certificate. General module/package product integration, general dependencies, u
 general outcomes and async remain outside its admitted source scope. There is no released
 checked-program conversion or public compatibility mode.
 
+The shared `value-modules/query-session` corpus closes an explicit checked root through physical
+v2 package discovery, revision-owned analysis and session evidence before the existing instance,
+lifecycle, MIR, Machine, ARM64 and image consumers. Required evaluation and the native process both
+produce 42 from two same-code factory closures retaining different captured values across modules.
+The native handoff consumes the session's complete Unit; it does not prepare source again or
+convert released checking evidence. This bounded root selection does not choose public entry,
+package execution, installed-library or ABI policy.
+
 ## Private Instance Closure Handoff
 
 `nocter-target-program` consumes the complete accepted Unit and an explicit semantic root to produce
