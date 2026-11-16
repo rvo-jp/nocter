@@ -8,8 +8,14 @@ use nocter_model::{TypeId, ValueFunctionOrigin as Origin, ValueProjection};
 use std::collections::BTreeSet;
 
 type Path = Option<usize>;
+#[derive(Clone, Copy)]
+enum ContractMode {
+    Abstract,
+    Authored,
+}
 struct Comparison<'a> {
     program: &'a Program,
+    mode: ContractMode,
     seen: BTreeSet<(TypeId, TypeId)>,
     pending: Vec<(TypeId, TypeId, Path)>,
     paths: Vec<(Path, FunctionPosition)>,
@@ -34,6 +40,52 @@ impl Program {
         let expected = self
             .function_contract(wanted)
             .ok_or_else(|| failure(FunctionMismatch::Integrity))?;
+        self.constrain_signature(data, &expected, ContractMode::Abstract)
+    }
+    /// Match written type-contract nodes in a declaration while retaining supplied identities.
+    /// Normalized formal/producer/concrete leaves stay exact; only `Contract` leaves describe
+    /// signatures. This does not replace exact contextual matching or prove executable payload.
+    /// # Errors
+    /// Reports the original nested input/result path without constructing a witness or type.
+    pub fn constrain_declared_function(
+        &self,
+        data: TypeId,
+        expected: &FunctionConstraint,
+    ) -> Result<TypeId, FunctionPatternMismatch> {
+        self.constrain_signature(data, expected, ContractMode::Authored)
+            .map_err(|failure| {
+                // A plain outer leaf retains the established input/result diagnostic. Nested
+                // authored-contract mismatches keep their full structural path instead.
+                if failure.path.len() == 1
+                    && matches!(failure.mismatch, FunctionMismatch::Data { .. })
+                    && let Err(mismatch) = self.constrain_function(data, expected)
+                {
+                    return FunctionPatternMismatch {
+                        path: Box::new([]),
+                        mismatch,
+                    };
+                }
+                failure
+            })
+    }
+    fn constrain_signature(
+        &self,
+        data: TypeId,
+        expected: &FunctionConstraint,
+        mode: ContractMode,
+    ) -> Result<TypeId, FunctionPatternMismatch> {
+        let failure = |mismatch| FunctionPatternMismatch {
+            path: Box::new([]),
+            mismatch,
+        };
+        if !self.signature_data_known(expected.result)
+            || expected
+                .inputs
+                .iter()
+                .any(|input| !self.signature_data_known(input.data))
+        {
+            return Err(failure(FunctionMismatch::Integrity));
+        }
         let Some(PayloadSchema::Function(actual)) = self.data_schema(data) else {
             return Err(failure(FunctionMismatch::NotFunction));
         };
@@ -42,11 +94,12 @@ impl Program {
             .ok_or_else(|| failure(FunctionMismatch::Integrity))?;
         let mut comparison = Comparison {
             program: self,
+            mode,
             seen: BTreeSet::new(),
             pending: Vec::new(),
             paths: Vec::new(),
         };
-        comparison.signature(&contract, &expected, None, true)?;
+        comparison.signature(&contract, expected, None, true)?;
         while let Some((actual, expected, path)) = comparison.pending.pop() {
             if comparison.seen.insert((actual, expected)) {
                 comparison.data(actual, expected, path)?;
@@ -54,7 +107,7 @@ impl Program {
         }
         self.function_data(FunctionWitness {
             origin: actual.origin,
-            invocation: wanted.invocation,
+            invocation: expected.invocation,
         })
         .ok_or_else(|| failure(FunctionMismatch::Integrity))
     }
@@ -175,8 +228,13 @@ impl Comparison<'_> {
         match (left, right) {
             (PayloadSchema::Builtin(left), PayloadSchema::Builtin(right)) if left == right => {}
             (PayloadSchema::Function(left), PayloadSchema::Function(right)) => {
-                if !(abstract_origin(left.origin) && abstract_origin(right.origin)) && left != right
-                {
+                let structural = match self.mode {
+                    ContractMode::Abstract => {
+                        abstract_origin(left.origin) && abstract_origin(right.origin)
+                    }
+                    ContractMode::Authored => matches!(right.origin, Origin::Contract(_)),
+                };
+                if !structural && left != right {
                     return Err(mismatch());
                 }
                 let actual = self

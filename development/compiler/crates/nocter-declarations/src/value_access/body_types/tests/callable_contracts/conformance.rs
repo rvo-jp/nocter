@@ -31,6 +31,10 @@ fn abstract_nested_signatures_match_without_merging_contract_ids() {
         program.constrain_callable_contract(actual, wanted),
         Ok(actual)
     );
+    assert_eq!(
+        program.constrain_declared_function(actual, &program.function_contract(wanted).unwrap()),
+        Ok(actual)
+    );
     assert!(program.function_binding(actual, receiving));
     assert!(program.concrete_witness(witness(&program, actual)).is_err());
     assert!(program.concrete_witness(wanted).is_err());
@@ -87,6 +91,15 @@ fn nested_callable_views_and_input_operations_remain_invariant() {
         let failure = program
             .constrain_callable_contract(actual, witness(&program, receiving))
             .unwrap_err();
+        let declared = program
+            .constrain_declared_function(
+                actual,
+                &program
+                    .function_contract(witness(&program, receiving))
+                    .unwrap(),
+            )
+            .unwrap_err();
+        assert_eq!(declared, failure);
         assert_eq!(failure.path.as_ref(), [FunctionPosition::Input(0)]);
         assert!(if view_mismatch {
             matches!(
@@ -156,6 +169,13 @@ fn nested_contract_conformance_preserves_deep_shared_signatures_without_expansio
     assert_ne!(left, right);
     assert_eq!(
         program.constrain_callable_contract(left, witness(&program, right)),
+        Ok(left)
+    );
+    assert_eq!(
+        program.constrain_declared_function(
+            left,
+            &program.function_contract(witness(&program, right)).unwrap()
+        ),
         Ok(left)
     );
     assert!(program.instantiate_closed_data(left).is_err());

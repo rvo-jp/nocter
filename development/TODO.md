@@ -18,12 +18,11 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify authored nested header contract conformance without weakening exact contextual witness
-checks. Keep the immutable published signature graph separate from actual supplied code and
-environments. Carry original higher-order supplied/receiving contexts through source checking,
-substitution, evaluator/native invocation and cleanup before claiming executable support;
-symbolic definition-context proof remains separate. Audit ordinary root-callable record readiness
-against actual payload requirements while preserving lazy header lineage and source diagnostics.
+Remove signature-only record-readiness dependencies from ordinary callable headers. Reproduce
+and eliminate the false required-count cycle recorded below while preserving genuine payload/value
+cycles, actual body/ABI demands, complete-unit closure, header lineage and source diagnostics.
+Keep the authored nested-contract relation separate from original contextual witness identities;
+wider compound higher-order channels and symbolic definition-context proofs remain separate.
 
 Complete occurrence-sensitive value/capture transport under the
 [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances).
@@ -697,11 +696,18 @@ not a language restriction derived from the current realization boundary.
 - [x] Publish nested callable header signatures atomically under immutable parameter/result owners.
   Preserve original formal/component/result identities, read-only source reconciliation and
   canonical body replay; signature children create no physical input, runtime value or const proof.
-- [ ] Match authored nested header contract nodes without weakening exact contextual witness
-  constraints. Qualify original supplied/receiving callable contexts through source checking,
-  substitution, evaluation, native invocation and cleanup; header publication alone grants none.
-  Audit ordinary root-callable signature record readiness separately from stored payload
-  prerequisites before widening lazy source invocation.
+- [x] Qualify authored nested header contracts through original direct higher-order input and
+  result contexts. Preserve exact contextual witness checks, original formal ordinals, invariant
+  nested views, result-producer substitution and actual const-failure notes; verify required/native
+  named/captured read/edit/take calls and interrupted owned-error cleanup.
+- [ ] Audit ordinary root-callable signature record readiness separately from stored payload
+  prerequisites. Qualify actual body/ABI demands and lazy header/source diagnostics before
+  extending admission; knowing a signature does not require allocating its input/result payloads.
+  Reproduced a false required-value cycle: a record has `[i32; size()]`, `size()` calls
+  `count(ignore)`, `count` only reads a `func(Data): void` value and returns 1, and `ignore(Data)`
+  is never invoked. Publication currently requires Data's payload from the callable signature
+  before computing Data's own count. Preserve genuine payload/value cycles while removing this
+  metadata-only dependency.
 - [ ] Complete nested callable data/witness support through header/data positions and the owning
   type authority. Keep valid formal structural descriptors separate from owned-payload admission.
   Qualify concrete representation, substitution and callable input/result evidence;

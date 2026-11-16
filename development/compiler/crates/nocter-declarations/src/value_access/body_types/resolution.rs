@@ -49,11 +49,17 @@ impl Program {
                     | ValueFunctionOrigin::Parameter(_)
             ) || source.invocation != target.invocation
                 || self.function_data(source).is_none()
-                || self.function_data(target).is_none()
-                || self.function_contract(source) != self.function_contract(target)
             {
                 return Err(BodyTypeError::InvalidExtension);
             }
+            let expected = self
+                .function_contract(source)
+                .ok_or(BodyTypeError::InvalidExtension)?;
+            let supplied = self
+                .function_data(target)
+                .ok_or(BodyTypeError::InvalidExtension)?;
+            self.constrain_declared_function(supplied, &expected)
+                .map_err(|_| BodyTypeError::InvalidExtension)?;
         }
         let mut types = self.types.transaction();
         let mut projection = BTreeMap::new();

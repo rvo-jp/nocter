@@ -376,8 +376,8 @@ impl Program {
                 .function_data(view(&actual))
                 .ok_or(CodeBindingError::InvalidWitness)?;
             let selected = self
-                .constrain_function(data, contract)
-                .map_err(CodeBindingError::Contract)?;
+                .constrain_declared_function(data, contract)
+                .map_err(|failure| CodeBindingError::Contract(failure.mismatch))?;
             let Some(PayloadSchema::Function(selected)) = self.data_schema(selected) else {
                 return Err(CodeBindingError::InvalidWitness);
             };

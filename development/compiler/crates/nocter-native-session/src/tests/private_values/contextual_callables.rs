@@ -2543,3 +2543,50 @@ fn private_compound_field_inputs_preserve_absence_captures_and_owning_cleanup() 
         42,
     );
 }
+
+#[test]
+fn private_nested_callable_headers_keep_original_contexts_and_cleanup() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/nested-callable-headers.nct"
+    ));
+    let (definitions, _) = source.split_once("\nconst ANSWER:").unwrap();
+    let runtime = format!(
+        "{}\nfunc run(): i32 {{ calculate() }}",
+        definitions.replace("const func", "func")
+    );
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(&runtime),
+        &package.0,
+        "nested-callable-headers",
+        42,
+    );
+    for interrupted in [false, true] {
+        let runtime = if interrupted {
+            runtime.replace(
+                "    consume(second^)",
+                "    forward(0, second^, if true { return 42 } else { return 0 })",
+            )
+        } else {
+            runtime.clone()
+        };
+        let owned = callable_capture_with_owned_error(&runtime, "    (item^;");
+        let machine = trusted_error_machine(&owned);
+        assert!(
+            machine
+                .functions()
+                .flat_map(|(_, function)| function.body().operations())
+                .any(|(_, operation)| matches!(
+                    operation.kind(),
+                    nocter_machine::MachineOperationKind::ReleaseError { .. }
+                ))
+        );
+        execute_native_status(
+            &image(&machine),
+            &package.0,
+            "nested-callable-headers-errors",
+            42,
+        );
+    }
+}

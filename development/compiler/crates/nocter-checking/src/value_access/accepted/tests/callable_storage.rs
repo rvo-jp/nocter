@@ -1655,3 +1655,58 @@ fn zero_length_compound_inputs_retain_their_declared_callback_signature() {
     };
     assert_eq!(diagnostic.rule(), crate::value_access::Rule::TypeMismatch);
 }
+
+const NESTED_CALLABLE_HEADERS: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../tests/fixtures/native/value-access/nested-callable-headers.nct"
+));
+
+#[test]
+fn nested_headers_keep_original_named_captured_and_returned_higher_order_contexts() {
+    assert_eq!(
+        answer(NESTED_CALLABLE_HEADERS, "ANSWER"),
+        Value::integer(42)
+    );
+    let interrupted = NESTED_CALLABLE_HEADERS.replace(
+        "    consume(second^)",
+        "    forward(0, second^, if true { return 42 } else { return 0 })",
+    );
+    assert_ne!(interrupted, NESTED_CALLABLE_HEADERS);
+    assert_eq!(answer(&interrupted, "ANSWER"), Value::integer(42));
+}
+
+#[test]
+fn nested_header_contracts_preserve_source_mismatch_paths_and_actual_const_failures() {
+    let source = "const func identity(value: i32): i32 { value }\nconst func apply(action: func(i32): i32): i32 { action(42) }\nconst func forward(action: func(func(i32): i32): i32): i32 { action(identity) }\nconst ANSWER: i32 = forward(apply)";
+    let mismatch = source.replace("func(func(i32): i32): i32", "func(once(i32): i32): i32");
+    let fixture = nocter_test_support::ValueSourceFixture::new(&mismatch);
+    let Err(SourceFailure::Checking(Failure::Body {
+        failure: BodyFailure::Rejected(diagnostic),
+        ..
+    })) = SourceUnit::prepare(fixture.syntax())
+    else {
+        panic!("nested invocation contracts are invariant");
+    };
+    assert_eq!(diagnostic.rule(), crate::value_access::Rule::TypeMismatch);
+    assert!(
+        diagnostic
+            .source()
+            .message()
+            .contains("nested callable contract")
+    );
+    let runtime = source.replace("const func identity", "func identity");
+    let fixture = nocter_test_support::ValueSourceFixture::new(&runtime);
+    let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+        SourceUnit::prepare(fixture.syntax())
+    else {
+        panic!("a type contract grants no const capability");
+    };
+    assert!(matches!(
+        diagnostic.rule(),
+        crate::value_access::constant::Rule::RuntimeCall(_)
+    ));
+    assert!(diagnostic.source().notes().iter().any(|note| {
+        let range = note.origin().span().range();
+        &runtime[range.start().get() as usize..range.end().get() as usize] == "identity"
+    }));
+}

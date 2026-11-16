@@ -223,11 +223,7 @@ impl Checker<'_, '_> {
         };
         let result = self
             .program()
-            .constrain_function(actual.data(), expected)
-            .map_err(|mismatch| FunctionPatternMismatch {
-                path: Box::new([]),
-                mismatch,
-            });
+            .constrain_declared_function(actual.data(), expected);
         self.finish_function_constraint(node, actual.data(), result, alias)
     }
     pub(super) fn function_pattern_data(

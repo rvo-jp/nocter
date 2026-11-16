@@ -78,8 +78,8 @@ impl Program {
                 let supplied = self
                     .function_data(actual)
                     .ok_or(CodeBindingError::InvalidWitness)?;
-                self.constrain_function(supplied, &contract)
-                    .map_err(CodeBindingError::Contract)?;
+                self.constrain_declared_function(supplied, &contract)
+                    .map_err(|failure| CodeBindingError::Contract(failure.mismatch))?;
             }
             ValueFunctionOrigin::Closure(_) | ValueFunctionOrigin::Declaration(_)
                 if actual == wanted => {}

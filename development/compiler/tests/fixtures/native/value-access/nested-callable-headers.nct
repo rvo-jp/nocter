@@ -1,0 +1,26 @@
+struct Item { value: i32 }
+const func identity(value: i32): i32 { value }
+const func invoke(before: i32, action: func(i32): i32, after: i32): i32 { action(before) + after }
+const func forward(before: i32, action: func(i32, func(i32): i32, i32): i32, after: i32): i32 { action(before, identity, after) }
+const func named_factory(): func(i32, func(i32): i32, i32): i32 { invoke }
+const func make(offset: i32): func(i32, func(i32): i32, i32): i32 {
+    let item = Item { value: offset }
+    (item^; before: i32, action: func(i32): i32, after: i32): i32 { item.value + action(before) + after }
+}
+const func update(edit action: mut(func(i32): i32): i32): i32 { action(identity) }
+const func consume(take action: once(i32, func(i32): i32, i32): i32): i32 { action^(39, identity, 1) }
+const func calculate(): i32 {
+    if forward(40, invoke, 2) != 42 { return 1 }
+    if forward(40, named_factory(), 2) != 42 { return 5 }
+    let first = make(1)
+    let second = make(2)
+    if forward(40, first, 1) != 42 { return 2 }
+    if forward(39, second, 1) != 42 { return 3 }
+    let edit_item = Item { value: 40 }
+    var changing = (edit_item^; action: func(i32): i32): i32 { edit_item.value += action(1)
+        edit_item.value }
+    if update(changing) != 41 || changing(identity) != 42 { return 4 }
+    consume(second^)
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { calculate() }

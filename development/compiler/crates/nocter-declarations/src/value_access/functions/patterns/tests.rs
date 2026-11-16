@@ -42,6 +42,11 @@ fn structural_annotation_constraints_preserve_both_code_and_formal_data_identiti
     let data = |id| program.function_data(witness(id)).unwrap();
     let left_contract = program.function_contract(witness(left)).unwrap();
     let exact = FunctionPattern::exact(left_contract.clone());
+    assert!(
+        program
+            .constrain_declared_function(data(right), &left_contract)
+            .is_err()
+    );
     assert_eq!(
         program.constrain_function_pattern(data(left), &exact),
         Ok(data(left))

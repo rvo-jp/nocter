@@ -324,8 +324,14 @@ view may adapt; nested invocation views and input operations stay invariant. Con
 witnesses keep exact code identity, nominal types keep identity, and even zero-length arrays keep
 their declared element contract. A shared pair traversal and parent-linked diagnostic paths avoid
 expanding deep shared signatures or large array cardinalities. This comparison creates no type,
-concrete witness, capture environment, payload or const capability. Direct higher-order field invocation consumes original-context evidence through checking;
-general nested header invocation and wider compound channels retain separate qualification.
+concrete witness, capture environment, payload or const capability.
+`constrain_declared_function` uses the same graph comparison for authored header constraints, but
+opens only expected `Contract` nodes. Normalized formal/result/application and concrete leaves
+remain exact. This separate relation serves original header-input bindings, contextual function
+receipt and checked result substitution; `constrain_function` and exact pattern leaves retain
+their stricter behavior. Ordinary top-level leaf mismatches preserve input/result diagnostics;
+nested contract failures retain their original path. Higher-order invocation still consumes
+actual source-context evidence independently of this signature relation.
 
 `Program::callable_input_parameters` is the sole classifier of direct callback inputs by original
 explicit ordinal and actual code-owned formal ID. Ordinary frame binding and source-instance
@@ -703,7 +709,8 @@ The stricter same-origin `function_adapter` relation remains separate. A raw con
 instantiate a closed payload. Payload dependency queries report contracts separately from formal
 inputs and result producers; batched roots share one schema traversal. Original field construction,
 forwarding and retained-read invocation now consume that value evidence through checking and native
-execution. Nested header invocation and wider invocation channels remain separately unqualified. The
+execution. Wider compound higher-order and retained-reference invocation channels remain separately
+unqualified. The
 [realization contract](../../../design/compiler-realization.md#callable-type-contracts) owns the
 remaining integration obligations.
 

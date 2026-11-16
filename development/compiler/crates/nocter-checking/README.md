@@ -1044,9 +1044,21 @@ without supplying a witness, just as a foreign receiving-input constraint can. T
 to original inactive constructions; it does not replace an existing input or invent a function.
 Source mismatch checks retain callback signatures even for zero-byte arrays, and a later supplied
 runtime-only callback retains its missing const capability. Native execution also qualifies
-separate owned-error captures in these containers. General nested header publication, nonuniform
-callback domains and wider retained-reference channels remain separately qualified subjects.
+separate owned-error captures in these containers. Nonuniform callback domains and wider
+retained-reference channels remain separately qualified subjects.
 The declaration owner describes the structural binding relation.
+
+`nested-callable-headers.nct` qualifies direct higher-order ordinary header inputs and returned
+named/captured higher-order functions. Original formal IDs and explicit scalar/callback ordinals
+remain attached to the actual selected body. Authored nested type contracts constrain signatures;
+they do not replace supplied code or environments. Required evaluation and native invocation cover
+read/edit/take environment use and distinct values from the same lexical factory. Native probes
+retain actual owned-error cleanup, including interrupted preparation. A runtime-only inner
+callback still fails const admission with its original supplied-argument note, and nested invocation
+view mismatches retain their source path. Canonical result substitution validates the same authored
+signature relation before replacing a result leaf with its independently proved producer. Exact
+contextual and concrete-witness checks remain separate. Wider compound higher-order channels,
+ordinary root-signature record readiness and symbolic definition-context proofs remain open.
 
 Original call-result witness and data queries can inspect a complete positive invocation domain
 when strict single-frame selection is unresolved. They query every original candidate's returned
