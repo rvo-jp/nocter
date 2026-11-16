@@ -175,6 +175,10 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   mapping, retaining the selected immutable environment and ordinary retirement/receipt.
   Qualify missing-case/narrowing rejection and work/storage failure cleanup; keep nested
   positive conversion and source invocation separate.
+- [x] Extend evaluator positive transport through represented record/outcome/array payloads with
+  a metered iterative typed-value DAG walk. Preserve sharing, sparse maximum-length storage,
+  inactive variants, original case mapping and atomic work/storage failure cleanup before
+  widening ordinary source producer or invocation admission.
 - [ ] Close the [positive callable alternative obligations](design/compiler-realization.md#positive-callable-alternatives)
   through the canonical data-instance graph, guarded source transport, evaluator/target plans,
   native selection and cleanup before widening source admission. The value-context fixture

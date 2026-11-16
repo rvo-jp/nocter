@@ -148,7 +148,8 @@ positive payload identities. Whole callable receipts can inject a complete stati
 finite domain or move a domain into another domain containing every source case. Compatibility and
 encoding share one exact code/environment identity map; encoding writes the receiving ordinal
 rather than reinterpreting the old number. Positive narrowing, unavailable metadata and empty roots
-reject. Positive changes nested inside aggregates remain unqualified.
+reject. The same directed relation closes positive changes inside records, optional/fallible
+payloads and fixed arrays.
 Target completeness and directed shape matching visit shared table edges iteratively, with runtime
 work charged independently of array cardinality. Logical values retain only selected payloads;
 encoding shares their immutable graphs through the same retirement/receipt kernel as ordinary
@@ -312,10 +313,15 @@ component projection exposes neither case. Whole-value handoff, import, equality
 environments and iterative destruction use the existing shared-value and lease machinery. An
 exhausted import cannot retain partial storage; logical array cardinality is never expanded.
 Closed-plan probes qualify complete captured contexts and bounded maximum-length environments.
-Checking owns source shape projection and final-publication eligibility. Whole-choice transport
-uses the directed relation described above; source producer encoding, nested positive conversion
-and selected invocation remain separately qualified consumers. Stored choice values alone do not
-widen source admission.
+Checking owns source shape projection and final-publication eligibility. The directed transport
+relation also converts represented nested choices through one iterative typed-value DAG walk.
+Memoization includes the original value identity and both type identities. Unchanged nodes remain
+shared; only changed aggregate/variant nodes and actual sparse-array entries are rebuilt. Pending
+requests, completed values and rebuilt nodes use the ordinary storage meter. Neither inactive
+optional payloads nor candidate environments are traversed. Closed-plan probes cover nested
+injection, reordered sparse maximum-length arrays, deeply shared graphs and every tested work or
+storage cutoff. Source producer encoding and selected invocation remain separately qualified
+consumers; stored choice values alone do not widen source admission.
 
 ### Evaluated Array Addresses
 

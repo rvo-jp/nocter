@@ -378,7 +378,7 @@ fn whole_callable_transport_encodes_injection_and_reindexes_original_cases() {
 }
 
 #[test]
-fn callable_transport_rejects_missing_cases_narrowing_and_unqualified_nested_encoding() {
+fn callable_transport_rejects_missing_cases_and_narrowing() {
     let types = callable_types();
     let program = Program::new(types.clone(), BTreeMap::new(), BTreeMap::new()).unwrap();
     for (source, target) in [(2, 3), (4, 3), (3, 0), (4, 0)] {
@@ -388,7 +388,7 @@ fn callable_transport_rejects_missing_cases_narrowing_and_unqualified_nested_enc
     nested.push(Type::Record(vec![0].into()));
     nested.push(Type::Record(vec![4].into()));
     let program = Program::new(nested, BTreeMap::new(), BTreeMap::new()).unwrap();
-    assert!(!super::super::transport::permits(&program, 5, 6, || Ok(())).unwrap());
+    assert!(super::super::transport::permits(&program, 5, 6, || Ok(())).unwrap());
 }
 
 #[test]
@@ -484,4 +484,201 @@ fn whole_callable_injection_preserves_complete_maximum_length_environments() {
     assert!(budget.storage_used() < 32);
     drop(answer);
     assert_eq!(budget.storage_used(), 0);
+}
+
+#[test]
+fn nested_callable_injection_preserves_optional_tags_and_record_siblings() {
+    let (code, _) = code_ids();
+    let mut types = callable_types();
+    types.extend([
+        Type::Variant {
+            primary: 0,
+            alternate: None,
+        },
+        Type::Variant {
+            primary: 4,
+            alternate: None,
+        },
+        Type::Integer(nocter_model::BuiltinType::I32),
+        Type::Record(vec![5, 7].into()),
+        Type::Record(vec![6, 7].into()),
+    ]);
+    for present in [false, true] {
+        let source = Value::aggregate(vec![
+            Value::variant(present, present.then(Value::unit)),
+            Value::integer(42),
+        ]);
+        let expected = Value::aggregate(vec![
+            Value::variant(present, present.then(|| Value::callable(0, Value::unit()))),
+            Value::integer(42),
+        ]);
+        let program = Program::new(
+            types.clone(),
+            BTreeMap::from([(code.into(), plan(8, 9, &source))]),
+            BTreeMap::new(),
+        )
+        .unwrap();
+        let mut budget = Budget::new(Limits::default());
+        let actual = Executor::new(&program, &mut budget, 0)
+            .evaluate_initializer(code)
+            .unwrap();
+        assert_eq!(actual, expected);
+        drop(actual);
+        assert_eq!(budget.storage_used(), 0);
+    }
+}
+
+fn sparse_callable_choices(default: i128, replacement: i128) -> Value {
+    use nocter_model::{ConstantValue, FrozenData, FrozenNode};
+    Value::from_frozen(
+        &FrozenData::new(vec![
+            FrozenNode::Unit,
+            FrozenNode::Scalar(ConstantValue::Integer(default)),
+            FrozenNode::Aggregate(vec![1, 0].into()),
+            FrozenNode::Scalar(ConstantValue::Integer(replacement)),
+            FrozenNode::Aggregate(vec![3, 0].into()),
+            FrozenNode::Repeated {
+                element: 2,
+                length: NonZeroU64::new(u64::MAX).unwrap(),
+                replacements: vec![(u64::MAX - 1, 4)].into(),
+            },
+        ])
+        .unwrap(),
+    )
+    .unwrap()
+}
+
+#[test]
+fn maximum_sparse_callable_arrays_reindex_only_actual_stored_values() {
+    let (code, _) = code_ids();
+    let mut types = callable_types();
+    types.extend([
+        Type::Array {
+            element: 3,
+            length: u64::MAX,
+        },
+        Type::Array {
+            element: 4,
+            length: u64::MAX,
+        },
+    ]);
+    let source = sparse_callable_choices(0, 1);
+    let expected = sparse_callable_choices(2, 0);
+    let program = Program::new(
+        types,
+        BTreeMap::from([(code.into(), plan(5, 6, &source))]),
+        BTreeMap::new(),
+    )
+    .unwrap();
+    let mut budget = Budget::new(Limits::new(
+        CompileTimeEvaluationLimits::default(),
+        NonZeroU64::new(256).unwrap(),
+    ));
+    let actual = Executor::new(&program, &mut budget, 0)
+        .evaluate_initializer(code)
+        .unwrap();
+    assert_eq!(actual, expected);
+    assert!(budget.storage_used() < 64);
+    drop(actual);
+    assert_eq!(budget.storage_used(), 0);
+}
+
+#[test]
+fn deeply_shared_callable_receipts_do_not_expand_the_logical_tree() {
+    let (code, _) = code_ids();
+    let mut types = callable_types();
+    let (mut source, mut target) = (0, 4);
+    let mut input = Value::unit();
+    let mut expected = Value::callable(0, Value::unit());
+    for _ in 0..48 {
+        types.push(Type::Record(vec![source, source].into()));
+        source = types.len() - 1;
+        types.push(Type::Record(vec![target, target].into()));
+        target = types.len() - 1;
+        input = Value::aggregate(vec![input.clone(), input]);
+        expected = Value::aggregate(vec![expected.clone(), expected]);
+    }
+    let program = Program::new(
+        types,
+        BTreeMap::from([(code.into(), plan(source, target, &input))]),
+        BTreeMap::new(),
+    )
+    .unwrap();
+    let mut budget = Budget::new(Limits::new(
+        CompileTimeEvaluationLimits::new(
+            NonZeroU64::new(4096).unwrap(),
+            NonZeroU32::new(64).unwrap(),
+        ),
+        NonZeroU64::new(2048).unwrap(),
+    ));
+    let actual = Executor::new(&program, &mut budget, 0)
+        .evaluate_initializer(code)
+        .unwrap();
+    assert_eq!(actual, expected);
+    drop(actual);
+    assert_eq!(budget.storage_used(), 0);
+}
+
+#[test]
+fn partially_converted_sparse_choices_release_every_work_and_storage_failure() {
+    let (code, _) = code_ids();
+    let mut types = callable_types();
+    types.extend([
+        Type::Array {
+            element: 3,
+            length: u64::MAX,
+        },
+        Type::Array {
+            element: 4,
+            length: u64::MAX,
+        },
+    ]);
+    let source = sparse_callable_choices(0, 1);
+    let expected = sparse_callable_choices(2, 0);
+    let program = Program::new(
+        types,
+        BTreeMap::from([(code.into(), plan(5, 6, &source))]),
+        BTreeMap::new(),
+    )
+    .unwrap();
+    for work in [false, true] {
+        let (mut failed, mut succeeded) = (false, false);
+        for limit in 1..128 {
+            let limits = if work {
+                Limits::new(
+                    CompileTimeEvaluationLimits::new(
+                        NonZeroU64::new(limit).unwrap(),
+                        NonZeroU32::new(64).unwrap(),
+                    ),
+                    NonZeroU64::new(256).unwrap(),
+                )
+            } else {
+                Limits::new(
+                    CompileTimeEvaluationLimits::default(),
+                    NonZeroU64::new(limit).unwrap(),
+                )
+            };
+            let mut budget = Budget::new(limits);
+            match Executor::new(&program, &mut budget, 0).evaluate_initializer(code) {
+                Ok(value) => {
+                    assert_eq!(value, expected);
+                    drop(value);
+                    succeeded = true;
+                }
+                Err(error) => {
+                    assert_eq!(
+                        error.rule,
+                        if work {
+                            Rule::StepLimit
+                        } else {
+                            Rule::StorageLimit
+                        }
+                    );
+                    failed = true;
+                }
+            }
+            assert_eq!(budget.storage_used(), 0);
+        }
+        assert!(failed && succeeded);
+    }
 }

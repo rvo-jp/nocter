@@ -1,6 +1,8 @@
 //! Closed evaluator shape compatibility; source admission and physical layout remain upstream.
+mod values;
 use super::{Program, Rule, Type};
 use std::collections::BTreeSet;
+pub(super) use values::encode;
 
 pub(super) fn permits(
     program: &Program,
@@ -40,8 +42,11 @@ pub(super) fn permits(
             (Type::Integer(a), Type::Integer(b)) if a == b => {}
             (Type::NamedFunction(_) | Type::CapturedFunction { .. }, _)
                 if from.same_function_payload(to) => {}
-            (Type::CallableAlternatives(left), Type::CallableAlternatives(right))
-                if left == right => {}
+            (_, Type::CallableAlternatives(_)) => {
+                if callable_targets(program, source, target, &mut step)?.is_none() {
+                    return Ok(false);
+                }
+            }
             (Type::Record(left), Type::Record(right)) if left.len() == right.len() => {
                 pending.extend(
                     left.iter()
@@ -161,9 +166,8 @@ fn callable_targets(
     Ok(Some(selected.into()))
 }
 
-/// Encode a whole callable receipt after compatibility checking. Nested positive changes still
-/// reject in `permits`; ordinary guarded structural transports retain their original value DAG.
-pub(super) fn encode(
+/// Encode one complete callable receipt after the common compatibility check.
+fn encode_callable(
     program: &Program,
     source: usize,
     target: usize,
