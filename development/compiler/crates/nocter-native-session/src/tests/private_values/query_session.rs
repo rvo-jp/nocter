@@ -67,25 +67,23 @@ fn physical_query_session_unit_executes_distinct_cross_module_capture_values() {
     let Some(ValueAccessAnalysis::Accepted(accepted)) = session.value_access_analysis() else {
         panic!("checked v2 session")
     };
-    let context = accepted
-        .headers()
-        .bind(source.compile_input().unwrap())
-        .unwrap();
-    let current = context.current().unwrap();
-    accepted.unit().bind(&current).unwrap();
-    let program = current.program();
-    let root = program
-        .resolve_in(
-            current.lookup_scope(),
-            program.symbols().get("run").unwrap(),
+    let program = accepted.headers().program();
+    let module = ModuleIdentity::new(identity("app"), Vec::<&str>::new());
+    let exported = |name| {
+        accepted.headers().lookup_export(
+            &module,
+            &module,
+            nocter_declarations::value_access::Namespace::Value,
+            program.symbols().get(name).unwrap(),
         )
-        .unwrap();
-    let answer = program
-        .resolve_constant_in(
-            current.lookup_scope(),
-            program.symbols().get("ANSWER").unwrap(),
-        )
-        .unwrap();
+    };
+    let Some(nocter_declarations::value_access::DeclarationId::Code(root)) = exported("run") else {
+        panic!("authored root function contract")
+    };
+    let Some(nocter_declarations::value_access::DeclarationId::Code(answer)) = exported("ANSWER")
+    else {
+        panic!("authored root constant contract")
+    };
     assert_eq!(
         accepted.unit().constant_value(answer).unwrap().node(),
         &FrozenNode::Scalar(ConstantValue::Integer(42))

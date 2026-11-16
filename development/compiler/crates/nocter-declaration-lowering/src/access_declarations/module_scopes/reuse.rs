@@ -12,6 +12,7 @@ use std::sync::Arc;
 #[derive(Clone, Debug)]
 pub struct ModuleQuery {
     program: Arc<Program>,
+    exports: crate::access_declarations::module_imports::ModuleExports,
     target: CompilationTarget,
     sources: Box<[SourceRecipe]>,
     dependencies: BodySources,
@@ -32,6 +33,7 @@ impl ModuleContext<'_> {
         require_header_sources(&self.binding, self.dependencies.as_ref())?;
         Ok(ModuleQuery {
             program: Arc::clone(&self.program),
+            exports: self.binding.exports.clone(),
             target: self.binding.paired.inventory.surface.target(),
             sources: source_recipes(&self.binding)?,
             dependencies: self.dependencies.clone().unwrap_or_default(),
@@ -44,6 +46,20 @@ impl ModuleQuery {
     pub fn program(&self) -> &Program {
         &self.program
     }
+    /// Resolve an authored module export from the retained semantic namespace, without opening
+    /// physical sources or granting a body/target capability. Helper visibility is not publication.
+    #[must_use]
+    pub fn lookup_export(
+        &self,
+        module: &ModuleIdentity,
+        caller: &ModuleIdentity,
+        namespace: nocter_declarations::value_access::Namespace,
+        name: nocter_model::Symbol,
+    ) -> Option<nocter_declarations::value_access::DeclarationId> {
+        self.exports
+            .lookup(&self.program, module, caller, namespace, name)
+    }
+
     /// Validate current selected topology/names/headers and bind the retained authority to it.
     /// A changed source inventory, header, name domain or required supplier invalidates reuse.
     /// # Errors
@@ -57,6 +73,7 @@ impl ModuleQuery {
             || source_recipes(&current.binding)? != self.sources
             || !current.headers.has_same_reserved_layout(&self.program)
             || !current.primitives.has_same_selection(&self.primitives)
+            || current.binding.exports != self.exports
         {
             return Err(ModuleSourcesFailure::Access(Failure::ChangedHeader));
         }

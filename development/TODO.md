@@ -18,6 +18,14 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
+Work is paused at the user's request after qualifying retained module export lookup. The current
+checkpoint passes 26 declaration/module tests, 29 checking/module tests, the query-session native
+execution case, affected-crate Clippy and documentation generation (310 pages). Both correctness
+and boundary/complexity reviews are complete. No unfinished verification belongs to this checkpoint.
+
+Resume with the executable-entry/target contract below; no syntax decision or permission is pending
+for the completed export-lookup work. Source-free header lookup is available for that next step.
+
 Close the v2 executable-entry and target prerequisites explicitly before an ordinary CLI adapter.
 The private process root currently supports zero-input void/i32, whereas released entry policy also
 has usize, fallible and async forms; do not silently inherit that policy or call a probe root a
@@ -703,6 +711,11 @@ not a language restriction derived from the current realization boundary.
   same-code cross-module factory captures through required/native result 42, with original source
   binding. Share the native test entry helper and requalify its existing direct-source path. This
   does not admit package executable selection, broader process-root results, installed std or CLI.
+- [x] Retain logical module/export-scope identity beside the immutable header program. Use the
+  existing semantic namespace for source-free export lookup; preserve private seen helpers,
+  value/type separation, re-export identities, package audiences and guarded current rebinding.
+  Qualify query/session-to-native root/constant selection without physical rebinding. Align paired
+  header tests with nominal identity readiness, independently of later payload/value construction.
 - [ ] Integrate v2 into the ordinary compiler/CLI and editor workflow with one semantic pipeline,
   current diagnostics, formatting, presentation and revision/source reuse. Remove transitional private
   handoffs when their production replacement is qualified; retain no competing semantic authority.

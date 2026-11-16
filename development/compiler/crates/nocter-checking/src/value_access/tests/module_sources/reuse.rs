@@ -123,3 +123,76 @@ fn header_count_reuse_retains_both_physical_suppliers_and_rejects_changed_actual
             .is_err()
     );
 }
+
+#[test]
+fn retained_module_exports_resolve_without_source_views_and_do_not_publish_seen_helpers() {
+    use nocter_compile_input::ModuleIdentity;
+    use nocter_declarations::value_access::{DeclarationId, Namespace};
+    use nocter_model::PackageIdentity;
+    let (headers, _) = retained(); // The physical fixture and source views have already been dropped.
+    let module = |path: &[&str]| {
+        ModuleIdentity::new(PackageIdentity::new("workspace:app"), path.iter().copied())
+    };
+    let root = module(&[]);
+    let run = headers.program().symbols().get("run").unwrap();
+    let expected = headers.program().resolve(run).unwrap();
+    assert_eq!(
+        headers.lookup_export(&root, &root, Namespace::Value, run),
+        Some(DeclarationId::Code(expected))
+    );
+    let helper = headers.program().symbols().get("unrelated").unwrap();
+    assert_eq!(
+        headers.lookup_export(&root, &root, Namespace::Value, helper),
+        None
+    );
+    assert_eq!(
+        headers.lookup_export(&root, &root, Namespace::Type, run),
+        None
+    );
+    assert_eq!(
+        headers.lookup_export(&module(&["missing"]), &root, Namespace::Value, run),
+        None
+    );
+    let answer = headers.program().symbols().get("answer").unwrap();
+    let external = ModuleIdentity::new(PackageIdentity::new("workspace:other"), Vec::<&str>::new());
+    assert!(
+        headers
+            .lookup_export(&module(&["data"]), &external, Namespace::Value, answer)
+            .is_some()
+    );
+}
+
+#[test]
+fn retained_export_lookup_preserves_original_module_audiences() {
+    use nocter_compile_input::ModuleIdentity;
+    use nocter_declarations::value_access::Namespace;
+    use nocter_model::PackageIdentity;
+    let headers = {
+        let fixture = reusable_fixture(
+            "",
+            "use ./data as api\napi.answer()",
+            1,
+            "#visibility: \"/\"\n",
+        );
+        ModuleSourceUnit::prepare(&fixture.input())
+            .unwrap()
+            .declarations()
+            .query()
+            .unwrap()
+    };
+    let data = ModuleIdentity::new(PackageIdentity::new("workspace:app"), ["data"]);
+    let same_package =
+        ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new());
+    let outside = ModuleIdentity::new(PackageIdentity::new("workspace:other"), ["data"]);
+    let answer = headers.program().symbols().get("answer").unwrap();
+    assert!(
+        headers
+            .lookup_export(&data, &same_package, Namespace::Value, answer)
+            .is_some()
+    );
+    assert!(
+        headers
+            .lookup_export(&data, &outside, Namespace::Value, answer)
+            .is_none()
+    );
+}

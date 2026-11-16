@@ -52,14 +52,9 @@ impl ModuleContext<'_> {
         namespace: nocter_declarations::value_access::Namespace,
         name: Symbol,
     ) -> Option<DeclarationId> {
-        self.binding.exports.lookup(
-            &self.binding.paired,
-            &self.program,
-            module,
-            caller,
-            namespace,
-            name,
-        )
+        self.binding
+            .exports
+            .lookup(&self.program, module, caller, namespace, name)
     }
     /// Open the closed metadata in this exact source binding.
     /// # Errors
@@ -211,14 +206,9 @@ impl<'syntax> ScopedModuleSources<'syntax> {
         namespace: nocter_declarations::value_access::Namespace,
         name: Symbol,
     ) -> Option<DeclarationId> {
-        self.binding.exports.lookup(
-            &self.binding.paired,
-            &self.headers.snapshot(),
-            module,
-            caller,
-            namespace,
-            name,
-        )
+        self.binding
+            .exports
+            .lookup(&self.headers.snapshot(), module, caller, namespace, name)
     }
     /// Exact executable syntax for a definition or registered header count; no body acceptance.
     #[must_use]

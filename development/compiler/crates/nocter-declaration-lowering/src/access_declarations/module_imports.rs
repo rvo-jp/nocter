@@ -50,9 +50,9 @@ impl Policy {
         }))
     }
 }
-#[derive(Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct ModuleExports {
-    scopes: Box<[ScopeId]>,
+    scopes: Arc<BTreeMap<ModuleIdentity, ScopeId>>,
 }
 impl ModuleExports {
     pub fn bind(
@@ -82,20 +82,14 @@ impl ModuleExports {
     }
     pub fn lookup(
         &self,
-        paired: &PairedModuleSources<'_>,
         program: &Program,
         module: &ModuleIdentity,
         caller: &ModuleIdentity,
         namespace: Namespace,
         name: Symbol,
     ) -> Option<DeclarationId> {
-        let index = paired
-            .inventory
-            .surface
-            .modules()
-            .binary_search(module)
-            .ok()?;
-        program.declaration_visible_from(self.scopes[index], namespace, name, caller)
+        let scope = *self.scopes.get(module)?;
+        program.declaration_visible_from(scope, namespace, name, caller)
     }
 }
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -375,7 +369,13 @@ impl<'a, 'syntax> ImportBindings<'a, 'syntax> {
                 }
             }
         }
-        Ok(ModuleExports { scopes })
+        let modules = self.paired.inventory.surface.modules();
+        if modules.len() != scopes.len() {
+            return Err(integrity());
+        }
+        Ok(ModuleExports {
+            scopes: Arc::new(modules.iter().cloned().zip(scopes).collect()),
+        })
     }
 }
 

@@ -212,8 +212,11 @@ proves neither completed signatures nor accepted bodies.
 Module export scopes bind original declaration identities and shared immutable audience facts
 through that same semantic namespace. The retained export projection only maps modules to their
 semantic scopes; construction-time target/policy tables do not survive as another lookup authority.
-`lookup_export` in scoped or sealed module contexts delegates audience-aware lookup to the semantic
-namespace. Source views retain the same audience objects for signature and visible-field checks,
+`lookup_export` in scoped/sealed module contexts and retained `ModuleQuery` headers delegates
+audience-aware lookup to the same semantic namespace. The immutable module-to-scope correspondence
+is retained beside that header program, so source-free consumers do not rebuild physical views to
+select an authored contract. It contains no second name, declaration or audience table. Source views
+retain the same audience objects for signature and visible-field checks,
 and supply their original logical caller module at scope construction. A scoped lookup grants no
 header readiness. Qualified header data paths normalize in their own physical scopes through
 that same namespace authority before repeated contracts are compared. Equal path spelling cannot
@@ -269,15 +272,17 @@ Ordinary discovery/CLI integration and the remaining toolchain role families rem
 accepted Unit.
 
 `ModuleContext::query` captures source-neutral `ModuleQuery` evidence beside the retained header
-program. Sources retain exact module/path/role and canonical declaration syntax, without current
-syntax trees or implementation bytes except required source guards. `seal_with_dependencies`
+program. Its shared export projection retains logical module/scope identity; sources retain exact
+module/path/role and canonical declaration syntax, without current syntax trees or implementation
+bytes except required source guards. `seal_with_dependencies`
 requires every physical header count owner to have a guard from the actual required-value source
 graph, and verifies that graph against the sealed context. A manually sealed count-dependent view
 without those guards cannot become a reusable query.
 `ModuleQuery::bind` validates the new input's topology, file roles, contracts and import bindings
 through their normal owners. It requires the same target, physical inventory, canonical headers
-and complete reserved name/slot layout, then verifies the retained header suppliers against current
-physical bodies. Current resolved primitive selections must also match the retained checked role
+and complete reserved name/slot layout plus the same module/export-scope correspondence, then
+verifies the retained header suppliers against current physical bodies. Current resolved primitive
+selections must also match the retained checked role
 facts. Removing or redirecting authority cannot inherit old privileges. It retains the original
 header/type authority and uses the new source binding;
 independent structurally equal typed arenas cannot grant lineage. No body checking, constant

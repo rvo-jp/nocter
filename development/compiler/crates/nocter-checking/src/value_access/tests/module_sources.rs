@@ -260,6 +260,22 @@ fn selected_type_imports_and_root_reexports_share_the_original_nominal_identity(
     };
     assert_eq!(lookup(&[], "PublicItem"), lookup(&["wire"], "Item"));
     assert_eq!(lookup(&[], "PublicItem"), lookup(&["data"], "Data"));
+    let retained = source.declarations().query().unwrap();
+    for (path, name) in [
+        (&[][..], "PublicItem"),
+        (&["wire"][..], "Item"),
+        (&["data"][..], "Data"),
+    ] {
+        assert_eq!(
+            retained.lookup_export(
+                &identity(path),
+                &root,
+                Namespace::Type,
+                retained.program().symbols().get(name).unwrap()
+            ),
+            Some(lookup(path, name))
+        );
+    }
     let current = source.declarations().current().unwrap();
     assert!(source.unit().bind(&current).is_ok());
 }

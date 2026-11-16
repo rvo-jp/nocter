@@ -32,8 +32,10 @@ analysis, implement backend rules, select command-line policy, or publish filesy
   discovery, sole unit-analysis query and common session envelope before selecting an explicit
   checked root for these same private native consumers. Two same-code factory closures from a
   different module retain distinct captured values through required evaluation and native execution.
-  No source preparation is repeated after the session publishes its checked Unit. This qualifies
-  the bounded handoff, not an executable entry contract, public CLI, installed v2 library or ABI.
+  Native root/constant selection uses the retained headers' audience-aware module exports, without
+  physical source rebinding. No source preparation is repeated after the session publishes its
+  checked Unit. This qualifies the bounded handoff, not an executable entry contract, public CLI,
+  installed v2 library or ABI.
   A header-only query cannot replace source acceptance.
 - Native-specific source corpora live under `development/compiler/tests/fixtures/native/`.
   Cross-consumer module corpora live under `development/compiler/tests/fixtures/value-modules/` and are selected by

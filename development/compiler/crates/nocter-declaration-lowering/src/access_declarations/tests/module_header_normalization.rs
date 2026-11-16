@@ -23,7 +23,7 @@ fn advance(
 }
 
 #[test]
-fn resolved_callable_and_initializer_agreement_precedes_any_semantic_definition() {
+fn paired_headers_agree_on_nominal_identity_before_payload_readiness() {
     for (kind, root_header, body_header, expected_rule) in [
         (
             Kind::Function,
@@ -85,11 +85,15 @@ fn resolved_callable_and_initializer_agreement_precedes_any_semantic_definition(
                 let data = scoped
                     .declaration(declaration(&scoped, "/app/data.nct", Kind::Struct, "Data"))
                     .unwrap();
+                // Header agreement establishes the nominal identity, not a materialized value.
+                // Constant/static execution still needs the complete payload through its own stage.
                 assert_eq!(
                     advance(&mut scoped, id).unwrap(),
-                    HeaderProgress::RequireHeaders(vec![data].into())
+                    HeaderProgress::Ready,
+                    "{kind:?}"
                 );
-                assert!(!scoped.program().header_ready(id));
+                assert!(scoped.program().header_ready(id));
+                assert!(!scoped.program().header_ready(data));
                 assert_eq!(advance(&mut scoped, data).unwrap(), HeaderProgress::Ready);
                 assert_eq!(advance(&mut scoped, id).unwrap(), HeaderProgress::Ready);
                 assert!(scoped.program().header_ready(id));
