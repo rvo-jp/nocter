@@ -8,6 +8,7 @@ use nocter_constant_evaluation::state::WorkBudget;
 use nocter_declarations::value_access::{CodeInstanceKey, DataInstanceKey, Program};
 use nocter_model::{AccessExpressionId, TypeId};
 use std::collections::BTreeMap;
+mod receipts;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ValueDataFailure {
     Body,
@@ -30,8 +31,14 @@ pub struct ValueData {
     operands: BTreeMap<(flow::Location, AccessExpressionId), Payload>,
     definitions: BTreeMap<(flow::Location, ValueSourceSlot), Payload>,
     roots: BTreeMap<(flow::Location, Referent), RootContracts>,
+    receipts: BTreeMap<AccessExpressionId, DataInstanceKey>,
 }
 impl ValueData {
+    /// Common represented domain of an original expression merge, not a value or owner receipt.
+    #[must_use]
+    pub fn receipt(&self, expression: AccessExpressionId) -> Option<&DataInstanceKey> {
+        self.receipts.get(&expression)
+    }
     /// Reference-root contract metadata, not an initialized value or physical allocation receipt.
     #[must_use]
     pub fn root(&self, at: flow::Location, referent: Referent) -> Option<&DataInstanceKey> {
@@ -46,6 +53,7 @@ impl ValueData {
         self.roots
             .values()
             .flat_map(|roots| std::iter::once(&roots.before).chain(roots.after.as_ref()))
+            .chain(self.receipts.values())
     }
     #[must_use]
     pub fn operand(&self, at: flow::Location, expression: AccessExpressionId) -> Option<&Payload> {
@@ -87,6 +95,7 @@ pub(in crate::value_access) fn values(
         operands: BTreeMap::new(),
         definitions: BTreeMap::new(),
         roots: BTreeMap::new(),
+        receipts: BTreeMap::new(),
     };
     let mut resolution =
         super::instantiation::Query::with_control(program, evidence, work, &control);
@@ -101,6 +110,7 @@ pub(in crate::value_access) fn values(
             values.operands.insert((at, expression), payload);
         }
     }
+    let mut contextual_receipts = false;
     for ((at, slot), source) in sources.definitions() {
         if !control.reachable(at.point) {
             continue;
@@ -116,6 +126,7 @@ pub(in crate::value_access) fn values(
             && let Some(payload) =
                 payload(program, evidence, frame, at, source, data, &mut resolution)?
         {
+            contextual_receipts |= !payload.instance().is_context_free();
             values.definitions.insert((at, slot), payload);
         }
     }
@@ -153,6 +164,10 @@ pub(in crate::value_access) fn values(
         values
             .roots
             .insert((at, referent), RootContracts { before: key, after });
+    }
+    drop(resolution);
+    if contextual_receipts {
+        values.receipts = receipts::prepare(program, evidence, frame, &values, work)?;
     }
     Ok(values)
 }

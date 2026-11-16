@@ -98,6 +98,30 @@ impl Builder<'_> {
             .map_err(Failure::Storage)
     }
 
+    fn receiving_root(&self, holder: Holder) -> Result<Option<RuntimeDataId>, Failure> {
+        let Holder::Expression(expression) = holder else {
+            return Ok(None);
+        };
+        self.instance
+            .receipt(expression)
+            .map(|key| {
+                self.storage
+                    .instance(self.instances.unit().program(), key)
+                    .map_err(Failure::Storage)
+            })
+            .transpose()
+    }
+    pub(super) fn receiving_data(
+        &self,
+        expression: AccessExpressionId,
+    ) -> Result<RuntimeDataId, Failure> {
+        self.receiving_root(Holder::Expression(expression))?
+            .map_or_else(
+                || self.definition(ValueSourceSlot::Expression(expression)),
+                Ok,
+            )
+    }
+
     pub(super) fn capture_data(&self, data: RuntimeDataId) -> Result<RuntimeDataId, Failure> {
         let Some(nocter_runtime_contract::RuntimeType::StaticCallable {
             environment: Some(environment),
@@ -181,12 +205,23 @@ impl Builder<'_> {
         self.keys.insert(key, id);
         Ok(id)
     }
+    #[allow(
+        clippy::too_many_lines,
+        reason = "Keep holder roles on one exhaustive storage mapping."
+    )]
     pub(super) fn root(
         &mut self,
         holder: Holder,
         selected: RuntimeDataId,
         partial: bool,
     ) -> Result<Place, Failure> {
+        if self.receiving_root(holder)?.is_some_and(|receiving| {
+            !self
+                .runtime
+                .has_same_value_representation(selected, receiving)
+        }) {
+            return Err(self.invalid());
+        }
         let (key, root, storage) = match holder {
             Holder::Local(local) => {
                 let item = self
@@ -283,6 +318,31 @@ impl Builder<'_> {
             data: selected,
             projections: Box::new([]),
         })
+    }
+    fn merge_receipt(
+        &mut self,
+        destination: &flow::resources::Place,
+        source: &Place,
+    ) -> Result<Option<Effect>, Failure> {
+        let Some(receiving) = self.receiving_root(destination.holder())? else {
+            return Ok(None);
+        };
+        if !destination.fields().is_root() {
+            return Err(self.invalid());
+        }
+        if self
+            .runtime
+            .has_same_value_representation(source.data, receiving)
+        {
+            return Ok(None);
+        }
+        if !self.runtime.permits_value_transport(source.data, receiving) {
+            return Err(self.invalid());
+        }
+        Ok(Some(Effect::Transport {
+            source: source.clone(),
+            destination: self.root(destination.holder(), receiving, false)?,
+        }))
     }
     fn place(
         &mut self,
@@ -793,6 +853,10 @@ impl Builder<'_> {
                                 self.payload_data(payload)?,
                                 projected,
                             )?;
+                            if let Some(effect) = self.merge_receipt(destination, &source)? {
+                                output.push(effect);
+                                continue;
+                            }
                             let destination = if let Some(roots) = projected.destination_roots() {
                                 if roots.destination() != destination {
                                     return Err(self.invalid());
@@ -1042,11 +1106,7 @@ impl Builder<'_> {
                     .get(id)
                     .and_then(|e| e.ty.normal())
                 {
-                    let payload = self
-                        .instance
-                        .definition(at, ValueSourceSlot::Expression(id))
-                        .ok_or_else(|| self.invalid())?;
-                    let data = self.payload_data(payload)?;
+                    let data = self.receiving_data(id)?;
                     self.slot(SlotKey::Expression(id), data, form(access.mode()))?;
                 }
             }

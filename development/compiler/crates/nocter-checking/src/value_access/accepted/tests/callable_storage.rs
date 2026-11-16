@@ -989,3 +989,60 @@ fn assert_invocation_domain_budget(
         expected
     );
 }
+
+#[test]
+fn original_expression_merges_retain_common_receipts_without_replacing_actual_definitions() {
+    use nocter_declarations::value_access::InstanceSchema;
+    use nocter_model::ValueField;
+    let budget = || {
+        nocter_constant_evaluation::state::WorkBudget::new(
+            std::num::NonZeroU64::new(100_000).unwrap(),
+        )
+    };
+    let unit = joined_runtime_unit();
+    let program = unit.program();
+    let code = program
+        .resolve(program.symbols().get("maybe").unwrap())
+        .unwrap();
+    let frame = program.bind_code(code.into(), []).unwrap();
+    let values = unit
+        .instantiate_value_data_map(&frame, &mut budget())
+        .unwrap();
+    let graph = unit.value_sources(frame.code()).unwrap();
+    let expression = graph
+        .nodes()
+        .find_map(|(_, node)| {
+            let crate::value_access::ValueSource::Merge {
+                slot: crate::value_access::ValueSourceSlot::Expression(expression),
+                ..
+            } = node.value
+            else {
+                return None;
+            };
+            values.receipt(expression).map(|_| expression)
+        })
+        .unwrap();
+    let receipt = values.receipt(expression).unwrap();
+    let primary = receipt
+        .component(program, ValueField::Variant(true))
+        .unwrap();
+    let InstanceSchema::FunctionAlternatives(choices) = primary.schema(program).unwrap() else {
+        panic!("complete choice receipt")
+    };
+    assert_eq!(choices.len(), 2);
+    assert_ne!(choices[0].environment(), choices[1].environment());
+    let result = unit
+        .instantiate_result_contract(&frame, &mut budget())
+        .unwrap();
+    assert!(receipt.has_same_representation(program, &result));
+    let mut limited =
+        nocter_constant_evaluation::state::WorkBudget::new(std::num::NonZeroU64::new(1).unwrap());
+    assert!(
+        unit.instantiate_value_data_map(&frame, &mut limited)
+            .is_err()
+    );
+    let retried = unit
+        .instantiate_value_data_map(&frame, &mut budget())
+        .unwrap();
+    assert_eq!(retried.receipt(expression), Some(receipt));
+}

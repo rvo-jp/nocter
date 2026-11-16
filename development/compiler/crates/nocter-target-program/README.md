@@ -134,8 +134,9 @@ code instance. Source-selected moves, reservations and snapshots remain unchange
 
 `Instance::operand` and `Instance::definition` retain checking's read-only `ValueData` from
 [`Unit::instantiate_value_data_map`](../nocter-checking/README.md#shared-flow-access-and-resource-validation).
-This layer does not traverse source definitions or select their schemas again. Storage interns the
-actual keys without changing source ownership or granting materialization.
+`Instance::receipt` carries checking's common expression-merge domain alongside those original
+occurrences. This layer does not traverse definitions, recompute joins or select their schemas again.
+Storage interns the actual and receiving keys without changing ownership or granting materialization.
 `Instance::referent_root` and `Instance::referent_root_after` retain checking's paired original
 reference-root contracts. Storage interns their complete keys separately from independently closed
 schema probes. These contracts identify

@@ -61,14 +61,16 @@ cannot authorize copying or silently broaden an earlier query. Shared dependenci
 failed parents, are handled independently of logical array cardinality. MIR transport validates this
 injection relation while retaining its separate fresh-slot and payload requirements. Machine plans
 preserve exact source-case bytes, independent containing offsets and reconstructed destination tags.
-Checking retains the stricter guarded-only source boundary until original value selection closes;
-these low-level plans alone do not qualify ordinary positive-choice execution.
+Checking's original expression-merge receipts supply the common receiving domain separately from
+concrete source definitions. Native source qualification and remaining invocation/epoch boundaries
+belong to the [Machine owner](../nocter-machine/README.md#finite-callable-choice-layout); these
+low-level plans alone grant no executable source admission.
 
 This descriptor supplies neither an active selector nor source, invocation, ownership or transport
 permission. Exact representation comparison still preserves runtime identities; directed guarded
 transport does not inject positive cases into a choice. Target storage can project complete canonical
-domains, while ordinary source execution remains unqualified until selected-case construction,
-transport, invocation and cleanup close.
+domains; each source consumer still needs its own selected-case construction, transport,
+invocation and cleanup qualification.
 The [Machine layout owner](../nocter-machine/README.md#finite-callable-choice-layout) describes the
 stored geometry independently of that admission boundary.
 

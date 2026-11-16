@@ -1730,3 +1730,102 @@ fn record_repacking_keeps_nominal_field_identity_and_never_loads_the_partial_par
     part.source.projections = hole.projections.clone();
     assert!(validate::program(&changed).is_err());
 }
+
+#[test]
+fn positive_local_joins_reject_unconverted_payload_storage_before_native_lowering() {
+    let fixture = ValueSourceFixture::new(
+        "func first(): i32 { 1 }\nfunc second(): i32 { 2 }\nfunc wrap(take action: func(): i32): func(): i32 { (action^;): i32 { action() } }\nfunc maybe(take action: func(): i32): (func(): i32)? { wrap(action^) }\nfunc select(present: bool): void {\nvar value = maybe(first)\nif present { value = maybe(second) }\nlet saved = value^\n}\nfunc run(): i32 { select(false)\nselect(true)\n42 }",
+    );
+    let unit = Arc::new(SourceUnit::prepare(fixture.syntax()).unwrap().into_unit());
+    let root = unit
+        .program()
+        .resolve(unit.program().symbols().get("run").unwrap())
+        .unwrap();
+    let instances = Arc::new(InstanceProgram::prepare(unit, root).unwrap());
+    let lifecycle = lifecycle::Program::prepare(instances).unwrap();
+    assert!(matches!(
+        Program::lower(&lifecycle, RuntimeAbiIdentity::Arm64DarwinV1),
+        Err(Failure::InvalidBody(_))
+    ));
+}
+
+#[test]
+fn original_expression_receipts_require_encoding_before_any_common_domain_read() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/value-contexts/contextual-joined-sibling-growth.nct"
+    ));
+    let (definitions, _) = source.split_once("\nconst ANSWER:").unwrap();
+    let source = format!(
+        "{}\nfunc run(): i32 {{ let first = maybe(false)\nlet second = maybe(true)\n42 }}",
+        definitions.replace("const func", "func")
+    );
+    let program = lower(&source);
+    let (owner, at, index) = program
+        .bodies
+        .iter()
+        .find_map(|(&id, body)| {
+            body.actions.iter().find_map(|(&at, action)| {
+                action
+                    .alternatives
+                    .iter()
+                    .enumerate()
+                    .find_map(|(index, alternative)| {
+                        alternative
+                            .after
+                            .iter()
+                            .any(|effect| matches!(effect, Effect::Transport { .. }))
+                            .then_some((id, at, index))
+                    })
+            })
+        })
+        .unwrap();
+    for corrupt_storage in [false, true] {
+        let mut changed = program.clone();
+        let body = changed.bodies.get_mut(&owner).unwrap();
+        let effects = &mut body.actions.get_mut(&at).unwrap().alternatives[index].after;
+        let effect = effects
+            .iter_mut()
+            .find(|effect| matches!(effect, Effect::Transport { .. }))
+            .unwrap();
+        let Effect::Transport {
+            source,
+            destination,
+        } = effect
+        else {
+            unreachable!()
+        };
+        assert_ne!(source.slot, destination.slot);
+        assert_eq!(
+            body.slots
+                .get(destination.slot)
+                .unwrap()
+                .representations
+                .as_ref(),
+            &[destination.root]
+        );
+        if corrupt_storage {
+            body.slots = body.slots.map(|id, slot| {
+                let mut slot = slot.clone();
+                if id == destination.slot {
+                    let mut roots = slot.representations.to_vec();
+                    roots.push(source.data);
+                    roots.sort_unstable();
+                    roots.dedup();
+                    slot.representations = roots.into();
+                }
+                slot
+            });
+            destination.root = source.data;
+            destination.data = source.data;
+        }
+        *effect = Effect::Transfer {
+            source: source.clone(),
+            destination: destination.clone(),
+        };
+        assert!(
+            matches!(validate::program(&changed), Err(Failure::InvalidBody(_))),
+            "storage registration cannot replace actual encoding: {corrupt_storage}"
+        );
+    }
+}

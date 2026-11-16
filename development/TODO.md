@@ -142,6 +142,15 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Implement selected native callable-domain movement through canonical case correspondence,
   independent containing offsets and target tag reconstruction. Share tag switching with cleanup;
   qualify closed layout plans and preserve checking's source-admission boundary before execution.
+- [ ] Qualify positive local-merge and loop-epoch encoding at original incoming writes/edges.
+  Reject mixed local representations that acquire a positive tag only through metadata until
+  original control, retained aliases and complete physical normalization are preserved.
+- [x] Normalize each original expression-merge receipt into its common represented domain before
+  later reads. A mixed-representation slot's capacity does not construct tags or relocate payloads;
+  retain actual source-step availability, one owner and original source correspondence.
+- [x] Qualify original-source positive callable construction, returned carrier storage and whole
+  retirement through checking, MIR and native execution before admitting general invocation or
+  changing retained addresses. Preserve original runtime choices and complete capture identities.
 - [ ] Close the [positive callable alternative obligations](design/compiler-realization.md#positive-callable-alternatives)
   through the canonical data-instance graph, guarded source transport, evaluator/target plans,
   native selection and cleanup before widening source admission. The value-context fixture

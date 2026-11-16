@@ -73,6 +73,23 @@ impl Context<'_> {
             Err(self.invalid())
         }
     }
+    fn merge_representation(&self, slot: &super::Slot, root: RuntimeDataId) -> Result<(), Failure> {
+        if slot.representations.len() < 2 {
+            return Ok(());
+        }
+        let mut relations = self.program.runtime.value_relations();
+        for &previous in &slot.representations {
+            if previous != root
+                && relations.permits_value_transport(previous, root)
+                && !relations.permits_guarded_value_transport(previous, root)
+            {
+                // An unqualified slot join cannot reinterpret old cases as a tagged domain.
+                // Local epoch/edge normalization remains separate from new expression receipts.
+                return Err(self.invalid());
+            }
+        }
+        Ok(())
+    }
     fn place(&self, place: &Place) -> Result<(), Failure> {
         self.require(!matches!(
             self.program.runtime.types().get(place.data),
@@ -84,6 +101,7 @@ impl Context<'_> {
             .get(place.slot)
             .ok_or_else(|| self.invalid())?;
         self.require(slot.representations.contains(&place.root))?;
+        self.merge_representation(slot, place.root)?;
         let mut data = place.root;
         for projection in &place.projections {
             data = match projection {

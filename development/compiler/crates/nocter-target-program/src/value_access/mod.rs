@@ -76,6 +76,14 @@ impl Instance {
     ) -> Option<&Payload> {
         self.values.definition(at, slot)
     }
+    /// Receiving domain selected by an original expression merge; actual writes own availability.
+    #[must_use]
+    pub fn receipt(
+        &self,
+        expression: AccessExpressionId,
+    ) -> Option<&nocter_declarations::value_access::DataInstanceKey> {
+        self.values.receipt(expression)
+    }
     /// Original reference-root contract metadata; this is not a resource-phase or layout proof.
     #[must_use]
     pub fn referent_root(

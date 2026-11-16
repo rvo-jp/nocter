@@ -59,11 +59,7 @@ impl Builder<'_> {
         }
     }
     fn result(&mut self, id: AccessExpressionId) -> Result<Place, Failure> {
-        self.root(
-            Holder::Expression(id),
-            self.definition(ValueSourceSlot::Expression(id))?,
-            false,
-        )
+        self.root(Holder::Expression(id), self.receiving_data(id)?, false)
     }
     fn snapshot(
         &mut self,

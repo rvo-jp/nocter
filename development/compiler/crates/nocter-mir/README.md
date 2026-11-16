@@ -73,6 +73,16 @@ contracts at the original action, while partial input resource roots retain the 
 Contextual evaluated reference arguments likewise retain the original action's complete selected root.
 Outcome tag inspection projects its selected data from that same original referent-root contract,
 including nested callable contexts; it does not reconstruct the carrier from an unbound type.
+A checked whole-value move into an original expression merge uses checking's shared receiving
+contract. If its actual representation differs, lowering emits `Transport` directly from the
+original supplied place into the common expression slot. Subsequent merged reads therefore consume
+an encoded value, not a larger allocation containing bytes written in an older format. Original
+source-step availability and ownership stay unchanged. A concrete view that cannot use that
+receiving representation rejects rather than treating metadata as a physical conversion.
+Integrity also rejects a mixed slot's positive-domain injection when its old registered cases would
+otherwise acquire a selector only through metadata. Local and loop-epoch conversion remains
+unqualified; sufficient slot capacity and equal dimensions cannot establish an active tag.
+
 Integrity validation rejects uninhabited stored-slot representations and positive places, while
 outcome metadata can retain an excluded child. Constructing that child's primary tag rejects;
 an existing tag assertion remains a guard rather than a payload-construction permission.

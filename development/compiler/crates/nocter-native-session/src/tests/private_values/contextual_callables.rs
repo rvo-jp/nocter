@@ -2057,3 +2057,87 @@ fn private_complete_fallible_cleanup_selects_actual_record_callback_and_error_gr
         42,
     );
 }
+
+#[test]
+fn private_positive_callable_domains_return_store_and_retire_original_runtime_choices() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/value-contexts/contextual-joined-sibling-growth.nct"
+    ));
+    let (definitions, _) = source.split_once("\nconst ANSWER:").unwrap();
+    let source = format!(
+        "{}\nfunc run(): i32 {{ let first = maybe(false)\nlet second = maybe(true)\n42 }}",
+        definitions.replace("const func", "func")
+    );
+    let plain = machine(&source);
+    assert_positive_constructors(&plain);
+    let package = TempPackage::new();
+    execute_native_status(
+        &image(&plain),
+        &package.0,
+        "positive-callable-retirement",
+        42,
+    );
+    let owned = source.replace("struct Item { value: i32 }", "struct Item { value: i32\nreason: error }")
+        .replace("Item { value: value }", "Item { value: value, reason: context_error(create_failure(\"choice\", \"leaf\"), \"outer\") }");
+    assert_ne!(owned, source);
+    let owned = format!(
+        "primitive func create_failure(code: str, message: str): error\nprimitive func context_error(take value: error, message: str): error\n{owned}"
+    );
+    let owned = trusted_error_machine(&owned);
+    assert_positive_constructors(&owned);
+    assert!(owned.functions().any(|(_, function)| {
+        let body = function.body();
+        body.parameters()
+            .first()
+            .and_then(|&id| body.stack(id))
+            .is_some_and(|slot| {
+                matches!(
+                    owned.layouts().get(slot.ty()).unwrap().kind(),
+                    nocter_machine::MachineLayoutKind::CallableAlternatives { .. }
+                )
+            })
+            && body.blocks().any(|(_, block)| {
+                matches!(
+                    block.terminator(),
+                    nocter_machine::MachineTerminator::SwitchValue { .. }
+                )
+            })
+    }));
+    assert!(
+        owned
+            .functions()
+            .flat_map(|(_, function)| function.body().operations())
+            .any(|(_, operation)| matches!(
+                operation.kind(),
+                nocter_machine::MachineOperationKind::ReleaseError { .. }
+            ))
+    );
+    execute_native_status(&image(&owned), &package.0, "positive-owned-retirement", 42);
+}
+
+fn assert_positive_constructors(machine: &nocter_machine::MachineProgram) {
+    let constructors = machine
+        .functions()
+        .filter(|(_, function)| {
+            let body = function.body();
+            let parameters = body.parameters();
+            if parameters.len() != 2 {
+                return false;
+            }
+            let source = body.stack(parameters[0]).unwrap();
+            let target = body.stack(parameters[1]).unwrap();
+            matches!(
+                machine.layouts().get(source.ty()).unwrap().kind(),
+                nocter_machine::MachineLayoutKind::StaticCallable { .. }
+            ) && matches!(
+                machine.layouts().get(target.ty()).unwrap().kind(),
+                nocter_machine::MachineLayoutKind::CallableAlternatives { .. }
+            )
+        })
+        .count();
+    assert!(
+        constructors >= 2,
+        "both original cases need tagged construction: {constructors}"
+    );
+}

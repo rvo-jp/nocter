@@ -820,12 +820,21 @@ Caller writes consume those contexts only through the qualified correspondence d
 the original source graph's operand selections and final local/expression writes at each reachable
 action, using typed schemas and the shared source-value query under one metadata quota. Intermediate
 writes within one action do not become new phases. Unproduced contracts supply no payload. Failure
-identifies the original action and publishes no partial map; a fresh request can retry. The read-only
+identifies the original action and publishes no partial map; a fresh request can retry.
 One batch retains the source-value fixed point across its operand, definition and root queries;
 prepared-argument batches do the same. The immutable program/evidence and complete frame/source/
 path/type keys bound reuse, so equal signatures cannot merge distinct occurrences or environments.
 Every request charges work, including a solved hit. An interrupted solve discards its draft facts
 and pending work before retry; no partial map or executable permission escapes.
+`ValueData::receipt` retains a common represented domain for an original expression-slot merge.
+The graph identifies the merged slot; reachable original definitions supply complete contexts to
+the declaration-owned budgeted join. Concrete definitions remain unchanged. These receiving keys
+join the existing storage-root inventory and grant neither initialized storage nor a second owner.
+Closed definitions require no new merge traversal, keeping ordinary scalar preparation on its
+existing work path. MIR consumes a receiving key only at an actual checked whole-value move into
+that expression; it must encode the value before a later merged read. Local/loop epochs and retained
+references require their own physical qualification rather than inheriting this scope.
+
 `ValueData` retains actual instantiated payload contracts without adding owners or granting source
 access, materialization or executable-body permission. Target-program occurrence projection consumes
 this map directly. Evaluator preparation registers its local/expression definitions alongside the
