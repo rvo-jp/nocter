@@ -128,7 +128,13 @@ fn checked_body_keys_must_match_the_complete_code_root_before_type_replay() {
     });
     assert_eq!(key.source_owner(), typed.source_owner());
     assert!(matches!(
-        super::super::check_queries(&context, BTreeMap::from([(key, typed)])),
+        super::super::check_queries(
+            &context,
+            BTreeMap::from([(key, typed)]),
+            &mut nocter_constant_evaluation::state::WorkBudget::new(
+                nocter_constant_evaluation::state::Limits::default().steps()
+            )
+        ),
         Err(Failure::Integrity(
             flow::IntegrityError::InconsistentTypedBody
         ))

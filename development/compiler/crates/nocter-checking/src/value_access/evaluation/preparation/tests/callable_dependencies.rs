@@ -361,10 +361,14 @@ fn unused_callback_permutations_share_condition_checks_only_after_data_qualifica
     assert!(dependencies::value(&requests, answer).is_none());
     // A separate proof checks all actual callable data before sharing condition traversal.
     // Body discovery alone grants no such permission or executable-plan equivalence.
+    let checked = accepted::admit_resolved(
+        &preparation.context,
+        ready.resolved,
+        Some(&ready.invoked),
+        &mut preparation.condition_work,
+    )
+    .unwrap();
     preparation.condition_work = state::WorkBudget::new(std::num::NonZeroU64::new(4).unwrap());
-    let checked =
-        accepted::admit_resolved(&preparation.context, ready.resolved, Some(&ready.invoked))
-            .unwrap();
     let admission = accepted::check_required_const(
         &preparation.context,
         &checked,
@@ -492,9 +496,13 @@ fn independent_invocation_positions_share_only_fully_covered_named_conditions() 
         panic!("preloaded ordinary bodies close original-recipe discovery");
     };
     assert_eq!(ready.invoked.len(), 6);
-    let checked =
-        accepted::admit_resolved(&preparation.context, ready.resolved, Some(&ready.invoked))
-            .unwrap();
+    let checked = accepted::admit_resolved(
+        &preparation.context,
+        ready.resolved,
+        Some(&ready.invoked),
+        &mut preparation.condition_work,
+    )
+    .unwrap();
     preparation.condition_work = state::WorkBudget::new(std::num::NonZeroU64::new(64).unwrap());
     let admission = accepted::check_required_const(
         &preparation.context,

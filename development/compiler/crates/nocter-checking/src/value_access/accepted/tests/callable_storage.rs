@@ -1319,3 +1319,62 @@ fn selected_contextual_results_reject_a_nonuniform_candidate_without_an_internal
         crate::value_access::evaluation::Rule::UnresolvedContext
     );
 }
+
+#[test]
+fn contextual_definition_checks_obey_configured_limits_and_share_one_final_scope() {
+    let common = "struct Handler { callback: func(i32): i32 }\nconst func identity(value: i32): i32 { value }\n";
+    let definition = "const func first(): i32 { let holder = Handler { callback: identity }\nholder.callback(42) }";
+    let single = nocter_test_support::ValueSourceFixture::new(&format!("{common}{definition}"));
+    let double = nocter_test_support::ValueSourceFixture::new(&format!(
+        "{common}{definition}\n{}",
+        definition.replace("first()", "second()")
+    ));
+    let single_limit = minimum_definition_steps(&single);
+    let double_limit = minimum_definition_steps(&double);
+    assert!(single_limit > 1);
+    assert!(double_limit > single_limit);
+    assert!(!definition_check_with_steps(&double, single_limit));
+    assert!(definition_check_with_steps(&double, double_limit));
+    assert!(!definition_check_with_steps(&single, single_limit - 1));
+    assert!(definition_check_with_steps(&single, single_limit));
+    let runtime = nocter_test_support::ValueSourceFixture::new(
+        &format!("{common}{definition}").replace("const func", "func"),
+    );
+    assert!(definition_check_with_steps(&runtime, 1));
+}
+
+fn minimum_definition_steps(source: &nocter_test_support::ValueSourceFixture) -> u64 {
+    let mut low = 1;
+    let mut high = 10_000;
+    assert!(definition_check_with_steps(source, high));
+    while low < high {
+        let middle = low + (high - low) / 2;
+        if definition_check_with_steps(source, middle) {
+            high = middle;
+        } else {
+            low = middle + 1;
+        }
+    }
+    low
+}
+
+fn definition_check_with_steps(
+    source: &nocter_test_support::ValueSourceFixture,
+    steps: u64,
+) -> bool {
+    let limits = nocter_constant_evaluation::CompileTimeEvaluationLimits::new(
+        std::num::NonZeroU64::new(steps).unwrap(),
+        std::num::NonZeroU32::new(64).unwrap(),
+    );
+    match SourceUnit::prepare_with_limits(source.syntax(), limits) {
+        Ok(_) => true,
+        Err(SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })) => {
+            assert_eq!(
+                diagnostic.rule(),
+                crate::value_access::evaluation::Rule::ConditionWorkLimit
+            );
+            false
+        }
+        Err(failure) => panic!("unexpected definition-check failure: {failure:?}"),
+    }
+}

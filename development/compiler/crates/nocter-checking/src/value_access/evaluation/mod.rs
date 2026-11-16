@@ -239,6 +239,7 @@ impl Values for dependencies::Dependencies {
     }
 }
 pub(super) struct Output {
+    pub(super) condition_limit: std::num::NonZeroU64,
     pub(super) queries: BTreeMap<nocter_model::ValueCodeRoot, super::Query>,
     pub(super) values: BTreeMap<nocter_model::ValueCodeRoot, Arc<FrozenData>>,
     pub(super) header_sources: nocter_declaration_lowering::access_declarations::BodySources,

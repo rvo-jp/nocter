@@ -211,7 +211,7 @@ impl<'a, 'source> Preparation<'a, 'source> {
         Ok(())
     }
     fn finish(self, requests: Dependencies) -> Result<Output, Failure> {
-        dependencies::finish(requests, &self.context)
+        dependencies::finish(requests, &self.context, self.budget.limits().steps())
     }
     fn require_header(
         &mut self,
@@ -628,8 +628,12 @@ impl<'a, 'source> Preparation<'a, 'source> {
     ) -> Result<Completed, Failure> {
         // This is the ordinary acceptance routine over the selected const closure, not another
         // source checker or evaluator. Only established frozen data crosses into final Unit typing.
-        let checked =
-            accepted::admit_resolved(&self.context, ready.resolved, Some(&ready.invoked))?;
+        let checked = accepted::admit_resolved(
+            &self.context,
+            ready.resolved,
+            Some(&ready.invoked),
+            &mut self.condition_work,
+        )?;
         let admission =
             accepted::check_required_const(&self.context, &checked, id, &mut self.condition_work)?;
         if !super::super::constant::supports_final(&checked.program, result_data)

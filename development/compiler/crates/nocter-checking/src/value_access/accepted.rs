@@ -131,13 +131,15 @@ impl Unit {
             .verify_header_values(|id| evaluation.values.get(&id.into()).map(AsRef::as_ref))
             .map_err(|_| Failure::Integrity(flow::IntegrityError::InconsistentTypedBody))?;
         let queries = evaluation.queries;
+        let mut definition_work =
+            nocter_constant_evaluation::state::WorkBudget::new(evaluation.condition_limit);
         let Checked {
             program,
             bodies,
             closures,
             result_evidence,
             const_templates,
-        } = check_queries(context, queries)?;
+        } = check_queries(context, queries, &mut definition_work)?;
         Ok(Self {
             initializers: evaluation
                 .values
@@ -840,13 +842,20 @@ pub(super) fn resolve_queries(
 pub(super) fn check_queries(
     context: &DeclarationContext<'_>,
     queries: BTreeMap<nocter_model::ValueCodeRoot, TypedQuery>,
+    definition_work: &mut nocter_constant_evaluation::state::WorkBudget,
 ) -> Result<Checked, Failure> {
-    admit_resolved(context, resolve_queries(context, queries)?, None)
+    admit_resolved(
+        context,
+        resolve_queries(context, queries)?,
+        None,
+        definition_work,
+    )
 }
 pub(super) fn admit_resolved(
     context: &DeclarationContext<'_>,
     resolved: Resolved,
     invoked: Option<&BTreeSet<nocter_model::ValueCode>>,
+    definition_work: &mut nocter_constant_evaluation::state::WorkBudget,
 ) -> Result<Checked, Failure> {
     let Resolved {
         program,
@@ -882,8 +891,13 @@ pub(super) fn admit_resolved(
             bodies.insert(root, Arc::new(query));
         }
     }
-    let const_templates =
-        const_admission::check_const_bodies(&program, &bodies, &closures, &verified)?;
+    let const_templates = const_admission::check_const_bodies(
+        &program,
+        &bodies,
+        &closures,
+        &verified,
+        definition_work,
+    )?;
     Ok(Checked {
         program,
         bodies,

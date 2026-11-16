@@ -1576,8 +1576,13 @@ A shared reverse-call filter retains transitive contextual obligations; it is no
 proof. Definitions without independently complete input/capture contexts conservatively reject
 contextual invocation until symbolic context proof is qualified. Interrupted field calls likewise
 reject when no committed occurrence supplies an actual callee; a type signature cannot stand in for
-that missing capability evidence. Constructor-only generic carriers retain their separate conditions. Declaration checks share one bounded default work scope;
-configurable declaration limits and general symbolic contexts remain open.
+that missing capability evidence. Constructor-only generic carriers retain their separate conditions. Definition checks consume an explicitly supplied condition-work scope. During required-root
+preparation they share that root's remaining quota with dependency discovery and admission.
+Final whole-unit definition checking has one fresh scope using the same configured step limit,
+shared across all definitions. The ordinary preparation product carries that policy to final
+closure; admission never creates a default quota or resets one per definition. Small configured
+limits retain source-backed condition-work diagnostics and healthy retry. General symbolic
+contexts remain open.
 
 `value_access::constant` owns this bounded domain check. It admits primitive Boolean/integer/unit
 operations, optional construction/assertion, eligible fallible success values and finite record/tuple/array payload compositions of supported data, local values, read/edit aliases,

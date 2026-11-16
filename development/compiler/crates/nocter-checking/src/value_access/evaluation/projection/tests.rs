@@ -39,6 +39,7 @@ fn checked_scope(
             )
         })
         .collect();
+    let mut definition_work = plan::WorkBudget::new(plan::Limits::default().steps());
     if let Some(names) = invoked {
         let invoked = names
             .iter()
@@ -51,9 +52,16 @@ fn checked_scope(
             })
             .collect();
         let resolved = crate::value_access::accepted::resolve_queries(&context, queries).unwrap();
-        crate::value_access::accepted::admit_resolved(&context, resolved, Some(&invoked)).unwrap()
+        crate::value_access::accepted::admit_resolved(
+            &context,
+            resolved,
+            Some(&invoked),
+            &mut definition_work,
+        )
+        .unwrap()
     } else {
-        crate::value_access::accepted::check_queries(&context, queries).unwrap()
+        crate::value_access::accepted::check_queries(&context, queries, &mut definition_work)
+            .unwrap()
     }
 }
 fn copy_extension(extension: &plan::ProgramExtension) -> plan::ProgramExtension {

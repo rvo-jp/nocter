@@ -46,6 +46,7 @@ pub(super) const INVALID: super::Failure =
 pub(super) fn finish(
     query: Dependencies,
     context: &nocter_declaration_lowering::access_declarations::Context<'_>,
+    condition_limit: std::num::NonZeroU64,
 ) -> Result<super::Output, super::Failure> {
     use nocter_declaration_lowering::access_declarations as declarations;
     use std::{
@@ -117,6 +118,7 @@ pub(super) fn finish(
             .freeze_constant_sources(&sources.select(root).ok_or(INVALID)?);
     }
     Ok(super::Output {
+        condition_limit,
         queries,
         values,
         header_sources,

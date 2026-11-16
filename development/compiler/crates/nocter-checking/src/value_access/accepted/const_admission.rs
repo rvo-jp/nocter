@@ -184,14 +184,12 @@ pub(super) fn check_const_bodies(
     bodies: &BTreeMap<nocter_model::ValueCodeRoot, Arc<flow::Query>>,
     closures: &BTreeMap<nocter_model::ValueClosure, Arc<flow::Query>>,
     verified: &results::Verified<'_, '_>,
+    definition_work: &mut nocter_constant_evaluation::state::WorkBudget,
 ) -> Result<Arc<constant::Catalog>, Failure> {
     let availability =
         constant::Catalog::prepare(bodies.values().chain(closures.values()).cloned())
             .map_err(Failure::Integrity)?;
     let mut const_roots = Vec::new();
-    let mut definition_work = nocter_constant_evaluation::state::WorkBudget::new(
-        nocter_constant_evaluation::state::Limits::default().steps(),
-    );
     for (&root, query) in bodies {
         let callable = root.source_owner();
         let evaluatable = match root {
@@ -235,7 +233,7 @@ pub(super) fn check_const_bodies(
         }
     }
     for root in const_roots {
-        check_definition_context(program, &availability, verified, root, &mut definition_work)?;
+        check_definition_context(program, &availability, verified, root, definition_work)?;
         if let Some((callable, diagnostic)) =
             availability.closed_violation(root.code(), verified)?
         {

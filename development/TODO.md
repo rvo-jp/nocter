@@ -18,11 +18,12 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Connect declaration-time contextual const checks to the configured condition-work scope. Preserve
-one request's remaining quota through required-value preparation and final whole-unit definition
-checks instead of creating a fixed default quota inside admission. Qualify dormant definitions,
-shared limits across definitions and source-backed exhaustion/retry. Keep general symbolic input
-and capture proofs separate from this work-policy correction.
+Qualify nested callable signature conformance before widening callable headers and higher-order
+field invocation. Equal structural contracts at different declaration-owned identities must match
+without equating their runtime witnesses, input owners or result producers. Preserve nested access
+operations, invocation views, nominal data identities, depth/sharing and precise mismatch paths.
+Then connect original actual argument/result contexts through each consumer; matching signatures
+alone cannot grant payload, invocation or const permission.
 
 Complete occurrence-sensitive value/capture transport under the
 [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances).
@@ -674,8 +675,9 @@ not a language restriction derived from the current realization boundary.
   compound-input or capture contexts are not independently closed. Preserve dormant runtime-call
   rejection and original input provenance before removing conservative contextual-call rejection,
   including interrupted field calls without a committed occurrence.
-  Keep declaration-check work in one bounded scope and connect configurable limits before
-  widening the ordinary compiler workflow.
+- [x] Connect contextual declaration checks to the configured condition-work policy. Share the
+  required root's remaining scope during preparation and one configured final scope across all
+  definitions; qualify source-backed exhaustion and healthy retry without internal quota resets.
 - [x] Bind original named/captured values to callable field contracts without erasing code,
   invocation or environment identity. Qualify construction, field invocation, forwarding and
   retirement through required/native consumers; keep abstract contracts nonconcrete and non-Copy.
