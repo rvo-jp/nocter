@@ -1,4 +1,4 @@
-//! Structural complement of one tuple destination; ownership and address freedom are separate.
+//! Structural complement of one aggregate destination; ownership and address freedom are separate.
 use super::{Place, Preservation, Preserved, Projection, RemainderExclusion};
 use nocter_model::ValueField;
 use nocter_runtime_contract::{
@@ -58,23 +58,29 @@ pub(super) fn preserved(
             prefix.push(*projection);
             continue;
         }
-        let Projection::Field(ValueField::Tuple(selected)) = projection else {
+        let Projection::Field(selected @ (ValueField::Tuple(_) | ValueField::Record(_))) =
+            projection
+        else {
             return None;
         };
-        let old = tuple_fields(runtime, left)?;
-        let new = tuple_fields(runtime, right)?;
-        if old.len() != new.len() || *selected >= old.len() {
+        let old = aggregate_fields(runtime, left)?;
+        let new = aggregate_fields(runtime, right)?;
+        let selected = old.iter().position(|field| field.field() == *selected)?;
+        if old.len() != new.len() {
             return None;
         }
         for (index, (old, new)) in old.iter().zip(new).enumerate() {
-            if index == *selected {
+            if old.field() != new.field() {
+                return None;
+            }
+            if index == selected {
                 continue;
             }
             if old.ty() != new.ty() {
                 return None;
             }
             let mut path = prefix.clone();
-            path.push(Projection::Field(ValueField::Tuple(index)));
+            path.push(Projection::Field(old.field()));
             let source = Place {
                 slot: destination.slot,
                 root: before,
@@ -87,8 +93,8 @@ pub(super) fn preserved(
             };
             retained.push((source, target));
         }
-        left = old[*selected].ty();
-        right = new[*selected].ty();
+        left = old[selected].ty();
+        right = new[selected].ty();
         prefix.push(*projection);
     }
     if right != destination.data {
@@ -177,18 +183,6 @@ fn aggregate_fields(
         return None;
     };
     Some(fields)
-}
-
-fn tuple_fields(
-    runtime: &RuntimeEnvironment,
-    data: RuntimeDataId,
-) -> Option<&[RuntimeValueFieldRepresentation]> {
-    let fields = aggregate_fields(runtime, data)?;
-    fields
-        .iter()
-        .enumerate()
-        .all(|(index, field)| field.field() == ValueField::Tuple(index))
-        .then_some(fields)
 }
 
 fn singleton_element(runtime: &RuntimeEnvironment, data: RuntimeDataId) -> Option<RuntimeDataId> {

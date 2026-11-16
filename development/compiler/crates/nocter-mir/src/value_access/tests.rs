@@ -2075,3 +2075,43 @@ fn scoped_sparse_repacking_cannot_load_missing_siblings_or_lose_original_exclusi
         );
     }
 }
+
+#[test]
+fn record_repacking_rejects_positional_substitution_for_logical_field_identity() {
+    let program = lower(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-scoped-record-growth.nct"
+    )));
+    let mut changed = program.clone();
+    let mut found = None;
+    for (&id, body) in &mut changed.bodies {
+        for action in body.actions.values_mut() {
+            for alternative in &mut action.alternatives {
+                for effect in &mut alternative.after {
+                    if let Effect::Repack { destination, .. } = effect
+                        && matches!(
+                            destination.projections.first(),
+                            Some(Projection::Field(nocter_model::ValueField::Record(_)))
+                        )
+                    {
+                        destination.projections[0] =
+                            Projection::Field(nocter_model::ValueField::Tuple(0));
+                        found = Some(id);
+                        break;
+                    }
+                }
+                if found.is_some() {
+                    break;
+                }
+            }
+            if found.is_some() {
+                break;
+            }
+        }
+        if found.is_some() {
+            break;
+        }
+    }
+    let id = found.expect("a record-field repack");
+    assert!(matches!(validate::program(&changed), Err(Failure::InvalidBody(found)) if found == id));
+}

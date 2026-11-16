@@ -1,0 +1,40 @@
+struct Item { value: i32 }
+const func identity(value: i32): i32 { value }
+const func addition(value: i32): func(i32): i32 {
+    let item = Item { value: value }
+    (item^; amount: i32): i32 { item.value + amount }
+}
+const func wrap(take callback: func(i32): i32): func(i32): i32 {
+    (callback^; amount: i32): i32 { callback(amount) }
+}
+struct Holder { action: func(i32): i32
+    sentinel: i32 }
+const func scoped(): i32 {
+    var holder = Holder { action: wrap(identity), sentinel: 42 }
+    edit selected = holder.action
+    selected = wrap(addition(1))
+    if selected(41) == 42 && holder.sentinel == 42 { 42 } else { 0 }
+}
+const func direct(): i32 {
+    var holder = Holder { action: wrap(identity), sentinel: 42 }
+    holder.action = wrap(addition(1))
+    let first = holder.action(41)
+    holder.action = wrap(identity)
+    if first == 42 && holder.action(42) == 42 && holder.sentinel == 42 { 42 } else { 0 }
+}
+struct Envelope { inner: Holder
+    tail: Item }
+const func nested_sparse(): i32 {
+    var outer = Envelope { inner: Holder { action: wrap(identity), sentinel: 42 }, tail: Item { value: 43 } }
+    let saved = outer.tail^
+    edit selected = outer.inner.action
+    selected = wrap(addition(1))
+    let first = selected(41)
+    selected = wrap(identity)
+    if first == 42 && selected(42) == 42 && outer.inner.sentinel == 42 && saved.value == 43 { 42 } else { 0 }
+}
+const func calculate(): i32 {
+    if scoped() == 42 && direct() == 42 && nested_sparse() == 42 { 42 } else { 0 }
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { calculate() }

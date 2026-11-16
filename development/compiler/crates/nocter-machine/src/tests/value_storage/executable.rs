@@ -574,3 +574,22 @@ fn scoped_growth_requires_stable_retained_offsets_and_complete_local_carriers() 
         assert_eq!(lower(&source).is_ok(), accepted, "{body}");
     }
 }
+
+#[test]
+fn record_component_growth_uses_logical_fields_and_rejects_shifted_live_siblings() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-scoped-record-growth.nct"
+    ));
+    compile(source);
+    let source = source
+        .replace(
+            "edit selected = holder.action",
+            "read sibling = holder.sentinel\n    edit selected = holder.action",
+        )
+        .replace(
+            "selected(41) == 42 && holder.sentinel == 42",
+            "selected(41) == 42 && sibling == 42",
+        );
+    assert!(lower(&source).is_err());
+}

@@ -2752,6 +2752,28 @@ fn private_scoped_sparse_selections_preserve_snapshots_frontiers_bounds_and_erro
             5,
         );
     }
+    let machine = owning_addition_machine(source);
+    execute_native_status(&image(&machine), &package.0, "scoped-sparse-errors", 42);
+}
+
+#[test]
+fn private_scoped_record_growth_preserves_named_siblings_and_error_cleanup() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/contextual-scoped-record-growth.nct"
+    ));
+    let package = TempPackage::new();
+    execute_native_status(&compile(source), &package.0, "scoped-record-growth", 42);
+    execute_native_status(
+        &image(&owning_addition_machine(source)),
+        &package.0,
+        "scoped-record-errors",
+        42,
+    );
+}
+
+/// Real owning errors use the same source behavior as the ordinary Item-based callback fixture.
+fn owning_addition_machine(source: &str) -> nocter_machine::MachineProgram {
     let (definitions, _) = source.split_once("\nconst ANSWER:").unwrap();
     let runtime = definitions.replace("const func", "func");
     let owned = runtime.replace(
@@ -2772,5 +2794,5 @@ fn private_scoped_sparse_selections_preserve_snapshots_frontiers_bounds_and_erro
                 nocter_machine::MachineOperationKind::ReleaseError { .. }
             ))
     );
-    execute_native_status(&image(&machine), &package.0, "scoped-sparse-errors", 42);
+    machine
 }

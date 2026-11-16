@@ -18,11 +18,12 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify remaining owning-input and containing-record paths for scoped representation changes.
-Reproduce source admission failures against the canonical declared component contracts before
-changing inference or storage. Keep one original ownership transition, matched before/after root
-contracts and independently qualified retained offsets. Stable dynamic/prefix exclusions and
-consumed closure input capacity are qualified; external reference transport remains separate.
+Qualify remaining owning record-input paths for scoped representation changes. Separate native
+carrier transport from conditional const admission: a source probe reaches `ValueInvocation`
+for an edit alias of a received callable field after a known assignment. Reuse original stored
+sources and definition/instance contracts rather than equating a formal witness with a concrete
+callee. Record destinations, stable sparse exclusions and consumed closure input capacity are
+qualified; external reference transport remains separate.
 
 Complete occurrence-sensitive value/capture transport under the
 [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances).
@@ -103,6 +104,10 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Qualify consumed closure-environment input growth through the same scoped owning-carrier
   proof. Cover direct 4-to-36-byte and indirect 36-to-68-byte receipt, exact incoming instruction
   widths, maximum owning capacity, caller sentinels, required/native results and real owned errors.
+- [x] Extend the shared relocation complement to record destinations through canonical aggregate
+  field identities. Qualify direct/scoped growth, nested records, missing siblings and actual
+  owning errors; reject tuple-position substitution and shifted live record siblings. Preserve
+  existing tuple/singleton rules and one sibling-preservation authority.
 - [ ] Qualify remaining named/formal owning inputs across context-changing scoped replacement;
   preserve canonical received contracts, original ABI transport and caller storage isolation.
 - [x] Qualify stable dynamic-index and array-prefix holes during scoped repacking, preserving

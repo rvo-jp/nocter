@@ -106,10 +106,11 @@ independent roots keep their declaration-closed representation. Array remainder 
 the same selected container root as the cleanup operation. Partial destinations without an exact
 receipt still require independently closed or bound-input data. Matched owning partial moves use
 their original after-container for placement, preserving the preceding separate disposal.
-For direct owning assignments through tuple and singleton-array paths, `Effect::Repack` retains
+For direct owning assignments through tuple, record and singleton-array paths, `Effect::Repack` retains
 the original before-container, value/prefix exclusions outside the replaced subtree and
 all initialized disjoint siblings. Its shared structural projection requires unchanged sibling
-data. A singleton array contributes its one established resource coordinate, never a guessed
+data and exact corresponding logical field identities; record fields use the same runtime aggregate
+schema as tuple members, without positional casts. A singleton array contributes its one established resource coordinate, never a guessed
 first-element context. Plain targets require absence of retained addresses/reservations on both
 sides of the action. Evaluated targets require absence on completion: the original selection and
 bounds effects have finished, assignment emits no separate computation, and its receipt projects
@@ -163,7 +164,7 @@ defines the qualified ordinary-source capture scope.
 Scoped replacement through a whole edit alias can repack a single corresponding owned local
 carrier when its original lifecycle retains identical owning exclusions at entry, the operation
 boundary and normal exit. Both virtual-root leaves must exactly match that carrier's original before/after
-selection. Tuple and singleton-array containing paths reuse the structural preservation authority;
+selection. Tuple, record and singleton-array containing paths reuse the structural preservation authority;
 no missing sibling is assumed initialized. Scoped and direct receipts share the same missing-path
 conversion and structural complement; sparse arrays remain remainder preservation, never whole
 initialized loads. One payload slot registers both complete carrier
@@ -189,6 +190,11 @@ both saved coordinates, empty/partial/complete prefixes, initialized scalar sibl
 bounds failures and real saved/withdrawn/remaining error owners. These use the same exclusion
 conversion and sparse preservation traversal as direct receipts. This does not qualify changing
 sparse states, general external aliases or changing retained endpoint offsets.
+`contextual-scoped-record-growth.nct` qualifies direct and scoped named-field growth, nested
+record destinations and saved missing sibling fields through required/native execution and real
+owning-error cleanup. Corresponding aggregate fields must retain their logical identities and
+unchanged sibling data. A record field cannot become a tuple position, and a shifted live record
+sibling still rejects at Machine geometry qualification.
 
 The same owning-carrier proof applies to a consumed closure's environment input. The shared
 `contextual-owning-scoped-growth.nct` source qualifies direct and indirect incoming environments
