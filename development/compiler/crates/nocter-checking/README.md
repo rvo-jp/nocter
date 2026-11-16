@@ -1447,11 +1447,16 @@ contexts are constrained before their effects, destination contexts after receip
 retain distinct retired/supplied constraints. Whole owning-root moves emit the evaluator kernel's
 contextual receipt with the actual supplied data, preserving original retirement order. These
 constraints do not create values, access or owners. Publication rejects a mismatched constraint
-without retaining part of the plan. `flow::access::Analysis` retains node/reservation roots
+without retaining part of the plan. `flow::access::Analysis` retains original node/reservation regions
 separately before and after each reachable original action, unioned across its alternatives.
-`root_unretained` requires absence on both sides; `root_unretained_after` requires absence on normal
-completion. Missing action evidence never proves absence. Neither query proves initialization,
-relocation or permission to reuse an address staged for that operation. MIR combines them with
+`retained_regions` exposes those logical roots and component paths; absence of an action entry
+proves nothing. Paths distinguish tuple/record projections and known/unknown array coordinates,
+without supplying a byte offset, initialized value or address-stability proof. The root-level
+`root_unretained` and `root_unretained_after` predicates derive from this same region product,
+respectively requiring absence on both sides or on normal completion. There is no competing
+root-retention registry. Expired aliases disappear according to ordinary liveness; staged places
+and argument reservations retain their original selected regions. A retained logical path alone
+does not authorize relocation or reuse of an address staged for the operation. MIR combines them with
 the original owning transition, completed selection and its own structural sibling projection. General changing-holder registration, external alias carriers and the
 remaining source-admission boundary stay unqualified.
 Place, boundary, guard, component and index

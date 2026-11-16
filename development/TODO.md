@@ -75,6 +75,14 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [ ] Retain scoped replacement's independent retired/supplied obligations and actual alias-root
   selections through evaluator plans and changing partial-carrier geometry. An alias binding's
   immutable snapshot is not a later read of its referent; keep dependent source admission closed.
+  A tuple component updated through `edit selected = pair.0` from a captured wrapper to
+  `wrap(identity)` and back can evaluate to 42 but fails native Machine geometry validation, even
+  without a surviving sibling reference. Preserve selected alias addresses and initialized
+  siblings through a qualified physical transition; equal capacity alone is insufficient.
+- [x] Retain original node/reservation component regions before and after each analyzed action,
+  unioned across alternatives. Derive existing root-absence queries from that one product;
+  qualify alias expiry, staged reservations, conditional liveness and known/unknown indexed
+  coordinates without granting address stability, initialized storage or relocation permission.
 - [ ] Close carrier representation coherence under the
   [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances)
   before admitting context-changing writes and retained sibling references.

@@ -228,3 +228,143 @@ fn evaluated_destination_addresses_end_at_assignment_but_sibling_views_survive()
         ));
     }
 }
+
+#[test]
+fn retained_regions_preserve_component_paths_reservations_and_joined_alternatives() {
+    use super::{AccessPath, Root};
+    use nocter_model::ValueProjection;
+    use std::collections::BTreeSet;
+    let tuple = |index| AccessPath::new([ValueProjection::Tuple(index)]);
+    for (body, expected) in [
+        (
+            "edit selected = pair.0\nselected = 3\nreturn selected + pair.1",
+            vec![tuple(0)],
+        ),
+        (
+            "read sibling = pair.1\npair.0 = 3\nreturn sibling",
+            vec![tuple(1)],
+        ),
+        (
+            "return observe(pair.1, if flag { pair.0 = 3\n1 } else { 1 })",
+            vec![tuple(1)],
+        ),
+        (
+            "read first = pair.1\nread second = pair.2\npair.0 = 3\nreturn if flag { first } else { second }",
+            vec![tuple(1), tuple(2)],
+        ),
+        (
+            "read sibling = pair.1\nlet saved = sibling\npair.0 = 3\nreturn saved",
+            vec![],
+        ),
+    ] {
+        let source = format!(
+            "func observe(first: i32, second: i32): i32 {{ first + second }}\nfunc run(flag: bool): i32 {{ var pair = (1, 2, 3)\n{body} }}"
+        );
+        let query = analyze(&source).pop().unwrap();
+        assert!(query.access().violations().is_empty(), "{body}");
+        let local = query
+            .typed()
+            .body()
+            .locals()
+            .iter()
+            .find(|(_, local)| {
+                matches!(
+                    query.typed().program().data_schema(local.data),
+                    Some(nocter_declarations::value_access::PayloadSchema::Aggregate(
+                        _
+                    ))
+                )
+            })
+            .unwrap()
+            .0;
+        let mut found = 0;
+        for (point, block) in query.graph().points().iter() {
+            for (action, operation) in block.actions.iter().enumerate() {
+                if !matches!(operation.operation, super::super::Operation::Assign { .. }) {
+                    continue;
+                }
+                let at = super::super::Location { point, action };
+                let regions = query.access().retained_regions(at).unwrap();
+                let paths = regions
+                    .before()
+                    .chain(regions.after())
+                    .filter(|region| region.root == Root::Owned(local))
+                    .map(|region| region.fields.clone())
+                    .collect::<BTreeSet<_>>();
+                assert_eq!(paths, expected.iter().cloned().collect(), "{body}");
+                assert_eq!(
+                    query.access().root_unretained(at, Root::Owned(local)),
+                    paths.is_empty()
+                );
+                found += 1;
+            }
+        }
+        assert_eq!(found, 1, "{body}");
+        assert!(
+            query
+                .access()
+                .retained_regions(super::super::Location {
+                    point: query.graph().entry(),
+                    action: usize::MAX
+                })
+                .is_none()
+        );
+    }
+}
+
+#[test]
+fn retained_index_regions_preserve_known_and_unknown_coordinates() {
+    use super::{AccessPath, IndexFact, Root};
+    use nocter_model::ValueProjection;
+    for (index, expected) in [("0", IndexFact::Known(0)), ("index", IndexFact::Unknown)] {
+        let source = format!(
+            "func run(index: usize): i32 {{ var pair = (1, [2, 3])\nread selected = pair.1[{index}]\npair.0 = 4\nselected }}"
+        );
+        let query = analyze(&source).pop().unwrap();
+        assert!(query.access().violations().is_empty());
+        let local = query
+            .typed()
+            .body()
+            .locals()
+            .iter()
+            .find(|(_, local)| {
+                matches!(
+                    query.typed().program().data_schema(local.data),
+                    Some(nocter_declarations::value_access::PayloadSchema::Aggregate(
+                        _
+                    ))
+                )
+            })
+            .unwrap()
+            .0;
+        let expected =
+            AccessPath::new([ValueProjection::Tuple(1), ValueProjection::Array(expected)]);
+        let mut found = 0;
+        for (point, block) in query.graph().points().iter() {
+            for (action, operation) in block.actions.iter().enumerate() {
+                if !matches!(operation.operation, super::super::Operation::Assign { .. }) {
+                    continue;
+                }
+                let regions = query
+                    .access()
+                    .retained_regions(super::super::Location { point, action })
+                    .unwrap();
+                for observed in [
+                    regions
+                        .before()
+                        .filter(|region| region.root == Root::Owned(local))
+                        .collect::<Vec<_>>(),
+                    regions
+                        .after()
+                        .filter(|region| region.root == Root::Owned(local))
+                        .collect(),
+                ] {
+                    assert_eq!(observed.len(), 1);
+                    assert_eq!(observed[0].fields, expected);
+                }
+                found += 1;
+            }
+        }
+        assert_eq!(found, 1);
+    }
+}

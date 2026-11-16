@@ -27,7 +27,9 @@ pub enum Root {
     },
 }
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub(super) struct Region {
+/// An original logical address region. Unknown coordinates are not equality, bounds or
+/// byte-offset evidence; an observed region alone grants no access or relocation permission.
+pub struct Region {
     pub root: Root,
     pub fields: AccessPath,
 }
@@ -114,29 +116,49 @@ pub struct Analysis {
     liveness: Liveness,
     violations: Box<[Violation]>,
     resources: super::resources::Report,
-    retained_roots: BTreeMap<Location, RetainedRoots>,
+    retained_regions: BTreeMap<Location, RetainedRegions>,
 }
 #[derive(Clone, Debug, Default)]
-struct RetainedRoots {
-    before: BTreeSet<Root>,
-    after: BTreeSet<Root>,
+pub struct RetainedRegions {
+    before: BTreeSet<Region>,
+    after: BTreeSet<Region>,
+}
+impl RetainedRegions {
+    #[must_use]
+    pub fn before(&self) -> impl ExactSizeIterator<Item = &Region> {
+        self.before.iter()
+    }
+    #[must_use]
+    pub fn after(&self) -> impl ExactSizeIterator<Item = &Region> {
+        self.after.iter()
+    }
 }
 impl Analysis {
     /// No retained address or reservation names this root on either side of this action.
     /// This grants neither initialized storage nor permission to relocate a partial payload.
     #[must_use]
     pub fn root_unretained(&self, at: Location, root: Root) -> bool {
-        self.retained_roots
-            .get(&at)
-            .is_some_and(|roots| !roots.before.contains(&root) && !roots.after.contains(&root))
+        self.retained_regions.get(&at).is_some_and(|regions| {
+            !regions
+                .before
+                .iter()
+                .chain(&regions.after)
+                .any(|region| region.root == root)
+        })
     }
     /// No address/reservation for this root survives normal completion of the original action.
     /// A consumer must separately discharge any address used by the operation itself.
     #[must_use]
     pub fn root_unretained_after(&self, at: Location, root: Root) -> bool {
-        self.retained_roots
+        self.retained_regions
             .get(&at)
-            .is_some_and(|roots| !roots.after.contains(&root))
+            .is_some_and(|regions| !regions.after.iter().any(|region| region.root == root))
+    }
+    /// Union of original node/reservation regions on each side of an analyzed action.
+    /// Missing evidence proves nothing. These paths do not establish stable physical geometry.
+    #[must_use]
+    pub fn retained_regions(&self, at: Location) -> Option<&RetainedRegions> {
+        self.retained_regions.get(&at)
     }
     #[must_use]
     pub const fn status(&self) -> Status {
@@ -169,7 +191,7 @@ pub(super) fn analyze(
             liveness,
             violations: Box::new([]),
             resources: super::resources::Report::default(),
-            retained_roots: BTreeMap::new(),
+            retained_regions: BTreeMap::new(),
         });
     }
     let entry = World::entry(typed)?;
@@ -177,7 +199,7 @@ pub(super) fn analyze(
     let mut pending = BTreeSet::from([(graph.entry(), entry)]);
     let mut entries: BTreeMap<_, BTreeSet<World>> = BTreeMap::new();
     let mut violations = BTreeSet::new();
-    let mut retained_roots: BTreeMap<Location, RetainedRoots> = BTreeMap::new();
+    let mut retained_regions: BTreeMap<Location, RetainedRegions> = BTreeMap::new();
     while let Some((point, mut world)) = pending.pop_first() {
         world.trim(liveness.entry(point))?;
         if !entries.entry(point).or_default().insert(world.clone()) {
@@ -192,7 +214,7 @@ pub(super) fn analyze(
             let mut next = Vec::new();
             for mut world in worlds {
                 world.trim(liveness.before(location))?;
-                let retained = world.retained_roots();
+                let retained = world.retained_regions();
                 let before = world.resources.clone();
                 match effects::apply(
                     typed,
@@ -206,9 +228,9 @@ pub(super) fn analyze(
                     Ok(mut alternatives) => {
                         for (alternative, plan) in &mut alternatives {
                             alternative.trim(liveness.after(location))?;
-                            let roots = retained_roots.entry(location).or_default();
-                            roots.before.extend(retained.iter().copied());
-                            roots.after.extend(alternative.retained_roots());
+                            let regions = retained_regions.entry(location).or_default();
+                            regions.before.extend(retained.iter().cloned());
+                            regions.after.extend(alternative.retained_regions());
                             resources.record(location, &before, plan, &alternative.resources);
                             next.push(alternative.clone());
                         }
@@ -251,7 +273,7 @@ pub(super) fn analyze(
         liveness,
         violations: violations.into_iter().collect(),
         resources,
-        retained_roots,
+        retained_regions,
     })
 }
 const INVALID: IntegrityError = IntegrityError::InconsistentTypedBody;

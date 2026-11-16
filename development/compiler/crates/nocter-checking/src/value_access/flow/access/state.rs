@@ -48,15 +48,15 @@ pub(super) struct World {
 }
 const INVALID: IntegrityError = IntegrityError::InconsistentTypedBody;
 impl World {
-    pub(super) fn retained_roots(&self) -> BTreeSet<Root> {
+    pub(super) fn retained_regions(&self) -> BTreeSet<Region> {
         self.nodes
             .values()
-            .map(|node| node.region.root)
+            .map(|node| node.region.clone())
             .chain(
                 self.prepared
                     .values()
                     .filter_map(|prepared| match prepared {
-                        Prepared::Reserved { region, .. } => Some(region.root),
+                        Prepared::Reserved { region, .. } => Some(region.clone()),
                         Prepared::Value(_) => None,
                     }),
             )
