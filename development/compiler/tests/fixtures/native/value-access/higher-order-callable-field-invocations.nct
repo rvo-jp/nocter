@@ -1,0 +1,36 @@
+struct Item { value: i32 }
+struct Runner { callback: func(i32, func(i32): i32, i32): i32 }
+struct Taker { callback: func(i32, take func(i32): i32, i32): i32 }
+struct Editor { callback: func(edit mut(i32): i32): i32 }
+struct Factory { callback: func(i32): func(i32): i32 }
+const func identity(value: i32): i32 { value }
+const func invoke(before: i32, action: func(i32): i32, after: i32): i32 { action(before) + after }
+const func consume(before: i32, take action: func(i32): i32, after: i32): i32 { action(before) + after }
+const func update(edit action: mut(i32): i32): i32 { action(1) }
+const func make_callback(offset: i32): func(i32): i32 {
+    let item = Item { value: offset }
+    (item^; value: i32): i32 { item.value + value }
+}
+const func calculate(): i32 {
+    let runner = Runner { callback: invoke }
+    let item = Item { value: 40 }
+    let captured = (item^; value: i32): i32 { item.value + value }
+    if runner.callback(2, captured, 0) != 42 { return 0 }
+    if runner.callback(41, identity, 1) != 42 { return 0 }
+    let extra = 1
+    let wrapped = Runner { callback: (extra; before: i32, action: func(i32): i32, after: i32): i32 { action(before) + after + extra } }
+    if wrapped.callback(1, captured, 0) != 42 { return 0 }
+    let edit_item = Item { value: 40 }
+    var changing = (edit_item^; value: i32): i32 { edit_item.value += value
+        edit_item.value }
+    let editor = Editor { callback: update }
+    if editor.callback(changing) != 41 || changing(1) != 42 { return 0 }
+    let factory = Factory { callback: make_callback }
+    let first = factory.callback(40)
+    let second = factory.callback(41)
+    if first(2) != 42 || second(1) != 42 || first(1) != 41 { return 0 }
+    let taking = Taker { callback: consume }
+    taking.callback(1, captured^, 1)
+}
+const ANSWER: i32 = calculate()
+func run(): i32 { calculate() }

@@ -3,7 +3,7 @@ use super::{
     CodeBindingError, CodeInstanceKey, ConcreteWitness, FunctionWitness, PayloadSchema, Program,
 };
 use crate::value_access::DataInstanceKey;
-use nocter_model::{TypeId, ValueParameter};
+use nocter_model::{TypeId, ValueCode, ValueFunctionOrigin, ValueParameter};
 use std::collections::BTreeMap;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -16,6 +16,56 @@ pub enum InputBindingError {
 }
 
 impl Program {
+    /// Original explicit callback-input ordinals and physical formal IDs of one selected code.
+    /// A nested type contract supplies neither a code owner nor an additional physical parameter.
+    /// # Errors
+    /// Rejects unknown code or an inconsistent lexical input contract.
+    pub fn callable_input_parameters(
+        &self,
+        code: ValueCode,
+    ) -> Result<BTreeMap<usize, ValueParameter>, CodeBindingError> {
+        let mut inputs = BTreeMap::new();
+        match code {
+            ValueCode::Declaration(id) => {
+                for (index, &parameter) in self
+                    .codes
+                    .get(id)
+                    .ok_or(CodeBindingError::UnknownCode)?
+                    .parameters()
+                    .iter()
+                    .enumerate()
+                {
+                    let declared = self
+                        .parameters
+                        .get(parameter)
+                        .ok_or(CodeBindingError::UnknownCode)?;
+                    if declared.contract().is_some() {
+                        inputs.insert(index, parameter.into());
+                    }
+                }
+            }
+            ValueCode::Closure(owner) => {
+                let closure = self.closure(owner).ok_or(CodeBindingError::UnknownCode)?;
+                for (position, input) in closure.contract().inputs.iter().enumerate() {
+                    if let Some(PayloadSchema::Function(witness)) = self.data_schema(input.data) {
+                        let parameter = ValueParameter::Closure { owner, position };
+                        if witness.origin != ValueFunctionOrigin::Parameter(parameter)
+                            || self.parameter_contract(parameter).is_none()
+                        {
+                            return Err(CodeBindingError::UnknownCode);
+                        }
+                        inputs.insert(position, parameter);
+                    }
+                }
+            }
+            ValueCode::Expression(expression) => {
+                if !self.has_type_root(nocter_model::ValueCodeRoot::Expression(expression)) {
+                    return Err(CodeBindingError::UnknownCode);
+                }
+            }
+        }
+        Ok(inputs)
+    }
     /// The sole classification of compound inputs requiring contextual metadata, by original
     /// explicit ordinal and source schema. This creates neither an actual call nor an input value.
     /// # Errors

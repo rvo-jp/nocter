@@ -2425,9 +2425,12 @@ fn private_selected_calls_return_forward_and_transfer_actual_contextual_fields()
 }
 
 fn record_capture_with_owned_error(source: &str) -> String {
-    let formation = "    Handler { callback: (item^;";
+    callable_capture_with_owned_error(source, "    Handler { callback: (item^;")
+}
+fn callable_capture_with_owned_error(source: &str, formation: &str) -> String {
     assert_eq!(source.matches(formation).count(), 1);
-    let source = source.replace(formation, "    let reason = context_error(create_failure(\"field\", \"owned capture\"), \"outer\")\n    Handler { callback: (item^, reason^;");
+    let capture = formation.replace("(item^;", "(item^, reason^;");
+    let source = source.replace(formation, &format!("    let reason = context_error(create_failure(\"field\", \"owned capture\"), \"outer\")\n{capture}"));
     format!(
         "primitive func create_failure(code: str, message: str): error\nprimitive func context_error(take value: error, message: str): error\n{source}"
     )
@@ -2444,6 +2447,67 @@ fn private_higher_order_callable_field_values_retire_without_invented_formals() 
         &compile(source),
         &package.0,
         "higher-order-field-values",
+        42,
+    );
+}
+
+#[test]
+fn private_higher_order_fields_bind_original_callbacks_captures_and_taking_inputs() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/higher-order-callable-field-invocations.nct"
+    ));
+    let (definitions, _) = source.split_once("\nconst ANSWER:").unwrap();
+    let runtime = format!(
+        "{}\nfunc run(): i32 {{ calculate() }}",
+        definitions.replace("const func", "func")
+    );
+    let package = TempPackage::new();
+    execute_native_status(
+        &compile(&runtime),
+        &package.0,
+        "higher-order-field-inputs",
+        42,
+    );
+    let owned = callable_capture_with_owned_error(&runtime, "    let captured = (item^;");
+    let machine = trusted_error_machine(&owned);
+    assert!(
+        machine
+            .functions()
+            .flat_map(|(_, function)| function.body().operations())
+            .any(|(_, operation)| matches!(
+                operation.kind(),
+                nocter_machine::MachineOperationKind::ReleaseError { .. }
+            ))
+    );
+    execute_native_status(
+        &image(&machine),
+        &package.0,
+        "higher-order-field-input-errors",
+        42,
+    );
+}
+
+#[test]
+fn private_higher_order_field_preparation_retires_owned_callbacks_without_committing() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/higher-order-callable-field-invocations.nct"
+    ));
+    let (definitions, _) = source.split_once("\nconst ANSWER:").unwrap();
+    let interrupted = definitions.replace("const func", "func").replace(
+        "    taking.callback(1, captured^, 1)",
+        "    runner.callback(0, captured^, if true { return 42 } else { return 0 })",
+    );
+    assert_ne!(interrupted, definitions.replace("const func", "func"));
+    let source = format!("{interrupted}\nfunc run(): i32 {{ calculate() }}");
+    let owned = callable_capture_with_owned_error(&source, "    let captured = (item^;");
+    let machine = trusted_error_machine(&owned);
+    let package = TempPackage::new();
+    execute_native_status(
+        &image(&machine),
+        &package.0,
+        "interrupted-higher-order-field-input",
         42,
     );
 }

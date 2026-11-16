@@ -248,7 +248,7 @@ impl Checker<'_, '_> {
             alias,
         )
     }
-    fn finish_function_constraint(
+    pub(super) fn finish_function_constraint(
         &self,
         node: NodeId,
         actual: TypeId,

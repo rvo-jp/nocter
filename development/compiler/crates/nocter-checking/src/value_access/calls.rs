@@ -288,7 +288,7 @@ impl Checker<'_, '_> {
             continues &= self.ty(value).may_complete();
             plans.push(self.prepare_input(syntax, value, expected)?);
         }
-        let result = if matches!(
+        let requires_application = matches!(
             self.program().data_schema(contract.result),
             Some(PayloadSchema::Function(_))
         ) || self
@@ -299,7 +299,12 @@ impl Checker<'_, '_> {
                     .producers()
                     .iter()
                     .any(|witness| matches!(witness.origin, ValueFunctionOrigin::Result(_)))
-            }) {
+            });
+        // A type contract constrains the returned value; it cannot own a result producer.
+        // Original call-result sources retain the selected body's actual return context.
+        let result = if requires_application
+            && !matches!(selected.witness.origin, ValueFunctionOrigin::Contract(_))
+        {
             self.types
                 .application(self.code, self.expressions.next_id(), selected.witness)
                 .map_err(|_| Failure::InconsistentSyntax)?

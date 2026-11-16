@@ -130,11 +130,32 @@ impl Query<'_, '_> {
         bundle: &CallValueSources,
         selected: Fact,
     ) -> Result {
-        let mut pending = matches!(selected, Fact::Empty);
-        let mut unavailable = !matches!(selected, Fact::Empty | Fact::Witness(_));
-        let mut bindings = Vec::new();
+        let selected = match selected {
+            Fact::Witness(selected) => selected,
+            Fact::Empty => return Ok(Fact::Empty),
+            _ => return Ok(Fact::Unavailable),
+        };
+        let Ok(parameters) = self.program.callable_input_parameters(selected.code()) else {
+            return Ok(Fact::Unavailable);
+        };
+        let offset = usize::from(bundle.kind == CallKind::Value);
         for (&parameter, &index) in &bundle.parameters {
-            let Some(&value) = bundle.arguments.get(index) else {
+            if index
+                .checked_sub(offset)
+                .and_then(|index| parameters.get(&index))
+                != Some(&parameter)
+            {
+                return Ok(Fact::Unavailable);
+            }
+        }
+        let mut bindings = Vec::new();
+        let mut pending = false;
+        let mut unavailable = false;
+        for (index, parameter) in parameters {
+            let Some(&value) = index
+                .checked_add(offset)
+                .and_then(|index| bundle.arguments.get(index))
+            else {
                 return Ok(Fact::Unavailable);
             };
             match self.read(
@@ -152,9 +173,6 @@ impl Query<'_, '_> {
         if pending {
             return Ok(Fact::Empty);
         }
-        let Fact::Witness(selected) = selected else {
-            return Ok(Fact::Unavailable);
-        };
         self.source_input_bundle(owner, frame, bundle, &selected, bindings)
     }
     fn source_input_bundle(

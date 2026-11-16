@@ -530,46 +530,16 @@ impl Program {
         &self,
         code: ValueCode,
     ) -> Result<BTreeMap<ValueParameter, &FunctionConstraint>, CodeBindingError> {
-        let mut expected = BTreeMap::new();
-        match code {
-            ValueCode::Declaration(id) => {
-                for &parameter in self
-                    .codes
-                    .get(id)
-                    .ok_or(CodeBindingError::UnknownCode)?
-                    .parameters()
-                {
-                    let declared = self
-                        .parameters
-                        .get(parameter)
-                        .ok_or(CodeBindingError::UnknownCode)?;
-                    if let Some(contract) = declared.contract() {
-                        expected.insert(parameter.into(), contract);
-                    }
-                }
-            }
-            ValueCode::Closure(owner) => {
-                let closure = self.closure(owner).ok_or(CodeBindingError::UnknownCode)?;
-                for (position, input) in closure.contract().inputs.iter().enumerate() {
-                    if let Some(PayloadSchema::Function(witness)) = self.data_schema(input.data) {
-                        let parameter = ValueParameter::Closure { owner, position };
-                        if witness.origin != ValueFunctionOrigin::Parameter(parameter) {
-                            return Err(CodeBindingError::UnknownCode);
-                        }
-                        expected.insert(
-                            parameter,
-                            self.parameter_contract(parameter)
-                                .ok_or(CodeBindingError::UnknownCode)?,
-                        );
-                    }
-                }
-            }
-            ValueCode::Expression(expression) => {
-                if !self.has_type_root(nocter_model::ValueCodeRoot::Expression(expression)) {
-                    return Err(CodeBindingError::UnknownCode);
-                }
-            }
-        }
+        let expected = self
+            .callable_input_parameters(code)?
+            .into_values()
+            .map(|parameter| {
+                let contract = self
+                    .parameter_contract(parameter)
+                    .ok_or(CodeBindingError::UnknownCode)?;
+                Ok((parameter, contract))
+            })
+            .collect::<Result<_, CodeBindingError>>()?;
         Ok(expected)
     }
 }

@@ -324,8 +324,15 @@ view may adapt; nested invocation views and input operations stay invariant. Con
 witnesses keep exact code identity, nominal types keep identity, and even zero-length arrays keep
 their declared element contract. A shared pair traversal and parent-linked diagnostic paths avoid
 expanding deep shared signatures or large array cardinalities. This comparison creates no type,
-concrete witness, capture environment, payload or const capability. Higher-order source invocation
-and nested header publication still require their separate original-context qualification.
+concrete witness, capture environment, payload or const capability. Direct higher-order field invocation consumes original-context evidence through checking;
+general nested header publication and wider compound channels retain separate qualification.
+
+`Program::callable_input_parameters` is the sole classifier of direct callback inputs by original
+explicit ordinal and actual code-owned formal ID. Ordinary frame binding and source-instance
+selection consume this same classification. Named code uses its reserved physical parameters;
+anonymous code uses its lexical input positions. Capture environments stay outside those ordinals,
+and nested type contracts allocate no extra parameters. Unknown lexical input ownership rejects
+before constructing a frame. Signature matching alone cannot supply the actual argument values.
 
 Named witnesses are capture-free Copy values with trivial cleanup and no outside D/S
 under their exact schema. This is not evidence about arbitrary structural callback contracts.

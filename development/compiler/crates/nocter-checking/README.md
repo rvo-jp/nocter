@@ -1024,11 +1024,21 @@ capture cleanup. Abstract contracts remain non-Copy and unavailable as closed pa
 
 `higher-order-callable-field-values.nct` qualifies binding and native retirement of a named
 function whose signature itself accepts a callback. Its field's nested type contract allocates no
-physical formal parameter. Invocation still requires original ordinal-to-formal correspondence
-with the selected actual body; `prepare_input` reports a source-backed `UnsupportedData` boundary
-instead of treating that contract as a physical input or reporting inconsistent syntax. This
-construction/retirement scope does not qualify higher-order field invocation or general nested
-header publication. The declaration owner describes the separate structural binding relation.
+physical formal parameter. Invocation binds direct callback inputs by the selected actual body's original explicit ordinal
+and formal ID. `prepare_input` matches the receiving type contract while retaining the supplied
+witness, without manufacturing a binding to an imaginary field-owned parameter. Original source
+bundles retain every prepared value; instance selection derives actual formals from the declaration
+classifier and validates any existing binding against that correspondence. Diagnostic witness
+notes use the same ordinals, including the value-call environment prefix.
+`higher-order-callable-field-invocations.nct` qualifies mixed scalar/callback positions, named and
+captured callees/callbacks, read/edit/take inputs, original callback mutation and callable results.
+Required evaluation and native execution preserve independent returned capture values. Native
+probes retain actual owned-error cleanup, including interrupted preparation without a committed
+call. Runtime-only supplied callbacks still fail const admission at the inner invocation with an
+original argument note. A returned type contract remains a constraint on the value; it does not
+become an application-owned producer. Original selected body returns supply that context.
+General nested header publication and compound callback-argument channels remain separately
+unqualified. The declaration owner describes the structural binding relation.
 
 Original call-result witness and data queries can inspect a complete positive invocation domain
 when strict single-frame selection is unresolved. They query every original candidate's returned

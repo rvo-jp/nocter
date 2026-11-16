@@ -18,11 +18,12 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Bind callable arguments of field type contracts to the actual selected callee's original input
-ordinals and formal IDs. Type-contract identities are not hidden physical parameters. Preserve
-actual supplied witnesses, complete environments and receiving/result channels through checking,
-required evaluation and native execution before removing the explicit source rejection. Keep
-general nested header publication and symbolic definition-context proof separately qualified.
+Qualify compound callback-bearing arguments of field type contracts. Keep original supplied
+witnesses through optional injection, tuples, homogeneous arrays and actual received input contexts.
+Reuse declaration-owned structural matching and the selected body's original explicit ordinals;
+keep nested invocation adapters separate from metadata compatibility. Preserve absence, transfer,
+cleanup and source-backed mismatch/capability diagnostics through required and native consumers.
+General nested header publication and symbolic definition-context proof remain separate.
 
 Complete occurrence-sensitive value/capture transport under the
 [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances).
@@ -684,10 +685,14 @@ not a language restriction derived from the current realization boundary.
   Contract origin. Preserve exact normalized/pattern identity checks, concrete code identities,
   nominal data and nested invocation/input operations; qualify deep/shared graph traversal,
   precise mismatch paths, original named binding and source/native higher-order field retirement.
-- [ ] Bind callable inputs of field type contracts to the actual selected callee's original
-  input ordinals and formal IDs. Preserve supplied witnesses, capture environments and result
-  channels without allocating fake parameters for nested signatures. Higher-order field values
-  can be bound and retired; invoking them remains an explicit source UnsupportedData boundary.
+- [x] Bind direct callback inputs of field type contracts to the selected callee's original
+  explicit ordinals and formal IDs through one declaration classifier. Qualify mixed positions,
+  named/captured callees and callbacks, read/edit/take, mutation, callable return contexts,
+  interrupted preparation, actual native error cleanup and original const-failure argument notes.
+  Keep result type contracts separate from producer/application identities.
+- [ ] Qualify compound callback-bearing arguments of field contracts through original supplied
+  and received contexts. Preserve optional absence/injection, tuples/arrays, nested view rules,
+  ownership, exact ordinals and native cleanup without flattening type signatures into parameters.
 - [ ] Complete nested callable data/witness support through header/data positions and the owning
   type authority. Keep valid formal structural descriptors separate from owned-payload admission.
   Qualify concrete representation, substitution and callable input/result evidence;

@@ -18,13 +18,16 @@ impl Parent {
         &self,
         catalog: &constant::Catalog,
         verified: &results::Verified<'_, '_>,
+        callee: &CodeInstanceKey,
         parameter: ValueParameter,
     ) -> Result<(SourceOrigin, Option<ValueParameter>), Failure> {
         let query = catalog.get(self.key.code()).ok_or(INVALID)?.body();
         let callable = self.key.code().source_owner();
         let body_failure = |failure| Failure::Body { callable, failure };
         let bound = query.bind_verified(verified).map_err(body_failure)?;
-        let ExpressionKind::Call { arguments, .. } = &query
+        let ExpressionKind::Call {
+            kind, arguments, ..
+        } = &query
             .typed()
             .body()
             .expressions()
@@ -34,24 +37,54 @@ impl Parent {
         else {
             return Err(INVALID);
         };
-        let (argument, binding) = arguments
-            .iter()
-            .filter_map(|argument| argument.binding.as_ref().map(|binding| (argument, binding)))
-            .find(|(_, binding)| binding.parameter == parameter)
+        let ordinal = query
+            .typed()
+            .program()
+            .callable_input_parameters(callee.code())
+            .map_err(|_| INVALID)?
+            .into_iter()
+            .find_map(|(ordinal, formal)| (formal == parameter).then_some(ordinal))
             .ok_or(INVALID)?;
+        let argument = arguments
+            .get(ordinal + usize::from(*kind == crate::value_access::CallKind::Value))
+            .ok_or(INVALID)?;
+        let witness = match &argument.binding {
+            Some(binding) if binding.parameter == parameter => binding.witness,
+            Some(_) => return Err(INVALID),
+            None => {
+                let data = query
+                    .typed()
+                    .body()
+                    .expressions()
+                    .get(argument.value)
+                    .and_then(|expression| expression.ty.access())
+                    .ok_or(INVALID)?
+                    .data();
+                let Some(nocter_declarations::value_access::PayloadSchema::Function(witness)) =
+                    query.typed().program().data_schema(data)
+                else {
+                    return Err(INVALID);
+                };
+                witness
+            }
+        };
         let origin = bound
             .typed()
             .expression_origin(argument.value)
             .ok_or(INVALID)?;
         let origin = source_origin(bound.typed().syntax(), origin).map_err(body_failure)?;
-        let dependency = match binding.witness.origin {
+        let dependency = match witness.origin {
             ValueFunctionOrigin::Parameter(parameter)
                 if self.key.witnesses().contains_key(&parameter) =>
             {
                 Some(parameter)
             }
-            ValueFunctionOrigin::Declaration(_) | ValueFunctionOrigin::Closure(_) => None,
-            _ => return Err(INVALID),
+            ValueFunctionOrigin::Declaration(_)
+            | ValueFunctionOrigin::Closure(_)
+            | ValueFunctionOrigin::Contract(_)
+            | ValueFunctionOrigin::Result(_)
+            | ValueFunctionOrigin::Application(_) => None,
+            ValueFunctionOrigin::Parameter(_) => return Err(INVALID),
         };
         Ok((origin, dependency))
     }
@@ -73,7 +106,7 @@ pub(super) fn annotate(
     while let Some(Some(parent)) = parents.get(current) {
         path.push(parent.origin);
         if let Some(parameter) = dependency {
-            let (origin, outer) = parent.argument(catalog, verified, parameter)?;
+            let (origin, outer) = parent.argument(catalog, verified, current, parameter)?;
             diagnostic.note_witness(origin);
             dependency = outer;
         }

@@ -1380,7 +1380,8 @@ fn definition_check_with_steps(
 }
 
 #[test]
-fn higher_order_field_values_preserve_physical_formals_and_reject_unqualified_calls_locally() {
+fn higher_order_field_calls_bind_the_original_selected_physical_formals() {
+    use nocter_constant_evaluation::state::{Limits, WorkBudget};
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../tests/fixtures/native/value-access/higher-order-callable-field-values.nct"
@@ -1388,17 +1389,221 @@ fn higher_order_field_values_preserve_physical_formals_and_reject_unqualified_ca
     let unit = accepted(source);
     assert_eq!(unit.program().parameters().iter().count(), 2);
     let called = source.replace("    42\n", "    runner.callback(identity)\n");
-    assert_ne!(called, source);
-    let fixture = nocter_test_support::ValueSourceFixture::new(&called);
+    let unit = accepted(&called);
+    let program = unit.program();
+    let code = |name| {
+        program
+            .resolve_code(program.symbols().get(name).unwrap())
+            .unwrap()
+    };
+    let frame = program.bind_code(code("run").into(), []).unwrap();
+    let body = unit.code_body(frame.code()).unwrap();
+    let call = body
+        .typed()
+        .body()
+        .expressions()
+        .iter()
+        .find_map(|(id, expression)| {
+            matches!(
+                expression.kind,
+                crate::value_access::ExpressionKind::Call { .. }
+            )
+            .then_some(id)
+        })
+        .unwrap();
+    let selected = unit
+        .instantiate_invocation(
+            &frame,
+            nocter_model::ValueApplication {
+                owner: frame.code(),
+                call,
+            },
+            &mut WorkBudget::new(Limits::default().steps()),
+        )
+        .unwrap();
+    assert_eq!(selected.code(), code("invoke").into());
+    let parameter = program.codes().get(code("invoke")).unwrap().parameters()[0];
+    assert_eq!(
+        program.callable_input_parameters(selected.code()).unwrap(),
+        BTreeMap::from([(0, parameter.into())])
+    );
+    assert_eq!(selected.witnesses().len(), 1);
+    assert_eq!(
+        selected.witnesses().get(&parameter.into()).unwrap().code(),
+        code("identity").into()
+    );
+}
+
+const HIGHER_ORDER_FIELD_CALLS: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../tests/fixtures/native/value-access/higher-order-callable-field-invocations.nct"
+));
+
+#[test]
+fn higher_order_fields_preserve_original_callback_ordinals_owned_environments_and_transfer() {
+    assert_eq!(
+        answer(HIGHER_ORDER_FIELD_CALLS, "ANSWER"),
+        Value::integer(42)
+    );
+}
+
+#[test]
+fn higher_order_field_callback_failures_preserve_original_argument_provenance() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/higher-order-callable-field-values.nct"
+    ));
+    let source = source
+        .replace("    42\n", "    runner.callback(identity)\n")
+        .replace("func ", "const func ")
+        .replace("const func identity", "func identity");
+    for required in [false, true] {
+        let source = if required {
+            format!("{source}\nconst ANSWER: i32 = run()")
+        } else {
+            source.clone()
+        };
+        let (sources, tree) = input(&source);
+        let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+            SourceUnit::prepare(bound(&sources, &tree))
+        else {
+            panic!("runtime callbacks cannot gain const capability");
+        };
+        assert!(matches!(
+            diagnostic.rule(),
+            crate::value_access::constant::Rule::RuntimeCall(_)
+        ));
+        let note = diagnostic
+            .source()
+            .notes()
+            .iter()
+            .find(|note| note.message().contains("argument supplies"))
+            .unwrap();
+        assert_eq!(
+            sources
+                .get(tree.source())
+                .unwrap()
+                .text_at(note.origin().span().range())
+                .unwrap(),
+            "identity"
+        );
+    }
+}
+
+#[test]
+fn higher_order_field_inputs_report_callback_signature_mismatches_at_source() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/higher-order-callable-field-values.nct"
+    ));
+    let source = source
+        .replace("    42\n", "    runner.callback(identity)\n")
+        .replace(
+            "func identity(value: i32): i32 { value }",
+            "func identity(value: i32): bool { true }",
+        );
+    let fixture = nocter_test_support::ValueSourceFixture::new(&source);
     let Err(SourceFailure::Checking(Failure::Body {
         failure: crate::value_access::Failure::Rejected(diagnostic),
         ..
     })) = SourceUnit::prepare(fixture.syntax())
     else {
-        panic!("unqualified higher-order field inputs require a source diagnostic");
+        panic!("a callback signature mismatch must reject at source");
     };
-    assert_eq!(
-        diagnostic.rule(),
-        crate::value_access::Rule::UnsupportedData
-    );
+    assert_eq!(diagnostic.rule(), crate::value_access::Rule::TypeMismatch);
+}
+
+#[test]
+fn callable_field_results_keep_type_contracts_separate_from_original_return_producers() {
+    use crate::value_access::{ExpressionKind, ValueSource};
+    use nocter_constant_evaluation::state::{Limits, WorkBudget};
+    use nocter_declarations::value_access::{InstanceSchema, PayloadSchema};
+    let (definitions, _) = HIGHER_ORDER_FIELD_CALLS
+        .split_once("\nconst ANSWER:")
+        .unwrap();
+    let unit = accepted(&definitions.replace("const func", "func"));
+    let program = unit.program();
+    let calculate = program
+        .resolve_code(program.symbols().get("calculate").unwrap())
+        .unwrap();
+    let make = program
+        .resolve_code(program.symbols().get("make_callback").unwrap())
+        .unwrap();
+    let frame = program.bind_code(calculate.into(), []).unwrap();
+    let body = unit.code_body(frame.code()).unwrap();
+    let mut count = 0;
+    for (call, expression) in body.typed().body().expressions().iter() {
+        if !matches!(
+            expression.kind,
+            ExpressionKind::Call {
+                target: nocter_model::ValueFunctionOrigin::Contract(_),
+                ..
+            }
+        ) {
+            continue;
+        }
+        let data = expression.ty.access().unwrap().data();
+        let Some(PayloadSchema::Function(contract)) = program.data_schema(data) else {
+            continue;
+        };
+        assert!(matches!(
+            contract.origin,
+            nocter_model::ValueFunctionOrigin::Contract(_)
+        ));
+        let source = unit
+            .value_sources(frame.code())
+            .unwrap()
+            .nodes()
+            .find_map(|(id, node)| {
+                (node.expression == Some(call) && matches!(node.value, ValueSource::CallResult(_)))
+                    .then_some(id)
+            })
+            .unwrap();
+        let returned = unit
+            .instantiate_value_data(
+                &frame,
+                source,
+                data,
+                &mut WorkBudget::new(Limits::default().steps()),
+            )
+            .unwrap();
+        let InstanceSchema::Function(actual) = returned.schema(program).unwrap() else {
+            panic!("original returned callback");
+        };
+        assert!(
+            matches!(actual.code(), nocter_model::ValueCode::Closure(closure) if closure.owner == make.into())
+        );
+        count += 1;
+    }
+    assert_eq!(count, 2);
+}
+
+#[test]
+fn callable_field_results_do_not_grant_returned_runtime_values_const_capability() {
+    let source = "struct Factory { callback: func(): func(i32): i32 }\nfunc runtime(value: i32): i32 { value }\nconst func make(): func(i32): i32 { runtime }\nconst func run(): i32 { let factory = Factory { callback: make }\nlet action = factory.callback()\naction(42) }";
+    for required in [false, true] {
+        let source = if required {
+            format!("{source}\nconst ANSWER: i32 = run()")
+        } else {
+            source.to_owned()
+        };
+        let (sources, tree) = input(&source);
+        let Err(SourceFailure::Checking(Failure::Const { diagnostic, .. })) =
+            SourceUnit::prepare(bound(&sources, &tree))
+        else {
+            panic!("returned runtime values must retain their missing const capability");
+        };
+        assert!(matches!(
+            diagnostic.rule(),
+            crate::value_access::constant::Rule::RuntimeCall(_)
+        ));
+        assert_eq!(
+            sources
+                .get(tree.source())
+                .unwrap()
+                .text_at(diagnostic.source().primary().span().range())
+                .unwrap(),
+            "action(42)"
+        );
+    }
 }

@@ -4,8 +4,10 @@ use super::{
     checker::Checker,
     ir::{Argument, ArgumentAction, Boundary, WitnessBinding},
 };
-use nocter_declarations::value_access::{FunctionInput, PayloadSchema};
-use nocter_model::{AccessExpressionId, ValueAccessMode as Mode, ValueFunctionOrigin};
+use nocter_declarations::value_access::{FunctionInput, FunctionWitness, PayloadSchema};
+use nocter_model::{
+    AccessExpressionId, TypeId, ValueAccessMode as Mode, ValueFunctionOrigin, ValueParameter,
+};
 use nocter_syntax::NodeId;
 impl Checker<'_, '_> {
     pub(super) fn prepare_input(
@@ -22,20 +24,7 @@ impl Checker<'_, '_> {
         let binding = if let Some(PayloadSchema::Function(witness)) =
             self.program().data_schema(expected.data)
         {
-            let parameter = match witness.origin {
-                ValueFunctionOrigin::Parameter(parameter) => parameter,
-                // A nested type contract is not a physical input of its eventual callee.
-                // Original ordinal-to-formal binding still needs separate qualification.
-                ValueFunctionOrigin::Contract(_) => {
-                    return self.reject(Rule::UnsupportedData, syntax);
-                }
-                _ => return Err(Failure::InconsistentSyntax),
-            };
-            let constraint = self
-                .program()
-                .function_contract(witness)
-                .ok_or(Failure::InconsistentSyntax)?;
-            let data = self.function_constraint_data(syntax, value, &constraint, false)?;
+            let (data, parameter) = self.input_callable_data(syntax, value, witness)?;
             if self
                 .ty(value)
                 .access()
@@ -47,7 +36,7 @@ impl Checker<'_, '_> {
             let Some(PayloadSchema::Function(witness)) = self.program().data_schema(data) else {
                 return Err(Failure::InconsistentSyntax);
             };
-            Some(WitnessBinding { parameter, witness })
+            parameter.map(|parameter| WitnessBinding { parameter, witness })
         } else {
             // Keep supplied semantic identities, including through newly injected outcomes.
             expected.data = self.supplied_constraint_data(syntax, value, expected.data)?;
@@ -70,6 +59,34 @@ impl Checker<'_, '_> {
             value = self.boundary(syntax, value, Boundary::Value(expected.data))?;
         }
         self.input_plan(syntax, value, expected, binding)
+    }
+    fn input_callable_data(
+        &mut self,
+        syntax: NodeId,
+        value: AccessExpressionId,
+        witness: FunctionWitness,
+    ) -> Result<(TypeId, Option<ValueParameter>), Failure> {
+        match witness.origin {
+            ValueFunctionOrigin::Parameter(parameter) => {
+                let constraint = self
+                    .program()
+                    .function_contract(witness)
+                    .ok_or(Failure::InconsistentSyntax)?;
+                self.function_constraint_data(syntax, value, &constraint, false)
+                    .map(|data| (data, Some(parameter)))
+            }
+            ValueFunctionOrigin::Contract(_) => {
+                let actual = self
+                    .ty(value)
+                    .access()
+                    .ok_or(Failure::InconsistentSyntax)?
+                    .data();
+                let matched = self.program().constrain_callable_contract(actual, witness);
+                self.finish_function_constraint(syntax, actual, matched, false)
+                    .map(|data| (data, None))
+            }
+            _ => Err(Failure::InconsistentSyntax),
+        }
     }
     fn deferred_transfer(
         &self,
