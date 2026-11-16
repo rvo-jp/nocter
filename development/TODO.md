@@ -103,6 +103,14 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   invalid MIR rejection and healthy retry. Keep external aliases and changing exclusions closed.
 - [ ] Qualify owning inputs and captured carriers across scoped representation growth, including
   indirect ABI input transport, maximum owning-slot capacity and caller storage isolation.
+- [x] Fix ARM64 incoming payload sizing: use original ABI data size (pointer size for read/edit),
+  independently of the receiving slot's capacity for later representations. Qualify register,
+  stack and indirect paths, enlarged capacity and undersized-storage rejection.
+- [ ] Resolve a source integrity failure when a mutable closure updates a captured owning tuple's
+  callable component through an edit alias during required evaluation. The source is accepted
+  without the required initializer, while native layout qualification rejects changing captured
+  storage. Required evaluation reports `Checking(Integrity(InconsistentTypedBody))`; preserve a
+  local diagnostic until captured-carrier and native geometry contracts are qualified.
 - [ ] Close carrier representation coherence under the
   [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances)
   before admitting context-changing writes and retained sibling references.

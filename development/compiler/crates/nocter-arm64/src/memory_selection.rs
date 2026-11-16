@@ -440,19 +440,6 @@ pub(crate) fn offset_memory_address(
     }
 }
 
-pub(crate) fn parameter_lane_sizes(
-    function: &nocter_machine::MachineFunction,
-    stack: nocter_machine::MachineStackId,
-    words: u8,
-) -> Result<Vec<u8>, Arm64SelectionError> {
-    let size = function
-        .body()
-        .stack(stack)
-        .map(nocter_machine::MachineStackObject::size)
-        .ok_or(Arm64SelectionError::UnknownStack(stack))?;
-    direct_lane_sizes(size, usize::from(words))
-}
-
 pub(crate) fn frame_stack(
     frame: &Arm64FunctionFrame,
     stack: nocter_machine::MachineStackId,

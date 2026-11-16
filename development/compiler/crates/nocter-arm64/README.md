@@ -26,6 +26,10 @@ source, loader commands, or package state.
 ## Invariants
 
 - ARM64 selection implements the ABI already classified by Machine.
+- Incoming parameter reads use the original ABI payload layout, independently of a receiving
+  object's maximum capacity for later representations. Read/edit carriers receive one pointer;
+  owned direct lanes and indirect copies receive only the incoming stored value. Selection rejects
+  undersized receiving storage and persists incoming registers before indirect materialization.
 - Bounds emission consumes Machine's explicit check disposition. Every proven-safe index omits the
   comparison, proven failures emit the bounds trap, and unresolved indexes retain runtime
   checking. A constant proven-safe index may use an immediate offset, but ARM64 never revalidates

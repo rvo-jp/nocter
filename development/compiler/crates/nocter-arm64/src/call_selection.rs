@@ -119,7 +119,8 @@ pub(crate) fn select_parameters(
         .copied()
         .zip(abi.arguments())
     {
-        select_register_parameter(function, frame, stack, argument, &mut selected)?;
+        let size = parameter_size(program, function, stack, argument)?;
+        select_register_parameter(function, frame, stack, argument, size, &mut selected)?;
     }
     for (stack, argument) in function
         .body()
@@ -128,6 +129,7 @@ pub(crate) fn select_parameters(
         .copied()
         .zip(abi.arguments())
     {
+        let size = parameter_size(program, function, stack, argument)?;
         match (argument.class(), argument.location()) {
             (MachineValueClass::Zero, None)
             | (
@@ -139,14 +141,21 @@ pub(crate) fn select_parameters(
                 Some(MachineArgumentLocation::Registers(registers)),
             ) if words == registers.words() => {}
             (MachineValueClass::Direct { words }, Some(MachineArgumentLocation::Stack(slot))) => {
-                select_direct_stack_parameter(function, frame, stack, words, slot, &mut selected)?;
+                select_direct_stack_parameter(
+                    function,
+                    frame,
+                    stack,
+                    (words, size),
+                    slot,
+                    &mut selected,
+                )?;
             }
             (
                 class @ (MachineValueClass::Float32 | MachineValueClass::Float64),
                 Some(MachineArgumentLocation::Stack(slot)),
             ) => select_float_stack_parameter(function, frame, stack, class, slot, &mut selected)?,
             (MachineValueClass::Indirect, Some(location)) => {
-                select_indirect_parameter(function, frame, stack, location, &mut selected)?;
+                select_indirect_parameter(function, frame, stack, location, size, &mut selected)?;
             }
             _ => return Err(Arm64SelectionError::ParameterTransport(function.linkage())),
         }
@@ -154,11 +163,40 @@ pub(crate) fn select_parameters(
     Ok(selected.into_boxed_slice())
 }
 
+/// Incoming transport is independent of the slot's maximum capacity for later representations.
+fn parameter_size(
+    program: &nocter_machine::MachineProgram,
+    function: &nocter_machine::MachineFunction,
+    stack: nocter_machine::MachineStackId,
+    argument: &nocter_machine::MachineArgumentAbi,
+) -> Result<u64, Arm64SelectionError> {
+    let object = function
+        .body()
+        .stack(stack)
+        .ok_or(Arm64SelectionError::UnknownStack(stack))?;
+    incoming_size(program.layouts(), argument, object.carrier(), object.size())
+        .ok_or(Arm64SelectionError::ParameterTransport(function.linkage()))
+}
+
+fn incoming_size(
+    layouts: &nocter_machine::MachineLayoutStore,
+    argument: &nocter_machine::MachineArgumentAbi,
+    carrier: nocter_machine::MachineValueCarrier,
+    capacity: u64,
+) -> Option<u64> {
+    let size = match carrier {
+        nocter_machine::MachineValueCarrier::Address => layouts.target().pointer_size(),
+        nocter_machine::MachineValueCarrier::Data => layouts.get(argument.ty())?.size(),
+    };
+    (size <= capacity).then_some(size)
+}
+
 fn select_register_parameter(
     function: &nocter_machine::MachineFunction,
     frame: &Arm64FunctionFrame,
     stack: nocter_machine::MachineStackId,
     argument: &nocter_machine::MachineArgumentAbi,
+    size: u64,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     match (argument.class(), argument.location()) {
@@ -166,7 +204,7 @@ fn select_register_parameter(
             MachineValueClass::Direct { words },
             Some(MachineArgumentLocation::Registers(registers)),
         ) if words == registers.words() => {
-            let sizes = crate::memory_selection::parameter_lane_sizes(function, stack, words)?;
+            let sizes = crate::memory_selection::direct_lane_sizes(size, usize::from(words))?;
             for (lane, bytes) in sizes.into_iter().enumerate() {
                 selected.push(Arm64SelectedInstruction::StoreMemory {
                     bytes,
@@ -480,11 +518,11 @@ fn select_direct_stack_parameter(
     function: &nocter_machine::MachineFunction,
     frame: &Arm64FunctionFrame,
     stack: nocter_machine::MachineStackId,
-    words: u8,
+    (words, size): (u8, u64),
     slot: nocter_machine::MachineStackSlot,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
-    let sizes = crate::memory_selection::parameter_lane_sizes(function, stack, words)?;
+    let sizes = crate::memory_selection::direct_lane_sizes(size, usize::from(words))?;
     let transport_size = u64::from(words)
         .checked_mul(Arm64NocterAbi::word_size())
         .ok_or(Arm64SelectionError::AddressOverflow)?;
@@ -549,13 +587,9 @@ fn select_indirect_parameter(
     frame: &Arm64FunctionFrame,
     stack: nocter_machine::MachineStackId,
     location: MachineArgumentLocation,
+    size: u64,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
-    let size = function
-        .body()
-        .stack(stack)
-        .map(nocter_machine::MachineStackObject::size)
-        .ok_or(Arm64SelectionError::UnknownStack(stack))?;
     let pointer = match location {
         MachineArgumentLocation::Registers(registers) if registers.words() == 1 => {
             let pointer = Arm64SelectedRegister::Fixed(scratch_boundary());
@@ -979,3 +1013,6 @@ fn word_bytes() -> u8 {
     u8::try_from(Arm64NocterAbi::word_size())
         .expect("the target word size fits selected byte width")
 }
+
+#[cfg(test)]
+mod tests;
