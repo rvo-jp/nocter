@@ -2,15 +2,16 @@
 use super::{Cell, Executor, Input, Place, Result, Rule, Value};
 use crate::state::{CallCase, Type};
 impl Executor<'_, '_> {
-    pub(super) fn selected_call(
+    pub(super) fn prepare_selected_call(
         &mut self,
         frame: usize,
+        destination: usize,
         callee: &Place,
         cases: &[CallCase],
         inputs: &[Input],
         taken: &[Option<Value>],
-    ) -> Result<Value> {
-        let _input_storage = self
+    ) -> Result<super::invocations::PreparedCall> {
+        let storage = self
             .memory
             .storage
             .items(inputs.len().checked_add(1).ok_or(Rule::StorageLimit)?)?;
@@ -34,6 +35,12 @@ impl Executor<'_, '_> {
             // Scoped immutable invocation backing grants neither another source owner nor Copy.
             selected.insert(0, Cell::Data(environment));
         }
-        self.invoke(case.target, &selected)
+        Ok(super::invocations::PreparedCall {
+            destination,
+            target: case.target,
+            inputs: selected,
+            _storage: storage,
+            _callee: Some(value),
+        })
     }
 }

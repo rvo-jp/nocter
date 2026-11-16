@@ -298,8 +298,15 @@ execution call frame. An oversized failed charge exhausts only its own quota.
 The dependency query exposes its own active depth, rather than asking checking to maintain
 a second stack count; the executor combines suspended depth with invocation frames. Arithmetic,
 work, live-storage and call-depth failures retain code/action identities and the call path. A failed
-execution clears its frames and cannot return a partly initialized value. No ordinary call or
-initializer cache is maintained by this executor.
+execution clears its frames and cannot return a partly initialized value. Call execution uses an
+explicit continuation stack for ordinary and selected calls; source depth does not add recursive
+Rust execution frames. A suspended action retains its selected ownership alternative, protected
+inputs, selected environment backing and their existing storage leases. Only a successful return
+writes the result and resumes the action's remaining effects. Failed plan loading, input conditions
+and execution unwind the same semantic frames and original caller sites. Small-stack tests cover
+4,096 ordinary calls and 1,024 selected captured calls, successful return, shipped depth limits,
+suspended dependency depth and complete storage recovery. No ordinary call or initializer cache
+is maintained by this executor.
 The executor does not prove source access safety, choose another operation, perform final source
 publication or serialize a runtime object. Checking's
 [initializer boundary](../nocter-checking/README.md#required-private-initializers) owns source

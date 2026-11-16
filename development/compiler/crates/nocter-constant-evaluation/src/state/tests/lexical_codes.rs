@@ -244,3 +244,56 @@ fn recursive_instance_failures_keep_semantic_sites_and_refund_frames() {
     );
     assert_eq!(budget.storage_used(), 0);
 }
+
+#[test]
+fn deep_calls_resume_and_unwind_on_a_small_host_stack() {
+    std::thread::Builder::new()
+        .stack_size(256 * 1024)
+        .spawn(|| {
+            let (owner, helper) = code_ids();
+            let target = |instance| CodeInstance {
+                source: helper.into(),
+                instance,
+            };
+            let depth = 4096;
+            let mut plans = BTreeMap::from([(owner.into(), call(target(1), true))]);
+            for index in 1..depth {
+                plans.insert(target(index), call(target(index + 1), false));
+            }
+            plans.insert(target(depth), number(42, false));
+            let program = Program::new(
+                [Type::Integer(nocter_model::BuiltinType::I32)],
+                plans,
+                BTreeMap::new(),
+            )
+            .unwrap();
+            let work = CompileTimeEvaluationLimits::new(
+                NonZeroU64::new(100_000).unwrap(),
+                NonZeroU32::new(depth + 1).unwrap(),
+            );
+            let mut budget = Budget::new(work);
+            let value = Executor::new(&program, &mut budget, 0)
+                .evaluate_initializer(owner)
+                .unwrap();
+            assert_eq!(value, Value::integer(42));
+            drop(value);
+            assert_eq!(budget.storage_used(), 0);
+            for suspended in [0, 17] {
+                let mut budget = Budget::new(Limits::default());
+                let error = Executor::new(&program, &mut budget, suspended)
+                    .evaluate_initializer(owner)
+                    .unwrap_err();
+                assert_eq!(error.rule, Rule::CallDepthLimit);
+                assert_eq!(
+                    error.instance.unwrap().instance,
+                    255 - u32::try_from(suspended).unwrap()
+                );
+                assert_eq!(error.trace.len(), 255 - suspended);
+                assert_eq!(error.trace.last().unwrap().code, owner.into());
+                assert_eq!(budget.storage_used(), 0);
+            }
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}

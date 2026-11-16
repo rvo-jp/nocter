@@ -390,3 +390,91 @@ fn selected_environment_backing_and_protected_inputs_release_partial_failures() 
         assert!(failed && succeeded);
     }
 }
+
+#[test]
+fn deep_selected_environments_resume_and_release_on_a_small_host_stack() {
+    std::thread::Builder::new()
+        .stack_size(256 * 1024)
+        .spawn(|| {
+            let (original, root) = program(1);
+            let source = original.plans[&root.into()].clone();
+            let Operation::SelectedCall { cases, .. } =
+                &source.points.get(source.entry).unwrap().actions[1].operation
+            else {
+                panic!()
+            };
+            let target = cases[1].target;
+            let instance = |index| CodeInstance {
+                instance: index,
+                ..target
+            };
+            let depth = 1024;
+            let call_next = |index, entry: bool| {
+                let mut caller = (*source).clone();
+                if !entry {
+                    caller.slots = caller
+                        .slots
+                        .iter()
+                        .copied()
+                        .chain([
+                            Slot {
+                                data: 0,
+                                storage: Storage::Alias,
+                            },
+                            Slot {
+                                data: 0,
+                                storage: Storage::Auxiliary,
+                            },
+                        ])
+                        .collect();
+                    caller.inputs = vec![(2, Op::Read)].into();
+                    caller.environment_backing = Some(3);
+                    caller.initializer = false;
+                }
+                caller.points = caller.points.map(|_, point| {
+                    let mut point = point.clone();
+                    let Operation::SelectedCall { cases, .. } = &mut point.actions[1].operation
+                    else {
+                        panic!()
+                    };
+                    cases[1].target = instance(index);
+                    point
+                });
+                caller
+            };
+            let mut plans = original
+                .plans
+                .iter()
+                .map(|(&code, plan)| (code, (**plan).clone()))
+                .collect::<BTreeMap<_, _>>();
+            plans.insert(root.into(), call_next(1, true));
+            for index in 1..depth {
+                plans.insert(instance(index), call_next(index + 1, false));
+            }
+            plans.insert(instance(depth), body(Op::Read));
+            let program = Program::new(original.types.clone(), plans, BTreeMap::new()).unwrap();
+            let limits = CompileTimeEvaluationLimits::new(
+                NonZeroU64::new(100_000).unwrap(),
+                NonZeroU32::new(depth + 1).unwrap(),
+            );
+            let mut budget = Budget::new(limits);
+            let value = Executor::new(&program, &mut budget, 0)
+                .evaluate_initializer(root)
+                .unwrap();
+            assert_eq!(value, Value::integer(41));
+            drop(value);
+            assert_eq!(budget.storage_used(), 0);
+            let mut budget = Budget::new(Limits::default());
+            let error = Executor::new(&program, &mut budget, 0)
+                .evaluate_initializer(root)
+                .unwrap_err();
+            assert_eq!(error.rule, Rule::CallDepthLimit);
+            assert_eq!(*error.instance.unwrap(), instance(255));
+            assert_eq!(error.trace.len(), 255);
+            assert_eq!(error.trace.last().unwrap().code, root.into());
+            assert_eq!(budget.storage_used(), 0);
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}

@@ -18,12 +18,11 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Remove host recursion from constant-evaluator call execution. The original implementation also
-aborts on the default-depth regression under the unoptimized dev profile, before the language's
-configured depth limit can be reported. Preserve explicit semantic frames, work/storage accounting,
-original error locations/caller traces and ownership effects while driving calls iteratively.
-Qualify both ordinary and selected callable execution without increasing host-stack requirements
-or weakening shipped limits.
+Qualify definition-time constant eligibility for callable record fields against original supplied
+values. Begin with interrupted preparation: a closed const callable stored in a field currently
+reports ValueInvocation even when no call can commit. Preserve static rejection of known runtime
+witnesses, conservative unresolved contexts, original prefix operations/cleanup and MissingCall;
+never manufacture a callee frame, call receipt or result value from a field signature.
 
 Complete occurrence-sensitive value/capture transport under the
 [captured callable instance obligations](design/compiler-realization.md#captured-callable-instances).
@@ -674,7 +673,11 @@ not a language restriction derived from the current realization boundary.
 - [ ] Qualify symbolic definition-context proofs for callable field invocations whose function,
   compound-input or capture contexts are not independently closed. Preserve dormant runtime-call
   rejection and original input provenance before removing conservative contextual-call rejection,
-  including interrupted field calls without a committed occurrence.
+  including interrupted field calls without a committed occurrence. A concrete reproducer is
+  `Holder { callback: func(Data): void }`, with Data's count computed by size, where size stores
+  a const receive in Holder and calls `holder.callback(if true { return 42 } else { loop {} })`.
+  This still reports ValueInvocation after invocation payload readiness has been separated;
+  no committed field call exists, so proof must use original receiver metadata.
 - [x] Connect contextual declaration checks to the configured condition-work policy. Share the
   required root's remaining scope during preparation and one configured final scope across all
   definitions; qualify source-backed exhaustion and healthy retry without internal quota resets.
@@ -724,13 +727,11 @@ not a language restriction derived from the current realization boundary.
   one recognized type tree and a matching signature do not erase code/environment identity.
   Any final callable-value extension must satisfy the separate constant/static serialization
   contract; callable environments cannot inherit final-value eligibility from grammar recognition.
-- [ ] Remove host-stack dependence from constant-evaluator calls. The regression
-  `value_access::accepted::tests::initializers::shipped_limits_bound_recursive_execution_and_deep_initializer_dependencies`
-  aborts with a Rust test-thread stack overflow under `cargo test --profile dev -p nocter-checking`
-  with the compiler workspace manifest, including on the implementation preceding nominal-readiness
-  changes. Configured optimized tests pass. The evaluator stores explicit semantic frames but
-  recursively invokes its Rust execution path. Preserve shipped semantic limits, storage/work
-  accounting, ownership transitions and original failure traces with bounded host-stack execution.
+- [x] Drive ordinary and selected constant-evaluator calls with explicit continuations rather
+  than recursive host execution. Preserve semantic depth/suspended dependencies, original failure
+  sites and traces, selected ownership alternatives, argument backing and storage/work accounting.
+  Qualify deep successful calls on a 256 KiB stack, shipped depth failures, complete storage
+  recovery and all source checking tests under both dev and configured test profiles.
 - [ ] Investigate the unclassified status-1 failure of the released native test
   `network_and_tls::public_tls_and_https_reject_plain_peers_and_https_advertises_http1`.
   It is not consistently reproducible. Native exit assertions identify the sync/async image,

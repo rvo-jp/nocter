@@ -1,3 +1,4 @@
+mod invocations;
 mod selected_calls;
 use super::slot_types::SlotTypes;
 use super::{
@@ -125,7 +126,11 @@ impl<'a, 'budget> Executor<'a, 'budget> {
     fn tick(&mut self) -> Result<()> {
         self.budget.step()
     }
-    fn invoke(&mut self, code: super::CodeInstance, inputs: &[Cell]) -> Result<Value> {
+    fn enter(
+        &mut self,
+        code: super::CodeInstance,
+        inputs: &[Cell],
+    ) -> Result<invocations::Activation> {
         if self
             .memory
             .frames
@@ -187,27 +192,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         }
         let index = self.memory.frames.len();
         self.memory.frames.push(frame);
-        let saved = self.site;
-        let result = self
-            .conditions(code, &plan, index)
-            .and_then(|()| self.run(code.source, &plan, index));
-        if result.is_err()
-            && self.failed_instance.is_none()
-            && self.site.is_some_and(|site| site.code == code.source)
-        {
-            self.failed_instance = Some(code);
-        }
-        if result.is_err() && self.failed_site.is_none() {
-            self.failed_site = self.site;
-        }
-        if result.is_err()
-            && let Some(site) = saved
-        {
-            self.trace.push(site);
-        }
-        self.site = saved;
-        self.memory.frames.pop();
-        result
+        Ok(invocations::Activation::new(code, plan, index, self.site))
     }
     fn conditions(&mut self, code: super::CodeInstance, plan: &Plan, frame: usize) -> Result<()> {
         'condition: for condition in &plan.conditions {
@@ -298,44 +283,6 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         }
         Ok(())
     }
-    fn run(&mut self, code: ValueCode, plan: &Plan, frame: usize) -> Result<Value> {
-        let mut point = plan.entry;
-        loop {
-            let block = plan.points.get(point).ok_or(Rule::InvalidPlan)?;
-            for (action, item) in block.actions.iter().enumerate() {
-                self.site = Some(Site {
-                    code,
-                    point,
-                    action,
-                });
-                self.tick()?;
-                self.action(frame, item)?;
-            }
-            self.tick()?;
-            match &block.terminator {
-                Terminator::Jump(next) => point = *next,
-                Terminator::Branch { condition, yes, no } => {
-                    let value = self.read(frame, condition)?;
-                    let Data::Bool(value) = value.data() else {
-                        return Err(Rule::InvalidPlan);
-                    };
-                    point = if *value { *yes } else { *no };
-                }
-                Terminator::Return(place) => {
-                    let address = self.memory.address(&self.program, frame, place)?;
-                    let (_, slot) = address.local()?;
-                    let owners = &self.memory.frames[frame].owned;
-                    if owners.len() != 1 || owners.get(&slot).is_none_or(|holes| !holes.is_empty())
-                    {
-                        return Err(Rule::InvalidPlan);
-                    }
-                    let value = self.memory.read(&address)?;
-                    return Ok(value);
-                }
-                Terminator::Unreachable => return Err(Rule::ReachedUnreachable),
-            }
-        }
-    }
     fn read(&self, frame: usize, place: &Place) -> Result<Value> {
         self.memory
             .read(&self.memory.address(&self.program, frame, place)?)
@@ -344,10 +291,10 @@ impl<'a, 'budget> Executor<'a, 'budget> {
         self.memory
             .store(&self.memory.address(&self.program, frame, place)?, value)
     }
-    fn action(&mut self, frame: usize, action: &Action) -> Result<()> {
+    fn action(&mut self, frame: usize, action: &Action) -> Result<Option<invocations::Pending>> {
         let owners = &self.memory.frames[frame].owned;
-        let mut selected: Option<&super::Alternative> = None;
-        for alternative in &action.alternatives {
+        let mut selected: Option<(usize, &super::Alternative)> = None;
+        for (index, alternative) in action.alternatives.iter().enumerate() {
             // Test complete owner presence before resolving any hole. Another route can have
             // the same numbers but no initialized backing for this alternative's snapshot.
             if !alternative.owned.keys().eq(owners.keys()) {
@@ -376,7 +323,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                 }
             }
             if matches {
-                if let Some(previous) = selected
+                if let Some((_, previous)) = selected
                     && (previous.before != alternative.before
                         || previous.after != alternative.after)
                 {
@@ -384,14 +331,14 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                     // occurred. Never let ordering choose between conflicting matching phases.
                     return Err(Rule::InvalidPlan);
                 }
-                selected = Some(alternative);
+                selected = Some((index, alternative));
             }
         }
-        let alternative = selected.ok_or(Rule::InvalidPlan)?;
+        let (alternative_index, alternative) = selected.ok_or(Rule::InvalidPlan)?;
         // Invoke records the exact protection point after committed materializations and before
         // source retirement/reclamation. Scoped addresses are bound after the before phase.
         let inputs = action.operation.call_inputs().unwrap_or(&[]);
-        let _taken_storage = if action.operation.call_inputs().is_some() {
+        let taken_storage = if action.operation.call_inputs().is_some() {
             Some(self.memory.storage.items(inputs.len())?)
         } else {
             None
@@ -416,14 +363,23 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                     }
                     self.effect(frame, effect)?;
                 }
-                super::sequence::Step::Operation(op) => self.operation(frame, op, &taken)?,
+                super::sequence::Step::Operation(op) => {
+                    if let Some(call) = self.operation(frame, op, &taken)? {
+                        return Ok(Some(invocations::Pending {
+                            alternative: alternative_index,
+                            call,
+                            _taken: taken,
+                            _taken_storage: taken_storage,
+                        }));
+                    }
+                }
                 super::sequence::Step::After(effect) => {
                     self.tick()?;
                     self.effect(frame, effect)?;
                 }
             }
         }
-        Ok(())
+        Ok(None)
     }
     fn scalar_type(&self, frame: usize, place: &Place) -> Result<ConstantScalarType> {
         let slots = &self
@@ -440,9 +396,14 @@ impl<'a, 'budget> Executor<'a, 'budget> {
             .ok_or(Rule::InvalidPlan)
     }
     #[allow(clippy::too_many_lines)]
-    fn operation(&mut self, frame: usize, op: &Operation, taken: &[Option<Value>]) -> Result<()> {
+    fn operation(
+        &mut self,
+        frame: usize,
+        op: &Operation,
+        taken: &[Option<Value>],
+    ) -> Result<Option<invocations::PreparedCall>> {
         let (destination, value) = match op {
-            Operation::None => return Ok(()),
+            Operation::None => return Ok(None),
             Operation::RequireVariant {
                 source,
                 primary,
@@ -453,7 +414,7 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                     let address = self.memory.address(&self.program, frame, source)?;
                     self.bind_alias(frame, *destination, address)?;
                 }
-                return Ok(());
+                return Ok(None);
             }
             Operation::PrimaryCondition {
                 source,
@@ -477,7 +438,8 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                 source,
             } => {
                 let address = self.memory.address(&self.program, frame, source)?;
-                return self.bind_alias(frame, *destination, address);
+                self.bind_alias(frame, *destination, address)?;
+                return Ok(None);
             }
             Operation::Index {
                 destination,
@@ -490,12 +452,13 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                 index,
             } => {
                 let address = self.index_address(frame, base, index)?;
-                return if matches!(op, Operation::Index { .. }) {
+                if matches!(op, Operation::Index { .. }) {
                     self.bind_alias(frame, *destination, address)
                 } else {
                     let value = self.memory.read(&address)?;
                     self.write(frame, &Place::root(*destination), value)
-                };
+                }?;
+                return Ok(None);
             }
             Operation::Repeat {
                 destination,
@@ -506,7 +469,8 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                 source,
             } => {
                 let value = self.read(frame, source)?;
-                return self.write(frame, destination, value);
+                self.write(frame, destination, value)?;
+                return Ok(None);
             }
             Operation::Unary {
                 destination,
@@ -537,7 +501,8 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                     &scalar::value_binary(*operation, ty, &left, &right).map_err(scalar_rule)?,
                     &self.memory.storage,
                 )?;
-                return self.write(frame, destination, value);
+                self.write(frame, destination, value)?;
+                return Ok(None);
             }
             Operation::Compare {
                 destination,
@@ -560,21 +525,29 @@ impl<'a, 'budget> Executor<'a, 'budget> {
                 callee,
                 cases,
                 inputs,
-            } => (
-                *destination,
-                self.selected_call(frame, callee, cases, inputs, taken)?,
-            ),
+            } => {
+                return self
+                    .prepare_selected_call(frame, *destination, callee, cases, inputs, taken)
+                    .map(Some);
+            }
             Operation::Call {
                 destination,
                 target,
                 inputs,
             } => {
-                let _input_storage = self.memory.storage.items(inputs.len())?;
+                let storage = self.memory.storage.items(inputs.len())?;
                 let inputs = self.inputs(frame, inputs, taken)?;
-                (*destination, self.invoke(*target, &inputs)?)
+                return Ok(Some(invocations::PreparedCall {
+                    destination: *destination,
+                    target: *target,
+                    inputs,
+                    _storage: storage,
+                    _callee: None,
+                }));
             }
         };
-        self.write(frame, &Place::root(destination), value)
+        self.write(frame, &Place::root(destination), value)?;
+        Ok(None)
     }
     fn require_variant(&self, frame: usize, source: &Place, expected: bool) -> Result<()> {
         if matches!(
