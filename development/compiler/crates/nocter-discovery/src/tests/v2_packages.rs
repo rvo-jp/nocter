@@ -125,12 +125,19 @@ fn package_metadata_in_ordinary_sources_or_child_roots_retains_the_real_diagnost
             .find_by_name(wrong.to_str().unwrap())
             .unwrap()
             .id();
-        let Err(SourceFailure::Modules(ModuleSourcesFailure::Surface(SurfaceError::Topology(
-            LoweringError::Rule(error),
-        )))) = ModuleSourceUnit::prepare(unit.compile_input().unwrap())
-        else {
+        let Err(failure) = ModuleSourceUnit::prepare(unit.compile_input().unwrap()) else {
             panic!("package metadata outside the package root must reject")
         };
+        let report = failure.project(unit.compile_input().unwrap()).unwrap();
+        let SourceFailure::Modules(ModuleSourcesFailure::Surface(SurfaceError::Topology(
+            LoweringError::Rule(error),
+        ))) = report.failure()
+        else {
+            panic!("original topology cause")
+        };
+        assert_eq!(report.diagnostics().len(), 1);
+        assert_eq!(report.diagnostics()[0].code(), "E0276");
+        assert_eq!(report.diagnostics()[0].primary().source(), source);
         assert_eq!(error.rule(), TopologyRule::PackageDirectiveOutsideRoot);
         let nocter_syntax::SyntaxOrigin::Node(subject) = error.primary() else {
             panic!("package directive node")

@@ -1,5 +1,6 @@
 //! Header-only query and exact-current binding for the future private-function grammar.
 mod definitions;
+mod diagnostics;
 mod header_values;
 mod headers;
 mod module_audiences;

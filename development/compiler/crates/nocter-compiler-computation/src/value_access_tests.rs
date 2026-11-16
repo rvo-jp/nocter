@@ -174,15 +174,17 @@ fn v2_query_preserves_unused_body_rejection_at_the_actual_source() {
         &format!("{BODY}\nfunc unused(): i32 {{ missing }}"),
     );
     let product = computation.analyze(&source).unwrap();
-    let ValueAccessAnalysis::Rejected(SourceFailure::Checking(
-        nocter_checking::value_access::accepted::Failure::Body {
-            failure: Failure::Rejected(error),
-            ..
-        },
-    )) = &**analysis(&product)
+    let ValueAccessAnalysis::Rejected(report) = &**analysis(&product) else {
+        panic!("source failure report")
+    };
+    let SourceFailure::Checking(nocter_checking::value_access::accepted::Failure::Body {
+        failure: Failure::Rejected(error),
+        ..
+    }) = report.failure()
     else {
         panic!("authored body rejection")
     };
+    assert_eq!(report.diagnostics(), std::slice::from_ref(error.source()));
     assert_eq!(error.rule(), Rule::UnknownName);
     assert_eq!(
         product

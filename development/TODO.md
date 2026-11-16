@@ -687,6 +687,11 @@ not a language restriction derived from the current realization boundary.
   qualify same-input reuse, changed required values, independent header/body guards, stale revision
   rejection and failure-to-healthy retry. Grammar belongs to the scope identity. Session translation
   remains explicitly closed pending its own diagnostic, target and editor qualification.
+- [x] Seal value-access source failures with their original typed cause and phase-owned common
+  diagnostics. Reuse topology/surface/import projectors; qualify header/body/flow, required execution,
+  const eligibility, primitive/role and module errors. Reject foreign node/source generations,
+  unselected spans/notes and invalid ranges; retain valid lexical-token identity across equal-source
+  parsing. Keep spanless integrity/metadata causes and query projection failures distinct.
 - [ ] Integrate v2 into the ordinary compiler/CLI and editor workflow with one semantic pipeline,
   current diagnostics, formatting, presentation and revision/source reuse. Remove transitional private
   handoffs when their production replacement is qualified; retain no competing semantic authority.

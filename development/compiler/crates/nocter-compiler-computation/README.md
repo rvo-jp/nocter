@@ -26,8 +26,9 @@ and sole unit-analysis query as released inputs. The selected grammar also belon
 scope key. The value-access branch calls checking's existing `ModuleSourceUnit` coordinator; it
 owns no alternative header, typing, lifetime, cleanup or required-evaluation implementation.
 The accepted product seals its reusable `ModuleQuery` and complete checked Unit together.
-Source rejection retains the original typed `SourceFailure`, including any internal integrity
-cause, without converting it into released declaration diagnostics. Incomplete syntax retains the
+Source rejection retains checking's sealed `SourceFailureReport`, including its original typed
+cause and common diagnostics, without converting it into released declaration diagnostics. A failure
+to bind a report to its original input becomes a typed compiler-query projection failure. Incomplete syntax retains the
 exact discovery diagnostics and exposes no checked Unit or released recovery result.
 
 This branch currently depends on the complete exact-current source input. An unchanged request

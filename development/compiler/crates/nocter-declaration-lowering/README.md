@@ -7,6 +7,11 @@ contracts, and publish accepted or explicitly recoverable declaration evidence.
 
 ## Contract
 
+Value-access declaration failures expose only diagnostics selected by their original phase.
+Module failure projection reuses the topology, surface and import diagnostic owners; an authored
+rule that cannot bind to the supplied input reports projection failure, while spanless metadata and
+integrity causes remain typed without an invented diagnostic.
+
 Selected v2 package metadata is omitted from value headers after topology validates its package-root
 ownership. Ordinary and single-file roles reject it; its presence cannot authorize a root body or
 initializer. Package data remains decoded by `nocter-package`, not by this declaration path.

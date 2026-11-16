@@ -36,6 +36,8 @@ pub use results::{
 pub use results::{ReferentCarrierContracts, ReferentCarrierData};
 pub use results::{ValueData, ValueDataFailure};
 mod selection;
+mod source_diagnostics;
+pub use source_diagnostics::SourceFailureReport;
 mod staged;
 mod statements;
 mod supply;

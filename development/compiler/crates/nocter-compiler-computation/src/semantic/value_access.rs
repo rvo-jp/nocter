@@ -1,5 +1,8 @@
 //! Grammar-selected value-access analysis through the existing complete source coordinator.
-use nocter_checking::value_access::accepted::{ModuleSourceUnit, SourceFailure, Unit};
+use nocter_checking::value_access::{
+    SourceFailureReport,
+    accepted::{ModuleSourceUnit, Unit},
+};
 use nocter_declaration_lowering::access_declarations::ModuleQuery;
 use nocter_discovery::DiscoveredUnit;
 
@@ -28,7 +31,7 @@ impl AcceptedValueAccess {
 #[derive(Debug)]
 pub enum ValueAccessAnalysis {
     Accepted(AcceptedValueAccess),
-    Rejected(SourceFailure),
+    Rejected(SourceFailureReport),
     IncompleteSyntax,
 }
 
@@ -48,6 +51,10 @@ pub(super) fn analyze(
     });
     Ok(match result {
         Ok(accepted) => ValueAccessAnalysis::Accepted(accepted),
-        Err(failure) => ValueAccessAnalysis::Rejected(failure),
+        Err(failure) => {
+            ValueAccessAnalysis::Rejected(failure.project(input).map_err(|failure| {
+                super::SemanticQueryFailure::ValueAccessProjection(Box::new(failure))
+            })?)
+        }
     })
 }

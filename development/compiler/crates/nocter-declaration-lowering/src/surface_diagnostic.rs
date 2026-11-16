@@ -130,7 +130,7 @@ impl fmt::Display for SurfaceDiagnostic {
 
 impl std::error::Error for SurfaceDiagnostic {}
 
-const fn classify(error: &SurfaceError) -> Option<(SurfaceRule, NodeId)> {
+pub(crate) const fn classify(error: &SurfaceError) -> Option<(SurfaceRule, NodeId)> {
     match error {
         SurfaceError::ImplementationVisibility(node) => {
             Some((SurfaceRule::ImplementationVisibility, *node))

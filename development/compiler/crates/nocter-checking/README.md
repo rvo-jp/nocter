@@ -1557,6 +1557,22 @@ source-version CLI or general D/S solver. The
 qualification; remaining work belongs in the [realization plan](../../../design/compiler-realization.md),
 not a duplicate crate-internal status table.
 
+## Value-Access Source Failure Reports
+
+`SourceFailure::project` seals the original typed failure with phase-owned common diagnostics in a
+`SourceFailureReport`. Declaration diagnostics retain their existing owners; raw module topology,
+surface and import rules use declaration-lowering's shared projectors. Body, access/resource-flow,
+required-evaluation and const-domain failures keep their exact original diagnostic sets. Metadata
+and integrity failures gain no invented source diagnostic, and the typed cause remains available.
+
+Projection verifies every primary and note against selected input sources and the source map.
+Syntax nodes require their original tree identity; lexical token origins may survive reparsing of
+the same exact source identity. Span-only diagnostics require selected source membership and valid
+normalized ranges. A foreign tree, source generation, unselected source or invalid range rejects
+projection and returns the original failure. This report supplies no source acceptance, recovery,
+repair, target or executable capability. Query and session consumers share it instead of decoding
+phase variants or reconstructing source locations.
+
 ## Primitive Header Boundary
 
 The ordinary value-access source entry has no primitive authority. It rejects a matching

@@ -10,6 +10,7 @@ use std::fmt;
 /// missing-authority result at the session boundary.
 #[derive(Debug)]
 pub enum SemanticQueryFailure {
+    ValueAccessProjection(Box<nocter_checking::value_access::accepted::SourceFailure>),
     CompileInput(nocter_discovery::CompileInputError),
     CurrentProjection(nocter_declaration_lowering::CurrentProjectionError),
     BodySource(nocter_checking::BodySourceError),
@@ -36,6 +37,8 @@ impl fmt::Display for SemanticQueryFailure {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::CompileInput(error) => error.fmt(formatter),
+            Self::ValueAccessProjection(_) => formatter
+                .write_str("value-access diagnostics do not bind to the checked source input"),
             Self::CurrentProjection(error) => error.fmt(formatter),
             Self::BodySource(error) => error.fmt(formatter),
             Self::ProgramPreparation(error) => error.fmt(formatter),
@@ -83,7 +86,8 @@ impl std::error::Error for SemanticQueryFailure {
             Self::ProgramPreparation(error) => Some(error),
             Self::BodyNameResolution(error) => Some(error),
             Self::BodyChecking(error) => Some(error),
-            Self::ProgramMaterialization(_)
+            Self::ValueAccessProjection(_)
+            | Self::ProgramMaterialization(_)
             | Self::NameRejectionMaterialization(_)
             | Self::MissingBodyIdentity { .. }
             | Self::BodySourceIdentityMismatch { .. }
