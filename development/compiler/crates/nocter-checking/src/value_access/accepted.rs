@@ -743,25 +743,6 @@ impl Checked {
             work,
         )
     }
-    /// Shared result-channel metadata for evaluator projection.
-    pub(super) fn instantiate_result_contract(
-        &self,
-        frame: &nocter_declarations::value_access::CodeInstanceKey,
-        work: &mut nocter_constant_evaluation::state::WorkBudget,
-    ) -> Result<nocter_declarations::value_access::DataInstanceKey, super::InstantiationFailure>
-    {
-        let body = self
-            .code(frame.code())
-            .ok_or(super::InstantiationFailure::Unresolved)?;
-        super::results::instantiate_result_contract(
-            &self.program,
-            &self.result_evidence,
-            body,
-            frame,
-            work,
-        )
-    }
-
     pub(super) fn instantiate_invocation(
         &self,
         caller: &nocter_declarations::value_access::CodeInstanceKey,
@@ -774,6 +755,22 @@ impl Checked {
             return Err(super::InstantiationFailure::WrongOwner);
         }
         super::results::instantiate_controlled_invocation(
+            &self.program,
+            &self.result_evidence,
+            caller,
+            site,
+            control,
+            work,
+        )
+    }
+    pub(super) fn instantiate_invocation_domain(
+        &self,
+        caller: &nocter_declarations::value_access::CodeInstanceKey,
+        site: nocter_model::ValueApplication,
+        control: &super::InstanceControl,
+        work: &mut nocter_constant_evaluation::state::WorkBudget,
+    ) -> Result<super::InvocationDomain, super::InstantiationFailure> {
+        super::results::instantiate_controlled_invocation_domain(
             &self.program,
             &self.result_evidence,
             caller,

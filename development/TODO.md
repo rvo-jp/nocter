@@ -191,16 +191,19 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
   required admission and body discovery. Reuse controlled domains, preserve strict single-frame
   queries and existing state-guard scope, and retain unresolved-context diagnostics through
   initial/lazy plan projection before admitting source selected calls.
+- [x] Qualify original-source evaluator retained-read selection through complete stored-case/body
+  correspondence, common closed result and explicit input channels. Preserve actual return receipts,
+  original preparations and unencoded local/loop rejection; reconcile source tests and consumers.
 - [ ] Preserve the original failed operation and instance when lazy plan projection fails before
   entering the requested body. Keep source-context failures distinct from invalid plans and
   report the inner cause rather than only the caller's load site.
 - [ ] Close the [positive callable alternative obligations](design/compiler-realization.md#positive-callable-alternatives)
   through the canonical data-instance graph, guarded source transport, evaluator/target plans,
   native selection and cleanup before widening source admission. The value-context fixture
-  `contextual-joined-sibling-growth.nct` currently rejects at required callable-context selection;
-  its two positive branches create the same wrapper with distinct nested environments. Preserve
-  that rejection until the complete selected alternative can be realized, then qualify relocation
-  and forwarding without source annotations or element expansion.
+  `contextual-joined-sibling-growth.nct` now executes both nested captured alternatives through
+  native and required evaluation. Extend beyond retained-read/common-closed-channel selection to
+  remaining consuming, primitive, dependent and nonuniform channels without source annotations,
+  invented active selectors or element expansion.
 - [x] Qualify same-geometry contextual callable component replacement and restoration with a
   surviving disjoint sibling reference. Carry each partial receipt's original containing roots
   into MIR and physical geometry checks without fusing separate retirement/receipt operations.

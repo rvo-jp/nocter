@@ -1,5 +1,7 @@
 //! Project one already checked graph and its resource alternatives; no source/ownership decisions.
 mod arrays;
+mod invocations;
+use invocations::Selection;
 mod resources;
 mod source;
 #[cfg(test)]
@@ -93,10 +95,11 @@ struct Builder<'a, 'b> {
     program: &'a Program,
     types: &'b mut Types,
     instance: &'a CodeInstanceKey,
+    result: nocter_declarations::value_access::DataInstanceKey,
     instances: &'b mut Instances,
     slots: Vec<plan::Slot>,
     keys: BTreeMap<Key, usize>,
-    invocations: BTreeMap<AccessExpressionId, CodeInstanceKey>,
+    invocations: BTreeMap<AccessExpressionId, Selection>,
     prepared: crate::value_access::PreparedData,
     values: crate::value_access::ValueData,
     resources: BTreeMap<flow::Location, Vec<resources::Projected>>,
@@ -143,19 +146,18 @@ impl Builder<'_, '_> {
                         |expression| matches!(expression.kind, ExpressionKind::Call { .. }),
                     ) =>
                 {
-                    let frame = self.invocation(id)?;
-                    let data = self
-                        .instances
-                        .boundary(self.checked, &frame, self.work)?
-                        .result
-                        .clone();
+                    let data = match self.invocation(id)? {
+                        Selection::One(frame) => self
+                            .instances
+                            .boundary(self.checked, &frame, self.work)?
+                            .result
+                            .clone(),
+                        Selection::Choice { result, .. } => result,
+                    };
                     self.types.get_instance(self.program, data)?
                 }
                 Key::Resource(Holder::Return) => {
-                    let key = self
-                        .checked
-                        .instantiate_result_contract(self.instance, self.work)?;
-                    self.types.get_instance(self.program, key)?
+                    self.types.get_instance(self.program, self.result.clone())?
                 }
                 Key::Resource(
                     Holder::Prepared { call, index } | Holder::Temporary { call, index },
@@ -640,30 +642,16 @@ impl Builder<'_, '_> {
             },
         )
     }
-    // Only committed-call consumers request this frame. Preparation/cancellation cannot intern code.
-    fn invocation(&mut self, id: AccessExpressionId) -> Result<CodeInstanceKey> {
-        if let Some(key) = self.invocations.get(&id) {
-            return Ok(key.clone());
-        }
-        let key = self.checked.instantiate_invocation(
-            self.instance,
-            nocter_model::ValueApplication {
-                owner: self.instance.code(),
-                call: id,
-            },
-            &self.control,
-            self.work,
-        )?;
-        self.invocations.insert(id, key.clone());
-        Ok(key)
-    }
     fn captured_call(&mut self, id: AccessExpressionId) -> Result<bool> {
         Ok(matches!(
-            self.invocation(id)?.code(),
-            nocter_model::ValueCode::Closure(_)
+            self.invocation(id)?,
+            Selection::One(frame) if matches!(frame.code(), nocter_model::ValueCode::Closure(_))
         ))
     }
     fn call_input_offset(&mut self, call: AccessExpressionId) -> Result<usize> {
+        if matches!(self.invocation(call)?, Selection::Choice { .. }) {
+            return Ok(1);
+        }
         if self.captured_call(call)? {
             return Ok(0);
         }
@@ -683,7 +671,10 @@ impl Builder<'_, '_> {
         Ok(arguments.len() - kind.explicit_arguments(arguments).ok_or(INVALID)?.len())
     }
     fn call(&mut self, id: AccessExpressionId) -> Result<plan::Operation> {
-        let key = self.invocation(id)?;
+        let key = match self.invocation(id)? {
+            Selection::One(frame) => frame,
+            selection @ Selection::Choice { .. } => return self.selected_call(id, selection),
+        };
         let target = key.code();
         let captured = matches!(target, nocter_model::ValueCode::Closure(_));
         let arguments = self
@@ -715,44 +706,59 @@ impl Builder<'_, '_> {
             if !(captured && index == 0) && input.operation != argument.operation {
                 return Err(INVALID);
             }
-            if argument.operation == ValueInputOperation::Take {
-                inputs.push(plan::Input::Take(
-                    self.types.get_instance(self.program, input.data.clone())?,
-                ));
-                continue;
-            }
-            let mut place = match &argument.action {
-                ArgumentAction::ReserveRead(place) | ArgumentAction::ReserveUpdate(place) => {
-                    self.referent(*place)?
-                }
-                ArgumentAction::ReserveTransfer { .. }
-                | ArgumentAction::AccessOwnedValue
-                | ArgumentAction::CopyPlace(_)
-                | ArgumentAction::TakeValue => {
-                    plan::Place::root(self.holder(Holder::Temporary { call: id, index })?)
-                }
-                ArgumentAction::PendingValue(_)
-                | ArgumentAction::Unproduced
-                | ArgumentAction::Interrupted => return Err(INVALID),
-            };
-            if captured && index == 0 {
-                place.fields = place
-                    .fields
-                    .iter()
-                    .copied()
-                    .chain([plan::Projection::Field(0)])
-                    .collect();
-            }
-            inputs.push(match argument.operation {
-                ValueInputOperation::Read => plan::Input::Read(place),
-                ValueInputOperation::Edit => plan::Input::Edit(place),
-                ValueInputOperation::Take => unreachable!(),
-            });
+            inputs.push(self.argument_input(
+                id,
+                index,
+                argument,
+                &input.data,
+                captured && index == 0,
+            )?);
         }
         Ok(plan::Operation::Call {
             destination: self.holder(Holder::Expression(id))?,
             target: target_instance,
             inputs: inputs.into(),
+        })
+    }
+    fn argument_input(
+        &mut self,
+        id: AccessExpressionId,
+        index: usize,
+        argument: &super::super::Argument,
+        data: &nocter_declarations::value_access::DataInstanceKey,
+        environment: bool,
+    ) -> Result<plan::Input> {
+        if argument.operation == ValueInputOperation::Take {
+            return Ok(plan::Input::Take(
+                self.types.get_instance(self.program, data.clone())?,
+            ));
+        }
+        let mut place = match &argument.action {
+            ArgumentAction::ReserveRead(place) | ArgumentAction::ReserveUpdate(place) => {
+                self.referent(*place)?
+            }
+            ArgumentAction::ReserveTransfer { .. }
+            | ArgumentAction::AccessOwnedValue
+            | ArgumentAction::CopyPlace(_)
+            | ArgumentAction::TakeValue => {
+                plan::Place::root(self.holder(Holder::Temporary { call: id, index })?)
+            }
+            ArgumentAction::PendingValue(_)
+            | ArgumentAction::Unproduced
+            | ArgumentAction::Interrupted => return Err(INVALID),
+        };
+        if environment {
+            place.fields = place
+                .fields
+                .iter()
+                .copied()
+                .chain([plan::Projection::Field(0)])
+                .collect();
+        }
+        Ok(match argument.operation {
+            ValueInputOperation::Read => plan::Input::Read(place),
+            ValueInputOperation::Edit => plan::Input::Edit(place),
+            ValueInputOperation::Take => unreachable!(),
         })
     }
     #[allow(clippy::too_many_lines)]
@@ -1064,11 +1070,7 @@ impl Builder<'_, '_> {
             statics,
             inputs,
             slots: self.slots.into(),
-            result: self.types.get_instance(
-                self.program,
-                self.checked
-                    .instantiate_result_contract(self.instance, self.work)?,
-            )?,
+            result: self.types.get_instance(self.program, self.result.clone())?,
             initializer: initializer(self.program, self.query.typed().code())?,
             entry: self.query.graph().entry(),
             points: points.finish(),

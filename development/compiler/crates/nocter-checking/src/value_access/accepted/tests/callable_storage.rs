@@ -809,17 +809,6 @@ fn contextual_optional_siblings_preserve_original_tags_and_received_contexts() {
 }
 
 #[test]
-fn conflicting_positive_callable_contexts_remain_unqualified_without_executable_selection() {
-    let source = JOINED_SIBLINGS;
-    let (sources, tree) = input(source);
-    let failure = SourceUnit::prepare(bound(&sources, &tree)).unwrap_err();
-    assert!(
-        matches!(failure, SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })
-        if diagnostic.rule() == crate::value_access::evaluation::Rule::UnresolvedContext)
-    );
-}
-
-#[test]
 fn positive_source_result_domains_keep_both_original_creation_contexts() {
     use nocter_constant_evaluation::state::WorkBudget;
     use nocter_declarations::value_access::InstanceSchema;

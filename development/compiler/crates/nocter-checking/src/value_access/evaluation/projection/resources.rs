@@ -120,6 +120,9 @@ impl Builder<'_, '_> {
         Ok(())
     }
     fn receiving_key(&self, holder: Holder) -> Result<Option<&DataInstanceKey>> {
+        if holder == Holder::Return {
+            return Ok(Some(&self.result));
+        }
         let Holder::Expression(expression) = holder else {
             return Ok(None);
         };
@@ -243,6 +246,7 @@ impl Builder<'_, '_> {
                 {
                     if target.fields.is_empty()
                         && let Some(receiving) = self.receiving_key(destination.holder())?.cloned()
+                        && payload.instance() != &receiving
                         && !payload
                             .instance()
                             .has_same_representation(self.program, &receiving)

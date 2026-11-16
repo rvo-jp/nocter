@@ -855,8 +855,10 @@ original incoming move requires declaration-owned directed transport proof befor
 `state::Effect::Transport`; constraints alone cannot manufacture a selector. Required source
 probes cover bare/optional callable returns, local receipt and whole retirement across both
 original branches and nested three-way choices. Generated-plan mutations reject replacing the
-incoming transports by ordinary or context-changing moves. Selected evaluator invocation,
-local/loop epochs and retained references remain separate qualification boundaries.
+incoming transports by ordinary or context-changing moves. The evaluator also registers its
+return holder from the canonical body result channel and encodes every original return receipt
+into that represented contract. Multiple return boundaries do not inherit a reachable producer's
+single-case format. Local/loop epochs and retained references remain separate qualification boundaries.
 
 `ValueData` retains actual instantiated payload contracts without adding owners or granting source
 access, materialization or executable-body permission. Target-program occurrence projection consumes
@@ -1621,6 +1623,19 @@ inputs, factory-only results and per-instance state. The shared native source co
 answers with ordinary execution. Arithmetic, bounds, work and call-depth failures retain actual
 captured-body locations. Captured calls can also supply local/header array counts; supplier body
 changes invalidate header reuse while unrelated body edits do not.
+
+Retained-read finite callable invocation uses the original controlled invocation domain and prepared
+argument bundle. Each complete stored case must identify exactly one actual body frame; every
+candidate must have the same independently closed result and represented explicit read/edit/take
+input contracts. A captured candidate additionally requires its exact read-only environment channel.
+Canonical stored case order determines `state::Operation::SelectedCall`; candidate discovery order
+does not. The operation reads the actual encoded carrier and invokes only its selected body, using
+the ordinary argument preparation and handoff protections. Original-source probes qualify both
+nested environments of `contextual-joined-sibling-growth.nct` during required evaluation, as well
+as independent return boundaries. Consuming environments, nonuniform or dependent result channels,
+primitive candidates and local/loop joins without encoded selectors remain unqualified. A prepared
+domain cannot relabel a single-case local slot into a choice; this source boundary reports an
+unresolved context rather than publishing an invalid evaluator plan.
 
 Flat direct callable inputs in named and anonymous code retain conditional invocation, data and
 cleanup obligations. The template check does not grant an unbound callback unconditional const

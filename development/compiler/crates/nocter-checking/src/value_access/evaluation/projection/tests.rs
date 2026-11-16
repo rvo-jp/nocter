@@ -224,6 +224,10 @@ fn concrete_resource_contracts_survive_projection_and_invalid_constraints_publis
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "One original-source builder fixture exercises the complete slot-registration invariant."
+)]
 fn owner_registration_retains_one_slot_and_never_relabels_its_initial_context() {
     let checked = checked(
         "const func first(): i32 { 41 }\nconst func second(): i32 { 42 }\nconst func run(): i32 { var value = first\nread view = value\nview() }",
@@ -272,7 +276,13 @@ fn owner_registration_retains_one_slot_and_never_relabels_its_initial_context() 
         .instantiate_value_data_map(&frame, &mut work)
         .unwrap();
     let mut instances = source::Instances::default();
+    let result = instances
+        .boundary(&checked, &frame, &mut work)
+        .unwrap()
+        .result
+        .clone();
     let mut builder = Builder {
+        result,
         conditions: Box::new([]),
         control: checked.instantiate_control(&frame, &mut work).unwrap(),
         checked: &checked,
@@ -496,6 +506,62 @@ fn original_callable_receiving_plans_reject_missing_selector_encoding() {
             matches!(invalid.extend(changed), Err(plan::Rule::InvalidPlan)),
             "root receipt: {root_receipt}"
         );
+    }
+    let mut healthy = program;
+    healthy.extend(extension).unwrap();
+}
+
+#[test]
+fn original_selected_callable_plan_requires_every_stored_case_in_canonical_order() {
+    let text = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/value-contexts/contextual-joined-sibling-growth.nct"
+    ));
+    let (definitions, _) = text.split_once("\nconst func calculate").unwrap();
+    let checked = checked(&format!(
+        "{definitions}\nconst func invoke(present: bool): i32 {{
+            let value = maybe(present)
+            let callback = value^ otherwise {{ return 0 }}
+            callback(40)
+        }}"
+    ));
+    let root = checked
+        .program
+        .resolve_code(checked.program.symbols().get("invoke").unwrap())
+        .unwrap();
+    let id = plan::CodeInstance::from(root);
+    let mut work = plan::WorkBudget::new(plan::Limits::default().steps());
+    let (program, mut source) =
+        Source::prepare(&checked, root.into(), BTreeMap::new(), |_| None, &mut work).unwrap();
+    let extension = source.load(id).unwrap();
+    for drop_case in [false, true] {
+        let mut changed = copy_extension(&extension);
+        let body = changed.plans.get_mut(&id).unwrap();
+        let mut selections = 0;
+        body.points = body.points.map(|_, point| {
+            let mut point = point.clone();
+            for action in &mut point.actions {
+                if let plan::Operation::SelectedCall { cases, inputs, .. } = &mut action.operation {
+                    assert_eq!(cases.len(), 2);
+                    assert_eq!(inputs.len(), 1);
+                    assert_ne!(cases[0].data, cases[1].data);
+                    assert_ne!(cases[0].target, cases[1].target);
+                    if drop_case {
+                        *cases = cases[..1].into();
+                    } else {
+                        cases.swap(0, 1);
+                    }
+                    selections += 1;
+                }
+            }
+            point
+        });
+        assert_eq!(selections, 1);
+        let mut invalid = program.clone();
+        assert!(matches!(
+            invalid.extend(changed),
+            Err(plan::Rule::InvalidPlan)
+        ));
     }
     let mut healthy = program;
     healthy.extend(extension).unwrap();

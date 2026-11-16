@@ -266,3 +266,50 @@ fn required_nested_callable_receipts_preserve_original_three_way_choices() {
         "{definitions}\nconst func choose(which: i32): func(i32): i32 {{ if which == 0 {{ wrap(identity) }} else {{ if which == 1 {{ wrap(addition(2)) }} else {{ wrap(subtraction(50)) }} }} }}\nconst func hold(which: i32): i32 {{ let value = choose(which)\nlet saved = value^\n42 }}\nconst ANSWER: i32 = if hold(0) == 42 && hold(1) == 42 && hold(2) == 42 {{ 42 }} else {{ 0 }}"
     ));
 }
+
+#[test]
+fn required_positive_callable_selection_preserves_original_preparations_and_cases() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/value-contexts/contextual-joined-sibling-growth.nct"
+    ));
+    let (definitions, _) = source.split_once("\nconst func calculate").unwrap();
+    assert_answer_42(&format!(
+        "{definitions}\nconst func invoke(present: bool): i32 {{ let value = maybe(present)\nlet callback = value^ otherwise {{ return 0 }}\ncallback(if present {{ 40 }} else {{ 42 }}) }}\nconst ANSWER: i32 = if invoke(false) == 42 && invoke(true) == 42 {{ 42 }} else {{ 0 }}"
+    ));
+    assert_answer_42(source);
+}
+
+#[test]
+fn required_selected_callable_inputs_keep_read_edit_and_take_operations() {
+    for (operation, body, supplied, checked) in [
+        ("", "value + offset", "value", "value == 40"),
+        (
+            "edit ",
+            "value += offset\nvalue",
+            "value",
+            "value == result",
+        ),
+        ("take ", "value + offset", "value^", "true"),
+    ] {
+        assert_answer_42(&format!(
+            "const func first_value({operation}value: i32): i32 {{ {first_body} }}
+            const func second_value({operation}value: i32): i32 {{ {second_body} }}
+            const func wrap(take callback: func({operation}i32): i32): func({operation}i32): i32 {{
+                (callback^; {operation}value: i32): i32 {{ callback({supplied}) }}
+            }}
+            const func choose(first: bool): func({operation}i32): i32 {{
+                if first {{ wrap(first_value) }} else {{ wrap(second_value) }}
+            }}
+            const func invoke(first: bool): i32 {{
+                var value = 40
+                let callback = choose(first)
+                let result = callback({supplied})
+                if {checked} && result == (if first {{ 41 }} else {{ 42 }}) {{ 42 }} else {{ 0 }}
+            }}
+            const ANSWER: i32 = if invoke(false) == 42 && invoke(true) == 42 {{ 42 }} else {{ 0 }}",
+            first_body = body.replace("offset", "1"),
+            second_body = body.replace("offset", "2"),
+        ));
+    }
+}

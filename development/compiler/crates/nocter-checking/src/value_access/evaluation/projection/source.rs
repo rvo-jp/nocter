@@ -164,8 +164,14 @@ impl<'a, 'work, F: Fn(AccessCodeId) -> Option<plan::Value>> Source<'a, 'work, F>
                 cause: plan::Site { code: key.code(), point: condition.cause.point, action: condition.cause.action },
             })
         }).collect::<super::Result<_>>()?;
+        let result = self
+            .instances
+            .boundary(self.checked, &key, self.work)?
+            .result
+            .clone();
         let body = Builder {
             checked: self.checked,
+            result,
             work: self.work,
             query,
             program,

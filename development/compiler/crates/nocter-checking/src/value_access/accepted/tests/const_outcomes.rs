@@ -88,11 +88,9 @@ fn received_absence_selects_return_boundaries_instead_of_reachable_producers() {
         );
     }
     let positive = source.replace("{ none }", "{ identity }");
-    let fixture = nocter_test_support::ValueSourceFixture::new(&positive);
-    let failure = SourceUnit::prepare(fixture.syntax()).unwrap_err();
-    assert!(
-        matches!(failure, SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })
-        if diagnostic.rule() == crate::value_access::evaluation::Rule::UnresolvedContext)
+    assert_eq!(
+        super::initializers::answer(&positive, "ANSWER"),
+        Datum::integer(0)
     );
 }
 
@@ -104,10 +102,13 @@ fn inhabited_received_domains_keep_conflicting_loop_exits_unresolved() {
     ));
     let source = source.replace("{ none }", "{ identity }");
     let fixture = nocter_test_support::ValueSourceFixture::new(&source);
-    let failure = SourceUnit::prepare(fixture.syntax()).unwrap_err();
+    let Err(failure) = SourceUnit::prepare(fixture.syntax()) else {
+        panic!("source case remains unqualified");
+    };
     assert!(
-        matches!(failure, SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })
-        if diagnostic.rule() == crate::value_access::evaluation::Rule::UnresolvedContext)
+        matches!(&failure, SourceFailure::Checking(Failure::Evaluation { diagnostic, .. })
+        if diagnostic.rule() == crate::value_access::evaluation::Rule::UnresolvedContext),
+        "{failure:?}"
     );
 }
 
