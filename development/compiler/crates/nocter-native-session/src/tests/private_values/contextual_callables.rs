@@ -2012,3 +2012,48 @@ fn private_contextual_outcome_siblings_preserve_active_payloads_and_actual_error
         42,
     );
 }
+
+#[test]
+fn private_complete_fallible_cleanup_selects_actual_record_callback_and_error_graphs() {
+    let source = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/fixtures/native/value-access/complete-fallible-cleanup.nct"
+    ));
+    let machine = trusted_error_machine(source);
+    let helpers: Vec<_> = machine
+        .functions()
+        .filter(|(_, function)| {
+            let body = function.body();
+            body.parameters()
+                .first()
+                .and_then(|&id| body.stack(id))
+                .is_some_and(|slot| {
+                    matches!(
+                        machine.layouts().get(slot.ty()).unwrap().kind(),
+                        nocter_machine::MachineLayoutKind::Outcome { .. }
+                    )
+                })
+        })
+        .collect();
+    assert_eq!(helpers.len(), 2);
+    for (_, helper) in helpers {
+        assert_eq!(
+            helper
+                .body()
+                .operations()
+                .filter(|(_, operation)| matches!(
+                    operation.kind(),
+                    nocter_machine::MachineOperationKind::Call(_)
+                ))
+                .count(),
+            2
+        );
+    }
+    let package = TempPackage::new();
+    execute_native_status(
+        &image(&machine),
+        &package.0,
+        "complete-fallible-cleanup",
+        42,
+    );
+}

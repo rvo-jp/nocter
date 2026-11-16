@@ -222,6 +222,14 @@ optional/fallible recovery. Alternate access guards use the requested tag throug
 non-unwinding branch protocol. Actual owned failure recovery uses the
 [runtime construction](#private-runtime-error-construction) path.
 
+Complete outcome cleanup discovers dependencies for both the inhabited primary and the actual
+error alternative before assigning helpers. Marking the outer fallible shape nontrivial cannot
+replace discovery of either child. Explicitly excluded primaries supply no helper. Real source
+fixtures qualify both generated helper branches; a diverging producer proves generated structure,
+not runtime ownership or error release. The complete-fallible native fixture additionally validates
+both helper calls and executes success/failure cleanup with actual record fields, captured callbacks
+and nested owned error graphs.
+
 Layout and cleanup dependency discovery use iterative work over the same actual schema requests,
 retaining positive-cycle rejection and empty-array/pointer cuts. Flat optional suffix depth does
 not require recursive host calls. Shared source qualifies required/frozen/native handoffs; the
@@ -242,8 +250,12 @@ supplies no code identity, active-case, initialization, reference stability or t
 
 Closed runtime fixtures qualify tag-width boundaries, empty and differently aligned environments,
 case ordering, overflow and recursive dependencies. They are layout checks, not executable source
-qualification. The complete cleanup consumer remains closed to this form, and ordinary source
-execution remains unqualified until original selected-case transport and invocation close together.
+qualification. Cleanup dependency planning follows every complete callable case through the shared
+runtime-schema walker, keeping one helper per needed identity regardless of array cardinality.
+Generated choice cleanup loads the runtime-owned unsigned tag and switches to only that case's
+helper at the common payload offset. Trivial cases read no environment; an invalid tag traps.
+Ordinary source execution remains unqualified until original selected-case construction, transport
+and invocation close together; this helper implementation is not source execution qualification.
 
 ## Private Array Execution
 

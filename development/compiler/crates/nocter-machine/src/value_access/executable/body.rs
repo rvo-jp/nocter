@@ -16,6 +16,7 @@ use nocter_runtime_contract::RuntimeDataId;
 use nocter_runtime_contract::RuntimeType;
 use std::collections::{BTreeMap, BTreeSet};
 mod arrays;
+mod callable_choices;
 mod destruction;
 mod outcomes;
 pub(super) use destruction::build as cleanup;

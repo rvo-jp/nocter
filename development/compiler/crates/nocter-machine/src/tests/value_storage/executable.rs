@@ -503,3 +503,47 @@ fn text_values_serialize_decoded_bytes_and_relocations_inside_ordinary_aggregate
     }
     assert_eq!(program.data().get(target).unwrap().bytes(), text.as_bytes());
 }
+
+#[test]
+fn fallible_cleanup_emits_both_success_owner_and_failure_error_helpers() {
+    let program = compile(
+        "struct Item { reason: error }\nfunc make(): Item! { loop {} }\nfunc run(): void { let value = make() }",
+    );
+    // The diverging producer qualifies generated cleanup, not actual owned-error execution.
+    let helper = program
+        .functions()
+        .find(|(_, function)| {
+            let body = function.body();
+            body.parameters()
+                .first()
+                .and_then(|&id| body.stack(id))
+                .is_some_and(|slot| {
+                    matches!(
+                        program.layouts().get(slot.ty()).unwrap().kind(),
+                        MachineLayoutKind::Outcome { .. }
+                    )
+                })
+        })
+        .unwrap()
+        .1;
+    assert_eq!(
+        helper
+            .body()
+            .operations()
+            .filter(|(_, operation)| matches!(operation.kind(), MachineOperationKind::Call(_)))
+            .count(),
+        2,
+        "success must call the Item helper and failure must call the error helper"
+    );
+    assert_eq!(
+        program
+            .functions()
+            .flat_map(|(_, function)| function.body().operations())
+            .filter(|(_, operation)| matches!(
+                operation.kind(),
+                MachineOperationKind::ReleaseError { .. }
+            ))
+            .count(),
+        1
+    );
+}

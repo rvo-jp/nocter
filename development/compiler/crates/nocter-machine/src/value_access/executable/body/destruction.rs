@@ -73,6 +73,13 @@ pub(crate) fn build(
         MachineLayoutKind::StaticCallable {
             environment: Some(environment),
         } => cleanup_field(&mut builder, *environment, 0)?,
+        MachineLayoutKind::CallableAlternatives {
+            payload_offset,
+            cases,
+            ..
+        } => {
+            cleanup_choice(&mut builder, data, *payload_offset, cases)?;
+        }
         MachineLayoutKind::FixedArray {
             element,
             length,
@@ -86,6 +93,56 @@ pub(crate) fn build(
     let abi = crate::transport::address_signature(data, context.layouts).map_err(Failure::Abi)?;
     builder.finish(MachineFunctionKind::Callable(abi), MachineBlockId::new(0))
 }
+fn cleanup_choice(
+    builder: &mut Builder<'_>,
+    data: RuntimeDataId,
+    payload_offset: u64,
+    cases: &[RuntimeDataId],
+) -> Result<(), Failure> {
+    let layout = builder
+        .context
+        .layouts
+        .get(data)
+        .ok_or(Failure::InvalidRoot)?;
+    let base = builder.address(MachineAddress::new(
+        data,
+        layout.size(),
+        layout.alignment(),
+        MachineAddressRoot::Stack(MachineStackId::new(0)),
+        [MachineAddressStep::Dereference],
+    ));
+    let subject = builder.callable_tag(base, data)?;
+    let blocks = cases.iter().map(|_| builder.block()).collect::<Vec<_>>();
+    let fallback = builder.block();
+    let done = builder.block();
+    let branches = blocks
+        .iter()
+        .enumerate()
+        .map(|(index, block)| {
+            Ok(crate::MachineSwitchCase::new(
+                crate::MachineSwitchValue::Integer(
+                    i128::try_from(index).map_err(|_| Failure::InvalidRoot)?,
+                ),
+                crate::MachineBranchTarget::new(*block, []),
+            ))
+        })
+        .collect::<Result<Box<[_]>, Failure>>()?;
+    builder.terminate(MachineTerminator::SwitchValue {
+        subject,
+        cases: branches,
+        fallback: crate::MachineBranchTarget::new(fallback, []),
+    })?;
+    for (block, case) in blocks.into_iter().zip(cases) {
+        builder.current = block;
+        cleanup_field(builder, *case, payload_offset)?;
+        builder.go(done)?;
+    }
+    builder.current = fallback;
+    builder.terminate(MachineTerminator::Unreachable)?;
+    builder.current = done;
+    Ok(())
+}
+
 fn cleanup_field(
     builder: &mut Builder<'_>,
     data: RuntimeDataId,

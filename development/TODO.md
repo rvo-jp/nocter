@@ -128,6 +128,12 @@ shared schemas, sparse loops, homogeneous arrays and one canonical normalization
 - [x] Qualify complete runtime callable-case correspondence separately from transport permission,
   preserving source order, explicit target indices and exact case identity. Share the runtime-owned
   tag-width rule between target primitive closure and Machine geometry before native selection.
+- [x] Fix complete fallible cleanup dependency discovery: retain both the success owner's helper
+  and the error alternative's helper rather than marking the outer shape nontrivial and stopping.
+  Qualify original source-generated cleanup independently of actual owned-error execution.
+- [x] Extend shared cleanup dependency planning and generated helper selection to finite callable
+  choices, following only the selected runtime tag at execution and retaining all possible case
+  helpers without enumerating array cardinality. Keep source invocation/transport admission closed.
 - [ ] Close the [positive callable alternative obligations](design/compiler-realization.md#positive-callable-alternatives)
   through the canonical data-instance graph, guarded source transport, evaluator/target plans,
   native selection and cleanup before widening source admission. The value-context fixture

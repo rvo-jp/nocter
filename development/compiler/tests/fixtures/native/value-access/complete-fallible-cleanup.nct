@@ -1,0 +1,25 @@
+primitive func create_failure(code: str, message: str): error
+primitive func context_error(take value: error, message: str): error
+
+struct Item { reason: error }
+
+func make(present: bool): Item! {
+    let reason = context_error(create_failure("record", "leaf"), "outer")
+    if present { Item { reason: reason^ } } else { throw reason^ }
+}
+
+func callback(present: bool): (func(): i32)! {
+    let reason = context_error(create_failure("callback", "leaf"), "outer")
+    if present { (reason^;): i32 { 42 } } else { throw reason^ }
+}
+
+func abandon(present: bool): void {
+    let record = make(present)
+    let action = callback(present)
+}
+
+func run(): i32 {
+    abandon(false)
+    abandon(true)
+    42
+}
