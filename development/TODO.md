@@ -757,6 +757,10 @@ not a language restriction derived from the current realization boundary.
 
 ## Open Findings
 
+- [x] Limit the website source inventory to authored documentation roots. Verify local drafts
+  outside those roots stay out of pages, navigation, search and sitemap, including when their
+  Markdown contains unresolved links.
+
 - [x] Preserve distinct captured callback substitutions from one lexical factory through local,
   argument, component, result and re-capture transport using original source/creation evidence and
   canonical instance keys. Existing formal-capture qualification covers named/owned environments,

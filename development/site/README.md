@@ -43,12 +43,15 @@ registration does not publish its page or add its text to search.
 
 The website publishes:
 
-- user-facing Markdown from the repository root, `spec/`, `examples/`, and `releases/`;
+- the repository `README.md` and user-facing Markdown under `spec/`, `examples/`, and `releases/`;
 - current contributor Markdown under `development/`, except internal handoff, unreleased
   specifications and unresolved design;
 - every runnable Nocter source under `examples/`;
 - public standard-library READMEs and exact checked `index.nct` module-contract sources under
   `std/`, excluding the `internal/` subtree.
+
+Root-level drafts and unrelated workspace directories are outside the documentation inventory.
+Local-link validation uses the same roots and also checks the unreleased Markdown in those trees.
 
 Standard-library documentation keeps its repository path in the public `/std/` tree; the site does
 not present it as contributor documentation. A contract page preserves its

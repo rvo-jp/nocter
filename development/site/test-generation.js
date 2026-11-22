@@ -23,6 +23,7 @@ try {
     build(late);
     assertEqualTrees(generatedRoot(early), generatedRoot(late));
     assertPublicationBoundary(early);
+    assertLocalDraftBoundary(early);
     assertDocumentTreeNavigation(early);
     assertSiteNavigationPolicy(early);
     assertMarkdownTableRendering(early);
@@ -328,6 +329,32 @@ function assertPublicationBoundary(root) {
         if (fs.existsSync(path.join(generatedRoot(root), relative))) {
             throw new Error(`documentation generation published private standard-library source ${relative}`);
         }
+    }
+}
+
+function assertLocalDraftBoundary(root) {
+    const drafts = ["workspace-draft.md", "workspace-scratch/draft.md"];
+    try {
+        for (const relative of drafts) {
+            const source = path.join(root, relative);
+            fs.mkdirSync(path.dirname(source), { recursive: true });
+            fs.writeFileSync(source, "# Private Workspace Draft\n\n[Unresolved](./unwritten.md)\n");
+        }
+        build(root);
+        const output = generatedRoot(root);
+        for (const relative of ["workspace-draft/index.html", "workspace-scratch/draft/index.html"]) {
+            if (fs.existsSync(path.join(output, relative))) {
+                throw new Error(`documentation generation published an unselected workspace draft: ${relative}`);
+            }
+        }
+        for (const relative of ["index.html", "search-index.json", "sitemap.xml"]) {
+            const generated = fs.readFileSync(path.join(output, relative), "utf8");
+            if (/Private Workspace Draft|workspace-draft|workspace-scratch/.test(generated)) {
+                throw new Error(`workspace draft leaked into ${relative}`);
+            }
+        }
+    } finally {
+        for (const relative of drafts) fs.rmSync(path.join(root, relative), { force: true });
     }
 }
 

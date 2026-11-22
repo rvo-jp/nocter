@@ -18,6 +18,7 @@ const SOURCE_ORIGIN = `${SOURCE_REPOSITORY}/blob/${BUILD_OPTIONS.sourceRevision 
 const outputTransaction = new OutputTransaction(FINAL_OUTPUT_ROOT);
 const OUTPUT_ROOT = outputTransaction.directory;
 const SKIP_DIRS = new Set([".git", ".github", "dist", "target", "node_modules"]);
+const DOCUMENTATION_ROOTS = new Set(["development", "examples", "releases", "spec", "std"]);
 const SKIP_SOURCE_PATHS = new Set(["development/TODO.md"]);
 const UNRELEASED_SOURCE_PREFIXES = ["development/spec/", "development/design/"];
 const SKIP_PUBLICATION_PREFIXES = [
@@ -503,6 +504,15 @@ function markdownHeadingIds(markdown) {
     return ids;
 }
 
+function isDocumentationDirectory(directory, name) {
+    return !SKIP_DIRS.has(name)
+        && (directory !== PROJECT_ROOT || DOCUMENTATION_ROOTS.has(name));
+}
+
+function isDocumentationMarkdown(relative) {
+    return relative.endsWith(".md") && (relative === "README.md" || relative.includes("/"));
+}
+
 function collectDocumentationLinkSources(directory) {
     const files = [];
 
@@ -516,8 +526,7 @@ function collectDocumentationLinkSources(directory) {
 
         if (entry.isDirectory()) {
             if (
-                !SKIP_DIRS.has(entry.name)
-                && relative !== "docs"
+                isDocumentationDirectory(directory, entry.name)
                 && !SKIP_LINK_VALIDATION_PREFIXES.some(prefix => `${relative}/`.startsWith(prefix))
             ) {
                 files.push(...collectDocumentationLinkSources(fullPath));
@@ -526,7 +535,7 @@ function collectDocumentationLinkSources(directory) {
             continue;
         }
 
-        if (entry.isFile() && entry.name.endsWith(".md")) {
+        if (entry.isFile() && isDocumentationMarkdown(relative)) {
             files.push(fullPath);
         }
     }
@@ -547,7 +556,7 @@ function collectSourceFiles(directory) {
 
         if (entry.isDirectory()) {
             if (
-                !SKIP_DIRS.has(entry.name)
+                isDocumentationDirectory(directory, entry.name)
                 && !SKIP_PUBLICATION_PREFIXES.some(prefix => `${relative}/`.startsWith(prefix))
             ) {
                 files.push(...collectSourceFiles(fullPath));
@@ -575,7 +584,7 @@ function isPublishedSource(relative) {
         return false;
     }
 
-    if (relative.endsWith(".md")) {
+    if (isDocumentationMarkdown(relative)) {
         return true;
     }
 
