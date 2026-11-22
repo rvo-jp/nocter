@@ -160,14 +160,23 @@ fn prepared_v2_check_preserves_source_errors_and_entry_admission_is_separate() {
         "see ./index.nct\nfunc other(): i32 { 17 }\n",
     )
     .unwrap();
-    assert_eq!(
-        check(second).unwrap_err().diagnostic_code(),
-        Some(DiagnosticCode::E0800)
-    );
-    assert_eq!(
-        fixture.build(&[]).unwrap_err().diagnostic_code(),
-        Some(DiagnosticCode::E0800)
-    );
+    let check_failure = check(second).unwrap_err();
+    let set_failure = fixture.build(&[]).unwrap_err();
+    let selected_failure = fixture.build(second).unwrap_err();
+    for (diagnostics, sources) in [
+        check_failure.source_diagnostics().unwrap(),
+        set_failure.source_diagnostics().unwrap(),
+        selected_failure.source_diagnostics().unwrap(),
+    ] {
+        let [diagnostic] = diagnostics else {
+            panic!("one entry diagnostic")
+        };
+        assert_eq!(diagnostic.code(), DiagnosticCode::E0800.as_str());
+        let span = diagnostic.primary().span();
+        let file = sources.get(span.source()).unwrap();
+        assert!(file.name().as_str().ends_with("/app/index.nct"));
+        assert_eq!(file.text_at(span.range()), Some("\"second\""));
+    }
     assert!(!app.join("first").exists());
     assert!(!app.join("second").exists());
 
@@ -251,7 +260,18 @@ fn prepared_v2_single_file_runs_its_own_main_and_allows_seen_helpers() {
     )
     .unwrap();
     let failure = run().unwrap_err();
-    assert_eq!(failure.diagnostic_code(), Some(DiagnosticCode::E0800));
+    let (diagnostics, sources) = failure.source_diagnostics().unwrap();
+    let [diagnostic] = diagnostics else {
+        panic!("one entry diagnostic")
+    };
+    assert_eq!(diagnostic.code(), DiagnosticCode::E0800.as_str());
+    let span = diagnostic.primary().span();
+    let source = sources.get(span.source()).unwrap();
+    assert_eq!(
+        source.name().as_str(),
+        file.canonicalize().unwrap().to_str().unwrap()
+    );
+    assert_eq!(source.text_at(span.range()), Some(""));
     assert!(
         failure
             .to_string()

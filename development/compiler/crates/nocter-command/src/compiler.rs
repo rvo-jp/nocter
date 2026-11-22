@@ -221,7 +221,8 @@ impl CommandAnalysisError {
     pub fn source_diagnostics(&self) -> &[nocter_diagnostics::SourceDiagnostic] {
         match self {
             Self::Compilation(error) => error.source_diagnostics(),
-            Self::Computation(_) | Self::Session(_) | Self::ValueAccessTarget(_) => &[],
+            Self::ValueAccessTarget(error) => error.source_diagnostics(),
+            Self::Computation(_) | Self::Session(_) => &[],
         }
     }
 

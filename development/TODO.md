@@ -18,9 +18,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Project executable-entry failures onto the exact current authored target or selected source file.
-Preserve one typed failure and its source envelope through `check`, `build` and `run`. Then qualify
-async entries, process context, installed library and editor integration.
+Qualify v2 access to the process context through toolchain-authorized primitive roles and the
+existing native startup protocol. Begin with argument count under real launcher-supplied arguments.
+Keep context reads out of required evaluation. Then qualify argument/environment values, async
+entries, installed library and editor integration.
 
 ## Remaining Contextual Representation Qualification
 
@@ -722,8 +723,9 @@ not a language restriction derived from the current realization boundary.
 - [x] Close the v2 explicit single-file build/run entry with the same checked source and native
   result path. Derive the image name from the selected source stem. Allow ordinary `see` suppliers
   without exposing their `main` as the selected file's entry. Qualify native exit and rejection.
-- [ ] Attach current-source locations to v2 executable-entry errors when their exact authored
-  declaration or target directive is available. Retain CLI diagnostic-envelope ownership.
+- [x] Project v2 executable-entry errors onto the exact authored `#executable` name or explicitly
+  selected source file. Share the typed failure and its source envelope through `check`, `build`
+  and `run` without relocating source-stage errors or target availability failures.
 - [ ] Integrate v2 into the ordinary compiler/CLI and editor workflow with one semantic pipeline,
   current diagnostics, formatting, presentation and revision/source reuse. Remove transitional private
   handoffs when their production replacement is qualified; retain no competing semantic authority.

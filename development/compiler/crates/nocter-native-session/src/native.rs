@@ -1,5 +1,5 @@
 use nocter_arm64::{Arm64LoweringError, Arm64Program};
-use nocter_language::DiagnosticCode;
+use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic};
 use nocter_machine::{MachineProgram, MachineProgramError};
 use nocter_macho::{MachOError, MachOImage};
 use nocter_mir::{MirLoweringError, lower_executable};
@@ -163,6 +163,14 @@ pub enum NativeImageSetError {
 
 impl NativeImageSetError {
     #[must_use]
+    pub fn source_diagnostics(&self) -> &[SourceDiagnostic] {
+        match self {
+            Self::ValueAccessSelection(error) => error.source_diagnostics(),
+            _ => &[],
+        }
+    }
+
+    #[must_use]
     pub const fn diagnostic_code(&self) -> Option<DiagnosticCode> {
         match self {
             Self::NoExecutable => Some(DiagnosticCode::E0800),
@@ -205,6 +213,14 @@ pub enum NativeSessionError {
 }
 
 impl NativeSessionError {
+    #[must_use]
+    pub fn source_diagnostics(&self) -> &[SourceDiagnostic] {
+        match self {
+            Self::ValueAccessSelection(error) => error.source_diagnostics(),
+            _ => &[],
+        }
+    }
+
     #[must_use]
     pub const fn diagnostic_code(&self) -> Option<DiagnosticCode> {
         match self {

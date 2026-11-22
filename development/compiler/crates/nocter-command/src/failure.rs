@@ -11,19 +11,28 @@ pub(crate) trait CommandDiagnosticError {
 
 impl CommandDiagnosticError for BuildCommandError {
     fn source_diagnostics(&self) -> &[SourceDiagnostic] {
-        &[]
+        match self {
+            Self::Compile(error) => error.source_diagnostics(),
+            _ => &[],
+        }
     }
 }
 
 impl CommandDiagnosticError for BuildSetCommandError {
     fn source_diagnostics(&self) -> &[SourceDiagnostic] {
-        &[]
+        match self {
+            Self::Compile(error) => error.source_diagnostics(),
+            _ => &[],
+        }
     }
 }
 
 impl CommandDiagnosticError for RunCommandError {
     fn source_diagnostics(&self) -> &[SourceDiagnostic] {
-        &[]
+        match self {
+            Self::Compile(error) => error.source_diagnostics(),
+            _ => &[],
+        }
     }
 }
 

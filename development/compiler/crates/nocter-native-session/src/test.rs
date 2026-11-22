@@ -2,7 +2,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use nocter_arm64::Arm64TestSuite;
-use nocter_language::DiagnosticCode;
+use nocter_diagnostics::DiagnosticCode;
 use nocter_machine::MachineProgram;
 use nocter_macho::MachOImage;
 use nocter_mir::lower_executable;

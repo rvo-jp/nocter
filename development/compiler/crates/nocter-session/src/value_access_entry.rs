@@ -6,9 +6,11 @@ use nocter_compile_input::{
     CompileUnitInput, ModuleIdentity, ModuleSourceKind, PackageMode, PackageTargetResolutionInput,
 };
 use nocter_declarations::value_access::{DeclarationId, Namespace};
-use nocter_diagnostics::DiagnosticCode;
+use nocter_diagnostics::{DiagnosticCode, DiagnosticOrigin, SourceDiagnostic};
 use nocter_model::{AccessCodeId, CompilationTarget, PackageTargetKind};
 use nocter_semantic_product::{AcceptedValueAccess, ValueAccessAnalysis};
+use nocter_source::{ByteOffset, SourceId, Span, TextRange};
+use nocter_source_index::SourceOrigin;
 use nocter_target_program::{
     EXECUTABLE_ENTRY_NAME, EntryContractRule, ProcessResultContract, TargetUnavailable,
     value_access,
@@ -66,6 +68,7 @@ enum EntryOrigin<'a> {
         module: &'a ModuleIdentity,
         path: &'a str,
         name: &'a str,
+        source: SourceId,
     },
 }
 
@@ -84,6 +87,20 @@ impl<'a> EntryOrigin<'a> {
         };
         ExecutableIdentity::new(module.package().clone(), self.name())
     }
+
+    fn diagnostic_origin(self, input: &CompileUnitInput<'_>) -> Option<DiagnosticOrigin> {
+        match self {
+            Self::Package(declaration) => {
+                let name = declaration.name_literal();
+                let tree = input.syntax_tree(name.source())?;
+                SourceOrigin::from_node(tree, name).ok().map(Into::into)
+            }
+            Self::SingleFile { source, .. } => {
+                input.sources().get(source)?;
+                Some(Span::new(source, TextRange::empty(ByteOffset::new(0))).into())
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -97,10 +114,22 @@ pub enum ValueAccessEntryError {
         executable: ExecutableIdentity,
         rule: Option<EntryContractRule>,
         single_file: bool,
+        diagnostic: Option<Box<SourceDiagnostic>>,
     },
 }
 
 impl ValueAccessEntryError {
+    #[must_use]
+    pub fn source_diagnostics(&self) -> &[SourceDiagnostic] {
+        match self {
+            Self::InvalidMain {
+                diagnostic: Some(diagnostic),
+                ..
+            } => std::slice::from_ref(diagnostic),
+            _ => &[],
+        }
+    }
+
     #[must_use]
     pub const fn diagnostic_code(&self) -> Option<DiagnosticCode> {
         match self {
@@ -126,36 +155,47 @@ impl fmt::Display for ValueAccessEntryError {
             Self::Target(error) => error.fmt(formatter),
             Self::Selection(error) => error.fmt(formatter),
             Self::InvalidMain {
-                executable,
-                rule: None,
-                single_file,
-            } => {
-                let location = if *single_file {
-                    "the selected source file"
-                } else {
-                    "its module's index.nct"
-                };
-                write!(
-                    formatter,
-                    "executable {} in {} requires main in {location}",
-                    executable.name(),
-                    executable.package().as_str()
-                )
-            }
+                diagnostic: Some(diagnostic),
+                ..
+            } => formatter.write_str(diagnostic.message()),
             Self::InvalidMain {
                 executable,
-                rule: Some(rule),
-                ..
-            } => {
-                write!(
-                    formatter,
-                    "main for executable {} in {} violates its {rule:?} contract",
-                    executable.name(),
-                    executable.package().as_str()
-                )
-            }
+                rule,
+                single_file,
+                diagnostic: None,
+            } => formatter.write_str(&invalid_main_message(executable, *rule, *single_file)),
         }
     }
+}
+
+fn invalid_main_message(
+    executable: &ExecutableIdentity,
+    rule: Option<EntryContractRule>,
+    single_file: bool,
+) -> String {
+    let location = if single_file {
+        "the selected source file"
+    } else {
+        "its module's index.nct"
+    };
+    let requirement = match rule {
+        None => format!("requires main in {location}"),
+        Some(EntryContractRule::TopLevelFunction) => {
+            "requires main to be a top-level function".into()
+        }
+        Some(EntryContractRule::GenericParameters) => {
+            "requires main to have no generic parameters".into()
+        }
+        Some(EntryContractRule::ValueParameters) => {
+            "requires main to have no value parameters".into()
+        }
+        Some(EntryContractRule::MissingBody) => "requires a checked body for main".into(),
+        Some(EntryContractRule::ResultType) => {
+            "requires main to return void, i32, usize, or a fallible form of one of those types"
+                .into()
+        }
+    };
+    format!("executable {} {requirement}", executable.name())
 }
 
 impl std::error::Error for ValueAccessEntryError {
@@ -189,7 +229,7 @@ fn select_entry<'a>(
 ) -> Result<ValueAccessExecutable<'a>, ValueAccessEntryError> {
     let origin = select_candidate(entry_origins(input)?, selector, |origin| origin.name())
         .map_err(ValueAccessEntryError::Selection)?;
-    close_entry(accepted, input.target(), origin)
+    close_entry(accepted, input, origin)
 }
 
 /// Checks every selected executable in package target declaration order.
@@ -201,7 +241,7 @@ pub fn select_all_value_access_executables(
 ) -> Result<Vec<ValueAccessExecutable<'_>>, ValueAccessEntryError> {
     let (accepted, input) = accepted_input(analysis)?;
     entry_origins(input)?
-        .map(|origin| close_entry(accepted, input.target(), origin))
+        .map(|origin| close_entry(accepted, input, origin))
         .collect()
 }
 
@@ -219,7 +259,7 @@ pub fn check_value_access_target(
         select_entry(accepted, input, selector)?;
     } else {
         for origin in entry_origins(input)? {
-            close_entry(accepted, input.target(), origin)?;
+            close_entry(accepted, input, origin)?;
         }
     }
     value_access::executable_abi(input.target()).map_err(ValueAccessEntryError::Target)?;
@@ -276,9 +316,9 @@ fn single_file<'a>(
                 .sources()
                 .iter()
                 .filter(|source| source.kind() == ModuleSourceKind::SingleFile)
-                .map(move |source| (module.identity(), source.canonical_path()))
+                .map(move |source| (module.identity(), source))
         });
-    let (module, path) = sources
+    let (module, source) = sources
         .next()
         .ok_or(ValueAccessEntryError::InvalidSingleFileInput)?;
     if sources.next().is_some() {
@@ -286,21 +326,36 @@ fn single_file<'a>(
     }
     Ok(Some(EntryOrigin::SingleFile {
         module,
-        path,
+        path: source.canonical_path(),
         name: package.display_name(),
+        source: source.syntax().source(),
     }))
 }
 
 fn close_entry<'a>(
     accepted: &'a AcceptedValueAccess,
-    target: CompilationTarget,
+    input: &'a CompileUnitInput<'static>,
     origin: EntryOrigin<'a>,
 ) -> Result<ValueAccessExecutable<'a>, ValueAccessEntryError> {
     let headers = accepted.headers();
-    let invalid_main = |rule| ValueAccessEntryError::InvalidMain {
-        executable: origin.identity(),
-        rule,
-        single_file: matches!(origin, EntryOrigin::SingleFile { .. }),
+    let invalid_main = |rule| {
+        let executable = origin.identity();
+        let single_file = matches!(origin, EntryOrigin::SingleFile { .. });
+        let diagnostic = origin.diagnostic_origin(input).map(|primary| {
+            Box::new(SourceDiagnostic::new(
+                DiagnosticCode::E0800,
+                invalid_main_message(&executable, rule, single_file),
+                primary,
+                [],
+                None::<&str>,
+            ))
+        });
+        ValueAccessEntryError::InvalidMain {
+            executable,
+            rule,
+            single_file,
+            diagnostic,
+        }
     };
     let entry = headers
         .program()
@@ -324,7 +379,7 @@ fn close_entry<'a>(
         .map_err(|rule| invalid_main(Some(rule)))?;
     Ok(ValueAccessExecutable {
         origin,
-        target,
+        target: input.target(),
         accepted,
         entry,
         result,

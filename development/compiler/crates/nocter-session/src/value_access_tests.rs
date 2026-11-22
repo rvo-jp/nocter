@@ -272,6 +272,6 @@ fn reexported_namespace_with_main_does_not_supply_the_entry_contract() {
     assert!(analysis.diagnostics().is_empty());
     assert!(matches!(
         select_value_access_executable(&analysis, &ExecutableSelector::Only),
-        Err(ValueAccessEntryError::InvalidMain { executable, rule: None, single_file: false }) if executable.name() == "app"
+        Err(ValueAccessEntryError::InvalidMain { executable, rule: None, single_file: false, .. }) if executable.name() == "app"
     ));
 }

@@ -32,6 +32,13 @@ reject executable definitions with `E0237`; non-root visibility directives use `
 Role checking alone does not prove reciprocal
 pairing, complete signature agreement, visibility, type readiness or accepted-unit validity.
 
+## Executable Entry Diagnostics
+
+An invalid or missing `main` uses `E0800`. In a declared package, identify the executable name
+in the directive that selected the module. In explicit single-file mode, identify the selected
+input file. Describe the failed entry requirement after source checking. A target capability
+failure uses its platform diagnostic.
+
 ## Core Syntax Diagnostics
 
 The future [value/alias grammar](../language/syntactic-grammar.md#access-syntax)
