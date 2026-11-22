@@ -78,11 +78,16 @@ fn retained_future_reads_reject_updates_after_moving_the_activation() {
     for (binding, place) in [
         ("var watched: i32 = 42", "watched"),
         ("var pair = Pair { left: 42, right: 0 }", "pair.left"),
+        (
+            "var table = [42, 0]\nlet index = position()",
+            "table[index]",
+        ),
     ] {
         let construction = format!("observe({place})");
         let update = format!("{place} += 1");
         let text = format!(
             "struct Pair {{ left: i32\nright: i32 }}\n\
+             func position(): usize {{ 0 }}\n\
              async func observe(source: i32): i32 {{ source }}\n\
              async func root(): i32 {{ {binding}\n\
              let pending = {construction}\nlet moved = pending^\n{update}\nawait moved^ }}"

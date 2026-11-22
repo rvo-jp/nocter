@@ -877,7 +877,7 @@ impl Builder<'_> {
                                 destination,
                             },
                             ActivationInput::Read(read) => Effect::BindAddress {
-                                source: self.selected(read.place, destination.data)?,
+                                source: self.referent(read.referent, destination.data)?,
                                 destination: destination.slot,
                             },
                         });

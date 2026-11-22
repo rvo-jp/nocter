@@ -575,7 +575,7 @@ impl Context<'_, '_> {
         }
         let mut sources = Vec::with_capacity(activation.inputs.len());
         for (index, &(argument, expected)) in activation.inputs.iter().enumerate() {
-            if let ArgumentAction::ReserveRead(Referent::Place(place)) = argument.action {
+            if let ArgumentAction::ReserveRead(referent) = argument.action {
                 let Prepared::Reserved {
                     region,
                     permission: Mode::Read,
@@ -598,7 +598,7 @@ impl Context<'_, '_> {
                     .into());
                 }
                 sources.push(ActivationInput::Read(ActivationRead {
-                    place,
+                    referent,
                     data: expected.data(),
                     region: region.clone(),
                     created: self.at,

@@ -361,8 +361,9 @@ and use the ordinary value ABI when the drive supplies them to the body. A local
 also retain a read of an existing named place. Its ownership receipt keeps that place accessible
 through moves and releases the read on cancellation or drive. For a field, the shared reservation
 query supplies the original selection and its current root at commit. Intervening disjoint edits
-preserve the selected region. The backend transports the saved address and distinguishes it from
-a take input of the same data type.
+preserve the selected region. An evaluated selection keeps the original address and performs its
+bounds check during preparation. The backend transports the saved address and distinguishes it
+from a take input of the same data type.
 Unit acceptance retains the captured input layout for each producer at an owning holder and
 qualifies non-waiting execution through reached immediate bodies and every possible local drive.
 A future type in a body uses a producer selector when a reached drive has multiple producers

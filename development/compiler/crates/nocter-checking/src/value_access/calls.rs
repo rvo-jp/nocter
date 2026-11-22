@@ -2,7 +2,7 @@
 use super::{
     Failure, Rule,
     checker::Checker,
-    ir::{Argument, ArgumentAction, CallKind, ExpressionKind, Referent, value_type},
+    ir::{Argument, ArgumentAction, CallKind, ExpressionKind, value_type},
 };
 use nocter_declarations::value_access::{FunctionInput, FunctionWitness, Namespace, PayloadSchema};
 use nocter_model::{
@@ -263,10 +263,7 @@ impl Checker<'_, '_> {
         let supported = matches!(
             (input.operation, &plan.action),
             (ValueInputOperation::Take, _)
-                | (
-                    ValueInputOperation::Read,
-                    ArgumentAction::ReserveRead(Referent::Place(_))
-                )
+                | (ValueInputOperation::Read, ArgumentAction::ReserveRead(_))
         );
         supported
             && super::flow::resources::local_future_input(self.program(), input.data).is_some()

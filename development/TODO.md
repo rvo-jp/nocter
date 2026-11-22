@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify retained reads of already evaluated places, starting with array elements. Preserve the
-selected address and bounds effect from preparation through activation moves and `await`.
-Verify that a later change to the index cannot redirect the future's read.
+Qualify fresh read inputs for a future driven within the caller's evaluation. Retain the caller's
+actual temporary through the drive, release the read before retiring that storage, and diagnose
+an activation that would outlive the temporary.
 
 ## Remaining Contextual Representation Qualification
 
@@ -816,6 +816,9 @@ not a language restriction derived from the current realization boundary.
 - [x] Retain a checked read of a field in a local future. Use the actual commit-time root and
   original field identity. Verify disjoint edits both during later argument preparation and
   while the activation is alive. Reject mutation of the retained field at its source.
+- [x] Retain the evaluated address of an array element in a local future. Verify bounds failure
+  while preparing a never-driven activation, preserve the selected element when the authored
+  index changes before `await`, and reject a potentially overlapping element update.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.

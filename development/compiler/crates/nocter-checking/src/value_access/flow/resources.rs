@@ -168,7 +168,7 @@ pub enum ActivationInput<P> {
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct ActivationRead {
-    pub place: nocter_model::AccessPlaceId,
+    pub referent: crate::value_access::Referent,
     pub data: TypeId,
     pub region: super::access::Region,
     pub created: Location,

@@ -95,11 +95,34 @@ fn local_future_read_inputs_use_the_original_place_and_release_it() {
             if answer != 11 || pair.right != 3 { return 4 }
             pair.left += 1
             if pair.left != 10 { return 5 }
+            let values = [17, 23]
+            var index: usize = 0
+            let indexed = observe(values[index])
+            let carried = indexed^
+            index += 1
+            let item = await carried^
+            if item != 17 || values[index] != 23 { return 6 }
             watched + 19
         }
     ";
     let package = TempPackage::new();
     execute_native_status(&compile(source), &package.0, "local-future-read-inputs", 42);
+}
+
+#[test]
+fn local_future_read_selection_checks_bounds_before_cancellation() {
+    let source = r"
+        func outside(): usize { 2 }
+        async func observe(source: i32): i32 { source }
+        func run(): i32 {
+            let values = [3, 5]
+            let pending = observe(values[outside()])
+            drop pending
+            42
+        }
+    ";
+    let package = TempPackage::new();
+    execute_native_signal(&compile(source), &package.0, "local-future-read-bounds", 5);
 }
 
 #[test]
