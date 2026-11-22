@@ -7,8 +7,8 @@ return a complete native artifact or typed failure.
 
 ## Contract
 
-The crate accepts either a query-backed released target request or a session-selected v2 package
-executable. It orchestrates backend stage contracts and owns output bytes and native test execution
+The crate accepts either a query-backed released target request or a checked v2 package session
+and an executable selection. It orchestrates backend stage contracts and owns output bytes and native test execution
 support. The [process-image handoff](../../../architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
 defines which v2 entries reach native code. Source discovery, semantic analysis, backend rules,
 command-line policy and artifact publication belong to their respective stages.

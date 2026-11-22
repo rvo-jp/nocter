@@ -113,7 +113,7 @@ fn compile_single_file_native_source(
     .unwrap();
     let target = compile_for_test(unit);
     let compiled = compile_native_image(ExecutableCompileRequest::only(target)).unwrap();
-    compiled.into_parts().0
+    compiled.into_parts().1
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]

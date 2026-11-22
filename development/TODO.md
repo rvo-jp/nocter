@@ -18,10 +18,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Connect the command path to the selected v2 package while sharing artifact planning, persistence
-and execution. Thread the selected grammar and trusted toolchain profile through package resolution
-before discovery. Then qualify async entries, process context, installed library and editor
-integration. Keep entry validation and target availability distinct from source checking.
+Qualify v2 executable entries from explicit single-file command inputs. Use discovery's exact
+synthetic root and the checked declaration scope of the selected file. Keep direct entry lookup,
+package export lookup and file contract admission distinct. Then qualify async entries, process
+context, installed library and editor integration.
 
 ## Remaining Contextual Representation Qualification
 
@@ -715,6 +715,15 @@ not a language restriction derived from the current realization boundary.
   error reporter. Qualify the wide success status, zero-byte `void` success, exact contextual
   stderr and exit 1 in native processes. Verify that the failure arm reports and releases the same
   error once and that invalid tags cannot take either exit arm.
+- [x] Run prepared package `check`, selected and package-set `build`, and `run` with an explicit
+  v2 toolchain profile. Share query-owned discovery and checking, executable identity, artifact
+  planning and launch. Verify typed diagnostics, target/entry failures without partial outputs,
+  deterministic native images, and the exact selected child status. The installed profile remains
+  a separate integration step.
+- [ ] Close the v2 explicit single-file build/run entry with the same checked source and native
+  result path. A package `main` remains an authored contract; file-local `main` remains local.
+- [ ] Attach current-source locations to v2 executable-entry errors when their exact authored
+  declaration or target directive is available. Retain CLI diagnostic-envelope ownership.
 - [ ] Integrate v2 into the ordinary compiler/CLI and editor workflow with one semantic pipeline,
   current diagnostics, formatting, presentation and revision/source reuse. Remove transitional private
   handoffs when their production replacement is qualified; retain no competing semantic authority.

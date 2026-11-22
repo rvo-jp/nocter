@@ -4,28 +4,23 @@ use std::path::{Path, PathBuf};
 use nocter_diagnostics::DiagnosticCode;
 use nocter_model::CompilationTarget;
 use nocter_package_state::PackageAcquisitionAuthority;
-use nocter_session::CompiledTarget;
+use nocter_session::{ExecutableSelector, check_value_access_target};
 
-use crate::compiler::CommandCompiler;
+use crate::compiler::{CheckedCommandUnit, CommandCompiler};
+use crate::failure::command_compilation_failure;
 use crate::source::{CommandCompileRoots, discover_command_source};
 use crate::{
     CommandAnalysisError, CommandCompilationFailure, CommandSourceError, CommandToolchain,
     DiagnosticFormat, PreparedCheckCommand,
 };
 
-/// Target-validated result of one check command.
+/// Successful source checking and its command presentation.
 #[derive(Debug)]
 pub struct CheckCommandResult {
-    target: CompiledTarget,
     presentation: CheckCommandPresentation,
 }
 
 impl CheckCommandResult {
-    #[must_use]
-    pub const fn target(&self) -> &CompiledTarget {
-        &self.target
-    }
-
     #[must_use]
     pub const fn format(&self) -> DiagnosticFormat {
         self.presentation.format()
@@ -34,11 +29,6 @@ impl CheckCommandResult {
     #[must_use]
     pub const fn presentation(&self) -> &CheckCommandPresentation {
         &self.presentation
-    }
-
-    #[must_use]
-    pub fn into_target(self) -> CompiledTarget {
-        self.target
     }
 }
 
@@ -75,7 +65,7 @@ impl CheckCommandPresentation {
     }
 }
 
-/// Resolves package/source input and checks it through the complete target-program boundary.
+/// Resolves package/source input and checks it through its selected semantic pipeline.
 ///
 /// # Errors
 ///
@@ -97,7 +87,7 @@ pub fn execute_prepared_check<A: PackageAcquisitionAuthority>(
         CommandCompileRoots::AllExecutables,
         CommandCompileRoots::NamedExecutable,
     );
-    let mut compiler = CommandCompiler::default();
+    let mut compiler = CommandCompiler::new(toolchain.packages());
     let unit = discover_command_source(
         &input,
         resolution,
@@ -110,11 +100,20 @@ pub fn execute_prepared_check<A: PackageAcquisitionAuthority>(
         presentation: presentation.clone(),
         error: Box::new(error),
     })?;
-    match compiler.compile(&unit) {
-        Ok(target) => Ok(CheckCommandResult {
-            target,
-            presentation,
-        }),
+    let checked = compiler.check(&unit).and_then(|checked| {
+        if let CheckedCommandUnit::ValueAccess(analysis) = checked {
+            let selector = executable.map(ExecutableSelector::named);
+            check_value_access_target(&analysis, selector.as_ref()).map_err(|error| {
+                Box::new(command_compilation_failure(
+                    CommandAnalysisError::ValueAccessTarget(error),
+                    unit.unit(),
+                ))
+            })?;
+        }
+        Ok(())
+    });
+    match checked {
+        Ok(()) => Ok(CheckCommandResult { presentation }),
         Err(failure) => Err(CheckCommandExecutionError::Check {
             presentation,
             failure,

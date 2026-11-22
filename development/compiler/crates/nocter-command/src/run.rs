@@ -4,33 +4,21 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 
 use nocter_diagnostics::DiagnosticCode;
-use nocter_native_session::{NativeSessionError, compile_native_image};
+use nocter_native_session::{NativeImage, NativeSessionError, compile_native_image};
 use nocter_session::ExecutableCompileRequest;
-use nocter_source_index::SourceIndex;
 
 use crate::{ArtifactError, RunProgramArguments, stage_temporary_image};
 
-/// One completed child process and the independent source projection from its compile session.
+/// Status of one completed child process.
 #[derive(Debug)]
 pub struct ExecutedProgram {
     status: ExitStatus,
-    source_index: SourceIndex,
 }
 
 impl ExecutedProgram {
     #[must_use]
     pub const fn status(&self) -> ExitStatus {
         self.status
-    }
-
-    #[must_use]
-    pub const fn source_index(&self) -> &SourceIndex {
-        &self.source_index
-    }
-
-    #[must_use]
-    pub fn into_parts(self) -> (ExitStatus, SourceIndex) {
-        (self.status, self.source_index)
     }
 }
 
@@ -51,7 +39,14 @@ pub fn run_executable(
     program_arguments: RunProgramArguments,
 ) -> Result<ExecutedProgram, RunCommandError> {
     let compiled = compile_native_image(request)?;
-    let (image, source_index) = compiled.into_parts();
+    run_native_image(compiled.image(), working_directory, program_arguments)
+}
+
+pub(crate) fn run_native_image(
+    image: &NativeImage,
+    working_directory: impl AsRef<Path>,
+    program_arguments: RunProgramArguments,
+) -> Result<ExecutedProgram, RunCommandError> {
     let artifact = stage_temporary_image(image.bytes())?;
     let executable = artifact.path().to_path_buf();
     let mut command = Command::new(&executable);
@@ -59,10 +54,7 @@ pub fn run_executable(
     let launched = command.current_dir(working_directory).status();
     let removed = artifact.remove();
     match (launched, removed) {
-        (Ok(status), Ok(())) => Ok(ExecutedProgram {
-            status,
-            source_index,
-        }),
+        (Ok(status), Ok(())) => Ok(ExecutedProgram { status }),
         (Err(source), Ok(())) => Err(RunCommandError::Launch { executable, source }),
         (Ok(_), Err(error)) => Err(RunCommandError::Cleanup(error)),
         (Err(source), Err(cleanup)) => Err(RunCommandError::LaunchAndCleanup {

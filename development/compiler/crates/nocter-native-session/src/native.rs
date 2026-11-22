@@ -7,10 +7,13 @@ use std::fmt;
 
 use nocter_session::{
     CompiledTarget, ExecutableCompileRequest, ExecutableIdentity, ExecutableSessionError,
-    close_root_executables, compile_executable,
+    ValueAccessEntryError, close_root_executables, compile_executable,
 };
 
-use crate::output::{CompiledNativeImage, CompiledNativeImageSet, NativeImage, NativeImageEntry};
+use crate::{
+    ValueAccessLoweringError,
+    output::{CompiledNativeImageSet, NativeImage, NativeImageEntry},
+};
 
 /// Compiles one selected executable through the complete native image boundary.
 ///
@@ -19,12 +22,10 @@ use crate::output::{CompiledNativeImage, CompiledNativeImageSet, NativeImage, Na
 /// Returns the exact semantic, MIR, machine, target, or writer boundary that rejected the program.
 pub fn compile_native_image(
     request: ExecutableCompileRequest,
-) -> Result<CompiledNativeImage, NativeSessionError> {
-    let executable = compile_executable(request)?;
-    let identity = executable.identity().clone();
-    let (executable, source_index) = executable.into_parts();
+) -> Result<NativeImageEntry, NativeSessionError> {
+    let (identity, executable) = compile_executable(request)?.into_parts();
     let image = lower_native_image(executable)?;
-    Ok(CompiledNativeImage::new(identity, image, source_index))
+    Ok(NativeImageEntry::new(identity, image))
 }
 
 /// Closed request to compile every executable owned by the command-root packages.
@@ -53,7 +54,7 @@ pub fn compile_native_images(
     request: NativeImageSetCompileRequest,
 ) -> Result<CompiledNativeImageSet, NativeImageSetError> {
     let NativeImageSetCompileRequest { target } = request;
-    let (target, source_index) = target.into_parts();
+    let (target, _) = target.into_parts();
     let executables = close_root_executables(target).map_err(|error| {
         let (executable, error) = error.into_parts();
         NativeImageSetError::Image {
@@ -73,7 +74,7 @@ pub fn compile_native_images(
         })?;
         entries.push(NativeImageEntry::new(identity, image));
     }
-    Ok(CompiledNativeImageSet::new(entries, source_index))
+    Ok(CompiledNativeImageSet::new(entries))
 }
 
 fn lower_native_image(
@@ -96,9 +97,20 @@ pub enum NativeImageError {
     Executable(nocter_target_program::ExecutableProgramError),
     Mir(MirLoweringError),
     Machine(MachineProgramError),
+    Target(nocter_target_program::TargetUnavailable),
+    ValueAccess(ValueAccessLoweringError),
     Arm64(Arm64LoweringError),
     Image(MachOError),
     Integrity(Box<str>),
+}
+
+impl NativeImageError {
+    const fn diagnostic_code(&self) -> Option<DiagnosticCode> {
+        match self {
+            Self::Target(_) => Some(DiagnosticCode::E0701),
+            _ => None,
+        }
+    }
 }
 
 impl fmt::Display for NativeImageError {
@@ -107,6 +119,8 @@ impl fmt::Display for NativeImageError {
             Self::Executable(error) => write!(formatter, "executable closure failed: {error}"),
             Self::Mir(error) => write!(formatter, "MIR lowering failed: {error}"),
             Self::Machine(error) => write!(formatter, "machine lowering failed: {error}"),
+            Self::Target(error) => error.fmt(formatter),
+            Self::ValueAccess(error) => error.fmt(formatter),
             Self::Arm64(error) => write!(formatter, "ARM64 lowering failed: {error}"),
             Self::Image(error) => write!(formatter, "Mach-O construction failed: {error}"),
             Self::Integrity(message) => {
@@ -122,6 +136,8 @@ impl std::error::Error for NativeImageError {
             Self::Executable(error) => Some(error),
             Self::Mir(error) => Some(error),
             Self::Machine(error) => Some(error),
+            Self::Target(error) => Some(error),
+            Self::ValueAccess(error) => Some(error),
             Self::Arm64(error) => Some(error),
             Self::Image(error) => Some(error),
             Self::Integrity(_) => None,
@@ -129,9 +145,16 @@ impl std::error::Error for NativeImageError {
     }
 }
 
+impl From<ValueAccessLoweringError> for NativeImageError {
+    fn from(value: ValueAccessLoweringError) -> Self {
+        Self::ValueAccess(value)
+    }
+}
+
 #[derive(Debug)]
 pub enum NativeImageSetError {
     NoExecutable,
+    ValueAccessSelection(ValueAccessEntryError),
     Image {
         executable: ExecutableIdentity,
         error: NativeImageError,
@@ -143,7 +166,8 @@ impl NativeImageSetError {
     pub const fn diagnostic_code(&self) -> Option<DiagnosticCode> {
         match self {
             Self::NoExecutable => Some(DiagnosticCode::E0800),
-            Self::Image { .. } => None,
+            Self::ValueAccessSelection(error) => error.diagnostic_code(),
+            Self::Image { error, .. } => error.diagnostic_code(),
         }
     }
 }
@@ -152,6 +176,7 @@ impl fmt::Display for NativeImageSetError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NoExecutable => formatter.write_str("compile roots declare no executable"),
+            Self::ValueAccessSelection(error) => error.fmt(formatter),
             Self::Image { executable, error } => write!(
                 formatter,
                 "native compilation of {} ({}) failed: {error}",
@@ -166,6 +191,7 @@ impl std::error::Error for NativeImageSetError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::NoExecutable => None,
+            Self::ValueAccessSelection(error) => Some(error),
             Self::Image { error, .. } => Some(error),
         }
     }
@@ -174,6 +200,7 @@ impl std::error::Error for NativeImageSetError {
 #[derive(Debug)]
 pub enum NativeSessionError {
     Executable(ExecutableSessionError),
+    ValueAccessSelection(ValueAccessEntryError),
     Image(NativeImageError),
 }
 
@@ -182,7 +209,8 @@ impl NativeSessionError {
     pub const fn diagnostic_code(&self) -> Option<DiagnosticCode> {
         match self {
             Self::Executable(error) => error.diagnostic_code(),
-            Self::Image(_) => None,
+            Self::ValueAccessSelection(error) => error.diagnostic_code(),
+            Self::Image(error) => error.diagnostic_code(),
         }
     }
 }
@@ -191,6 +219,7 @@ impl fmt::Display for NativeSessionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Executable(error) => write!(formatter, "executable compilation failed: {error}"),
+            Self::ValueAccessSelection(error) => error.fmt(formatter),
             Self::Image(error) => error.fmt(formatter),
         }
     }
@@ -200,6 +229,7 @@ impl std::error::Error for NativeSessionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Executable(error) => Some(error),
+            Self::ValueAccessSelection(error) => Some(error),
             Self::Image(error) => Some(error),
         }
     }

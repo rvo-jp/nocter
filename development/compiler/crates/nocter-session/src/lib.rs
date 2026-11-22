@@ -14,7 +14,8 @@ mod semantic_capabilities;
 mod test_selection;
 mod value_access_entry;
 pub use value_access_entry::{
-    ValueAccessEntryError, ValueAccessExecutable, select_value_access_executable,
+    ValueAccessEntryError, ValueAccessExecutable, check_value_access_target,
+    select_all_value_access_executables, select_value_access_executable,
 };
 #[cfg(test)]
 mod value_access_tests;
@@ -26,8 +27,7 @@ pub use analyzed_unit::{
 pub use error::{CompileSessionError, CompileSessionFailure};
 pub use executable::{
     ExecutableCompileRequest, ExecutableIdentity, ExecutableSelectionError, ExecutableSelector,
-    ExecutableSessionError, RootExecutableClosureError, RootExecutableProgram,
-    close_root_executables, compile_executable,
+    ExecutableSessionError, RootExecutableClosureError, close_root_executables, compile_executable,
 };
 pub use output::{CompiledExecutable, CompiledTarget};
 pub use semantic_analysis::{SemanticEvidenceBundle, SemanticEvidenceView};

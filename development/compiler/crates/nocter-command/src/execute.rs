@@ -1,19 +1,47 @@
 use std::fmt;
 
 use nocter_diagnostics::DiagnosticCode;
-use nocter_native_session::NativeImageSetCompileRequest;
+use nocter_native_session::{
+    CompiledNativeImageSet, NativeImageEntry, NativeImageSetCompileRequest, NativeImageSetError,
+    NativeSessionError, compile_native_image, compile_native_images, compile_value_access_image,
+    compile_value_access_images,
+};
 use nocter_package_state::PackageAcquisitionAuthority;
-use nocter_session::ExecutableCompileRequest;
+use nocter_session::{ExecutableCompileRequest, ExecutableSelector};
 
-use crate::compiler::CommandCompiler;
+use crate::build::{persist_executables, persist_selected_executable};
+use crate::compiler::{CheckedCommandUnit, CommandCompiler};
 use crate::failure::command_compilation_failure;
+use crate::run::run_native_image;
 use crate::source::{CommandCompileRoots, discover_command_source};
 use crate::{
     BuildCommandError, BuildOperation, BuildSetCommandError, BuiltExecutable, BuiltExecutableSet,
     CommandAnalysisError, CommandCompilationFailure, CommandSourceError, CommandToolchain,
-    ExecutedProgram, PreparedBuildCommand, PreparedRunCommand, RunCommandError, build_executables,
-    build_selected_executable, run_executable,
+    ExecutedProgram, PreparedBuildCommand, PreparedRunCommand, RunCommandError,
 };
+
+impl CheckedCommandUnit {
+    fn compile_selected(
+        self,
+        selector: ExecutableSelector,
+    ) -> Result<NativeImageEntry, NativeSessionError> {
+        match self {
+            Self::Released(target) => {
+                compile_native_image(ExecutableCompileRequest::new(*target, selector))
+            }
+            Self::ValueAccess(analysis) => compile_value_access_image(&analysis, &selector),
+        }
+    }
+
+    fn compile_all(self) -> Result<CompiledNativeImageSet, NativeImageSetError> {
+        match self {
+            Self::Released(target) => {
+                compile_native_images(NativeImageSetCompileRequest::all(*target))
+            }
+            Self::ValueAccess(analysis) => compile_value_access_images(&analysis),
+        }
+    }
+}
 
 /// Complete successful output of one prepared build command.
 #[derive(Debug)]
@@ -40,7 +68,7 @@ pub fn execute_prepared_build<A: PackageAcquisitionAuthority>(
         BuildOperation::PackageSet { .. } => CommandCompileRoots::AllExecutables,
         BuildOperation::Selected { selector, .. } => CommandCompileRoots::for_selector(selector),
     };
-    let mut compiler = CommandCompiler::default();
+    let mut compiler = CommandCompiler::new(toolchain.packages());
     let unit = discover_command_source(
         &input,
         resolution,
@@ -51,11 +79,15 @@ pub fn execute_prepared_build<A: PackageAcquisitionAuthority>(
     )
     .map_err(BuildCommandExecutionError::Source)?;
     let target = compiler
-        .compile(&unit)
+        .check(&unit)
         .map_err(BuildCommandExecutionError::Analysis)?;
     match operation {
         BuildOperation::PackageSet { output_directory } => {
-            match build_executables(NativeImageSetCompileRequest::all(target), output_directory) {
+            match target
+                .compile_all()
+                .map_err(BuildSetCommandError::from)
+                .and_then(|images| persist_executables(images, output_directory))
+            {
                 Ok(built) => Ok(BuildCommandResult::PackageSet(built)),
                 Err(error) => Err(BuildCommandExecutionError::PackageSet(Box::new(
                     command_compilation_failure(error, unit.unit()),
@@ -63,7 +95,10 @@ pub fn execute_prepared_build<A: PackageAcquisitionAuthority>(
             }
         }
         BuildOperation::Selected { selector, output } => {
-            match build_selected_executable(ExecutableCompileRequest::new(target, selector), output)
+            match target
+                .compile_selected(selector)
+                .map_err(BuildCommandError::from)
+                .and_then(|image| persist_selected_executable(&image, output))
             {
                 Ok(built) => Ok(BuildCommandResult::Selected(built)),
                 Err(error) => Err(BuildCommandExecutionError::Selected(Box::new(
@@ -88,7 +123,7 @@ pub fn execute_prepared_run<A: PackageAcquisitionAuthority>(
     let (plan, resolution, target) = command.into_parts();
     let toolchain = toolchain.for_requested_target(target);
     let (input, selector, working_directory, program_arguments) = plan.into_parts();
-    let mut compiler = CommandCompiler::default();
+    let mut compiler = CommandCompiler::new(toolchain.packages());
     let unit = discover_command_source(
         &input,
         resolution,
@@ -99,13 +134,13 @@ pub fn execute_prepared_run<A: PackageAcquisitionAuthority>(
     )
     .map_err(RunCommandExecutionError::Source)?;
     let target = compiler
-        .compile(&unit)
+        .check(&unit)
         .map_err(RunCommandExecutionError::Analysis)?;
-    match run_executable(
-        ExecutableCompileRequest::new(target, selector),
-        working_directory,
-        program_arguments,
-    ) {
+    match target
+        .compile_selected(selector)
+        .map_err(RunCommandError::from)
+        .and_then(|image| run_native_image(image.image(), working_directory, program_arguments))
+    {
         Ok(executed) => Ok(executed),
         Err(error) => Err(RunCommandExecutionError::Run(Box::new(
             command_compilation_failure(error, unit.unit()),

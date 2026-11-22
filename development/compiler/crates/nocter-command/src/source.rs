@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use nocter_compile_input::ModuleIdentity;
+use nocter_compile_input::{ModuleIdentity, ToolchainInput};
 use nocter_compiler_computation::CompilerDiscoveredUnit;
 use nocter_diagnostics::DiagnosticCode;
 use nocter_discovery::{DiscoveryError, DiscoveryFailure, DiscoveryRequest};
@@ -10,7 +10,6 @@ use nocter_model::{CompilationTarget, PackageIdentity};
 use nocter_package::{PackageGraphError, ResolvedPackageSelection, StandardPackage};
 use nocter_package_state::PackageAcquisitionAuthority;
 use nocter_session::{ExecutableSelector, TestTargetSelector};
-use nocter_standard_profile::bundled_standard_toolchain;
 
 use crate::compiler::CommandCompiler;
 use crate::package_state::resolve_command_package_state;
@@ -57,6 +56,22 @@ impl CommandToolchain {
         }
     }
 
+    /// Installs an explicit v2 declaration profile for this toolchain's selected standard package.
+    ///
+    /// # Errors
+    /// Rejects a profile whose standard package or prelude refers to a different package.
+    pub fn with_value_access_profile(
+        mut self,
+        profile: ToolchainInput,
+    ) -> Result<Self, ValueAccessProfileMismatch> {
+        let standard = self.standard().identity();
+        if profile.standard_package() != standard || profile.prelude().package() != standard {
+            return Err(ValueAccessProfileMismatch);
+        }
+        self.packages.select_value_access(profile);
+        Ok(self)
+    }
+
     #[must_use]
     pub const fn target(&self) -> CompilationTarget {
         self.target
@@ -86,6 +101,18 @@ impl CommandToolchain {
     }
 }
 
+/// The supplied v2 profile does not belong to the selected standard package.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ValueAccessProfileMismatch;
+
+impl fmt::Display for ValueAccessProfileMismatch {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("v2 standard profile does not match the selected standard package")
+    }
+}
+
+impl std::error::Error for ValueAccessProfileMismatch {}
+
 pub(crate) fn discover_command_source<A: PackageAcquisitionAuthority>(
     input: &ResolvedProgramInput,
     resolution: ResolutionOptions,
@@ -107,14 +134,13 @@ pub(crate) fn discover_command_source<A: PackageAcquisitionAuthority>(
             discover_declared(selected, toolchain, compile_roots, compiler)
         }
         ResolvedProgramInput::SingleFile(source) => {
-            let standard = toolchain.standard().identity().clone();
             let support_packages =
                 compiler.resolve_standard_package(toolchain.standard().clone())?;
             compiler.discover(DiscoveryRequest::single_file(
                 toolchain.target(),
                 source.source(),
                 support_packages,
-                bundled_standard_toolchain(&standard),
+                toolchain.packages().source_profile(),
             ))
         }
     }
@@ -210,7 +236,6 @@ fn discover_declared(
     compiler: &mut CommandCompiler,
 ) -> Result<CompilerDiscoveredUnit, CommandSourceError> {
     let root = selected.root().clone();
-    let standard = selected.standard().clone();
     let mut roots = BTreeSet::new();
     roots.insert(ModuleIdentity::new(root.clone(), Vec::<Box<str>>::new()));
     let package = selected
@@ -267,7 +292,7 @@ fn discover_declared(
         toolchain.target(),
         packages,
         roots.into_iter().collect(),
-        bundled_standard_toolchain(&standard),
+        toolchain.packages().source_profile(),
     ))
 }
 

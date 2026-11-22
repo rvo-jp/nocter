@@ -25,8 +25,10 @@ Executable selection for a checked v2 analysis uses the original root package me
 same name selector as released compilation. The selected module's authored `main` lookup uses
 retained headers. The resulting entry pairs the exact declaration, target and process result with
 the shared accepted Unit. This does not rebind source or repeat checking. Conversion through the
-released `CompiledTarget` API continues to report its explicit v2 boundary. Command and workspace
-integration retain separate qualification work.
+released `CompiledTarget` API continues to report its explicit v2 boundary. Single-target and
+package-set selection share entry validation. The executable identity used for artifact planning is
+the resolved package and its authored executable name. Backend-local target indices stay in the
+selection and closure that use them, and source projection remains with semantic analysis.
 
 ## Internal Responsibilities
 

@@ -1,6 +1,5 @@
 use nocter_macho::MachOImage;
 use nocter_session::ExecutableIdentity;
-use nocter_source_index::SourceIndex;
 
 /// A complete native executable artifact whose container format remains backend-private.
 #[derive(Debug)]
@@ -21,44 +20,7 @@ impl NativeImage {
     }
 }
 
-/// One deterministic native executable image plus its independent source projection.
-#[derive(Debug)]
-pub struct CompiledNativeImage {
-    identity: ExecutableIdentity,
-    image: NativeImage,
-    source_index: SourceIndex,
-}
-
-impl CompiledNativeImage {
-    pub(crate) const fn new(
-        identity: ExecutableIdentity,
-        image: NativeImage,
-        source_index: SourceIndex,
-    ) -> Self {
-        Self {
-            identity,
-            image,
-            source_index,
-        }
-    }
-
-    #[must_use]
-    pub const fn identity(&self) -> &ExecutableIdentity {
-        &self.identity
-    }
-
-    #[must_use]
-    pub const fn image(&self) -> &NativeImage {
-        &self.image
-    }
-
-    #[must_use]
-    pub fn into_parts(self) -> (NativeImage, SourceIndex) {
-        (self.image, self.source_index)
-    }
-}
-
-/// One native image in package-target declaration order.
+/// A complete native image paired with its selected package executable.
 #[derive(Debug)]
 pub struct NativeImageEntry {
     identity: ExecutableIdentity,
@@ -90,14 +52,12 @@ impl NativeImageEntry {
 #[derive(Debug)]
 pub struct CompiledNativeImageSet {
     entries: Box<[NativeImageEntry]>,
-    source_index: SourceIndex,
 }
 
 impl CompiledNativeImageSet {
-    pub(crate) fn new(entries: Vec<NativeImageEntry>, source_index: SourceIndex) -> Self {
+    pub(crate) fn new(entries: Vec<NativeImageEntry>) -> Self {
         Self {
             entries: entries.into_boxed_slice(),
-            source_index,
         }
     }
 
@@ -107,7 +67,7 @@ impl CompiledNativeImageSet {
     }
 
     #[must_use]
-    pub fn into_parts(self) -> (Box<[NativeImageEntry]>, SourceIndex) {
-        (self.entries, self.source_index)
+    pub fn into_entries(self) -> Box<[NativeImageEntry]> {
+        self.entries
     }
 }

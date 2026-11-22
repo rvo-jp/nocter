@@ -41,6 +41,27 @@ fn copy_fixture(directory: &TempPackage) {
     }
 }
 
+fn standard_profile(std: PackageIdentity) -> ToolchainInput {
+    ToolchainInput::new(
+        std.clone(),
+        ModuleIdentity::new(std.clone(), Vec::<&str>::new()),
+        Vec::new(),
+        Vec::new(),
+    )
+    .with_primitive_roles(vec![
+        PrimitiveRoleLocator::new(
+            PrimitiveRole::NewError,
+            ModuleIdentity::new(std.clone(), ["error"]),
+            "operation",
+        ),
+        PrimitiveRoleLocator::new(
+            PrimitiveRole::ErrorContext,
+            ModuleIdentity::new(std, ["context"]),
+            "operation",
+        ),
+    ])
+}
+
 #[test]
 fn physical_query_session_unit_executes_selected_entries() {
     let directory = TempPackage::new();
@@ -77,24 +98,7 @@ fn physical_query_session_unit_executes_selected_entries() {
             ModuleIdentity::new(identity("app"), ["math"]),
             ModuleIdentity::new(identity("app"), ["failure"]),
         ],
-        ToolchainInput::new(
-            std.clone(),
-            ModuleIdentity::new(std.clone(), Vec::<&str>::new()),
-            Vec::new(),
-            Vec::new(),
-        )
-        .with_primitive_roles(vec![
-            PrimitiveRoleLocator::new(
-                PrimitiveRole::NewError,
-                ModuleIdentity::new(std.clone(), ["error"]),
-                "operation",
-            ),
-            PrimitiveRoleLocator::new(
-                PrimitiveRole::ErrorContext,
-                ModuleIdentity::new(std, ["context"]),
-                "operation",
-            ),
-        ]),
+        standard_profile(std),
     );
     let source = computation.discover(&revision, request).unwrap();
     let product = computation.analyze(&source).unwrap();
@@ -128,20 +132,26 @@ fn physical_query_session_unit_executes_selected_entries() {
         ))
     ));
     for (name, path, status) in [("app", &[][..], 42), ("math", &["math"][..], 17)] {
-        let executable =
-            select_value_access_executable(&session, &ExecutableSelector::named(name)).unwrap();
+        let selector = ExecutableSelector::named(name);
+        let executable = select_value_access_executable(&session, &selector).unwrap();
         assert_eq!(executable.declaration().name(), name);
         assert_eq!(
             executable.declaration().module(),
             &ModuleIdentity::new(identity("app"), path.iter().copied())
         );
-        let image = crate::compile_value_access_image(executable).unwrap();
-        execute_native_status(&image, &directory.0, &format!("image-{name}"), status);
+        let image = crate::compile_value_access_image(&session, &selector).unwrap();
+        assert_eq!(image.identity().name(), name);
+        assert_eq!(image.identity().package(), &identity("app"));
+        execute_native_status(
+            image.image(),
+            &directory.0,
+            &format!("image-{name}"),
+            status,
+        );
     }
-    let failure =
-        select_value_access_executable(&session, &ExecutableSelector::named("failure")).unwrap();
-    let image = crate::compile_value_access_image(failure).unwrap();
-    assert_failure_report(&image, &directory.0);
+    let image =
+        crate::compile_value_access_image(&session, &ExecutableSelector::named("failure")).unwrap();
+    assert_failure_report(image.image(), &directory.0);
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]

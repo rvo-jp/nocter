@@ -3,22 +3,20 @@ use std::path::Path;
 
 use nocter_diagnostics::DiagnosticCode;
 use nocter_native_session::{
-    NativeImageSetCompileRequest, NativeImageSetError, NativeSessionError, compile_native_image,
-    compile_native_images,
+    CompiledNativeImageSet, NativeImageEntry, NativeImageSetCompileRequest, NativeImageSetError,
+    NativeSessionError, compile_native_image, compile_native_images,
 };
 use nocter_session::{ExecutableCompileRequest, ExecutableIdentity};
-use nocter_source_index::SourceIndex;
 
 use crate::SelectedBuildOutput;
 use crate::{
     ArtifactError, BuildOutputPlan, OutputPlanError, PersistentArtifact, persist_native_image,
 };
 
-/// One persistent executable and the independent source projection from its compile session.
+/// One persistent executable.
 #[derive(Debug)]
 pub struct BuiltExecutable {
     artifact: PersistentArtifact,
-    source_index: SourceIndex,
 }
 
 /// One persistent artifact paired with its exact selected executable identity.
@@ -44,7 +42,6 @@ impl BuiltExecutableEntry {
 #[derive(Debug)]
 pub struct BuiltExecutableSet {
     entries: Box<[BuiltExecutableEntry]>,
-    source_index: SourceIndex,
 }
 
 impl BuiltExecutableSet {
@@ -52,27 +49,12 @@ impl BuiltExecutableSet {
     pub const fn entries(&self) -> &[BuiltExecutableEntry] {
         &self.entries
     }
-
-    #[must_use]
-    pub const fn source_index(&self) -> &SourceIndex {
-        &self.source_index
-    }
 }
 
 impl BuiltExecutable {
     #[must_use]
     pub const fn artifact(&self) -> &PersistentArtifact {
         &self.artifact
-    }
-
-    #[must_use]
-    pub const fn source_index(&self) -> &SourceIndex {
-        &self.source_index
-    }
-
-    #[must_use]
-    pub fn into_parts(self) -> (PersistentArtifact, SourceIndex) {
-        (self.artifact, self.source_index)
     }
 }
 
@@ -100,7 +82,13 @@ pub fn build_selected_executable(
     request: ExecutableCompileRequest,
     output: SelectedBuildOutput,
 ) -> Result<BuiltExecutable, BuildCommandError> {
-    let compiled = compile_native_image(request)?;
+    persist_selected_executable(&compile_native_image(request)?, output)
+}
+
+pub(crate) fn persist_selected_executable(
+    compiled: &NativeImageEntry,
+    output: SelectedBuildOutput,
+) -> Result<BuiltExecutable, BuildCommandError> {
     let output = match output {
         SelectedBuildOutput::Exact(path) => path,
         SelectedBuildOutput::TargetNameIn(directory) => {
@@ -109,12 +97,8 @@ pub fn build_selected_executable(
                 .to_path_buf()
         }
     };
-    let (image, source_index) = compiled.into_parts();
-    let artifact = persist_native_image(image.bytes(), output)?;
-    Ok(BuiltExecutable {
-        artifact,
-        source_index,
-    })
+    let artifact = persist_native_image(compiled.image().bytes(), output)?;
+    Ok(BuiltExecutable { artifact })
 }
 
 /// Compiles and publishes every root-package executable below the selected package root.
@@ -130,9 +114,15 @@ pub fn build_executables(
     request: NativeImageSetCompileRequest,
     package_root: impl AsRef<Path>,
 ) -> Result<BuiltExecutableSet, BuildSetCommandError> {
-    let compiled = compile_native_images(request)?;
+    persist_executables(compile_native_images(request)?, package_root)
+}
+
+pub(crate) fn persist_executables(
+    compiled: CompiledNativeImageSet,
+    package_root: impl AsRef<Path>,
+) -> Result<BuiltExecutableSet, BuildSetCommandError> {
     let plan = BuildOutputPlan::for_package(compiled.entries(), package_root)?;
-    let (images, source_index) = compiled.into_parts();
+    let images = compiled.into_entries();
     let mut entries = Vec::with_capacity(images.len());
     for (image, output) in images.into_vec().into_iter().zip(plan.outputs()) {
         debug_assert_eq!(image.identity(), output.identity());
@@ -147,7 +137,6 @@ pub fn build_executables(
     }
     Ok(BuiltExecutableSet {
         entries: entries.into_boxed_slice(),
-        source_index,
     })
 }
 

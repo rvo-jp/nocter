@@ -35,7 +35,7 @@ pub fn execute_prepared_fetch<A: PackageAcquisitionAuthority>(
     authority: &mut A,
 ) -> Result<FetchCommandResult, FetchCommandExecutionError> {
     let (input, resolution) = command.into_parts();
-    let mut compiler = CommandCompiler::default();
+    let mut compiler = CommandCompiler::new(context);
     let selected =
         resolve_command_package_state(&input, resolution, context, authority, &mut compiler)
             .map_err(FetchCommandExecutionError::Package)?;

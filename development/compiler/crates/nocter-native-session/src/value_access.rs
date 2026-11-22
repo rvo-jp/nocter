@@ -1,65 +1,92 @@
 //! Lowers a selected v2 package executable through the common native backend.
 use std::{fmt, sync::Arc};
 
-use nocter_target_program::{
-    TargetUnavailable,
-    value_access::{self, InstanceProgram, lifecycle},
+use nocter_session::{
+    AnalyzedUnit, ExecutableSelector, ValueAccessExecutable, select_all_value_access_executables,
+    select_value_access_executable,
+};
+use nocter_target_program::value_access::{self, InstanceProgram, lifecycle};
+
+use crate::{
+    CompiledNativeImageSet, NativeImage, NativeImageEntry, NativeImageError, NativeImageSetError,
+    NativeSessionError, native::image_from_machine,
 };
 
-use crate::{NativeImage, NativeImageError, native::image_from_machine};
-
 #[derive(Debug)]
-pub enum ValueAccessImageError {
-    Target(TargetUnavailable),
+pub enum ValueAccessLoweringError {
     Instances(value_access::Failure),
     Lifecycle(lifecycle::Failure),
     Mir(nocter_mir::value_access::Failure),
     Machine(nocter_machine::value_access::ExecutableFailure),
-    Image(NativeImageError),
 }
 
-impl fmt::Display for ValueAccessImageError {
+impl fmt::Display for ValueAccessLoweringError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Target(error) => error.fmt(formatter),
             Self::Instances(error) => {
                 write!(formatter, "cannot specialize v2 executable: {error:?}")
             }
             Self::Lifecycle(error) => write!(formatter, "cannot plan v2 cleanup: {error:?}"),
             Self::Mir(error) => write!(formatter, "v2 MIR lowering failed: {error:?}"),
             Self::Machine(error) => write!(formatter, "v2 machine lowering failed: {error:?}"),
-            Self::Image(error) => error.fmt(formatter),
         }
     }
 }
 
-impl std::error::Error for ValueAccessImageError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Target(error) => Some(error),
-            Self::Image(error) => Some(error),
-            _ => None,
-        }
-    }
-}
+impl std::error::Error for ValueAccessLoweringError {}
 
-/// Builds an image from the entry selected by the v2 package session.
+/// Selects and lowers one executable from a checked v2 package session.
 ///
 /// # Errors
-/// Rejects unimplemented targets and preserves lowering failures from each stage.
+/// Preserves entry selection and native lowering failures.
 pub fn compile_value_access_image(
-    executable: nocter_session::ValueAccessExecutable<'_>,
-) -> Result<NativeImage, ValueAccessImageError> {
+    analysis: &AnalyzedUnit,
+    selector: &ExecutableSelector,
+) -> Result<NativeImageEntry, NativeSessionError> {
+    let executable = select_value_access_executable(analysis, selector)
+        .map_err(NativeSessionError::ValueAccessSelection)?;
+    let identity = executable.identity();
+    let image = lower_image(executable).map_err(NativeSessionError::Image)?;
+    Ok(NativeImageEntry::new(identity, image))
+}
+
+/// Lowers every root-package executable from the same checked v2 package session.
+///
+/// # Errors
+/// Preserves entry selection and lowering failures, with no partial image set.
+pub fn compile_value_access_images(
+    analysis: &AnalyzedUnit,
+) -> Result<CompiledNativeImageSet, NativeImageSetError> {
+    let executables = select_all_value_access_executables(analysis)
+        .map_err(NativeImageSetError::ValueAccessSelection)?;
+    if executables.is_empty() {
+        return Err(NativeImageSetError::NoExecutable);
+    }
+    let entries = executables
+        .into_iter()
+        .map(|executable| {
+            let identity = executable.identity();
+            let image = lower_image(executable).map_err(|error| NativeImageSetError::Image {
+                executable: identity.clone(),
+                error,
+            })?;
+            Ok(NativeImageEntry::new(identity, image))
+        })
+        .collect::<Result<_, _>>()?;
+    Ok(CompiledNativeImageSet::new(entries))
+}
+
+fn lower_image(executable: ValueAccessExecutable<'_>) -> Result<NativeImage, NativeImageError> {
     let abi =
-        value_access::executable_abi(executable.target()).map_err(ValueAccessImageError::Target)?;
+        value_access::executable_abi(executable.target()).map_err(NativeImageError::Target)?;
     let (unit, root) = executable.into_entry();
     let instances =
-        InstanceProgram::prepare(unit, root).map_err(ValueAccessImageError::Instances)?;
+        InstanceProgram::prepare(unit, root).map_err(ValueAccessLoweringError::Instances)?;
     let lifecycle = lifecycle::Program::prepare(Arc::new(instances))
-        .map_err(ValueAccessImageError::Lifecycle)?;
+        .map_err(ValueAccessLoweringError::Lifecycle)?;
     let mir = nocter_mir::value_access::Program::lower(&lifecycle, abi)
-        .map_err(ValueAccessImageError::Mir)?;
+        .map_err(ValueAccessLoweringError::Mir)?;
     let machine =
-        nocter_machine::value_access::lower(&mir).map_err(ValueAccessImageError::Machine)?;
-    image_from_machine(&machine).map_err(ValueAccessImageError::Image)
+        nocter_machine::value_access::lower(&mir).map_err(ValueAccessLoweringError::Machine)?;
+    image_from_machine(&machine)
 }

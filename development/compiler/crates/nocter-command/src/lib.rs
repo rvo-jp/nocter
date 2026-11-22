@@ -80,7 +80,7 @@ pub use planning::{
 };
 pub use run::{ExecutedProgram, RunCommandError, run_executable};
 pub use run_invocation::RunProgramArguments;
-pub use source::{CommandSourceError, CommandToolchain};
+pub use source::{CommandSourceError, CommandToolchain, ValueAccessProfileMismatch};
 pub use standalone_source::StandaloneSourceError;
 pub use test::{
     TestCommandExecutionError, TestCommandIntegrityError, TestCommandPresentation,

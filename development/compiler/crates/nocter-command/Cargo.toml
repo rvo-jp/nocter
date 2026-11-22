@@ -21,12 +21,11 @@ nocter-package = { path = "../nocter-package" }
 nocter-package-state = { path = "../nocter-package-state" }
 nocter-session = { path = "../nocter-session" }
 nocter-source = { path = "../nocter-source" }
-nocter-source-index = { path = "../nocter-source-index" }
 nocter-source-tooling = { path = "../nocter-source-tooling" }
 nocter-standard-profile = { path = "../nocter-standard-profile" }
+nocter-syntax = { path = "../nocter-syntax" }
 
 [dev-dependencies]
-nocter-syntax = { path = "../nocter-syntax" }
 nocter-test-support = { path = "../nocter-test-support" }
 
 [lints]

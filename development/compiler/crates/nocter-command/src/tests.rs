@@ -3,6 +3,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
+mod value_access;
 
 use nocter_compile_input::ModuleIdentity;
 use nocter_discovery::DiscoveryRequest;

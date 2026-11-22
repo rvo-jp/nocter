@@ -266,7 +266,7 @@ pub fn execute_prepared_test<A: PackageAcquisitionAuthority>(
     let (input, selector, case, working_directory) = plan.into_parts();
     let presentation =
         TestCommandPresentation::new(format, toolchain.target(), input.declaration().into());
-    let mut compiler = CommandCompiler::default();
+    let mut compiler = CommandCompiler::new(toolchain.packages());
     let sources = discover_command_tests(
         &input,
         resolution,

@@ -1776,7 +1776,6 @@ dependencies = [
  "nocter-package-state",
  "nocter-session",
  "nocter-source",
- "nocter-source-index",
  "nocter-source-tooling",
  "nocter-standard-profile",
  "nocter-syntax",

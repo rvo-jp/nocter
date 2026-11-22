@@ -12,19 +12,20 @@ use crate::{CompiledExecutable, CompiledTarget};
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ExecutableIdentity {
     package: PackageIdentity,
-    target: PackageTargetId,
     name: Box<str>,
 }
 
 impl ExecutableIdentity {
-    #[must_use]
-    pub const fn package(&self) -> &PackageIdentity {
-        &self.package
+    pub(crate) fn new(package: PackageIdentity, name: impl Into<Box<str>>) -> Self {
+        Self {
+            package,
+            name: name.into(),
+        }
     }
 
     #[must_use]
-    pub const fn target(&self) -> PackageTargetId {
-        self.target
+    pub const fn package(&self) -> &PackageIdentity {
+        &self.package
     }
 
     #[must_use]
@@ -81,21 +82,13 @@ pub fn compile_executable(
     request: ExecutableCompileRequest,
 ) -> Result<CompiledExecutable, ExecutableSessionError> {
     let ExecutableCompileRequest { target, selector } = request;
-    let (target, source_index) = target.into_parts();
-    let selected = select_executable(&target, &selector)?;
-    let program = ExecutableProgram::for_executable(target, selected.target())?;
-    Ok(CompiledExecutable::new(selected, program, source_index))
-}
-
-fn select_executable(
-    program: &TargetProgram,
-    selector: &ExecutableSelector,
-) -> Result<ExecutableIdentity, ExecutableSelectionError> {
-    select_candidate(
-        root_executables(program),
-        selector,
-        ExecutableIdentity::name,
-    )
+    let (target, _) = target.into_parts();
+    let (identity, selected) =
+        select_candidate(root_executables(&target), &selector, |(identity, _)| {
+            identity.name()
+        })?;
+    let program = ExecutableProgram::for_executable(target, selected)?;
+    Ok(CompiledExecutable::new(identity, program))
 }
 
 pub(crate) fn select_candidate<T>(
@@ -129,7 +122,7 @@ pub(crate) fn select_candidate<T>(
 ///
 /// Panics only if `program` violates its validated package-target integrity guarantees.
 #[must_use]
-fn root_executables(program: &TargetProgram) -> Vec<ExecutableIdentity> {
+fn root_executables(program: &TargetProgram) -> Vec<(ExecutableIdentity, PackageTargetId)> {
     let graph = program.checked().graph();
     let root_packages = graph.root_packages();
     graph
@@ -148,11 +141,10 @@ fn root_executables(program: &TargetProgram) -> Vec<ExecutableIdentity> {
                 .symbols()
                 .spelling(target.name())
                 .expect("validated package target retains its name");
-            ExecutableIdentity {
-                package: package.identity().clone(),
-                target: id,
-                name: name.into(),
-            }
+            (
+                ExecutableIdentity::new(package.identity().clone(), name),
+                id,
+            )
         })
         .collect()
 }
@@ -164,40 +156,23 @@ fn root_executables(program: &TargetProgram) -> Vec<ExecutableIdentity> {
 /// Returns an executable-closure error if any selected root cannot produce a closed program.
 pub fn close_root_executables(
     target: TargetProgram,
-) -> Result<Box<[RootExecutableProgram]>, RootExecutableClosureError> {
+) -> Result<Box<[CompiledExecutable]>, RootExecutableClosureError> {
     let identities = root_executables(&target);
     let target = Arc::new(target);
     identities
         .into_iter()
-        .map(|identity| {
+        .map(|(identity, id)| {
             let executable =
-                ExecutableProgram::for_executable(Arc::clone(&target), identity.target()).map_err(
-                    |source| RootExecutableClosureError {
+                ExecutableProgram::for_executable(Arc::clone(&target), id).map_err(|source| {
+                    RootExecutableClosureError {
                         executable: identity.clone(),
                         source,
-                    },
-                )?;
-            Ok(RootExecutableProgram {
-                identity,
-                executable,
-            })
+                    }
+                })?;
+            Ok(CompiledExecutable::new(identity, executable))
         })
         .collect::<Result<Vec<_>, _>>()
         .map(Vec::into_boxed_slice)
-}
-
-/// One executable identity inseparably closed over the target program that declared it.
-#[derive(Debug)]
-pub struct RootExecutableProgram {
-    identity: ExecutableIdentity,
-    executable: ExecutableProgram,
-}
-
-impl RootExecutableProgram {
-    #[must_use]
-    pub fn into_parts(self) -> (ExecutableIdentity, ExecutableProgram) {
-        (self.identity, self.executable)
-    }
 }
 
 #[derive(Debug)]

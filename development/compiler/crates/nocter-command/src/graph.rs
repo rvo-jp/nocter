@@ -220,7 +220,7 @@ pub fn execute_prepared_graph(
     context: &CommandPackageContext,
 ) -> Result<GraphCommandResult, GraphCommandError> {
     let (input, resolution, format) = command.into_parts();
-    let mut compiler = CommandCompiler::default();
+    let mut compiler = CommandCompiler::new(context);
     let selection = compiler
         .resolve_package_selection(PackageResolutionRequest::new(
             input.root(),

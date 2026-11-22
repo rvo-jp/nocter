@@ -11,25 +11,16 @@ pub struct CompiledTarget {
     source_index: SourceIndex,
 }
 
-/// One fully selected and specialized process executable plus independent source projection.
+/// One fully selected and specialized process executable.
 #[derive(Debug)]
 pub struct CompiledExecutable {
     identity: ExecutableIdentity,
     program: ExecutableProgram,
-    source_index: SourceIndex,
 }
 
 impl CompiledExecutable {
-    pub(crate) const fn new(
-        identity: ExecutableIdentity,
-        program: ExecutableProgram,
-        source_index: SourceIndex,
-    ) -> Self {
-        Self {
-            identity,
-            program,
-            source_index,
-        }
+    pub(crate) const fn new(identity: ExecutableIdentity, program: ExecutableProgram) -> Self {
+        Self { identity, program }
     }
 
     #[must_use]
@@ -43,13 +34,8 @@ impl CompiledExecutable {
     }
 
     #[must_use]
-    pub const fn source_index(&self) -> &SourceIndex {
-        &self.source_index
-    }
-
-    #[must_use]
-    pub fn into_parts(self) -> (ExecutableProgram, SourceIndex) {
-        (self.program, self.source_index)
+    pub fn into_parts(self) -> (ExecutableIdentity, ExecutableProgram) {
+        (self.identity, self.program)
     }
 }
 
