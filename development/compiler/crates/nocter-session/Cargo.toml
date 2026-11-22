@@ -7,6 +7,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
+nocter-compile-input = { path = "../nocter-compile-input" }
 nocter-toolchain-contract = { path = "../nocter-toolchain-contract" }
 nocter-checking = { path = "../nocter-checking" }
 nocter-declaration-lowering = { path = "../nocter-declaration-lowering" }
@@ -22,7 +23,6 @@ nocter-semantic-product = { path = "../nocter-semantic-product" }
 
 [dev-dependencies]
 nocter-compiler-computation = { path = "../nocter-compiler-computation" }
-nocter-compile-input = { path = "../nocter-compile-input" }
 nocter-filesystem = { path = "../nocter-filesystem" }
 nocter-package = { path = "../nocter-package" }
 nocter-syntax = { path = "../nocter-syntax" }

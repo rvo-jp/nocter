@@ -21,10 +21,12 @@ released semantic views are absent. Source acceptance means complete source chec
 of target admission. Rejection shares checking's original `SourceFailureReport`, and syntax failure
 keeps discovery's exact diagnostics. Session runs no checking or diagnostic rule again.
 
-Converting a checked value-access source to compilation currently returns a distinct unqualified-target
-failure without a fabricated public diagnostic or executable. Rejected conversion retains the exact
-shared report and syntax conversion retains the authoritative syntax failure. V2 target/native and
-editor capabilities remain separate integration work.
+Executable selection for a checked v2 analysis uses the original root package metadata and the
+same name selector as released compilation. The selected module's authored `main` lookup uses
+retained headers. The resulting entry pairs the exact declaration, target and process result with
+the shared accepted Unit. This does not rebind source or repeat checking. Conversion through the
+released `CompiledTarget` API continues to report its explicit v2 boundary. Command and workspace
+integration retain separate qualification work.
 
 ## Internal Responsibilities
 

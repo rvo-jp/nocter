@@ -81,7 +81,13 @@ fn lower_native_image(
 ) -> Result<NativeImage, NativeImageError> {
     let mir = lower_executable(executable)?;
     let machine = MachineProgram::lower(&mir)?;
-    let arm64 = Arm64Program::lower_machine(&machine)?;
+    image_from_machine(&machine)
+}
+
+pub(crate) fn image_from_machine(
+    machine: &MachineProgram,
+) -> Result<NativeImage, NativeImageError> {
+    let arm64 = Arm64Program::lower_machine(machine)?;
     Ok(NativeImage::from_macho(MachOImage::build(&arm64)?))
 }
 

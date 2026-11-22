@@ -6,6 +6,8 @@
 mod native;
 mod output;
 mod test;
+mod value_access;
+pub use value_access::{ValueAccessImageError, compile_value_access_image};
 
 pub use native::{
     NativeImageError, NativeImageSetCompileRequest, NativeImageSetError, NativeSessionError,

@@ -1,4 +1,6 @@
 //! Grammar-selected value-access analysis through the existing complete source coordinator.
+use std::sync::Arc;
+
 use nocter_checking::value_access::{
     SourceFailureReport,
     accepted::{ModuleSourceUnit, Unit},
@@ -11,7 +13,7 @@ use nocter_discovery::DiscoveredUnit;
 #[derive(Debug)]
 pub struct AcceptedValueAccess {
     headers: ModuleQuery,
-    unit: Unit,
+    unit: Arc<Unit>,
 }
 
 impl AcceptedValueAccess {
@@ -21,8 +23,13 @@ impl AcceptedValueAccess {
     }
 
     #[must_use]
-    pub const fn unit(&self) -> &Unit {
+    pub fn unit(&self) -> &Unit {
         &self.unit
+    }
+
+    #[must_use]
+    pub fn unit_handle(&self) -> Arc<Unit> {
+        Arc::clone(&self.unit)
     }
 }
 
@@ -46,7 +53,7 @@ pub(super) fn analyze(
         let headers = source.declarations().query()?;
         Ok(AcceptedValueAccess {
             headers,
-            unit: source.into_unit(),
+            unit: Arc::new(source.into_unit()),
         })
     });
     Ok(match result {

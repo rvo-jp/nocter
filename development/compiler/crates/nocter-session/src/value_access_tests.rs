@@ -22,6 +22,10 @@ static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
 struct Fixture(PathBuf);
 impl Fixture {
     fn query(body: &str) -> (Self, Arc<UnitAnalysisProduct>) {
+        Self::package("see ./body.nct\nfunc run(): i32", body)
+    }
+
+    fn package(root: &str, body: &str) -> (Self, Arc<UnitAnalysisProduct>) {
         let serial = NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed);
         let directory =
             std::env::temp_dir().join(format!("nocter-v2-session-{}-{serial}", std::process::id()));
@@ -29,7 +33,7 @@ impl Fixture {
         fs::create_dir_all(directory.join("std")).unwrap();
         fs::write(
             directory.join("app/index.nct"),
-            "#package: { name: \"app\", version: \"2.0.0\" }\nsee ./body.nct\nfunc run(): i32",
+            format!("#package: {{ name: \"app\", version: \"2.0.0\" }}\n{root}"),
         )
         .unwrap();
         fs::write(
@@ -159,4 +163,80 @@ fn incomplete_v2_source_retains_syntax_diagnostics_without_checked_evidence() {
         CompileSessionError::SyntaxErrorsPresent
     ));
     assert!(!diagnostics.is_empty());
+}
+
+#[test]
+fn package_entry_checks_the_authored_main_contract() {
+    use nocter_target_program::EntryContractRule;
+    for (contract, body, rule) in [
+        ("", "func main(): i32 { 42 }", None),
+        (
+            "const main: i32",
+            "const main: i32 = 42",
+            Some(EntryContractRule::TopLevelFunction),
+        ),
+        (
+            "func main(value: i32): i32",
+            "func main(value: i32): i32 { value }",
+            Some(EntryContractRule::ValueParameters),
+        ),
+        (
+            "func main(): bool",
+            "func main(): bool { true }",
+            Some(EntryContractRule::ResultType),
+        ),
+    ] {
+        let (_fixture, product) = Fixture::package(
+            &format!("#executable: {{ name: \"app\" }}\nsee ./body.nct\n{contract}"),
+            body,
+        );
+        let analysis = analyze_unit_from_query(&product).unwrap();
+        assert!(
+            analysis.diagnostics().is_empty(),
+            "{body}: {:?}",
+            analysis.diagnostics()
+        );
+        let error =
+            select_value_access_executable(&analysis, &ExecutableSelector::Only).unwrap_err();
+        assert!(
+            matches!(error, ValueAccessEntryError::InvalidMain { executable, rule: got }
+            if &*executable == "app" && got == rule),
+            "{body}"
+        );
+    }
+}
+
+#[test]
+fn package_entry_preserves_valid_results_and_target_selection() {
+    use nocter_target_program::ProcessSuccessType;
+    for (ty, expression, success, fallible) in [
+        ("void", "", ProcessSuccessType::Void, false),
+        ("i32", "42", ProcessSuccessType::I32, false),
+        ("usize", "42", ProcessSuccessType::Usize, false),
+        ("i32!", "42", ProcessSuccessType::I32, true),
+    ] {
+        let (_fixture, product) = Fixture::package(
+            &format!(
+                "#executable: {{ name: \"app\" }}\nsee ./body.nct\n#visibility: \"./\"\nfunc main(): {ty}"
+            ),
+            &format!("func main(): {ty} {{ {expression} }}"),
+        );
+        let analysis = analyze_unit_from_query(&product).unwrap();
+        assert!(
+            analysis.diagnostics().is_empty(),
+            "{ty}: {:?}",
+            analysis.diagnostics()
+        );
+        let executable =
+            select_value_access_executable(&analysis, &ExecutableSelector::named("app")).unwrap();
+        assert_eq!(executable.declaration().name(), "app");
+        assert_eq!(executable.result().success(), success);
+        assert_eq!(executable.result().is_fallible(), fallible);
+        assert!(matches!(
+            select_value_access_executable(&analysis, &ExecutableSelector::named("missing")),
+            Err(ValueAccessEntryError::Selection(
+                ExecutableSelectionError::UnknownName(_)
+            ))
+        ));
+    }
 }

@@ -91,25 +91,36 @@ fn select_executable(
     program: &TargetProgram,
     selector: &ExecutableSelector,
 ) -> Result<ExecutableIdentity, ExecutableSelectionError> {
-    let candidates = root_executables(program);
-    match selector {
-        ExecutableSelector::Only => match candidates.as_slice() {
-            [] => Err(ExecutableSelectionError::NoExecutable),
-            [selected] => Ok(selected.clone()),
-            _ => Err(ExecutableSelectionError::MultipleExecutables),
-        },
-        ExecutableSelector::Named(name) => {
-            let matches = candidates
-                .into_iter()
-                .filter(|target| target.name() == name.as_ref())
-                .collect::<Vec<_>>();
-            match matches.as_slice() {
-                [selected] => Ok(selected.clone()),
-                [] => Err(ExecutableSelectionError::UnknownName(name.clone())),
-                _ => Err(ExecutableSelectionError::AmbiguousName(name.clone())),
-            }
-        }
+    select_candidate(
+        root_executables(program),
+        selector,
+        ExecutableIdentity::name,
+    )
+}
+
+pub(crate) fn select_candidate<T>(
+    candidates: impl IntoIterator<Item = T>,
+    selector: &ExecutableSelector,
+    name_of: impl Fn(&T) -> &str,
+) -> Result<T, ExecutableSelectionError> {
+    let name = match selector {
+        ExecutableSelector::Only => None,
+        ExecutableSelector::Named(name) => Some(name.as_ref()),
+    };
+    let mut matches = candidates
+        .into_iter()
+        .filter(|candidate| name.is_none_or(|name| name_of(candidate) == name));
+    let selected = matches.next().ok_or_else(|| match name {
+        None => ExecutableSelectionError::NoExecutable,
+        Some(name) => ExecutableSelectionError::UnknownName(name.into()),
+    })?;
+    if matches.next().is_some() {
+        return Err(match name {
+            None => ExecutableSelectionError::MultipleExecutables,
+            Some(name) => ExecutableSelectionError::AmbiguousName(name.into()),
+        });
     }
+    Ok(selected)
 }
 
 /// Returns executable identities owned by root packages in declaration order.

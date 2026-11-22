@@ -18,20 +18,11 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Work is paused at the user's request after qualifying retained module export lookup. The current
-checkpoint passes 26 declaration/module tests, 29 checking/module tests, the query-session native
-execution case, affected-crate Clippy and documentation generation (310 pages). Both correctness
-and boundary/complexity reviews are complete. No unfinished verification belongs to this checkpoint.
-
-Resume with the executable-entry/target contract below; no syntax decision or permission is pending
-for the completed export-lookup work. Source-free header lookup is available for that next step.
-
-Close the v2 executable-entry and target prerequisites explicitly before an ordinary CLI adapter.
-The private process root currently supports zero-input void/i32, whereas released entry policy also
-has usize, fallible and async forms; do not silently inherit that policy or call a probe root a
-qualified package entry. Preserve contract-only root lookup, original target/module identities,
-inferred effects, runtime diagnostics/cleanup and the common backend. Fine-grained v2 query reuse,
-partial editor recovery and the standard library remain open.
+Complete the v2 process wrapper for fallible entry results. Use the selected package entry and
+the existing outcome layout, error reporting and release operations. Prove normal exit and
+reporting with real native package executions. Then connect the command path to the selected v2
+package and qualify async entries, process context, installed library and editor integration.
+Keep entry validation and target availability distinct from source checking.
 
 ## Remaining Contextual Representation Qualification
 
@@ -716,6 +707,11 @@ not a language restriction derived from the current realization boundary.
   value/type separation, re-export identities, package audiences and guarded current rebinding.
   Qualify query/session-to-native root/constant selection without physical rebinding. Align paired
   header tests with nominal identity readiness, independently of later payload/value construction.
+- [x] Select v2 package executables from exact root target metadata and retained module exports.
+  Share executable name selection and process signature classification with released compilation.
+  Validate authored main contracts separately from backend availability. Qualify immediate
+  void/i32/usize result handling and root/child package selection through the session. Native
+  integration executes the selected i32 and wide usize results using the shared checked Unit.
 - [ ] Integrate v2 into the ordinary compiler/CLI and editor workflow with one semantic pipeline,
   current diagnostics, formatting, presentation and revision/source reuse. Remove transitional private
   handoffs when their production replacement is qualified; retain no competing semantic authority.

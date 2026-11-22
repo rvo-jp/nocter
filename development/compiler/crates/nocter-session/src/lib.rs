@@ -12,6 +12,10 @@ mod output;
 mod semantic_analysis;
 mod semantic_capabilities;
 mod test_selection;
+mod value_access_entry;
+pub use value_access_entry::{
+    ValueAccessEntryError, ValueAccessExecutable, select_value_access_executable,
+};
 #[cfg(test)]
 mod value_access_tests;
 

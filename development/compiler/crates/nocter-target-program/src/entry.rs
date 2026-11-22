@@ -8,7 +8,7 @@ use nocter_model::{
 
 use crate::TargetProgram;
 
-const EXECUTABLE_ENTRY_NAME: &str = "main";
+pub const EXECUTABLE_ENTRY_NAME: &str = "main";
 
 /// The successful payload accepted by the generated process-entry wrapper.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -37,6 +37,16 @@ pub enum ProcessEntryExecution {
 }
 
 impl ProcessResultContract {
+    pub(crate) const fn from_success_type(success: BuiltinType, fallible: bool) -> Option<Self> {
+        let success = match success {
+            BuiltinType::Void => ProcessSuccessType::Void,
+            BuiltinType::I32 => ProcessSuccessType::I32,
+            BuiltinType::Usize => ProcessSuccessType::Usize,
+            _ => return None,
+        };
+        Some(Self { success, fallible })
+    }
+
     #[must_use]
     pub const fn success(self) -> ProcessSuccessType {
         self.success
@@ -269,11 +279,8 @@ fn process_result(
         TypeKind::Fallible(payload) => (*payload, true),
         _ => (result, false),
     };
-    let success = match types.get(base)? {
-        TypeKind::Builtin(BuiltinType::Void) => ProcessSuccessType::Void,
-        TypeKind::Builtin(BuiltinType::I32) => ProcessSuccessType::I32,
-        TypeKind::Builtin(BuiltinType::Usize) => ProcessSuccessType::Usize,
-        _ => return None,
+    let TypeKind::Builtin(success) = types.get(base)? else {
+        return None;
     };
-    Some(ProcessResultContract { success, fallible })
+    ProcessResultContract::from_success_type(*success, fallible)
 }

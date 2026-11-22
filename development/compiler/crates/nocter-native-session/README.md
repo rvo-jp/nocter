@@ -7,8 +7,10 @@ return a complete native artifact or typed failure.
 
 ## Contract
 
-The crate accepts only a query-backed `CompiledTarget`, orchestrates backend stage contracts, and
-owns output bytes plus native test execution support. It does not discover source, run semantic
+The crate accepts either a query-backed released target request or a session-selected v2 package
+executable. It orchestrates backend stage contracts and owns output bytes and native test execution
+support. The v2 process wrapper currently supports immediate `void`, `i32`, and `usize` results on
+ARM64 Darwin. Fallible results have a distinct unsupported-wrapper error. It does not discover source, run semantic
 analysis, implement backend rules, select command-line policy, or publish filesystem artifacts.
 
 ## Internal Responsibilities
@@ -28,14 +30,10 @@ analysis, implement backend rules, select command-line policy, or publish filesy
   closure bodies and required array lengths in a real native process. A shared trusted-error module
   corpus selects same-named primitives from different logical modules and executes owned graph
   construction, context attachment and release, including qualified function-value calls.
-  The query-session corpus additionally uses the revision-owned syntax provider, physical package
-  discovery, sole unit-analysis query and common session envelope before selecting an explicit
-  checked root for these same private native consumers. Two same-code factory closures from a
-  different module retain distinct captured values through required evaluation and native execution.
-  Native root/constant selection uses the retained headers' audience-aware module exports, without
-  physical source rebinding. No source preparation is repeated after the session publishes its
-  checked Unit. This qualifies the bounded handoff, not an executable entry contract, public CLI,
-  installed v2 library or ABI.
+  The query-session corpus additionally exercises the production v2 package selection and image
+  entry. The root and child module each declare their own `main` and execute the selected result.
+  Two same-code factory closures from a different module retain distinct captured values through
+  required evaluation and native execution. Native compilation shares the query-owned checked Unit.
   A header-only query cannot replace source acceptance.
 - Native-specific source corpora live under `development/compiler/tests/fixtures/native/`.
   Cross-consumer module corpora live under `development/compiler/tests/fixtures/value-modules/` and are selected by

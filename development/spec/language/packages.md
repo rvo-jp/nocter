@@ -2,8 +2,8 @@
 
 ## Scope and Retained Data Contract
 
-This chapter selects v2.0.0 package metadata. It retains the released directive notation and data
-rules explicitly; no other released source production or executable entry is inherited.
+This chapter selects v2.0.0 package metadata and executable entry behavior. Released directive
+notation and data rules apply where listed below.
 
 The following sections of [Packages and Package Source](../../../spec/language/packages.md) are
 incorporated for their data rules, without duplicating editable schemas here:
@@ -33,7 +33,7 @@ Invalid data retains its exact physical source location; parsing a directive doe
 The [module contract](modules.md#contract-only-roots) owns root placement and publication. The package
 root remains contract-only: metadata does not permit a function body, initializer, destructor or
 private helper in `index.nct`. Metadata itself exports no declaration. A target selects a directory
-module; its entry contract is authored in that module's `index.nct` and paired with a complete
+module. Its entry contract is authored in that module's `index.nct` and paired with a complete
 implementation in a directly reciprocal ordinary source. The presence of a target does not prove
 its entry signature, effects, runtime support or ABI are valid.
 
@@ -43,6 +43,21 @@ module inventory. The selected package graph applies one explicit source grammar
 roots, dependency packages, module sources and recovery products; it cannot reinterpret a retained
 root with another grammar. This consistency requirement does not imply source compatibility between
 released and v2 packages.
+
+## Executable Entry
+
+`#executable` selects the top-level function `main` authored in the selected module's
+`index.nct`. A helper reached through `see`, an import or re-export, or a `main` in another
+module cannot supply this contract. Entry selection takes place in the declaring module, so the
+contract may restrict its audience. `main` remains an ordinary callable name.
+
+V2 retains the signature and process result rules from
+[Executable Entry](../../../spec/overview.md#executable-entry). The function has no generic or
+value parameters. Immediate and async forms admit `void`, `i32`, or `usize`, and any of
+these results may end in `!` to permit failure. Completion determines the process status and an
+unhandled `error` produces a failure report. The process adapter drives an async entry under the
+[v2 future contract](asynchronous-computations.md). The retained rules select neither a CLI
+interface nor an installed standard library or platform ABI.
 
 ## Grammar
 

@@ -3,7 +3,7 @@
 This document owns the implemented bounded handoff between syntax, declarations, typed bodies,
 accepted private units and private instances. Language meaning belongs to the
 [adopted value model](../../spec/language/value-access.md). This boundary has no released-program
-adapter or public CLI. Its bounded private native consumer uses the common Machine, ARM64 and
+adapter or public CLI. Its native consumer uses the common Machine, ARM64 and
 Mach-O products; the [entry qualification](#common-machine-body-construction) defines its limits.
 
 ## Source Scope
@@ -25,9 +25,10 @@ their existing owners. The revision-owned unit-analysis query now selects this s
 for v2 input and retains accepted, rejected or incomplete syntax outcomes under exact-current source
 identity. Session retains that same query branch and the original common failure report in its
 exact-current envelope, without invoking checking or converting to released semantic views. Source
-checking remains separate from the explicitly unqualified executable-target boundary. This qualifies
-the physical, query and session evidence handoff, not executable entry/native/editor admission,
-a v2 standard library or public CLI. The [query owner](../../compiler/crates/nocter-compiler-computation/README.md#selected-value-access-query-scope)
+checking remains separate from target admission. Session can select a v2 package executable through
+authored metadata and retained module headers. Native lowering consumes that checked selection for
+the supported process results. Editor features, the installed standard library and CLI integration
+require separate qualification. The [query owner](../../compiler/crates/nocter-compiler-computation/README.md#selected-value-access-query-scope)
 defines its reuse and recovery scope.
 
 ## Implemented Handoff
@@ -585,9 +586,9 @@ a source ABI. Each action selects its alternative once by control flow before ei
 normal completion follows that selected continuation after the call. Cleanup of shared record
 schemas uses one helper per concrete data identity, not an expanded tree of field paths.
 
-The private process-image entry admits an explicitly selected root with no inputs and an i32 or
-unit result. This qualification does not add a CLI version switch, promote general private-root
-signatures to platform entries or amend released entry syntax. Callable bodies still preserve
+The process-image entry admits a root with no inputs and an immediate `void`, `i32`, or `usize`
+result. Package selection validates the authored module entry independently of this wrapper's
+capabilities. Fallible and async process wrappers and the v2 public CLI remain unqualified. Callable bodies still preserve
 their full frozen input/result contracts. Native-session integration tests compile actual private
 source through checking, instances, lifecycle, MIR and these existing native consumers, then
 execute the images on ARM64 macOS. They cover scalar computation, scoped channels, control flow,

@@ -1,13 +1,17 @@
 //! Physical v2 sources retain one checked authority through query, session and native consumers.
-use super::{TempPackage, execute_native_status, image, machine_entry};
+use super::{TempPackage, execute_native_status};
 use nocter_compile_input::{ModuleIdentity, ToolchainInput};
 use nocter_compiler_computation::{CompilerComputation, ValueAccessAnalysis};
 use nocter_discovery::DiscoveryRequest;
 use nocter_filesystem::SourceOverlay;
 use nocter_model::{CompilationTarget, ConstantValue, FrozenNode, PackageIdentity};
 use nocter_package::{PackageRootCatalog, ResolvedPackageGraph, ResolvedPackageSpec};
+use nocter_session::{
+    ExecutableSelectionError, ExecutableSelector, ValueAccessEntryError,
+    select_value_access_executable,
+};
 use nocter_syntax::ParseGoal;
-use std::{fs, sync::Arc};
+use std::fs;
 
 #[test]
 fn physical_query_session_unit_executes_distinct_cross_module_capture_values() {
@@ -52,7 +56,10 @@ fn physical_query_session_unit_executes_distinct_cross_module_capture_values() {
     let request = DiscoveryRequest::declared(
         CompilationTarget::Arm64Darwin,
         packages,
-        vec![ModuleIdentity::new(identity("app"), Vec::<&str>::new())],
+        vec![
+            ModuleIdentity::new(identity("app"), Vec::<&str>::new()),
+            ModuleIdentity::new(identity("app"), ["math"]),
+        ],
         ToolchainInput::new(
             std.clone(),
             ModuleIdentity::new(std, Vec::<&str>::new()),
@@ -77,9 +84,6 @@ fn physical_query_session_unit_executes_distinct_cross_module_capture_values() {
             program.symbols().get(name).unwrap(),
         )
     };
-    let Some(nocter_declarations::value_access::DeclarationId::Code(root)) = exported("run") else {
-        panic!("authored root function contract")
-    };
     let Some(nocter_declarations::value_access::DeclarationId::Code(answer)) = exported("ANSWER")
     else {
         panic!("authored root constant contract")
@@ -88,7 +92,21 @@ fn physical_query_session_unit_executes_distinct_cross_module_capture_values() {
         accepted.unit().constant_value(answer).unwrap().node(),
         &FrozenNode::Scalar(ConstantValue::Integer(42))
     );
-    // Consume the already checked Unit. No SourceUnit/ModuleSourceUnit preparation occurs here.
-    let machine = machine_entry(Arc::new(accepted.unit().clone()), root).unwrap();
-    execute_native_status(&image(&machine), &directory.0, "query-session-captures", 42);
+    assert!(matches!(
+        select_value_access_executable(&session, &ExecutableSelector::Only),
+        Err(ValueAccessEntryError::Selection(
+            ExecutableSelectionError::MultipleExecutables
+        ))
+    ));
+    for (name, path, status) in [("app", &[][..], 42), ("math", &["math"][..], 17)] {
+        let executable =
+            select_value_access_executable(&session, &ExecutableSelector::named(name)).unwrap();
+        assert_eq!(executable.declaration().name(), name);
+        assert_eq!(
+            executable.declaration().module(),
+            &ModuleIdentity::new(identity("app"), path.iter().copied())
+        );
+        let image = crate::compile_value_access_image(executable).unwrap();
+        execute_native_status(&image, &directory.0, &format!("image-{name}"), status);
+    }
 }

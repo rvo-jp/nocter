@@ -86,7 +86,12 @@ pub(super) fn program(program: &mir::Program) -> Result<MachineProgram, Failure>
                 .runtime()
                 .types()
                 .get(source_root.signature().result()),
-            Some(RuntimeType::Unit | RuntimeType::Primitive(RuntimePrimitive::Signed(32)))
+            Some(
+                RuntimeType::Unit
+                    | RuntimeType::Primitive(
+                        RuntimePrimitive::Signed(32) | RuntimePrimitive::Usize
+                    )
+            )
         )
     {
         return Err(Failure::InvalidRoot);
