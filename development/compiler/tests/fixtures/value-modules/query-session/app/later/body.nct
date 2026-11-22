@@ -109,9 +109,24 @@ async func snapshot(): i32 {
     result + await sum_later(additional^, 2) + choices - 6
 }
 
+async func optional_later(take probe: i32): i32? {
+    if probe == 0 { none } else { probe }
+}
+
+async func plus_two(take probe: i32): i32? {
+    let value = await optional_later(probe)?
+    value + 2
+}
+
+async func optional_demo(): i32 {
+    let present = await plus_two(40) otherwise { 100 }
+    let absent = await plus_two(0) otherwise { 5 }
+    present + absent
+}
+
 async func main(): i32 {
     var count = 0
     cancel(count, true)
     cancel(count, false)
-    count + await relay() + await choose_value() + await snapshot() - 56
+    count + await relay() + await choose_value() + await snapshot() + await optional_demo() - 103
 }

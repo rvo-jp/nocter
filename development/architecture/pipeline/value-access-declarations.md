@@ -388,7 +388,8 @@ edges are followed. Reached invocation commits and qualified future drives add i
 A drive keeps its original action, candidate producers and their input channels through instance
 closure. MIR dispatches on the retained selector when needed and supplies the selected stored
 inputs through the ordinary body ABI. The selected body's answer enters the checked normal-result
-transition.
+transition. An optional answer enters the ordinary outcome graph after the drive, so propagation
+and local recovery use the actual tag supplied by the selected body.
 Source data IDs map once to concrete payload
 obligations or checked unproduced structural contracts in the same declaration TypeAuthority.
 The accepted Unit owns that distinction; an unproduced structural shape has no payload, cleanup or

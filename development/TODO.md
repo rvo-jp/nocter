@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify native optional outputs through `await`, propagation and recovery. Preserve the
-authored outcome from the selected body and begin failure-output admission with actual
-construction and cleanup effect evidence.
+Qualify authored fallible outputs on non-suspending drives. Separate passive output
+representation and transfer from the effect evidence required for actual error creation,
+cleanup and disposal.
 
 ## Remaining Contextual Representation Qualification
 
@@ -785,6 +785,8 @@ not a language restriction derived from the current realization boundary.
 - [x] Move and drive joined futures with different scalar capture layouts. Select only the
   active lanes at the original operation, including differently sized inputs at the same
   position. Verify unstarted mixed-layout cancellation and condition effects in native code.
+- [x] Propagate and recover a native optional output after `await`. Exercise both presence and
+  absence through the same selected async body with different captured inputs.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.
