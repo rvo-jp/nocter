@@ -289,11 +289,18 @@ impl Checker<'_, '_> {
             plans.push(self.prepare_input(syntax, value, expected)?);
         }
         if super::instances::completed(&plans) {
+            let callee = self.first_child(node)?;
+            if matches!(
+                self.program().function_execution(selected.witness.origin),
+                Some(nocter_declarations::CallableExecution::Deferred { .. })
+            ) {
+                return self.reject(Rule::UnqualifiedFuture, callee);
+            }
             super::checker::payload_requirements::invocation(
                 self.program(),
                 self.syntax(),
                 &contract,
-                nocter_syntax::SyntaxOrigin::Node(self.first_child(node)?),
+                nocter_syntax::SyntaxOrigin::Node(callee),
             )?;
         }
         let requires_application = matches!(

@@ -42,14 +42,17 @@ enum Output {
 }
 struct Builder<'a> {
     body: &'a TypedBody,
+    program: &'a nocter_declarations::value_access::Program,
     points: ArenaBuilder<AccessFlowPointId, Draft>,
     frames: Vec<Frame>,
     loops: Vec<Loop>,
 }
 
-pub(super) fn build(body: &TypedBody) -> Result<Graph> {
+pub(super) fn build(query: &crate::value_access::Query) -> Result<Graph> {
+    let body = query.body();
     let mut builder = Builder {
         body,
+        program: query.program(),
         points: ArenaBuilder::new(),
         frames: Vec::new(),
         loops: Vec::new(),
@@ -444,7 +447,11 @@ impl Builder<'_> {
                 operation: Binary::And | Binary::Or,
                 ..
             } => return self.logical(id, entry),
-            ExpressionKind::Call { arguments, .. } => return self.call(id, entry, arguments),
+            ExpressionKind::Call {
+                target, arguments, ..
+            } => {
+                return self.call(id, entry, *target, arguments);
+            }
             ExpressionKind::Aggregate { fields } => self.record(entry, fields)?,
             ExpressionKind::Closure { capture, .. } => self.expression(*capture, entry)?,
             ExpressionKind::Repeat { seed } => self.expression(*seed, entry)?,
@@ -591,6 +598,7 @@ impl Builder<'_> {
         &mut self,
         id: AccessExpressionId,
         entry: AccessFlowPointId,
+        target: nocter_model::ValueFunctionOrigin,
         arguments: &[crate::value_access::Argument],
     ) -> Result<Option<AccessFlowPointId>> {
         let origin = Origin::Expression(id);
@@ -632,6 +640,14 @@ impl Builder<'_> {
         }
         self.frames.pop();
         if let Some(point) = current {
+            if matches!(
+                self.program.function_execution(target),
+                Some(nocter_declarations::CallableExecution::Deferred { .. })
+            ) {
+                // A deferred commit needs its own activation receipt. It cannot use the
+                // ordinary call edge, even if a type/signature change bypasses source admission.
+                return Err(INVALID);
+            }
             self.action(point, origin, Operation::CommitCall(id))?;
         }
         Ok(current)

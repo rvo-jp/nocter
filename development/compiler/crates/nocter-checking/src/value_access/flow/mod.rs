@@ -262,7 +262,7 @@ pub(super) fn scope<'a>(
 impl Control {
     pub(super) fn prepare(typed: Arc<TypedQuery>) -> Result<Self, IntegrityError> {
         super::body_inputs::layout(&typed)?;
-        let graph = Arc::new(build::build(typed.body())?);
+        let graph = Arc::new(build::build(&typed)?);
         let mut control = Self { typed, graph };
         if control.typed.results_closed() {
             control.refine_outcome_domains()?;

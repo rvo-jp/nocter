@@ -102,6 +102,65 @@ fn ordinary_closures_do_not_inherit_await_from_a_deferred_body() {
 }
 
 #[test]
+fn interrupted_deferred_preparation_has_a_selected_producer_without_any_invocation() {
+    use nocter_declarations::{CallableExecution, value_access::PayloadSchema};
+
+    let (sources, tree) = input(
+        "async func later(take input: i32): i32 { input }\n\
+         func run(): i32 {\n\
+         later(if true { return 19 } else { return 23 })\n\
+         42\n}",
+    );
+    let syntax = bound(&sources, &tree);
+    let declarations = declarations::Query::prepare(syntax).unwrap();
+    let context = declarations.bind(syntax).unwrap();
+    let program = context.program();
+    let code = |name| {
+        program
+            .resolve_code_in(
+                nocter_declarations::value_access::ScopeId::ROOT,
+                program.symbols().get(name).unwrap(),
+            )
+            .unwrap()
+    };
+    let body = Query::prepare(&context, code("run")).unwrap();
+    let (call, target) = body
+        .body()
+        .expressions()
+        .iter()
+        .find_map(|(_, expression)| {
+            let ExpressionKind::Call { target, .. } = expression.kind else {
+                return None;
+            };
+            Some((expression.ty, target))
+        })
+        .unwrap();
+    assert_eq!(
+        target,
+        nocter_model::ValueFunctionOrigin::Declaration(code("later"))
+    );
+    let output = program.data_type(BuiltinType::I32).unwrap();
+    assert_eq!(
+        program.function_execution(target),
+        Some(CallableExecution::Deferred { output })
+    );
+    assert_eq!(
+        program.data_schema(call.access().unwrap().data()),
+        Some(PayloadSchema::Future(output))
+    );
+    assert!(!call.may_complete());
+    let graph = flow::Query::prepare(Arc::new(body)).unwrap();
+    assert!(
+        graph
+            .graph()
+            .points()
+            .iter()
+            .flat_map(|(_, p)| &p.actions)
+            .all(|action| !matches!(action.operation, flow::Operation::CommitCall(_)))
+    );
+}
+
+#[test]
 fn future_result_in_a_callable_contract_requires_evidence_at_invocation() {
     queries("func retain(action: func(): future i32): void {}").unwrap();
     reject(

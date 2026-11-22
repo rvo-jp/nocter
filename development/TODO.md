@@ -750,6 +750,9 @@ not a language restriction derived from the current realization boundary.
   Establish non-waiting drive through reached calls and checked cleanup, retaining ordinary
   future creation as a separate boundary. Verify the original package selection, an actual
   native exit status, unsupported selected effects and local recursion without executing it.
+- [x] Resolve execution kind through the exact selected function origin. Preserve the selected
+  deferred declaration and structural result type through interrupted preparation without
+  admitting an ordinary call edge or treating a symbolic callable contract as a producer.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.

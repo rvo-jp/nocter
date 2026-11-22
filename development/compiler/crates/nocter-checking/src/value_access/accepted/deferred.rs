@@ -126,12 +126,11 @@ fn drive(
                     let ExpressionKind::Call { target, .. } = expression.kind else {
                         return Err(INVALID);
                     };
-                    let selected = match target {
-                        ValueFunctionOrigin::Declaration(id)
-                            if program.code_execution(id) == Some(CallableExecution::Immediate) =>
-                        {
-                            bodies.get(&id.into()).map(|body| (id, body.as_ref()))
-                        }
+                    let selected = match (target, program.function_execution(target)) {
+                        (
+                            ValueFunctionOrigin::Declaration(id),
+                            Some(CallableExecution::Immediate),
+                        ) => bodies.get(&id.into()).map(|body| (id, body.as_ref())),
                         _ => None,
                     };
                     let Some(selected) = selected else {

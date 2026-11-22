@@ -270,6 +270,25 @@ impl Program {
             _ => None,
         }
     }
+    /// Execution for an exact function origin. Symbolic result, contract and formal origins
+    /// carry a type constraint and cannot certify which body or constructor is selected.
+    #[must_use]
+    pub fn function_execution(
+        &self,
+        origin: nocter_model::ValueFunctionOrigin,
+    ) -> Option<crate::CallableExecution> {
+        use nocter_model::ValueFunctionOrigin;
+        match origin {
+            ValueFunctionOrigin::Declaration(id) => self.code_execution(id),
+            ValueFunctionOrigin::Closure(id) => self
+                .closure(id)
+                .map(|_| crate::CallableExecution::Immediate),
+            ValueFunctionOrigin::Parameter(_)
+            | ValueFunctionOrigin::Contract(_)
+            | ValueFunctionOrigin::Result(_)
+            | ValueFunctionOrigin::Application(_) => None,
+        }
+    }
     /// The result checked inside a body or initializer, before wrapping any deferred invocation.
     #[must_use]
     pub fn code_body_result(&self, id: AccessCodeId) -> Option<TypeId> {

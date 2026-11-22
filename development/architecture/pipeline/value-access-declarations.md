@@ -182,6 +182,9 @@ A deferred body is checked against its authored output, including its own fallib
 Its invocation has a separate future type. Ordinary nested closures do not inherit the deferred
 body's permission to await. The supported process drive is described at the
 [Machine handoff](#common-machine-body-construction).
+The selected declaration or closure origin determines its execution kind. A symbolic callable
+contract supplies no concrete constructor. Interrupted argument preparation keeps the selected
+producer and result type in the typed query, while its control graph records no invocation.
 Direct and value calls store one statically selected callable and one input operation per ordered
 input. Value-supply preparation can remain pending until result closure, without changing that
 authored operation. A value call prepends its environment to explicit inputs; direct declaration
