@@ -294,14 +294,17 @@ impl Checker<'_, '_> {
                 self.program().function_execution(selected.witness.origin),
                 Some(nocter_declarations::CallableExecution::Deferred { .. })
             ) {
-                return self.reject(Rule::UnqualifiedFuture, callee);
+                if kind != CallKind::Direct || !plans.is_empty() {
+                    return self.reject(Rule::UnqualifiedFuture, callee);
+                }
+            } else {
+                super::checker::payload_requirements::invocation(
+                    self.program(),
+                    self.syntax(),
+                    &contract,
+                    nocter_syntax::SyntaxOrigin::Node(callee),
+                )?;
             }
-            super::checker::payload_requirements::invocation(
-                self.program(),
-                self.syntax(),
-                &contract,
-                nocter_syntax::SyntaxOrigin::Node(callee),
-            )?;
         }
         let requires_application = matches!(
             self.program().data_schema(contract.result),

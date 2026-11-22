@@ -172,7 +172,9 @@ fn plan(
             uses.push((Carrier::Expression(*source), false));
             definitions.push(Carrier::Expression(*result));
         }
-        Operation::BooleanConstant { result, .. } => definitions.push(Carrier::Expression(*result)),
+        Operation::BooleanConstant { result, .. } | Operation::ConstructFuture(result) => {
+            definitions.push(Carrier::Expression(*result));
+        }
         Operation::Bind { local, value } => {
             uses.push((
                 Carrier::Expression(*value),

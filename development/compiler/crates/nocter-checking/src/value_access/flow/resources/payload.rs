@@ -29,6 +29,9 @@ impl OwnedValue {
         !self.missing.iter().any(|hole| hole.overlaps(path))
     }
     pub fn selected(&self, program: &Program, path: &Path) -> Result<Payload> {
+        if path.is_root() && matches!(self.payload.disposal(), Disposal::UnstartedFuture(_)) {
+            return Ok(self.payload);
+        }
         payload(
             program,
             path.data(program, self.payload.data()).ok_or(INVALID)?,

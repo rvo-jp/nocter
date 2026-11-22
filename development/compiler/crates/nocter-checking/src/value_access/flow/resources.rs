@@ -108,6 +108,8 @@ pub enum Disposal {
     FunctionEnvironment,
     Trivial,
     OwnedError,
+    /// One exact producer whose activation has not executed any body operation.
+    UnstartedFuture(nocter_model::AccessCodeId),
     /// A structural container; its declaration schema selects component or homogeneous cleanup.
     Aggregate,
 }
@@ -132,6 +134,44 @@ impl Payload {
     pub const fn has_external_dependencies(self) -> bool {
         false
     }
+}
+
+/// Form the ownership receipt for a selected producer with an empty input activation.
+/// The checked unit must separately establish the producer's effects and backing.
+pub(super) fn empty_future(typed: &TypedQuery, call: AccessExpressionId) -> Result<Payload> {
+    use crate::value_access::{CallKind, ExpressionKind};
+    use nocter_declarations::CallableExecution;
+    use nocter_model::{ValueAccessMode, ValueFunctionOrigin};
+
+    let expression = typed.body().expressions().get(call).ok_or(INVALID)?;
+    let ExpressionKind::Call {
+        kind: CallKind::Direct,
+        target: ValueFunctionOrigin::Declaration(producer),
+        arguments,
+    } = &expression.kind
+    else {
+        return Err(INVALID);
+    };
+    let program = typed.program();
+    let declaration = program.codes().get(*producer).ok_or(INVALID)?;
+    let Some(CallableExecution::Deferred { output }) =
+        program.function_execution(ValueFunctionOrigin::Declaration(*producer))
+    else {
+        return Err(INVALID);
+    };
+    let data = declaration.result();
+    if !arguments.is_empty()
+        || !declaration.parameters().is_empty()
+        || expression.ty.normal()
+            != Some(nocter_model::ValueAccess::new(data, ValueAccessMode::Own))
+        || program.data_schema(data) != Some(PayloadSchema::Future(output))
+    {
+        return Err(INVALID);
+    }
+    Ok(Payload {
+        data,
+        disposal: Disposal::UnstartedFuture(*producer),
+    })
 }
 mod step;
 mod transport;

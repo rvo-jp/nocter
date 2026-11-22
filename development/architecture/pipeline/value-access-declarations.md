@@ -185,6 +185,9 @@ body's permission to await. The supported process drive is described at the
 The selected declaration or closure origin determines its execution kind. A symbolic callable
 contract supplies no concrete constructor. Interrupted argument preparation keeps the selected
 producer and result type in the typed query, while its control graph records no invocation.
+An empty, directly selected construction has its own flow operation. Its logical receipt
+retains the producer through owning local transfers and cancellation without an invocation.
+The accepted-unit boundary still requires runtime backing evidence for reached construction.
 Direct and value calls store one statically selected callable and one input operation per ordered
 input. Value-supply preparation can remain pending until result closure, without changing that
 authored operation. A value call prepends its environment to explicit inputs; direct declaration

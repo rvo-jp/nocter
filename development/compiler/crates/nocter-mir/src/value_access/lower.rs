@@ -541,7 +541,9 @@ impl Builder<'_> {
             CheckedDisposal::Aggregate => Disposal::Aggregate,
             CheckedDisposal::OwnedCapture => Disposal::Capture,
             CheckedDisposal::CallableAlternatives => Disposal::CallableAlternatives,
-            CheckedDisposal::FunctionEnvironment => return Err(self.invalid()),
+            CheckedDisposal::FunctionEnvironment | CheckedDisposal::UnstartedFuture(_) => {
+                return Err(self.invalid());
+            }
         })
     }
     fn constrain_geometry(
@@ -1113,6 +1115,7 @@ impl Builder<'_> {
             | Operation::EndEvaluation(_)
             | Operation::PrepareArgument { .. }
             | Operation::CommitCall(_)
+            | Operation::ConstructFuture(_)
             | Operation::CancelCall { .. }
             | Operation::Assign { .. }
             | Operation::CompoundAssign { .. }

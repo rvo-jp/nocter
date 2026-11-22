@@ -414,6 +414,7 @@ impl Builder<'_> {
                     .map(|operation| operation.into_iter().collect());
             }
             flow::Operation::CommitCall(id) => self.call(id)?,
+            flow::Operation::ConstructFuture(_) => return Err(self.invalid()),
             flow::Operation::Bind { local, value } => {
                 let item = self
                     .checked

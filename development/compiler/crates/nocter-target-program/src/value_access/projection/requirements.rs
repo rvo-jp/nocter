@@ -98,6 +98,7 @@ impl Needed<'_> {
             | Operation::Condition(id)
             | Operation::Discard(id)
             | Operation::StageReturn(id)
+            | Operation::ConstructFuture(id)
             | Operation::CommitCall(id) => self.expression(id)?,
             Operation::PrepareOperand { value, .. } => self.expression(value)?,
             Operation::BooleanConstant { result, .. } => self.expression(result)?,

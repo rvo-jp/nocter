@@ -56,6 +56,43 @@ pub(super) fn qualify(
     Ok(drives)
 }
 
+pub(super) fn require_constructor_backing(
+    context: &Context<'_>,
+    control: &flow::Control,
+) -> Result<(), Failure> {
+    let mut constructions = control
+        .graph
+        .points()
+        .iter()
+        .flat_map(|(point, block)| {
+            block
+                .actions
+                .iter()
+                .filter_map(move |action| match action.operation {
+                    Operation::ConstructFuture(call) => Some((point, call)),
+                    _ => None,
+                })
+        })
+        .peekable();
+    if constructions.peek().is_none() {
+        return Ok(());
+    }
+    let reached = control.graph.reachable().map_err(Failure::Integrity)?;
+    let Some((_, call)) = constructions.find(|(point, _)| reached.contains(point)) else {
+        return Ok(());
+    };
+    Err(body_failure(
+        control.typed.source_owner(),
+        diagnostics::query_rejection(
+            context,
+            &control.typed,
+            Some(call),
+            Rule::UnqualifiedFuture,
+            "this future construction requires checked runtime backing",
+        ),
+    ))
+}
+
 const INVALID: Failure = Failure::Integrity(flow::IntegrityError::InconsistentTypedBody);
 
 fn body_failure(callable: AccessCodeId, failure: BodyFailure) -> Failure {
@@ -167,6 +204,7 @@ fn invocation(operation: &Operation) -> Option<AccessExpressionId> {
         | Operation::Forward { .. }
         | Operation::BooleanAnswer { .. }
         | Operation::PrepareArgument { .. }
+        | Operation::ConstructFuture(_)
         | Operation::CancelCall { .. }
         | Operation::Bind { .. }
         | Operation::Assign { .. }

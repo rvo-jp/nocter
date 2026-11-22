@@ -640,15 +640,13 @@ impl Builder<'_> {
         }
         self.frames.pop();
         if let Some(point) = current {
-            if matches!(
-                self.program.function_execution(target),
-                Some(nocter_declarations::CallableExecution::Deferred { .. })
-            ) {
-                // A deferred commit needs its own activation receipt. It cannot use the
-                // ordinary call edge, even if a type/signature change bypasses source admission.
-                return Err(INVALID);
-            }
-            self.action(point, origin, Operation::CommitCall(id))?;
+            let operation = match self.program.function_execution(target) {
+                Some(nocter_declarations::CallableExecution::Deferred { .. }) => {
+                    Operation::ConstructFuture(id)
+                }
+                _ => Operation::CommitCall(id),
+            };
+            self.action(point, origin, operation)?;
         }
         Ok(current)
     }

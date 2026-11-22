@@ -200,6 +200,7 @@ pub(super) fn action(
         | Operation::BooleanConstant { .. }
         | Operation::BooleanAnswer { .. }
         | Operation::PrepareArgument { .. }
+        | Operation::ConstructFuture(_)
         | Operation::CancelCall { .. }
         | Operation::Discard(_)
         | Operation::StageReturn(_) => {}

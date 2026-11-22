@@ -746,7 +746,7 @@ impl<'a, 's> Checker<'a, 's> {
             )?;
             actual = expected;
         }
-        let action = self.value_supply_action(node, source, expected, actual)?;
+        let action = self.value_supply_action(node, source, boundary, actual)?;
         self.emit(
             node,
             ValueType::known(expected).with_continuation(self.ty(source).may_complete()),

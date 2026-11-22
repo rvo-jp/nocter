@@ -1,7 +1,7 @@
 //! One unmarked snapshot decision, closed before initialization; explicit transfers are frozen earlier.
 use super::{
     Failure, Query, Rule,
-    ir::{ArgumentAction, BoundaryAction, Expression, ExpressionKind, Referent},
+    ir::{ArgumentAction, Boundary, BoundaryAction, Expression, ExpressionKind, Referent},
 };
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::{PayloadReadiness, Program};
@@ -37,9 +37,10 @@ impl super::checker::Checker<'_, '_> {
         &self,
         node: NodeId,
         source: AccessExpressionId,
-        expected: ValueAccess,
+        boundary: Boundary,
         actual: ValueAccess,
     ) -> Result<BoundaryAction, Failure> {
+        let expected = boundary.ty();
         if expected.mode() == Mode::Own && !self.ty(source).may_complete() {
             return Ok(BoundaryAction::Unproduced);
         }
@@ -57,12 +58,22 @@ impl super::checker::Checker<'_, '_> {
             }
             Mode::Read | Mode::Own => {}
         }
-        super::checker::payload_requirements::data(
-            self.program(),
-            self.syntax(),
-            actual.data(),
-            SyntaxOrigin::Node(node),
-        )?;
+        // A local owning slot can hold the checked unstarted activation. Other boundaries
+        // still require their own origin/transport evidence, independently of the descriptor.
+        if !(matches!(boundary, Boundary::Binding(_))
+            && expected.mode() == Mode::Own
+            && matches!(
+                self.program().data_schema(actual.data()),
+                Some(nocter_declarations::value_access::PayloadSchema::Future(_))
+            ))
+        {
+            super::checker::payload_requirements::data(
+                self.program(),
+                self.syntax(),
+                actual.data(),
+                SyntaxOrigin::Node(node),
+            )?;
+        }
         match expected.mode() {
             Mode::Read => Ok(BoundaryAction::ReadPlace),
             Mode::Update => Ok(BoundaryAction::DelegateUpdate),

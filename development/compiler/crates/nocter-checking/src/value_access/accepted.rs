@@ -854,10 +854,9 @@ pub(super) fn resolve_queries(
         .into_iter()
         .map(|(id, body)| {
             deferred::require_local_activation(context, id)?;
-            Ok((
-                id,
-                flow::Control::prepare(Arc::new(body)).map_err(Failure::Integrity)?,
-            ))
+            let control = flow::Control::prepare(Arc::new(body)).map_err(Failure::Integrity)?;
+            deferred::require_constructor_backing(context, &control)?;
+            Ok((id, control))
         })
         .collect::<Result<BTreeMap<_, _>, Failure>>()?;
     let (program, result_evidence) = super::results::close(context, program, &mut controls)?;

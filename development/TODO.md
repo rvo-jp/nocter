@@ -18,9 +18,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Retain the concrete deferred producer at source construction and model an empty unstarted
-activation with its own cancellation. Keep construction distinct from driving and from the
-shared `future T` type before extending input dependencies, transport and suspension.
+Carry checked empty, unstarted activations through native construction, local transfer and
+cancellation. Qualify elision where every reached use retains an unstarted owner until cancellation,
+preserving its logical transitions without granting a physical callable or future handle.
+Keep driving, escaping values and suspension on their own checked paths.
 
 ## Remaining Contextual Representation Qualification
 
@@ -753,6 +754,9 @@ not a language restriction derived from the current realization boundary.
 - [x] Resolve execution kind through the exact selected function origin. Preserve the selected
   deferred declaration and structural result type through interrupted preparation without
   admitting an ordinary call edge or treating a symbolic callable contract as a producer.
+- [x] Represent empty future construction as its own operation and retain the producer in an
+  unstarted ownership receipt. Transfer two equal-typed activations independently and cancel
+  each once without any body invocation. Keep reached constructor backing gated for native execution.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.

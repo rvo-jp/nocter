@@ -83,6 +83,8 @@ pub enum Operation {
         argument: usize,
     },
     CommitCall(AccessExpressionId),
+    /// Commits future construction at this call site. The deferred body is not invoked.
+    ConstructFuture(AccessExpressionId),
     /// Abrupt completion cleans only the successfully prepared prefix; no invocation occurred.
     CancelCall {
         call: AccessExpressionId,

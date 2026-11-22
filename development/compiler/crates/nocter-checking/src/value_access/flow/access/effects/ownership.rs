@@ -39,6 +39,15 @@ impl Context<'_, '_> {
         }
         Ok(())
     }
+    fn end_evaluation_ownership(&mut self, id: AccessExpressionId) -> Result<()> {
+        for holder in self.world.resources.ending(id)? {
+            self.world
+                .resources
+                .dispose(self.typed.program(), &holder.place(), &mut self.steps)?;
+        }
+        self.world.resources.end(id)?;
+        Ok(())
+    }
     pub(super) fn ownership_before(&mut self, operation: &Operation) -> Result<()> {
         if let Operation::PrepareArgument {
             call,
@@ -72,16 +81,7 @@ impl Context<'_, '_> {
         match *operation {
             Operation::IndexFailure(_) => {}
             Operation::BeginEvaluation(id) => self.world.resources.begin(id)?,
-            Operation::EndEvaluation(id) => {
-                for holder in self.world.resources.ending(id)? {
-                    self.world.resources.dispose(
-                        self.typed.program(),
-                        &holder.place(),
-                        &mut self.steps,
-                    )?;
-                }
-                self.world.resources.end(id)?;
-            }
+            Operation::EndEvaluation(id) => self.end_evaluation_ownership(id)?,
             Operation::Evaluate(id) => self.evaluate_ownership(id)?,
             Operation::PrepareOperand { value, .. }
             | Operation::Condition(value)
@@ -155,6 +155,11 @@ impl Context<'_, '_> {
                 argument: index,
             } => self.prepare_ownership(call, index)?,
             Operation::CommitCall(_) => return Err(Failure::Integrity),
+            Operation::ConstructFuture(call) => self.world.resources.construct(
+                Holder::Expression(call),
+                resources::empty_future(self.typed, call)?,
+                &mut self.steps,
+            )?,
             Operation::CancelCall { call, prepared } => {
                 for index in (0..prepared).rev() {
                     let holder = Holder::Prepared { call, index };

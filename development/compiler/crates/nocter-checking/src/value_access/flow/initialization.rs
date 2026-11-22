@@ -535,6 +535,7 @@ fn transfer(
             Operation::IndexFailure(_)
             | Operation::BeginEvaluation(_)
             | Operation::EndEvaluation(_)
+            | Operation::ConstructFuture(_)
             | Operation::BooleanConstant { .. }
             | Operation::CancelCall { .. } => {}
         }

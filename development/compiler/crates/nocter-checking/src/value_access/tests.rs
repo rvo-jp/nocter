@@ -161,6 +161,71 @@ fn interrupted_deferred_preparation_has_a_selected_producer_without_any_invocati
 }
 
 #[test]
+fn unstarted_futures_keep_their_producer_through_transfer_and_cancel_once() {
+    use flow::resources::{Disposal, Payload, Step};
+
+    let typed = queries(
+        "async func first(): i32 { 1 }\n\
+         async func second(): i32 { 2 }\n\
+         func run(): void {\n\
+         let a = first()\n\
+         let b = second()\n\
+         let moved = a^\n\
+         drop b\n\
+         drop moved\n}",
+    )
+    .unwrap();
+    let first = named(&typed, "first").source_owner();
+    let second = named(&typed, "second").source_owner();
+    let query = named(&typed, "run");
+    let graph = flow::Query::prepare(Arc::new(query.clone())).unwrap();
+    let mut created = Vec::new();
+    let mut cancelled = Vec::new();
+    for (point, block) in graph.graph().points().iter() {
+        for action in 0..block.actions.len() {
+            for transition in graph
+                .access()
+                .resources()
+                .at(flow::Location { point, action })
+            {
+                for step in transition.steps() {
+                    match step {
+                        Step::Construct { payload, .. }
+                            if matches!(payload.disposal(), Disposal::UnstartedFuture(_)) =>
+                        {
+                            created.push(*payload);
+                        }
+                        Step::Dispose { payload, .. }
+                            if matches!(payload.disposal(), Disposal::UnstartedFuture(_)) =>
+                        {
+                            cancelled.push(*payload);
+                        }
+                        Step::Invoke { .. } => {
+                            panic!("a future must not invoke its body at construction")
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(created.len(), 2);
+    assert_eq!(created[0].data(), created[1].data());
+    assert_eq!(
+        created
+            .iter()
+            .copied()
+            .map(Payload::disposal)
+            .collect::<Vec<_>>(),
+        [
+            Disposal::UnstartedFuture(first),
+            Disposal::UnstartedFuture(second)
+        ]
+    );
+    assert_eq!(cancelled, [created[1], created[0]]);
+}
+
+#[test]
 fn future_result_in_a_callable_contract_requires_evidence_at_invocation() {
     queries("func retain(action: func(): future i32): void {}").unwrap();
     reject(

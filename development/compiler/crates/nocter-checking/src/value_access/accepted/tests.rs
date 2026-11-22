@@ -73,7 +73,7 @@ fn a_closed_drive_does_not_certify_ordinary_future_creation() {
     let span = diagnostic.source().primary().span();
     assert_eq!(
         sources.get(span.source()).unwrap().text_at(span.range()),
-        Some("root")
+        Some("root()")
     );
 }
 
