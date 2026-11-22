@@ -263,7 +263,10 @@ impl Checker<'_, '_> {
         let supported = matches!(
             (input.operation, &plan.action),
             (ValueInputOperation::Take, _)
-                | (ValueInputOperation::Read, ArgumentAction::ReserveRead(_))
+                | (
+                    ValueInputOperation::Read,
+                    ArgumentAction::ReserveRead(_) | ArgumentAction::AccessOwnedValue
+                )
         );
         supported
             && super::flow::resources::local_future_input(self.program(), input.data).is_some()

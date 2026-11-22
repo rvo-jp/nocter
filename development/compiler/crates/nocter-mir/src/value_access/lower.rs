@@ -8,7 +8,9 @@ use nocter_checking::value_access::{
     accepted::{FutureCaptureCases, FutureInputCleanup},
     flow::{
         self, Operation,
-        resources::{ActivationInput, Disposal as CheckedDisposal, Holder, Step},
+        resources::{
+            ActivationInput, ActivationReadSource, Disposal as CheckedDisposal, Holder, Step,
+        },
     },
 };
 use nocter_model::{AccessExpressionId, AccessInstanceId, MirLocalId, TypeId};
@@ -877,7 +879,16 @@ impl Builder<'_> {
                                 destination,
                             },
                             ActivationInput::Read(read) => Effect::BindAddress {
-                                source: self.referent(read.referent, destination.data)?,
+                                source: match read.source {
+                                    ActivationReadSource::Existing(referent) => {
+                                        self.referent(referent, destination.data)?
+                                    }
+                                    ActivationReadSource::Temporary { call, index } => self.root(
+                                        Holder::Temporary { call, index },
+                                        destination.data,
+                                        false,
+                                    )?,
+                                },
                                 destination: destination.slot,
                             },
                         });

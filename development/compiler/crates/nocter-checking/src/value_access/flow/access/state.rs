@@ -395,11 +395,7 @@ impl World {
                 },
                 root: region.root,
                 fields: region.fields.clone(),
-                retained: Some(RetainedAccess {
-                    created: Creation::Action(read.created),
-                    kind: RetentionKind::Access(Mode::Read),
-                    required: None,
-                }),
+                retained: Some(read.retained_access()),
             });
         }
         let mut ancestors = BTreeSet::new();

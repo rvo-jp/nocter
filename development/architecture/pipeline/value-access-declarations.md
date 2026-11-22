@@ -363,7 +363,9 @@ through moves and releases the read on cancellation or drive. For a field, the s
 query supplies the original selection and its current root at commit. Intervening disjoint edits
 preserve the selected region. An evaluated selection keeps the original address and performs its
 bounds check during preparation. The backend transports the saved address and distinguishes it
-from a take input of the same data type.
+from a take input of the same data type. A fresh input can stay in its caller-owned evaluation
+slot through a local drive or cancellation. Ending that evaluation retires its storage in reverse
+construction order and diagnoses a retained access whose activation would survive it.
 Unit acceptance retains the captured input layout for each producer at an owning holder and
 qualifies non-waiting execution through reached immediate bodies and every possible local drive.
 A future type in a body uses a producer selector when a reached drive has multiple producers

@@ -118,6 +118,32 @@ fn retained_future_reads_reject_updates_after_moving_the_activation() {
 }
 
 #[test]
+fn a_stored_future_cannot_extend_a_fresh_read_input() {
+    let (sources, tree) = input(
+        "func make(): i32 { 42 }\nasync func observe(source: i32): i32 { source }\n\
+         async func root(): i32 { let pending = observe(make())\nawait pending^ }",
+    );
+    let Err(SourceFailure::Checking(Failure::Flow { diagnostics, .. })) =
+        SourceUnit::prepare(bound(&sources, &tree))
+    else {
+        panic!("expected an expired temporary diagnostic");
+    };
+    let [diagnostic] = &*diagnostics else {
+        panic!("{diagnostics:?}")
+    };
+    assert_eq!(diagnostic.code(), "E0398");
+    let span = diagnostic.primary().span();
+    assert_eq!(
+        sources.get(span.source()).unwrap().text_at(span.range()),
+        Some("observe(make())")
+    );
+    assert!(diagnostic.notes().iter().any(|note| {
+        let span = note.origin().span();
+        sources.get(span.source()).unwrap().text_at(span.range()) == Some("make()")
+    }));
+}
+
+#[test]
 fn a_fallible_drive_output_does_not_certify_error_cleanup() {
     let (sources, tree) = input(
         "async func child(): i32! { 42 }\n\

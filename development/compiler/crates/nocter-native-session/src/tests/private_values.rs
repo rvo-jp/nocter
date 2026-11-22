@@ -64,6 +64,7 @@ fn local_future_read_inputs_use_the_original_place_and_release_it() {
         async func observe_plus(source: i32, take offset: i32): i32 { source + offset }
         async func snapshot(take source: i32): i32 { source + 10 }
         async func abandon(source: i32): i32 { source / (source - source) }
+        func make_temporary(): i32 { 19 }
         func increase(edit source: i32): i32 {
             source += 1
             source
@@ -102,6 +103,9 @@ fn local_future_read_inputs_use_the_original_place_and_release_it() {
             index += 1
             let item = await carried^
             if item != 17 || values[index] != 23 { return 6 }
+            let immediate = await observe(make_temporary())
+            let _ = abandon(make_temporary())
+            if immediate != 19 { return 7 }
             watched + 19
         }
     ";

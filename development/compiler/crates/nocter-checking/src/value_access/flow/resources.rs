@@ -168,10 +168,30 @@ pub enum ActivationInput<P> {
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct ActivationRead {
-    pub referent: crate::value_access::Referent,
+    pub source: ActivationReadSource,
     pub data: TypeId,
     pub region: super::access::Region,
     pub created: Location,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum ActivationReadSource {
+    Existing(crate::value_access::Referent),
+    Temporary {
+        call: AccessExpressionId,
+        index: usize,
+    },
+}
+
+impl ActivationRead {
+    pub(in crate::value_access::flow) fn retained_access(&self) -> super::access::RetainedAccess {
+        use super::access::{Creation, RetainedAccess, RetentionKind};
+        RetainedAccess {
+            created: Creation::Action(self.created),
+            kind: RetentionKind::Access(nocter_model::ValueAccessMode::Read),
+            required: None,
+        }
+    }
 }
 
 impl ActivationInput<Payload> {

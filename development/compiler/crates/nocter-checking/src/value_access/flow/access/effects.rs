@@ -62,9 +62,9 @@ pub(super) fn apply(
     match operation {
         Operation::IndexFailure(id) => context.index_failure(*id)?,
         Operation::BeginEvaluation(_)
+        | Operation::EndEvaluation(_)
         | Operation::ConstructFuture(_)
         | Operation::ExitScope { .. } => {}
-        Operation::EndEvaluation(id) => context.end_evaluation_access(*id)?,
         Operation::Evaluate(id) => {
             let value = context.evaluate(*id)?;
             context.world.values.insert(Carrier::Expression(*id), value);
@@ -133,24 +133,6 @@ pub(super) fn apply(
     )])
 }
 impl Context<'_, '_> {
-    fn end_evaluation_access(&self, id: AccessExpressionId) -> Result<()> {
-        for holder in self.world.resources.ending(id)? {
-            let root = match holder {
-                super::super::resources::Holder::Temporary { call, index } => {
-                    Some(Root::Temporary { call, index })
-                }
-                super::super::resources::Holder::Expression(source) => {
-                    Some(Root::Expression(source))
-                }
-                _ => None,
-            };
-            if let Some(root) = root {
-                self.write(&root.region(), None, Mode::Own, None)?;
-            }
-        }
-
-        Ok(())
-    }
     fn apply_call(&mut self, call: AccessExpressionId) -> Result<Vec<(World, StepPlan)>> {
         let _ = self.commit_preparations(call)?;
         self.commit_inputs(call)?;

@@ -1,13 +1,13 @@
 use super::super::super::{
     Operation,
-    resources::{self, ActivationInput, ActivationRead, Holder},
+    resources::{self, ActivationInput, ActivationRead, ActivationReadSource, Holder},
 };
 use super::super::{AccessRule, Violation, liveness::Carrier, state::Prepared};
 use super::{Context, Failure, Result};
 use crate::value_access::{
     Argument, ArgumentAction, BoundaryAction, ExpressionKind, Referent, SelectionAction,
 };
-use nocter_model::{AccessExpressionId, ValueAccessMode as Mode};
+use nocter_model::{AccessExpressionId, ValueAccessMode as Mode, ValueInputOperation};
 
 impl Context<'_, '_> {
     fn owns_expression(&self, id: AccessExpressionId) -> Result<bool> {
@@ -42,6 +42,29 @@ impl Context<'_, '_> {
     }
     fn end_evaluation_ownership(&mut self, id: AccessExpressionId) -> Result<()> {
         for holder in self.world.resources.ending(id)? {
+            let root = match holder {
+                Holder::Temporary { call, index } => Some(super::Root::Temporary { call, index }),
+                Holder::Expression(source) => Some(super::Root::Expression(source)),
+                _ => None,
+            };
+            if let Some(root) = root {
+                if let Some(read) = self
+                    .world
+                    .resources
+                    .retained_reads()
+                    .find(|read| read.region.root == root)
+                {
+                    return Err(Violation {
+                        location: self.at,
+                        rule: AccessRule::ExpiredRoot,
+                        root,
+                        fields: read.region.fields.clone(),
+                        retained: Some(read.retained_access()),
+                    }
+                    .into());
+                }
+                self.write(&root.region(), None, Mode::Own, None)?;
+            }
             self.world
                 .resources
                 .dispose(self.typed.program(), &holder.place(), &mut self.steps)?;
@@ -575,34 +598,14 @@ impl Context<'_, '_> {
         }
         let mut sources = Vec::with_capacity(activation.inputs.len());
         for (index, &(argument, expected)) in activation.inputs.iter().enumerate() {
-            if let ArgumentAction::ReserveRead(referent) = argument.action {
-                let Prepared::Reserved {
-                    region,
-                    permission: Mode::Read,
-                    ..
-                } = &preparations[index]
-                else {
-                    return Err(Failure::Integrity);
-                };
-                if matches!(
-                    region.root,
-                    super::Root::Expression(_) | super::Root::Temporary { .. }
-                ) {
-                    return Err(Violation {
-                        location: self.at,
-                        rule: AccessRule::ExpiredRoot,
-                        root: region.root,
-                        fields: region.fields.clone(),
-                        retained: None,
-                    }
-                    .into());
-                }
-                sources.push(ActivationInput::Read(ActivationRead {
-                    referent,
-                    data: expected.data(),
-                    region: region.clone(),
-                    created: self.at,
-                }));
+            if argument.operation == ValueInputOperation::Read {
+                sources.push(ActivationInput::Read(self.retain_activation_read(
+                    call,
+                    index,
+                    &argument.action,
+                    expected.data(),
+                    &preparations[index],
+                )?));
                 continue;
             }
             let prepared = Holder::Prepared { call, index }.place();
@@ -632,6 +635,74 @@ impl Context<'_, '_> {
         )?;
         Ok(())
     }
+    fn retain_activation_read(
+        &mut self,
+        call: AccessExpressionId,
+        index: usize,
+        action: &ArgumentAction,
+        data: nocter_model::TypeId,
+        prepared: &Prepared,
+    ) -> Result<ActivationRead> {
+        let Prepared::Reserved {
+            region,
+            permission: Mode::Read,
+            ..
+        } = prepared
+        else {
+            return Err(Failure::Integrity);
+        };
+        let source = match *action {
+            ArgumentAction::ReserveRead(referent) => {
+                if matches!(
+                    region.root,
+                    super::Root::Expression(_) | super::Root::Temporary { .. }
+                ) {
+                    return Err(Violation {
+                        location: self.at,
+                        rule: AccessRule::ExpiredRoot,
+                        root: region.root,
+                        fields: region.fields.clone(),
+                        retained: None,
+                    }
+                    .into());
+                }
+                ActivationReadSource::Existing(referent)
+            }
+            ArgumentAction::AccessOwnedValue
+                if region.root == (super::Root::Temporary { call, index }) =>
+            {
+                self.commit_temporary_input(
+                    call,
+                    index,
+                    &Holder::Prepared { call, index }.place(),
+                )?;
+                ActivationReadSource::Temporary { call, index }
+            }
+            _ => return Err(Failure::Integrity),
+        };
+        Ok(ActivationRead {
+            source,
+            data,
+            region: region.clone(),
+            created: self.at,
+        })
+    }
+
+    fn commit_temporary_input(
+        &mut self,
+        call: AccessExpressionId,
+        index: usize,
+        from: &resources::Place,
+    ) -> Result<()> {
+        self.world.resources.move_to(
+            self.typed.program(),
+            from,
+            &Holder::Temporary { call, index }.place(),
+            false,
+            &mut self.steps,
+        )?;
+        Ok(())
+    }
     pub(super) fn commit_inputs(&mut self, call: AccessExpressionId) -> Result<()> {
         let ExpressionKind::Call { arguments, .. } = &self
             .typed
@@ -656,13 +727,7 @@ impl Context<'_, '_> {
                     &mut self.steps,
                 )?;
             } else {
-                self.world.resources.move_to(
-                    self.typed.program(),
-                    &source,
-                    &Holder::Temporary { call, index }.place(),
-                    false,
-                    &mut self.steps,
-                )?;
+                self.commit_temporary_input(call, index, &source)?;
             }
         }
         Ok(())

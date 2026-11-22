@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify fresh read inputs for a future driven within the caller's evaluation. Retain the caller's
-actual temporary through the drive, release the read before retiring that storage, and diagnose
-an activation that would outlive the temporary.
+Qualify retained edit inputs with a stable scalar representation. Establish exclusivity at
+construction, use the retained address during a drive, and propagate the original writeback
+obligations. Verify that unstarted cancellation releases the access without committing edits.
 
 ## Remaining Contextual Representation Qualification
 
@@ -819,6 +819,9 @@ not a language restriction derived from the current realization boundary.
 - [x] Retain the evaluated address of an array element in a local future. Verify bounds failure
   while preparing a never-driven activation, preserve the selected element when the authored
   index changes before `await`, and reject a potentially overlapping element update.
+- [x] Retain caller-owned fresh read inputs through an immediate drive or cancellation in the
+  same evaluation. Verify that the native caller cleans a temporary compound with owned error
+  nodes and that storing a longer-lived activation reports the actual expired source operand.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.
@@ -827,8 +830,9 @@ not a language restriction derived from the current realization boundary.
   activation occurrences where exact transport evidence permits it.
   Extend input cancellation to contextual take inputs and retained accesses using their
   exact release obligations and construction/completion phases.
-  Qualify evaluated read places, caller-owned temporary input extents, deferred edit delegation
-  and the corresponding post-drive/cancellation state through the original ledgers.
+  Extend read-temporary extents across evaluation boundaries where the source contract permits,
+  then qualify deferred edit delegation and post-drive/cancellation state through the original
+  ledgers.
 - [ ] Integrate v2 into the ordinary compiler/CLI and editor workflow with one semantic pipeline,
   current diagnostics, formatting, presentation and revision/source reuse. Remove transitional private
   handoffs when their production replacement is qualified; retain no competing semantic authority.

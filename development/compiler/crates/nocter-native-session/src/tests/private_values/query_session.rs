@@ -217,7 +217,7 @@ fn physical_query_session_unit_executes_selected_entries() {
         &session,
         "compound-deferred",
         |layout| matches!(layout, nocter_machine::MachineLayoutKind::Struct { fields } if fields.len() == 3),
-        1,
+        2,
         1,
     );
 }
@@ -245,13 +245,15 @@ fn assert_selected_future_cleanup(
         let [parameter] = body.parameters() else {
             return false;
         };
-        body.stack(*parameter).is_some_and(|slot| {
-            slot.carrier() == MachineValueCarrier::Address
-                && machine
-                    .layouts()
-                    .get(slot.ty())
-                    .is_some_and(|layout| is_capture(layout.kind()))
-        })
+        body.blocks()
+            .any(|(_, block)| matches!(block.terminator(), MachineTerminator::Return(None)))
+            && body.stack(*parameter).is_some_and(|slot| {
+                slot.carrier() == MachineValueCarrier::Address
+                    && machine
+                        .layouts()
+                        .get(slot.ty())
+                        .is_some_and(|layout| is_capture(layout.kind()))
+            })
     });
     let (release, _) = helpers
         .next()

@@ -31,6 +31,10 @@ async func receive(take value: Packet): error {
     value.reason^
 }
 
+async func inspect(value: Packet): i64 {
+    value.words[2]
+}
+
 async func main(): i32! {
     var iteration: i32 = 0
     while iteration < 3 {
@@ -42,6 +46,11 @@ async func main(): i32! {
         let moved = pending^
         drop moved
         iteration += 1
+    }
+
+    let word = await inspect(packet("discarded", true))
+    if word != 4294967319 {
+        throw errors.operation("invalid", "temporary")
     }
 
     let pending = receive(packet("compound", true))
