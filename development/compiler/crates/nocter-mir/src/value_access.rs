@@ -39,6 +39,10 @@ pub enum SlotKey {
     },
     Predicate(AccessExpressionId),
     Answer(AccessExpressionId),
+    FutureInput {
+        owner: nocter_checking::value_access::flow::resources::Holder,
+        index: usize,
+    },
     IndexSnapshot(nocter_checking::value_access::flow::resources::RetainedIndex),
     ArrayFrontier(nocter_checking::value_access::flow::resources::ArrayFrontier),
     Return,
@@ -212,11 +216,12 @@ pub struct SelectedCall {
     pub answer: Place,
 }
 
-/// Drive the empty local activation identified by the selector, then stage its output.
+/// Drive the local activation identified by the selector, then stage its output.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SelectedDrive {
     pub selector: Place,
     pub cases: Box<[(u64, AccessInstanceId)]>,
+    pub inputs: Box<[CallInput]>,
     pub answer: Place,
 }
 

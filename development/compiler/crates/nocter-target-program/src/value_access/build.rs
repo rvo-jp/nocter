@@ -7,7 +7,7 @@ mod tests;
 use nocter_checking::value_access::{
     ValueSourceSlot,
     accepted::Unit,
-    flow::{Location, Operation},
+    flow::{Location, Operation, resources::Holder},
 };
 use nocter_constant_evaluation::state::WorkBudget;
 use nocter_model::{AccessCodeId, AccessExpressionId, AccessInstanceId, ArenaBuilder, ValueCode};
@@ -258,7 +258,7 @@ fn validate_drives(
     let invalid = Failure::InvalidAcceptedUnit;
     let caller_body = unit.code_body(caller.key().code()).ok_or(invalid)?;
     for (&at, drive) in &caller.drives {
-        let Operation::DriveFuture { result, .. } = caller_body
+        let Operation::DriveFuture { future, result } = caller_body
             .graph()
             .points()
             .get(at.point)
@@ -271,10 +271,25 @@ fn validate_drives(
         let receipt = caller
             .definition(at, ValueSourceSlot::Expression(result))
             .ok_or(invalid)?;
+        let captured = unit
+            .future_inputs(caller.key().code(), Holder::Expression(future))
+            .ok_or(invalid)?;
         for target in drive.targets() {
             let child = instances.get(target).ok_or(invalid)?;
             let body = unit.code_body(child.key().code()).ok_or(invalid)?;
-            if body.typed().body().inputs().ordered().next().is_some()
+            let inputs = body.typed().body().inputs();
+            if inputs.environment().is_some()
+                || inputs.explicit().len() != captured.len()
+                || inputs
+                    .explicit()
+                    .iter()
+                    .zip(captured)
+                    .any(|(input, &data)| {
+                        input.operation != nocter_model::ValueInputOperation::Take
+                            || child
+                                .input(input.local)
+                                .is_none_or(|payload| payload.data() != data)
+                    })
                 || !child
                     .result()
                     .payload()

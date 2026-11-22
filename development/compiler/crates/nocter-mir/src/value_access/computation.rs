@@ -61,7 +61,7 @@ impl Builder<'_> {
     fn result(&mut self, id: AccessExpressionId) -> Result<Place, Failure> {
         self.root(Holder::Expression(id), self.receiving_data(id)?, false)
     }
-    fn snapshot(
+    pub(super) fn snapshot(
         &mut self,
         key: SlotKey,
         data: nocter_runtime_contract::RuntimeDataId,
@@ -354,15 +354,29 @@ impl Builder<'_> {
         let target = self.drive_target()?.clone();
         let data = self.expression(result)?;
         let answer = self.snapshot(SlotKey::Answer(result), data)?;
+        let source = Holder::Expression(future);
+        let inputs = self
+            .future_input_types(source)?
+            .iter()
+            .copied()
+            .enumerate()
+            .map(|(index, data)| {
+                Ok(CallInput {
+                    source: self.future_input(source, index, data)?,
+                    operation: nocter_model::ValueInputOperation::Take,
+                })
+            })
+            .collect::<Result<Box<[_]>, Failure>>()?;
         Ok(match target {
             Drive::Direct(child) => Operation::Call(Call {
                 target: super::CallTarget::Body(child),
-                inputs: Box::new([]),
+                inputs,
                 answer,
             }),
             Drive::Tagged(cases) => Operation::SelectedDrive(super::SelectedDrive {
-                selector: self.future_selector(Holder::Expression(future))?,
+                selector: self.future_selector(source)?,
                 cases,
+                inputs,
                 answer,
             }),
         })

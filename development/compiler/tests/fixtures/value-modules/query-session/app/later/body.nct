@@ -73,9 +73,43 @@ async func choose_value(): i32 {
     total + choices
 }
 
+func change(edit original: i32): i32 {
+    original = 0
+    1
+}
+
+async func sum_later(take first: i32, take second: i32): i32 {
+    first + second
+}
+
+async func captured_trap(take value: i32): i32 {
+    value / tally(0)
+}
+
+async func pair_trap(take first: i32, take second: i32): i32 {
+    (first + second) / tally(0)
+}
+
+async func snapshot(): i32 {
+    var original = 41
+    let cancelled = captured_trap(original)
+    drop cancelled
+    var choices = 0
+    let pending: future i32 = if choose(choices, true) {
+        sum_later(original, change(original))
+    } else {
+        pair_trap(original, 0)
+    }
+    original = 80
+    let moved = pending^
+    let additional = 3
+    let result = await moved^
+    result + await sum_later(additional^, 2) + choices - 6
+}
+
 async func main(): i32 {
     var count = 0
     cancel(count, true)
     cancel(count, false)
-    count + await relay() + await choose_value() - 14
+    count + await relay() + await choose_value() + await snapshot() - 56
 }

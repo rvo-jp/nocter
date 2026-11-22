@@ -27,7 +27,7 @@ pub use nocter_declarations::value_access::{CodeInstanceKey as InstanceKey, Conc
 pub use nocter_checking::value_access::flow::resources::InstantiatedPayload as Payload;
 pub type DataEvidence = nocter_checking::value_access::accepted::DataEvidence<Payload>;
 
-/// An empty activation can drive a statically selected body or dispatch its stored producer tag.
+/// A local activation can drive a statically selected body or dispatch its stored producer tag.
 #[derive(Clone, Debug)]
 pub enum Drive {
     Direct(AccessInstanceId),
@@ -35,7 +35,7 @@ pub enum Drive {
 }
 
 impl Drive {
-    /// Runtime scalar used for local empty activation selectors.
+    /// Runtime scalar used for local activation selectors.
     pub const SELECTOR_TYPE: nocter_model::BuiltinType = nocter_model::BuiltinType::U64;
 
     pub(super) fn targets(&self) -> impl Iterator<Item = AccessInstanceId> + '_ {

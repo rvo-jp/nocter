@@ -28,9 +28,13 @@ pub(super) fn require_local_activation(
         return Ok(());
     };
     let code = program.codes().get(callable).ok_or(INVALID)?;
-    // Process driving uses an empty activation and consumes the output immediately.
-    // Future construction and general cancellation still need their own checked transitions.
-    if !code.parameters().is_empty() || !local_backing(program, output, &mut BTreeSet::new()) {
+    let own_scalar_inputs = code.parameters().iter().all(|&id| {
+        program.parameters().get(id).is_some_and(|parameter| {
+            parameter.operation() == nocter_model::ValueInputOperation::Take
+                && flow::resources::is_scalar_future_input(program, parameter.data())
+        })
+    });
+    if !own_scalar_inputs || !local_backing(program, output, &mut BTreeSet::new()) {
         return Err(body_failure(callable, modifier(context, callable)));
     }
     Ok(())

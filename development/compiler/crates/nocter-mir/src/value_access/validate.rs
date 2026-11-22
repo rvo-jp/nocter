@@ -708,12 +708,24 @@ impl Context<'_> {
                 .ok_or_else(|| self.invalid())?
                 .signature;
             self.require(
-                signature.ordered().next().is_none()
+                signature.environment().is_none()
+                    && signature.explicit().len() == drive.inputs.len()
                     && self
                         .program
                         .runtime
                         .has_same_value_representation(drive.answer.data, signature.result()),
             )?;
+            for (actual, expected) in drive.inputs.iter().zip(signature.explicit()) {
+                self.place(&actual.source)?;
+                self.require(
+                    expected.operation == ValueInputOperation::Take
+                        && actual.operation == expected.operation
+                        && self
+                            .program
+                            .runtime
+                            .has_same_value_representation(actual.source.data, expected.data),
+                )?;
+            }
         }
         Ok(())
     }

@@ -6,7 +6,7 @@ use nocter_checking::value_access::flow::{
     Location, Operation,
     resources::{Condition, Holder, Step as ResourceStep},
 };
-use nocter_model::AccessInstanceId;
+use nocter_model::{AccessInstanceId, TypeId};
 use std::{
     collections::{BTreeMap, btree_map::Entry},
     sync::Arc,
@@ -24,10 +24,16 @@ pub enum EnvironmentPart {
 pub enum Step {
     Resource(Resource),
     ScopedReplacement(ScopedReplacement),
-    /// Move the stored selector of a checked empty activation between whole local carriers.
-    MoveFutureTag {
+    /// Move the represented input snapshots and selector between two whole future carriers.
+    MoveLocalFuture {
         source: Holder,
         destination: Holder,
+        selector: bool,
+    },
+    /// Install prepared scalar snapshots in the newly committed local activation.
+    CaptureFutureInputs {
+        destination: Holder,
+        inputs: Box<[(Holder, TypeId)]>,
     },
     /// End the adapter-owned carrier and dispose its selected payload exactly once.
     /// Normal return only, after the callee protects its answer and before caller receipt.
@@ -68,7 +74,9 @@ impl Step {
         match self {
             Self::Resource(step) => Some(step.operation()),
             Self::ScopedReplacement(replacement) => Some(replacement.operation()),
-            Self::MoveFutureTag { .. } | Self::DisposeEnvironment { .. } => None,
+            Self::MoveLocalFuture { .. }
+            | Self::CaptureFutureInputs { .. }
+            | Self::DisposeEnvironment { .. } => None,
         }
     }
 }
@@ -264,7 +272,7 @@ impl Program {
                                 keys.insert(payload.instance().clone());
                                 None
                             }
-                            Step::MoveFutureTag { .. } => None,
+                            Step::MoveLocalFuture { .. } | Step::CaptureFutureInputs { .. } => None,
                         };
                         if let Some(resource) = resource {
                             let result = resource.try_map_payloads::<std::convert::Infallible, _>(

@@ -82,6 +82,7 @@ impl Builder<'_> {
 
     pub(super) fn selected_drive(&mut self, drive: &mir::SelectedDrive) -> Result<(), Failure> {
         let selector = self.load(&drive.selector)?;
+        let inputs = self.call_inputs(&drive.inputs, false)?;
         let tags = drive.cases.iter().map(|(tag, _)| i128::from(*tag));
         self.select_integer_cases(selector, tags, |builder, index| {
             let &(_, child) = drive.cases.get(index).ok_or_else(Self::invalid)?;
@@ -92,7 +93,7 @@ impl Builder<'_> {
                     .get(&child)
                     .ok_or_else(Self::invalid)?,
             );
-            builder.call_answer(target, Vec::new(), &drive.answer)
+            builder.call_answer(target, inputs.clone(), &drive.answer)
         })
     }
 

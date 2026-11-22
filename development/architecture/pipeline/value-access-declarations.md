@@ -352,16 +352,16 @@ retains the deferred mode and its invocation result. Producing a future value re
 own lifecycle evidence. A `future T` annotation on an owning local uses the same type identity
 as a producer with output `T`. Body typing checks that `await` occurs in the nearest deferred body and
 consumes an owned operand. The typed expression exposes one future layer's output before an outer
-outcome operation. The control and resource analyses retain each empty activation's selected
+outcome operation. The control and resource analyses retain each local activation's selected
 producer through ownership transfer. The drive consumes that receipt before execution and receives
 the output through the shared normal-result transition after execution. The same construction
-step can record prepared scalar take inputs in source order and commit their ownership to an
-unstarted activation. The executable scope here covers empty activations. Unit acceptance qualifies
-non-waiting execution transitively through reached immediate bodies and every possible local drive.
-Empty activations in a body need only a producer selector when a reached drive has multiple
-producers of the same future type. Construction writes the selected producer's tag, and whole
-ownership transfers carry it. The initialization and cancellation proofs continue to use the
-original ownership ledger.
+step commits prepared scalar take inputs in source order to an unstarted local activation.
+Unit acceptance checks one compatible captured input layout for each owning holder and qualifies
+non-waiting execution through reached immediate bodies and every possible local drive.
+A future type in a body uses a producer selector when a reached drive has multiple producers.
+Construction stores the prepared values and any needed tag. Whole ownership transfers carry those
+values and the tag to the destination slots. Initialization and cancellation continue to follow the
+original ownership ledger, including unstarted cancellation of captured scalars.
 
 The shared `value-modules/query-session` corpus closes an explicit checked root through physical
 v2 package discovery, revision-owned analysis and session evidence before the existing instance,
@@ -384,9 +384,9 @@ source-level generic move remains selected even if its concrete named payload is
 
 One immutable instance arena closes root reachability; recursive keys are reserved before their
 edges are followed. Reached invocation commits and qualified future drives add instances.
-A drive keeps its original action and candidate producers through instance closure. MIR uses the
-ordinary body ABI for a qualified non-suspending drive, dispatching on the retained selector when
-needed. Only the selected body executes, and its answer enters the checked normal-result transition.
+A drive keeps its original action and candidate producers through instance closure. MIR supplies
+the stored inputs through the ordinary body ABI and dispatches on the retained selector when
+needed. The selected body's answer enters the checked normal-result transition.
 Source data IDs map once to concrete payload
 obligations or checked unproduced structural contracts in the same declaration TypeAuthority.
 The accepted Unit owns that distinction; an unproduced structural shape has no payload, cleanup or

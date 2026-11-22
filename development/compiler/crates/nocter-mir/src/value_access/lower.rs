@@ -33,7 +33,7 @@ pub(super) struct Builder<'a> {
     keys: BTreeMap<SlotKey, MirLocalId>,
     geometry: BTreeSet<super::GeometryConstraint>,
 }
-impl Builder<'_> {
+impl<'a> Builder<'a> {
     fn control(
         &mut self,
         result: RuntimeDataId,
@@ -104,6 +104,21 @@ impl Builder<'_> {
             .ok_or_else(|| self.invalid())?;
         let storage = self.closed_data(data)?;
         self.root(holder, storage, false)
+    }
+    pub(super) fn future_input(
+        &mut self,
+        owner: Holder,
+        index: usize,
+        data: TypeId,
+    ) -> Result<Place, Failure> {
+        let data = self.closed_data(data)?;
+        self.snapshot(SlotKey::FutureInput { owner, index }, data)
+    }
+    pub(super) fn future_input_types(&self, holder: Holder) -> Result<&'a [TypeId], Failure> {
+        self.instances
+            .unit()
+            .future_inputs(self.instance.key().code(), holder)
+            .ok_or_else(|| self.invalid())
     }
     pub(super) fn closed_data(&self, source: TypeId) -> Result<RuntimeDataId, Failure> {
         let program = self.instances.unit().program();
@@ -715,14 +730,40 @@ impl Builder<'_> {
         let mut output = Vec::new();
         for step in steps {
             match step {
-                lifecycle::Step::MoveFutureTag {
+                lifecycle::Step::MoveLocalFuture {
                     source,
                     destination,
+                    selector,
                 } => {
-                    output.push(Effect::Transfer {
-                        source: self.future_selector(*source)?,
-                        destination: self.future_selector(*destination)?,
-                    });
+                    if *selector {
+                        output.push(Effect::Transfer {
+                            source: self.future_selector(*source)?,
+                            destination: self.future_selector(*destination)?,
+                        });
+                    }
+                    for (index, data) in self
+                        .future_input_types(*source)?
+                        .iter()
+                        .copied()
+                        .enumerate()
+                    {
+                        output.push(Effect::Transfer {
+                            source: self.future_input(*source, index, data)?,
+                            destination: self.future_input(*destination, index, data)?,
+                        });
+                    }
+                }
+                lifecycle::Step::CaptureFutureInputs {
+                    destination,
+                    inputs,
+                } => {
+                    for (index, &(source, data)) in inputs.iter().enumerate() {
+                        let physical = self.closed_data(data)?;
+                        output.push(Effect::Transfer {
+                            source: self.root(source, physical, false)?,
+                            destination: self.future_input(*destination, index, data)?,
+                        });
+                    }
                 }
                 lifecycle::Step::ScopedReplacement(replacement) => {
                     output.extend(self.scoped_replacement(replacement)?);

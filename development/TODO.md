@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Project the checked scalar take inputs into local activation storage and through a native drive.
-Use the original input receipt at construction, move that storage with the owning future, and
-supply its values in the selected producer's body ABI. Verify cancellation without body execution.
+Qualify a local future holder whose incoming producers have different scalar capture layouts.
+Retain the producer selection through moves and read the selected capture slots at drive. Keep
+same-layout transport on its existing direct path and validate unstarted disposal independently.
 
 ## Remaining Contextual Representation Qualification
 
@@ -779,6 +779,9 @@ not a language restriction derived from the current realization boundary.
 - [x] Commit prepared scalar take inputs into an unstarted activation in the ownership ledger.
   Verify the first input is snapshotted before a later input changes its original local, then
   transfer the prepared values into the activation before the separate drive.
+- [x] Store and move scalar capture snapshots in the native path. Verify the selected body
+  receives the captured values after caller mutation, both with and without dynamic producer
+  selection. Qualify explicit input moves, separate local shapes and unstarted cancellation.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.

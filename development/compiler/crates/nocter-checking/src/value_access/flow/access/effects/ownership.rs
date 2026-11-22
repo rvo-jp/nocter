@@ -578,9 +578,19 @@ impl Context<'_, '_> {
         };
         let mut sources = Vec::with_capacity(arguments.len());
         for (index, (argument, &parameter)) in arguments.iter().zip(parameters).enumerate() {
+            let prepared = Holder::Prepared { call, index }.place();
             let source = self
                 .committed_input_source(call, index, argument)?
                 .ok_or(Failure::Integrity)?;
+            if source != prepared {
+                self.world.resources.move_to(
+                    self.typed.program(),
+                    &source,
+                    &prepared,
+                    false,
+                    &mut self.steps,
+                )?;
+            }
             let data = self
                 .typed
                 .program()
@@ -588,7 +598,7 @@ impl Context<'_, '_> {
                 .get(parameter)
                 .ok_or(Failure::Integrity)?
                 .data();
-            sources.push((source, data));
+            sources.push((prepared, data));
         }
         self.world.resources.construct_activation(
             self.typed.program(),

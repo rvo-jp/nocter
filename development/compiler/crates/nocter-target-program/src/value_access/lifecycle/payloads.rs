@@ -70,7 +70,7 @@ impl<'a, 'work> Projection<'a, 'work> {
     fn project(&mut self, steps: &[ResourceStep], completed: bool) -> Result<Vec<Step>, Failure> {
         let unit = self.instance.queries.unit();
         let code = self.instance.key().code();
-        let (steps, selectors) = partition_local_future_steps(unit, code, steps);
+        let (steps, activations) = partition_local_future_steps(unit, code, steps)?;
         // Preflight metadata matching before the atomic data projection changes its bindings.
         let roots = steps
             .iter()
@@ -145,56 +145,94 @@ impl<'a, 'work> Projection<'a, 'work> {
                 }
             })
             .collect::<Result<Vec<_>, Failure>>()?;
-        if selectors.is_empty() {
+        if activations.is_empty() {
             return Ok(ordinary);
         }
-        let mut output = Vec::with_capacity(ordinary.len() + selectors.len());
-        let mut selectors = selectors.into_iter().peekable();
+        let mut output = Vec::with_capacity(ordinary.len() + activations.len());
+        let mut activations = activations.into_iter().peekable();
         for (index, step) in ordinary.into_iter().enumerate() {
-            while let Some((_, selected)) = selectors.next_if(|(before, _)| *before == index) {
+            while let Some((_, selected)) = activations.next_if(|(before, _)| *before == index) {
                 output.push(selected);
             }
             output.push(step);
         }
-        output.extend(selectors.map(|(_, step)| step));
+        output.extend(activations.map(|(_, step)| step));
         Ok(output)
     }
 }
 
+type Partition<'a> = (Cow<'a, [ResourceStep]>, Vec<(usize, Step)>);
 fn partition_local_future_steps<'a>(
     unit: &Unit,
     code: ValueCode,
     steps: &'a [ResourceStep],
-) -> (Cow<'a, [ResourceStep]>, Vec<(usize, Step)>) {
-    let mut selectors = Vec::new();
+) -> Result<Partition<'a>, Failure> {
+    let mut activations = Vec::new();
     if !steps
         .iter()
         .any(|step| unit.future_step_storage(code, step).is_some())
     {
-        return (Cow::Borrowed(steps), selectors);
+        return Ok((Cow::Borrowed(steps), activations));
     }
     let mut ordinary = Vec::new();
     for step in steps {
         match (unit.future_step_storage(code, step), step) {
             (None, _) => ordinary.push(step.clone()),
             (
-                Some(LocalFutureStorage::Selector),
+                Some(backing),
                 ResourceStep::Move {
                     source,
                     destination,
                     ..
                 },
-            ) => selectors.push((
-                ordinary.len(),
-                Step::MoveFutureTag {
-                    source: source.holder(),
-                    destination: destination.holder(),
+            ) => {
+                let selector = backing == LocalFutureStorage::Selector;
+                let source = source.holder();
+                let fields = unit
+                    .future_inputs(code, source)
+                    .ok_or(Failure::InvalidInstanceProgram)?;
+                if selector || !fields.is_empty() {
+                    activations.push((
+                        ordinary.len(),
+                        Step::MoveLocalFuture {
+                            source,
+                            destination: destination.holder(),
+                            selector,
+                        },
+                    ));
+                }
+            }
+            (
+                Some(_),
+                ResourceStep::ConstructActivation {
+                    destination,
+                    inputs,
+                    ..
                 },
-            )),
+            ) if !inputs.is_empty() => {
+                let inputs = inputs
+                    .iter()
+                    .map(|(source, payload)| {
+                        if !source.fields().is_root()
+                            || !matches!(source.holder(), Holder::Prepared { .. })
+                        {
+                            return Err(Failure::InvalidInstanceProgram);
+                        }
+                        Ok((source.holder(), payload.data()))
+                    })
+                    .collect::<Result<Box<[_]>, Failure>>()?;
+                activations.push((
+                    ordinary.len(),
+                    Step::CaptureFutureInputs {
+                        destination: *destination,
+                        inputs,
+                    },
+                ));
+            }
             (Some(_), _) => {}
         }
     }
-    (Cow::Owned(ordinary), selectors)
+    Ok((Cow::Owned(ordinary), activations))
 }
 
 /// Stable sparse exclusions come from one matched original transition. This freezes metadata,

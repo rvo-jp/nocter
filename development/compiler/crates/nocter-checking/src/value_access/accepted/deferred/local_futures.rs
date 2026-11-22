@@ -1,4 +1,4 @@
-//! Close actual local activation uses and preserve a selector only when a drive observes it.
+//! Close captured input layouts and optional producer selectors for actual local activations.
 use super::super::LocalFutureStorage;
 use super::{Failure, INVALID, reject};
 use crate::value_access::{
@@ -10,6 +10,7 @@ use crate::value_access::{
 };
 use nocter_model::{AccessCodeId, AccessExpressionId, TypeId, ValueCode};
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 #[derive(Clone, Debug, Default)]
 pub(in crate::value_access::accepted) struct LocalFutures {
@@ -23,6 +24,7 @@ struct Body {
     drives: BTreeMap<AccessExpressionId, Drive>,
     constructions: BTreeMap<AccessExpressionId, (TypeId, AccessCodeId)>,
     tags: BTreeMap<AccessCodeId, u64>,
+    captures: BTreeMap<Holder, Arc<[TypeId]>>,
 }
 
 #[derive(Clone, Debug)]
@@ -81,6 +83,17 @@ impl LocalFutures {
             .get(&code)
             .is_some_and(|body| !body.tagged.is_empty())
     }
+    pub(in crate::value_access::accepted) fn captures(
+        &self,
+        code: ValueCode,
+        holder: Holder,
+    ) -> Option<&[TypeId]> {
+        self.bodies
+            .get(&code)?
+            .captures
+            .get(&holder)
+            .map(AsRef::as_ref)
+    }
 
     pub(in crate::value_access::accepted) fn step(
         &self,
@@ -95,7 +108,7 @@ impl LocalFutures {
         Some(if body.tagged.contains(&data) {
             LocalFutureStorage::Selector
         } else {
-            LocalFutureStorage::Elided
+            LocalFutureStorage::Direct
         })
     }
 
@@ -130,6 +143,7 @@ fn inspect(
         return Ok(None);
     }
     let program = body.typed().program();
+    let mut signatures = BTreeMap::new();
     for (point, block) in body.graph().points().iter() {
         if !body.initialization().reachable(point) {
             continue;
@@ -147,6 +161,20 @@ fn inspect(
                             Some(nocter_declarations::CallableExecution::Deferred { .. })
                         ) {
                             return Err(INVALID);
+                        }
+                        let signature = match signatures.entry(producer) {
+                            std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
+                            std::collections::btree_map::Entry::Vacant(entry) => {
+                                entry.insert(inputs(program, producer)?)
+                            }
+                        };
+                        if !found.match_captures(step, signature)? {
+                            return Err(reject(
+                                verified,
+                                body,
+                                location,
+                                "this future holder needs a layout for different captured inputs",
+                            ));
                         }
                         found.observe(step, &event.operation, payload, producer)?;
                         found.data.insert(payload.data());
@@ -182,6 +210,44 @@ fn inspect(
 }
 
 impl Body {
+    fn match_captures(&mut self, step: &Step, signature: &Arc<[TypeId]>) -> Result<bool, Failure> {
+        let (source, destination) = match step {
+            Step::ConstructActivation {
+                destination,
+                inputs,
+                ..
+            } => {
+                if inputs
+                    .iter()
+                    .map(|(_, payload)| payload.data())
+                    .ne(signature.iter().copied())
+                {
+                    return Err(INVALID);
+                }
+                (None, Some(*destination))
+            }
+            Step::Move {
+                source,
+                destination,
+                ..
+            } => (Some(source.holder()), Some(destination.holder())),
+            Step::Dispose { source, .. } | Step::DriveFuture { source, .. } => {
+                (Some(source.holder()), None)
+            }
+            _ => return Err(INVALID),
+        };
+        for holder in [source, destination].into_iter().flatten() {
+            let known = self
+                .captures
+                .entry(holder)
+                .or_insert_with(|| Arc::clone(signature));
+            if known.as_ref() != signature.as_ref() {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
     fn observe(
         &mut self,
         step: &Step,
@@ -222,14 +288,34 @@ impl Body {
     }
 }
 
+fn inputs(
+    program: &nocter_declarations::value_access::Program,
+    producer: AccessCodeId,
+) -> Result<Arc<[TypeId]>, Failure> {
+    program
+        .codes()
+        .get(producer)
+        .ok_or(INVALID)?
+        .parameters()
+        .iter()
+        .map(|&id| {
+            program
+                .parameters()
+                .get(id)
+                .map(nocter_declarations::value_access::Parameter::data)
+                .ok_or(INVALID)
+        })
+        .collect()
+}
+
 fn local_payload(step: &Step) -> Option<Payload> {
     let local = |holder| matches!(holder, Holder::Local(_) | Holder::Expression(_));
     let payload = match step {
         Step::ConstructActivation {
             destination: Holder::Expression(_),
             payload,
-            inputs,
-        } if inputs.is_empty() => *payload,
+            ..
+        } => *payload,
         Step::Move {
             source,
             destination,

@@ -45,10 +45,10 @@ pub enum DataEvidence<P = flow::resources::Payload> {
     Unproduced,
 }
 
-/// Physical backing needed for a qualified local empty activation.
+/// Producer selection strategy of a qualified local activation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LocalFutureStorage {
-    Elided,
+    Direct,
     Selector,
 }
 impl<P: Clone> DataEvidence<P> {
@@ -172,8 +172,7 @@ impl Unit {
             local_futures,
         })
     }
-    /// The empty deferred activation is proven non-waiting when driven to completion.
-    /// This grants no source future construction, transport or suspension permission.
+    /// The checked deferred body can run its admitted activation without suspension.
     #[must_use]
     pub fn can_drive_without_suspension(&self, id: AccessCodeId) -> bool {
         self.deferred_drives.contains(&id)
@@ -213,12 +212,21 @@ impl Unit {
     pub fn has_future_tags(&self, code: nocter_model::ValueCode) -> bool {
         self.local_futures.has_tags(code)
     }
-    /// Whether this body uses qualified local empty activations for the supplied data.
+    /// Captured input types of the original local future holder, in producer input order.
+    #[must_use]
+    pub fn future_inputs(
+        &self,
+        code: nocter_model::ValueCode,
+        holder: flow::resources::Holder,
+    ) -> Option<&[TypeId]> {
+        self.local_futures.captures(code, holder)
+    }
+    /// Whether this body uses qualified local activations for the supplied data.
     #[must_use]
     pub fn local_future_data(&self, code: nocter_model::ValueCode, data: TypeId) -> bool {
         self.local_futures.contains(code, data)
     }
-    /// Physical storage for an original transition in the checked local empty activation plan.
+    /// Producer selection strategy for an original transition in the local activation plan.
     #[must_use]
     pub fn future_step_storage(
         &self,

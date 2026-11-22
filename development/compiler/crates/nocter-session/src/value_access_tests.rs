@@ -102,16 +102,16 @@ impl Drop for Fixture {
 
 #[test]
 fn async_contracts_match_before_future_admission() {
-    let contract = "see ./body.nct\nasync func run(take result: i32): i32";
+    let contract = "see ./body.nct\nasync func run(result: i32): i32";
     for (body, code, primary) in [
-        ("func run(take result: i32): i32 { result }", "E0251", None),
+        ("func run(result: i32): i32 { result }", "E0251", None),
         (
-            "async func run(take result: i32): i32 { true }",
+            "async func run(result: i32): i32 { true }",
             "E0370",
             Some("true"),
         ),
         (
-            "async func run(take result: i32): i32 { result }",
+            "async func run(result: i32): i32 { result }",
             "E0291",
             Some("async"),
         ),
@@ -160,6 +160,26 @@ fn await_with_two_local_producers_is_admitted_in_a_selected_package() {
         analysis.value_access_analysis(),
         Some(ValueAccessAnalysis::Accepted(_))
     ));
+}
+
+#[test]
+fn joined_future_with_different_capture_shapes_reports_the_storage_requirement() {
+    let (_fixture, product) = Fixture::package(
+        "see ./body.nct\nasync func run(): i32",
+        "func choice(): bool { true }\n\
+         async func first(): i32 { 12 }\n\
+         async func second(take value: i32): i32 { value }\n\
+         async func run(): i32 {\n\
+            let pending = if choice() { first() } else { second(30) }\n\
+            await pending^\n\
+         }",
+    );
+    let analysis = analyze_unit_from_query(&product).unwrap();
+    let [diagnostic] = analysis.diagnostics() else {
+        panic!("{:?}", analysis.value_access_analysis());
+    };
+    assert_eq!(diagnostic.code(), "E0291");
+    assert!(diagnostic.message().contains("different captured inputs"));
 }
 
 #[test]
