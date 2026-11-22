@@ -241,10 +241,10 @@ fn assert_selected_return_contexts(source: &str, name: &str) {
         .replace("const ANSWER: i32 = calculate()", "")
         .replace("const func", "func");
     let package = TempPackage::new();
-    for (parameter, binding) in [
-        ("take value", "let ignored = value^"),
-        ("value", "read ignored = value"),
-        ("edit value", "edit ignored = value"),
+    for (parameter, binding, case) in [
+        ("take value", "let ignored = value^", "take"),
+        ("value", "read ignored = value", "read"),
+        ("edit value", "edit ignored = value", "edit"),
     ] {
         let source = runtime
             .replace("select(take value", &format!("select({parameter}"))
@@ -255,7 +255,7 @@ fn assert_selected_return_contexts(source: &str, name: &str) {
         } else {
             source.replace("drop ignored", "")
         };
-        execute_native_status(&compile(&source), &package.0, name, 42);
+        execute_native_status(&compile(&source), &package.0, &format!("{name}-{case}"), 42);
     }
     let owned = runtime.replace("wrap(identity)", "wrap(initial())")
         .replace("(number; value: i32)", "(reason^, number; value: i32)")
