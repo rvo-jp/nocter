@@ -1,0 +1,1 @@
+primitive func arg_count(): usize

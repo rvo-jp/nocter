@@ -18,10 +18,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify v2 access to the process context through toolchain-authorized primitive roles and the
-existing native startup protocol. Begin with argument count under real launcher-supplied arguments.
-Keep context reads out of required evaluation. Then qualify argument/environment values, async
-entries, installed library and editor integration.
+Extend v2 process-context admission to environment count and argument/environment values. Retain
+the existing native startup protocol and keep raw OS bytes private until encoding validation.
+Keep context reads out of required evaluation. Then qualify async entries, installed library and
+editor integration.
 
 ## Remaining Contextual Representation Qualification
 
@@ -726,6 +726,11 @@ not a language restriction derived from the current realization boundary.
 - [x] Project v2 executable-entry errors onto the exact authored `#executable` name or explicitly
   selected source file. Share the typed failure and its source envelope through `check`, `build`
   and `run` without relocating source-stage errors or target availability failures.
+- [x] Admit the trusted v2 process-argument-count role through the common process context. Execute
+  the same selected native image with different argument vectors and reject the count in required
+  constant evaluation.
+- [ ] Qualify environment count and argument/environment value access under the selected v2
+  standard profile. Preserve absence, native argument boundaries and invalid-encoding behavior.
 - [ ] Integrate v2 into the ordinary compiler/CLI and editor workflow with one semantic pipeline,
   current diagnostics, formatting, presentation and revision/source reuse. Remove transitional private
   handoffs when their production replacement is qualified; retain no competing semantic authority.

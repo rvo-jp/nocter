@@ -51,14 +51,19 @@ const ERROR_CONTEXT: PrimitiveValueSignature = PrimitiveValueSignature {
     ],
     result: BuiltinType::Error,
 };
+const PROCESS_ARGUMENT_COUNT: PrimitiveValueSignature = PrimitiveValueSignature {
+    inputs: &[],
+    result: BuiltinType::Usize,
+};
 impl PrimitiveRole {
-    /// The closed builtin-constructor fragment shared with source signature validation.
+    /// The qualified value-model signatures shared with source signature validation.
     /// A shape grants neither primitive authority nor executable/constant-domain admission.
     #[must_use]
     pub const fn value_signature(self) -> Option<&'static PrimitiveValueSignature> {
         match self {
             Self::NewError => Some(&NEW_ERROR),
             Self::ErrorContext => Some(&ERROR_CONTEXT),
+            Self::ProcessArgumentCount => Some(&PROCESS_ARGUMENT_COUNT),
             _ => None,
         }
     }

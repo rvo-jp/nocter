@@ -17,6 +17,11 @@ pub(super) fn authority() -> declarations::PrimitiveAuthority {
     .with_primitive_roles(vec![
         PrimitiveRoleLocator::new(PrimitiveRole::NewError, module.clone(), "create_failure"),
         PrimitiveRoleLocator::new(PrimitiveRole::ErrorContext, module.clone(), "context_error"),
+        PrimitiveRoleLocator::new(
+            PrimitiveRole::ProcessArgumentCount,
+            module.clone(),
+            "argument_count",
+        ),
     ]);
     declarations::PrimitiveAuthority::for_module(&toolchain, &module).unwrap()
 }
@@ -123,6 +128,18 @@ fn runtime_primitive_calls_in_required_closures_report_the_call_domain() {
             "{text}"
         );
     }
+}
+
+#[test]
+fn argument_count_is_a_runtime_call_in_required_evaluation() {
+    let fixture = nocter_test_support::ValueSourceFixture::new(
+        "primitive func argument_count(): usize\nconst COUNT: usize = argument_count()",
+    );
+    let result = SourceUnit::prepare_with_primitive_authority(fixture.syntax(), &authority());
+    assert!(
+        matches!(result, Err(SourceFailure::Checking(Failure::Const { diagnostic, .. }))
+        if matches!(diagnostic.rule(), crate::value_access::constant::Rule::RuntimeCall(_)))
+    );
 }
 
 #[test]

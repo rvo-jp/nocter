@@ -25,6 +25,7 @@ fn copy_fixture(directory: &TempPackage) {
         "app/failure/index.nct",
         "app/failure/body.nct",
         "std/index.nct",
+        "std/process/index.nct",
     ] {
         directory.source(
             relative,
@@ -56,8 +57,13 @@ fn standard_profile(std: PackageIdentity) -> ToolchainInput {
         ),
         PrimitiveRoleLocator::new(
             PrimitiveRole::ErrorContext,
-            ModuleIdentity::new(std, ["context"]),
+            ModuleIdentity::new(std.clone(), ["context"]),
             "operation",
+        ),
+        PrimitiveRoleLocator::new(
+            PrimitiveRole::ProcessArgumentCount,
+            ModuleIdentity::new(std, ["process"]),
+            "arg_count",
         ),
     ])
 }
@@ -149,11 +155,26 @@ fn physical_query_session_unit_executes_selected_entries() {
             &format!("image-{name}"),
             status,
         );
+        if name == "math" {
+            assert_process_arguments(image.image(), &directory.0);
+        }
     }
     let image =
         crate::compile_value_access_image(&session, &ExecutableSelector::named("failure")).unwrap();
     assert_failure_report(image.image(), &directory.0);
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn assert_process_arguments(image: &crate::NativeImage, root: &std::path::Path) {
+    let status = super::super::native_command(image, root, "image-with-args")
+        .args(["--example", "two words", ""])
+        .status()
+        .unwrap();
+    assert_eq!(status.code(), Some(20));
+}
+
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+fn assert_process_arguments(_image: &crate::NativeImage, _root: &std::path::Path) {}
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn assert_failure_report(image: &crate::NativeImage, root: &std::path::Path) {
