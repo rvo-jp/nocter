@@ -1,6 +1,6 @@
 //! Closed data shapes for storage, independent of access operations and physical placement.
 use nocter_declarations::value_access::{DataInstanceKey, PayloadSchema, Program};
-use nocter_model::{AccessInstanceId, BuiltinType, TypeId, ValueCode};
+use nocter_model::{AccessInstanceId, BuiltinType, TypeId};
 use nocter_runtime_contract::{
     RuntimeAbiIdentity, RuntimeDataId, RuntimeEnvironment, RuntimeEnvironmentError,
     RuntimeTypeTableBuildError, RuntimeValueInput, RuntimeValueSignature,
@@ -130,20 +130,13 @@ pub fn prepare(
 fn failure_status(instances: &InstanceProgram) -> Result<Option<DataInstanceKey>, Failure> {
     let root = instances.root();
     let declarations = instances.unit().program();
-    let ValueCode::Declaration(code) = instances
+    let result = instances
         .instances()
         .get(root)
+        .and_then(|instance| instance.result().payload())
         .ok_or(Failure::InvalidInstance(root))?
-        .key()
-        .code()
-    else {
-        return Err(Failure::InvalidInstance(root));
-    };
-    let result = declarations
-        .codes()
-        .get(code)
-        .ok_or(Failure::InvalidInstance(root))?
-        .result();
+        .instance()
+        .data();
     if !matches!(
         declarations.data_schema(result),
         Some(PayloadSchema::Fallible(_))

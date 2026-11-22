@@ -176,7 +176,8 @@ fn physical_query_session_unit_executes_selected_entries() {
             declaration.module(),
             &ModuleIdentity::new(app.clone(), path.iter().copied())
         );
-        let image = crate::compile_value_access_image(&session, &selector).unwrap();
+        let image = crate::compile_value_access_image(&session, &selector)
+            .unwrap_or_else(|error| panic!("{name}: {error:?}"));
         assert_eq!(image.identity().name(), name);
         assert_eq!(image.identity().package(), &app);
         if name == "math" {

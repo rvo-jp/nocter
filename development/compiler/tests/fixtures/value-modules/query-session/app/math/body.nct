@@ -5,6 +5,10 @@ const func make(take value: i32): func(): i32 {
     (value^;) { value }
 }
 
-func main(): usize! {
-    4294967312 + process.arg_count() + process.environment_count() * 8
+async func read_counts(): usize {
+    process.arg_count() + process.environment_count() * 8
+}
+
+async func main(): usize! {
+    4294967312 + await read_counts()
 }

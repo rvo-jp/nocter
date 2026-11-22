@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify the trusted argument and environment counts within non-suspending v2 drives. Use the
-target's frozen process-context reads as the effect evidence and verify the same native entry
-under independent argument and environment changes.
+Qualify the target-specific effect evidence for error nodes in non-suspending v2 drives. Check
+private backing and release separately and verify both explicit disposal and transfer of a managed
+error to the native process boundary.
 
 ## Remaining Contextual Representation Qualification
 
@@ -792,6 +792,10 @@ not a language restriction derived from the current realization boundary.
   Verify the success path and source diagnostics for cleanup without effect evidence.
 - [x] Drive a child that throws the toolchain-bound static allocation failure error. Propagate
   the actual error through `await …?` and verify the native process report and exit status.
+- [x] Use the frozen native process context for argument and environment counts in a locally
+  driven child. Verify independent launch inputs through the same deferred fallible entry and
+  materialize the process failure status from the exact instance output even if it contains no
+  `i32` in the source.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.

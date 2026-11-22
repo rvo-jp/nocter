@@ -97,6 +97,19 @@ const PREALLOCATED_FUTURE: PrimitiveRuntimeProfile =
     PrimitiveRuntimeProfile::new(PREALLOCATED_FUTURE_EXECUTION, NO_CONTEXT);
 
 impl PrimitiveRole {
+    /// A value-model invocation whose data is already supplied by the image or process entry.
+    /// The native implementations load that fixed data, so repeated calls have no external
+    /// progress dependency.
+    #[must_use]
+    pub const fn has_value_drive_evidence(self) -> bool {
+        matches!(
+            self,
+            Self::AllocationFailureError
+                | Self::ProcessArgumentCount
+                | Self::ProcessEnvironmentCount
+        )
+    }
+
     /// Returns compiler-owned execution evidence for this closed primitive role.
     #[must_use]
     pub const fn execution_facts(self) -> PrimitiveExecutionFacts {

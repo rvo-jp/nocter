@@ -194,10 +194,9 @@ fn selected<'a>(
     match *operation {
         Operation::CommitCall(call) => {
             let target = immediate_body(program, query, call);
-            // The existing native implementation loads a compiler-owned static node address.
-            // This covers the bound invocation; later destruction has its own obligation.
-            if target.and_then(|id| primitives.role(id))
-                == Some(nocter_runtime_contract::PrimitiveRole::AllocationFailureError)
+            if target
+                .and_then(|id| primitives.role(id))
+                .is_some_and(nocter_runtime_contract::PrimitiveRole::has_value_drive_evidence)
             {
                 return None;
             }

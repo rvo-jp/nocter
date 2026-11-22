@@ -396,6 +396,9 @@ projection resolves pending supplies and preserves operations already selected b
 The toolchain-bound allocation failure primitive loads the address of the ABI's permanent error
 leaf. A non-suspending body can transfer that error through `throw` and `await` to the process
 reporter. Mapped error creation and destruction have separate effect obligations.
+Trusted argument and environment counts read the immutable process-entry context, which the
+ordinary body ABI passes through a local drive. The process wrapper's failure status follows
+the closed instance's body output for immediate and deferred entries alike.
 Source data IDs map once to concrete payload
 obligations or checked unproduced structural contracts in the same declaration TypeAuthority.
 The accepted Unit owns that distinction; an unproduced structural shape has no payload, cleanup or
