@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify a real failed outcome through a non-suspending drive. Begin with the exact
-toolchain-bound static allocation failure error and its address-loading backend. Verify ownership
-transfer through `throw`, `await`, propagation and the native process reporter.
+Qualify the trusted argument and environment counts within non-suspending v2 drives. Use the
+target's frozen process-context reads as the effect evidence and verify the same native entry
+under independent argument and environment changes.
 
 ## Remaining Contextual Representation Qualification
 
@@ -790,12 +790,16 @@ not a language restriction derived from the current realization boundary.
 - [x] Transport a fallible output through native `await` and the fallible process entry.
   Retain the source-selected move of the active owned payload through result projection.
   Verify the success path and source diagnostics for cleanup without effect evidence.
+- [x] Drive a child that throws the toolchain-bound static allocation failure error. Propagate
+  the actual error through `await …?` and verify the native process report and exit status.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.
   Qualify scoped future aliases, nested annotations and represented carriers through their actual
   activation and storage evidence. Refine selector storage from body/type scope to the relevant
   activation occurrences where exact transport evidence permits it.
+  Qualify managed error creation and disposal against the real ARM64 map/unmap backing paths.
+  Keep runtime-managed backing and waiting evidence separate from the constructor signature.
 - [ ] Integrate v2 into the ordinary compiler/CLI and editor workflow with one semantic pipeline,
   current diagnostics, formatting, presentation and revision/source reuse. Remove transitional private
   handoffs when their production replacement is qualified; retain no competing semantic authority.

@@ -51,6 +51,10 @@ const ERROR_CONTEXT: PrimitiveValueSignature = PrimitiveValueSignature {
     ],
     result: BuiltinType::Error,
 };
+const ALLOCATION_FAILURE_ERROR: PrimitiveValueSignature = PrimitiveValueSignature {
+    inputs: &[],
+    result: BuiltinType::Error,
+};
 const PROCESS_COUNT: PrimitiveValueSignature = PrimitiveValueSignature {
     inputs: &[],
     result: BuiltinType::Usize,
@@ -63,6 +67,7 @@ impl PrimitiveRole {
         match self {
             Self::NewError => Some(&NEW_ERROR),
             Self::ErrorContext => Some(&ERROR_CONTEXT),
+            Self::AllocationFailureError => Some(&ALLOCATION_FAILURE_ERROR),
             Self::ProcessArgumentCount | Self::ProcessEnvironmentCount => Some(&PROCESS_COUNT),
             _ => None,
         }

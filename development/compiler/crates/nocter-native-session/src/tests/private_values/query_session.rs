@@ -24,6 +24,8 @@ fn copy_fixture(directory: &TempPackage) {
         "app/math/body.nct",
         "app/failure/index.nct",
         "app/failure/body.nct",
+        "app/deferred_failure/index.nct",
+        "app/deferred_failure/body.nct",
         "app/later/index.nct",
         "app/later/body.nct",
         "std/index.nct",
@@ -35,7 +37,7 @@ fn copy_fixture(directory: &TempPackage) {
         );
     }
     let trusted_errors = fixture.with_file_name("trusted-errors");
-    for module in ["error", "context"] {
+    for module in ["error", "context", "allocation_failure"] {
         let index = format!("{module}/index.nct");
         directory.source(
             &format!("std/{index}"),
@@ -60,6 +62,11 @@ fn standard_profile(std: PackageIdentity) -> ToolchainInput {
         PrimitiveRoleLocator::new(
             PrimitiveRole::ErrorContext,
             ModuleIdentity::new(std.clone(), ["context"]),
+            "operation",
+        ),
+        PrimitiveRoleLocator::new(
+            PrimitiveRole::AllocationFailureError,
+            ModuleIdentity::new(std.clone(), ["allocation_failure"]),
             "operation",
         ),
         PrimitiveRoleLocator::new(
@@ -108,6 +115,7 @@ fn analyze_package(directory: &TempPackage) -> (nocter_session::AnalyzedUnit, Pa
             ModuleIdentity::new(app.clone(), Vec::<&str>::new()),
             ModuleIdentity::new(app.clone(), ["math"]),
             ModuleIdentity::new(app.clone(), ["failure"]),
+            ModuleIdentity::new(app.clone(), ["deferred_failure"]),
             ModuleIdentity::new(app.clone(), ["later"]),
         ],
         standard_profile(std),
@@ -182,9 +190,17 @@ fn physical_query_session_unit_executes_selected_entries() {
             );
         }
     }
-    let image =
-        crate::compile_value_access_image(&session, &ExecutableSelector::named("failure")).unwrap();
-    assert_failure_report(image.image(), &directory.0);
+    for (name, error) in [
+        ("failure", &b"failed: outer: leaf\n"[..]),
+        (
+            "deferred-failure",
+            &b"std.mem.out_of_memory: allocation failed\n"[..],
+        ),
+    ] {
+        let image =
+            crate::compile_value_access_image(&session, &ExecutableSelector::named(name)).unwrap();
+        assert_failure_report(image.image(), &directory.0, name, error);
+    }
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
@@ -219,14 +235,25 @@ fn assert_process_context(_image: &crate::NativeImage, _root: &std::path::Path, 
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-fn assert_failure_report(image: &crate::NativeImage, root: &std::path::Path) {
-    let output = super::super::native_command(image, root, "image-failure")
+fn assert_failure_report(
+    image: &crate::NativeImage,
+    root: &std::path::Path,
+    name: &str,
+    error: &[u8],
+) {
+    let output = super::super::native_command(image, root, &format!("image-{name}"))
         .output()
         .unwrap();
     assert_eq!(output.status.code(), Some(1));
     assert!(output.stdout.is_empty());
-    assert_eq!(output.stderr, b"failed: outer: leaf\n");
+    assert_eq!(output.stderr, error);
 }
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
-fn assert_failure_report(_image: &crate::NativeImage, _root: &std::path::Path) {}
+fn assert_failure_report(
+    _image: &crate::NativeImage,
+    _root: &std::path::Path,
+    _name: &str,
+    _error: &[u8],
+) {
+}

@@ -5,7 +5,7 @@ use flow::{
     Location, Operation,
     resources::{Disposal, Step},
 };
-use nocter_declaration_lowering::access_declarations::{CodeSource, Context};
+use nocter_declaration_lowering::access_declarations::{CodeSource, Context, PrimitiveBindings};
 use nocter_declarations::{
     CallableExecution,
     value_access::{PayloadSchema, Program},
@@ -42,6 +42,7 @@ pub(super) fn require_local_activation(
 
 pub(super) fn qualify(
     program: &Program,
+    primitives: &PrimitiveBindings,
     bodies: &BTreeMap<ValueCodeRoot, Arc<flow::Query>>,
     verified: &results::Verified<'_, '_>,
     futures: &LocalFutures,
@@ -56,7 +57,15 @@ pub(super) fn qualify(
             program.code_execution(callable),
             Some(CallableExecution::Deferred { .. })
         ) {
-            drive(program, bodies, verified, futures, body, &mut checked)?;
+            drive(
+                program,
+                primitives,
+                bodies,
+                verified,
+                futures,
+                body,
+                &mut checked,
+            )?;
             drives.insert(callable);
         }
     }
@@ -90,6 +99,7 @@ fn modifier(context: &Context<'_>, callable: AccessCodeId) -> BodyFailure {
 
 fn drive(
     program: &Program,
+    primitives: &PrimitiveBindings,
     bodies: &BTreeMap<ValueCodeRoot, Arc<flow::Query>>,
     verified: &results::Verified<'_, '_>,
     futures: &LocalFutures,
@@ -135,9 +145,10 @@ fn drive(
                         }
                     }
                 }
-                if let Some(selection) = selected(program, futures, query, &step.operation)
-                    .transpose()
-                    .map_err(|message| reject(verified, body, location, message))?
+                if let Some(selection) =
+                    selected(program, primitives, futures, query, &step.operation)
+                        .transpose()
+                        .map_err(|message| reject(verified, body, location, message))?
                 {
                     let (single, alternatives) = match selection {
                         Selection::Immediate(id) => (Some(id), None),
@@ -175,16 +186,27 @@ enum Selection<'a> {
 
 fn selected<'a>(
     program: &Program,
+    primitives: &PrimitiveBindings,
     futures: &'a LocalFutures,
     query: &crate::value_access::Query,
     operation: &Operation,
 ) -> Option<Result<Selection<'a>, &'static str>> {
     match *operation {
-        Operation::CommitCall(call) => Some(
-            immediate_body(program, query, call)
-                .map(Selection::Immediate)
-                .ok_or("the selected invocation has no verified non-waiting drive evidence"),
-        ),
+        Operation::CommitCall(call) => {
+            let target = immediate_body(program, query, call);
+            // The existing native implementation loads a compiler-owned static node address.
+            // This covers the bound invocation; later destruction has its own obligation.
+            if target.and_then(|id| primitives.role(id))
+                == Some(nocter_runtime_contract::PrimitiveRole::AllocationFailureError)
+            {
+                return None;
+            }
+            Some(
+                target
+                    .map(Selection::Immediate)
+                    .ok_or("the selected invocation has no verified non-waiting drive evidence"),
+            )
+        }
         Operation::DriveFuture { result, .. } => Some(
             futures
                 .producers(query.code(), result)

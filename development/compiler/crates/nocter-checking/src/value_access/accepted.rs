@@ -1031,7 +1031,13 @@ pub(super) fn admit_resolved(
         bodies.values().chain(closures.values()).map(Arc::as_ref),
         &verified,
     )?;
-    let deferred_drives = deferred::qualify(&program, &bodies, &verified, &local_futures)?;
+    let deferred_drives = deferred::qualify(
+        &program,
+        context.primitives(),
+        &bodies,
+        &verified,
+        &local_futures,
+    )?;
     let const_templates = const_admission::check_const_bodies(
         &program,
         &bodies,

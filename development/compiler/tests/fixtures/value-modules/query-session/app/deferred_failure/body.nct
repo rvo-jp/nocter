@@ -1,0 +1,11 @@
+use std/allocation_failure as errors
+see ./index.nct
+
+async func fail_later(): i32! {
+    throw errors.operation()
+}
+
+async func main(): i32! {
+    let value = await fail_later()?
+    value + 1
+}

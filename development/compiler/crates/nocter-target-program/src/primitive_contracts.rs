@@ -481,11 +481,11 @@ fn validate_supporting_struct(
         })
 }
 
-/// Adapt the shared constructor fragment to the published type-qualified input representation.
-fn published_value_constructor(role: PrimitiveRole) -> PrimitiveContract {
+/// Adapt a shared primitive signature to the published type-qualified input representation.
+fn published_value_primitive(role: PrimitiveRole) -> PrimitiveContract {
     let signature = role
         .value_signature()
-        .expect("selected value constructor signature");
+        .expect("selected shared primitive signature");
     let parameters = signature
         .inputs()
         .iter()
@@ -552,7 +552,9 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         }
     };
     match role {
-        PrimitiveRole::NewError | PrimitiveRole::ErrorContext => published_value_constructor(role),
+        PrimitiveRole::NewError
+        | PrimitiveRole::ErrorContext
+        | PrimitiveRole::AllocationFailureError => published_value_primitive(role),
         PrimitiveRole::ErrorCode | PrimitiveRole::ErrorMessage => make(
             0,
             vec![TypeContract::readonly(builtin(BuiltinType::Error))],
@@ -560,14 +562,6 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             private,
             None,
             vec![0],
-        ),
-        PrimitiveRole::AllocationFailureError => make(
-            0,
-            vec![],
-            builtin(BuiltinType::Error),
-            private,
-            None,
-            vec![],
         ),
         PrimitiveRole::CurrentAllocatorState | PrimitiveRole::CurrentAllocatorKind => {
             make(0, vec![], usize(), private, None, vec![])

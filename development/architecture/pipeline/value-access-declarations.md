@@ -393,6 +393,9 @@ and local recovery use the actual tag supplied by the selected body.
 Fallible output transport has a separate admission check from backing and cleanup. An owned
 outcome operation moves its active payload and retires the container on that branch. Result
 projection resolves pending supplies and preserves operations already selected by typing.
+The toolchain-bound allocation failure primitive loads the address of the ABI's permanent error
+leaf. A non-suspending body can transfer that error through `throw` and `await` to the process
+reporter. Mapped error creation and destruction have separate effect obligations.
 Source data IDs map once to concrete payload
 obligations or checked unproduced structural contracts in the same declaration TypeAuthority.
 The accepted Unit owns that distinction; an unproduced structural shape has no payload, cleanup or
