@@ -59,7 +59,7 @@ impl Builder<'_> {
         self.constrain_geometry(before, after)?;
         let retired = Effect::Dispose {
             source: self.place_with_root(destination, self.payload_data(retired)?, Some(before))?,
-            disposal: self.disposal(retired)?,
+            disposal: self.disposal(retired.disposal())?,
         };
         let supplied = self.payload_data(payload)?;
         let transfer = Effect::Transfer {
@@ -155,7 +155,7 @@ impl Builder<'_> {
                 self.payload_data(retired)?,
                 Some(virtual_before),
             )?,
-            disposal: self.disposal(retired)?,
+            disposal: self.disposal(retired.disposal())?,
         };
         let source = self.resource_place(source, supplied, replacement.data())?;
         self.constrain_geometry_requirement(

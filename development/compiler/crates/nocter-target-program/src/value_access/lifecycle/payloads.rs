@@ -1,6 +1,6 @@
 //! Consume checking's ordered resource data projection; no second source substitution model.
 use super::{Condition, Failure, Instance, Location, Resource, ResourceStep, Step};
-use nocter_checking::value_access::accepted::{LocalFutureMove, LocalFutureStorage, Unit};
+use nocter_checking::value_access::accepted::{FutureCaptureCases, LocalFutureStorage, Unit};
 use nocter_checking::value_access::flow::resources::{Holder, Missing, Place, Transition};
 use nocter_checking::value_access::{ResourceDataFailure, ResourceDataProjection};
 use nocter_constant_evaluation::state::WorkBudget;
@@ -194,7 +194,7 @@ fn partition_local_future_steps<'a>(
                     .future_move(code, at, source, destination)
                     .ok_or(Failure::InvalidInstanceProgram)?;
                 if selector
-                    || !matches!(captures, LocalFutureMove::Direct(fields) if fields.is_empty())
+                    || !matches!(captures, FutureCaptureCases::Direct(fields) if fields.is_empty())
                 {
                     activations.push((
                         ordinary.len(),
@@ -202,6 +202,21 @@ fn partition_local_future_steps<'a>(
                             source,
                             destination,
                             selector,
+                            captures: captures.clone(),
+                        },
+                    ));
+                }
+            }
+            (Some(_), ResourceStep::Dispose { source, .. }) => {
+                let source = source.holder();
+                let captures = unit
+                    .future_cancellation(code, at, source)
+                    .ok_or(Failure::InvalidInstanceProgram)?;
+                if !matches!(captures, FutureCaptureCases::Direct(fields) if fields.is_empty()) {
+                    activations.push((
+                        ordinary.len(),
+                        Step::CancelLocalFuture {
+                            source,
                             captures: captures.clone(),
                         },
                     ));

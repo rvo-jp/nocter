@@ -355,14 +355,16 @@ consumes an owned operand. The typed expression exposes one future layer's outpu
 outcome operation. The control and resource analyses retain each local activation's selected
 producer through ownership transfer. The drive consumes that receipt before execution and receives
 the output through the shared normal-result transition after execution. The same construction
-step commits prepared scalar take inputs in source order to an unstarted local activation.
+step commits prepared scalar or owned error take inputs in source order to an unstarted local activation.
 Unit acceptance retains the captured input layout for each producer at an owning holder and
 qualifies non-waiting execution through reached immediate bodies and every possible local drive.
 A future type in a body uses a producer selector when a reached drive has multiple producers
-or a reached move must distinguish capture layouts. Construction stores the prepared values and
-any needed tag. A move with a common layout transfers its slots directly. A move with different
-layouts selects the active slots before retiring the source. Initialization and cancellation
-continue to follow the original ownership ledger, including unstarted cancellation of captured scalars.
+or a reached move or cancellation must distinguish captured inputs. Construction stores the
+prepared values and any needed tag. A move with a common layout transfers its slots directly.
+A move with different layouts selects the active slots before retiring the source. Cancellation
+uses the original ownership transition and releases only the selected initialized inputs in
+reverse order. Trivial captures require no physical release. A drive supplies the inputs to the
+body and ends the activation's ownership of them.
 
 The shared `value-modules/query-session` corpus closes an explicit checked root through physical
 v2 package discovery, revision-owned analysis and session evidence before the existing instance,

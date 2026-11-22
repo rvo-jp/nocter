@@ -136,17 +136,20 @@ impl Payload {
     }
 }
 
-/// Whether a declared take input has a scalar payload and trivial cancellation.
-pub(in crate::value_access) fn is_scalar_future_input(program: &Program, data: TypeId) -> bool {
+/// Whether the local activation can store and carry this declared take input.
+/// Cancellation must independently qualify its release.
+pub(in crate::value_access) fn is_local_future_input(program: &Program, data: TypeId) -> bool {
     program.data_kind(data).is_some_and(|builtin| {
-        matches!(builtin, BuiltinType::Bool | BuiltinType::Void)
-            || nocter_model::BuiltinNumericType::for_builtin(builtin)
-                .and_then(nocter_model::BuiltinNumericType::integer_bounds)
-                .is_some()
+        matches!(
+            builtin,
+            BuiltinType::Bool | BuiltinType::Void | BuiltinType::Error
+        ) || nocter_model::BuiltinNumericType::for_builtin(builtin)
+            .and_then(nocter_model::BuiltinNumericType::integer_bounds)
+            .is_some()
     })
 }
 
-/// Form the ownership receipt for a selected producer with scalar take inputs.
+/// Form the ownership receipt for a selected producer with represented take inputs.
 /// The checked unit must separately establish the producer's effects and backing.
 pub(super) fn future_payload(
     typed: &TypedQuery,
@@ -183,7 +186,7 @@ pub(super) fn future_payload(
                 };
                 argument.operation != nocter_model::ValueInputOperation::Take
                     || parameter.operation() != nocter_model::ValueInputOperation::Take
-                    || !is_scalar_future_input(program, parameter.data())
+                    || !is_local_future_input(program, parameter.data())
             })
         || expression.ty.normal()
             != Some(nocter_model::ValueAccess::new(data, ValueAccessMode::Own))

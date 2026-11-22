@@ -13,8 +13,38 @@ async func fail_later(): error {
     contexts.operation(errors.operation("managed", "leaf"), "after await")
 }
 
+async func stop_with_errors(take first: error, take divisor: i32, take last: error): i32 {
+    1 / divisor
+}
+
+async func stop_with_value(take divisor: i32): i32 {
+    1 / divisor
+}
+
+async func relay(take value: error): error {
+    value^
+}
+
 async func main(): i32! {
     let discarded = await discard_later()
     drop discarded
-    throw await fail_later()
+
+    var iteration: i32 = 0
+    while iteration < 2 {
+        let pending = if iteration == 0 {
+            stop_with_errors(errors.operation("discarded", "first"), 0, errors.operation("discarded", "last"))
+        } else {
+            stop_with_value(0)
+        }
+        let moved = pending^
+        drop moved
+        iteration += 1
+    }
+
+    let directly_cancelled = stop_with_errors(static_error.operation(), 0, errors.operation("discarded", "direct"))
+    drop directly_cancelled
+    let produced = await fail_later()
+    let selected = relay(produced^)
+    let moved = selected^
+    throw await moved^
 }

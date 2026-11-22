@@ -181,6 +181,11 @@ fn cleanup_plan(
                 {
                     cleanup::required(program.runtime(), source.data, &mut work)?;
                 }
+                mir::Effect::SelectedFutureCleanup { cases, .. } => {
+                    for input in cases.iter().flat_map(|case| &case.fields) {
+                        cleanup::required(program.runtime(), input.source.data, &mut work)?;
+                    }
+                }
                 mir::Effect::DisposeArrayRemainder { source, .. } => {
                     cleanup::required(program.runtime(), source.data, &mut work)?;
                 }

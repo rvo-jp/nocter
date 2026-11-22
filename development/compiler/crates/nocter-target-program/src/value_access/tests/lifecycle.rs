@@ -79,6 +79,7 @@ fn invocation_transfers_precede_the_body_and_adapter_cleanup_precedes_receipt() 
             Step::Resource(step) => Some(step.operation()),
             Step::ScopedReplacement(replacement) => Some(replacement.operation()),
             Step::MoveLocalFuture { .. }
+            | Step::CancelLocalFuture { .. }
             | Step::CaptureFutureInputs { .. }
             | Step::DisposeEnvironment { .. } => None,
         };

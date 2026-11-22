@@ -244,7 +244,12 @@ impl State {
         for (source, expected) in sources {
             staged.retain_source(program, source, &mut changes)?;
             let received = staged.take(program, source)?;
-            if received.data() != *expected || received.disposal() != Disposal::Trivial {
+            if received.data() != *expected
+                || !matches!(
+                    received.disposal(),
+                    Disposal::Trivial | Disposal::OwnedError
+                )
+            {
                 return Err(INVALID);
             }
             inputs.push((source.clone(), received));

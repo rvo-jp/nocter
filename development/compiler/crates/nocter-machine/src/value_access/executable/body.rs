@@ -363,6 +363,17 @@ impl<'a> Builder<'a> {
                     Ok(())
                 })?;
             }
+            mir::Effect::SelectedFutureCleanup { selector, cases } => {
+                let subject = self.load(selector)?;
+                let tags = cases.iter().map(|case| i128::from(case.tag));
+                self.select_integer_cases(subject, tags, |builder, index| {
+                    let case = cases.get(index).ok_or_else(Self::invalid)?;
+                    for input in &case.fields {
+                        builder.dispose_value(&input.source, input.disposal)?;
+                    }
+                    Ok(())
+                })?;
+            }
             mir::Effect::VariantTag {
                 destination,
                 primary,
@@ -419,24 +430,31 @@ impl<'a> Builder<'a> {
                 self.dispose_array_remainder(source, missing)?;
             }
             mir::Effect::Dispose { source, disposal } => {
-                if *disposal == mir::Disposal::Trivial {
-                    return Ok(());
-                }
-                if let Some(&target) = self.context.cleanup.get(&source.data) {
-                    let place = self.place(source)?;
-                    let pointer = self.value(
-                        source.data,
-                        true,
-                        MachineOperationKind::AddressOf { source: place },
-                    )?;
-                    self.emit(MachineOperationKind::Call(MachineCall::new(
-                        MachineCallTarget::Direct(target),
-                        [pointer],
-                        MachineCallAllocation::Inherit,
-                        None,
-                    )));
-                }
+                self.dispose_value(source, *disposal)?;
             }
+        }
+        Ok(())
+    }
+    fn dispose_value(
+        &mut self,
+        source: &mir::Place,
+        disposal: mir::Disposal,
+    ) -> Result<(), Failure> {
+        if disposal != mir::Disposal::Trivial
+            && let Some(&target) = self.context.cleanup.get(&source.data)
+        {
+            let place = self.place(source)?;
+            let pointer = self.value(
+                source.data,
+                true,
+                MachineOperationKind::AddressOf { source: place },
+            )?;
+            self.emit(MachineOperationKind::Call(MachineCall::new(
+                MachineCallTarget::Direct(target),
+                [pointer],
+                MachineCallAllocation::Inherit,
+                None,
+            )));
         }
         Ok(())
     }

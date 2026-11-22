@@ -1,5 +1,5 @@
 //! Close captured input layouts and optional producer selectors for actual local activations.
-use super::super::{LocalFutureMove, LocalFutureStorage};
+use super::super::{FutureCaptureCases, FutureInputCleanup, LocalFutureStorage};
 use super::{Failure, INVALID, reject};
 use crate::value_access::{
     flow::{
@@ -25,7 +25,8 @@ struct Body {
     constructions: BTreeMap<AccessExpressionId, (TypeId, AccessCodeId)>,
     tags: BTreeMap<AccessCodeId, u64>,
     captures: BTreeMap<(Holder, AccessCodeId), Arc<[TypeId]>>,
-    moves: BTreeMap<Movement, LocalFutureMove>,
+    moves: BTreeMap<Movement, FutureCaptureCases<TypeId>>,
+    cancellations: BTreeMap<(Location, Holder), FutureCaptureCases<FutureInputCleanup>>,
 }
 
 #[derive(Clone, Debug)]
@@ -40,16 +41,56 @@ struct Movement {
     destination: Holder,
 }
 
-struct ObservedMove {
-    data: TypeId,
-    producers: BTreeMap<AccessCodeId, Arc<[TypeId]>>,
+struct CapturedInputs {
+    fields: Arc<[TypeId]>,
+    cleanup: Arc<[FutureInputCleanup]>,
 }
-impl ObservedMove {
+
+struct ObservedCaptures<T> {
+    data: TypeId,
+    producers: BTreeMap<AccessCodeId, Arc<[T]>>,
+}
+impl<T: PartialEq> ObservedCaptures<T> {
+    fn new(data: TypeId) -> Self {
+        Self {
+            data,
+            producers: BTreeMap::new(),
+        }
+    }
+
+    fn record(
+        &mut self,
+        data: TypeId,
+        producer: AccessCodeId,
+        fields: &Arc<[T]>,
+    ) -> Result<(), Failure> {
+        if self.data != data {
+            return Err(INVALID);
+        }
+        self.producers
+            .entry(producer)
+            .or_insert_with(|| Arc::clone(fields));
+        Ok(())
+    }
+
     fn needs_selector(&self) -> bool {
         let mut fields = self.producers.values();
         fields
             .next()
             .is_some_and(|first| fields.any(|candidate| candidate != first))
+    }
+
+    fn close(self, tags: &BTreeMap<AccessCodeId, u64>) -> Result<FutureCaptureCases<T>, Failure> {
+        if !self.needs_selector() {
+            let fields = self.producers.into_values().next().ok_or(INVALID)?;
+            return Ok(FutureCaptureCases::Direct(fields));
+        }
+        let cases = self
+            .producers
+            .into_iter()
+            .map(|(producer, fields)| Ok((tags.get(&producer).copied().ok_or(INVALID)?, fields)))
+            .collect::<Result<_, Failure>>()?;
+        Ok(FutureCaptureCases::Selected(cases))
     }
 }
 
@@ -117,12 +158,21 @@ impl LocalFutures {
         at: Location,
         source: Holder,
         destination: Holder,
-    ) -> Option<&LocalFutureMove> {
+    ) -> Option<&FutureCaptureCases<TypeId>> {
         self.bodies.get(&code)?.moves.get(&Movement {
             at,
             source,
             destination,
         })
+    }
+
+    pub(in crate::value_access::accepted) fn cancellation(
+        &self,
+        code: ValueCode,
+        at: Location,
+        source: Holder,
+    ) -> Option<&FutureCaptureCases<FutureInputCleanup>> {
+        self.bodies.get(&code)?.cancellations.get(&(at, source))
     }
 
     pub(in crate::value_access::accepted) fn step(
@@ -175,6 +225,7 @@ fn inspect(
     let program = body.typed().program();
     let mut signatures = BTreeMap::new();
     let mut moves = BTreeMap::new();
+    let mut cancellations = BTreeMap::new();
     for (point, block) in body.graph().points().iter() {
         if !body.initialization().reachable(point) {
             continue;
@@ -199,15 +250,32 @@ fn inspect(
                                 entry.insert(inputs(program, producer)?)
                             }
                         };
+                        let data = payload.data();
+                        match step {
+                            Step::Move {
+                                source,
+                                destination,
+                                ..
+                            } => {
+                                let key = Movement {
+                                    at: location,
+                                    source: source.holder(),
+                                    destination: destination.holder(),
+                                };
+                                moves
+                                    .entry(key)
+                                    .or_insert_with(|| ObservedCaptures::new(data))
+                                    .record(data, producer, &signature.fields)?;
+                            }
+                            Step::Dispose { source, .. } => {
+                                cancellations
+                                    .entry((location, source.holder()))
+                                    .or_insert_with(|| ObservedCaptures::new(data))
+                                    .record(data, producer, &signature.cleanup)?;
+                            }
+                            _ => {}
+                        }
                         found.record_captures(step, producer, signature)?;
-                        record_move(
-                            &mut moves,
-                            location,
-                            step,
-                            payload.data(),
-                            producer,
-                            signature,
-                        )?;
                         found.observe(step, &event.operation, payload, producer)?;
                         found.data.insert(payload.data());
                     } else if mentions_future(step) {
@@ -225,50 +293,55 @@ fn inspect(
     if found.data.is_empty() {
         return Err(INVALID);
     }
-    found.tagged.extend(
-        found
-            .drives
-            .values()
-            .filter(|drive| drive.producers.len() > 1)
-            .map(|drive| drive.data),
-    );
-    found.tagged.extend(
-        moves
-            .values()
-            .filter(|movement| movement.needs_selector())
-            .map(|movement| movement.data),
-    );
-    let producers = found
-        .constructions
-        .values()
-        .filter_map(|&(data, producer)| found.tagged.contains(&data).then_some(producer))
-        .collect::<BTreeSet<_>>();
-    found.tags = producers.into_iter().zip(0_u64..).collect();
-    for (site, movement) in moves {
-        let transport = if movement.needs_selector() {
-            let cases = movement
-                .producers
-                .into_iter()
-                .map(|(producer, fields)| {
-                    let tag = found.tags.get(&producer).copied().ok_or(INVALID)?;
-                    Ok((tag, fields))
-                })
-                .collect::<Result<Box<[_]>, Failure>>()?;
-            LocalFutureMove::Selected(cases)
-        } else {
-            LocalFutureMove::Direct(movement.producers.into_values().next().ok_or(INVALID)?)
-        };
-        found.moves.insert(site, transport);
-    }
+    found.close_selections(moves, cancellations)?;
     Ok(Some(found))
 }
 
 impl Body {
+    fn close_selections(
+        &mut self,
+        moves: BTreeMap<Movement, ObservedCaptures<TypeId>>,
+        cancellations: BTreeMap<(Location, Holder), ObservedCaptures<FutureInputCleanup>>,
+    ) -> Result<(), Failure> {
+        self.tagged.extend(
+            self.drives
+                .values()
+                .filter(|drive| drive.producers.len() > 1)
+                .map(|drive| drive.data),
+        );
+        self.tagged.extend(
+            moves
+                .values()
+                .filter(|movement| movement.needs_selector())
+                .map(|movement| movement.data),
+        );
+        self.tagged.extend(
+            cancellations
+                .values()
+                .filter(|use_| use_.needs_selector())
+                .map(|use_| use_.data),
+        );
+        let producers = self
+            .constructions
+            .values()
+            .filter_map(|&(data, producer)| self.tagged.contains(&data).then_some(producer))
+            .collect::<BTreeSet<_>>();
+        self.tags = producers.into_iter().zip(0_u64..).collect();
+        for (site, movement) in moves {
+            self.moves.insert(site, movement.close(&self.tags)?);
+        }
+        for (site, cancellation) in cancellations {
+            self.cancellations
+                .insert(site, cancellation.close(&self.tags)?);
+        }
+        Ok(())
+    }
+
     fn record_captures(
         &mut self,
         step: &Step,
         producer: AccessCodeId,
-        signature: &Arc<[TypeId]>,
+        signature: &CapturedInputs,
     ) -> Result<(), Failure> {
         let (source, destination) = match step {
             Step::ConstructActivation {
@@ -279,7 +352,7 @@ impl Body {
                 if inputs
                     .iter()
                     .map(|(_, payload)| payload.data())
-                    .ne(signature.iter().copied())
+                    .ne(signature.fields.iter().copied())
                 {
                     return Err(INVALID);
                 }
@@ -298,7 +371,7 @@ impl Body {
         for holder in [source, destination].into_iter().flatten() {
             self.captures
                 .entry((holder, producer))
-                .or_insert_with(|| Arc::clone(signature));
+                .or_insert_with(|| Arc::clone(&signature.fields));
         }
         Ok(())
     }
@@ -343,44 +416,11 @@ impl Body {
     }
 }
 
-fn record_move(
-    moves: &mut BTreeMap<Movement, ObservedMove>,
-    at: Location,
-    step: &Step,
-    data: TypeId,
-    producer: AccessCodeId,
-    fields: &Arc<[TypeId]>,
-) -> Result<(), Failure> {
-    if let Step::Move {
-        source,
-        destination,
-        ..
-    } = step
-    {
-        let key = Movement {
-            at,
-            source: source.holder(),
-            destination: destination.holder(),
-        };
-        let old = moves.entry(key).or_insert_with(|| ObservedMove {
-            data,
-            producers: BTreeMap::new(),
-        });
-        if old.data != data {
-            return Err(INVALID);
-        }
-        old.producers
-            .entry(producer)
-            .or_insert_with(|| Arc::clone(fields));
-    }
-    Ok(())
-}
-
 fn inputs(
     program: &nocter_declarations::value_access::Program,
     producer: AccessCodeId,
-) -> Result<Arc<[TypeId]>, Failure> {
-    program
+) -> Result<CapturedInputs, Failure> {
+    let fields = program
         .codes()
         .get(producer)
         .ok_or(INVALID)?
@@ -393,7 +433,18 @@ fn inputs(
                 .map(nocter_declarations::value_access::Parameter::data)
                 .ok_or(INVALID)
         })
-        .collect()
+        .collect::<Result<Arc<[_]>, Failure>>()?;
+    let mut cleanup = Vec::new();
+    for (position, &data) in fields.iter().enumerate().rev() {
+        let payload = flow::resources::payload(program, data).map_err(Failure::Integrity)?;
+        if payload.disposal() != Disposal::Trivial {
+            cleanup.push(FutureInputCleanup { position, payload });
+        }
+    }
+    Ok(CapturedInputs {
+        fields,
+        cleanup: cleanup.into(),
+    })
 }
 
 fn local_payload(step: &Step) -> Option<Payload> {

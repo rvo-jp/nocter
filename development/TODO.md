@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify owned error inputs to unstarted local futures. Preserve the exact prepared owner through
-construction, moves and `await`. At cancellation, dispose only the active captured inputs in
-reverse initialization order without executing the deferred body.
+Repair the native regression in `contextual-outcome-results.nct`. Match owned outcome payload
+selection to the original receiving value and exact result context, then resume capture support
+for closed compound take inputs.
 
 ## Remaining Contextual Representation Qualification
 
@@ -800,14 +800,20 @@ not a language restriction derived from the current realization boundary.
   Verify cleanup of an owned leaf and a discarded fallible mixed chain during local drives, then
   deliver an owned error through `await` to the process reporter. Verify source rejection when the
   selected target provides no corresponding backend evidence.
+- [x] Transfer an owned error into an unstarted future and through a later selected drive. Dispose
+  the original inputs in reverse order on unstarted cancellation. Verify direct and joined
+  cancellation, including the scalar alternative with no release and no execution of either body.
+- [ ] Restore native outcome selection across callable result/absence contexts in
+  `contextual-outcome-results.nct`. Preserve both the owned scalar/fallible `await` paths and the
+  exact same/changed payload representations when moving the active branch of an existing carrier.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.
   Qualify scoped future aliases, nested annotations and represented carriers through their actual
   activation and storage evidence. Refine selector storage from body/type scope to the relevant
   activation occurrences where exact transport evidence permits it.
-  Qualify cancellation of resource-owning take inputs with the original producer and capture
-  roles. Verify exactly the selected release, including for merged activations.
+  Extend input cancellation to compound/contextual take inputs and retained accesses using their
+  exact release obligations and construction/completion phases.
 - [ ] Integrate v2 into the ordinary compiler/CLI and editor workflow with one semantic pipeline,
   current diagnostics, formatting, presentation and revision/source reuse. Remove transitional private
   handoffs when their production replacement is qualified; retain no competing semantic authority.

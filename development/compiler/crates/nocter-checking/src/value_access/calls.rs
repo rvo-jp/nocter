@@ -297,7 +297,7 @@ impl Checker<'_, '_> {
                 if kind != CallKind::Direct
                     || !contract.inputs.iter().all(|input| {
                         input.operation == nocter_model::ValueInputOperation::Take
-                            && super::flow::resources::is_scalar_future_input(
+                            && super::flow::resources::is_local_future_input(
                                 self.program(),
                                 input.data,
                             )

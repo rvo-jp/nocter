@@ -1,11 +1,11 @@
 mod scoped;
 use super::{
-    Action, Alternative, BitValue, Body, Disposal, Effect, Failure, Location, Place, Projection,
-    Slot, SlotKey, Storage,
+    Action, Alternative, BitValue, Body, Disposal, Effect, Failure, FutureInputDisposal, Location,
+    Place, Projection, Slot, SlotKey, Storage,
 };
 use nocter_checking::value_access::{
     ArgumentAction, ExpressionKind, ValueSourceSlot,
-    accepted::LocalFutureMove,
+    accepted::{FutureCaptureCases, FutureInputCleanup},
     flow::{
         self, Operation,
         resources::{Disposal as CheckedDisposal, Holder, Step},
@@ -130,6 +130,21 @@ impl Builder<'_> {
                     self.future_input(source, index, data)?,
                     self.future_input(destination, index, data)?,
                 ))
+            })
+            .collect()
+    }
+    fn future_input_cleanup(
+        &mut self,
+        source: Holder,
+        cleanup: &[FutureInputCleanup],
+    ) -> Result<Box<[FutureInputDisposal]>, Failure> {
+        cleanup
+            .iter()
+            .map(|input| {
+                Ok(FutureInputDisposal {
+                    source: self.future_input(source, input.position, input.payload.data())?,
+                    disposal: self.disposal(input.payload.disposal())?,
+                })
             })
             .collect()
     }
@@ -591,8 +606,8 @@ impl Builder<'_> {
             projections: Box::new([]),
         })
     }
-    fn disposal(&self, payload: &Payload) -> Result<Disposal, Failure> {
-        Ok(match payload.disposal() {
+    fn disposal(&self, checked: CheckedDisposal) -> Result<Disposal, Failure> {
+        Ok(match checked {
             CheckedDisposal::Trivial => Disposal::Trivial,
             CheckedDisposal::OwnedError => Disposal::Error,
             CheckedDisposal::Aggregate => Disposal::Aggregate,
@@ -750,7 +765,7 @@ impl Builder<'_> {
                     captures,
                 } => {
                     match captures {
-                        LocalFutureMove::Direct(fields) => {
+                        FutureCaptureCases::Direct(fields) => {
                             output.extend(
                                 self.future_transfers(*source, *destination, fields)?
                                     .into_vec()
@@ -761,11 +776,11 @@ impl Builder<'_> {
                                     }),
                             );
                         }
-                        LocalFutureMove::Selected(cases) => {
+                        FutureCaptureCases::Selected(cases) => {
                             let cases = cases
                                 .iter()
                                 .map(|(tag, fields)| {
-                                    Ok(super::FutureMoveCase {
+                                    Ok(super::FutureCaptureCase {
                                         tag: *tag,
                                         fields: self.future_transfers(
                                             *source,
@@ -788,6 +803,34 @@ impl Builder<'_> {
                         });
                     }
                 }
+                lifecycle::Step::CancelLocalFuture { source, captures } => match captures {
+                    FutureCaptureCases::Direct(cleanup) => {
+                        output.extend(
+                            self.future_input_cleanup(*source, cleanup)?
+                                .into_vec()
+                                .into_iter()
+                                .map(|input| Effect::Dispose {
+                                    source: input.source,
+                                    disposal: input.disposal,
+                                }),
+                        );
+                    }
+                    FutureCaptureCases::Selected(cases) => {
+                        let cases = cases
+                            .iter()
+                            .map(|(tag, fields)| {
+                                Ok(super::FutureCaptureCase {
+                                    tag: *tag,
+                                    fields: self.future_input_cleanup(*source, fields)?,
+                                })
+                            })
+                            .collect::<Result<_, Failure>>()?;
+                        output.push(Effect::SelectedFutureCleanup {
+                            selector: self.future_selector(*source)?,
+                            cases,
+                        });
+                    }
+                },
                 lifecycle::Step::CaptureFutureInputs {
                     destination,
                     inputs,
@@ -823,7 +866,7 @@ impl Builder<'_> {
                     }
                     output.push(Effect::Dispose {
                         source,
-                        disposal: self.disposal(payload)?,
+                        disposal: self.disposal(payload.disposal())?,
                     });
                 }
                 lifecycle::Step::Resource(resource) => {
@@ -1028,7 +1071,7 @@ impl Builder<'_> {
                             )?;
                             output.push(Effect::Dispose {
                                 source,
-                                disposal: self.disposal(payload)?,
+                                disposal: self.disposal(payload.disposal())?,
                             });
                         }
                         Step::DisposeArrayElements {

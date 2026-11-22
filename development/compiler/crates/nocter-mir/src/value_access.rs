@@ -126,7 +126,11 @@ pub struct Preserved {
 pub enum Effect {
     SelectedFutureMove {
         selector: Place,
-        cases: Box<[FutureMoveCase]>,
+        cases: Box<[FutureCaptureCase<(Place, Place)>]>,
+    },
+    SelectedFutureCleanup {
+        selector: Place,
+        cases: Box<[FutureCaptureCase<FutureInputDisposal>]>,
     },
     /// Complete one wrapper construction at its checked commit phase.
     VariantTag {
@@ -238,9 +242,15 @@ pub struct FutureDriveCase {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct FutureMoveCase {
+pub struct FutureCaptureCase<T> {
     pub tag: u64,
-    pub fields: Box<[(Place, Place)]>,
+    pub fields: Box<[T]>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FutureInputDisposal {
+    pub source: Place,
+    pub disposal: Disposal,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

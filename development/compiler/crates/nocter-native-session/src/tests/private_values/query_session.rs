@@ -212,12 +212,75 @@ fn physical_query_session_unit_executes_selected_entries() {
             crate::compile_value_access_image(&session, &ExecutableSelector::named(name)).unwrap();
         assert_failure_report(image.image(), &directory.0, name, error);
     }
+    assert_selected_future_cleanup(&session);
+}
+
+fn assert_selected_future_cleanup(session: &nocter_session::AnalyzedUnit) {
+    use nocter_machine::{
+        MachineBlockId, MachineCallTarget, MachineOperationKind, MachineProgramRoot,
+        MachineTerminator,
+    };
+    let executable = select_value_access_executable(
+        session,
+        &ExecutableSelector::named("managed-deferred-failure"),
+    )
+    .unwrap();
+    let (unit, code) = executable.into_entry();
+    let machine = super::machine_entry(unit, code).unwrap();
+    let MachineProgramRoot::Process { root, entry } = *machine.root() else {
+        panic!("expected a process entry");
+    };
+    let (release, _) = machine
+        .functions()
+        .find(|(id, function)| {
+            *id != root
+                && function.body().operations().any(|(_, operation)| {
+                    matches!(operation.kind(), MachineOperationKind::ReleaseError { .. })
+                })
+        })
+        .expect("one helper releases an owned error inside the program");
+    let body = machine.function(entry).unwrap().body();
+    let count_releases = |block: MachineBlockId| {
+        body.block(block)
+            .unwrap()
+            .operations()
+            .iter()
+            .filter(|&&id| {
+                matches!(body.operation(id).unwrap().kind(), MachineOperationKind::Call(call)
+                if *call.target() == MachineCallTarget::Direct(release))
+            })
+            .count()
+    };
+    assert_eq!(
+        body.blocks()
+            .map(|(id, _)| count_releases(id))
+            .sum::<usize>(),
+        4
+    );
+    assert!(
+        body.blocks().any(|(_, block)| {
+            let MachineTerminator::SwitchValue { cases, .. } = block.terminator() else {
+                return false;
+            };
+            let mut counts = cases
+                .iter()
+                .map(|case| count_releases(case.target().block()))
+                .collect::<Vec<_>>();
+            counts.sort_unstable();
+            counts == [0, 2]
+        }),
+        "only the selected resource-owning case releases captures"
+    );
 }
 
 #[test]
 fn a_different_selected_target_cannot_use_arm64_darwin_primitive_drive_evidence() {
     let directory = TempPackage::new();
     copy_fixture(&directory);
+    directory.source(
+        "app/managed_deferred_failure/body.nct",
+        "see ./index.nct\nasync func main(): i32! { 0 }",
+    );
     let (session, _) = analyze_package(&directory, CompilationTarget::X64Linux);
     let [diagnostic] = session.diagnostics() else {
         panic!("{:#?}", session.diagnostics());

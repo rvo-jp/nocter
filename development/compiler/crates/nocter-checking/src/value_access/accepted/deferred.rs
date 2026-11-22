@@ -29,13 +29,18 @@ pub(super) fn require_local_activation(
         return Ok(());
     };
     let code = program.codes().get(callable).ok_or(INVALID)?;
-    let own_scalar_inputs = code.parameters().iter().all(|&id| {
+    let mut known = BTreeSet::new();
+    let cancellation =
+        DataUse::backing_or_cleanup(context.target().and_then(RuntimeAbiIdentity::for_target));
+    let inputs_are_owned_and_releasable = code.parameters().iter().all(|&id| {
         program.parameters().get(id).is_some_and(|parameter| {
             parameter.operation() == nocter_model::ValueInputOperation::Take
-                && flow::resources::is_scalar_future_input(program, parameter.data())
+                && flow::resources::is_local_future_input(program, parameter.data())
+                && local_data(program, parameter.data(), cancellation, &mut known)
         })
     });
-    if !own_scalar_inputs || !local_data(program, output, DataUse::Output, &mut BTreeSet::new()) {
+    if !inputs_are_owned_and_releasable || !local_data(program, output, DataUse::Output, &mut known)
+    {
         return Err(body_failure(callable, modifier(context, callable)));
     }
     Ok(())
@@ -112,9 +117,7 @@ fn drive(
     let mut pending = vec![(callable, body)];
     let mut known_backing = BTreeSet::new();
     let abi = source.target().and_then(RuntimeAbiIdentity::for_target);
-    let use_ = DataUse::BackingOrCleanup {
-        error_release: abi.is_some_and(RuntimeAbiIdentity::can_release_error_during_drive),
-    };
+    let use_ = DataUse::backing_or_cleanup(abi);
     while let Some((owner, body)) = pending.pop() {
         if checked.contains(&owner) || !examined.insert(owner) {
             continue;
@@ -283,6 +286,12 @@ enum DataUse {
     BackingOrCleanup { error_release: bool },
 }
 impl DataUse {
+    fn backing_or_cleanup(abi: Option<RuntimeAbiIdentity>) -> Self {
+        Self::BackingOrCleanup {
+            error_release: abi.is_some_and(RuntimeAbiIdentity::can_release_error_during_drive),
+        }
+    }
+
     const fn allows_error(self) -> bool {
         match self {
             Self::Output => true,

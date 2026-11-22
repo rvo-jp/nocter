@@ -52,11 +52,17 @@ pub enum LocalFutureStorage {
     Selector,
 }
 
-/// Captured input lanes transported by one original ownership move.
+/// The captured input lanes used by one original move or cancellation.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum LocalFutureMove {
-    Direct(Arc<[TypeId]>),
-    Selected(Box<[(u64, Arc<[TypeId]>)]>),
+pub enum FutureCaptureCases<T> {
+    Direct(Arc<[T]>),
+    Selected(Box<[(u64, Arc<[T]>)]>),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct FutureInputCleanup {
+    pub position: usize,
+    pub payload: flow::resources::Payload,
 }
 impl<P: Clone> DataEvidence<P> {
     #[must_use]
@@ -237,8 +243,18 @@ impl Unit {
         at: flow::Location,
         source: flow::resources::Holder,
         destination: flow::resources::Holder,
-    ) -> Option<&LocalFutureMove> {
+    ) -> Option<&FutureCaptureCases<TypeId>> {
         self.local_futures.movement(code, at, source, destination)
+    }
+    /// Exact nontrivial input cleanup for a reached cancellation, in initialization-reverse order.
+    #[must_use]
+    pub fn future_cancellation(
+        &self,
+        code: nocter_model::ValueCode,
+        at: flow::Location,
+        source: flow::resources::Holder,
+    ) -> Option<&FutureCaptureCases<FutureInputCleanup>> {
+        self.local_futures.cancellation(code, at, source)
     }
     /// Whether this body uses qualified local activations for the supplied data.
     #[must_use]

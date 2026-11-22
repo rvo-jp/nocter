@@ -327,6 +327,9 @@ impl Context<'_> {
                 }
                 Ok(())
             }
+            Effect::SelectedFutureCleanup { selector, cases } => {
+                self.future_cleanup(selector, cases)
+            }
             Effect::VariantTag {
                 destination,
                 primary,
@@ -704,7 +707,8 @@ impl Context<'_> {
         self.require(
             selector.projections.is_empty()
                 && self.body.slots.get(selector.slot).is_some_and(|slot| {
-                    slot.storage == Storage::Payload && matches!(slot.key, SlotKey::FutureSelector(_))
+                    slot.storage == Storage::Payload
+                        && matches!(slot.key, SlotKey::FutureSelector(_))
                 }),
         )?;
         self.require(
@@ -719,6 +723,41 @@ impl Context<'_> {
         for tag in tags {
             self.require(previous.is_none_or(|prior| prior < tag))?;
             previous = Some(tag);
+        }
+        Ok(())
+    }
+    fn future_cleanup(
+        &self,
+        selector: &Place,
+        cases: &[super::FutureCaptureCase<super::FutureInputDisposal>],
+    ) -> Result<(), Failure> {
+        self.future_cases(selector, cases.iter().map(|case| case.tag))?;
+        let Some(SlotKey::FutureSelector(owner)) =
+            self.body.slots.get(selector.slot).map(|slot| slot.key)
+        else {
+            return Err(self.invalid());
+        };
+        for case in cases {
+            let mut previous = None;
+            for input in &case.fields {
+                self.place(&input.source)?;
+                let Some(SlotKey::FutureInput {
+                    owner: input_owner,
+                    index,
+                    ..
+                }) = self.body.slots.get(input.source.slot).map(|slot| slot.key)
+                else {
+                    return Err(self.invalid());
+                };
+                self.require(
+                    input_owner == owner
+                        && previous.is_none_or(|prior| prior > index)
+                        && input.source.projections.is_empty()
+                        && input.disposal == super::Disposal::Error
+                        && self.primitive(input.source.data, RuntimePrimitive::Error),
+                )?;
+                previous = Some(index);
+            }
         }
         Ok(())
     }
