@@ -139,6 +139,30 @@ fn async_contracts_match_before_future_admission() {
 }
 
 #[test]
+fn await_without_execution_evidence_reports_the_current_await() {
+    let (_fixture, product) = Fixture::package(
+        "see ./body.nct\nasync func run(): i32",
+        "async func child(): i32 { 42 }\nasync func run(): i32 { await child() }",
+    );
+    let analysis = analyze_unit_from_query(&product).unwrap();
+    assert_eq!(analysis.status(), AnalyzedUnitStatus::CompilationFailed);
+    let [diagnostic] = analysis.diagnostics() else {
+        panic!("{:?}", analysis.value_access_analysis());
+    };
+    assert_eq!(diagnostic.code(), "E0291");
+    let span = diagnostic.primary().span();
+    assert_eq!(
+        analysis
+            .unit()
+            .sources()
+            .get(span.source())
+            .unwrap()
+            .text_at(span.range()),
+        Some("await child()")
+    );
+}
+
+#[test]
 fn deferred_callable_output_requires_its_own_lifecycle_evidence() {
     let (_fixture, product) = Fixture::package(
         "see ./body.nct\nfunc seed(): i32\nasync func run(): func(): i32",

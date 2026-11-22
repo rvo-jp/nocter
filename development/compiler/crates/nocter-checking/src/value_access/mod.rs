@@ -77,6 +77,7 @@ pub enum Rule {
     UnknownType,
     UnsupportedData,
     AwaitOutsideAsync,
+    InvalidAwaitOperand,
     UnqualifiedFuture,
     UnknownResultType,
     ShadowedName,
@@ -144,6 +145,7 @@ impl Rule {
                 DiagnosticCode::E0415,
                 "await requires an enclosing async body",
             ),
+            Self::InvalidAwaitOperand => (DiagnosticCode::E0416, "await requires an owned future"),
             Self::UnqualifiedFuture => (
                 DiagnosticCode::E0291,
                 "this operation requires future lifecycle checking",

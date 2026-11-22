@@ -97,8 +97,58 @@ fn ordinary_closures_do_not_inherit_await_from_a_deferred_body() {
     );
     reject(
         "async func run(): i32 { await 42 }",
-        Rule::UnqualifiedFuture,
+        Rule::InvalidAwaitOperand,
     );
+    reject(
+        "async func child(): i32 { 42 }\nasync func run(): i32 { let pending = child()\nawait pending }",
+        Rule::InvalidAwaitOperand,
+    );
+}
+
+#[test]
+fn await_consumes_one_owned_future_layer_before_outcome_propagation() {
+    use nocter_declarations::value_access::PayloadSchema;
+
+    let typed = queries(
+        "async func child(): i32! { 42 }\n\
+         async func fresh(): i32! { await child()? }\n\
+         async func moved(): i32! { let pending = child()\nawait pending^? }",
+    )
+    .unwrap();
+    for name in ["fresh", "moved"] {
+        let body = named(&typed, name);
+        let (awaited, operand) = body
+            .body()
+            .expressions()
+            .iter()
+            .find_map(|(_, item)| match item.kind {
+                ExpressionKind::Await { future } => Some((item.ty, future)),
+                _ => None,
+            })
+            .unwrap();
+        let output = body.result_data();
+        assert!(matches!(
+            body.program().data_schema(output),
+            Some(PayloadSchema::Fallible(_))
+        ));
+        assert_eq!(
+            awaited.normal(),
+            Some(nocter_model::ValueAccess::new(output, Mode::Own))
+        );
+        let source = body
+            .body()
+            .expressions()
+            .get(operand)
+            .unwrap()
+            .ty
+            .normal()
+            .unwrap();
+        assert_eq!(source.mode(), Mode::Own);
+        assert_eq!(
+            body.program().data_schema(source.data()),
+            Some(PayloadSchema::Future(output))
+        );
+    }
 }
 
 #[test]

@@ -349,7 +349,10 @@ The v2 grammar preserves async modifiers, future type operands and await before 
 Contract pairing distinguishes an async declaration from an immediate implementation. The
 [typed declaration contract](../../compiler/crates/nocter-declarations/README.md#future-value-declaration-boundary)
 retains the deferred mode and its invocation result. Producing a future value requires its
-own lifecycle evidence. An await in an immediate body is diagnosed at its keyword.
+own lifecycle evidence. Body typing checks that `await` occurs in the nearest deferred body and
+consumes an owned operand. The typed expression exposes one future layer's output before an outer
+outcome operation. Unit acceptance currently diagnoses an await without qualified drive and
+cancellation at the source expression.
 
 The shared `value-modules/query-session` corpus closes an explicit checked root through physical
 v2 package discovery, revision-owned analysis and session evidence before the existing instance,

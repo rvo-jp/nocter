@@ -18,10 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Carry `await` through body typing and ownership with the authored output and one owned future
-operand. Preserve the selected producer through its consumption and keep normal drive, suspension
-and cancellation on distinct paths. Start with selected empty activations whose drive is already
-qualified as non-waiting without suspension.
+Carry typed `await` through control and ownership. Preserve the selected producer through
+its consumption, and record drive and normal output receipt as separate lifecycle phases from
+cancellation. Start with selected empty activations; certify their drive before admitting execution.
 
 ## Remaining Contextual Representation Qualification
 
@@ -761,9 +760,14 @@ not a language restriction derived from the current realization boundary.
   the same body. Preserve ownership predicates and evaluate the selected source branch. Verify
   native cancellation across two producers that would trap if driven, and reject construction in
   a const body even when runtime storage can be elided.
+- [x] Type `await` from one owned future layer in the nearest async body. Check fresh and moved
+  sources before outcome propagation, reject read access, and diagnose missing execution evidence
+  at the original await in a selected package.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.
+  Admit explicit local `future` annotations once their supplied lifecycles can be matched;
+  the header type spelling alone does not establish a local activation.
 - [ ] Integrate v2 into the ordinary compiler/CLI and editor workflow with one semantic pipeline,
   current diagnostics, formatting, presentation and revision/source reuse. Remove transitional private
   handoffs when their production replacement is qualified; retain no competing semantic authority.

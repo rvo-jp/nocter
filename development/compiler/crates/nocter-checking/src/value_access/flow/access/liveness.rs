@@ -352,6 +352,7 @@ fn expression_uses(
         | ExpressionKind::Unary { .. }
         | ExpressionKind::Binary { .. } => {}
         ExpressionKind::Call { .. }
+        | ExpressionKind::Await { .. }
         | ExpressionKind::Scoped { .. }
         | ExpressionKind::Block { .. }
         | ExpressionKind::If { .. } => {

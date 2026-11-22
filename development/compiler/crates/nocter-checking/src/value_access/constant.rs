@@ -81,6 +81,7 @@ fn operation_rule(
     callee: Option<ValueFunctionOrigin>,
 ) -> Result<Option<Rule>, flow::IntegrityError> {
     Ok(match kind {
+        ExpressionKind::Await { .. } => return Err(INVALID),
         ExpressionKind::Call {
             kind,
             target,

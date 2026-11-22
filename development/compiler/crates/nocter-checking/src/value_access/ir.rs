@@ -394,6 +394,10 @@ pub enum ExpressionKind {
         target: nocter_model::ValueFunctionOrigin,
         arguments: Box<[Argument]>,
     },
+    /// Consume a future and deliver its output on completion.
+    Await {
+        future: AccessExpressionId,
+    },
     If {
         condition: AccessExpressionId,
         then_block: AccessBlockId,

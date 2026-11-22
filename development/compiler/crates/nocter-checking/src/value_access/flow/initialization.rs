@@ -572,6 +572,7 @@ fn evaluate(
             ..
         }
         | ExpressionKind::Call { .. }
+        | ExpressionKind::Await { .. }
         | ExpressionKind::Scoped { .. }
         | ExpressionKind::Block { .. }
         | ExpressionKind::If { .. } => return Err(INVALID),

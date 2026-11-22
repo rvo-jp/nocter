@@ -4,6 +4,7 @@ use super::{
     checker::Checker,
     ir::{Binary, Boundary, ExpressionKind, Unary, ValueType, value_type},
 };
+use nocter_declarations::value_access::PayloadSchema;
 use nocter_model::{
     AccessBlockId, AccessExpressionId, BuiltinType, ValueAccess as Ty, ValueAccessMode as Mode,
 };
@@ -103,18 +104,7 @@ impl Checker<'_, '_> {
                 self.constant_value(node, self.data(BuiltinType::Str), &value)?
             }
             NodeKind::OutcomeExpression => self.outcome(node, projection, reachable)?,
-            NodeKind::AwaitExpression => {
-                let rule = if let nocter_model::ValueCode::Declaration(declaration) = self.code
-                    && matches!(
-                        self.program().code_execution(declaration),
-                        Some(nocter_declarations::CallableExecution::Deferred { .. })
-                    ) {
-                    Rule::UnqualifiedFuture
-                } else {
-                    Rule::AwaitOutsideAsync
-                };
-                return self.reject(rule, self.token(node)?);
-            }
+            NodeKind::AwaitExpression => self.await_future(node, reachable)?,
             NodeKind::RecoveryExpression => self.recover_outcome(node, projection, reachable)?,
             NodeKind::UnitExpression => self.unit(node)?,
             NodeKind::TransferExpression => self.transfer(node, reachable)?,
@@ -204,6 +194,52 @@ impl Checker<'_, '_> {
                 ),
             _ => Err(Failure::InconsistentSyntax),
         }
+    }
+    fn await_future(
+        &mut self,
+        node: NodeId,
+        reachable: bool,
+    ) -> Result<AccessExpressionId, Failure> {
+        if !matches!(
+            self.code,
+            nocter_model::ValueCode::Declaration(declaration)
+                if matches!(
+                    self.program().code_execution(declaration),
+                    Some(nocter_declarations::CallableExecution::Deferred { .. })
+                )
+        ) {
+            return self.reject(Rule::AwaitOutsideAsync, self.token(node)?);
+        }
+        let mut chain = Vec::new();
+        let mut current = node;
+        let leaf = loop {
+            let operand = self.first_child(current)?;
+            chain.push((current, operand));
+            current = self.unwrap(operand)?;
+            if self.kind(current)? != NodeKind::AwaitExpression {
+                break operand;
+            }
+        };
+        let mut future = self.expression(leaf, None, reachable)?;
+        for (await_node, operand) in chain.into_iter().rev() {
+            let ty = self.ty(future);
+            let Some(access) = ty.access() else {
+                return Ok(future);
+            };
+            let Some(PayloadSchema::Future(output)) = self.program().data_schema(access.data())
+            else {
+                return self.reject(Rule::InvalidAwaitOperand, operand);
+            };
+            if access.mode() != Mode::Own {
+                return self.reject(Rule::InvalidAwaitOperand, operand);
+            }
+            future = self.emit(
+                await_node,
+                value_type(output, Mode::Own).with_continuation(ty.may_complete()),
+                ExpressionKind::Await { future },
+            )?;
+        }
+        Ok(future)
     }
     fn unary(
         &mut self,

@@ -16,6 +16,30 @@ use std::sync::Arc;
 mod elision;
 pub(super) use elision::Elisions;
 
+pub(super) fn require_await_execution(
+    context: &Context<'_>,
+    body: &crate::value_access::Query,
+) -> Result<(), Failure> {
+    if let Some((id, _)) = body
+        .body()
+        .expressions()
+        .iter()
+        .find(|(_, expression)| matches!(expression.kind, ExpressionKind::Await { .. }))
+    {
+        return Err(body_failure(
+            body.source_owner(),
+            diagnostics::query_rejection(
+                context,
+                body,
+                Some(id),
+                Rule::UnqualifiedFuture,
+                "await requires qualified future driving and cancellation",
+            ),
+        ));
+    }
+    Ok(())
+}
+
 pub(super) fn require_local_activation(
     context: &Context<'_>,
     root: ValueCodeRoot,

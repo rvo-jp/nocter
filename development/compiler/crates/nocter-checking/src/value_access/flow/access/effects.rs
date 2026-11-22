@@ -469,7 +469,8 @@ impl Context<'_, '_> {
             ExpressionKind::Scoped { .. }
             | ExpressionKind::Block { .. }
             | ExpressionKind::If { .. }
-            | ExpressionKind::Call { .. } => Err(Failure::Integrity),
+            | ExpressionKind::Call { .. }
+            | ExpressionKind::Await { .. } => Err(Failure::Integrity),
         }
     }
     fn prepare(&mut self, call: AccessExpressionId, index: usize) -> Result<()> {

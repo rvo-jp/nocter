@@ -873,6 +873,7 @@ pub(super) fn resolve_queries(
     let mut controls = queries
         .into_iter()
         .map(|(id, body)| {
+            deferred::require_await_execution(context, &body)?;
             deferred::require_local_activation(context, id)?;
             let control = flow::Control::prepare(Arc::new(body)).map_err(Failure::Integrity)?;
             Ok((id, control))

@@ -233,7 +233,8 @@ impl Builder<'_> {
             ExpressionKind::Scoped { .. }
             | ExpressionKind::Block { .. }
             | ExpressionKind::If { .. }
-            | ExpressionKind::Call { .. } => return Err(self.invalid()),
+            | ExpressionKind::Call { .. }
+            | ExpressionKind::Await { .. } => return Err(self.invalid()),
         };
         Ok(vec![operation])
     }

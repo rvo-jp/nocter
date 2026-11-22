@@ -447,6 +447,7 @@ impl Builder<'_> {
                 operation: Binary::And | Binary::Or,
                 ..
             } => return self.logical(id, entry),
+            ExpressionKind::Await { .. } => return Err(INVALID),
             ExpressionKind::Call {
                 target, arguments, ..
             } => {

@@ -259,7 +259,8 @@ impl Context<'_, '_> {
             ExpressionKind::Scoped { .. }
             | ExpressionKind::Block { .. }
             | ExpressionKind::If { .. }
-            | ExpressionKind::Call { .. } => {
+            | ExpressionKind::Call { .. }
+            | ExpressionKind::Await { .. } => {
                 return Err(Failure::Integrity);
             }
         }
