@@ -452,6 +452,11 @@ impl Query {
 }
 
 impl<'source> Context<'source> {
+    /// Returns the unit's selected target when the context came from a physical source inventory.
+    #[must_use]
+    pub fn target(&self) -> Option<nocter_model::CompilationTarget> {
+        self.module.map(ModuleSourceBinding::target)
+    }
     #[must_use]
     pub const fn primitives(&self) -> &PrimitiveBindings {
         &self.primitives

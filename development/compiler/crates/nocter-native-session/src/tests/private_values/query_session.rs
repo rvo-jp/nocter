@@ -26,6 +26,8 @@ fn copy_fixture(directory: &TempPackage) {
         "app/failure/body.nct",
         "app/deferred_failure/index.nct",
         "app/deferred_failure/body.nct",
+        "app/managed_deferred_failure/index.nct",
+        "app/managed_deferred_failure/body.nct",
         "app/later/index.nct",
         "app/later/body.nct",
         "std/index.nct",
@@ -82,7 +84,10 @@ fn standard_profile(std: PackageIdentity) -> ToolchainInput {
     ])
 }
 
-fn analyze_package(directory: &TempPackage) -> (nocter_session::AnalyzedUnit, PackageIdentity) {
+fn analyze_package(
+    directory: &TempPackage,
+    target: CompilationTarget,
+) -> (nocter_session::AnalyzedUnit, PackageIdentity) {
     let overlay = SourceOverlay::empty();
     let mut computation = CompilerComputation::new();
     let revision = computation.advance_sources(&overlay, 0).unwrap();
@@ -109,13 +114,14 @@ fn analyze_package(directory: &TempPackage) -> (nocter_session::AnalyzedUnit, Pa
         .unwrap()
     };
     let request = DiscoveryRequest::declared(
-        CompilationTarget::Arm64Darwin,
+        target,
         packages,
         vec![
             ModuleIdentity::new(app.clone(), Vec::<&str>::new()),
             ModuleIdentity::new(app.clone(), ["math"]),
             ModuleIdentity::new(app.clone(), ["failure"]),
             ModuleIdentity::new(app.clone(), ["deferred_failure"]),
+            ModuleIdentity::new(app.clone(), ["managed_deferred_failure"]),
             ModuleIdentity::new(app.clone(), ["later"]),
         ],
         standard_profile(std),
@@ -130,7 +136,7 @@ fn analyze_package(directory: &TempPackage) -> (nocter_session::AnalyzedUnit, Pa
 fn physical_query_session_unit_executes_selected_entries() {
     let directory = TempPackage::new();
     copy_fixture(&directory);
-    let (session, app) = analyze_package(&directory);
+    let (session, app) = analyze_package(&directory, CompilationTarget::Arm64Darwin);
     assert!(
         session.diagnostics().is_empty(),
         "{:#?}",
@@ -197,11 +203,41 @@ fn physical_query_session_unit_executes_selected_entries() {
             "deferred-failure",
             &b"std.mem.out_of_memory: allocation failed\n"[..],
         ),
+        (
+            "managed-deferred-failure",
+            &b"managed: after await: leaf\n"[..],
+        ),
     ] {
         let image =
             crate::compile_value_access_image(&session, &ExecutableSelector::named(name)).unwrap();
         assert_failure_report(image.image(), &directory.0, name, error);
     }
+}
+
+#[test]
+fn a_different_selected_target_cannot_use_arm64_darwin_primitive_drive_evidence() {
+    let directory = TempPackage::new();
+    copy_fixture(&directory);
+    let (session, _) = analyze_package(&directory, CompilationTarget::X64Linux);
+    let [diagnostic] = session.diagnostics() else {
+        panic!("{:#?}", session.diagnostics());
+    };
+    assert_eq!(diagnostic.code(), "E0291");
+    let span = diagnostic.primary().span();
+    assert!(matches!(
+        session
+            .unit()
+            .sources()
+            .get(span.source())
+            .unwrap()
+            .text_at(span.range()),
+        Some(
+            "process.arg_count()"
+                | "process.environment_count()"
+                | "errors.operation()"
+                | "static_error.operation()"
+        )
+    ));
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]

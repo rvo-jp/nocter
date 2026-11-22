@@ -393,12 +393,13 @@ and local recovery use the actual tag supplied by the selected body.
 Fallible output transport has a separate admission check from backing and cleanup. An owned
 outcome operation moves its active payload and retires the container on that branch. Result
 projection resolves pending supplies and preserves operations already selected by typing.
-The toolchain-bound allocation failure primitive loads the address of the ABI's permanent error
-leaf. A non-suspending body can transfer that error through `throw` and `await` to the process
-reporter. Mapped error creation and destruction have separate effect obligations.
-Trusted argument and environment counts read the immutable process-entry context, which the
-ordinary body ABI passes through a local drive. The process wrapper's failure status follows
-the closed instance's body output for immediate and deferred entries alike.
+The selected ARM64 Darwin ABI distinguishes reads of the permanent error leaf and immutable
+process-entry counts from private anonymous mappings for owned error nodes. Node creation can
+trap at its backing request. An independent cleanup certificate covers releasing only the owned
+mappings in the actual chain. That evidence permits reached error disposal during a drive.
+An error can also pass through `throw` and `await` to the process reporter. The ordinary body ABI
+passes the process context through a local drive and the process wrapper uses the closed
+instance's body output for its failure status.
 Source data IDs map once to concrete payload
 obligations or checked unproduced structural contracts in the same declaration TypeAuthority.
 The accepted Unit owns that distinction; an unproduced structural shape has no payload, cleanup or

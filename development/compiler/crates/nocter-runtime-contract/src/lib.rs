@@ -89,7 +89,7 @@ pub use import::{
 pub use primitive::{
     PrimitiveBinding, PrimitiveBindingError, PrimitiveContexts, PrimitiveExecutionFacts,
     PrimitiveProducedComputation, PrimitiveRegistry, PrimitiveRole, PrimitiveValueInput,
-    PrimitiveValueSignature,
+    PrimitiveValueSignature, ValueDriveBacking,
 };
 pub use representation::{
     RuntimeCaptureRepresentation, RuntimeFieldRepresentation, RuntimePayloadRepresentation,

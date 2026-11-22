@@ -1,6 +1,16 @@
 use super::{
     PrimitiveContexts, PrimitiveExecutionFacts, PrimitiveProducedComputation, PrimitiveRole,
 };
+use crate::RuntimeAbiIdentity;
+
+/// Physical backing used by a closed primitive whose selected ABI requires no external wait.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ValueDriveBacking {
+    /// Read data already supplied by the executable image or process entry.
+    Existing,
+    /// Request a private anonymous mapping. Allocation failure traps at the request.
+    PrivateAnonymousMapping,
+}
 
 /// Complete implementation-owned runtime contract for one primitive role.
 ///
@@ -97,17 +107,21 @@ const PREALLOCATED_FUTURE: PrimitiveRuntimeProfile =
     PrimitiveRuntimeProfile::new(PREALLOCATED_FUTURE_EXECUTION, NO_CONTEXT);
 
 impl PrimitiveRole {
-    /// A value-model invocation whose data is already supplied by the image or process entry.
-    /// The native implementations load that fixed data, so repeated calls have no external
-    /// progress dependency.
+    /// Closed value-model drive evidence for this implementation. Backing requirements are
+    /// independent of the absence of external waiting.
     #[must_use]
-    pub const fn has_value_drive_evidence(self) -> bool {
-        matches!(
-            self,
-            Self::AllocationFailureError
+    pub const fn value_drive_backing(self, abi: RuntimeAbiIdentity) -> Option<ValueDriveBacking> {
+        match abi {
+            RuntimeAbiIdentity::Arm64DarwinV1 => match self {
+                Self::AllocationFailureError
                 | Self::ProcessArgumentCount
-                | Self::ProcessEnvironmentCount
-        )
+                | Self::ProcessEnvironmentCount => Some(ValueDriveBacking::Existing),
+                Self::NewError | Self::ErrorContext => {
+                    Some(ValueDriveBacking::PrivateAnonymousMapping)
+                }
+                _ => None,
+            },
+        }
     }
 
     /// Returns compiler-owned execution evidence for this closed primitive role.

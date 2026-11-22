@@ -35,7 +35,7 @@ impl ModuleContext<'_> {
         Ok(ModuleQuery {
             program: Arc::clone(&self.program),
             exports: self.binding.exports.clone(),
-            target: self.binding.paired.inventory.surface.target(),
+            target: self.binding.target(),
             sources: source_recipes(&self.binding)?,
             dependencies: self.dependencies.clone().unwrap_or_default(),
             primitives: self.primitives.clone(),
@@ -88,7 +88,7 @@ impl ModuleQuery {
         input: &CompileUnitInput<'syntax>,
     ) -> Result<ModuleContext<'syntax>, ModuleSourcesFailure> {
         let current = ModuleSources::prepare(input)?.pair()?.reserve_names()?;
-        if current.binding.paired.inventory.surface.target() != self.target
+        if current.binding.target() != self.target
             || source_recipes(&current.binding)? != self.sources
             || !current.headers.has_same_reserved_layout(&self.program)
             || !current.primitives.has_same_selection(&self.primitives)

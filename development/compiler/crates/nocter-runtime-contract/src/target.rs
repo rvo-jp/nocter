@@ -1,4 +1,5 @@
 use crate::{ReactorInterest, ReadinessDirection};
+use nocter_model::CompilationTarget;
 
 /// One compiler-granted runtime ABI. Consumers select one schema from this identity and cannot
 /// infer target capability from source or package spellings.
@@ -139,6 +140,24 @@ pub struct RuntimeAbiSchema {
 }
 
 impl RuntimeAbiIdentity {
+    /// Runtime ABI for this selected target. Source recognition alone grants no ABI.
+    #[must_use]
+    pub const fn for_target(target: CompilationTarget) -> Option<Self> {
+        match target {
+            CompilationTarget::Arm64Darwin => Some(Self::Arm64DarwinV1),
+            _ => None,
+        }
+    }
+
+    /// Error cleanup walks the owned chain and releases only its private anonymous mappings.
+    /// It invokes no user destructor and requires no external progress protocol.
+    #[must_use]
+    pub const fn can_release_error_during_drive(self) -> bool {
+        match self {
+            Self::Arm64DarwinV1 => true,
+        }
+    }
+
     #[must_use]
     pub const fn schema(self) -> RuntimeAbiSchema {
         match self {

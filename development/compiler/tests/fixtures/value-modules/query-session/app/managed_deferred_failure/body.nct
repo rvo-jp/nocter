@@ -1,0 +1,20 @@
+use std/allocation_failure as static_error
+use std/error as errors
+use std/context as contexts
+see ./index.nct
+
+async func discard_later(): i32! {
+    throw contexts.operation(static_error.operation(), "discarded context")
+}
+
+async func fail_later(): error {
+    let unused = errors.operation("discarded", "discarded leaf")
+    drop unused
+    contexts.operation(errors.operation("managed", "leaf"), "after await")
+}
+
+async func main(): i32! {
+    let discarded = await discard_later()
+    drop discarded
+    throw await fail_later()
+}

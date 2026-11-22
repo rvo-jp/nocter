@@ -63,15 +63,12 @@ pub(crate) const fn capabilities_for(
     ),
     TargetUnavailable,
 > {
-    match target {
-        CompilationTarget::Arm64Darwin => Ok((
+    match RuntimeAbiIdentity::for_target(target) {
+        Some(abi @ RuntimeAbiIdentity::Arm64DarwinV1) => Ok((
             TargetBackendIdentity::Arm64V1,
-            RuntimeAbiIdentity::Arm64DarwinV1,
+            abi,
             ExecutableWriterIdentity::Arm64MachOV1,
         )),
-        CompilationTarget::X64Linux
-        | CompilationTarget::Arm64Linux
-        | CompilationTarget::X64Windows
-        | CompilationTarget::Arm64Windows => Err(TargetUnavailable::new(target)),
+        None => Err(TargetUnavailable::new(target)),
     }
 }

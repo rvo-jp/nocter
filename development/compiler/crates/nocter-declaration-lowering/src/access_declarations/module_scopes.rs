@@ -76,6 +76,11 @@ pub struct ModuleSourceBinding<'syntax> {
     exports: super::module_imports::ModuleExports,
     lexical: super::module_imports::LexicalScopes,
 }
+impl ModuleSourceBinding<'_> {
+    pub(super) const fn target(&self) -> nocter_model::CompilationTarget {
+        self.paired.inventory.surface.target()
+    }
+}
 #[derive(Debug)]
 enum ParsedHeader {
     Code(Header),

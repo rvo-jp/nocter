@@ -11,6 +11,7 @@ use nocter_declarations::{
     value_access::{PayloadSchema, Program},
 };
 use nocter_model::{AccessCodeId, AccessExpressionId, TypeId, ValueCodeRoot, ValueFunctionOrigin};
+use nocter_runtime_contract::RuntimeAbiIdentity;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 mod local_futures;
@@ -42,7 +43,7 @@ pub(super) fn require_local_activation(
 
 pub(super) fn qualify(
     program: &Program,
-    primitives: &PrimitiveBindings,
+    source: &Context<'_>,
     bodies: &BTreeMap<ValueCodeRoot, Arc<flow::Query>>,
     verified: &results::Verified<'_, '_>,
     futures: &LocalFutures,
@@ -59,7 +60,7 @@ pub(super) fn qualify(
         ) {
             drive(
                 program,
-                primitives,
+                source,
                 bodies,
                 verified,
                 futures,
@@ -99,7 +100,7 @@ fn modifier(context: &Context<'_>, callable: AccessCodeId) -> BodyFailure {
 
 fn drive(
     program: &Program,
-    primitives: &PrimitiveBindings,
+    source: &Context<'_>,
     bodies: &BTreeMap<ValueCodeRoot, Arc<flow::Query>>,
     verified: &results::Verified<'_, '_>,
     futures: &LocalFutures,
@@ -110,6 +111,10 @@ fn drive(
     let mut examined = BTreeSet::new();
     let mut pending = vec![(callable, body)];
     let mut known_backing = BTreeSet::new();
+    let abi = source.target().and_then(RuntimeAbiIdentity::for_target);
+    let use_ = DataUse::BackingOrCleanup {
+        error_release: abi.is_some_and(RuntimeAbiIdentity::can_release_error_during_drive),
+    };
     while let Some((owner, body)) = pending.pop() {
         if checked.contains(&owner) || !examined.insert(owner) {
             continue;
@@ -129,12 +134,7 @@ fn drive(
                     for resource in transition.steps() {
                         if let Some(data) = backing_data(resource)
                             && !futures.contains(query.code(), data)
-                            && !local_data(
-                                program,
-                                data,
-                                DataUse::BackingOrCleanup,
-                                &mut known_backing,
-                            )
+                            && !local_data(program, data, use_, &mut known_backing)
                         {
                             return Err(reject(
                                 verified,
@@ -145,10 +145,16 @@ fn drive(
                         }
                     }
                 }
-                if let Some(selection) =
-                    selected(program, primitives, futures, query, &step.operation)
-                        .transpose()
-                        .map_err(|message| reject(verified, body, location, message))?
+                if let Some(selection) = selected(
+                    program,
+                    source.primitives(),
+                    abi,
+                    futures,
+                    query,
+                    &step.operation,
+                )
+                .transpose()
+                .map_err(|message| reject(verified, body, location, message))?
                 {
                     let (single, alternatives) = match selection {
                         Selection::Immediate(id) => (Some(id), None),
@@ -187,6 +193,7 @@ enum Selection<'a> {
 fn selected<'a>(
     program: &Program,
     primitives: &PrimitiveBindings,
+    abi: Option<RuntimeAbiIdentity>,
     futures: &'a LocalFutures,
     query: &crate::value_access::Query,
     operation: &Operation,
@@ -196,7 +203,7 @@ fn selected<'a>(
             let target = immediate_body(program, query, call);
             if target
                 .and_then(|id| primitives.role(id))
-                .is_some_and(nocter_runtime_contract::PrimitiveRole::has_value_drive_evidence)
+                .is_some_and(|role| abi.is_some_and(|abi| role.value_drive_backing(abi).is_some()))
             {
                 return None;
             }
@@ -270,10 +277,18 @@ fn backing_data(step: &Step) -> Option<TypeId> {
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy)]
 enum DataUse {
     Output,
-    BackingOrCleanup,
+    BackingOrCleanup { error_release: bool },
+}
+impl DataUse {
+    const fn allows_error(self) -> bool {
+        match self {
+            Self::Output => true,
+            Self::BackingOrCleanup { error_release } => error_release,
+        }
+    }
 }
 
 fn local_data(
@@ -290,11 +305,12 @@ fn local_data(
         }
         match program.data_schema(data) {
             Some(PayloadSchema::Optional(payload)) => pending.push(payload),
-            // A fallible channel can carry an error through the ordinary body ABI. Creating or
-            // dropping that error on a reached path still needs its own effect evidence.
-            Some(PayloadSchema::Fallible(payload)) if use_ == DataUse::Output => {
+            // Transport alone needs the handle, while reached cleanup also needs release evidence.
+            Some(PayloadSchema::Fallible(payload)) if use_.allows_error() => {
                 pending.push(payload);
             }
+            Some(PayloadSchema::Builtin(nocter_model::BuiltinType::Error))
+                if use_.allows_error() => {}
             Some(PayloadSchema::Aggregate(aggregate)) => {
                 pending.extend(aggregate.components().map(|field| field.data));
             }

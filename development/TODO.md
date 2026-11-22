@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify the target-specific effect evidence for error nodes in non-suspending v2 drives. Check
-private backing and release separately and verify both explicit disposal and transfer of a managed
-error to the native process boundary.
+Qualify owned error inputs to unstarted local futures. Preserve the exact prepared owner through
+construction, moves and `await`. At cancellation, dispose only the active captured inputs in
+reverse initialization order without executing the deferred body.
 
 ## Remaining Contextual Representation Qualification
 
@@ -796,14 +796,18 @@ not a language restriction derived from the current realization boundary.
   driven child. Verify independent launch inputs through the same deferred fallible entry and
   materialize the process failure status from the exact instance output even if it contains no
   `i32` in the source.
+- [x] Qualify ARM64 Darwin's mapped error creation and release as separate selected-ABI facts.
+  Verify cleanup of an owned leaf and a discarded fallible mixed chain during local drives, then
+  deliver an owned error through `await` to the process reporter. Verify source rejection when the
+  selected target provides no corresponding backend evidence.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.
   Qualify scoped future aliases, nested annotations and represented carriers through their actual
   activation and storage evidence. Refine selector storage from body/type scope to the relevant
   activation occurrences where exact transport evidence permits it.
-  Qualify managed error creation and disposal against the real ARM64 map/unmap backing paths.
-  Keep runtime-managed backing and waiting evidence separate from the constructor signature.
+  Qualify cancellation of resource-owning take inputs with the original producer and capture
+  roles. Verify exactly the selected release, including for merged activations.
 - [ ] Integrate v2 into the ordinary compiler/CLI and editor workflow with one semantic pipeline,
   current diagnostics, formatting, presentation and revision/source reuse. Remove transitional private
   handoffs when their production replacement is qualified; retain no competing semantic authority.
