@@ -394,7 +394,9 @@ transition. An optional answer enters the ordinary outcome graph after the drive
 and local recovery use the actual tag supplied by the selected body.
 Fallible output transport has a separate admission check from backing and cleanup. An owned
 outcome operation moves its active payload and retires the container on that branch. Result
-projection resolves pending supplies and preserves operations already selected by typing.
+projection resolves pending supplies and preserves operations already selected by typing. A
+partial move obtains its physical root from the original receiving carrier while the place's
+data describes the selected payload.
 The selected ARM64 Darwin ABI distinguishes reads of the permanent error leaf and immutable
 process-entry counts from private anonymous mappings for owned error nodes. Node creation can
 trap at its backing request. An independent cleanup certificate covers releasing only the owned

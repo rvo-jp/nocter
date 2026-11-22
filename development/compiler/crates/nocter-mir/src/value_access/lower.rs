@@ -296,13 +296,8 @@ impl Builder<'_> {
         selected: RuntimeDataId,
         partial: bool,
     ) -> Result<Place, Failure> {
-        if self.receiving_root(holder)?.is_some_and(|receiving| {
-            !self
-                .runtime
-                .has_same_value_representation(selected, receiving)
-        }) {
-            return Err(self.invalid());
-        }
+        // A projection has the data of the selected field but uses the receiving carrier's root.
+        let receiving = self.receiving_root(holder)?;
         let (key, root, storage) = match holder {
             Holder::Local(local) => {
                 let item = self
@@ -335,10 +330,12 @@ impl Builder<'_> {
                     .ok_or_else(|| self.invalid())?;
                 (
                     SlotKey::Expression(expression),
-                    if partial {
-                        self.closed_data(item.data())?
-                    } else {
+                    if !partial {
                         selected
+                    } else if let Some(receiving) = receiving {
+                        receiving
+                    } else {
+                        self.closed_data(item.data())?
                     },
                     form(item.mode()),
                 )
@@ -392,6 +389,11 @@ impl Builder<'_> {
                 Storage::Payload,
             ),
         };
+        if receiving
+            .is_some_and(|expected| !self.runtime.has_same_value_representation(root, expected))
+        {
+            return Err(self.invalid());
+        }
         let slot = self.slot(key, root, storage)?;
         Ok(Place {
             slot,

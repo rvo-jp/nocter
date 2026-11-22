@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Repair the native regression in `contextual-outcome-results.nct`. Match owned outcome payload
-selection to the original receiving value and exact result context, then resume capture support
-for closed compound take inputs.
+Qualify take inputs with closed compound data in unstarted local futures. Use the exact checked
+input and storage layouts for transport and retain structural cleanup at the original cancellation.
+Retain separate obligations for context-dependent shapes and retained read/edit access.
 
 ## Remaining Contextual Representation Qualification
 
@@ -803,7 +803,7 @@ not a language restriction derived from the current realization boundary.
 - [x] Transfer an owned error into an unstarted future and through a later selected drive. Dispose
   the original inputs in reverse order on unstarted cancellation. Verify direct and joined
   cancellation, including the scalar alternative with no release and no execution of either body.
-- [ ] Restore native outcome selection across callable result/absence contexts in
+- [x] Restore native outcome selection across callable result/absence contexts in
   `contextual-outcome-results.nct`. Preserve both the owned scalar/fallible `await` paths and the
   exact same/changed payload representations when moving the active branch of an existing carrier.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
