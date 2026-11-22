@@ -83,6 +83,7 @@ impl Checker<'_, '_> {
     ) -> Result<TypeId, Failure> {
         use nocter_declaration_lowering::access_declarations::TypeSyntax;
         match ty {
+            TypeSyntax::Future { origin, .. } => self.reject(Rule::UnqualifiedFuture, *origin),
             TypeSyntax::Callable(contract) => {
                 let Some((position, ordinal)) = input else {
                     return self.reject(Rule::UnsupportedData, contract.head);
@@ -149,24 +150,15 @@ impl Checker<'_, '_> {
         &self,
         node: NodeId,
     ) -> Result<nocter_declaration_lowering::access_declarations::TypeSyntax, Failure> {
-        use nocter_declaration_lowering::access_declarations::{
-            Failure as DeclarationFailure, TypeSyntax, project_type_syntax,
-        };
-        let ty = match project_type_syntax(self.syntax(), node) {
-            Ok(ty) => ty,
-            Err(DeclarationFailure::UnqualifiedFuture(diagnostic)) => {
-                return self.reject_message(
-                    Rule::UnsupportedData,
-                    node,
-                    diagnostic.message().into(),
-                    Vec::new(),
-                );
-            }
-            Err(_) => return Err(Failure::InconsistentSyntax),
-        };
+        use nocter_declaration_lowering::access_declarations::{TypeSyntax, project_type_syntax};
+        let ty =
+            project_type_syntax(self.syntax(), node).map_err(|_| Failure::InconsistentSyntax)?;
         let mut pending = vec![(&ty, false)];
         while let Some((ty, failure)) = pending.pop() {
             match ty {
+                TypeSyntax::Future { origin, .. } => {
+                    return self.reject(Rule::UnqualifiedFuture, *origin);
+                }
                 TypeSyntax::Fallible { payload, marker } => {
                     if failure {
                         return self.reject_repeated_failure(*marker);

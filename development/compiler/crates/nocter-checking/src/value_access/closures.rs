@@ -162,6 +162,7 @@ impl Checker<'_, '_> {
             };
             super::checker::payload_requirements::data(
                 self.program(),
+                self.syntax(),
                 component,
                 SyntaxOrigin::Node(capture_node),
             )?;

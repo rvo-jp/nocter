@@ -146,6 +146,7 @@ impl Checker<'_, '_> {
             }
             super::checker::payload_requirements::data(
                 self.program(),
+                self.syntax(),
                 actual.data(),
                 nocter_syntax::SyntaxOrigin::Node(syntax),
             )?;

@@ -291,6 +291,7 @@ impl Checker<'_, '_> {
         if super::instances::completed(&plans) {
             super::checker::payload_requirements::invocation(
                 self.program(),
+                self.syntax(),
                 &contract,
                 nocter_syntax::SyntaxOrigin::Node(self.first_child(node)?),
             )?;

@@ -134,6 +134,36 @@ fn async_contracts_match_before_future_admission() {
 }
 
 #[test]
+fn represented_future_parameters_require_checked_lifecycle_even_when_unused() {
+    for (declarations, ty) in [
+        ("", "future i32"),
+        ("struct Boxed { pending: future i32 }\n", "Boxed"),
+    ] {
+        let signature = format!("func run(value: {ty}): i32");
+        let (_fixture, product) = Fixture::package(
+            &format!("see ./body.nct\n{declarations}{signature}"),
+            &format!("{declarations}{signature} {{ 42 }}"),
+        );
+        let analysis = analyze_unit_from_query(&product).unwrap();
+        assert_eq!(analysis.status(), AnalyzedUnitStatus::CompilationFailed);
+        let [diagnostic] = analysis.diagnostics() else {
+            panic!("{:?}", analysis.diagnostics())
+        };
+        assert_eq!(diagnostic.code(), "E0291");
+        let span = diagnostic.primary().span();
+        assert_eq!(
+            analysis
+                .unit()
+                .sources()
+                .get(span.source())
+                .unwrap()
+                .text_at(span.range()),
+            Some(ty)
+        );
+    }
+}
+
+#[test]
 fn checked_v2_source_is_available_without_fabricating_an_executable_target() {
     let (_fixture, product) = Fixture::query("func run(): i32 { 42 }");
     let analysis = analyze_unit_from_query(&product).unwrap();

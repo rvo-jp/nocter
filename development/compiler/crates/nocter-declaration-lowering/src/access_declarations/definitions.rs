@@ -263,6 +263,9 @@ impl Definitions<'_, '_, '_> {
                 }))
             }
             TypeSyntax::Named(path) => self.data_path(path, owner, position),
+            TypeSyntax::Future { output, .. } => Ok(self
+                .data_type(output, owner, position)?
+                .map(|output| DataReference::Future(Box::new(output)))),
             TypeSyntax::Optional { payload, layers } => Ok(self
                 .data_type(payload, owner, position)?
                 .map(|payload| DataReference::Optional {

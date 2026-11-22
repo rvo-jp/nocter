@@ -107,6 +107,77 @@ fn future_producer_modifier_rebinds_with_the_current_body_source() {
         NodeKind::AsyncModifier
     );
 }
+
+#[test]
+fn explicit_future_headers_share_deferred_result_types_without_defining_producers() {
+    use nocter_declarations::{CallableExecution, value_access::PayloadSchema};
+
+    let (sources, tree) = input(
+        "async func load(): i32! { 17 }\n\
+         func forward(take pending: future i32!): future i32! { pending^ }\n\
+         func protect(): (future i32)! { missing }",
+        ParseGoal::V2CoreUnit,
+    );
+    let query = Query::prepare(bound(&sources, &tree)).unwrap();
+    let program = query.program();
+    let identifier = |name| {
+        let Some(nocter_declarations::value_access::DeclarationId::Code(id)) =
+            program.declaration(Namespace::Value, program.symbols().get(name).unwrap())
+        else {
+            panic!("missing callable {name}");
+        };
+        id
+    };
+    let load = identifier("load");
+    let forward = identifier("forward");
+    let protect = identifier("protect");
+    let pending = program.codes().get(load).unwrap().result();
+    let output = match program.code_execution(load) {
+        Some(CallableExecution::Deferred { output }) => output,
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(
+        program.data_schema(pending),
+        Some(PayloadSchema::Future(output))
+    );
+    assert!(matches!(
+        program.data_schema(output),
+        Some(PayloadSchema::Fallible(_))
+    ));
+    assert_eq!(
+        program.code_execution(forward),
+        Some(CallableExecution::Immediate)
+    );
+    let signature = program.codes().get(forward).unwrap();
+    assert_eq!(signature.result(), pending);
+    assert_eq!(
+        program
+            .parameters()
+            .get(signature.parameters()[0])
+            .unwrap()
+            .data(),
+        pending
+    );
+    assert_eq!(program.data_copyable(pending), Some(false));
+    assert!(
+        program
+            .payload_dependencies(pending)
+            .unwrap()
+            .requires_future()
+    );
+    assert!(!program.owned_payload_supported(pending));
+    let protected = program.codes().get(protect).unwrap().result();
+    let Some(PayloadSchema::Fallible(payload)) = program.data_schema(protected) else {
+        panic!("fallible result");
+    };
+    assert_eq!(
+        program.data_schema(payload),
+        Some(PayloadSchema::Future(
+            program.data_type(BuiltinType::I32).unwrap()
+        ))
+    );
+    assert_ne!(protected, pending);
+}
 #[test]
 fn canonical_reservation_is_independent_of_source_order() {
     let (a, ta) = input(

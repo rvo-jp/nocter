@@ -17,6 +17,10 @@ pub struct CallableTypeSyntax {
 pub enum TypeSyntax {
     Named(Box<[SyntaxToken]>),
     Callable(CallableTypeSyntax),
+    Future {
+        output: Box<TypeSyntax>,
+        origin: NodeId,
+    },
     Fallible {
         payload: Box<TypeSyntax>,
         marker: SyntaxToken,
@@ -41,7 +45,11 @@ impl TypeSyntax {
                 }
                 contract.result.length_expressions(lengths);
             }
-            Self::Optional { payload, .. } | Self::Fallible { payload, .. } => {
+            Self::Optional { payload, .. }
+            | Self::Fallible { payload, .. }
+            | Self::Future {
+                output: payload, ..
+            } => {
                 payload.length_expressions(lengths);
             }
             Self::Tuple(fields) => {
@@ -64,7 +72,11 @@ impl TypeSyntax {
                 .flat_map(|(_, ty)| ty.tokens())
                 .chain(contract.result.tokens())
                 .collect(),
-            Self::Optional { payload, .. } | Self::Fallible { payload, .. } => payload.tokens(),
+            Self::Optional { payload, .. }
+            | Self::Fallible { payload, .. }
+            | Self::Future {
+                output: payload, ..
+            } => payload.tokens(),
             Self::Tuple(fields) => fields.iter().flat_map(Self::tokens).collect(),
             Self::Array { element, .. } => element.tokens(),
         }
@@ -98,7 +110,14 @@ pub fn project_type_syntax(syntax: BoundSyntax<'_>, ty: NodeId) -> Result<TypeSy
             TypeSyntax::Named(path)
         }
         NodeKind::CallableType => TypeSyntax::Callable(callable(syntax, shape)?),
-        NodeKind::FutureType => return Err(super::diagnostics::unqualified_future(syntax, shape)),
+        NodeKind::FutureType => TypeSyntax::Future {
+            output: Box::new(project_type_syntax(
+                syntax,
+                direct_node(syntax.tree(), shape, NodeKind::Type)
+                    .ok_or(Failure::InconsistentSyntax)?,
+            )?),
+            origin: shape,
+        },
         NodeKind::GroupedType => project_type_syntax(
             syntax,
             direct_node(syntax.tree(), shape, NodeKind::Type).ok_or(Failure::InconsistentSyntax)?,

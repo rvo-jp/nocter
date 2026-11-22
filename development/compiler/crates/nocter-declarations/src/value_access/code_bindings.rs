@@ -408,7 +408,7 @@ impl Program {
         let dependencies = self
             .payload_dependencies(data)
             .ok_or(CodeBindingError::InvalidWitness)?;
-        if dependencies.has_pending_producers() {
+        if dependencies.has_pending_producers() || dependencies.requires_future() {
             return Err(CodeBindingError::InvalidWitness);
         }
         let mut contracts = BTreeMap::<ValueParameter, FunctionConstraint>::new();

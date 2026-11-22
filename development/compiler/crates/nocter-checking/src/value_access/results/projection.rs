@@ -158,12 +158,13 @@ fn resolved_descriptor(query: &Query, data: nocter_model::TypeId) -> bool {
         .program()
         .payload_dependencies(data)
         .is_some_and(|dependencies| {
-            dependencies.producers().iter().all(|witness| {
-                query
-                    .result_evidence
-                    .as_ref()
-                    .is_some_and(|evidence| evidence.excludes_callable_origin(witness.origin))
-            })
+            !dependencies.requires_future()
+                && dependencies.producers().iter().all(|witness| {
+                    query
+                        .result_evidence
+                        .as_ref()
+                        .is_some_and(|evidence| evidence.excludes_callable_origin(witness.origin))
+                })
         })
 }
 

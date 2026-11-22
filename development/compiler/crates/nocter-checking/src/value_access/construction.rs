@@ -174,6 +174,12 @@ impl Checker<'_, '_> {
         if !self.context.complete_record_visible(nominal) {
             return self.reject(Rule::InaccessibleRepresentation, name);
         }
+        super::checker::payload_requirements::data(
+            self.program(),
+            self.syntax(),
+            data,
+            nocter_syntax::SyntaxOrigin::Token(name),
+        )?;
         let count = record.len();
         let initializer = self.direct(node, NodeKind::StructInitializer)?;
         let mut seen = BTreeSet::new();

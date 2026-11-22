@@ -58,7 +58,25 @@ fn immediate_body_cannot_await_or_construct_an_unqualified_future_value() {
     reject("func run(): i32 { await 42 }", Rule::AwaitOutsideAsync);
     reject(
         "func run(): i32 { let pending: future i32 = 42\n42 }",
-        Rule::UnsupportedData,
+        Rule::UnqualifiedFuture,
+    );
+}
+
+#[test]
+fn future_result_in_a_callable_contract_requires_evidence_at_invocation() {
+    queries("func retain(action: func(): future i32): void {}").unwrap();
+    reject(
+        "func invoke(action: func(): future i32): void { let pending = action() }",
+        Rule::UnqualifiedFuture,
+    );
+}
+
+#[test]
+fn future_in_local_record_representation_is_not_admitted_by_absence() {
+    reject(
+        "struct Wrapper { pending: (future i32)? }\n\
+         func run(): void { let value = Wrapper { pending: none } }",
+        Rule::UnqualifiedFuture,
     );
 }
 #[test]

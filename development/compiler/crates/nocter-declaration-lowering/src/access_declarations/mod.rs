@@ -51,7 +51,6 @@ pub enum Failure {
     WrongParseGoal,
     Syntax(Box<[SourceDiagnostic]>),
     Headers(Vec<HeaderDiagnostic>),
-    UnqualifiedFuture(Box<SourceDiagnostic>),
     Primitive(Box<PrimitiveDiagnostic>),
     SourceRole(Box<SourceRoleDiagnostic>),
     Visibility(Box<VisibilityDiagnostic>),

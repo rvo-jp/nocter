@@ -18,10 +18,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Normalize explicit v2 `future T` annotations through the same type authority as deferred call
-results. Keep a future descriptor separate from an admitted body value and its concrete producer.
-Then close future construction, await and cancellation through the checked value model before
-reusing the target's deferred execution path.
+Type-check deferred body output against the authored result and retain the declaration's execution
+mode. Keep ordinary closure and required-expression bodies outside the async scope. Close future
+construction, await and cancellation through the checked value model before reusing the target's
+deferred execution path.
 
 ## Remaining Contextual Representation Qualification
 
@@ -740,6 +740,10 @@ not a language restriction derived from the current realization boundary.
 - [x] Intern one move-only future descriptor around the typed body output of a deferred callable.
   Preserve immediate-versus-deferred execution independently of a shared result type, distinct
   producers for equal output types, nested future layers and exact current modifier diagnostics.
+- [x] Normalize explicit `future T` header annotations through the same declaration type authority.
+  Require lifecycle evidence before supplying a represented future to bodies, calls or local
+  storage, including through nominal and structural fields. Metadata-only callable contracts do
+  not supply any future until invoked.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.

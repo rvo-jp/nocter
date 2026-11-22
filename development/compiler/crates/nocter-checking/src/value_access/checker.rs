@@ -90,8 +90,8 @@ pub(super) fn prepare(
             Vec::new(),
         ));
     }
-    payload_requirements::body(context.program(), declaration, source)?;
     let syntax = context.syntax();
+    payload_requirements::body(context.program(), syntax, declaration, source)?;
     let body_root = source.body().ok_or(Failure::InconsistentSyntax)?;
     let projection = BodySyntaxProjection::for_root(syntax.tree(), body_root)
         .ok_or(Failure::InconsistentSyntax)?;

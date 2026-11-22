@@ -69,7 +69,9 @@ impl Checker<'_, '_> {
                     .map(|field| self.callable_data_pattern(field, metadata_only))
                     .collect::<Result<_, _>>()?,
             ),
-            TypeSyntax::Named(_) => unreachable!("ordinary data has no callable pattern"),
+            TypeSyntax::Named(_) | TypeSyntax::Future { .. } => {
+                unreachable!("a callable pattern must carry a represented callable")
+            }
         })
     }
 }
@@ -84,7 +86,7 @@ fn contains_callable(ty: &TypeSyntax) -> bool {
             }
             TypeSyntax::Array { element, .. } => pending.push(element),
             TypeSyntax::Tuple(fields) => pending.extend(fields),
-            TypeSyntax::Named(_) => {}
+            TypeSyntax::Named(_) | TypeSyntax::Future { .. } => {}
         }
     }
     false

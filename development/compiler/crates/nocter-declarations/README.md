@@ -180,9 +180,13 @@ and callable-result descriptors; ordinary source admission remains a separate ch
 static function-witness publication through `is_callable`; source authorization and exact
 primitive binding remain declaration-lowering obligations, independently of witness shape.
 An async declaration retains deferred execution in `CodeKind`. Publication interns its invocation
-result as `future T` around the authored body output `T`. The same type can be the result of an
-immediate callable. It is always a move-only data descriptor. Each producer retains its own code
-identity, and a future descriptor requires a separate concrete producer before payload closure.
+result as `future T` around the authored body output `T`. An explicit `future T` annotation in a
+header resolves through the same type authority and can describe an immediate callable's result.
+It is always a move-only data descriptor. Each producer retains its own code identity. Payload
+dependency inspection marks represented futures, including within records and structural data,
+without treating the deferred output as an initialized component. The
+[checking boundary](../nocter-checking/README.md) requires future lifecycle evidence before a
+body or invocation can carry those values.
 Construction-time
 `ValueDefinition` slots share data or callable normalization. `DataReference` composes named
 leaves into minimum-two-component tuple trees, compact runs of optional layers, fallible carriers

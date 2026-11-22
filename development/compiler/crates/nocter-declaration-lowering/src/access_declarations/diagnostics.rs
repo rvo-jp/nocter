@@ -4,22 +4,7 @@ use crate::{
     CompileUnitInput, ImportDiagnostic, LoweringError, SurfaceDiagnostic, SurfaceError,
     ToolchainError, TopologyDiagnostic,
 };
-use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic};
-use nocter_source_index::SourceOrigin;
-use nocter_syntax::{BoundSyntax, NodeId};
-
-pub(super) fn unqualified_future(syntax: BoundSyntax<'_>, node: NodeId) -> Failure {
-    let Ok(origin) = SourceOrigin::from_node(syntax.tree(), node) else {
-        return Failure::InconsistentSyntax;
-    };
-    Failure::UnqualifiedFuture(Box::new(SourceDiagnostic::new(
-        DiagnosticCode::E0291,
-        "future values are outside the current v2 compiler fragment",
-        origin,
-        [],
-        None::<&str>,
-    )))
-}
+use nocter_diagnostics::SourceDiagnostic;
 
 impl Failure {
     /// Common diagnostics already selected by declaration checking. Empty means no public
@@ -32,7 +17,6 @@ impl Failure {
                 .iter()
                 .map(super::HeaderDiagnostic::source)
                 .collect(),
-            Self::UnqualifiedFuture(diagnostic) => vec![diagnostic],
             Self::Primitive(diagnostic) => vec![diagnostic.source()],
             Self::SourceRole(diagnostic) => vec![diagnostic.source()],
             Self::Visibility(diagnostic) => vec![diagnostic.source()],

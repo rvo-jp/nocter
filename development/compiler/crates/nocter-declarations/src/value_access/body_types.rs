@@ -33,8 +33,14 @@ pub struct PayloadDependencies {
     parameters: std::collections::BTreeSet<super::FunctionWitness>,
     producers: std::collections::BTreeSet<super::FunctionWitness>,
     contracts: std::collections::BTreeSet<super::FunctionWitness>,
+    requires_future: bool,
 }
 impl PayloadDependencies {
+    /// This shape needs concrete future lifecycle evidence at its value boundary.
+    #[must_use]
+    pub const fn requires_future(&self) -> bool {
+        self.requires_future
+    }
     /// Keep each frozen view: one formal can appear at more than one invocation view.
     #[must_use]
     pub const fn parameters(&self) -> &std::collections::BTreeSet<super::FunctionWitness> {
@@ -56,7 +62,7 @@ impl PayloadDependencies {
     }
     #[must_use]
     pub fn readiness(&self) -> PayloadReadiness {
-        if !self.parameters.is_empty() || !self.contracts.is_empty() {
+        if self.requires_future || !self.parameters.is_empty() || !self.contracts.is_empty() {
             PayloadReadiness::Unsupported
         } else if self.has_pending_producers() {
             PayloadReadiness::Pending
@@ -249,7 +255,10 @@ impl BodyTypes {
         let ordinary = |data| ordinary_data(&self.program, data);
         if id.owner != self.owner
             || self.program.closures.contains_key(&id)
-            || self.program.payload_dependencies(environment).is_none()
+            || self
+                .program
+                .payload_dependencies(environment)
+                .is_none_or(|dependencies| dependencies.requires_future())
             || !(ordinary(contract.result)
                 || matches!(
                     self.program.data_schema(contract.result),
@@ -341,6 +350,7 @@ impl Program {
             parameters: std::collections::BTreeSet::new(),
             producers: std::collections::BTreeSet::new(),
             contracts: std::collections::BTreeSet::new(),
+            requires_future: false,
         };
         while let Some(data) = pending.pop() {
             if !seen.insert(data) {
@@ -348,7 +358,7 @@ impl Program {
             }
             match self.data_schema(data)? {
                 PayloadSchema::Builtin(_) => {}
-                PayloadSchema::Future(_) => return None,
+                PayloadSchema::Future(_) => dependencies.requires_future = true,
                 PayloadSchema::Aggregate(schema) => {
                     pending.extend(schema.components().map(|component| component.data));
                 }

@@ -420,6 +420,7 @@ impl Checker<'_, '_> {
             .result();
         super::checker::payload_requirements::data(
             self.program(),
+            self.syntax(),
             data,
             nocter_syntax::SyntaxOrigin::Token(token),
         )?;

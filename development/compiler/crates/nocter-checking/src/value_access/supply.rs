@@ -59,6 +59,7 @@ impl super::checker::Checker<'_, '_> {
         }
         super::checker::payload_requirements::data(
             self.program(),
+            self.syntax(),
             actual.data(),
             SyntaxOrigin::Node(node),
         )?;
