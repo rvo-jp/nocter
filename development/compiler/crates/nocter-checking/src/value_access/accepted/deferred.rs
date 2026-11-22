@@ -34,7 +34,7 @@ pub(super) fn require_local_activation(
                 && flow::resources::is_scalar_future_input(program, parameter.data())
         })
     });
-    if !own_scalar_inputs || !local_backing(program, output, &mut BTreeSet::new()) {
+    if !own_scalar_inputs || !local_data(program, output, DataUse::Output, &mut BTreeSet::new()) {
         return Err(body_failure(callable, modifier(context, callable)));
     }
     Ok(())
@@ -99,7 +99,7 @@ fn drive(
     let callable = body.typed().source_owner();
     let mut examined = BTreeSet::new();
     let mut pending = vec![(callable, body)];
-    let mut local_data = BTreeSet::new();
+    let mut known_backing = BTreeSet::new();
     while let Some((owner, body)) = pending.pop() {
         if checked.contains(&owner) || !examined.insert(owner) {
             continue;
@@ -119,7 +119,12 @@ fn drive(
                     for resource in transition.steps() {
                         if let Some(data) = backing_data(resource)
                             && !futures.contains(query.code(), data)
-                            && !local_backing(program, data, &mut local_data)
+                            && !local_data(
+                                program,
+                                data,
+                                DataUse::BackingOrCleanup,
+                                &mut known_backing,
+                            )
                         {
                             return Err(reject(
                                 verified,
@@ -244,7 +249,18 @@ fn backing_data(step: &Step) -> Option<TypeId> {
     }
 }
 
-fn local_backing(program: &Program, data: TypeId, known: &mut BTreeSet<TypeId>) -> bool {
+#[derive(Clone, Copy, PartialEq)]
+enum DataUse {
+    Output,
+    BackingOrCleanup,
+}
+
+fn local_data(
+    program: &Program,
+    data: TypeId,
+    use_: DataUse,
+    known: &mut BTreeSet<TypeId>,
+) -> bool {
     let mut pending = vec![data];
     let mut found = BTreeSet::new();
     while let Some(data) = pending.pop() {
@@ -253,6 +269,11 @@ fn local_backing(program: &Program, data: TypeId, known: &mut BTreeSet<TypeId>) 
         }
         match program.data_schema(data) {
             Some(PayloadSchema::Optional(payload)) => pending.push(payload),
+            // A fallible channel can carry an error through the ordinary body ABI. Creating or
+            // dropping that error on a reached path still needs its own effect evidence.
+            Some(PayloadSchema::Fallible(payload)) if use_ == DataUse::Output => {
+                pending.push(payload);
+            }
             Some(PayloadSchema::Aggregate(aggregate)) => {
                 pending.extend(aggregate.components().map(|field| field.data));
             }

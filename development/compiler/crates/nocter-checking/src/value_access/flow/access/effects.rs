@@ -452,7 +452,11 @@ impl Context<'_, '_> {
             | ExpressionKind::Block { .. }
             | ExpressionKind::If { .. }
             | ExpressionKind::Call { .. }
-            | ExpressionKind::Await { .. } => Err(Failure::Integrity),
+            | ExpressionKind::Await { .. }
+            | ExpressionKind::Select {
+                action: SelectionAction::PendingPayload,
+                ..
+            } => Err(Failure::Integrity),
         }
     }
     fn prepare(&mut self, call: AccessExpressionId, index: usize) -> Result<()> {

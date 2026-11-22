@@ -390,6 +390,9 @@ closure. MIR dispatches on the retained selector when needed and supplies the se
 inputs through the ordinary body ABI. The selected body's answer enters the checked normal-result
 transition. An optional answer enters the ordinary outcome graph after the drive, so propagation
 and local recovery use the actual tag supplied by the selected body.
+Fallible output transport has a separate admission check from backing and cleanup. An owned
+outcome operation moves its active payload and retires the container on that branch. Result
+projection resolves pending supplies and preserves operations already selected by typing.
 Source data IDs map once to concrete payload
 obligations or checked unproduced structural contracts in the same declaration TypeAuthority.
 The accepted Unit owns that distinction; an unproduced structural shape has no payload, cleanup or

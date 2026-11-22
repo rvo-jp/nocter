@@ -138,11 +138,10 @@ fn validate_payload(
             "selecting this element from a temporary array requires Copy element data",
         ));
     }
-    if let ExpressionKind::Select { action, .. } = &mut expression.kind
-        && matches!(
-            action,
-            SelectionAction::CopyPayload | SelectionAction::MovePayload
-        )
+    if let ExpressionKind::Select {
+        action: action @ SelectionAction::PendingPayload,
+        ..
+    } = &mut expression.kind
     {
         *action = if query.program().data_copyable(access.data()) == Some(true) {
             SelectionAction::CopyPayload

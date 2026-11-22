@@ -958,7 +958,7 @@ impl Builder<'_, '_> {
                 destination: plan::Place::root(destination),
                 source,
             },
-            SelectionAction::MovePayload => return Err(INVALID),
+            SelectionAction::MovePayload | SelectionAction::PendingPayload => return Err(INVALID),
         })
     }
 

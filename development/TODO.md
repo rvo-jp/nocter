@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify authored fallible outputs on non-suspending drives. Separate passive output
-representation and transfer from the effect evidence required for actual error creation,
-cleanup and disposal.
+Qualify a real failed outcome through a non-suspending drive. Begin with the exact
+toolchain-bound static allocation failure error and its address-loading backend. Verify ownership
+transfer through `throw`, `await`, propagation and the native process reporter.
 
 ## Remaining Contextual Representation Qualification
 
@@ -787,6 +787,9 @@ not a language restriction derived from the current realization boundary.
   position. Verify unstarted mixed-layout cancellation and condition effects in native code.
 - [x] Propagate and recover a native optional output after `await`. Exercise both presence and
   absence through the same selected async body with different captured inputs.
+- [x] Transport a fallible output through native `await` and the fallible process entry.
+  Retain the source-selected move of the active owned payload through result projection.
+  Verify the success path and source diagnostics for cleanup without effect evidence.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.

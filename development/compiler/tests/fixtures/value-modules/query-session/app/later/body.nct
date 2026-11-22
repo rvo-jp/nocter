@@ -106,7 +106,10 @@ async func snapshot(): i32 {
     let moved = pending^
     let additional = 3
     let result = await moved^
-    result + await sum_later(additional^, 2) + choices - 6
+    if await sum_later(additional^, 2) != 5 || choices != 1 {
+        return 0
+    }
+    result
 }
 
 async func optional_later(take probe: i32): i32? {
@@ -124,9 +127,25 @@ async func optional_demo(): i32 {
     present + absent
 }
 
-async func main(): i32 {
+async func fallible_later(take value: i32): i32! {
+    value
+}
+
+async func add_through_fallible_await(take probe: i32): i32! {
+    let value = await fallible_later(probe)?
+    value + 2
+}
+
+async func main(): i32! {
     var count = 0
     cancel(count, true)
     cancel(count, false)
-    count + await relay() + await choose_value() + await snapshot() + await optional_demo() - 103
+    if count != 2 { return 2 }
+    if await relay() != 26 { return 3 }
+    if await choose_value() != 14 { return 4 }
+    if await snapshot() != 42 { return 5 }
+    if await optional_demo() != 47 { return 6 }
+    let success = await add_through_fallible_await(40)?
+    if success != 42 { return 7 }
+    28
 }

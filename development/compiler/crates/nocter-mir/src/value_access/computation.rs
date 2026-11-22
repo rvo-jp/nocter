@@ -234,7 +234,13 @@ impl Builder<'_> {
             | ExpressionKind::Block { .. }
             | ExpressionKind::If { .. }
             | ExpressionKind::Call { .. }
-            | ExpressionKind::Await { .. } => return Err(self.invalid()),
+            | ExpressionKind::Await { .. }
+            | ExpressionKind::Select {
+                action: SelectionAction::PendingPayload,
+                ..
+            } => {
+                return Err(self.invalid());
+            }
         };
         Ok(vec![operation])
     }

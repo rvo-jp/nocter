@@ -1,2 +1,2 @@
 see ./body.nct
-async func main(): i32
+async func main(): i32!

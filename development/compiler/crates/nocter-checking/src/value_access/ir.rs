@@ -115,6 +115,8 @@ pub enum SelectionAction {
     Access,
     CopyPayload,
     MovePayload,
+    /// Resolve the remaining temporary-field supply after its result data is established.
+    PendingPayload,
 }
 
 /// One existing logical referent. Evaluated accesses retain a selected address, not a recipe to

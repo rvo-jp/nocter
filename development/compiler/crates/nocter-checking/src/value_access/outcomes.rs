@@ -203,11 +203,9 @@ impl Checker<'_, '_> {
             ExpressionKind::Select {
                 source,
                 fields: FieldPath::new([ValueField::Variant(primary)]),
-                action: if self.copyable(payload) {
-                    SelectionAction::CopyPayload
-                } else {
-                    SelectionAction::MovePayload
-                },
+                // The outcome operation already owns this carrier. Taking its active payload
+                // leaves only the container to retire on the selected branch.
+                action: SelectionAction::MovePayload,
             },
         )
     }

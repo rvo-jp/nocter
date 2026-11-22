@@ -75,14 +75,12 @@ fn standard_profile(std: PackageIdentity) -> ToolchainInput {
     ])
 }
 
-#[test]
-fn physical_query_session_unit_executes_selected_entries() {
-    let directory = TempPackage::new();
-    copy_fixture(&directory);
+fn analyze_package(directory: &TempPackage) -> (nocter_session::AnalyzedUnit, PackageIdentity) {
     let overlay = SourceOverlay::empty();
     let mut computation = CompilerComputation::new();
     let revision = computation.advance_sources(&overlay, 0).unwrap();
     let identity = |name: &str| PackageIdentity::new(format!("workspace:{name}"));
+    let app = identity("app");
     let std = identity("std");
     let package = |name| {
         ResolvedPackageSpec::new(
@@ -107,22 +105,34 @@ fn physical_query_session_unit_executes_selected_entries() {
         CompilationTarget::Arm64Darwin,
         packages,
         vec![
-            ModuleIdentity::new(identity("app"), Vec::<&str>::new()),
-            ModuleIdentity::new(identity("app"), ["math"]),
-            ModuleIdentity::new(identity("app"), ["failure"]),
-            ModuleIdentity::new(identity("app"), ["later"]),
+            ModuleIdentity::new(app.clone(), Vec::<&str>::new()),
+            ModuleIdentity::new(app.clone(), ["math"]),
+            ModuleIdentity::new(app.clone(), ["failure"]),
+            ModuleIdentity::new(app.clone(), ["later"]),
         ],
         standard_profile(std),
     );
     let source = computation.discover(&revision, request).unwrap();
     let product = computation.analyze(&source).unwrap();
     let session = nocter_session::analyze_unit_from_query(&product).unwrap();
-    assert!(session.diagnostics().is_empty());
+    (session, app)
+}
+
+#[test]
+fn physical_query_session_unit_executes_selected_entries() {
+    let directory = TempPackage::new();
+    copy_fixture(&directory);
+    let (session, app) = analyze_package(&directory);
+    assert!(
+        session.diagnostics().is_empty(),
+        "{:#?}",
+        session.diagnostics()
+    );
     let Some(ValueAccessAnalysis::Accepted(accepted)) = session.value_access_analysis() else {
         panic!("checked v2 session")
     };
     let program = accepted.headers().program();
-    let module = ModuleIdentity::new(identity("app"), Vec::<&str>::new());
+    let module = ModuleIdentity::new(app.clone(), Vec::<&str>::new());
     let exported = |name| {
         accepted.headers().lookup_export(
             &module,
@@ -156,11 +166,11 @@ fn physical_query_session_unit_executes_selected_entries() {
         assert_eq!(declaration.name(), name);
         assert_eq!(
             declaration.module(),
-            &ModuleIdentity::new(identity("app"), path.iter().copied())
+            &ModuleIdentity::new(app.clone(), path.iter().copied())
         );
         let image = crate::compile_value_access_image(&session, &selector).unwrap();
         assert_eq!(image.identity().name(), name);
-        assert_eq!(image.identity().package(), &identity("app"));
+        assert_eq!(image.identity().package(), &app);
         if name == "math" {
             assert_process_context(image.image(), &directory.0, status);
         } else {

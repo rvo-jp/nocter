@@ -74,6 +74,30 @@ fn only_the_checked_local_future_view_elides_storage() {
 }
 
 #[test]
+fn a_fallible_drive_output_does_not_certify_error_cleanup() {
+    let (sources, tree) = input(
+        "async func child(): i32! { 42 }\n\
+         async func root(): i32 { let answer = await child()\ndrop answer\n1 }",
+    );
+    let Err(SourceFailure::Checking(Failure::Body {
+        failure: BodyFailure::Rejected(diagnostic),
+        ..
+    })) = SourceUnit::prepare(bound(&sources, &tree))
+    else {
+        panic!("expected a source diagnostic for the unqualified cleanup");
+    };
+    assert_eq!(
+        diagnostic.rule(),
+        crate::value_access::Rule::UnqualifiedFuture
+    );
+    let span = diagnostic.source().primary().span();
+    assert_eq!(
+        sources.get(span.source()).unwrap().text_at(span.range()),
+        Some("drop answer")
+    );
+}
+
+#[test]
 fn deferred_drive_diagnoses_a_formal_invocation_without_effect_evidence() {
     let (sources, tree) = input(
         "func answer(): i32 { 42 }\n\

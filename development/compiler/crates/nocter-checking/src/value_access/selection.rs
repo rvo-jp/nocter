@@ -300,7 +300,11 @@ impl Checker<'_, '_> {
             }
             return self.constant_value(node, data, &value);
         }
-        let action = if self.copyable(data) {
+        let action = if self.program().payload_readiness(data)
+            == nocter_declarations::value_access::PayloadReadiness::Pending
+        {
+            SelectionAction::PendingPayload
+        } else if self.copyable(data) {
             SelectionAction::CopyPayload
         } else {
             SelectionAction::MovePayload
