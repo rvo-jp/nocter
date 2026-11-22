@@ -20,7 +20,7 @@ pub(super) fn metadata(
     let program = unit.program();
     let mut roots = BTreeSet::new();
     for source in requirements::data(body, control)? {
-        if unit.elides_future_data(body.typed().code(), source)
+        if unit.local_future_data(body.typed().code(), source)
             || unit
                 .data_evidence(source)
                 .map_err(|_| Failure::InvalidAcceptedUnit)?
@@ -32,6 +32,16 @@ pub(super) fn metadata(
         if let Ok(key) = program.instantiate_closed_data(source) {
             roots.insert(key);
         }
+    }
+    if unit.has_future_tags(body.typed().code()) {
+        let tag = program
+            .data_type(super::Drive::SELECTOR_TYPE)
+            .ok_or(Failure::InvalidAcceptedUnit)?;
+        roots.insert(
+            program
+                .instantiate_closed_data(tag)
+                .map_err(|_| Failure::InvalidAcceptedUnit)?,
+        );
     }
     Ok(roots)
 }

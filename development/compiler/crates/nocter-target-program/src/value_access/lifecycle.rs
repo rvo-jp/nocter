@@ -4,7 +4,7 @@ mod payloads;
 use super::{Environment, EnvironmentExit, Instance, InstanceProgram, Payload};
 use nocter_checking::value_access::flow::{
     Location, Operation,
-    resources::{Condition, Step as ResourceStep},
+    resources::{Condition, Holder, Step as ResourceStep},
 };
 use nocter_model::AccessInstanceId;
 use std::{
@@ -24,6 +24,11 @@ pub enum EnvironmentPart {
 pub enum Step {
     Resource(Resource),
     ScopedReplacement(ScopedReplacement),
+    /// Move the stored selector of a checked empty activation between whole local carriers.
+    MoveFutureTag {
+        source: Holder,
+        destination: Holder,
+    },
     /// End the adapter-owned carrier and dispose its selected payload exactly once.
     /// Normal return only, after the callee protects its answer and before caller receipt.
     DisposeEnvironment {
@@ -63,7 +68,7 @@ impl Step {
         match self {
             Self::Resource(step) => Some(step.operation()),
             Self::ScopedReplacement(replacement) => Some(replacement.operation()),
-            Self::DisposeEnvironment { .. } => None,
+            Self::MoveFutureTag { .. } | Self::DisposeEnvironment { .. } => None,
         }
     }
 }
@@ -259,6 +264,7 @@ impl Program {
                                 keys.insert(payload.instance().clone());
                                 None
                             }
+                            Step::MoveFutureTag { .. } => None,
                         };
                         if let Some(resource) = resource {
                             let result = resource.try_map_payloads::<std::convert::Infallible, _>(

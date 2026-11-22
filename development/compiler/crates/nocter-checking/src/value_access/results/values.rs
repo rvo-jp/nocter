@@ -80,7 +80,7 @@ pub(in crate::value_access) fn values(
     evidence: &Evidence,
     body: Option<&flow::Query>,
     frame: &CodeInstanceKey,
-    elisions: Option<&BTreeSet<TypeId>>,
+    local_futures: Option<&BTreeSet<TypeId>>,
     work: &mut WorkBudget,
 ) -> Result<ValueData, Failure> {
     let body = body
@@ -100,13 +100,13 @@ pub(in crate::value_access) fn values(
     };
     let mut resolution =
         super::instantiation::Query::with_control(program, evidence, work, &control);
-    let elided = |data| elisions.is_some_and(|set| set.contains(&data));
+    let handles_future = |data| local_futures.is_some_and(|set| set.contains(&data));
     for ((at, expression), source) in sources.operands() {
         if !control.reachable(at.point) {
             continue;
         }
         if let Some(data) = expression_data(body, expression)?
-            && !elided(data)
+            && !handles_future(data)
             && let Some(payload) =
                 payload(program, evidence, frame, at, source, data, &mut resolution)?
         {
@@ -126,7 +126,7 @@ pub(in crate::value_access) fn values(
         }
         let data = slot.data(body.typed()).map_err(|_| INVALID)?;
         if let Some(data) = data
-            && !elided(data)
+            && !handles_future(data)
             && let Some(payload) =
                 payload(program, evidence, frame, at, source, data, &mut resolution)?
         {
@@ -139,7 +139,7 @@ pub(in crate::value_access) fn values(
             continue;
         }
         let data = root_type(body.typed(), referent).ok_or(INVALID)?;
-        if elided(data) || evidence.unproduced(program, data) {
+        if handles_future(data) || evidence.unproduced(program, data) {
             continue;
         }
         let key = root_data(

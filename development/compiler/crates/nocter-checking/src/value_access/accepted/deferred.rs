@@ -13,8 +13,8 @@ use nocter_declarations::{
 use nocter_model::{AccessCodeId, AccessExpressionId, TypeId, ValueCodeRoot, ValueFunctionOrigin};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
-mod elision;
-pub(super) use elision::Elisions;
+mod local_futures;
+pub(super) use local_futures::LocalFutures;
 
 pub(super) fn require_local_activation(
     context: &Context<'_>,
@@ -40,7 +40,7 @@ pub(super) fn qualify(
     program: &Program,
     bodies: &BTreeMap<ValueCodeRoot, Arc<flow::Query>>,
     verified: &results::Verified<'_, '_>,
-    elisions: &Elisions,
+    futures: &LocalFutures,
 ) -> Result<BTreeSet<AccessCodeId>, Failure> {
     let mut drives = BTreeSet::new();
     let mut checked = BTreeSet::new();
@@ -52,7 +52,7 @@ pub(super) fn qualify(
             program.code_execution(callable),
             Some(CallableExecution::Deferred { .. })
         ) {
-            drive(program, bodies, verified, elisions, body, &mut checked)?;
+            drive(program, bodies, verified, futures, body, &mut checked)?;
             drives.insert(callable);
         }
     }
@@ -88,7 +88,7 @@ fn drive(
     program: &Program,
     bodies: &BTreeMap<ValueCodeRoot, Arc<flow::Query>>,
     verified: &results::Verified<'_, '_>,
-    elisions: &Elisions,
+    futures: &LocalFutures,
     body: &flow::Query,
     checked: &mut BTreeSet<AccessCodeId>,
 ) -> Result<(), Failure> {
@@ -114,7 +114,7 @@ fn drive(
                 for transition in transitions {
                     for resource in transition.steps() {
                         if let Some(data) = backing_data(resource)
-                            && !elisions.contains(query.code(), data)
+                            && !futures.contains(query.code(), data)
                             && !local_backing(program, data, &mut local_data)
                         {
                             return Err(reject(
@@ -126,19 +126,28 @@ fn drive(
                         }
                     }
                 }
-                if let Some(id) = selected(program, elisions, query, &step.operation)
+                if let Some(selection) = selected(program, futures, query, &step.operation)
                     .transpose()
                     .map_err(|message| reject(verified, body, location, message))?
                 {
-                    let target = bodies.get(&id.into()).ok_or_else(|| {
-                        reject(
-                            verified,
-                            body,
-                            location,
-                            "the selected operation has no checked body for non-waiting drive",
-                        )
-                    })?;
-                    pending.push((id, target.as_ref()));
+                    let (single, alternatives) = match selection {
+                        Selection::Immediate(id) => (Some(id), None),
+                        Selection::Deferred(producers) => (None, Some(producers)),
+                    };
+                    for id in single
+                        .into_iter()
+                        .chain(alternatives.into_iter().flatten().copied())
+                    {
+                        let target = bodies.get(&id.into()).ok_or_else(|| {
+                            reject(
+                                verified,
+                                body,
+                                location,
+                                "the selected operation has no checked body for non-waiting drive",
+                            )
+                        })?;
+                        pending.push((id, target.as_ref()));
+                    }
                 }
             }
         }
@@ -150,20 +159,27 @@ fn drive(
 }
 
 // A future operation must opt in after its suspension, activation and effects are qualified.
-fn selected(
+enum Selection<'a> {
+    Immediate(AccessCodeId),
+    Deferred(&'a BTreeSet<AccessCodeId>),
+}
+
+fn selected<'a>(
     program: &Program,
-    elisions: &Elisions,
+    futures: &'a LocalFutures,
     query: &crate::value_access::Query,
     operation: &Operation,
-) -> Option<Result<AccessCodeId, &'static str>> {
+) -> Option<Result<Selection<'a>, &'static str>> {
     match *operation {
         Operation::CommitCall(call) => Some(
             immediate_body(program, query, call)
+                .map(Selection::Immediate)
                 .ok_or("the selected invocation has no verified non-waiting drive evidence"),
         ),
         Operation::DriveFuture { result, .. } => Some(
-            elisions
-                .producer(query.code(), result)
+            futures
+                .producers(query.code(), result)
+                .map(Selection::Deferred)
                 .ok_or("await requires qualified future driving and cancellation"),
         ),
         Operation::IndexFailure(_)

@@ -139,7 +139,7 @@ fn async_contracts_match_before_future_admission() {
 }
 
 #[test]
-fn await_without_a_qualified_runtime_selector_reports_the_current_await() {
+fn await_with_two_local_producers_is_admitted_in_a_selected_package() {
     let (_fixture, product) = Fixture::package(
         "see ./body.nct\nasync func run(): i32",
         "func choice(): bool { true }\n\
@@ -151,21 +151,15 @@ fn await_without_a_qualified_runtime_selector_reports_the_current_await() {
          }",
     );
     let analysis = analyze_unit_from_query(&product).unwrap();
-    assert_eq!(analysis.status(), AnalyzedUnitStatus::CompilationFailed);
-    let [diagnostic] = analysis.diagnostics() else {
-        panic!("{:?}", analysis.value_access_analysis());
-    };
-    assert_eq!(diagnostic.code(), "E0291");
-    let span = diagnostic.primary().span();
-    assert_eq!(
-        analysis
-            .unit()
-            .sources()
-            .get(span.source())
-            .unwrap()
-            .text_at(span.range()),
-        Some("await pending^")
+    assert!(
+        analysis.diagnostics().is_empty(),
+        "{:?}",
+        analysis.value_access_analysis()
     );
+    assert!(matches!(
+        analysis.value_access_analysis(),
+        Some(ValueAccessAnalysis::Accepted(_))
+    ));
 }
 
 #[test]

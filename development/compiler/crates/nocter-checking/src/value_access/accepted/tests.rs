@@ -67,8 +67,9 @@ fn only_the_checked_local_future_view_elides_storage() {
         .unwrap()
         .result();
     assert!(unit.can_drive_without_suspension(root.source_owner()));
-    assert!(unit.elides_future_data(caller.code(), future));
-    assert!(!unit.elides_future_data(root.code(), future));
+    assert!(unit.local_future_data(caller.code(), future));
+    assert!(!unit.local_future_data(root.code(), future));
+    assert!(!unit.has_future_tags(caller.code()));
     assert!(unit.data_evidence(future).is_err());
 }
 

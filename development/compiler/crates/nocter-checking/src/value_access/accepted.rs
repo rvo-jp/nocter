@@ -44,6 +44,13 @@ pub enum DataEvidence<P = flow::resources::Payload> {
     /// The program remains the sole shape/contract authority; no payload is supplied here.
     Unproduced,
 }
+
+/// Physical backing needed for a qualified local empty activation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LocalFutureStorage {
+    Elided,
+    Selector,
+}
 impl<P: Clone> DataEvidence<P> {
     #[must_use]
     pub fn payload(&self) -> Option<P> {
@@ -65,7 +72,7 @@ pub struct Unit {
     primitives: nocter_declaration_lowering::access_declarations::PrimitiveBindings,
     bodies: BTreeMap<nocter_model::ValueCodeRoot, Arc<flow::Query>>,
     deferred_drives: BTreeSet<AccessCodeId>,
-    future_elisions: deferred::Elisions,
+    local_futures: deferred::LocalFutures,
     result_evidence: Arc<super::results::Evidence>,
     const_templates: Arc<super::constant::Catalog>,
 }
@@ -143,7 +150,7 @@ impl Unit {
             result_evidence,
             const_templates,
             deferred_drives,
-            future_elisions,
+            local_futures,
         } = check_queries(context, queries, &mut definition_work)?;
         Ok(Self {
             initializers: evaluation
@@ -162,7 +169,7 @@ impl Unit {
             result_evidence,
             const_templates,
             deferred_drives,
-            future_elisions,
+            local_futures,
         })
     }
     /// The empty deferred activation is proven non-waiting when driven to completion.
@@ -171,30 +178,54 @@ impl Unit {
     pub fn can_drive_without_suspension(&self, id: AccessCodeId) -> bool {
         self.deferred_drives.contains(&id)
     }
-    /// Exact producer of a local empty activation with a qualified non-suspending drive.
+    /// Exact producers of a reached local drive with qualified non-suspending bodies.
     #[must_use]
     pub fn future_drive(
         &self,
         code: nocter_model::ValueCode,
         result: nocter_model::AccessExpressionId,
-    ) -> Option<AccessCodeId> {
-        let producer = self.future_elisions.producer(code, result)?;
-        self.can_drive_without_suspension(producer)
-            .then_some(producer)
+    ) -> Option<&BTreeSet<AccessCodeId>> {
+        let producers = self.local_futures.producers(code, result)?;
+        producers
+            .iter()
+            .all(|&producer| self.can_drive_without_suspension(producer))
+            .then_some(producers)
     }
-    /// Whether this body's checked local futures of this data have no represented storage.
+    /// The selector value assigned to this original producer in a body with tagged activations.
     #[must_use]
-    pub fn elides_future_data(&self, code: nocter_model::ValueCode, data: TypeId) -> bool {
-        self.future_elisions.contains(code, data)
+    pub fn future_producer_tag(
+        &self,
+        code: nocter_model::ValueCode,
+        producer: AccessCodeId,
+    ) -> Option<u64> {
+        self.local_futures.tag(code, producer)
     }
-    /// Whether an original local future transition has no physical payload work.
+    /// The tag written when this checked construction supplies a tagged activation.
     #[must_use]
-    pub fn elides_future_step(
+    pub fn future_construction_tag(
+        &self,
+        code: nocter_model::ValueCode,
+        expression: nocter_model::AccessExpressionId,
+    ) -> Option<u64> {
+        self.local_futures.construction_tag(code, expression)
+    }
+    #[must_use]
+    pub fn has_future_tags(&self, code: nocter_model::ValueCode) -> bool {
+        self.local_futures.has_tags(code)
+    }
+    /// Whether this body uses qualified local empty activations for the supplied data.
+    #[must_use]
+    pub fn local_future_data(&self, code: nocter_model::ValueCode, data: TypeId) -> bool {
+        self.local_futures.contains(code, data)
+    }
+    /// Physical storage for an original transition in the checked local empty activation plan.
+    #[must_use]
+    pub fn future_step_storage(
         &self,
         code: nocter_model::ValueCode,
         step: &flow::resources::Step,
-    ) -> bool {
-        self.future_elisions.step(code, step)
+    ) -> Option<LocalFutureStorage> {
+        self.local_futures.step(code, step)
     }
     #[must_use]
     pub fn constant_value(&self, id: AccessCodeId) -> Option<&nocter_model::FrozenData> {
@@ -274,7 +305,7 @@ impl Unit {
             &self.result_evidence,
             self.code_body(frame.code()),
             frame,
-            self.future_elisions.body(frame.code()),
+            self.local_futures.body(frame.code()),
             work,
         )
     }
@@ -674,7 +705,7 @@ pub(super) struct Checked {
     result_evidence: Arc<super::results::Evidence>,
     const_templates: Arc<super::constant::Catalog>,
     deferred_drives: BTreeSet<AccessCodeId>,
-    future_elisions: deferred::Elisions,
+    local_futures: deferred::LocalFutures,
 }
 impl Checked {
     pub(super) fn project_const_violation(
@@ -969,11 +1000,11 @@ pub(super) fn admit_resolved(
             bodies.insert(root, Arc::new(query));
         }
     }
-    let future_elisions = deferred::Elisions::prepare(
+    let local_futures = deferred::LocalFutures::prepare(
         bodies.values().chain(closures.values()).map(Arc::as_ref),
         &verified,
     )?;
-    let deferred_drives = deferred::qualify(&program, &bodies, &verified, &future_elisions)?;
+    let deferred_drives = deferred::qualify(&program, &bodies, &verified, &local_futures)?;
     let const_templates = const_admission::check_const_bodies(
         &program,
         &bodies,
@@ -993,7 +1024,7 @@ pub(super) fn admit_resolved(
         result_evidence,
         const_templates,
         deferred_drives,
-        future_elisions,
+        local_futures,
     })
 }
 

@@ -355,10 +355,11 @@ consumes an owned operand. The typed expression exposes one future layer's outpu
 outcome operation. The control and resource analyses retain each empty activation's selected
 producer through ownership transfer. The drive consumes that receipt before execution and receives
 the output through the shared normal-result transition after execution. Unit acceptance qualifies
-non-waiting execution transitively through reached immediate bodies and local drives. A local drive
-can omit activation storage when every incoming receipt selects the same empty producer and the body
-has the checked backing and cleanup for this scope. An await requiring a runtime selector is
-diagnosed at its source.
+non-waiting execution transitively through reached immediate bodies and every possible local drive.
+Empty activations in a body need only a producer selector when a reached drive has multiple
+producers of the same future type. Construction writes the selected producer's tag, and whole
+ownership transfers carry it. The initialization and cancellation proofs continue to use the
+original ownership ledger.
 
 The shared `value-modules/query-session` corpus closes an explicit checked root through physical
 v2 package discovery, revision-owned analysis and session evidence before the existing instance,
@@ -381,9 +382,10 @@ source-level generic move remains selected even if its concrete named payload is
 
 One immutable instance arena closes root reachability; recursive keys are reserved before their
 edges are followed. Reached invocation commits and qualified future drives add instances.
-A drive keeps its own original action and selected producer through instance closure. MIR can
-use the ordinary body ABI for a qualified non-suspending drive and pass its answer to the checked
-normal-result transition. Source data IDs map once to concrete payload
+A drive keeps its original action and candidate producers through instance closure. MIR uses the
+ordinary body ABI for a qualified non-suspending drive, dispatching on the retained selector when
+needed. Only the selected body executes, and its answer enters the checked normal-result transition.
+Source data IDs map once to concrete payload
 obligations or checked unproduced structural contracts in the same declaration TypeAuthority.
 The accepted Unit owns that distinction; an unproduced structural shape has no payload, cleanup or
 environment to specialize. Checking rejects any reached value use of it before flow admission.

@@ -108,7 +108,7 @@ impl Builder<'_> {
             .ok_or_else(|| self.invalid())?
             .kind
             .clone();
-        if self.elides_future_expression(id) {
+        if self.local_future_expression(id) {
             return match kind {
                 ExpressionKind::Move(_)
                 | ExpressionKind::Place(_)
@@ -345,14 +345,42 @@ impl Builder<'_> {
             }))
         }
     }
-    fn drive(&mut self, result: AccessExpressionId) -> Result<Operation, Failure> {
-        let target = super::CallTarget::Body(self.drive_target()?);
+    fn drive(
+        &mut self,
+        future: AccessExpressionId,
+        result: AccessExpressionId,
+    ) -> Result<Operation, Failure> {
+        use nocter_target_program::value_access::Drive;
+        let target = self.drive_target()?.clone();
         let data = self.expression(result)?;
-        Ok(Operation::Call(Call {
-            target,
-            inputs: Box::new([]),
-            answer: self.snapshot(SlotKey::Answer(result), data)?,
-        }))
+        let answer = self.snapshot(SlotKey::Answer(result), data)?;
+        Ok(match target {
+            Drive::Direct(child) => Operation::Call(Call {
+                target: super::CallTarget::Body(child),
+                inputs: Box::new([]),
+                answer,
+            }),
+            Drive::Tagged(cases) => Operation::SelectedDrive(super::SelectedDrive {
+                selector: self.future_selector(Holder::Expression(future))?,
+                cases,
+                answer,
+            }),
+        })
+    }
+    fn construct_future(&mut self, id: AccessExpressionId) -> Result<Option<Operation>, Failure> {
+        if !self.local_future_expression(id) {
+            return Err(self.invalid());
+        }
+        self.instances
+            .unit()
+            .future_construction_tag(self.instance.key().code(), id)
+            .map(|tag| {
+                Ok(Operation::Constant {
+                    destination: self.future_selector(Holder::Expression(id))?,
+                    value: Constant::Integer(i128::from(tag)),
+                })
+            })
+            .transpose()
     }
 
     fn prepare_argument(
@@ -413,7 +441,7 @@ impl Builder<'_> {
                 destination: self.result(result)?,
             },
             flow::Operation::Forward { source, result, .. } => {
-                if self.elides_future_expression(result) {
+                if self.local_future_expression(result) {
                     return Ok(Box::new([]));
                 }
                 let destination = self.result(result)?;
@@ -438,11 +466,12 @@ impl Builder<'_> {
                     .map(|operation| operation.into_iter().collect());
             }
             flow::Operation::CommitCall(id) => self.call(id)?,
-            flow::Operation::DriveFuture { result, .. } => self.drive(result)?,
-            flow::Operation::ConstructFuture(id) if self.elides_future_expression(id) => {
-                return Ok(Box::new([]));
+            flow::Operation::DriveFuture { future, result } => self.drive(future, result)?,
+            flow::Operation::ConstructFuture(id) => {
+                return self
+                    .construct_future(id)
+                    .map(|operation| operation.into_iter().collect());
             }
-            flow::Operation::ConstructFuture(_) => return Err(self.invalid()),
             flow::Operation::Bind { local, value } => {
                 let item = self
                     .checked

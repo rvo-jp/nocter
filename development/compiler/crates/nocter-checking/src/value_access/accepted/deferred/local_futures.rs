@@ -1,4 +1,5 @@
-//! Elide storage for local empty activations only after checking all actual uses.
+//! Close actual local activation uses and preserve a selector only when a drive observes it.
+use super::super::LocalFutureStorage;
 use super::{Failure, INVALID, reject};
 use crate::value_access::{
     flow::{
@@ -7,21 +8,30 @@ use crate::value_access::{
     },
     results,
 };
-use nocter_model::{AccessCodeId, TypeId, ValueCode};
+use nocter_model::{AccessCodeId, AccessExpressionId, TypeId, ValueCode};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, Default)]
-pub(in crate::value_access::accepted) struct Elisions {
+pub(in crate::value_access::accepted) struct LocalFutures {
     bodies: BTreeMap<ValueCode, Body>,
 }
 
 #[derive(Clone, Debug, Default)]
 struct Body {
     data: BTreeSet<TypeId>,
-    drives: BTreeMap<nocter_model::AccessExpressionId, AccessCodeId>,
+    tagged: BTreeSet<TypeId>,
+    drives: BTreeMap<AccessExpressionId, Drive>,
+    constructions: BTreeMap<AccessExpressionId, (TypeId, AccessCodeId)>,
+    tags: BTreeMap<AccessCodeId, u64>,
 }
 
-impl Elisions {
+#[derive(Clone, Debug)]
+struct Drive {
+    data: TypeId,
+    producers: BTreeSet<AccessCodeId>,
+}
+
+impl LocalFutures {
     pub(in crate::value_access::accepted) fn contains(
         &self,
         code: ValueCode,
@@ -37,16 +47,56 @@ impl Elisions {
         self.bodies.get(&code).map(|body| &body.data)
     }
 
-    pub(in crate::value_access::accepted) fn producer(
+    pub(in crate::value_access::accepted) fn producers(
         &self,
         code: ValueCode,
-        result: nocter_model::AccessExpressionId,
-    ) -> Option<AccessCodeId> {
-        self.bodies.get(&code)?.drives.get(&result).copied()
+        result: AccessExpressionId,
+    ) -> Option<&BTreeSet<AccessCodeId>> {
+        Some(&self.bodies.get(&code)?.drives.get(&result)?.producers)
     }
 
-    pub(in crate::value_access::accepted) fn step(&self, code: ValueCode, step: &Step) -> bool {
-        local_payload(step).is_some_and(|payload| self.contains(code, payload.data()))
+    pub(in crate::value_access::accepted) fn tag(
+        &self,
+        code: ValueCode,
+        producer: AccessCodeId,
+    ) -> Option<u64> {
+        self.bodies.get(&code)?.tags.get(&producer).copied()
+    }
+
+    pub(in crate::value_access::accepted) fn construction_tag(
+        &self,
+        code: ValueCode,
+        expression: AccessExpressionId,
+    ) -> Option<u64> {
+        let body = self.bodies.get(&code)?;
+        let &(data, producer) = body.constructions.get(&expression)?;
+        if !body.tagged.contains(&data) {
+            return None;
+        }
+        body.tags.get(&producer).copied()
+    }
+
+    pub(in crate::value_access::accepted) fn has_tags(&self, code: ValueCode) -> bool {
+        self.bodies
+            .get(&code)
+            .is_some_and(|body| !body.tagged.is_empty())
+    }
+
+    pub(in crate::value_access::accepted) fn step(
+        &self,
+        code: ValueCode,
+        step: &Step,
+    ) -> Option<LocalFutureStorage> {
+        let data = local_payload(step)?.data();
+        let body = self.bodies.get(&code)?;
+        if !body.data.contains(&data) {
+            return None;
+        }
+        Some(if body.tagged.contains(&data) {
+            LocalFutureStorage::Selector
+        } else {
+            LocalFutureStorage::Elided
+        })
     }
 
     pub(in crate::value_access::accepted) fn prepare<'a>(
@@ -56,8 +106,8 @@ impl Elisions {
         let bodies = bodies
             .into_iter()
             .try_fold(BTreeMap::new(), |mut all, body| {
-                if let Some(elided) = inspect(body, verified)? {
-                    all.insert(body.typed().code(), elided);
+                if let Some(futures) = inspect(body, verified)? {
+                    all.insert(body.typed().code(), futures);
                 }
                 Ok::<_, Failure>(all)
             })?;
@@ -89,11 +139,6 @@ fn inspect(
             for transition in body.access().resources().at(location) {
                 for step in transition.steps() {
                     if let Some(payload) = local_payload(step) {
-                        if let Step::Construct { destination, .. } = step
-                            && !matches!(event.operation, Operation::ConstructFuture(call) if *destination == Holder::Expression(call))
-                        {
-                            return Err(INVALID);
-                        }
                         let Disposal::UnstartedFuture(producer) = payload.disposal() else {
                             return Err(INVALID);
                         };
@@ -103,26 +148,7 @@ fn inspect(
                         ) {
                             return Err(INVALID);
                         }
-                        if let Step::DriveFuture { source, .. } = step {
-                            let Operation::DriveFuture { future, result } = event.operation else {
-                                return Err(INVALID);
-                            };
-                            if *source != Holder::Expression(future).place() {
-                                return Err(INVALID);
-                            }
-                            if found
-                                .drives
-                                .insert(result, producer)
-                                .is_some_and(|previous| previous != producer)
-                            {
-                                return Err(reject(
-                                    verified,
-                                    body,
-                                    location,
-                                    "this await can drive different producers and needs a runtime selector",
-                                ));
-                            }
-                        }
+                        found.observe(step, &event.operation, payload, producer)?;
                         found.data.insert(payload.data());
                     } else if mentions_future(step) {
                         return Err(reject(
@@ -139,7 +165,59 @@ fn inspect(
     if found.data.is_empty() {
         return Err(INVALID);
     }
+    found.tagged.extend(
+        found
+            .drives
+            .values()
+            .filter(|drive| drive.producers.len() > 1)
+            .map(|drive| drive.data),
+    );
+    let producers = found
+        .constructions
+        .values()
+        .filter_map(|&(data, producer)| found.tagged.contains(&data).then_some(producer))
+        .collect::<BTreeSet<_>>();
+    found.tags = producers.into_iter().zip(0_u64..).collect();
     Ok(Some(found))
+}
+
+impl Body {
+    fn observe(
+        &mut self,
+        step: &Step,
+        operation: &Operation,
+        payload: Payload,
+        producer: AccessCodeId,
+    ) -> Result<(), Failure> {
+        match (step, operation) {
+            (Step::Construct { destination, .. }, Operation::ConstructFuture(call))
+                if *destination == Holder::Expression(*call) =>
+            {
+                if self
+                    .constructions
+                    .insert(*call, (payload.data(), producer))
+                    .is_some_and(|previous| previous != (payload.data(), producer))
+                {
+                    return Err(INVALID);
+                }
+            }
+            (Step::DriveFuture { source, .. }, Operation::DriveFuture { future, result })
+                if *source == Holder::Expression(*future).place() =>
+            {
+                let drive = self.drives.entry(*result).or_insert_with(|| Drive {
+                    data: payload.data(),
+                    producers: BTreeSet::new(),
+                });
+                if drive.data != payload.data() {
+                    return Err(INVALID);
+                }
+                drive.producers.insert(producer);
+            }
+            (Step::Construct { .. } | Step::DriveFuture { .. }, _) => return Err(INVALID),
+            _ => {}
+        }
+        Ok(())
+    }
 }
 
 fn local_payload(step: &Step) -> Option<Payload> {

@@ -1,9 +1,10 @@
 //! Consume checking's ordered resource data projection; no second source substitution model.
 use super::{Condition, Failure, Instance, Location, Resource, ResourceStep, Step};
+use nocter_checking::value_access::accepted::{LocalFutureStorage, Unit};
 use nocter_checking::value_access::flow::resources::{Holder, Missing, Place, Transition};
 use nocter_checking::value_access::{ResourceDataFailure, ResourceDataProjection};
 use nocter_constant_evaluation::state::WorkBudget;
-use nocter_model::AccessInstanceId;
+use nocter_model::{AccessInstanceId, ValueCode};
 use std::{borrow::Cow, collections::BTreeMap, sync::Arc};
 #[cfg(test)]
 mod tests;
@@ -69,12 +70,7 @@ impl<'a, 'work> Projection<'a, 'work> {
     fn project(&mut self, steps: &[ResourceStep], completed: bool) -> Result<Vec<Step>, Failure> {
         let unit = self.instance.queries.unit();
         let code = self.instance.key().code();
-        let elided = |step: &ResourceStep| unit.elides_future_step(code, step);
-        let steps = if steps.iter().any(elided) {
-            Cow::Owned(steps.iter().filter(|step| !elided(step)).cloned().collect())
-        } else {
-            Cow::Borrowed(steps)
-        };
+        let (steps, selectors) = partition_local_future_steps(unit, code, steps);
         // Preflight metadata matching before the atomic data projection changes its bindings.
         let roots = steps
             .iter()
@@ -105,7 +101,7 @@ impl<'a, 'work> Projection<'a, 'work> {
             self.inner.steps_with_roots(&steps)
         }
         .map_err(|error| failure(self.id, self.at, error))?;
-        projected
+        let ordinary = projected
             .into_iter()
             .zip(roots)
             .map(|(step, roots)| {
@@ -148,8 +144,57 @@ impl<'a, 'work> Projection<'a, 'work> {
                     }))
                 }
             })
-            .collect()
+            .collect::<Result<Vec<_>, Failure>>()?;
+        if selectors.is_empty() {
+            return Ok(ordinary);
+        }
+        let mut output = Vec::with_capacity(ordinary.len() + selectors.len());
+        let mut selectors = selectors.into_iter().peekable();
+        for (index, step) in ordinary.into_iter().enumerate() {
+            while let Some((_, selected)) = selectors.next_if(|(before, _)| *before == index) {
+                output.push(selected);
+            }
+            output.push(step);
+        }
+        output.extend(selectors.map(|(_, step)| step));
+        Ok(output)
     }
+}
+
+fn partition_local_future_steps<'a>(
+    unit: &Unit,
+    code: ValueCode,
+    steps: &'a [ResourceStep],
+) -> (Cow<'a, [ResourceStep]>, Vec<(usize, Step)>) {
+    let mut selectors = Vec::new();
+    if !steps
+        .iter()
+        .any(|step| unit.future_step_storage(code, step).is_some())
+    {
+        return (Cow::Borrowed(steps), selectors);
+    }
+    let mut ordinary = Vec::new();
+    for step in steps {
+        match (unit.future_step_storage(code, step), step) {
+            (None, _) => ordinary.push(step.clone()),
+            (
+                Some(LocalFutureStorage::Selector),
+                ResourceStep::Move {
+                    source,
+                    destination,
+                    ..
+                },
+            ) => selectors.push((
+                ordinary.len(),
+                Step::MoveFutureTag {
+                    source: source.holder(),
+                    destination: destination.holder(),
+                },
+            )),
+            (Some(_), _) => {}
+        }
+    }
+    (Cow::Owned(ordinary), selectors)
 }
 
 /// Stable sparse exclusions come from one matched original transition. This freezes metadata,

@@ -53,6 +53,9 @@ pub(super) fn program(program: &Program) -> Result<(), Failure> {
                 Operation::SelectedCall(call) => {
                     pending.extend(call.cases.iter().map(|case| case.target));
                 }
+                Operation::SelectedDrive(drive) => {
+                    pending.extend(drive.cases.iter().map(|(_, target)| *target));
+                }
                 _ => {}
             }
         }
@@ -609,6 +612,7 @@ impl Context<'_> {
                 })
             }
             Operation::SelectedCall(call) => self.selected_call(call),
+            Operation::SelectedDrive(drive) => self.selected_drive(drive),
             Operation::Call(call) => {
                 self.place(&call.answer)?;
                 let (inputs, result) = match call.target {
@@ -681,6 +685,38 @@ impl Context<'_> {
 }
 
 impl Context<'_> {
+    fn selected_drive(&self, drive: &super::SelectedDrive) -> Result<(), Failure> {
+        self.place(&drive.selector)?;
+        self.place(&drive.answer)?;
+        self.require(
+            self.primitive(
+                drive.selector.data,
+                RuntimePrimitive::for_builtin(
+                    nocter_target_program::value_access::Drive::SELECTOR_TYPE,
+                ),
+            ) && drive.cases.len() > 1
+                && drive.cases.windows(2).all(|pair| pair[0].0 < pair[1].0),
+        )?;
+        self.require(self.body.slots.get(drive.answer.slot).is_some_and(|slot| {
+            slot.storage == Storage::Payload && matches!(slot.key, SlotKey::Answer(_))
+        }))?;
+        for &(_, target) in &drive.cases {
+            let signature = &self
+                .program
+                .bodies
+                .get(&target)
+                .ok_or_else(|| self.invalid())?
+                .signature;
+            self.require(
+                signature.ordered().next().is_none()
+                    && self
+                        .program
+                        .runtime
+                        .has_same_value_representation(drive.answer.data, signature.result()),
+            )?;
+        }
+        Ok(())
+    }
     fn selected_call(&self, call: &super::SelectedCall) -> Result<(), Failure> {
         self.place(&call.carrier)?;
         self.place(&call.answer)?;

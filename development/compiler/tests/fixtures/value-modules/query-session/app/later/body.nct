@@ -45,9 +45,37 @@ async func relay(): i32 {
     await pending^
 }
 
+async func first_value(): i32 { 3 }
+
+async func second_value(): i32 { 8 }
+
+async func choose_value(): i32 {
+    var iteration = 0
+    var choices = 0
+    var total = 0
+    loop {
+        if iteration == 2 {
+            break
+        }
+        let pending = if choose(choices, iteration == 0) {
+            first_value()
+        } else {
+            if choose(choices, iteration == 1) {
+                second_value()
+            } else {
+                trap_if_driven()
+            }
+        }
+        let moved = pending^
+        total += await moved^
+        iteration += 1
+    }
+    total + choices
+}
+
 async func main(): i32 {
     var count = 0
     cancel(count, true)
     cancel(count, false)
-    count + await relay()
+    count + await relay() + await choose_value() - 14
 }

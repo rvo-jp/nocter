@@ -14,7 +14,7 @@ use nocter_model::{AccessExpressionId, AccessInstanceId, MirLocalId, TypeId};
 use nocter_model::{ArenaBuilder, ValueAccessMode, ValueInputOperation};
 use nocter_runtime_contract::RuntimeDataId;
 use nocter_target_program::value_access::{
-    Instance, InstanceProgram, Payload, lifecycle::EnvironmentPart,
+    Drive, Instance, InstanceProgram, Payload, lifecycle::EnvironmentPart,
 };
 use nocter_target_program::value_access::{lifecycle, storage};
 use std::collections::{BTreeMap, BTreeSet};
@@ -76,24 +76,34 @@ impl Builder<'_> {
     pub(super) fn invalid(&self) -> Failure {
         Failure::InvalidBody(self.id)
     }
-    pub(super) fn drive_target(&self) -> Result<AccessInstanceId, Failure> {
+    pub(super) fn drive_target(&self) -> Result<&Drive, Failure> {
         self.at
             .and_then(|at| self.instance.drive(at))
             .ok_or_else(|| self.invalid())
     }
-    pub(super) fn elides_future_expression(&self, id: AccessExpressionId) -> bool {
+    pub(super) fn local_future_expression(&self, id: AccessExpressionId) -> bool {
         self.checked
             .typed()
             .body()
             .expressions()
             .get(id)
             .and_then(|expression| expression.ty.normal())
-            .is_some_and(|access| self.elides_future_data(access.data()))
+            .is_some_and(|access| self.local_future_data(access.data()))
     }
-    fn elides_future_data(&self, data: TypeId) -> bool {
+    fn local_future_data(&self, data: TypeId) -> bool {
         self.instances
             .unit()
-            .elides_future_data(self.instance.key().code(), data)
+            .local_future_data(self.instance.key().code(), data)
+    }
+    pub(super) fn future_selector(&mut self, holder: Holder) -> Result<Place, Failure> {
+        let data = self
+            .instances
+            .unit()
+            .program()
+            .data_type(Drive::SELECTOR_TYPE)
+            .ok_or_else(|| self.invalid())?;
+        let storage = self.closed_data(data)?;
+        self.root(holder, storage, false)
     }
     pub(super) fn closed_data(&self, source: TypeId) -> Result<RuntimeDataId, Failure> {
         let program = self.instances.unit().program();
@@ -705,6 +715,15 @@ impl Builder<'_> {
         let mut output = Vec::new();
         for step in steps {
             match step {
+                lifecycle::Step::MoveFutureTag {
+                    source,
+                    destination,
+                } => {
+                    output.push(Effect::Transfer {
+                        source: self.future_selector(*source)?,
+                        destination: self.future_selector(*destination)?,
+                    });
+                }
                 lifecycle::Step::ScopedReplacement(replacement) => {
                     output.extend(self.scoped_replacement(replacement)?);
                 }
@@ -1089,7 +1108,7 @@ impl Builder<'_> {
             | Operation::BooleanConstant { result: id, .. }
             | Operation::Forward { result: id, .. }
             | Operation::BooleanAnswer { result: id, .. } => {
-                if !self.elides_future_expression(id)
+                if !self.local_future_expression(id)
                     && let Some(access) = self
                         .checked
                         .typed()
@@ -1111,7 +1130,7 @@ impl Builder<'_> {
                     .get(local)
                     .ok_or_else(|| self.invalid())?
                     .data;
-                if self.elides_future_data(local_data) {
+                if self.local_future_data(local_data) {
                     return Ok(());
                 }
                 let payload = self

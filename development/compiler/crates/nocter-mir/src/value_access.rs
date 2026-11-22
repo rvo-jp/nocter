@@ -212,6 +212,14 @@ pub struct SelectedCall {
     pub answer: Place,
 }
 
+/// Drive the empty local activation identified by the selector, then stage its output.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SelectedDrive {
+    pub selector: Place,
+    pub cases: Box<[(u64, AccessInstanceId)]>,
+    pub answer: Place,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Operation {
     /// A terminal source bounds failure; no element payload or selected address exists.
@@ -267,6 +275,7 @@ pub enum Operation {
     },
     Call(Call),
     SelectedCall(SelectedCall),
+    SelectedDrive(SelectedDrive),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

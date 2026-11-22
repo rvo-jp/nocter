@@ -1,5 +1,7 @@
 //! Root-driven interning closes selected calls once. Recursive edges reuse reserved instances.
-use super::{CallTarget, Failure, Instance, InstanceKey, InstanceProgram, invocation, projection};
+use super::{
+    CallTarget, Drive, Failure, Instance, InstanceKey, InstanceProgram, invocation, projection,
+};
 #[cfg(test)]
 mod tests;
 use nocter_checking::value_access::{
@@ -49,14 +51,27 @@ impl Builder {
         unit: &Unit,
         owner: ValueCode,
         result: AccessExpressionId,
-    ) -> Result<AccessInstanceId, Failure> {
+    ) -> Result<Drive, Failure> {
         let invalid = Failure::InvalidAcceptedUnit;
-        let producer = unit.future_drive(owner, result).ok_or(invalid)?;
-        let key = unit
-            .program()
-            .bind_code(producer.into(), [])
-            .map_err(|_| invalid)?;
-        Ok(self.intern(key))
+        let producers = unit.future_drive(owner, result).ok_or(invalid)?;
+        let mut target = |producer: AccessCodeId| {
+            let key = unit
+                .program()
+                .bind_code(producer.into(), [])
+                .map_err(|_| invalid)?;
+            Ok(self.intern(key))
+        };
+        if producers.len() == 1 {
+            return target(*producers.first().ok_or(invalid)?).map(Drive::Direct);
+        }
+        producers
+            .iter()
+            .map(|&producer| {
+                let tag = unit.future_producer_tag(owner, producer).ok_or(invalid)?;
+                Ok((tag, target(producer)?))
+            })
+            .collect::<Result<Box<[_]>, _>>()
+            .map(Drive::Tagged)
     }
     fn define(
         &mut self,
@@ -242,7 +257,7 @@ fn validate_drives(
 ) -> Result<(), Failure> {
     let invalid = Failure::InvalidAcceptedUnit;
     let caller_body = unit.code_body(caller.key().code()).ok_or(invalid)?;
-    for (&at, &target) in &caller.drives {
+    for (&at, drive) in &caller.drives {
         let Operation::DriveFuture { result, .. } = caller_body
             .graph()
             .points()
@@ -253,20 +268,22 @@ fn validate_drives(
         else {
             return Err(invalid);
         };
-        let child = instances.get(target).ok_or(invalid)?;
-        let body = unit.code_body(child.key().code()).ok_or(invalid)?;
         let receipt = caller
             .definition(at, ValueSourceSlot::Expression(result))
             .ok_or(invalid)?;
-        if body.typed().body().inputs().ordered().next().is_some()
-            || !child
-                .result()
-                .payload()
-                .ok_or(invalid)?
-                .instance()
-                .has_same_representation(unit.program(), receipt.instance())
-        {
-            return Err(invalid);
+        for target in drive.targets() {
+            let child = instances.get(target).ok_or(invalid)?;
+            let body = unit.code_body(child.key().code()).ok_or(invalid)?;
+            if body.typed().body().inputs().ordered().next().is_some()
+                || !child
+                    .result()
+                    .payload()
+                    .ok_or(invalid)?
+                    .instance()
+                    .has_same_representation(unit.program(), receipt.instance())
+            {
+                return Err(invalid);
+            }
         }
     }
     Ok(())

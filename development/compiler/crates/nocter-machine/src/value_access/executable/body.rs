@@ -7,8 +7,8 @@ use crate::{
     MachineFunction, MachineFunctionExecution, MachineFunctionId, MachineFunctionKind,
     MachineLayoutKind, MachineLinkageId, MachineOperation, MachineOperationId,
     MachineOperationKind, MachineStackId, MachineStackObject, MachineStackPurpose,
-    MachineTerminator, MachineUnaryOperation, MachineValue, MachineValueDefinition, MachineValueId,
-    MachineValueRepresentation,
+    MachineSwitchCase, MachineSwitchValue, MachineTerminator, MachineUnaryOperation, MachineValue,
+    MachineValueDefinition, MachineValueId, MachineValueRepresentation,
 };
 use nocter_mir::value_access as mir;
 use nocter_model::{AccessInstanceId, MirLocalId, ValueInputOperation};
@@ -98,6 +98,39 @@ impl<'a> Builder<'a> {
     }
     fn go(&mut self, next: MachineBlockId) -> Result<(), Failure> {
         self.terminate(MachineTerminator::Goto(MachineBranchTarget::new(next, [])))
+    }
+    fn select_integer_cases(
+        &mut self,
+        subject: MachineValueId,
+        tags: impl IntoIterator<Item = i128>,
+        mut action: impl FnMut(&mut Self, usize) -> Result<(), Failure>,
+    ) -> Result<(), Failure> {
+        let mut blocks = Vec::new();
+        let mut cases = Vec::new();
+        for tag in tags {
+            let block = self.block();
+            blocks.push(block);
+            cases.push(MachineSwitchCase::new(
+                MachineSwitchValue::Integer(tag),
+                MachineBranchTarget::new(block, []),
+            ));
+        }
+        let fallback = self.block();
+        let done = self.block();
+        self.terminate(MachineTerminator::SwitchValue {
+            subject,
+            cases: cases.into(),
+            fallback: MachineBranchTarget::new(fallback, []),
+        })?;
+        for (index, block) in blocks.into_iter().enumerate() {
+            self.current = block;
+            action(self, index)?;
+            self.go(done)?;
+        }
+        self.current = fallback;
+        self.terminate(MachineTerminator::Unreachable)?;
+        self.current = done;
+        Ok(())
     }
     fn emit(&mut self, kind: MachineOperationKind) {
         self.append(kind, None);
@@ -605,6 +638,7 @@ impl<'a> Builder<'a> {
             }
             mir::Operation::Call(call) => self.call(call)?,
             mir::Operation::SelectedCall(call) => self.selected_call(call)?,
+            mir::Operation::SelectedDrive(drive) => self.selected_drive(drive)?,
         }
         Ok(())
     }

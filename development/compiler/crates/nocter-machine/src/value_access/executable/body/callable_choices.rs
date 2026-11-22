@@ -1,9 +1,8 @@
 //! Shared selected-case control for moving, invoking and destroying callable environments.
 use super::{Builder, Failure};
 use crate::{
-    MachineAddress, MachineAddressId, MachineAddressRoot, MachineBlockId, MachineBranchTarget,
-    MachineConstant, MachineLayoutKind, MachineOperationKind, MachineSwitchCase,
-    MachineSwitchValue, MachineTerminator, MachineValueId,
+    MachineAddress, MachineAddressId, MachineAddressRoot, MachineConstant, MachineLayoutKind,
+    MachineOperationKind, MachineValueId,
 };
 use nocter_runtime_contract::{RuntimeDataId, RuntimePrimitive};
 
@@ -75,7 +74,7 @@ impl Builder<'_> {
         &mut self,
         base: MachineAddressId,
         data: RuntimeDataId,
-        mut action: impl FnMut(&mut Self, usize) -> Result<(), Failure>,
+        action: impl FnMut(&mut Self, usize) -> Result<(), Failure>,
     ) -> Result<(), Failure> {
         let Some(MachineLayoutKind::CallableAlternatives { cases, .. }) = self
             .context
@@ -85,35 +84,8 @@ impl Builder<'_> {
         else {
             return Err(Self::invalid());
         };
-        let blocks: Vec<MachineBlockId> = cases.iter().map(|_| self.block()).collect();
+        let tags = (0_u64..).take(cases.len()).map(i128::from);
         let subject = self.callable_tag(base, data)?;
-        let fallback = self.block();
-        let done = self.block();
-        let cases = blocks
-            .iter()
-            .enumerate()
-            .map(|(index, block)| {
-                Ok(MachineSwitchCase::new(
-                    MachineSwitchValue::Integer(
-                        i128::try_from(index).map_err(|_| Self::invalid())?,
-                    ),
-                    MachineBranchTarget::new(*block, []),
-                ))
-            })
-            .collect::<Result<Box<[_]>, Failure>>()?;
-        self.terminate(MachineTerminator::SwitchValue {
-            subject,
-            cases,
-            fallback: MachineBranchTarget::new(fallback, []),
-        })?;
-        for (index, block) in blocks.into_iter().enumerate() {
-            self.current = block;
-            action(self, index)?;
-            self.go(done)?;
-        }
-        self.current = fallback;
-        self.terminate(MachineTerminator::Unreachable)?;
-        self.current = done;
-        Ok(())
+        self.select_integer_cases(subject, tags, action)
     }
 }

@@ -27,10 +27,32 @@ pub use nocter_declarations::value_access::{CodeInstanceKey as InstanceKey, Conc
 pub use nocter_checking::value_access::flow::resources::InstantiatedPayload as Payload;
 pub type DataEvidence = nocter_checking::value_access::accepted::DataEvidence<Payload>;
 
+/// An empty activation can drive a statically selected body or dispatch its stored producer tag.
+#[derive(Clone, Debug)]
+pub enum Drive {
+    Direct(AccessInstanceId),
+    Tagged(Box<[(u64, AccessInstanceId)]>),
+}
+
+impl Drive {
+    /// Runtime scalar used for local empty activation selectors.
+    pub const SELECTOR_TYPE: nocter_model::BuiltinType = nocter_model::BuiltinType::U64;
+
+    pub(super) fn targets(&self) -> impl Iterator<Item = AccessInstanceId> + '_ {
+        let (direct, tagged) = match self {
+            Self::Direct(target) => (Some(*target), &[][..]),
+            Self::Tagged(cases) => (None, cases.as_ref()),
+        };
+        direct
+            .into_iter()
+            .chain(tagged.iter().map(|(_, target)| *target))
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Instance {
     calls: BTreeMap<AccessExpressionId, Invocation>,
-    drives: BTreeMap<flow::Location, AccessInstanceId>,
+    drives: BTreeMap<flow::Location, Drive>,
     metadata: BTreeSet<DataInstanceKey>,
     inputs: BTreeMap<AccessLocalId, Payload>,
     result: DataEvidence,
@@ -52,10 +74,10 @@ impl Instance {
     pub const fn calls(&self) -> &BTreeMap<AccessExpressionId, Invocation> {
         &self.calls
     }
-    /// Exact executable body of a reached, qualified local drive.
+    /// Exact executable targets of a reached, qualified local drive.
     #[must_use]
-    pub fn drive(&self, at: flow::Location) -> Option<AccessInstanceId> {
-        self.drives.get(&at).copied()
+    pub fn drive(&self, at: flow::Location) -> Option<&Drive> {
+        self.drives.get(&at)
     }
     /// Actual body input data keyed only by the original input local, without another input layout.
     #[must_use]

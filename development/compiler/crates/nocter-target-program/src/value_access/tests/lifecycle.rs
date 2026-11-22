@@ -78,7 +78,7 @@ fn invocation_transfers_precede_the_body_and_adapter_cleanup_precedes_receipt() 
         let resource = match step {
             Step::Resource(step) => Some(step.operation()),
             Step::ScopedReplacement(replacement) => Some(replacement.operation()),
-            Step::DisposeEnvironment { .. } => None,
+            Step::MoveFutureTag { .. } | Step::DisposeEnvironment { .. } => None,
         };
         if let Some(step) = resource {
             step.try_map_payloads(|payload| {
