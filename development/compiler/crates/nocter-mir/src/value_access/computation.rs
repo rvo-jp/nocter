@@ -355,31 +355,44 @@ impl Builder<'_> {
         let data = self.expression(result)?;
         let answer = self.snapshot(SlotKey::Answer(result), data)?;
         let source = Holder::Expression(future);
-        let inputs = self
-            .future_input_types(source)?
+        Ok(match target {
+            Drive::Direct(child) => Operation::Call(Call {
+                target: super::CallTarget::Body(child.instance),
+                inputs: self.future_call_inputs(source, &child.inputs)?,
+                answer,
+            }),
+            Drive::Tagged(cases) => Operation::SelectedDrive(super::SelectedDrive {
+                selector: self.future_selector(source)?,
+                cases: cases
+                    .iter()
+                    .map(|(tag, child)| {
+                        Ok(super::FutureDriveCase {
+                            tag: *tag,
+                            target: child.instance,
+                            inputs: self.future_call_inputs(source, &child.inputs)?,
+                        })
+                    })
+                    .collect::<Result<Box<[_]>, Failure>>()?,
+                answer,
+            }),
+        })
+    }
+    fn future_call_inputs(
+        &mut self,
+        holder: Holder,
+        types: &[nocter_model::TypeId],
+    ) -> Result<Box<[CallInput]>, Failure> {
+        types
             .iter()
             .copied()
             .enumerate()
             .map(|(index, data)| {
                 Ok(CallInput {
-                    source: self.future_input(source, index, data)?,
+                    source: self.future_input(holder, index, data)?,
                     operation: nocter_model::ValueInputOperation::Take,
                 })
             })
-            .collect::<Result<Box<[_]>, Failure>>()?;
-        Ok(match target {
-            Drive::Direct(child) => Operation::Call(Call {
-                target: super::CallTarget::Body(child),
-                inputs,
-                answer,
-            }),
-            Drive::Tagged(cases) => Operation::SelectedDrive(super::SelectedDrive {
-                selector: self.future_selector(source)?,
-                cases,
-                inputs,
-                answer,
-            }),
-        })
+            .collect()
     }
     fn construct_future(&mut self, id: AccessExpressionId) -> Result<Option<Operation>, Failure> {
         if !self.local_future_expression(id) {

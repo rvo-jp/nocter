@@ -51,6 +51,13 @@ pub enum LocalFutureStorage {
     Direct,
     Selector,
 }
+
+/// Captured input lanes transported by one original ownership move.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum LocalFutureMove {
+    Direct(Arc<[TypeId]>),
+    Selected(Box<[(u64, Arc<[TypeId]>)]>),
+}
 impl<P: Clone> DataEvidence<P> {
     #[must_use]
     pub fn payload(&self) -> Option<P> {
@@ -218,8 +225,20 @@ impl Unit {
         &self,
         code: nocter_model::ValueCode,
         holder: flow::resources::Holder,
-    ) -> Option<&[TypeId]> {
-        self.local_futures.captures(code, holder)
+        producer: AccessCodeId,
+    ) -> Option<&Arc<[TypeId]>> {
+        self.local_futures.captures(code, holder, producer)
+    }
+    /// Exact captured input transport for a reached original ownership move.
+    #[must_use]
+    pub fn future_move(
+        &self,
+        code: nocter_model::ValueCode,
+        at: flow::Location,
+        source: flow::resources::Holder,
+        destination: flow::resources::Holder,
+    ) -> Option<&LocalFutureMove> {
+        self.local_futures.movement(code, at, source, destination)
     }
     /// Whether this body uses qualified local activations for the supplied data.
     #[must_use]

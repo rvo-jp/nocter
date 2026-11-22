@@ -1,5 +1,5 @@
 //! Close captured input layouts and optional producer selectors for actual local activations.
-use super::super::LocalFutureStorage;
+use super::super::{LocalFutureMove, LocalFutureStorage};
 use super::{Failure, INVALID, reject};
 use crate::value_access::{
     flow::{
@@ -24,13 +24,33 @@ struct Body {
     drives: BTreeMap<AccessExpressionId, Drive>,
     constructions: BTreeMap<AccessExpressionId, (TypeId, AccessCodeId)>,
     tags: BTreeMap<AccessCodeId, u64>,
-    captures: BTreeMap<Holder, Arc<[TypeId]>>,
+    captures: BTreeMap<(Holder, AccessCodeId), Arc<[TypeId]>>,
+    moves: BTreeMap<Movement, LocalFutureMove>,
 }
 
 #[derive(Clone, Debug)]
 struct Drive {
     data: TypeId,
     producers: BTreeSet<AccessCodeId>,
+}
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct Movement {
+    at: Location,
+    source: Holder,
+    destination: Holder,
+}
+
+struct ObservedMove {
+    data: TypeId,
+    producers: BTreeMap<AccessCodeId, Arc<[TypeId]>>,
+}
+impl ObservedMove {
+    fn needs_selector(&self) -> bool {
+        let mut fields = self.producers.values();
+        fields
+            .next()
+            .is_some_and(|first| fields.any(|candidate| candidate != first))
+    }
 }
 
 impl LocalFutures {
@@ -87,12 +107,22 @@ impl LocalFutures {
         &self,
         code: ValueCode,
         holder: Holder,
-    ) -> Option<&[TypeId]> {
-        self.bodies
-            .get(&code)?
-            .captures
-            .get(&holder)
-            .map(AsRef::as_ref)
+        producer: AccessCodeId,
+    ) -> Option<&Arc<[TypeId]>> {
+        self.bodies.get(&code)?.captures.get(&(holder, producer))
+    }
+    pub(in crate::value_access::accepted) fn movement(
+        &self,
+        code: ValueCode,
+        at: Location,
+        source: Holder,
+        destination: Holder,
+    ) -> Option<&LocalFutureMove> {
+        self.bodies.get(&code)?.moves.get(&Movement {
+            at,
+            source,
+            destination,
+        })
     }
 
     pub(in crate::value_access::accepted) fn step(
@@ -144,6 +174,7 @@ fn inspect(
     }
     let program = body.typed().program();
     let mut signatures = BTreeMap::new();
+    let mut moves = BTreeMap::new();
     for (point, block) in body.graph().points().iter() {
         if !body.initialization().reachable(point) {
             continue;
@@ -168,14 +199,15 @@ fn inspect(
                                 entry.insert(inputs(program, producer)?)
                             }
                         };
-                        if !found.match_captures(step, signature)? {
-                            return Err(reject(
-                                verified,
-                                body,
-                                location,
-                                "this future holder needs a layout for different captured inputs",
-                            ));
-                        }
+                        found.record_captures(step, producer, signature)?;
+                        record_move(
+                            &mut moves,
+                            location,
+                            step,
+                            payload.data(),
+                            producer,
+                            signature,
+                        )?;
                         found.observe(step, &event.operation, payload, producer)?;
                         found.data.insert(payload.data());
                     } else if mentions_future(step) {
@@ -200,17 +232,44 @@ fn inspect(
             .filter(|drive| drive.producers.len() > 1)
             .map(|drive| drive.data),
     );
+    found.tagged.extend(
+        moves
+            .values()
+            .filter(|movement| movement.needs_selector())
+            .map(|movement| movement.data),
+    );
     let producers = found
         .constructions
         .values()
         .filter_map(|&(data, producer)| found.tagged.contains(&data).then_some(producer))
         .collect::<BTreeSet<_>>();
     found.tags = producers.into_iter().zip(0_u64..).collect();
+    for (site, movement) in moves {
+        let transport = if movement.needs_selector() {
+            let cases = movement
+                .producers
+                .into_iter()
+                .map(|(producer, fields)| {
+                    let tag = found.tags.get(&producer).copied().ok_or(INVALID)?;
+                    Ok((tag, fields))
+                })
+                .collect::<Result<Box<[_]>, Failure>>()?;
+            LocalFutureMove::Selected(cases)
+        } else {
+            LocalFutureMove::Direct(movement.producers.into_values().next().ok_or(INVALID)?)
+        };
+        found.moves.insert(site, transport);
+    }
     Ok(Some(found))
 }
 
 impl Body {
-    fn match_captures(&mut self, step: &Step, signature: &Arc<[TypeId]>) -> Result<bool, Failure> {
+    fn record_captures(
+        &mut self,
+        step: &Step,
+        producer: AccessCodeId,
+        signature: &Arc<[TypeId]>,
+    ) -> Result<(), Failure> {
         let (source, destination) = match step {
             Step::ConstructActivation {
                 destination,
@@ -237,15 +296,11 @@ impl Body {
             _ => return Err(INVALID),
         };
         for holder in [source, destination].into_iter().flatten() {
-            let known = self
-                .captures
-                .entry(holder)
+            self.captures
+                .entry((holder, producer))
                 .or_insert_with(|| Arc::clone(signature));
-            if known.as_ref() != signature.as_ref() {
-                return Ok(false);
-            }
         }
-        Ok(true)
+        Ok(())
     }
 
     fn observe(
@@ -286,6 +341,39 @@ impl Body {
         }
         Ok(())
     }
+}
+
+fn record_move(
+    moves: &mut BTreeMap<Movement, ObservedMove>,
+    at: Location,
+    step: &Step,
+    data: TypeId,
+    producer: AccessCodeId,
+    fields: &Arc<[TypeId]>,
+) -> Result<(), Failure> {
+    if let Step::Move {
+        source,
+        destination,
+        ..
+    } = step
+    {
+        let key = Movement {
+            at,
+            source: source.holder(),
+            destination: destination.holder(),
+        };
+        let old = moves.entry(key).or_insert_with(|| ObservedMove {
+            data,
+            producers: BTreeMap::new(),
+        });
+        if old.data != data {
+            return Err(INVALID);
+        }
+        old.producers
+            .entry(producer)
+            .or_insert_with(|| Arc::clone(fields));
+    }
+    Ok(())
 }
 
 fn inputs(

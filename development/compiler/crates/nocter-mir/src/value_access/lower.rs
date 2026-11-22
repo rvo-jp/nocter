@@ -5,6 +5,7 @@ use super::{
 };
 use nocter_checking::value_access::{
     ArgumentAction, ExpressionKind, ValueSourceSlot,
+    accepted::LocalFutureMove,
     flow::{
         self, Operation,
         resources::{Disposal as CheckedDisposal, Holder, Step},
@@ -33,7 +34,7 @@ pub(super) struct Builder<'a> {
     keys: BTreeMap<SlotKey, MirLocalId>,
     geometry: BTreeSet<super::GeometryConstraint>,
 }
-impl<'a> Builder<'a> {
+impl Builder<'_> {
     fn control(
         &mut self,
         result: RuntimeDataId,
@@ -103,7 +104,7 @@ impl<'a> Builder<'a> {
             .data_type(Drive::SELECTOR_TYPE)
             .ok_or_else(|| self.invalid())?;
         let storage = self.closed_data(data)?;
-        self.root(holder, storage, false)
+        self.snapshot(SlotKey::FutureSelector(holder), storage)
     }
     pub(super) fn future_input(
         &mut self,
@@ -111,14 +112,26 @@ impl<'a> Builder<'a> {
         index: usize,
         data: TypeId,
     ) -> Result<Place, Failure> {
-        let data = self.closed_data(data)?;
-        self.snapshot(SlotKey::FutureInput { owner, index }, data)
+        let physical = self.closed_data(data)?;
+        self.snapshot(SlotKey::FutureInput { owner, index, data }, physical)
     }
-    pub(super) fn future_input_types(&self, holder: Holder) -> Result<&'a [TypeId], Failure> {
-        self.instances
-            .unit()
-            .future_inputs(self.instance.key().code(), holder)
-            .ok_or_else(|| self.invalid())
+    fn future_transfers(
+        &mut self,
+        source: Holder,
+        destination: Holder,
+        fields: &[TypeId],
+    ) -> Result<Box<[(Place, Place)]>, Failure> {
+        fields
+            .iter()
+            .copied()
+            .enumerate()
+            .map(|(index, data)| {
+                Ok((
+                    self.future_input(source, index, data)?,
+                    self.future_input(destination, index, data)?,
+                ))
+            })
+            .collect()
     }
     pub(super) fn closed_data(&self, source: TypeId) -> Result<RuntimeDataId, Failure> {
         let program = self.instances.unit().program();
@@ -734,22 +747,44 @@ impl<'a> Builder<'a> {
                     source,
                     destination,
                     selector,
+                    captures,
                 } => {
+                    match captures {
+                        LocalFutureMove::Direct(fields) => {
+                            output.extend(
+                                self.future_transfers(*source, *destination, fields)?
+                                    .into_vec()
+                                    .into_iter()
+                                    .map(|(source, destination)| Effect::Transfer {
+                                        source,
+                                        destination,
+                                    }),
+                            );
+                        }
+                        LocalFutureMove::Selected(cases) => {
+                            let cases = cases
+                                .iter()
+                                .map(|(tag, fields)| {
+                                    Ok(super::FutureMoveCase {
+                                        tag: *tag,
+                                        fields: self.future_transfers(
+                                            *source,
+                                            *destination,
+                                            fields,
+                                        )?,
+                                    })
+                                })
+                                .collect::<Result<Box<[_]>, Failure>>()?;
+                            output.push(Effect::SelectedFutureMove {
+                                selector: self.future_selector(*source)?,
+                                cases,
+                            });
+                        }
+                    }
                     if *selector {
                         output.push(Effect::Transfer {
                             source: self.future_selector(*source)?,
                             destination: self.future_selector(*destination)?,
-                        });
-                    }
-                    for (index, data) in self
-                        .future_input_types(*source)?
-                        .iter()
-                        .copied()
-                        .enumerate()
-                    {
-                        output.push(Effect::Transfer {
-                            source: self.future_input(*source, index, data)?,
-                            destination: self.future_input(*destination, index, data)?,
                         });
                     }
                 }

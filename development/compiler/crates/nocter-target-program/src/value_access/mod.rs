@@ -16,6 +16,7 @@ use nocter_checking::value_access::{accepted::Unit, flow};
 use nocter_declarations::value_access::DataInstanceKey;
 use nocter_model::{
     AccessCodeId, AccessExpressionId, AccessInstanceId, AccessLocalId, AccessParameterId, Arena,
+    TypeId,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -30,22 +31,28 @@ pub type DataEvidence = nocter_checking::value_access::accepted::DataEvidence<Pa
 /// A local activation can drive a statically selected body or dispatch its stored producer tag.
 #[derive(Clone, Debug)]
 pub enum Drive {
-    Direct(AccessInstanceId),
-    Tagged(Box<[(u64, AccessInstanceId)]>),
+    Direct(DriveTarget),
+    Tagged(Box<[(u64, DriveTarget)]>),
+}
+
+#[derive(Clone, Debug)]
+pub struct DriveTarget {
+    pub instance: AccessInstanceId,
+    pub inputs: Arc<[TypeId]>,
 }
 
 impl Drive {
     /// Runtime scalar used for local activation selectors.
     pub const SELECTOR_TYPE: nocter_model::BuiltinType = nocter_model::BuiltinType::U64;
 
-    pub(super) fn targets(&self) -> impl Iterator<Item = AccessInstanceId> + '_ {
+    pub(super) fn targets(&self) -> impl Iterator<Item = &DriveTarget> {
         let (direct, tagged) = match self {
-            Self::Direct(target) => (Some(*target), &[][..]),
+            Self::Direct(target) => (Some(target), &[][..]),
             Self::Tagged(cases) => (None, cases.as_ref()),
         };
         direct
             .into_iter()
-            .chain(tagged.iter().map(|(_, target)| *target))
+            .chain(tagged.iter().map(|(_, target)| target))
     }
 }
 

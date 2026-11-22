@@ -1,6 +1,6 @@
 //! Consume checking's ordered resource data projection; no second source substitution model.
 use super::{Condition, Failure, Instance, Location, Resource, ResourceStep, Step};
-use nocter_checking::value_access::accepted::{LocalFutureStorage, Unit};
+use nocter_checking::value_access::accepted::{LocalFutureMove, LocalFutureStorage, Unit};
 use nocter_checking::value_access::flow::resources::{Holder, Missing, Place, Transition};
 use nocter_checking::value_access::{ResourceDataFailure, ResourceDataProjection};
 use nocter_constant_evaluation::state::WorkBudget;
@@ -70,7 +70,7 @@ impl<'a, 'work> Projection<'a, 'work> {
     fn project(&mut self, steps: &[ResourceStep], completed: bool) -> Result<Vec<Step>, Failure> {
         let unit = self.instance.queries.unit();
         let code = self.instance.key().code();
-        let (steps, activations) = partition_local_future_steps(unit, code, steps)?;
+        let (steps, activations) = partition_local_future_steps(unit, code, self.at, steps)?;
         // Preflight metadata matching before the atomic data projection changes its bindings.
         let roots = steps
             .iter()
@@ -165,6 +165,7 @@ type Partition<'a> = (Cow<'a, [ResourceStep]>, Vec<(usize, Step)>);
 fn partition_local_future_steps<'a>(
     unit: &Unit,
     code: ValueCode,
+    at: Location,
     steps: &'a [ResourceStep],
 ) -> Result<Partition<'a>, Failure> {
     let mut activations = Vec::new();
@@ -188,16 +189,20 @@ fn partition_local_future_steps<'a>(
             ) => {
                 let selector = backing == LocalFutureStorage::Selector;
                 let source = source.holder();
-                let fields = unit
-                    .future_inputs(code, source)
+                let destination = destination.holder();
+                let captures = unit
+                    .future_move(code, at, source, destination)
                     .ok_or(Failure::InvalidInstanceProgram)?;
-                if selector || !fields.is_empty() {
+                if selector
+                    || !matches!(captures, LocalFutureMove::Direct(fields) if fields.is_empty())
+                {
                     activations.push((
                         ordinary.len(),
                         Step::MoveLocalFuture {
                             source,
-                            destination: destination.holder(),
+                            destination,
                             selector,
+                            captures: captures.clone(),
                         },
                     ));
                 }

@@ -2,6 +2,7 @@
 pub mod flags;
 mod payloads;
 use super::{Environment, EnvironmentExit, Instance, InstanceProgram, Payload};
+use nocter_checking::value_access::accepted::LocalFutureMove;
 use nocter_checking::value_access::flow::{
     Location, Operation,
     resources::{Condition, Holder, Step as ResourceStep},
@@ -29,6 +30,7 @@ pub enum Step {
         source: Holder,
         destination: Holder,
         selector: bool,
+        captures: LocalFutureMove,
     },
     /// Install prepared scalar snapshots in the newly committed local activation.
     CaptureFutureInputs {

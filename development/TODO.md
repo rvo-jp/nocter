@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify a local future holder whose incoming producers have different scalar capture layouts.
-Retain the producer selection through moves and read the selected capture slots at drive. Keep
-same-layout transport on its existing direct path and validate unstarted disposal independently.
+Qualify native optional outputs through `await`, propagation and recovery. Preserve the
+authored outcome from the selected body and begin failure-output admission with actual
+construction and cleanup effect evidence.
 
 ## Remaining Contextual Representation Qualification
 
@@ -782,6 +782,9 @@ not a language restriction derived from the current realization boundary.
 - [x] Store and move scalar capture snapshots in the native path. Verify the selected body
   receives the captured values after caller mutation, both with and without dynamic producer
   selection. Qualify explicit input moves, separate local shapes and unstarted cancellation.
+- [x] Move and drive joined futures with different scalar capture layouts. Select only the
+  active lanes at the original operation, including differently sized inputs at the same
+  position. Verify unstarted mixed-layout cancellation and condition effects in native code.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.

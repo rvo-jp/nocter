@@ -163,7 +163,7 @@ fn await_with_two_local_producers_is_admitted_in_a_selected_package() {
 }
 
 #[test]
-fn joined_future_with_different_capture_shapes_reports_the_storage_requirement() {
+fn await_accepts_joined_futures_with_different_capture_shapes() {
     let (_fixture, product) = Fixture::package(
         "see ./body.nct\nasync func run(): i32",
         "func choice(): bool { true }\n\
@@ -175,11 +175,15 @@ fn joined_future_with_different_capture_shapes_reports_the_storage_requirement()
          }",
     );
     let analysis = analyze_unit_from_query(&product).unwrap();
-    let [diagnostic] = analysis.diagnostics() else {
-        panic!("{:?}", analysis.value_access_analysis());
-    };
-    assert_eq!(diagnostic.code(), "E0291");
-    assert!(diagnostic.message().contains("different captured inputs"));
+    assert!(
+        analysis.diagnostics().is_empty(),
+        "{:?}",
+        analysis.value_access_analysis()
+    );
+    assert!(matches!(
+        analysis.value_access_analysis(),
+        Some(ValueAccessAnalysis::Accepted(_))
+    ));
 }
 
 #[test]

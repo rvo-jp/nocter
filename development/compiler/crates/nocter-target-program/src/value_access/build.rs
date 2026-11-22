@@ -1,6 +1,7 @@
 //! Root-driven interning closes selected calls once. Recursive edges reuse reserved instances.
 use super::{
-    CallTarget, Drive, Failure, Instance, InstanceKey, InstanceProgram, invocation, projection,
+    CallTarget, Drive, DriveTarget, Failure, Instance, InstanceKey, InstanceProgram, invocation,
+    projection,
 };
 #[cfg(test)]
 mod tests;
@@ -50,16 +51,24 @@ impl Builder {
         &mut self,
         unit: &Unit,
         owner: ValueCode,
+        future: AccessExpressionId,
         result: AccessExpressionId,
     ) -> Result<Drive, Failure> {
         let invalid = Failure::InvalidAcceptedUnit;
         let producers = unit.future_drive(owner, result).ok_or(invalid)?;
         let mut target = |producer: AccessCodeId| {
+            let inputs = unit
+                .future_inputs(owner, Holder::Expression(future), producer)
+                .ok_or(invalid)?
+                .clone();
             let key = unit
                 .program()
                 .bind_code(producer.into(), [])
                 .map_err(|_| invalid)?;
-            Ok(self.intern(key))
+            Ok(DriveTarget {
+                instance: self.intern(key),
+                inputs,
+            })
         };
         if producers.len() == 1 {
             return target(*producers.first().ok_or(invalid)?).map(Drive::Direct);
@@ -110,8 +119,8 @@ impl Builder {
                     Operation::CommitCall(call) => {
                         invocations.insert(call);
                     }
-                    Operation::DriveFuture { result, .. } => {
-                        let target = self.drive(unit, key.code(), result)?;
+                    Operation::DriveFuture { future, result } => {
+                        let target = self.drive(unit, key.code(), future, result)?;
                         drives.insert(Location { point, action }, target);
                     }
                     _ => {}
@@ -258,7 +267,7 @@ fn validate_drives(
     let invalid = Failure::InvalidAcceptedUnit;
     let caller_body = unit.code_body(caller.key().code()).ok_or(invalid)?;
     for (&at, drive) in &caller.drives {
-        let Operation::DriveFuture { future, result } = caller_body
+        let Operation::DriveFuture { result, .. } = caller_body
             .graph()
             .points()
             .get(at.point)
@@ -271,19 +280,16 @@ fn validate_drives(
         let receipt = caller
             .definition(at, ValueSourceSlot::Expression(result))
             .ok_or(invalid)?;
-        let captured = unit
-            .future_inputs(caller.key().code(), Holder::Expression(future))
-            .ok_or(invalid)?;
         for target in drive.targets() {
-            let child = instances.get(target).ok_or(invalid)?;
+            let child = instances.get(target.instance).ok_or(invalid)?;
             let body = unit.code_body(child.key().code()).ok_or(invalid)?;
             let inputs = body.typed().body().inputs();
             if inputs.environment().is_some()
-                || inputs.explicit().len() != captured.len()
+                || inputs.explicit().len() != target.inputs.len()
                 || inputs
                     .explicit()
                     .iter()
-                    .zip(captured)
+                    .zip(target.inputs.iter())
                     .any(|(input, &data)| {
                         input.operation != nocter_model::ValueInputOperation::Take
                             || child

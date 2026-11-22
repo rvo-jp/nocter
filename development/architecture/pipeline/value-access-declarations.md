@@ -356,12 +356,13 @@ outcome operation. The control and resource analyses retain each local activatio
 producer through ownership transfer. The drive consumes that receipt before execution and receives
 the output through the shared normal-result transition after execution. The same construction
 step commits prepared scalar take inputs in source order to an unstarted local activation.
-Unit acceptance checks one compatible captured input layout for each owning holder and qualifies
-non-waiting execution through reached immediate bodies and every possible local drive.
-A future type in a body uses a producer selector when a reached drive has multiple producers.
-Construction stores the prepared values and any needed tag. Whole ownership transfers carry those
-values and the tag to the destination slots. Initialization and cancellation continue to follow the
-original ownership ledger, including unstarted cancellation of captured scalars.
+Unit acceptance retains the captured input layout for each producer at an owning holder and
+qualifies non-waiting execution through reached immediate bodies and every possible local drive.
+A future type in a body uses a producer selector when a reached drive has multiple producers
+or a reached move must distinguish capture layouts. Construction stores the prepared values and
+any needed tag. A move with a common layout transfers its slots directly. A move with different
+layouts selects the active slots before retiring the source. Initialization and cancellation
+continue to follow the original ownership ledger, including unstarted cancellation of captured scalars.
 
 The shared `value-modules/query-session` corpus closes an explicit checked root through physical
 v2 package discovery, revision-owned analysis and session evidence before the existing instance,
@@ -384,9 +385,10 @@ source-level generic move remains selected even if its concrete named payload is
 
 One immutable instance arena closes root reachability; recursive keys are reserved before their
 edges are followed. Reached invocation commits and qualified future drives add instances.
-A drive keeps its original action and candidate producers through instance closure. MIR supplies
-the stored inputs through the ordinary body ABI and dispatches on the retained selector when
-needed. The selected body's answer enters the checked normal-result transition.
+A drive keeps its original action, candidate producers and their input channels through instance
+closure. MIR dispatches on the retained selector when needed and supplies the selected stored
+inputs through the ordinary body ABI. The selected body's answer enters the checked normal-result
+transition.
 Source data IDs map once to concrete payload
 obligations or checked unproduced structural contracts in the same declaration TypeAuthority.
 The accepted Unit owns that distinction; an unproduced structural shape has no payload, cleanup or

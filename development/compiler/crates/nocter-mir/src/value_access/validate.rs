@@ -54,7 +54,7 @@ pub(super) fn program(program: &Program) -> Result<(), Failure> {
                     pending.extend(call.cases.iter().map(|case| case.target));
                 }
                 Operation::SelectedDrive(drive) => {
-                    pending.extend(drive.cases.iter().map(|(_, target)| *target));
+                    pending.extend(drive.cases.iter().map(|case| case.target));
                 }
                 _ => {}
             }
@@ -318,6 +318,15 @@ impl Context<'_> {
     }
     fn effect(&self, effect: &Effect) -> Result<(), Failure> {
         match effect {
+            Effect::SelectedFutureMove { selector, cases } => {
+                self.future_cases(selector, cases.iter().map(|case| case.tag))?;
+                for case in cases {
+                    for (source, destination) in &case.fields {
+                        self.transfer(source, destination)?;
+                    }
+                }
+                Ok(())
+            }
             Effect::VariantTag {
                 destination,
                 primary,
@@ -367,15 +376,7 @@ impl Context<'_> {
             Effect::Transfer {
                 source,
                 destination,
-            } => {
-                self.place(source)?;
-                self.place(destination)?;
-                self.require(
-                    self.program
-                        .runtime
-                        .has_same_value_representation(source.data, destination.data),
-                )
-            }
+            } => self.transfer(source, destination),
             Effect::Repack {
                 source,
                 destination,
@@ -685,37 +686,64 @@ impl Context<'_> {
 }
 
 impl Context<'_> {
-    fn selected_drive(&self, drive: &super::SelectedDrive) -> Result<(), Failure> {
-        self.place(&drive.selector)?;
-        self.place(&drive.answer)?;
+    fn transfer(&self, source: &Place, destination: &Place) -> Result<(), Failure> {
+        self.place(source)?;
+        self.place(destination)?;
+        self.require(
+            self.program
+                .runtime
+                .has_same_value_representation(source.data, destination.data),
+        )
+    }
+    fn future_cases(
+        &self,
+        selector: &Place,
+        tags: impl ExactSizeIterator<Item = u64>,
+    ) -> Result<(), Failure> {
+        self.place(selector)?;
+        self.require(
+            selector.projections.is_empty()
+                && self.body.slots.get(selector.slot).is_some_and(|slot| {
+                    slot.storage == Storage::Payload && matches!(slot.key, SlotKey::FutureSelector(_))
+                }),
+        )?;
         self.require(
             self.primitive(
-                drive.selector.data,
+                selector.data,
                 RuntimePrimitive::for_builtin(
                     nocter_target_program::value_access::Drive::SELECTOR_TYPE,
                 ),
-            ) && drive.cases.len() > 1
-                && drive.cases.windows(2).all(|pair| pair[0].0 < pair[1].0),
+            ) && tags.len() > 1,
         )?;
+        let mut previous = None;
+        for tag in tags {
+            self.require(previous.is_none_or(|prior| prior < tag))?;
+            previous = Some(tag);
+        }
+        Ok(())
+    }
+    fn selected_drive(&self, drive: &super::SelectedDrive) -> Result<(), Failure> {
+        self.future_cases(&drive.selector, drive.cases.iter().map(|case| case.tag))?;
+        self.place(&drive.answer)?;
         self.require(self.body.slots.get(drive.answer.slot).is_some_and(|slot| {
             slot.storage == Storage::Payload && matches!(slot.key, SlotKey::Answer(_))
         }))?;
-        for &(_, target) in &drive.cases {
+        for case in &drive.cases {
             let signature = &self
                 .program
                 .bodies
-                .get(&target)
+                .get(&case.target)
                 .ok_or_else(|| self.invalid())?
                 .signature;
             self.require(
                 signature.environment().is_none()
-                    && signature.explicit().len() == drive.inputs.len()
+                    && signature.explicit().len() == case.inputs.len()
                     && self
                         .program
                         .runtime
                         .has_same_value_representation(drive.answer.data, signature.result()),
             )?;
-            for (actual, expected) in drive.inputs.iter().zip(signature.explicit()) {
+            for (actual, expected) in case.inputs.iter().zip(signature.explicit()) {
                 self.place(&actual.source)?;
                 self.require(
                     expected.operation == ValueInputOperation::Take

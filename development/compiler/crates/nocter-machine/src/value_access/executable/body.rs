@@ -352,6 +352,17 @@ impl<'a> Builder<'a> {
     }
     fn effect(&mut self, effect: &mir::Effect) -> Result<(), Failure> {
         match effect {
+            mir::Effect::SelectedFutureMove { selector, cases } => {
+                let subject = self.load(selector)?;
+                let tags = cases.iter().map(|case| i128::from(case.tag));
+                self.select_integer_cases(subject, tags, |builder, index| {
+                    let case = cases.get(index).ok_or_else(Self::invalid)?;
+                    for (source, destination) in &case.fields {
+                        builder.copy(source, destination)?;
+                    }
+                    Ok(())
+                })?;
+            }
             mir::Effect::VariantTag {
                 destination,
                 primary,

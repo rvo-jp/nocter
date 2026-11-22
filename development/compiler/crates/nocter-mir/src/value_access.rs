@@ -39,9 +39,11 @@ pub enum SlotKey {
     },
     Predicate(AccessExpressionId),
     Answer(AccessExpressionId),
+    FutureSelector(nocter_checking::value_access::flow::resources::Holder),
     FutureInput {
         owner: nocter_checking::value_access::flow::resources::Holder,
         index: usize,
+        data: nocter_model::TypeId,
     },
     IndexSnapshot(nocter_checking::value_access::flow::resources::RetainedIndex),
     ArrayFrontier(nocter_checking::value_access::flow::resources::ArrayFrontier),
@@ -122,6 +124,10 @@ pub struct Preserved {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Effect {
+    SelectedFutureMove {
+        selector: Place,
+        cases: Box<[FutureMoveCase]>,
+    },
     /// Complete one wrapper construction at its checked commit phase.
     VariantTag {
         destination: Place,
@@ -220,9 +226,21 @@ pub struct SelectedCall {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SelectedDrive {
     pub selector: Place,
-    pub cases: Box<[(u64, AccessInstanceId)]>,
-    pub inputs: Box<[CallInput]>,
+    pub cases: Box<[FutureDriveCase]>,
     pub answer: Place,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FutureDriveCase {
+    pub tag: u64,
+    pub target: AccessInstanceId,
+    pub inputs: Box<[CallInput]>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FutureMoveCase {
+    pub tag: u64,
+    pub fields: Box<[(Place, Place)]>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
