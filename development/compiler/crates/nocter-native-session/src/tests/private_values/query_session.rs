@@ -24,6 +24,8 @@ fn copy_fixture(directory: &TempPackage) {
         "app/math/body.nct",
         "app/failure/index.nct",
         "app/failure/body.nct",
+        "app/later/index.nct",
+        "app/later/body.nct",
         "std/index.nct",
         "std/process/index.nct",
     ] {
@@ -108,6 +110,7 @@ fn physical_query_session_unit_executes_selected_entries() {
             ModuleIdentity::new(identity("app"), Vec::<&str>::new()),
             ModuleIdentity::new(identity("app"), ["math"]),
             ModuleIdentity::new(identity("app"), ["failure"]),
+            ModuleIdentity::new(identity("app"), ["later"]),
         ],
         standard_profile(std),
     );
@@ -142,7 +145,11 @@ fn physical_query_session_unit_executes_selected_entries() {
             ExecutableSelectionError::MultipleExecutables
         ))
     ));
-    for (name, path, status) in [("app", &[][..], 42), ("math", &["math"][..], 17)] {
+    for (name, path, status) in [
+        ("app", &[][..], 42),
+        ("math", &["math"][..], 17),
+        ("later", &["later"][..], 28),
+    ] {
         let selector = ExecutableSelector::named(name);
         let executable = select_value_access_executable(&session, &selector).unwrap();
         let declaration = executable.package_declaration().unwrap();

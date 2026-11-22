@@ -1,7 +1,7 @@
 //! Closed static instances of the private value-binding product. No ABI or native admission.
 mod build;
 mod entry;
-pub use entry::{executable_abi, immediate_entry_result};
+pub use entry::{entry_result, executable_abi};
 mod invocation;
 pub mod lifecycle;
 mod projection;

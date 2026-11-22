@@ -375,7 +375,7 @@ fn close_entry<'a>(
         None => return Err(invalid_main(None)),
         Some(_) => return Err(invalid_main(Some(EntryContractRule::TopLevelFunction))),
     };
-    let result = value_access::immediate_entry_result(accepted.unit(), entry)
+    let result = value_access::entry_result(accepted.unit(), entry)
         .map_err(|rule| invalid_main(Some(rule)))?;
     Ok(ValueAccessExecutable {
         origin,

@@ -10,7 +10,7 @@ use crate::{EntryContractRule, ProcessResultContract, TargetUnavailable};
 ///
 /// # Errors
 /// Returns the violated entry rule if this declaration cannot be used as a process entry.
-pub fn immediate_entry_result(
+pub fn entry_result(
     unit: &nocter_checking::value_access::accepted::Unit,
     callable: AccessCodeId,
 ) -> Result<ProcessResultContract, EntryContractRule> {
@@ -19,18 +19,22 @@ pub fn immediate_entry_result(
         .codes()
         .get(callable)
         .ok_or(EntryContractRule::TopLevelFunction)?;
-    if !matches!(code.kind(), CodeKind::Function(_)) {
-        return Err(EntryContractRule::TopLevelFunction);
+    match code.kind() {
+        CodeKind::Function(_) => {}
+        CodeKind::DeferredFunction if unit.can_drive_without_suspension(callable) => {}
+        _ => return Err(EntryContractRule::TopLevelFunction),
     }
     if !code.parameters().is_empty() {
         return Err(EntryContractRule::ValueParameters);
     }
-    if unit.body(callable).is_none() {
-        return Err(EntryContractRule::MissingBody);
-    }
-    let (success, fallible) = match program.data_schema(code.result()) {
+    let output = unit
+        .body(callable)
+        .ok_or(EntryContractRule::MissingBody)?
+        .typed()
+        .result_data();
+    let (success, fallible) = match program.data_schema(output) {
         Some(PayloadSchema::Fallible(success)) => (success, true),
-        _ => (code.result(), false),
+        _ => (output, false),
     };
     let Some(PayloadSchema::Builtin(success)) = program.data_schema(success) else {
         return Err(EntryContractRule::ResultType);

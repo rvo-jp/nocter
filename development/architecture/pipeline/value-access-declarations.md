@@ -2,8 +2,8 @@
 
 This document owns the implemented bounded handoff between syntax, declarations, typed bodies,
 accepted private units and private instances. Language meaning belongs to the
-[adopted value model](../../spec/language/value-access.md). This boundary has no released-program
-adapter or public CLI. Its native consumer uses the common Machine, ARM64 and
+[adopted value model](../../spec/language/value-access.md). The handoff retains its own checked
+unit from source through target selection. Its native consumer uses the common Machine, ARM64 and
 Mach-O products; the [entry qualification](#common-machine-body-construction) defines its limits.
 
 ## Source Scope
@@ -11,8 +11,7 @@ Mach-O products; the [entry qualification](#common-machine-body-construction) de
 The syntax owner defines the bounded private goal. Checking admits explicit postfix retirement,
 unmarked Copy snapshots, marked capture formation and read/edit loans from produced or
 transferred values within its closed data/callable schemas. A direct marked source stays reserved
-through complete invocation preparation, including selected callable adapters. These products do
-not establish general capabilities, public modules, general outcomes or async.
+through complete invocation preparation, including selected callable adapters.
 The [realization plan](../../design/compiler-realization.md) owns remaining integrated obligations.
 
 An explicitly selected v2 package-root catalog now carries the adopted
@@ -180,9 +179,9 @@ program authority; the query owns that authority and callable together with sour
 arenas. Place reads, update/transfer operations, boundary Copy/delegation, argument preparations,
 RHS-first stores, checked primitive arithmetic and structured control retain separate operations.
 A deferred body is checked against its authored output, including its own fallible layer.
-Its invocation still constructs a separate future type. A typed deferred body without complete
-lifecycle evidence is rejected before whole-unit flow and resource admission. Ordinary nested
-closures do not inherit the deferred body's permission to await.
+Its invocation has a separate future type. Ordinary nested closures do not inherit the deferred
+body's permission to await. The supported process drive is described at the
+[Machine handoff](#common-machine-body-construction).
 Direct and value calls store one statically selected callable and one input operation per ordered
 input. Value-supply preparation can remain pending until result closure, without changing that
 authored operation. A value call prepends its environment to explicit inputs; direct declaration
@@ -334,24 +333,20 @@ callee, combine different header generations, or construct acceptance from inter
 the whole original body set before exposing any exact-current projection. No lookup, typing,
 dispatch, or flow computation is repeated by that projection.
 
-This is closed front-end evidence for the exact private fragment, not a code-generation
-certificate. General module/package product integration, general dependencies, user destructors,
-general outcomes and async remain outside its admitted source scope. There is no released
-checked-program conversion or public compatibility mode.
+This is front-end evidence for the exact private fragment. Native instantiation, layout and code
+generation establish their own admission through the handoffs below.
 
 The v2 grammar preserves async modifiers, future type operands and await before outcome suffixes.
 Contract pairing distinguishes an async declaration from an immediate implementation. The
 [typed declaration contract](../../compiler/crates/nocter-declarations/README.md#future-value-declaration-boundary)
-retains the deferred mode and its invocation result. Future lifecycle checking is required before
-Unit publication. An await in an immediate body is diagnosed at its keyword.
+retains the deferred mode and its invocation result. Producing a future value requires its
+own lifecycle evidence. An await in an immediate body is diagnosed at its keyword.
 
 The shared `value-modules/query-session` corpus closes an explicit checked root through physical
 v2 package discovery, revision-owned analysis and session evidence before the existing instance,
 lifecycle, MIR, Machine, ARM64 and image consumers. Required evaluation and the native process both
 produce 42 from two same-code factory closures retaining different captured values across modules.
-The native handoff consumes the session's complete Unit; it does not prepare source again or
-convert released checking evidence. This bounded root selection does not choose public entry,
-package execution, installed-library or ABI policy.
+The native handoff consumes the session's complete Unit and the selected authored entry.
 
 ## Private Instance Closure Handoff
 
@@ -600,7 +595,13 @@ On ARM64 Darwin the process-image entry admits a root with no inputs and an imme
 or `usize` result, including the fallible forms. Its Machine wrapper reads the shared outcome tag,
 uses only the selected payload, and reports and releases a failure through the common error
 operations before exit. Package selection validates the authored module entry independently of
-the wrapper. Async entry and public CLI integration remain open. Callable bodies still preserve
+the wrapper. Checking also qualifies a deferred process drive for an empty activation with local
+output backing. It follows reached invocations and original resource transitions, and requires
+all selected code and cleanup to run without waiting for external progress. This can include a
+local loop or recursive call. An unresolved invocation or uncertified backing receives a source
+diagnostic. The native entry drives this checked body directly and consumes the output without
+materializing a future value. General future construction, suspension and cancellation require
+their own evidence. The default installed v2 profile remains open. Callable bodies still preserve
 their full frozen input/result contracts. Native-session integration tests compile actual private
 source through checking, instances, lifecycle, MIR and these existing native consumers, then
 execute the images on ARM64 macOS. They cover scalar computation, scoped channels, control flow,

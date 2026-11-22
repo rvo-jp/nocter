@@ -8,9 +8,10 @@ attributes, effect parameters and renamed source guarantees are not substitutes.
 `const` remain staging contracts, not claims of allocation freedom, purity or bounded work.
 
 The compiler derives effects from selected operations and cleanup, independently of input
-operations, Copy and nominal names. These are adopted design obligations, not implemented
-private-compiler inference. Platform facts, capability schemas, erasure and executable realization
-require their own checked evidence before admission.
+operations, Copy and nominal names. Platform facts, capability schemas, erasure and executable
+realization require their own checked evidence before admission. The
+[compiler pipeline](../../architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
+records implemented scope.
 
 ## Facts and Phases
 

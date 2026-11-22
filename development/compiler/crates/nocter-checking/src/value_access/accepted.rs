@@ -1,6 +1,7 @@
 //! Closed front-end acceptance of every definition in one private first-fragment unit.
 pub use super::staged::{ModuleSourceUnit, SourceFailure, SourceUnit};
 mod const_admission;
+mod deferred;
 mod instance_metadata;
 use super::{Failure as BodyFailure, Query as TypedQuery, flow};
 pub(super) use const_admission::{ConstAdmission, ConstConditions, check_required_const};
@@ -63,6 +64,7 @@ pub struct Unit {
     header: Arc<Program>,
     primitives: nocter_declaration_lowering::access_declarations::PrimitiveBindings,
     bodies: BTreeMap<nocter_model::ValueCodeRoot, Arc<flow::Query>>,
+    deferred_drives: BTreeSet<AccessCodeId>,
     result_evidence: Arc<super::results::Evidence>,
     const_templates: Arc<super::constant::Catalog>,
 }
@@ -139,6 +141,7 @@ impl Unit {
             closures,
             result_evidence,
             const_templates,
+            deferred_drives,
         } = check_queries(context, queries, &mut definition_work)?;
         Ok(Self {
             initializers: evaluation
@@ -156,7 +159,14 @@ impl Unit {
             bodies,
             result_evidence,
             const_templates,
+            deferred_drives,
         })
+    }
+    /// The empty deferred activation is proven non-waiting when driven to completion.
+    /// This grants no source future construction, transport or suspension permission.
+    #[must_use]
+    pub fn can_drive_without_suspension(&self, id: AccessCodeId) -> bool {
+        self.deferred_drives.contains(&id)
     }
     #[must_use]
     pub fn constant_value(&self, id: AccessCodeId) -> Option<&nocter_model::FrozenData> {
@@ -634,6 +644,7 @@ pub(super) struct Checked {
     closures: BTreeMap<nocter_model::ValueClosure, Arc<flow::Query>>,
     result_evidence: Arc<super::results::Evidence>,
     const_templates: Arc<super::constant::Catalog>,
+    deferred_drives: BTreeSet<AccessCodeId>,
 }
 impl Checked {
     pub(super) fn project_const_violation(
@@ -842,7 +853,7 @@ pub(super) fn resolve_queries(
     let mut controls = queries
         .into_iter()
         .map(|(id, body)| {
-            require_supported_execution(context, &body)?;
+            deferred::require_local_activation(context, id)?;
             Ok((
                 id,
                 flow::Control::prepare(Arc::new(body)).map_err(Failure::Integrity)?,
@@ -855,39 +866,6 @@ pub(super) fn resolve_queries(
         controls,
         result_evidence,
     })
-}
-
-fn require_supported_execution(
-    context: &DeclarationContext<'_>,
-    body: &TypedQuery,
-) -> Result<(), Failure> {
-    let nocter_model::ValueCode::Declaration(callable) = body.code() else {
-        return Ok(());
-    };
-    if !matches!(
-        body.program().code_execution(callable),
-        Some(nocter_declarations::CallableExecution::Deferred { .. })
-    ) {
-        return Ok(());
-    }
-    let failure = || {
-        let selected = context.for_code(callable)?;
-        let modifier = selected
-            .code_source(callable)
-            .and_then(
-                nocter_declaration_lowering::access_declarations::CodeSource::deferred_modifier,
-            )
-            .ok_or(BodyFailure::InconsistentSyntax)?;
-        let rule = super::Rule::UnqualifiedFuture;
-        Err(super::diagnostics::authored_rejection(
-            selected.syntax(),
-            nocter_syntax::SyntaxOrigin::Node(modifier),
-            rule,
-            rule.diagnostic().1,
-            Vec::new(),
-        ))
-    };
-    failure().map_err(|failure| Failure::Body { callable, failure })
 }
 
 /// The same ordinary acceptance authority serves required const closures and final whole-unit closure.
@@ -962,6 +940,7 @@ pub(super) fn admit_resolved(
             bodies.insert(root, Arc::new(query));
         }
     }
+    let deferred_drives = deferred::qualify(&program, &bodies, &verified)?;
     let const_templates = const_admission::check_const_bodies(
         &program,
         &bodies,
@@ -980,6 +959,7 @@ pub(super) fn admit_resolved(
         closures,
         result_evidence,
         const_templates,
+        deferred_drives,
     })
 }
 

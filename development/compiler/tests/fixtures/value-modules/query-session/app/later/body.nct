@@ -1,0 +1,18 @@
+see ./index.nct
+
+func tally(take count: i32): i32 {
+    var remaining = count
+    var result = 0
+    loop {
+        if remaining == 0 {
+            break
+        }
+        result += 3
+        remaining -= 1
+    }
+    result
+}
+
+async func main(): i32 {
+    1 + tally(9)
+}

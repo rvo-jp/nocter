@@ -44,6 +44,64 @@ fn named<'a>(unit: &'a Unit, name: &str) -> &'a flow::Query {
         .unwrap()
         .1
 }
+
+#[test]
+fn closed_deferred_drive_handles_pure_recursive_code_without_executing_it() {
+    let unit = accepted("func recurse(): i32 { recurse() }\nasync func root(): i32 { recurse() }");
+    let root = named(&unit, "root").typed().source_owner();
+    let helper = named(&unit, "recurse").typed().source_owner();
+    assert!(unit.can_drive_without_suspension(root));
+    assert!(!unit.can_drive_without_suspension(helper));
+}
+
+#[test]
+fn a_closed_drive_does_not_certify_ordinary_future_creation() {
+    let (sources, tree) =
+        input("async func root(): i32 { 42 }\nfunc caller(): void { let value = root() }");
+    let Err(SourceFailure::Checking(Failure::Body { failure, .. })) =
+        SourceUnit::prepare(bound(&sources, &tree))
+    else {
+        panic!("expected an authored invocation failure");
+    };
+    let BodyFailure::Rejected(diagnostic) = failure else {
+        panic!("{failure:?}");
+    };
+    assert_eq!(
+        diagnostic.rule(),
+        crate::value_access::Rule::UnqualifiedFuture
+    );
+    let span = diagnostic.source().primary().span();
+    assert_eq!(
+        sources.get(span.source()).unwrap().text_at(span.range()),
+        Some("root")
+    );
+}
+
+#[test]
+fn deferred_drive_diagnoses_a_formal_invocation_without_effect_evidence() {
+    let (sources, tree) = input(
+        "func answer(): i32 { 42 }\n\
+         func apply(action: func(): i32): i32 { action() }\n\
+         async func root(): i32 { apply(answer) }",
+    );
+    let Err(SourceFailure::Checking(Failure::Body {
+        failure: BodyFailure::Rejected(diagnostic),
+        ..
+    })) = SourceUnit::prepare(bound(&sources, &tree))
+    else {
+        panic!("expected a source diagnostic for the formal invocation");
+    };
+    assert_eq!(
+        diagnostic.rule(),
+        crate::value_access::Rule::UnqualifiedFuture
+    );
+    let span = diagnostic.source().primary().span();
+    assert_eq!(
+        sources.get(span.source()).unwrap().text_at(span.range()),
+        Some("action()")
+    );
+}
+
 fn assert_resources(
     unit: &Unit,
     caller: &nocter_declarations::value_access::CodeInstanceKey,

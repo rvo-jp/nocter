@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Derive non-waiting drive evidence from original checked operations and cleanup. Keep it separate
-from future construction, unstarted/pending cancellation and ready-output disposal. Use that
-evidence to qualify native driving before admitting future value transport and suspension.
+Retain the concrete deferred producer at source construction and model an empty unstarted
+activation with its own cancellation. Keep construction distinct from driving and from the
+shared `future T` type before extending input dependencies, transport and suspension.
 
 ## Remaining Contextual Representation Qualification
 
@@ -746,6 +746,10 @@ not a language restriction derived from the current realization boundary.
 - [x] Use the authored deferred output in both the body checker and staged header reconciliation.
   Preserve immediate invocation results separately, distinguish ordinary nested closures from
   async bodies, and qualify source-backed diagnostics before allowing future execution.
+- [x] Qualify native process driving for empty deferred activations with local output backing.
+  Establish non-waiting drive through reached calls and checked cleanup, retaining ordinary
+  future creation as a separate boundary. Verify the original package selection, an actual
+  native exit status, unsupported selected effects and local recursion without executing it.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.

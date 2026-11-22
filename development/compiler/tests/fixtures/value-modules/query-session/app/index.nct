@@ -2,6 +2,7 @@
 #executable: { name: "app" }
 #executable: { name: "math", module: "./math" }
 #executable: { name: "failure", module: "./failure" }
+#executable: { name: "later", module: "./later" }
 see ./body.nct
 use ./math
 const func main(): i32
