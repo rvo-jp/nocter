@@ -36,7 +36,9 @@ impl State {
             PayloadSchema::Array(array) => u64::try_from(fields.len()).ok() == Some(array.length()),
             PayloadSchema::Optional(_) => fields.len() <= 1,
             PayloadSchema::Fallible(_) => fields.len() == 1,
-            PayloadSchema::Builtin(_) | PayloadSchema::Function(_) => false,
+            PayloadSchema::Builtin(_) | PayloadSchema::Function(_) | PayloadSchema::Future(_) => {
+                false
+            }
         };
         if !complete || self.contains(destination) {
             return Err(INVALID);

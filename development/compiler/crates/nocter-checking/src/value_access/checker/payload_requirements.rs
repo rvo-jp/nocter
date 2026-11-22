@@ -92,7 +92,9 @@ fn unready<Origin: Copy>(
             .ok_or(Failure::InconsistentSyntax)?
         {
             PayloadSchema::Builtin(_) | PayloadSchema::Function(_) => {}
-            PayloadSchema::Optional(payload) | PayloadSchema::Fallible(payload) => {
+            PayloadSchema::Optional(payload)
+            | PayloadSchema::Fallible(payload)
+            | PayloadSchema::Future(payload) => {
                 pending.push((payload, origin));
             }
             PayloadSchema::Array(array) => {

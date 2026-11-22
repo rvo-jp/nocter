@@ -286,6 +286,9 @@ fn named_witnesses_and_their_containers_have_temporary_but_no_final_data_evidenc
                 | nocter_declarations::value_access::PayloadSchema::Fallible(_) => {
                     panic!("ordinary scalar/optional final admission must remain available")
                 }
+                nocter_declarations::value_access::PayloadSchema::Future(_) => {
+                    panic!("a lazy future is outside required evaluation")
+                }
             };
             kinds[kind] = true;
         }

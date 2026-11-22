@@ -119,6 +119,7 @@ pub struct TypeExpressionSource {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CodeKind {
     Function(CompileTimeGuarantee),
+    DeferredFunction,
     /// A bodyless callable declaration; primitive authority is a separate lowering receipt.
     Primitive,
     ConstantInitializer,
@@ -128,7 +129,10 @@ pub enum CodeKind {
 impl CodeKind {
     #[must_use]
     pub const fn is_callable(self) -> bool {
-        matches!(self, Self::Function(_) | Self::Primitive)
+        matches!(
+            self,
+            Self::Function(_) | Self::DeferredFunction | Self::Primitive
+        )
     }
     #[must_use]
     pub const fn is_initializer(self) -> bool {
@@ -141,7 +145,7 @@ impl CodeKind {
     pub const fn compile_time(self) -> CompileTimeGuarantee {
         match self {
             Self::Function(capability) => capability,
-            Self::Primitive => CompileTimeGuarantee::RuntimeOnly,
+            Self::DeferredFunction | Self::Primitive => CompileTimeGuarantee::RuntimeOnly,
             Self::ConstantInitializer | Self::StaticInitializer | Self::TypeExpression(_) => {
                 CompileTimeGuarantee::Evaluatable
             }
@@ -182,6 +186,7 @@ impl Code {
         &self.parameters
     }
     #[must_use]
+    /// Invocation result. A deferred function returns its future at this boundary.
     pub const fn result(&self) -> TypeId {
         self.result
     }
@@ -253,6 +258,21 @@ pub struct Program {
 }
 
 impl Program {
+    /// The original execution mode and, for a deferred callable, its body output.
+    #[must_use]
+    pub fn code_execution(&self, id: AccessCodeId) -> Option<crate::CallableExecution> {
+        let code = self.codes.get(id)?;
+        match code.kind() {
+            CodeKind::DeferredFunction => match self.data_schema(code.result())? {
+                PayloadSchema::Future(output) => {
+                    Some(crate::CallableExecution::Deferred { output })
+                }
+                _ => None,
+            },
+            kind if kind.is_callable() => Some(crate::CallableExecution::Immediate),
+            _ => None,
+        }
+    }
     /// Validate names in one physical header scope without publishing typed inputs.
     /// # Errors
     /// Rejects an unknown scope or named declaration identity.

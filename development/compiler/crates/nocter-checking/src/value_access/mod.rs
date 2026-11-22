@@ -77,6 +77,7 @@ pub enum Rule {
     UnknownType,
     UnsupportedData,
     AwaitOutsideAsync,
+    UnqualifiedFuture,
     UnknownResultType,
     ShadowedName,
     TypeMismatch,
@@ -142,6 +143,10 @@ impl Rule {
             Self::AwaitOutsideAsync => (
                 DiagnosticCode::E0415,
                 "await requires an enclosing async body",
+            ),
+            Self::UnqualifiedFuture => (
+                DiagnosticCode::E0291,
+                "a deferred body requires future lifecycle checking",
             ),
             Self::UnknownType => (DiagnosticCode::E0370, "unknown or unsupported data type"),
             Self::UnknownName => (DiagnosticCode::E0340, "unknown local or function name"),

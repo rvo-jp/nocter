@@ -17,6 +17,7 @@ enum CodeRecipe {
 #[derive(Clone, Debug)]
 struct CodeHeaderRecipe {
     name: DeclarationSyntaxLocator,
+    deferred_modifier: Option<DeclarationSyntaxLocator>,
     parameters: Box<[DeclarationSyntaxLocator]>,
     parameter_types: Box<[DeclarationSyntaxLocator]>,
     result: DeclarationSyntaxLocator,
@@ -43,6 +44,11 @@ impl Recipes {
         let capture_header = |header: &CodeHeaderSource| -> Result<CodeHeaderRecipe, Failure> {
             Ok(CodeHeaderRecipe {
                 name: locate(SyntaxOrigin::Token(header.name))?,
+                deferred_modifier: header
+                    .deferred_modifier
+                    .map(SyntaxOrigin::Node)
+                    .map(locate)
+                    .transpose()?,
                 parameters: header
                     .parameters
                     .iter()
@@ -110,6 +116,7 @@ impl Recipes {
         let bind_header = |header: &CodeHeaderRecipe| -> Result<CodeHeaderSource, Failure> {
             Ok(CodeHeaderSource {
                 name: token(header.name)?,
+                deferred_modifier: header.deferred_modifier.map(node).transpose()?,
                 parameters: header
                     .parameters
                     .iter()

@@ -270,6 +270,7 @@ impl Types {
         }
         self.ids.get(root).copied().ok_or(INVALID)
     }
+    #[expect(clippy::too_many_lines, reason = "one worklist owns evaluator projection for the closed data shapes")]
     fn project(
         &mut self,
         program: &Program,
@@ -312,6 +313,10 @@ impl Types {
                         let ty = Type::builtin(builtin);
                         let supported = ty.is_some();
                         self.insert(data, ty.unwrap_or(Type::Unavailable), supported);
+                        continue;
+                    }
+                    PayloadSchema::Future(_) => {
+                        self.insert(data, Type::Unavailable, false);
                         continue;
                     }
                     PayloadSchema::Fallible(_) => vec![
@@ -470,7 +475,7 @@ impl Types {
                         environment: *children.first().ok_or(INVALID)?,
                     }
                 }
-                PayloadSchema::Builtin(_) => return Err(INVALID),
+                PayloadSchema::Builtin(_) | PayloadSchema::Future(_) => return Err(INVALID),
             }
         };
         let id = self.insert(data, ty, supported);

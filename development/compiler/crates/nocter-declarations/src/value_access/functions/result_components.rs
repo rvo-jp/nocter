@@ -45,7 +45,9 @@ impl Program {
                 PayloadSchema::Optional(payload) | PayloadSchema::Fallible(payload) => {
                     pending.push((payload, path.project(ValueProjection::Variant(true))));
                 }
-                PayloadSchema::Builtin(_) | PayloadSchema::Function(_) => {}
+                PayloadSchema::Builtin(_)
+                | PayloadSchema::Function(_)
+                | PayloadSchema::Future(_) => {}
             }
         }
         None

@@ -74,6 +74,39 @@ fn body_and_trivia_edits_rebind_without_redeciding_headers() {
         Err(Failure::ChangedHeader)
     ));
 }
+
+#[test]
+fn future_producer_modifier_rebinds_with_the_current_body_source() {
+    let (original, first) = input("async func work(): i32 { 17 }", ParseGoal::V2CoreUnit);
+    let (edited, second) = input(
+        "// shifted\nasync func work(): i32 { 42 }",
+        ParseGoal::V2CoreUnit,
+    );
+    let query = Query::prepare(bound(&original, &first)).unwrap();
+    let (code, signature) = query.program().codes().iter().next().unwrap();
+    let output = query.program().data_type(BuiltinType::I32).unwrap();
+    assert_eq!(
+        query.program().code_execution(code),
+        Some(nocter_declarations::CallableExecution::Deferred { output })
+    );
+    assert_eq!(
+        query.program().data_schema(signature.result()),
+        Some(nocter_declarations::value_access::PayloadSchema::Future(
+            output
+        ))
+    );
+    let rebound = query.bind(bound(&edited, &second)).unwrap();
+    let modifier = rebound
+        .code_source(code)
+        .unwrap()
+        .deferred_modifier()
+        .unwrap();
+    assert!(first.node(modifier).is_none());
+    assert_eq!(
+        second.node(modifier).unwrap().kind(),
+        NodeKind::AsyncModifier
+    );
+}
 #[test]
 fn canonical_reservation_is_independent_of_source_order() {
     let (a, ta) = input(

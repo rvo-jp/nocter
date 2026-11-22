@@ -348,6 +348,7 @@ impl Program {
             }
             match self.data_schema(data)? {
                 PayloadSchema::Builtin(_) => {}
+                PayloadSchema::Future(_) => return None,
                 PayloadSchema::Aggregate(schema) => {
                     pending.extend(schema.components().map(|component| component.data));
                 }

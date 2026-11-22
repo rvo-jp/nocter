@@ -13,6 +13,7 @@ pub enum PayloadSchema<'a> {
     Array(ArraySchema),
     Optional(TypeId),
     Fallible(TypeId),
+    Future(TypeId),
     Function(super::FunctionWitness),
 }
 
@@ -31,6 +32,7 @@ pub enum DataReference {
     /// A callable constraint inside an input descriptor, never an erased function pointer.
     Function(Box<super::FunctionDefinition>),
     Fallible(Box<DataReference>),
+    Future(Box<DataReference>),
     Optional {
         payload: Box<DataReference>,
         layers: std::num::NonZeroUsize,
@@ -93,6 +95,7 @@ impl DataReference {
                     pending.push((payload, true));
                 }
                 Self::Optional { payload, .. } => pending.push((payload, failure)),
+                Self::Future(output) => pending.push((output, false)),
                 Self::Tuple(fields) => {
                     pending.extend(fields.as_slice().iter().map(|data| (data, false)));
                 }
@@ -132,6 +135,12 @@ impl DataReference {
                     if !payload_only {
                         pending.push(&contract.result);
                         pending.extend(contract.inputs.iter().rev().map(|(_, data)| data));
+                    }
+                }
+                Self::Future(output) => {
+                    visit(data);
+                    if !payload_only {
+                        pending.push(output);
                     }
                 }
                 _ => visit(data),
@@ -207,6 +216,7 @@ impl Program {
             | DataReference::Function(_)
             | DataReference::Array { .. }
             | DataReference::Optional { .. }
+            | DataReference::Future(_)
             | DataReference::Fallible(_) => None,
         }
     }
@@ -292,7 +302,7 @@ impl Program {
                     continue;
                 }
                 PayloadSchema::Optional(payload) => vec![payload],
-                PayloadSchema::Fallible(_) => {
+                PayloadSchema::Fallible(_) | PayloadSchema::Future(_) => {
                     copyable.insert(current, false);
                     continue;
                 }
@@ -368,6 +378,7 @@ impl Program {
                 length: length.closed_value()?,
             })),
             TypeKind::Optional(payload) => Some(PayloadSchema::Optional(*payload)),
+            TypeKind::Future(output) => Some(PayloadSchema::Future(*output)),
             TypeKind::Fallible(payload) if self.has_failure_layer(*payload) == Some(false) => {
                 Some(PayloadSchema::Fallible(*payload))
             }
@@ -543,6 +554,10 @@ pub(super) fn resolve_function_definition(
     })
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "one iterative traversal resolves every closed type constructor"
+)]
 fn resolve_reference_scoped(
     data: &DataReference,
     in_signature: bool,
@@ -597,6 +612,16 @@ fn resolve_reference_scoped(
                 }
                 construct(ReferenceNode::Data(TypeKind::Fallible(
                     resolved.pop().expect("resolved fallible payload"),
+                )))?
+            }
+            DataReference::Future(output) => {
+                if !expanded {
+                    pending.push((data, true, in_signature));
+                    pending.push((output, false, in_signature));
+                    continue;
+                }
+                construct(ReferenceNode::Data(TypeKind::Future(
+                    resolved.pop().expect("resolved future output"),
                 )))?
             }
             DataReference::Optional { payload, layers } => {

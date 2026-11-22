@@ -145,7 +145,9 @@ impl OwnedValue {
                         payload(program, data)?,
                     ));
                 }
-                PayloadSchema::Builtin(_) | PayloadSchema::Function(_) => return Err(INVALID),
+                PayloadSchema::Builtin(_)
+                | PayloadSchema::Function(_)
+                | PayloadSchema::Future(_) => return Err(INVALID),
             }
         }
         Ok(cleanup)

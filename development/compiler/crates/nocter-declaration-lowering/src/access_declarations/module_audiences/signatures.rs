@@ -126,7 +126,9 @@ impl Signatures<'_, '_> {
                 .ok_or(Failure::InconsistentSyntax)?
             {
                 PayloadSchema::Builtin(_) => {}
-                PayloadSchema::Optional(payload) | PayloadSchema::Fallible(payload) => {
+                PayloadSchema::Optional(payload)
+                | PayloadSchema::Fallible(payload)
+                | PayloadSchema::Future(payload) => {
                     pending.push(payload);
                 }
                 PayloadSchema::Array(array) => pending.push(array.element()),

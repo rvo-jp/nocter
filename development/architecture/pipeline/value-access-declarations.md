@@ -336,9 +336,10 @@ general outcomes and async remain outside its admitted source scope. There is no
 checked-program conversion or public compatibility mode.
 
 The v2 grammar preserves async modifiers, future type operands and await before outcome suffixes.
-Contract pairing distinguishes an async declaration from an immediate implementation. Declaring or
-annotating a future still requires the deferred value model before Unit publication. An await in an
-immediate body is diagnosed at its keyword.
+Contract pairing distinguishes an async declaration from an immediate implementation. The
+[typed declaration contract](../../compiler/crates/nocter-declarations/README.md#future-value-declaration-boundary)
+retains the deferred mode and its invocation result. Future lifecycle checking is required before
+Unit publication. An await in an immediate body is diagnosed at its keyword.
 
 The shared `value-modules/query-session` corpus closes an explicit checked root through physical
 v2 package discovery, revision-owned analysis and session evidence before the existing instance,

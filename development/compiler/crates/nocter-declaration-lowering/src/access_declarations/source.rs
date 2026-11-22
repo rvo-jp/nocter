@@ -81,6 +81,7 @@ enum CodeSourceKind {
 #[derive(Clone, Debug)]
 struct CodeHeaderSource {
     name: SyntaxToken,
+    deferred_modifier: Option<NodeId>,
     parameters: Box<[SyntaxToken]>,
     parameter_types: Box<[NodeId]>,
     result: NodeId,
@@ -95,6 +96,7 @@ impl CodeSource {
         Self::declaration(
             CodeHeaderSource {
                 name: header.name,
+                deferred_modifier: header.deferred_modifier,
                 parameters: header
                     .parameters
                     .iter()
@@ -123,6 +125,11 @@ impl CodeSource {
     }
     pub(super) fn name(&self) -> Option<SyntaxToken> {
         self.header().map(|header| header.name)
+    }
+    /// Source position of the callable's authored deferred execution mode.
+    #[must_use]
+    pub fn deferred_modifier(&self) -> Option<NodeId> {
+        self.header()?.deferred_modifier
     }
     /// The authored declaration name or the exact anonymous expression root.
     #[must_use]

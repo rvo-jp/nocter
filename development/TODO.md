@@ -18,10 +18,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Give v2 deferred declarations a typed execution contract that distinguishes body output from the
-invocation's future value. Preserve exact producer identity and keep executable admission closed
-until future dependency, effect and cancellation evidence exists. Reuse the target's established
-deferred execution path as each v2 semantic boundary closes.
+Normalize explicit v2 `future T` annotations through the same type authority as deferred call
+results. Keep a future descriptor separate from an admitted body value and its concrete producer.
+Then close future construction, await and cancellation through the checked value model before
+reusing the target's deferred execution path.
 
 ## Remaining Contextual Representation Qualification
 
@@ -737,6 +737,9 @@ not a language restriction derived from the current realization boundary.
 - [x] Recognize async headers, `future` type nesting and `await` precedence in the v2 grammar.
   Preserve async modifier agreement during source contract matching. Diagnose unsupported future
   admission and synchronous await at their source positions.
+- [x] Intern one move-only future descriptor around the typed body output of a deferred callable.
+  Preserve immediate-versus-deferred execution independently of a shared result type, distinct
+  producers for equal output types, nested future layers and exact current modifier diagnostics.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.

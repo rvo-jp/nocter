@@ -13,6 +13,72 @@ mod reserved_layout;
 mod result_components;
 
 #[test]
+fn deferred_output_and_immediate_future_result_share_data_without_sharing_execution() {
+    use crate::{
+        CallableExecution,
+        value_access::{PayloadReadiness, PayloadSchema},
+    };
+    let symbols = SymbolTable::from_spellings(["produce", "second", "forward", "nested"]);
+    let mut reservations = Reservations::new(symbols.clone());
+    let producer = reservations.reserve(symbols.get("produce").unwrap(), 0);
+    let second = reservations.reserve(symbols.get("second").unwrap(), 0);
+    let forward = reservations.reserve(symbols.get("forward").unwrap(), 0);
+    let nested = reservations.reserve(symbols.get("nested").unwrap(), 0);
+    let mut builder = reservations.finish().unwrap();
+    let future = DataReference::Future(Box::new(BuiltinType::I32.into()));
+    builder
+        .define(producer, CodeKind::DeferredFunction, [], BuiltinType::I32)
+        .unwrap();
+    builder
+        .define(second, CodeKind::DeferredFunction, [], BuiltinType::I32)
+        .unwrap();
+    builder
+        .define(
+            forward,
+            CodeKind::Function(CompileTimeGuarantee::RuntimeOnly),
+            [],
+            future.clone(),
+        )
+        .unwrap();
+    builder
+        .define(nested, CodeKind::DeferredFunction, [], future)
+        .unwrap();
+    let program = builder.finish().unwrap();
+    let output = program.data_type(BuiltinType::I32).unwrap();
+    let call_data = program.codes().get(producer).unwrap().result();
+    assert_eq!(program.codes().get(second).unwrap().result(), call_data);
+    let function = |id: nocter_model::AccessCodeId| program.function_data(id.into()).unwrap();
+    assert_ne!(function(producer), function(second));
+    assert_eq!(
+        program.data_schema(call_data),
+        Some(PayloadSchema::Future(output))
+    );
+    assert_eq!(program.codes().get(forward).unwrap().result(), call_data);
+    assert_eq!(
+        program.code_execution(producer),
+        Some(CallableExecution::Deferred { output })
+    );
+    assert_eq!(
+        program.code_execution(forward),
+        Some(CallableExecution::Immediate)
+    );
+    assert_eq!(
+        program.code_execution(nested),
+        Some(CallableExecution::Deferred { output: call_data })
+    );
+    assert_eq!(
+        program.data_schema(program.codes().get(nested).unwrap().result()),
+        Some(PayloadSchema::Future(call_data))
+    );
+    assert_eq!(program.data_copyable(call_data), Some(false));
+    assert_eq!(
+        program.payload_readiness(call_data),
+        PayloadReadiness::Unsupported
+    );
+    assert!(program.instantiate_closed_data(call_data).is_err());
+}
+
+#[test]
 fn selected_records_publish_transitive_schemas_without_exposing_unrelated_fields() {
     let symbols = SymbolTable::from_spellings(["Child", "Parent", "Unused", "value", "run"]);
     let mut reservations = Reservations::new(symbols.clone());

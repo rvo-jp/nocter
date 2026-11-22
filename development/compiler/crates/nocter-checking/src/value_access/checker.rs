@@ -1,7 +1,7 @@
 pub(super) mod payload_requirements;
 use super::annotations::Annotation;
 use super::{
-    BodyDiagnostic, Failure, Origins, Query, Rule, Site,
+    Failure, Origins, Query, Rule, Site,
     ir::{
         Block, Boundary, BoundaryAction, Expression, ExpressionKind, Local, LocalOrigin, Place,
         Statement, TypedBody, ValueType,
@@ -9,7 +9,7 @@ use super::{
 };
 use nocter_declaration_lowering::access_declarations::Context as DeclarationContext;
 use nocter_declarations::value_access::{AggregateForm, Namespace, PayloadSchema, Program};
-use nocter_diagnostics::{DiagnosticNote, SourceDiagnostic};
+use nocter_diagnostics::DiagnosticNote;
 use nocter_model::{
     AccessBlockId, AccessCodeId, AccessExpressionId, AccessLocalId, AccessLoopId, AccessPlaceId,
     AccessStatementId, ArenaBuilder, BuiltinType, FieldPath, TypeId, ValueAccess as Ty,
@@ -74,6 +74,22 @@ pub(super) fn prepare(
     let source = context
         .code_source(callable)
         .ok_or(Failure::UnknownCallable)?;
+    if matches!(
+        context.program().code_execution(callable),
+        Some(nocter_declarations::CallableExecution::Deferred { .. })
+    ) {
+        let modifier = source
+            .deferred_modifier()
+            .ok_or(Failure::InconsistentSyntax)?;
+        let rule = Rule::UnqualifiedFuture;
+        return Err(super::diagnostics::authored_rejection(
+            context.syntax(),
+            SyntaxOrigin::Node(modifier),
+            rule,
+            rule.diagnostic().1,
+            Vec::new(),
+        ));
+    }
     payload_requirements::body(context.program(), declaration, source)?;
     let syntax = context.syntax();
     let body_root = source.body().ok_or(Failure::InconsistentSyntax)?;
@@ -362,14 +378,13 @@ impl<'a, 's> Checker<'a, 's> {
         message: String,
         notes: Vec<DiagnosticNote>,
     ) -> Result<T, Failure> {
-        let source = SourceDiagnostic::new(
-            rule.diagnostic().0,
+        Err(super::diagnostics::authored_rejection(
+            self.syntax(),
+            origin.origin(),
+            rule,
             message,
-            super::source_origin(self.syntax(), origin.origin())?,
             notes,
-            None::<&str>,
-        );
-        Err(Failure::Rejected(Box::new(BodyDiagnostic { rule, source })))
+        ))
     }
     pub fn type_label(&self, ty: Ty) -> String {
         let prefix = match ty.mode() {
@@ -399,7 +414,7 @@ impl<'a, 's> Checker<'a, 's> {
                 let label = self.data_label_with_budget(payload, remaining);
                 if matches!(
                     self.program().data_schema(payload),
-                    Some(PayloadSchema::Fallible(_))
+                    Some(PayloadSchema::Fallible(_) | PayloadSchema::Future(_))
                 ) {
                     format!("({label})?")
                 } else {
@@ -407,7 +422,18 @@ impl<'a, 's> Checker<'a, 's> {
                 }
             }
             PayloadSchema::Fallible(payload) => {
-                format!("{}!", self.data_label_with_budget(payload, remaining))
+                let label = self.data_label_with_budget(payload, remaining);
+                if matches!(
+                    self.program().data_schema(payload),
+                    Some(PayloadSchema::Future(_))
+                ) {
+                    format!("({label})!")
+                } else {
+                    format!("{label}!")
+                }
+            }
+            PayloadSchema::Future(output) => {
+                format!("future {}", self.data_label_with_budget(output, remaining))
             }
             PayloadSchema::Array(array) => format!(
                 "[{}; {}]",

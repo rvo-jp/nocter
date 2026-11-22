@@ -1,6 +1,6 @@
 //! Incremental publication of complete contracts into one persistent header lineage.
 use super::{
-    Builder, Code, DeclarationId, DeclarationRule, DeclarationViolation, FieldDefinition,
+    Builder, Code, CodeKind, DeclarationId, DeclarationRule, DeclarationViolation, FieldDefinition,
     FunctionConstraint, Parameter, ParameterDefinition, Program, ValueDefinition, functions,
     records, validate_definition,
 };
@@ -9,7 +9,7 @@ use nocter_dependency_query::{
 };
 use nocter_model::{
     AccessCodeId, AccessParameterId, NominalTypeId, SparseArenaBuilder, Symbol, TypeAuthority,
-    ValueFunctionOrigin,
+    TypeKind, ValueFunctionOrigin,
 };
 use std::collections::BTreeMap;
 
@@ -294,6 +294,13 @@ impl HeaderPublication {
             );
             result_contracts.push(contract);
         }
+        let result = if definition.kind == CodeKind::DeferredFunction {
+            types
+                .intern(TypeKind::Future(result))
+                .expect("validated producer output")
+        } else {
+            result
+        };
         self.types = types
             .commit(&self.types)
             .expect("exact header type authority");

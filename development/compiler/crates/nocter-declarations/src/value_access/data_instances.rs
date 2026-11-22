@@ -105,6 +105,7 @@ impl DataInstanceKey {
                 PayloadSchema::Array(data) => InstanceSchema::Array(data),
                 PayloadSchema::Optional(data) => InstanceSchema::Optional(data),
                 PayloadSchema::Fallible(data) => InstanceSchema::Fallible(data),
+                PayloadSchema::Future(_) => return Err(CodeBindingError::InvalidWitness),
                 PayloadSchema::Function(witness) => match &*self.context {
                     Context::Closed => InstanceSchema::Function(program.concrete_witness(witness)?),
                     Context::Function(selected) => InstanceSchema::Function(selected.clone()),

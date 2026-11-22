@@ -23,6 +23,7 @@ pub(super) struct ParameterHeader {
 pub(super) struct Header {
     pub name: SyntaxToken,
     pub kind: CodeKind,
+    pub deferred_modifier: Option<NodeId>,
     pub parameters: Vec<ParameterHeader>,
     pub result_syntax: NodeId,
     pub result_data: TypeSyntax,
@@ -37,9 +38,7 @@ pub(super) struct RecordHeader {
 
 pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<Header, Failure> {
     let tree = syntax.tree();
-    if let Some(modifier) = direct_node(tree, declaration, NodeKind::AsyncModifier) {
-        return Err(super::diagnostics::unqualified_future(syntax, modifier));
-    }
+    let deferred_modifier = direct_node(tree, declaration, NodeKind::AsyncModifier);
     let name = declaration_name_token(tree, declaration).ok_or(Failure::InconsistentSyntax)?;
     let tail = direct_node(tree, declaration, NodeKind::CallableTail)
         .ok_or(Failure::InconsistentSyntax)?;
@@ -70,9 +69,12 @@ pub(super) fn function(syntax: BoundSyntax<'_>, declaration: NodeId) -> Result<H
         name,
         kind: if is_primitive(syntax, declaration) {
             CodeKind::Primitive
+        } else if deferred_modifier.is_some() {
+            CodeKind::DeferredFunction
         } else {
             CodeKind::Function(compile_time)
         },
+        deferred_modifier,
         parameters,
         result_syntax,
         result_data: project_type_syntax(syntax, result_syntax)?,
@@ -94,6 +96,7 @@ pub(super) fn initializer(syntax: BoundSyntax<'_>, declaration: NodeId) -> Resul
         } else {
             CodeKind::ConstantInitializer
         },
+        deferred_modifier: None,
         parameters: Vec::new(),
         result_syntax,
         result_data: project_type_syntax(syntax, result_syntax)?,
