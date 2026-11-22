@@ -260,15 +260,14 @@ impl Checker<'_, '_> {
     }
     fn local_future_argument(&self, input: FunctionInput, plan: &Argument) -> bool {
         use nocter_model::ValueInputOperation;
-        let supported = match (input.operation, &plan.action) {
-            (ValueInputOperation::Take, _) => true,
-            (ValueInputOperation::Read, ArgumentAction::ReserveRead(Referent::Place(place))) => {
-                self.places
-                    .get(*place)
-                    .is_some_and(|place| place.fields.is_root())
-            }
-            _ => false,
-        };
+        let supported = matches!(
+            (input.operation, &plan.action),
+            (ValueInputOperation::Take, _)
+                | (
+                    ValueInputOperation::Read,
+                    ArgumentAction::ReserveRead(Referent::Place(_))
+                )
+        );
         supported
             && super::flow::resources::local_future_input(self.program(), input.data).is_some()
     }

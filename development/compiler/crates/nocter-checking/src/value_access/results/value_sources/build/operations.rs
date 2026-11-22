@@ -1,6 +1,6 @@
 //! Source definitions follow actual graph actions, without rechecking access or initialization.
 use super::{Builder, CallValueSources, INVALID, Result, Slot, State, ValueSource, ValueSourceId};
-use crate::value_access::{ArgumentAction, CallKind, ExpressionKind, Referent, flow};
+use crate::value_access::{Argument, ArgumentAction, CallKind, ExpressionKind, Referent, flow};
 use nocter_model::{AccessExpressionId, AccessFlowPointId, ValueApplication, ValuePath};
 use std::collections::BTreeSet;
 
@@ -31,15 +31,19 @@ impl Builder<'_> {
                 );
                 self.define(Slot::Expression(result), value, state)?;
             }
-            flow::Operation::BooleanConstant { result, .. }
-            | flow::Operation::ConstructFuture(result) => {
-                let value = self.push(self.data(result)?, Some(result), ValueSource::Opaque);
-                self.define(Slot::Expression(result), value, state)?;
+            flow::Operation::BooleanConstant { result, .. } => self.opaque_result(result, state)?,
+            flow::Operation::ConstructFuture(call) => {
+                let ExpressionKind::Call { arguments, .. } =
+                    &self.query.body.expressions.get(call).ok_or(INVALID)?.kind
+                else {
+                    return Err(INVALID);
+                };
+                self.reserved_input_roots(point, arguments, state, |_, _| {})?;
+                self.opaque_result(call, state)?;
             }
             flow::Operation::DriveFuture { future, result } => {
                 self.value(point, future, state)?;
-                let value = self.push(self.data(result)?, Some(result), ValueSource::Opaque);
-                self.define(Slot::Expression(result), value, state)?;
+                self.opaque_result(result, state)?;
             }
             flow::Operation::PrepareArgument { call, argument } => {
                 let ExpressionKind::Call { arguments, .. } =
@@ -93,6 +97,28 @@ impl Builder<'_> {
         }
         Ok(())
     }
+    fn opaque_result(&mut self, result: AccessExpressionId, state: &mut State) -> Result<()> {
+        let value = self.push(self.data(result)?, Some(result), ValueSource::Opaque);
+        self.define(Slot::Expression(result), value, state)
+    }
+
+    fn reserved_input_roots(
+        &mut self,
+        point: AccessFlowPointId,
+        arguments: &[Argument],
+        state: &State,
+        mut accept: impl FnMut(usize, ValueSourceId),
+    ) -> Result<()> {
+        for (index, argument) in arguments.iter().enumerate() {
+            if let ArgumentAction::ReserveRead(target) | ArgumentAction::ReserveUpdate(target) =
+                argument.action
+            {
+                accept(index, self.place(point, target, state)?);
+            }
+        }
+        Ok(())
+    }
+
     fn commit(
         &mut self,
         point: AccessFlowPointId,
@@ -110,13 +136,9 @@ impl Builder<'_> {
             .collect::<Box<[_]>>();
         // Materialized values keep their preparation snapshots. Reserved references select the
         // actual referent at commit; their earlier slot definitions remain preparation metadata.
-        for (index, argument) in arguments.iter().enumerate() {
-            if let ArgumentAction::ReserveRead(target) | ArgumentAction::ReserveUpdate(target) =
-                argument.action
-            {
-                values[index] = self.place(point, target, state)?;
-            }
-        }
+        self.reserved_input_roots(point, arguments, state, |index, value| {
+            values[index] = value;
+        })?;
         let callee = if *kind == CallKind::Value {
             *values.first().ok_or(INVALID)?
         } else {

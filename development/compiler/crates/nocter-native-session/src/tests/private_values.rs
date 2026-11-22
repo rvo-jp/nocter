@@ -56,9 +56,18 @@ fn private_fallible_void_entry_exits_without_a_success_payload() {
 #[test]
 fn local_future_read_inputs_use_the_original_place_and_release_it() {
     let source = r"
+        struct Pair {
+            left: i32
+            right: i32
+        }
         async func observe(source: i32): i32 { source }
+        async func observe_plus(source: i32, take offset: i32): i32 { source + offset }
         async func snapshot(take source: i32): i32 { source + 10 }
         async func abandon(source: i32): i32 { source / (source - source) }
+        func increase(edit source: i32): i32 {
+            source += 1
+            source
+        }
         func cancel_implicit(): void {
             let inner: i32 = 1
             let unstarted = abandon(inner)
@@ -79,6 +88,13 @@ fn local_future_read_inputs_use_the_original_place_and_release_it() {
             drop pending
             watched += 1
             cancel_implicit()
+            var pair = Pair { left: 9, right: 1 }
+            let field = observe_plus(pair.left, increase(pair.right))
+            pair.right += 1
+            let answer = await field^
+            if answer != 11 || pair.right != 3 { return 4 }
+            pair.left += 1
+            if pair.left != 10 { return 5 }
             watched + 19
         }
     ";

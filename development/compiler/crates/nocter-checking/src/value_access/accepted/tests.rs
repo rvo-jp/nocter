@@ -75,32 +75,41 @@ fn only_the_checked_local_future_view_elides_storage() {
 
 #[test]
 fn retained_future_reads_reject_updates_after_moving_the_activation() {
-    let (sources, tree) = input(
-        "async func observe(source: i32): i32 { source }\n\
-         async func root(): i32 { var watched: i32 = 42\n\
-         let pending = observe(watched)\nlet moved = pending^\nwatched += 1\nawait moved^ }",
-    );
-    let Err(SourceFailure::Checking(Failure::Flow { diagnostics, .. })) =
-        SourceUnit::prepare(bound(&sources, &tree))
-    else {
-        panic!("expected a retained-access diagnostic");
-    };
-    let [diagnostic] = &*diagnostics else {
-        panic!("{diagnostics:?}")
-    };
-    assert_eq!(diagnostic.code(), "E0397");
-    let primary = diagnostic.primary().span();
-    assert_eq!(
-        sources
-            .get(primary.source())
-            .unwrap()
-            .text_at(primary.range()),
-        Some("watched += 1")
-    );
-    assert!(diagnostic.notes().iter().any(|note| {
-        let span = note.origin().span();
-        sources.get(span.source()).unwrap().text_at(span.range()) == Some("observe(watched)")
-    }));
+    for (binding, place) in [
+        ("var watched: i32 = 42", "watched"),
+        ("var pair = Pair { left: 42, right: 0 }", "pair.left"),
+    ] {
+        let construction = format!("observe({place})");
+        let update = format!("{place} += 1");
+        let text = format!(
+            "struct Pair {{ left: i32\nright: i32 }}\n\
+             async func observe(source: i32): i32 {{ source }}\n\
+             async func root(): i32 {{ {binding}\n\
+             let pending = {construction}\nlet moved = pending^\n{update}\nawait moved^ }}"
+        );
+        let (sources, tree) = input(&text);
+        let Err(SourceFailure::Checking(Failure::Flow { diagnostics, .. })) =
+            SourceUnit::prepare(bound(&sources, &tree))
+        else {
+            panic!("expected a retained-access diagnostic for {place}");
+        };
+        let [diagnostic] = &*diagnostics else {
+            panic!("{diagnostics:?}")
+        };
+        assert_eq!(diagnostic.code(), "E0397");
+        let primary = diagnostic.primary().span();
+        assert_eq!(
+            sources
+                .get(primary.source())
+                .unwrap()
+                .text_at(primary.range()),
+            Some(update.as_str())
+        );
+        assert!(diagnostic.notes().iter().any(|note| {
+            let span = note.origin().span();
+            sources.get(span.source()).unwrap().text_at(span.range()) == Some(construction.as_str())
+        }));
+    }
 }
 
 #[test]
