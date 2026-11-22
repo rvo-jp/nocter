@@ -18,10 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Type-check deferred body output against the authored result and retain the declaration's execution
-mode. Keep ordinary closure and required-expression bodies outside the async scope. Close future
-construction, await and cancellation through the checked value model before reusing the target's
-deferred execution path.
+Derive non-waiting drive evidence from original checked operations and cleanup. Keep it separate
+from future construction, unstarted/pending cancellation and ready-output disposal. Use that
+evidence to qualify native driving before admitting future value transport and suspension.
 
 ## Remaining Contextual Representation Qualification
 
@@ -744,6 +743,9 @@ not a language restriction derived from the current realization boundary.
   Require lifecycle evidence before supplying a represented future to bodies, calls or local
   storage, including through nominal and structural fields. Metadata-only callable contracts do
   not supply any future until invoked.
+- [x] Use the authored deferred output in both the body checker and staged header reconciliation.
+  Preserve immediate invocation results separately, distinguish ordinary nested closures from
+  async bodies, and qualify source-backed diagnostics before allowing future execution.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.

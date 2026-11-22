@@ -106,6 +106,11 @@ fn async_contracts_match_before_future_admission() {
     for (body, code, primary) in [
         ("func run(take result: i32): i32 { result }", "E0251", None),
         (
+            "async func run(take result: i32): i32 { true }",
+            "E0370",
+            Some("true"),
+        ),
+        (
             "async func run(take result: i32): i32 { result }",
             "E0291",
             Some("async"),
@@ -115,7 +120,7 @@ fn async_contracts_match_before_future_admission() {
         let analysis = analyze_unit_from_query(&product).unwrap();
         assert_eq!(analysis.status(), AnalyzedUnitStatus::CompilationFailed);
         let [diagnostic] = analysis.diagnostics() else {
-            panic!("{:?}", analysis.diagnostics())
+            panic!("{body}: {:?}", analysis.value_access_analysis())
         };
         assert_eq!(diagnostic.code(), code);
         if let Some(expected) = primary {

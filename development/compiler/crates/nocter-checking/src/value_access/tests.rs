@@ -63,6 +63,45 @@ fn immediate_body_cannot_await_or_construct_an_unqualified_future_value() {
 }
 
 #[test]
+fn deferred_body_checks_its_output_and_keeps_failure_inside_the_future() {
+    use nocter_declarations::value_access::PayloadSchema;
+
+    let checked = queries(
+        "async func succeed(): i32! { return 42 }\n\
+         async func fail(take cause: error): i32! { throw cause^ }",
+    )
+    .unwrap();
+    for query in &checked {
+        let program = query.program();
+        let result = query.result_data();
+        assert_eq!(
+            program.data_schema(result),
+            Some(PayloadSchema::Fallible(
+                program.data_type(BuiltinType::I32).unwrap()
+            ))
+        );
+        let invocation = program.codes().get(query.source_owner()).unwrap().result();
+        assert_eq!(
+            program.data_schema(invocation),
+            Some(PayloadSchema::Future(result))
+        );
+    }
+    reject("async func invalid(): i32 { true }", Rule::TypeMismatch);
+}
+
+#[test]
+fn ordinary_closures_do_not_inherit_await_from_a_deferred_body() {
+    reject(
+        "async func run(): void { let nested = () { await 42 } }",
+        Rule::AwaitOutsideAsync,
+    );
+    reject(
+        "async func run(): i32 { await 42 }",
+        Rule::UnqualifiedFuture,
+    );
+}
+
+#[test]
 fn future_result_in_a_callable_contract_requires_evidence_at_invocation() {
     queries("func retain(action: func(): future i32): void {}").unwrap();
     reject(

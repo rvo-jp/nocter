@@ -74,31 +74,19 @@ pub(super) fn prepare(
     let source = context
         .code_source(callable)
         .ok_or(Failure::UnknownCallable)?;
-    if matches!(
-        context.program().code_execution(callable),
-        Some(nocter_declarations::CallableExecution::Deferred { .. })
-    ) {
-        let modifier = source
-            .deferred_modifier()
-            .ok_or(Failure::InconsistentSyntax)?;
-        let rule = Rule::UnqualifiedFuture;
-        return Err(super::diagnostics::authored_rejection(
-            context.syntax(),
-            SyntaxOrigin::Node(modifier),
-            rule,
-            rule.diagnostic().1,
-            Vec::new(),
-        ));
-    }
+    let result = context
+        .program()
+        .code_body_result(callable)
+        .ok_or(Failure::InconsistentSyntax)?;
     let syntax = context.syntax();
-    payload_requirements::body(context.program(), syntax, declaration, source)?;
+    payload_requirements::body(context.program(), syntax, declaration, result, source)?;
     let body_root = source.body().ok_or(Failure::InconsistentSyntax)?;
     let projection = BodySyntaxProjection::for_root(syntax.tree(), body_root)
         .ok_or(Failure::InconsistentSyntax)?;
     let body_source = context.body_source(callable)?;
     let mut checker = Checker::new(
         context,
-        Some(Annotation::Data(declaration.result())),
+        Some(Annotation::Data(result)),
         context
             .program()
             .body_types(callable)
@@ -130,19 +118,12 @@ pub(super) fn prepare(
         let spelling = checker.text(token)?.to_owned();
         checker.bind_local(spelling, local);
     }
+    let boundary = Some(Boundary::Result(result));
     let root = if declaration.kind().is_initializer() {
-        let value = checker.expression(
-            body_root,
-            Some(Boundary::Result(declaration.result())),
-            true,
-        )?;
+        let value = checker.expression(body_root, boundary, true)?;
         checker.emit_block(body_root, Vec::new(), Some(value), checker.ty(value))?
     } else {
-        checker.block(
-            body_root,
-            Some(Boundary::Result(declaration.result())),
-            true,
-        )?
+        checker.block(body_root, boundary, true)?
     };
     Ok(checker.finish(root))
 }

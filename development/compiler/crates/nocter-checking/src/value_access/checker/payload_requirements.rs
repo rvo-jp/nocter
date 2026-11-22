@@ -12,9 +12,10 @@ pub(super) fn body(
     program: &Program,
     syntax: BoundSyntax<'_>,
     code: &Code,
+    result: TypeId,
     source: &CodeSource,
 ) -> Result<(), Failure> {
-    let mut pending = vec![(code.result(), SyntaxOrigin::Node(source.result_origin()))];
+    let mut pending = vec![(result, SyntaxOrigin::Node(source.result_origin()))];
     for (position, &parameter) in code.parameters().iter().enumerate().rev() {
         let data = program
             .parameters()

@@ -104,7 +104,16 @@ impl Checker<'_, '_> {
             }
             NodeKind::OutcomeExpression => self.outcome(node, projection, reachable)?,
             NodeKind::AwaitExpression => {
-                return self.reject(Rule::AwaitOutsideAsync, self.token(node)?);
+                let rule = if let nocter_model::ValueCode::Declaration(declaration) = self.code
+                    && matches!(
+                        self.program().code_execution(declaration),
+                        Some(nocter_declarations::CallableExecution::Deferred { .. })
+                    ) {
+                    Rule::UnqualifiedFuture
+                } else {
+                    Rule::AwaitOutsideAsync
+                };
+                return self.reject(rule, self.token(node)?);
             }
             NodeKind::RecoveryExpression => self.recover_outcome(node, projection, reachable)?,
             NodeKind::UnitExpression => self.unit(node)?,

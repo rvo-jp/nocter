@@ -179,6 +179,10 @@ Checking owns one leaf query per callable. The declaration context shares the ex
 program authority; the query owns that authority and callable together with source-neutral body
 arenas. Place reads, update/transfer operations, boundary Copy/delegation, argument preparations,
 RHS-first stores, checked primitive arithmetic and structured control retain separate operations.
+A deferred body is checked against its authored output, including its own fallible layer.
+Its invocation still constructs a separate future type. A typed deferred body without complete
+lifecycle evidence is rejected before whole-unit flow and resource admission. Ordinary nested
+closures do not inherit the deferred body's permission to await.
 Direct and value calls store one statically selected callable and one input operation per ordered
 input. Value-supply preparation can remain pending until result closure, without changing that
 authored operation. A value call prepends its environment to explicit inputs; direct declaration

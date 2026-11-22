@@ -263,13 +263,22 @@ impl Program {
     pub fn code_execution(&self, id: AccessCodeId) -> Option<crate::CallableExecution> {
         let code = self.codes.get(id)?;
         match code.kind() {
-            CodeKind::DeferredFunction => match self.data_schema(code.result())? {
-                PayloadSchema::Future(output) => {
-                    Some(crate::CallableExecution::Deferred { output })
-                }
-                _ => None,
-            },
+            CodeKind::DeferredFunction => Some(crate::CallableExecution::Deferred {
+                output: self.code_body_result(id)?,
+            }),
             kind if kind.is_callable() => Some(crate::CallableExecution::Immediate),
+            _ => None,
+        }
+    }
+    /// The result checked inside a body or initializer, before wrapping any deferred invocation.
+    #[must_use]
+    pub fn code_body_result(&self, id: AccessCodeId) -> Option<TypeId> {
+        let code = self.codes.get(id)?;
+        if code.kind() != CodeKind::DeferredFunction {
+            return Some(code.result());
+        }
+        match self.data_schema(code.result())? {
+            PayloadSchema::Future(output) => Some(output),
             _ => None,
         }
     }

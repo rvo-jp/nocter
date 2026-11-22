@@ -137,5 +137,7 @@ fn matches_code(
                             == Some(parameter.data())
                 })
             })
-        && program.existing_result_value_reference(id, &expected.result) == Some(code.result())
+        && program
+            .existing_result_value_reference(id, &expected.result)
+            .is_some_and(|authored| program.code_body_result(id) == Some(authored))
 }

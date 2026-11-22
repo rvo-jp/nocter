@@ -842,6 +842,7 @@ pub(super) fn resolve_queries(
     let mut controls = queries
         .into_iter()
         .map(|(id, body)| {
+            require_supported_execution(context, &body)?;
             Ok((
                 id,
                 flow::Control::prepare(Arc::new(body)).map_err(Failure::Integrity)?,
@@ -855,6 +856,40 @@ pub(super) fn resolve_queries(
         result_evidence,
     })
 }
+
+fn require_supported_execution(
+    context: &DeclarationContext<'_>,
+    body: &TypedQuery,
+) -> Result<(), Failure> {
+    let nocter_model::ValueCode::Declaration(callable) = body.code() else {
+        return Ok(());
+    };
+    if !matches!(
+        body.program().code_execution(callable),
+        Some(nocter_declarations::CallableExecution::Deferred { .. })
+    ) {
+        return Ok(());
+    }
+    let failure = || {
+        let selected = context.for_code(callable)?;
+        let modifier = selected
+            .code_source(callable)
+            .and_then(
+                nocter_declaration_lowering::access_declarations::CodeSource::deferred_modifier,
+            )
+            .ok_or(BodyFailure::InconsistentSyntax)?;
+        let rule = super::Rule::UnqualifiedFuture;
+        Err(super::diagnostics::authored_rejection(
+            selected.syntax(),
+            nocter_syntax::SyntaxOrigin::Node(modifier),
+            rule,
+            rule.diagnostic().1,
+            Vec::new(),
+        ))
+    };
+    failure().map_err(|failure| Failure::Body { callable, failure })
+}
+
 /// The same ordinary acceptance authority serves required const closures and final whole-unit closure.
 pub(super) fn check_queries(
     context: &DeclarationContext<'_>,
