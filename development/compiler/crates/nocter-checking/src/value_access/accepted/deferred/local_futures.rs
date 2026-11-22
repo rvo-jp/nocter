@@ -190,7 +190,7 @@ impl Body {
         producer: AccessCodeId,
     ) -> Result<(), Failure> {
         match (step, operation) {
-            (Step::Construct { destination, .. }, Operation::ConstructFuture(call))
+            (Step::ConstructActivation { destination, .. }, Operation::ConstructFuture(call))
                 if *destination == Holder::Expression(*call) =>
             {
                 if self
@@ -213,7 +213,9 @@ impl Body {
                 }
                 drive.producers.insert(producer);
             }
-            (Step::Construct { .. } | Step::DriveFuture { .. }, _) => return Err(INVALID),
+            (Step::ConstructActivation { .. } | Step::DriveFuture { .. }, _) => {
+                return Err(INVALID);
+            }
             _ => {}
         }
         Ok(())
@@ -223,10 +225,11 @@ impl Body {
 fn local_payload(step: &Step) -> Option<Payload> {
     let local = |holder| matches!(holder, Holder::Local(_) | Holder::Expression(_));
     let payload = match step {
-        Step::Construct {
+        Step::ConstructActivation {
             destination: Holder::Expression(_),
             payload,
-        } => *payload,
+            inputs,
+        } if inputs.is_empty() => *payload,
         Step::Move {
             source,
             destination,

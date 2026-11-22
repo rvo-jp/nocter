@@ -471,7 +471,7 @@ fn transfer(
                     violations,
                 )?;
             }
-            Operation::CommitCall(call) => {
+            Operation::CommitCall(call) | Operation::ConstructFuture(call) => {
                 // Validate the whole reserved bundle first; consuming one argument cannot make
                 // another appear uninitialized inside the atomic transition. Aliasing is separate.
                 for argument in arguments(typed, *call)? {
@@ -536,7 +536,6 @@ fn transfer(
             Operation::IndexFailure(_)
             | Operation::BeginEvaluation(_)
             | Operation::EndEvaluation(_)
-            | Operation::ConstructFuture(_)
             | Operation::BooleanConstant { .. }
             | Operation::CancelCall { .. } => {}
         }

@@ -4,7 +4,7 @@ use super::super::super::{
 };
 use super::{Context, Failure, Result};
 use crate::value_access::{
-    ArgumentAction, BoundaryAction, ExpressionKind, Referent, SelectionAction,
+    Argument, ArgumentAction, BoundaryAction, ExpressionKind, Referent, SelectionAction,
 };
 use nocter_model::{AccessExpressionId, ValueAccessMode as Mode};
 
@@ -181,11 +181,7 @@ impl Context<'_, '_> {
                 argument: index,
             } => self.prepare_ownership(call, index)?,
             Operation::CommitCall(_) => return Err(Failure::Integrity),
-            Operation::ConstructFuture(call) => self.world.resources.construct(
-                Holder::Expression(call),
-                resources::empty_future(self.typed, call)?,
-                &mut self.steps,
-            )?,
+            Operation::ConstructFuture(call) => self.construct_activation(call)?,
             Operation::DriveFuture { result, .. } => self.world.resources.receive(
                 result,
                 resources::expression_payload(self.typed, result)?,
@@ -568,6 +564,41 @@ impl Context<'_, '_> {
         }
         Ok(())
     }
+    fn construct_activation(&mut self, call: AccessExpressionId) -> Result<()> {
+        let (payload, parameters) = resources::future_payload(self.typed, call)?;
+        let ExpressionKind::Call { arguments, .. } = &self
+            .typed
+            .body()
+            .expressions()
+            .get(call)
+            .ok_or(Failure::Integrity)?
+            .kind
+        else {
+            return Err(Failure::Integrity);
+        };
+        let mut sources = Vec::with_capacity(arguments.len());
+        for (index, (argument, &parameter)) in arguments.iter().zip(parameters).enumerate() {
+            let source = self
+                .committed_input_source(call, index, argument)?
+                .ok_or(Failure::Integrity)?;
+            let data = self
+                .typed
+                .program()
+                .parameters()
+                .get(parameter)
+                .ok_or(Failure::Integrity)?
+                .data();
+            sources.push((source, data));
+        }
+        self.world.resources.construct_activation(
+            self.typed.program(),
+            Holder::Expression(call),
+            payload,
+            &sources,
+            &mut self.steps,
+        )?;
+        Ok(())
+    }
     pub(super) fn commit_inputs(&mut self, call: AccessExpressionId) -> Result<()> {
         let ExpressionKind::Call { arguments, .. } = &self
             .typed
@@ -580,52 +611,44 @@ impl Context<'_, '_> {
             return Err(Failure::Integrity);
         };
         for (index, argument) in arguments.iter().enumerate() {
-            let prepared = Holder::Prepared { call, index };
-            if let ArgumentAction::ReserveTransfer {
-                place,
-                ref adapters,
-            } = argument.action
-            {
-                let source = self.materialize_input(place, adapters, prepared)?;
-                if argument.operation.access_mode() == Mode::Own {
-                    self.world.resources.invoke(
-                        self.typed.program(),
-                        &source,
-                        call,
-                        index,
-                        &mut self.steps,
-                    )?;
-                } else {
-                    self.world.resources.move_to(
-                        self.typed.program(),
-                        &source,
-                        &Holder::Temporary { call, index }.place(),
-                        false,
-                        &mut self.steps,
-                    )?;
-                }
-            } else if self.world.resources.contains(prepared) {
-                let mode = argument.operation.access_mode();
-                if mode == Mode::Own {
-                    self.world.resources.invoke(
-                        self.typed.program(),
-                        &prepared.place(),
-                        call,
-                        index,
-                        &mut self.steps,
-                    )?;
-                } else {
-                    self.world.resources.move_to(
-                        self.typed.program(),
-                        &prepared.place(),
-                        &Holder::Temporary { call, index }.place(),
-                        false,
-                        &mut self.steps,
-                    )?;
-                }
+            let Some(source) = self.committed_input_source(call, index, argument)? else {
+                continue;
+            };
+            if argument.operation.access_mode() == Mode::Own {
+                self.world.resources.invoke(
+                    self.typed.program(),
+                    &source,
+                    call,
+                    index,
+                    &mut self.steps,
+                )?;
+            } else {
+                self.world.resources.move_to(
+                    self.typed.program(),
+                    &source,
+                    &Holder::Temporary { call, index }.place(),
+                    false,
+                    &mut self.steps,
+                )?;
             }
         }
         Ok(())
+    }
+    fn committed_input_source(
+        &mut self,
+        call: AccessExpressionId,
+        index: usize,
+        argument: &Argument,
+    ) -> Result<Option<resources::Place>> {
+        let prepared = Holder::Prepared { call, index };
+        if let ArgumentAction::ReserveTransfer { place, adapters } = &argument.action {
+            return self.materialize_input(*place, adapters, prepared).map(Some);
+        }
+        Ok(self
+            .world
+            .resources
+            .contains(prepared)
+            .then(|| prepared.place()))
     }
     /// Replay frozen boundary materializations only after complete bundle validation.
     fn materialize_input(

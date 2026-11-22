@@ -1,12 +1,12 @@
 use super::super::liveness::Carrier;
-use super::super::state::{Prepared, Value, World};
+use super::super::state::{Prepared, Value};
 use super::super::{AccessRule, Creation, RetainedAccess, RetentionKind, Violation};
 use super::{Context, Failure, Result};
 use crate::value_access::{ArgumentAction, ExpressionKind, Referent};
 use nocter_model::{AccessExpressionId, ValueAccessMode as Mode};
 use std::collections::BTreeSet;
 impl Context<'_, '_> {
-    pub(super) fn commit(&mut self, call: AccessExpressionId) -> Result<Vec<World>> {
+    pub(super) fn commit_preparations(&mut self, call: AccessExpressionId) -> Result<()> {
         let ExpressionKind::Call { arguments, .. } = &self
             .typed
             .body()
@@ -34,7 +34,7 @@ impl Context<'_, '_> {
         for index in 0..arguments.len() {
             self.world.prepared.remove(&(call, index));
         }
-        Ok(vec![self.world.clone()])
+        Ok(())
     }
     fn check_bundle(&self, call: AccessExpressionId, prepared: &[Prepared]) -> Result<()> {
         let mut caps = Vec::new();

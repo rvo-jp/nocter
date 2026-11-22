@@ -84,9 +84,7 @@ pub(super) fn apply(
                 Value::without_referent(Mode::Own),
             );
         }
-        Operation::BooleanConstant { result, .. }
-        | Operation::ConstructFuture(result)
-        | Operation::DriveFuture { result, .. } => {
+        Operation::BooleanConstant { result, .. } | Operation::DriveFuture { result, .. } => {
             context.world.values.insert(
                 Carrier::Expression(*result),
                 Value::without_referent(Mode::Own),
@@ -114,6 +112,7 @@ pub(super) fn apply(
         Operation::Drop(local) => context.destroy(*local)?,
         Operation::PrepareArgument { call, argument } => context.prepare(*call, *argument)?,
         Operation::CommitCall(call) => return context.apply_call(*call),
+        Operation::ConstructFuture(call) => context.commit_preparations(*call)?,
         Operation::CancelCall { call, prepared } => {
             for index in 0..*prepared {
                 context
@@ -162,26 +161,13 @@ impl Context<'_, '_> {
         Ok(())
     }
     fn apply_call(&mut self, call: AccessExpressionId) -> Result<Vec<(World, StepPlan)>> {
-        let alternatives = self.commit(call)?;
-        let mut results = Vec::new();
-        for mut world in alternatives {
-            let mut next = Context {
-                typed: self.typed,
-                world: &mut world,
-                at: self.at,
-                live: self.live,
-                numeric: self.numeric,
-                facts: self.facts,
-                steps: self.steps.clone(),
-            };
-            next.commit_inputs(call)?;
-            let before = next.steps.len();
-            let operation_state = next.world.resources.condition();
-            next.receive_result(call)?;
-            let plan = StepPlan::new(next.steps, before, operation_state);
-            results.push((world, plan));
-        }
-        Ok(results)
+        self.commit_preparations(call)?;
+        self.commit_inputs(call)?;
+        let before = self.steps.len();
+        let operation_state = self.world.resources.condition();
+        self.receive_result(call)?;
+        let plan = StepPlan::new(std::mem::take(&mut self.steps), before, operation_state);
+        Ok(vec![(self.world.clone(), plan)])
     }
     fn stage_return(&mut self, expression: AccessExpressionId) -> Result<()> {
         let value = self.world.value(expression)?;

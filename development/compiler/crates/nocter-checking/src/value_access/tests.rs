@@ -232,6 +232,89 @@ fn await_drives_the_transferred_activation_before_receiving_its_output() {
 }
 
 #[test]
+fn activation_construction_receives_ordered_take_snapshots_before_a_later_drive() {
+    use flow::resources::{Disposal, Holder, Step};
+    use nocter_model::ValueFunctionOrigin;
+
+    let typed = queries(
+        "func change(edit original: i32): i32 { original = 0\n1 }\n\
+         async func producer(take first: i32, take second: i32): i32 { first + second }\n\
+         async func run(): i32 {\n\
+             var original = 41\n\
+             let pending = producer(original, change(original))\n\
+             await pending^\n\
+         }",
+    )
+    .unwrap();
+    let producer = named(&typed, "producer").source_owner();
+    let change = named(&typed, "change").source_owner();
+    let query = named(&typed, "run");
+    let flow = flow::Query::prepare(Arc::new(query.clone())).unwrap();
+    assert_eq!(flow.access().status(), flow::access::Status::Analyzed);
+    let mut order = Vec::new();
+    for (point, block) in flow.graph().points().iter() {
+        for (action, event) in block.actions.iter().enumerate() {
+            match event.operation {
+                flow::Operation::PrepareArgument { call, argument: 0 }
+                    if matches!(&query.body().expressions().get(call).unwrap().kind,
+                        ExpressionKind::Call { target: ValueFunctionOrigin::Declaration(id), .. }
+                        if *id == producer) =>
+                {
+                    order.push("first input snapshot");
+                }
+                flow::Operation::CommitCall(call)
+                    if matches!(&query.body().expressions().get(call).unwrap().kind,
+                        ExpressionKind::Call { target: ValueFunctionOrigin::Declaration(id), .. }
+                        if *id == change) =>
+                {
+                    order.push("second input effect");
+                }
+                flow::Operation::ConstructFuture(call) => {
+                    order.push("activation");
+                    let mut transitions = flow
+                        .access()
+                        .resources()
+                        .at(flow::Location { point, action });
+                    let transition = transitions.next().unwrap();
+                    assert!(transitions.next().is_none());
+                    let [
+                        Step::ConstructActivation {
+                            destination,
+                            payload,
+                            inputs,
+                        },
+                    ] = transition.after_steps()
+                    else {
+                        panic!("{:?}", transition.after_steps());
+                    };
+                    assert_eq!(*destination, Holder::Expression(call));
+                    assert_eq!(payload.disposal(), Disposal::UnstartedFuture(producer));
+                    assert_eq!(inputs.len(), 2);
+                    for (index, (source, payload)) in inputs.iter().enumerate() {
+                        let holder = Holder::Prepared { call, index };
+                        assert_eq!(source, &holder.place());
+                        assert_eq!(payload.disposal(), Disposal::Trivial);
+                        assert!(transition.initialized_before(holder));
+                        assert!(!transition.initialized_after(holder));
+                    }
+                }
+                flow::Operation::DriveFuture { .. } => order.push("drive"),
+                _ => {}
+            }
+        }
+    }
+    assert_eq!(
+        order,
+        [
+            "first input snapshot",
+            "second input effect",
+            "activation",
+            "drive"
+        ]
+    );
+}
+
+#[test]
 fn interrupted_deferred_preparation_has_a_selected_producer_without_any_invocation() {
     use nocter_declarations::{CallableExecution, value_access::PayloadSchema};
 
@@ -320,9 +403,10 @@ fn unstarted_futures_keep_their_producer_through_transfer_and_cancel_once() {
             {
                 for step in transition.steps() {
                     match step {
-                        Step::Construct { payload, .. }
-                            if matches!(payload.disposal(), Disposal::UnstartedFuture(_)) =>
-                        {
+                        Step::ConstructActivation {
+                            payload, inputs, ..
+                        } => {
+                            assert!(inputs.is_empty());
                             created.push(*payload);
                         }
                         Step::Dispose { payload, .. }

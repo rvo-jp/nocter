@@ -409,7 +409,7 @@ impl Builder<'_, '_> {
             Step::Receive { result, .. } => {
                 plan::Effect::Construct(self.holder(Holder::Expression(*result))?)
             }
-            Step::DriveFuture { .. } => return Err(INVALID),
+            Step::ConstructActivation { .. } | Step::DriveFuture { .. } => return Err(INVALID),
             Step::Move {
                 source,
                 destination,

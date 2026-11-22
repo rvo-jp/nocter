@@ -136,9 +136,22 @@ impl Payload {
     }
 }
 
-/// Form the ownership receipt for a selected producer with an empty input activation.
+/// Whether a declared take input has a scalar payload and trivial cancellation.
+pub(in crate::value_access) fn is_scalar_future_input(program: &Program, data: TypeId) -> bool {
+    program.data_kind(data).is_some_and(|builtin| {
+        matches!(builtin, BuiltinType::Bool | BuiltinType::Void)
+            || nocter_model::BuiltinNumericType::for_builtin(builtin)
+                .and_then(nocter_model::BuiltinNumericType::integer_bounds)
+                .is_some()
+    })
+}
+
+/// Form the ownership receipt for a selected producer with scalar take inputs.
 /// The checked unit must separately establish the producer's effects and backing.
-pub(super) fn empty_future(typed: &TypedQuery, call: AccessExpressionId) -> Result<Payload> {
+pub(super) fn future_payload(
+    typed: &TypedQuery,
+    call: AccessExpressionId,
+) -> Result<(Payload, &[nocter_model::AccessParameterId])> {
     use crate::value_access::{CallKind, ExpressionKind};
     use nocter_declarations::CallableExecution;
     use nocter_model::{ValueAccessMode, ValueFunctionOrigin};
@@ -160,18 +173,31 @@ pub(super) fn empty_future(typed: &TypedQuery, call: AccessExpressionId) -> Resu
         return Err(INVALID);
     };
     let data = declaration.result();
-    if !arguments.is_empty()
-        || !declaration.parameters().is_empty()
+    if arguments.len() != declaration.parameters().len()
+        || arguments
+            .iter()
+            .zip(declaration.parameters())
+            .any(|(argument, id)| {
+                let Some(parameter) = program.parameters().get(*id) else {
+                    return true;
+                };
+                argument.operation != nocter_model::ValueInputOperation::Take
+                    || parameter.operation() != nocter_model::ValueInputOperation::Take
+                    || !is_scalar_future_input(program, parameter.data())
+            })
         || expression.ty.normal()
             != Some(nocter_model::ValueAccess::new(data, ValueAccessMode::Own))
         || program.data_schema(data) != Some(PayloadSchema::Future(output))
     {
         return Err(INVALID);
     }
-    Ok(Payload {
-        data,
-        disposal: Disposal::UnstartedFuture(*producer),
-    })
+    Ok((
+        Payload {
+            data,
+            disposal: Disposal::UnstartedFuture(*producer),
+        },
+        declaration.parameters(),
+    ))
 }
 mod step;
 mod transport;

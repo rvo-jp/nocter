@@ -34,6 +34,12 @@ pub enum Step<P = Payload> {
         destination: Holder,
         payload: P,
     },
+    /// Commit an unstarted activation and receive its prepared inputs without invoking its body.
+    ConstructActivation {
+        destination: Holder,
+        payload: P,
+        inputs: Box<[(Place, P)]>,
+    },
     /// Surrender the exact activation to a drive, without running its cancellation.
     DriveFuture {
         source: Place,
@@ -177,6 +183,20 @@ impl<P> Step<P> {
             } => Step::Construct {
                 destination: *destination,
                 payload: map(PayloadSite::Destination(*destination), payload)?,
+            },
+            Self::ConstructActivation {
+                destination,
+                payload,
+                inputs,
+            } => Step::ConstructActivation {
+                destination: *destination,
+                payload: map(PayloadSite::Destination(*destination), payload)?,
+                inputs: inputs
+                    .iter()
+                    .map(|(source, payload)| {
+                        Ok((source.clone(), map(PayloadSite::Source(source), payload)?))
+                    })
+                    .collect::<std::result::Result<_, E>>()?,
             },
             Self::DriveFuture { source, payload } => Step::DriveFuture {
                 source: source.clone(),

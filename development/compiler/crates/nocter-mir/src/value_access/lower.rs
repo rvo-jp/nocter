@@ -835,7 +835,6 @@ impl Builder<'_> {
                                 self.root(*destination, self.payload_data(payload)?, false)?;
                             output.push(Effect::Initialize(destination));
                         }
-                        Step::DriveFuture { .. } => return Err(self.invalid()),
                         Step::Receive { result, payload } => {
                             let data = self.payload_data(payload)?;
                             let slot =
@@ -1068,7 +1067,9 @@ impl Builder<'_> {
                                 destination,
                             });
                         }
-                        Step::ReplaceReferent { .. } => {
+                        Step::ConstructActivation { .. }
+                        | Step::DriveFuture { .. }
+                        | Step::ReplaceReferent { .. } => {
                             return Err(self.invalid());
                         }
                     }

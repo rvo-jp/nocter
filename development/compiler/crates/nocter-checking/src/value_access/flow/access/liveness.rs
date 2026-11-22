@@ -172,7 +172,7 @@ fn plan(
             uses.push((Carrier::Expression(*source), false));
             definitions.push(Carrier::Expression(*result));
         }
-        Operation::BooleanConstant { result, .. } | Operation::ConstructFuture(result) => {
+        Operation::BooleanConstant { result, .. } => {
             definitions.push(Carrier::Expression(*result));
         }
         Operation::DriveFuture { future, result } => {
@@ -215,7 +215,7 @@ fn plan(
                 index: *index,
             });
         }
-        Operation::CommitCall(call) => {
+        Operation::CommitCall(call) | Operation::ConstructFuture(call) => {
             let ExpressionKind::Call { arguments, .. } =
                 &typed.body().expressions().get(*call).ok_or(INVALID)?.kind
             else {

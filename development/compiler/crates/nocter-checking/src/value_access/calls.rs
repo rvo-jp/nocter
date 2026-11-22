@@ -294,7 +294,15 @@ impl Checker<'_, '_> {
                 self.program().function_execution(selected.witness.origin),
                 Some(nocter_declarations::CallableExecution::Deferred { .. })
             ) {
-                if kind != CallKind::Direct || !plans.is_empty() {
+                if kind != CallKind::Direct
+                    || !contract.inputs.iter().all(|input| {
+                        input.operation == nocter_model::ValueInputOperation::Take
+                            && super::flow::resources::is_scalar_future_input(
+                                self.program(),
+                                input.data,
+                            )
+                    })
+                {
                     return self.reject(Rule::UnqualifiedFuture, callee);
                 }
             } else {

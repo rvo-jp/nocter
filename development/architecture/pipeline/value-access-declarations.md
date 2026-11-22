@@ -354,7 +354,9 @@ as a producer with output `T`. Body typing checks that `await` occurs in the nea
 consumes an owned operand. The typed expression exposes one future layer's output before an outer
 outcome operation. The control and resource analyses retain each empty activation's selected
 producer through ownership transfer. The drive consumes that receipt before execution and receives
-the output through the shared normal-result transition after execution. Unit acceptance qualifies
+the output through the shared normal-result transition after execution. The same construction
+step can record prepared scalar take inputs in source order and commit their ownership to an
+unstarted activation. The executable scope here covers empty activations. Unit acceptance qualifies
 non-waiting execution transitively through reached immediate bodies and every possible local drive.
 Empty activations in a body need only a producer selector when a reached drive has multiple
 producers of the same future type. Construction writes the selected producer's tag, and whole

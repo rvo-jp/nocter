@@ -221,6 +221,7 @@ fn immediate_body(
 fn backing_data(step: &Step) -> Option<TypeId> {
     match step {
         Step::Construct { payload, .. }
+        | Step::ConstructActivation { payload, .. }
         | Step::Capture { payload, .. }
         | Step::Dispose { payload, .. }
         | Step::DisposeArrayRemainder { payload, .. }

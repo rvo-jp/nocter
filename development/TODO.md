@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Extend local activations to declared take inputs. Preserve preparation order and the input's
-selected value or snapshot at construction, then transfer it at drive or dispose it when the
-unstarted future is cancelled. Start with owned scalar input to establish the phase boundary.
+Project the checked scalar take inputs into local activation storage and through a native drive.
+Use the original input receipt at construction, move that storage with the owning future, and
+supply its values in the selected producer's body ABI. Verify cancellation without body execution.
 
 ## Remaining Contextual Representation Qualification
 
@@ -776,6 +776,9 @@ not a language restriction derived from the current realization boundary.
 - [x] Execute a reached local drive with different empty producers through their actual stored
   selector. Verify both dynamic selections in one native loop, preserve the condition effects and
   intervening ownership move, and keep an unselected trapping producer dormant.
+- [x] Commit prepared scalar take inputs into an unstarted activation in the ownership ledger.
+  Verify the first input is snapshotted before a later input changes its original local, then
+  transfer the prepared values into the activation before the separate drive.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.

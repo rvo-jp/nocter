@@ -230,6 +230,36 @@ impl State {
         steps.push(Step::DriveFuture { source, payload });
         Ok(())
     }
+    pub fn construct_activation(
+        &mut self,
+        program: &Program,
+        destination: Holder,
+        payload: Payload,
+        sources: &[(Place, TypeId)],
+        steps: &mut Vec<Step>,
+    ) -> Result<()> {
+        let mut staged = self.clone();
+        let mut inputs = Vec::with_capacity(sources.len());
+        let mut changes = Vec::new();
+        for (source, expected) in sources {
+            staged.retain_source(program, source, &mut changes)?;
+            let received = staged.take(program, source)?;
+            if received.data() != *expected || received.disposal() != Disposal::Trivial {
+                return Err(INVALID);
+            }
+            inputs.push((source.clone(), received));
+        }
+        staged.insert(destination, payload, false)?;
+        changes.push(Step::ConstructActivation {
+            destination,
+            payload,
+            inputs: inputs.into(),
+        });
+        staged.retire_unused_backing(&mut changes)?;
+        *self = staged;
+        steps.extend(changes);
+        Ok(())
+    }
     pub fn receive(
         &mut self,
         result: AccessExpressionId,
