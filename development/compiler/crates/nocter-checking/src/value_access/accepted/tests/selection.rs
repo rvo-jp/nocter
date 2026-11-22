@@ -35,7 +35,7 @@ fn call_result_moves_one_field_before_return_staging_and_sibling_cleanup() {
     assert_eq!(
         trace
             .iter()
-            .filter(|step| matches!(step, Step::Receive { call, .. } if *call == source))
+            .filter(|step| matches!(step, Step::Receive { result, .. } if *result == source))
             .count(),
         1
     );

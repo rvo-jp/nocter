@@ -403,9 +403,13 @@ impl Builder<'_, '_> {
     #[allow(clippy::too_many_lines)]
     fn effect(&mut self, step: &Step) -> Result<plan::Effect> {
         Ok(match step {
-            Step::Construct { destination, .. } | Step::Receive { destination, .. } => {
+            Step::Construct { destination, .. } => {
                 plan::Effect::Construct(self.holder(*destination)?)
             }
+            Step::Receive { result, .. } => {
+                plan::Effect::Construct(self.holder(Holder::Expression(*result))?)
+            }
+            Step::DriveFuture { .. } => return Err(INVALID),
             Step::Move {
                 source,
                 destination,
@@ -625,7 +629,9 @@ impl Builder<'_, '_> {
                 argument: index,
             } => return self.argument(call, index),
             flow::Operation::CommitCall(id) => return self.call(id),
-            flow::Operation::ConstructFuture(_) => return Err(INVALID),
+            flow::Operation::ConstructFuture(_) | flow::Operation::DriveFuture { .. } => {
+                return Err(INVALID);
+            }
             flow::Operation::IndexFailure(_) => plan::Operation::BoundsTrap,
             flow::Operation::BeginEvaluation(_)
             | flow::Operation::EndEvaluation(_)

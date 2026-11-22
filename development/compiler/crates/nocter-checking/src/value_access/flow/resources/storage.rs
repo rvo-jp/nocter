@@ -1,7 +1,7 @@
 //! One ownership ledger: whole values, selected fields, and lexical/evaluation cleanup frames.
 use super::{
-    Frame, Holder, INVALID, Missing, OwnedValue, Payload, Place, Program, Result, State, Step,
-    TypedQuery, payload,
+    Disposal, Frame, Holder, INVALID, Missing, OwnedValue, Payload, Place, Program, Result, State,
+    Step, TypedQuery, payload,
 };
 use nocter_model::{AccessExpressionId, TypeId, ValueAccessMode as Mode};
 
@@ -208,17 +208,37 @@ impl State {
         });
         Ok(())
     }
+    pub fn drive_future(
+        &mut self,
+        program: &Program,
+        future: AccessExpressionId,
+        output: TypeId,
+        steps: &mut Vec<Step>,
+    ) -> Result<()> {
+        let holder = Holder::Expression(future);
+        let value = self.owned.get(&holder).ok_or(INVALID)?;
+        let Disposal::UnstartedFuture(producer) = value.payload.disposal() else {
+            return Err(INVALID);
+        };
+        if program.code_execution(producer)
+            != Some(nocter_declarations::CallableExecution::Deferred { output })
+        {
+            return Err(INVALID);
+        }
+        let source = holder.place();
+        let payload = self.take(program, &source)?;
+        steps.push(Step::DriveFuture { source, payload });
+        Ok(())
+    }
     pub fn receive(
         &mut self,
-        call: AccessExpressionId,
+        result: AccessExpressionId,
         value: Payload,
         steps: &mut Vec<Step>,
     ) -> Result<()> {
-        let destination = Holder::Expression(call);
-        self.insert(destination, value, false)?;
+        self.insert(Holder::Expression(result), value, false)?;
         steps.push(Step::Receive {
-            call,
-            destination,
+            result,
             payload: value,
         });
         Ok(())

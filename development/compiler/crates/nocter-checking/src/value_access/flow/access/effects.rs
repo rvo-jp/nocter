@@ -84,7 +84,9 @@ pub(super) fn apply(
                 Value::without_referent(Mode::Own),
             );
         }
-        Operation::BooleanConstant { result, .. } => {
+        Operation::BooleanConstant { result, .. }
+        | Operation::ConstructFuture(result)
+        | Operation::DriveFuture { result, .. } => {
             context.world.values.insert(
                 Carrier::Expression(*result),
                 Value::without_referent(Mode::Own),
@@ -112,12 +114,6 @@ pub(super) fn apply(
         Operation::Drop(local) => context.destroy(*local)?,
         Operation::PrepareArgument { call, argument } => context.prepare(*call, *argument)?,
         Operation::CommitCall(call) => return context.apply_call(*call),
-        Operation::ConstructFuture(call) => {
-            context.world.values.insert(
-                Carrier::Expression(*call),
-                Value::without_referent(Mode::Own),
-            );
-        }
         Operation::CancelCall { call, prepared } => {
             for index in 0..*prepared {
                 context

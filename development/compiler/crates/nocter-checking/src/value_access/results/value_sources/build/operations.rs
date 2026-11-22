@@ -36,6 +36,11 @@ impl Builder<'_> {
                 let value = self.push(self.data(result)?, Some(result), ValueSource::Opaque);
                 self.define(Slot::Expression(result), value, state)?;
             }
+            flow::Operation::DriveFuture { future, result } => {
+                self.value(point, future, state)?;
+                let value = self.push(self.data(result)?, Some(result), ValueSource::Opaque);
+                self.define(Slot::Expression(result), value, state)?;
+            }
             flow::Operation::PrepareArgument { call, argument } => {
                 let ExpressionKind::Call { arguments, .. } =
                     &self.query.body.expressions.get(call).ok_or(INVALID)?.kind

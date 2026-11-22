@@ -351,8 +351,10 @@ Contract pairing distinguishes an async declaration from an immediate implementa
 retains the deferred mode and its invocation result. Producing a future value requires its
 own lifecycle evidence. Body typing checks that `await` occurs in the nearest deferred body and
 consumes an owned operand. The typed expression exposes one future layer's output before an outer
-outcome operation. Unit acceptance currently diagnoses an await without qualified drive and
-cancellation at the source expression.
+outcome operation. The control and resource analyses retain each empty activation's selected
+producer through ownership transfer. The drive consumes that receipt before execution and receives
+the output through the shared normal-result transition after execution. Unit acceptance currently
+diagnoses the missing physical drive and cancellation evidence at the source await.
 
 The shared `value-modules/query-session` corpus closes an explicit checked root through physical
 v2 package discovery, revision-owned analysis and session evidence before the existing instance,

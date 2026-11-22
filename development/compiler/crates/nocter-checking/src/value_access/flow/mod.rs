@@ -85,6 +85,11 @@ pub enum Operation {
     CommitCall(AccessExpressionId),
     /// Commits future construction at this call site. The deferred body is not invoked.
     ConstructFuture(AccessExpressionId),
+    /// Consume one activation and receive its output only after a normal drive.
+    DriveFuture {
+        future: AccessExpressionId,
+        result: AccessExpressionId,
+    },
     /// Abrupt completion cleans only the successfully prepared prefix; no invocation occurred.
     CancelCall {
         call: AccessExpressionId,

@@ -34,10 +34,14 @@ pub enum Step<P = Payload> {
         destination: Holder,
         payload: P,
     },
-    /// Receive the callee's existing result obligation, without acquiring another resource.
+    /// Surrender the exact activation to a drive, without running its cancellation.
+    DriveFuture {
+        source: Place,
+        payload: P,
+    },
+    /// Receive the completed operation's result obligation without acquiring another resource.
     Receive {
-        call: AccessExpressionId,
-        destination: Holder,
+        result: AccessExpressionId,
         payload: P,
     },
     Move {
@@ -174,14 +178,16 @@ impl<P> Step<P> {
                 destination: *destination,
                 payload: map(PayloadSite::Destination(*destination), payload)?,
             },
-            Self::Receive {
-                call,
-                destination,
-                payload,
-            } => Step::Receive {
-                call: *call,
-                destination: *destination,
-                payload: map(PayloadSite::Destination(*destination), payload)?,
+            Self::DriveFuture { source, payload } => Step::DriveFuture {
+                source: source.clone(),
+                payload: map(PayloadSite::Source(source), payload)?,
+            },
+            Self::Receive { result, payload } => Step::Receive {
+                result: *result,
+                payload: map(
+                    PayloadSite::Destination(Holder::Expression(*result)),
+                    payload,
+                )?,
             },
             Self::Move {
                 source,

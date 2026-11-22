@@ -447,7 +447,7 @@ impl Builder<'_> {
                 operation: Binary::And | Binary::Or,
                 ..
             } => return self.logical(id, entry),
-            ExpressionKind::Await { .. } => return Err(INVALID),
+            ExpressionKind::Await { .. } => return self.drive_future(id, entry),
             ExpressionKind::Call {
                 target, arguments, ..
             } => {
@@ -594,6 +594,31 @@ impl Builder<'_> {
             current = self.expression(field.value, point)?;
         }
         Ok(current)
+    }
+    fn drive_future(
+        &mut self,
+        id: AccessExpressionId,
+        entry: AccessFlowPointId,
+    ) -> Result<Option<AccessFlowPointId>> {
+        let mut current = id;
+        let mut drives = Vec::new();
+        while let ExpressionKind::Await { future } =
+            self.body.expressions().get(current).ok_or(INVALID)?.kind
+        {
+            drives.push((current, future));
+            current = future;
+        }
+        let Some(point) = self.expression(current, entry)? else {
+            return Ok(None);
+        };
+        for (result, future) in drives.into_iter().rev() {
+            self.action(
+                point,
+                Origin::Expression(result),
+                Operation::DriveFuture { future, result },
+            )?;
+        }
+        Ok(Some(point))
     }
     fn call(
         &mut self,

@@ -175,6 +175,10 @@ fn plan(
         Operation::BooleanConstant { result, .. } | Operation::ConstructFuture(result) => {
             definitions.push(Carrier::Expression(*result));
         }
+        Operation::DriveFuture { future, result } => {
+            uses.push((Carrier::Expression(*future), true));
+            definitions.push(Carrier::Expression(*result));
+        }
         Operation::Bind { local, value } => {
             uses.push((
                 Carrier::Expression(*value),

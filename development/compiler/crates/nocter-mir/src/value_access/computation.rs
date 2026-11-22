@@ -432,7 +432,9 @@ impl Builder<'_> {
             flow::Operation::ConstructFuture(id) if self.elides_future_expression(id) => {
                 return Ok(Box::new([]));
             }
-            flow::Operation::ConstructFuture(_) => return Err(self.invalid()),
+            flow::Operation::ConstructFuture(_) | flow::Operation::DriveFuture { .. } => {
+                return Err(self.invalid());
+            }
             flow::Operation::Bind { local, value } => {
                 let item = self
                     .checked

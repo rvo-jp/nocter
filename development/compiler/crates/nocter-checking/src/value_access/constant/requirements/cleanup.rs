@@ -118,6 +118,7 @@ fn payload<P>(step: &Step<P>) -> Option<&P> {
         | Step::Assemble { .. }
         | Step::Construct { .. }
         | Step::Receive { .. }
+        | Step::DriveFuture { .. }
         | Step::Move { .. }
         | Step::MoveArrayElement { .. }
         | Step::ConsolidateArrayPrefix { .. }

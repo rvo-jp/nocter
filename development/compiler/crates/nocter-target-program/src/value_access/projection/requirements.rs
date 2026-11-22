@@ -103,6 +103,10 @@ impl Needed<'_> {
             Operation::PrepareOperand { value, .. } => self.expression(value)?,
             Operation::BooleanConstant { result, .. } => self.expression(result)?,
             Operation::Forward { source, result, .. }
+            | Operation::DriveFuture {
+                future: source,
+                result,
+            }
             | Operation::BooleanAnswer { source, result } => {
                 self.expression(source)?;
                 self.expression(result)?;

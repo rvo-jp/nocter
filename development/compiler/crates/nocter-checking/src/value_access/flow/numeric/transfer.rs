@@ -181,6 +181,13 @@ pub(super) fn action(
                 }
             }
         }
+        Operation::DriveFuture { result, .. } => {
+            // The logical step alone supplies neither an output value nor an outside-write proof.
+            forget_locals(cells, state);
+            if let Some(target) = cells.value(result) {
+                state.forget(target);
+            }
+        }
         Operation::Drop(local) => {
             if let Some(&cell) = cells.locals.get(&local) {
                 state.forget(cell);

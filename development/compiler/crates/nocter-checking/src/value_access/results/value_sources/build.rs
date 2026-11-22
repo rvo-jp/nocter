@@ -207,6 +207,7 @@ impl Builder<'_> {
                     | flow::Operation::CommitCall(id)
                     | flow::Operation::ConstructFuture(id) => Some(id),
                     flow::Operation::Forward { result, .. }
+                    | flow::Operation::DriveFuture { result, .. }
                     | flow::Operation::BooleanAnswer { result, .. }
                     | flow::Operation::BooleanConstant { result, .. } => Some(result),
                     _ => None,

@@ -49,6 +49,32 @@ impl Context<'_, '_> {
         Ok(())
     }
     pub(super) fn ownership_before(&mut self, operation: &Operation) -> Result<()> {
+        if let Operation::DriveFuture { future, result } = *operation {
+            let operand = self.world.value(future)?;
+            if operand.mode != Mode::Own || operand.access.is_some() {
+                return Err(Failure::Integrity);
+            }
+            self.write(
+                &super::Root::Expression(future).region(),
+                None,
+                Mode::Own,
+                None,
+            )?;
+            let output = self
+                .typed
+                .body()
+                .expressions()
+                .get(result)
+                .and_then(|expression| expression.ty.normal())
+                .filter(|output| output.mode() == Mode::Own)
+                .ok_or(Failure::Integrity)?;
+            self.world.resources.drive_future(
+                self.typed.program(),
+                future,
+                output.data(),
+                &mut self.steps,
+            )?;
+        }
         if let Operation::PrepareArgument {
             call,
             argument: index,
@@ -158,6 +184,11 @@ impl Context<'_, '_> {
             Operation::ConstructFuture(call) => self.world.resources.construct(
                 Holder::Expression(call),
                 resources::empty_future(self.typed, call)?,
+                &mut self.steps,
+            )?,
+            Operation::DriveFuture { result, .. } => self.world.resources.receive(
+                result,
+                resources::expression_payload(self.typed, result)?,
                 &mut self.steps,
             )?,
             Operation::CancelCall { call, prepared } => {

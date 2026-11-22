@@ -152,6 +152,82 @@ fn await_consumes_one_owned_future_layer_before_outcome_propagation() {
 }
 
 #[test]
+fn await_drives_the_transferred_activation_before_receiving_its_output() {
+    use flow::resources::{Disposal, Holder, Step};
+
+    let typed = queries(
+        "async func first(): i32 { 12 }\n\
+         async func second(): i32 { 30 }\n\
+         async func run(flag: bool): i32 {\n\
+            let pending = if flag { first() } else { second() }\n\
+            await pending^\n\
+         }",
+    )
+    .unwrap();
+    let query = named(&typed, "run");
+    let flow = flow::Query::prepare(Arc::new(query.clone())).unwrap();
+    let mut producers = Vec::new();
+    let mut drives = 0;
+    for (point, block) in flow.graph().points().iter() {
+        for (action, event) in block.actions.iter().enumerate() {
+            drives += usize::from(matches!(
+                event.operation,
+                flow::Operation::DriveFuture { .. }
+            ));
+            for transition in flow
+                .access()
+                .resources()
+                .at(flow::Location { point, action })
+            {
+                assert!(!transition.steps().iter().any(|step| matches!(
+                    step, Step::Dispose { payload, .. }
+                        if matches!(payload.disposal(), Disposal::UnstartedFuture(_))
+                )));
+                let flow::Operation::DriveFuture { future, result } = event.operation else {
+                    continue;
+                };
+                let source_holder = Holder::Expression(future);
+                let output_holder = Holder::Expression(result);
+                assert!(transition.initialized_before(source_holder));
+                assert!(!transition.initialized_before(output_holder));
+                assert!(
+                    !transition
+                        .operation_condition()
+                        .owned()
+                        .any(|(holder, _)| { holder == source_holder || holder == output_holder })
+                );
+                let [Step::DriveFuture { source, payload }] = transition.before_steps() else {
+                    panic!("{:?}", transition.before_steps());
+                };
+                assert_eq!(source, &source_holder.place());
+                let Disposal::UnstartedFuture(producer) = payload.disposal() else {
+                    panic!("the owned activation lost its producer");
+                };
+                producers.push(producer);
+                let [
+                    Step::Receive {
+                        result: received,
+                        payload,
+                    },
+                ] = transition.after_steps()
+                else {
+                    panic!("{:?}", transition.after_steps());
+                };
+                assert_eq!(*received, result);
+                assert_eq!(payload.data(), query.result_data());
+                assert!(!transition.initialized_after(source_holder));
+                assert!(transition.initialized_after(output_holder));
+            }
+        }
+    }
+    assert_eq!(drives, 1);
+    let mut expected = ["first", "second"].map(|name| named(&typed, name).source_owner());
+    expected.sort_unstable();
+    producers.sort_unstable();
+    assert_eq!(producers, expected);
+}
+
+#[test]
 fn interrupted_deferred_preparation_has_a_selected_producer_without_any_invocation() {
     use nocter_declarations::{CallableExecution, value_access::PayloadSchema};
 

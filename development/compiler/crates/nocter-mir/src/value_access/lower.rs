@@ -811,20 +811,19 @@ impl Builder<'_> {
                                 self.root(*destination, self.payload_data(payload)?, false)?;
                             output.push(Effect::Initialize(destination));
                         }
-                        Step::Receive {
-                            call,
-                            destination,
-                            payload,
-                        } => {
+                        Step::DriveFuture { .. } => return Err(self.invalid()),
+                        Step::Receive { result, payload } => {
                             let data = self.payload_data(payload)?;
-                            let slot = self.slot(SlotKey::Answer(*call), data, Storage::Payload)?;
+                            let slot =
+                                self.slot(SlotKey::Answer(*result), data, Storage::Payload)?;
                             let source = Place {
                                 slot,
                                 root: data,
                                 data,
                                 projections: Box::new([]),
                             };
-                            let destination = self.root(*destination, data, false)?;
+                            let destination =
+                                self.root(Holder::Expression(*result), data, false)?;
                             output.push(Effect::Transfer {
                                 source,
                                 destination,
@@ -1142,6 +1141,7 @@ impl Builder<'_> {
             | Operation::PrepareArgument { .. }
             | Operation::CommitCall(_)
             | Operation::ConstructFuture(_)
+            | Operation::DriveFuture { .. }
             | Operation::CancelCall { .. }
             | Operation::Assign { .. }
             | Operation::CompoundAssign { .. }

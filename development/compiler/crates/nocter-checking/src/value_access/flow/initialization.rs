@@ -518,6 +518,7 @@ fn transfer(
             | Operation::Condition(value)
             | Operation::Discard(value)
             | Operation::StageReturn(value)
+            | Operation::DriveFuture { future: value, .. }
             | Operation::BooleanAnswer { source: value, .. } => {
                 require_expression(
                     typed,

@@ -137,6 +137,9 @@ fn drive(
                 }
                 for transition in transitions {
                     for resource in transition.steps() {
+                        if matches!(resource, Step::DriveFuture { .. }) {
+                            return Err(INVALID);
+                        }
                         if let Some(data) = backing_data(resource)
                             && !elisions.contains(query.code(), data)
                             && !local_backing(program, data, &mut local_data)
@@ -197,6 +200,7 @@ fn invocation(operation: &Operation) -> Option<AccessExpressionId> {
         | Operation::BooleanAnswer { .. }
         | Operation::PrepareArgument { .. }
         | Operation::ConstructFuture(_)
+        | Operation::DriveFuture { .. }
         | Operation::CancelCall { .. }
         | Operation::Bind { .. }
         | Operation::Assign { .. }
@@ -219,6 +223,7 @@ fn backing_data(step: &Step) -> Option<TypeId> {
         Step::AdaptFunction { .. }
         | Step::Transport { .. }
         | Step::Assemble { .. }
+        | Step::DriveFuture { .. }
         | Step::Receive { .. }
         | Step::Move { .. }
         | Step::MoveArrayElement { .. }
