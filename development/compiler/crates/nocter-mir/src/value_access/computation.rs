@@ -108,6 +108,17 @@ impl Builder<'_> {
             .ok_or_else(|| self.invalid())?
             .kind
             .clone();
+        if self.elides_future_expression(id) {
+            return match kind {
+                ExpressionKind::Move(_)
+                | ExpressionKind::Place(_)
+                | ExpressionKind::Boundary {
+                    action: BoundaryAction::TakeValue,
+                    ..
+                } => Ok(Vec::new()),
+                _ => Err(self.invalid()),
+            };
+        }
         let destination = self.result(id)?;
         let operation = match kind {
             ExpressionKind::PrimaryCondition { source } => {
@@ -392,6 +403,9 @@ impl Builder<'_> {
                 destination: self.result(result)?,
             },
             flow::Operation::Forward { source, result, .. } => {
+                if self.elides_future_expression(result) {
+                    return Ok(Box::new([]));
+                }
                 let destination = self.result(result)?;
                 let mode = self
                     .checked
@@ -414,6 +428,9 @@ impl Builder<'_> {
                     .map(|operation| operation.into_iter().collect());
             }
             flow::Operation::CommitCall(id) => self.call(id)?,
+            flow::Operation::ConstructFuture(id) if self.elides_future_expression(id) => {
+                return Ok(Box::new([]));
+            }
             flow::Operation::ConstructFuture(_) => return Err(self.invalid()),
             flow::Operation::Bind { local, value } => {
                 let item = self

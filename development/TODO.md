@@ -18,10 +18,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Carry checked empty, unstarted activations through native construction, local transfer and
-cancellation. Qualify elision where every reached use retains an unstarted owner until cancellation,
-preserving its logical transitions without granting a physical callable or future handle.
-Keep driving, escaping values and suspension on their own checked paths.
+Carry `await` through body typing and ownership with the authored output and one owned future
+operand. Preserve the selected producer through its consumption and keep normal drive, suspension
+and cancellation on distinct paths. Start with selected empty activations whose drive is already
+qualified as non-waiting without suspension.
 
 ## Remaining Contextual Representation Qualification
 
@@ -756,7 +756,11 @@ not a language restriction derived from the current realization boundary.
   admitting an ordinary call edge or treating a symbolic callable contract as a producer.
 - [x] Represent empty future construction as its own operation and retain the producer in an
   unstarted ownership receipt. Transfer two equal-typed activations independently and cancel
-  each once without any body invocation. Keep reached constructor backing gated for native execution.
+  each once without any body invocation.
+- [x] Elide native payload storage for checked empty activations used only while unstarted in
+  the same body. Preserve ownership predicates and evaluate the selected source branch. Verify
+  native cancellation across two producers that would trap if driven, and reject construction in
+  a const body even when runtime storage can be elided.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.

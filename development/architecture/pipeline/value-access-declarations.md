@@ -187,7 +187,10 @@ contract supplies no concrete constructor. Interrupted argument preparation keep
 producer and result type in the typed query, while its control graph records no invocation.
 An empty, directly selected construction has its own flow operation. Its logical receipt
 retains the producer through owning local transfers and cancellation without an invocation.
-The accepted-unit boundary still requires runtime backing evidence for reached construction.
+The accepted unit qualifies storage elision from reached resource transitions for empty activations
+whose uses stay local and unstarted. Native lowering omits their payload slots and transitions
+while retaining control and ownership predicates. Such construction still requires runtime
+execution under the const rules. Driving and escaping futures require separate evidence.
 Direct and value calls store one statically selected callable and one input operation per ordered
 input. Value-supply preparation can remain pending until result closure, without changing that
 authored operation. A value call prepends its environment to explicit inputs; direct declaration

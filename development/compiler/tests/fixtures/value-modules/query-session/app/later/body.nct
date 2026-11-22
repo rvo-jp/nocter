@@ -13,6 +13,32 @@ func tally(take count: i32): i32 {
     result
 }
 
+async func trap_if_driven(): i32 {
+    1 / tally(0)
+}
+
+async func other_trap_if_driven(): i32 {
+    1 / (tally(1) - 3)
+}
+
+func choose(edit count: i32, first: bool): bool {
+    count += 1
+    first
+}
+
+func cancel(edit count: i32, first: bool): void {
+    let pending = if choose(count, first) {
+        trap_if_driven()
+    } else {
+        other_trap_if_driven()
+    }
+    let moved = pending^
+    drop moved
+}
+
 async func main(): i32 {
-    1 + tally(9)
+    var count = 0
+    cancel(count, true)
+    cancel(count, false)
+    count + tally(9) - 1
 }

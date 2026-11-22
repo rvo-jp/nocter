@@ -31,7 +31,8 @@ impl Builder<'_> {
                 );
                 self.define(Slot::Expression(result), value, state)?;
             }
-            flow::Operation::BooleanConstant { result, .. } => {
+            flow::Operation::BooleanConstant { result, .. }
+            | flow::Operation::ConstructFuture(result) => {
                 let value = self.push(self.data(result)?, Some(result), ValueSource::Opaque);
                 self.define(Slot::Expression(result), value, state)?;
             }

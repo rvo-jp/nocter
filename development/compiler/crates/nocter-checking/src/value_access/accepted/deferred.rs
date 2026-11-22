@@ -13,6 +13,8 @@ use nocter_declarations::{
 use nocter_model::{AccessCodeId, AccessExpressionId, TypeId, ValueCodeRoot, ValueFunctionOrigin};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
+mod elision;
+pub(super) use elision::Elisions;
 
 pub(super) fn require_local_activation(
     context: &Context<'_>,
@@ -38,6 +40,7 @@ pub(super) fn qualify(
     program: &Program,
     bodies: &BTreeMap<ValueCodeRoot, Arc<flow::Query>>,
     verified: &results::Verified<'_, '_>,
+    elisions: &Elisions,
 ) -> Result<BTreeSet<AccessCodeId>, Failure> {
     let mut drives = BTreeSet::new();
     let mut ordinary = BTreeSet::new();
@@ -49,48 +52,11 @@ pub(super) fn qualify(
             program.code_execution(callable),
             Some(CallableExecution::Deferred { .. })
         ) {
-            drive(program, bodies, verified, callable, body, &mut ordinary)?;
+            drive(program, bodies, verified, elisions, body, &mut ordinary)?;
             drives.insert(callable);
         }
     }
     Ok(drives)
-}
-
-pub(super) fn require_constructor_backing(
-    context: &Context<'_>,
-    control: &flow::Control,
-) -> Result<(), Failure> {
-    let mut constructions = control
-        .graph
-        .points()
-        .iter()
-        .flat_map(|(point, block)| {
-            block
-                .actions
-                .iter()
-                .filter_map(move |action| match action.operation {
-                    Operation::ConstructFuture(call) => Some((point, call)),
-                    _ => None,
-                })
-        })
-        .peekable();
-    if constructions.peek().is_none() {
-        return Ok(());
-    }
-    let reached = control.graph.reachable().map_err(Failure::Integrity)?;
-    let Some((_, call)) = constructions.find(|(point, _)| reached.contains(point)) else {
-        return Ok(());
-    };
-    Err(body_failure(
-        control.typed.source_owner(),
-        diagnostics::query_rejection(
-            context,
-            &control.typed,
-            Some(call),
-            Rule::UnqualifiedFuture,
-            "this future construction requires checked runtime backing",
-        ),
-    ))
 }
 
 const INVALID: Failure = Failure::Integrity(flow::IntegrityError::InconsistentTypedBody);
@@ -122,10 +88,11 @@ fn drive(
     program: &Program,
     bodies: &BTreeMap<ValueCodeRoot, Arc<flow::Query>>,
     verified: &results::Verified<'_, '_>,
-    callable: AccessCodeId,
+    elisions: &Elisions,
     body: &flow::Query,
     ordinary: &mut BTreeSet<AccessCodeId>,
 ) -> Result<(), Failure> {
+    let callable = body.typed().source_owner();
     let mut examined = BTreeSet::new();
     let mut pending = vec![(callable, body)];
     let mut local_data = BTreeSet::new();
@@ -147,6 +114,7 @@ fn drive(
                 for transition in transitions {
                     for resource in transition.steps() {
                         if let Some(data) = backing_data(resource)
+                            && !elisions.contains(query.code(), data)
                             && !local_backing(program, data, &mut local_data)
                         {
                             return Err(reject(

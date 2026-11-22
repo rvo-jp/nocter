@@ -203,7 +203,9 @@ impl Builder<'_> {
             let block = control.graph.points().get(point).ok_or(INVALID)?;
             for action in &block.actions {
                 let defined = match action.operation {
-                    flow::Operation::Evaluate(id) | flow::Operation::CommitCall(id) => Some(id),
+                    flow::Operation::Evaluate(id)
+                    | flow::Operation::CommitCall(id)
+                    | flow::Operation::ConstructFuture(id) => Some(id),
                     flow::Operation::Forward { result, .. }
                     | flow::Operation::BooleanAnswer { result, .. }
                     | flow::Operation::BooleanConstant { result, .. } => Some(result),

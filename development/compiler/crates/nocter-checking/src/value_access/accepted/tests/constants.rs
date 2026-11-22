@@ -75,6 +75,7 @@ fn all_const_definitions_and_unevaluated_branches_check_selected_calls() {
         "func runtime(): bool { true }\nconst func unused(): bool { false && runtime() }",
         "func runtime(): i32 { 1 }\nconst func unused(): i32 { loop {}\nruntime() }",
         "func runtime(value: i32): i32 { value }\nconst func unused(): i32 { runtime(if true { return 0 } else { return 1 }) }",
+        "async func runtime(): i32 { 1 }\nconst func unused(): i32 { let pending = runtime()\ndrop pending\n3 }",
     ] {
         rejected(text, |diagnostic| {
             assert!(matches!(diagnostic.rule(), Rule::RuntimeCall(_)));

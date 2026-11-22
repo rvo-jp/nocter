@@ -76,6 +76,20 @@ impl Builder<'_> {
     pub(super) fn invalid(&self) -> Failure {
         Failure::InvalidBody(self.id)
     }
+    pub(super) fn elides_future_expression(&self, id: AccessExpressionId) -> bool {
+        self.checked
+            .typed()
+            .body()
+            .expressions()
+            .get(id)
+            .and_then(|expression| expression.ty.normal())
+            .is_some_and(|access| self.elides_future_data(access.data()))
+    }
+    fn elides_future_data(&self, data: TypeId) -> bool {
+        self.instances
+            .unit()
+            .elides_future_data(self.instance.key().code(), data)
+    }
     pub(super) fn closed_data(&self, source: TypeId) -> Result<RuntimeDataId, Failure> {
         let program = self.instances.unit().program();
         let key = program
@@ -1071,19 +1085,31 @@ impl Builder<'_> {
             | Operation::BooleanConstant { result: id, .. }
             | Operation::Forward { result: id, .. }
             | Operation::BooleanAnswer { result: id, .. } => {
-                if let Some(access) = self
-                    .checked
-                    .typed()
-                    .body()
-                    .expressions()
-                    .get(id)
-                    .and_then(|e| e.ty.normal())
+                if !self.elides_future_expression(id)
+                    && let Some(access) = self
+                        .checked
+                        .typed()
+                        .body()
+                        .expressions()
+                        .get(id)
+                        .and_then(|e| e.ty.normal())
                 {
                     let data = self.receiving_data(id)?;
                     self.slot(SlotKey::Expression(id), data, form(access.mode()))?;
                 }
             }
             Operation::Bind { local, .. } => {
+                let local_data = self
+                    .checked
+                    .typed()
+                    .body()
+                    .locals()
+                    .get(local)
+                    .ok_or_else(|| self.invalid())?
+                    .data;
+                if self.elides_future_data(local_data) {
+                    return Ok(());
+                }
                 let payload = self
                     .instance
                     .definition(at, ValueSourceSlot::Local(local))

@@ -20,11 +20,12 @@ pub(super) fn metadata(
     let program = unit.program();
     let mut roots = BTreeSet::new();
     for source in requirements::data(body, control)? {
-        if unit
-            .data_evidence(source)
-            .map_err(|_| Failure::InvalidAcceptedUnit)?
-            .payload()
-            .is_none()
+        if unit.elides_future_data(body.typed().code(), source)
+            || unit
+                .data_evidence(source)
+                .map_err(|_| Failure::InvalidAcceptedUnit)?
+                .payload()
+                .is_none()
         {
             continue;
         }

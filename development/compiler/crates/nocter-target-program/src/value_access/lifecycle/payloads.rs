@@ -4,7 +4,7 @@ use nocter_checking::value_access::flow::resources::{Holder, Missing, Place, Tra
 use nocter_checking::value_access::{ResourceDataFailure, ResourceDataProjection};
 use nocter_constant_evaluation::state::WorkBudget;
 use nocter_model::AccessInstanceId;
-use std::{collections::BTreeMap, sync::Arc};
+use std::{borrow::Cow, collections::BTreeMap, sync::Arc};
 #[cfg(test)]
 mod tests;
 
@@ -67,6 +67,14 @@ impl<'a, 'work> Projection<'a, 'work> {
         self.project(steps, true)
     }
     fn project(&mut self, steps: &[ResourceStep], completed: bool) -> Result<Vec<Step>, Failure> {
+        let unit = self.instance.queries.unit();
+        let code = self.instance.key().code();
+        let elided = |step: &ResourceStep| unit.elides_future_step(code, step);
+        let steps = if steps.iter().any(elided) {
+            Cow::Owned(steps.iter().filter(|step| !elided(step)).cloned().collect())
+        } else {
+            Cow::Borrowed(steps)
+        };
         // Preflight metadata matching before the atomic data projection changes its bindings.
         let roots = steps
             .iter()
@@ -92,9 +100,9 @@ impl<'a, 'work> Projection<'a, 'work> {
             })
             .collect::<Result<Vec<_>, Failure>>()?;
         let projected = if completed {
-            self.inner.after_steps_with_roots(steps)
+            self.inner.after_steps_with_roots(&steps)
         } else {
-            self.inner.steps_with_roots(steps)
+            self.inner.steps_with_roots(&steps)
         }
         .map_err(|error| failure(self.id, self.at, error))?;
         projected

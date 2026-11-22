@@ -65,6 +65,7 @@ pub struct Unit {
     primitives: nocter_declaration_lowering::access_declarations::PrimitiveBindings,
     bodies: BTreeMap<nocter_model::ValueCodeRoot, Arc<flow::Query>>,
     deferred_drives: BTreeSet<AccessCodeId>,
+    future_elisions: deferred::Elisions,
     result_evidence: Arc<super::results::Evidence>,
     const_templates: Arc<super::constant::Catalog>,
 }
@@ -142,6 +143,7 @@ impl Unit {
             result_evidence,
             const_templates,
             deferred_drives,
+            future_elisions,
         } = check_queries(context, queries, &mut definition_work)?;
         Ok(Self {
             initializers: evaluation
@@ -160,6 +162,7 @@ impl Unit {
             result_evidence,
             const_templates,
             deferred_drives,
+            future_elisions,
         })
     }
     /// The empty deferred activation is proven non-waiting when driven to completion.
@@ -167,6 +170,20 @@ impl Unit {
     #[must_use]
     pub fn can_drive_without_suspension(&self, id: AccessCodeId) -> bool {
         self.deferred_drives.contains(&id)
+    }
+    /// Whether this body's checked unstarted futures of this data have no represented storage.
+    #[must_use]
+    pub fn elides_future_data(&self, code: nocter_model::ValueCode, data: TypeId) -> bool {
+        self.future_elisions.contains(code, data)
+    }
+    /// Whether an original local future transition has no physical payload work.
+    #[must_use]
+    pub fn elides_future_step(
+        &self,
+        code: nocter_model::ValueCode,
+        step: &flow::resources::Step,
+    ) -> bool {
+        self.future_elisions.step(code, step)
     }
     #[must_use]
     pub fn constant_value(&self, id: AccessCodeId) -> Option<&nocter_model::FrozenData> {
@@ -246,6 +263,7 @@ impl Unit {
             &self.result_evidence,
             self.code_body(frame.code()),
             frame,
+            self.future_elisions.body(frame.code()),
             work,
         )
     }
@@ -645,6 +663,7 @@ pub(super) struct Checked {
     result_evidence: Arc<super::results::Evidence>,
     const_templates: Arc<super::constant::Catalog>,
     deferred_drives: BTreeSet<AccessCodeId>,
+    future_elisions: deferred::Elisions,
 }
 impl Checked {
     pub(super) fn project_const_violation(
@@ -719,6 +738,7 @@ impl Checked {
             &self.result_evidence,
             self.code(frame.code()),
             frame,
+            None,
             work,
         )
     }
@@ -855,7 +875,6 @@ pub(super) fn resolve_queries(
         .map(|(id, body)| {
             deferred::require_local_activation(context, id)?;
             let control = flow::Control::prepare(Arc::new(body)).map_err(Failure::Integrity)?;
-            deferred::require_constructor_backing(context, &control)?;
             Ok((id, control))
         })
         .collect::<Result<BTreeMap<_, _>, Failure>>()?;
@@ -939,7 +958,11 @@ pub(super) fn admit_resolved(
             bodies.insert(root, Arc::new(query));
         }
     }
-    let deferred_drives = deferred::qualify(&program, &bodies, &verified)?;
+    let future_elisions = deferred::Elisions::prepare(
+        bodies.values().chain(closures.values()).map(Arc::as_ref),
+        &verified,
+    )?;
+    let deferred_drives = deferred::qualify(&program, &bodies, &verified, &future_elisions)?;
     let const_templates = const_admission::check_const_bodies(
         &program,
         &bodies,
@@ -959,6 +982,7 @@ pub(super) fn admit_resolved(
         result_evidence,
         const_templates,
         deferred_drives,
+        future_elisions,
     })
 }
 
