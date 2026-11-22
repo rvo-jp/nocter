@@ -1,7 +1,7 @@
 //! Finite logical ownership and sparse partial-payload cleanup for the closed data contracts.
 //! These transitions retain obligations; they do not choose physical storage or an ABI.
 use super::{IntegrityError, Location};
-use crate::value_access::Query as TypedQuery;
+use crate::value_access::{Argument, Query as TypedQuery};
 use nocter_declarations::value_access::{PayloadSchema, Program};
 use nocter_model::{AccessExpressionId, AccessLocalId, BuiltinType, FieldPath, TypeId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -136,25 +136,35 @@ impl Payload {
     }
 }
 
-/// Whether the local activation can store and carry this declared take input.
-/// Cancellation must independently qualify its release.
-pub(in crate::value_access) fn is_local_future_input(program: &Program, data: TypeId) -> bool {
-    program.data_kind(data).is_some_and(|builtin| {
-        matches!(
-            builtin,
-            BuiltinType::Bool | BuiltinType::Void | BuiltinType::Error
-        ) || nocter_model::BuiltinNumericType::for_builtin(builtin)
-            .and_then(nocter_model::BuiltinNumericType::integer_bounds)
-            .is_some()
-    })
+/// A take input whose descriptor suffices for local activation storage.
+/// The call must supply this exact payload and independently qualify cancellation.
+pub(in crate::value_access) fn local_future_input(
+    program: &Program,
+    data: TypeId,
+) -> Option<Payload> {
+    let key = program.instantiate_closed_data(data).ok()?;
+    if !key.is_context_free() {
+        return None;
+    }
+    let payload = payload(program, data).ok()?;
+    matches!(
+        payload.disposal(),
+        Disposal::Trivial | Disposal::OwnedError | Disposal::Aggregate
+    )
+    .then_some(payload)
+}
+
+pub(super) struct FutureActivation<'a> {
+    pub payload: Payload,
+    pub inputs: Box<[(&'a Argument, Payload)]>,
 }
 
 /// Form the ownership receipt for a selected producer with represented take inputs.
 /// The checked unit must separately establish the producer's effects and backing.
-pub(super) fn future_payload(
+pub(super) fn future_activation(
     typed: &TypedQuery,
     call: AccessExpressionId,
-) -> Result<(Payload, &[nocter_model::AccessParameterId])> {
+) -> Result<FutureActivation<'_>> {
     use crate::value_access::{CallKind, ExpressionKind};
     use nocter_declarations::CallableExecution;
     use nocter_model::{ValueAccessMode, ValueFunctionOrigin};
@@ -177,30 +187,35 @@ pub(super) fn future_payload(
     };
     let data = declaration.result();
     if arguments.len() != declaration.parameters().len()
-        || arguments
-            .iter()
-            .zip(declaration.parameters())
-            .any(|(argument, id)| {
-                let Some(parameter) = program.parameters().get(*id) else {
-                    return true;
-                };
-                argument.operation != nocter_model::ValueInputOperation::Take
-                    || parameter.operation() != nocter_model::ValueInputOperation::Take
-                    || !is_local_future_input(program, parameter.data())
-            })
         || expression.ty.normal()
             != Some(nocter_model::ValueAccess::new(data, ValueAccessMode::Own))
         || program.data_schema(data) != Some(PayloadSchema::Future(output))
     {
         return Err(INVALID);
     }
-    Ok((
-        Payload {
+    let inputs = arguments
+        .iter()
+        .zip(declaration.parameters())
+        .map(|(argument, &id)| {
+            let parameter = program.parameters().get(id).ok_or(INVALID)?;
+            if argument.operation != nocter_model::ValueInputOperation::Take
+                || parameter.operation() != argument.operation
+            {
+                return Err(INVALID);
+            }
+            Ok((
+                argument,
+                local_future_input(program, parameter.data()).ok_or(INVALID)?,
+            ))
+        })
+        .collect::<Result<_>>()?;
+    Ok(FutureActivation {
+        payload: Payload {
             data,
             disposal: Disposal::UnstartedFuture(*producer),
         },
-        declaration.parameters(),
-    ))
+        inputs,
+    })
 }
 mod step;
 mod transport;

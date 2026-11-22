@@ -235,7 +235,7 @@ impl State {
         program: &Program,
         destination: Holder,
         payload: Payload,
-        sources: &[(Place, TypeId)],
+        sources: &[(Place, Payload)],
         steps: &mut Vec<Step>,
     ) -> Result<()> {
         let mut staged = self.clone();
@@ -244,12 +244,7 @@ impl State {
         for (source, expected) in sources {
             staged.retain_source(program, source, &mut changes)?;
             let received = staged.take(program, source)?;
-            if received.data() != *expected
-                || !matches!(
-                    received.disposal(),
-                    Disposal::Trivial | Disposal::OwnedError
-                )
-            {
+            if received != *expected {
                 return Err(INVALID);
             }
             inputs.push((source.clone(), received));

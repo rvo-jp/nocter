@@ -1,0 +1,50 @@
+use std/error as errors
+see ./index.nct
+
+struct Packet {
+    reason: error
+    unused: error?
+    words: [i64; 3]
+}
+
+func packet(reason: str, present: bool): Packet {
+    let extra: error? = if present { errors.operation("discarded", "optional") } else { none }
+    Packet {
+        reason: errors.operation(reason, "payload"),
+        unused: extra^,
+        words: [3, 5, 4294967319],
+    }
+}
+
+async func cancelled(take value: Packet, take divisor: i32): i32 {
+    1 / divisor
+}
+
+async func scalar(take divisor: i32): i32 {
+    1 / divisor
+}
+
+async func receive(take value: Packet): error {
+    if value.words[2] != 4294967319 {
+        return errors.operation("invalid", "storage")
+    }
+    value.reason^
+}
+
+async func main(): i32! {
+    var iteration: i32 = 0
+    while iteration < 3 {
+        let pending = if iteration < 2 {
+            cancelled(packet("discarded", iteration == 0), 0)
+        } else {
+            scalar(0)
+        }
+        let moved = pending^
+        drop moved
+        iteration += 1
+    }
+
+    let pending = receive(packet("compound", true))
+    let moved = pending^
+    throw await moved^
+}

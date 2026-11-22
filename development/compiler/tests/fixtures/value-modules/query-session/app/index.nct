@@ -5,6 +5,7 @@
 #executable: { name: "later", module: "./later" }
 #executable: { name: "deferred-failure", module: "./deferred_failure" }
 #executable: { name: "managed-deferred-failure", module: "./managed_deferred_failure" }
+#executable: { name: "compound-deferred", module: "./compound_deferred" }
 see ./body.nct
 use ./math
 const func main(): i32

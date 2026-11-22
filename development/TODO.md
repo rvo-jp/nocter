@@ -18,9 +18,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify take inputs with closed compound data in unstarted local futures. Use the exact checked
-input and storage layouts for transport and retain structural cleanup at the original cancellation.
-Retain separate obligations for context-dependent shapes and retained read/edit access.
+Qualify a local future's retained read inputs rooted in existing places. Activate the input's
+access at construction, carry it through ownership moves, and relinquish it after drive or
+cancellation. Verify diagnostics on an intervening conflicting update and keep caller-owned
+temporary extents as a separate obligation.
 
 ## Remaining Contextual Representation Qualification
 
@@ -806,13 +807,17 @@ not a language restriction derived from the current realization boundary.
 - [x] Restore native outcome selection across callable result/absence contexts in
   `contextual-outcome-results.nct`. Preserve both the owned scalar/fallible `await` paths and the
   exact same/changed payload representations when moving the active branch of an existing carrier.
+- [x] Carry closed compound take inputs through local future construction, movement, drive and
+  cancellation. Verify structural cleanup for the selected record over both optional states,
+  preserve wide integer and error data through indirect input transport, and exclude the scalar
+  alternative from compound cleanup.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.
   Qualify scoped future aliases, nested annotations and represented carriers through their actual
   activation and storage evidence. Refine selector storage from body/type scope to the relevant
   activation occurrences where exact transport evidence permits it.
-  Extend input cancellation to compound/contextual take inputs and retained accesses using their
+  Extend input cancellation to contextual take inputs and retained accesses using their
   exact release obligations and construction/completion phases.
 - [ ] Integrate v2 into the ordinary compiler/CLI and editor workflow with one semantic pipeline,
   current diagnostics, formatting, presentation and revision/source reuse. Remove transitional private

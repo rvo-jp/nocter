@@ -35,7 +35,7 @@ pub(super) fn require_local_activation(
     let inputs_are_owned_and_releasable = code.parameters().iter().all(|&id| {
         program.parameters().get(id).is_some_and(|parameter| {
             parameter.operation() == nocter_model::ValueInputOperation::Take
-                && flow::resources::is_local_future_input(program, parameter.data())
+                && flow::resources::local_future_input(program, parameter.data()).is_some()
                 && local_data(program, parameter.data(), cancellation, &mut known)
         })
     });

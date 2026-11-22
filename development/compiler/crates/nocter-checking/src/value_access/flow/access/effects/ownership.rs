@@ -565,19 +565,9 @@ impl Context<'_, '_> {
         Ok(())
     }
     fn construct_activation(&mut self, call: AccessExpressionId) -> Result<()> {
-        let (payload, parameters) = resources::future_payload(self.typed, call)?;
-        let ExpressionKind::Call { arguments, .. } = &self
-            .typed
-            .body()
-            .expressions()
-            .get(call)
-            .ok_or(Failure::Integrity)?
-            .kind
-        else {
-            return Err(Failure::Integrity);
-        };
-        let mut sources = Vec::with_capacity(arguments.len());
-        for (index, (argument, &parameter)) in arguments.iter().zip(parameters).enumerate() {
+        let activation = resources::future_activation(self.typed, call)?;
+        let mut sources = Vec::with_capacity(activation.inputs.len());
+        for (index, &(argument, expected)) in activation.inputs.iter().enumerate() {
             let prepared = Holder::Prepared { call, index }.place();
             let source = self
                 .committed_input_source(call, index, argument)?
@@ -591,19 +581,12 @@ impl Context<'_, '_> {
                     &mut self.steps,
                 )?;
             }
-            let data = self
-                .typed
-                .program()
-                .parameters()
-                .get(parameter)
-                .ok_or(Failure::Integrity)?
-                .data();
-            sources.push((prepared, data));
+            sources.push((prepared, expected));
         }
         self.world.resources.construct_activation(
             self.typed.program(),
             Holder::Expression(call),
-            payload,
+            activation.payload,
             &sources,
             &mut self.steps,
         )?;

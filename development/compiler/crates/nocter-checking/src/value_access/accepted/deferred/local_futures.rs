@@ -436,7 +436,7 @@ fn inputs(
         .collect::<Result<Arc<[_]>, Failure>>()?;
     let mut cleanup = Vec::new();
     for (position, &data) in fields.iter().enumerate().rev() {
-        let payload = flow::resources::payload(program, data).map_err(Failure::Integrity)?;
+        let payload = flow::resources::local_future_input(program, data).ok_or(INVALID)?;
         if payload.disposal() != Disposal::Trivial {
             cleanup.push(FutureInputCleanup { position, payload });
         }

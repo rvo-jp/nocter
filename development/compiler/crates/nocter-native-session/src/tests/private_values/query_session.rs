@@ -17,26 +17,20 @@ use std::fs;
 fn copy_fixture(directory: &TempPackage) {
     let fixture = nocter_test_support::repository_root()
         .join("development/compiler/tests/fixtures/value-modules/query-session");
-    for relative in [
-        "app/index.nct",
-        "app/body.nct",
-        "app/math/index.nct",
-        "app/math/body.nct",
-        "app/failure/index.nct",
-        "app/failure/body.nct",
-        "app/deferred_failure/index.nct",
-        "app/deferred_failure/body.nct",
-        "app/managed_deferred_failure/index.nct",
-        "app/managed_deferred_failure/body.nct",
-        "app/later/index.nct",
-        "app/later/body.nct",
-        "std/index.nct",
-        "std/process/index.nct",
-    ] {
-        directory.source(
-            relative,
-            &fs::read_to_string(fixture.join(relative)).unwrap(),
-        );
+    let mut folders = vec![fixture.clone()];
+    while let Some(folder) = folders.pop() {
+        for entry in fs::read_dir(folder).unwrap() {
+            let entry = entry.unwrap();
+            let kind = entry.file_type().unwrap();
+            let path = entry.path();
+            if kind.is_dir() {
+                folders.push(path);
+            } else if kind.is_file() && path.extension().is_some_and(|extension| extension == "nct")
+            {
+                let relative = path.strip_prefix(&fixture).unwrap().to_str().unwrap();
+                directory.source(relative, &fs::read_to_string(&path).unwrap());
+            }
+        }
     }
     let trusted_errors = fixture.with_file_name("trusted-errors");
     for module in ["error", "context", "allocation_failure"] {
@@ -113,19 +107,18 @@ fn analyze_package(
         )
         .unwrap()
     };
-    let request = DiscoveryRequest::declared(
-        target,
-        packages,
-        vec![
-            ModuleIdentity::new(app.clone(), Vec::<&str>::new()),
-            ModuleIdentity::new(app.clone(), ["math"]),
-            ModuleIdentity::new(app.clone(), ["failure"]),
-            ModuleIdentity::new(app.clone(), ["deferred_failure"]),
-            ModuleIdentity::new(app.clone(), ["managed_deferred_failure"]),
-            ModuleIdentity::new(app.clone(), ["later"]),
-        ],
-        standard_profile(std),
-    );
+    let declaration = packages
+        .packages()
+        .iter()
+        .find(|package| package.identity() == &app)
+        .and_then(|package| package.declaration())
+        .unwrap();
+    let roots = declaration
+        .targets()
+        .iter()
+        .map(|target| ModuleIdentity::new(app.clone(), target.module().iter().cloned()))
+        .collect();
+    let request = DiscoveryRequest::declared(target, packages, roots, standard_profile(std));
     let source = computation.discover(&revision, request).unwrap();
     let product = computation.analyze(&source).unwrap();
     let session = nocter_session::analyze_unit_from_query(&product).unwrap();
@@ -207,38 +200,63 @@ fn physical_query_session_unit_executes_selected_entries() {
             "managed-deferred-failure",
             &b"managed: after await: leaf\n"[..],
         ),
+        ("compound-deferred", &b"compound: payload\n"[..]),
     ] {
         let image =
             crate::compile_value_access_image(&session, &ExecutableSelector::named(name)).unwrap();
         assert_failure_report(image.image(), &directory.0, name, error);
     }
-    assert_selected_future_cleanup(&session);
+    assert_selected_future_cleanup(
+        &session,
+        "managed-deferred-failure",
+        |layout| matches!(layout, nocter_machine::MachineLayoutKind::ErrorHandle),
+        4,
+        2,
+    );
+    assert_selected_future_cleanup(
+        &session,
+        "compound-deferred",
+        |layout| matches!(layout, nocter_machine::MachineLayoutKind::Struct { fields } if fields.len() == 3),
+        1,
+        1,
+    );
 }
 
-fn assert_selected_future_cleanup(session: &nocter_session::AnalyzedUnit) {
+fn assert_selected_future_cleanup(
+    session: &nocter_session::AnalyzedUnit,
+    executable: &str,
+    is_capture: impl Fn(&nocter_machine::MachineLayoutKind) -> bool,
+    total_calls: usize,
+    selected_calls: usize,
+) {
     use nocter_machine::{
         MachineBlockId, MachineCallTarget, MachineOperationKind, MachineProgramRoot,
-        MachineTerminator,
+        MachineTerminator, MachineValueCarrier,
     };
-    let executable = select_value_access_executable(
-        session,
-        &ExecutableSelector::named("managed-deferred-failure"),
-    )
-    .unwrap();
+    let executable =
+        select_value_access_executable(session, &ExecutableSelector::named(executable)).unwrap();
     let (unit, code) = executable.into_entry();
     let machine = super::machine_entry(unit, code).unwrap();
-    let MachineProgramRoot::Process { root, entry } = *machine.root() else {
+    let MachineProgramRoot::Process { entry, .. } = *machine.root() else {
         panic!("expected a process entry");
     };
-    let (release, _) = machine
-        .functions()
-        .find(|(id, function)| {
-            *id != root
-                && function.body().operations().any(|(_, operation)| {
-                    matches!(operation.kind(), MachineOperationKind::ReleaseError { .. })
-                })
+    let mut helpers = machine.functions().filter(|(_, function)| {
+        let body = function.body();
+        let [parameter] = body.parameters() else {
+            return false;
+        };
+        body.stack(*parameter).is_some_and(|slot| {
+            slot.carrier() == MachineValueCarrier::Address
+                && machine
+                    .layouts()
+                    .get(slot.ty())
+                    .is_some_and(|layout| is_capture(layout.kind()))
         })
-        .expect("one helper releases an owned error inside the program");
+    });
+    let (release, _) = helpers
+        .next()
+        .expect("a helper releases the represented captured input");
+    assert!(helpers.next().is_none());
     let body = machine.function(entry).unwrap().body();
     let count_releases = |block: MachineBlockId| {
         body.block(block)
@@ -255,7 +273,7 @@ fn assert_selected_future_cleanup(session: &nocter_session::AnalyzedUnit) {
         body.blocks()
             .map(|(id, _)| count_releases(id))
             .sum::<usize>(),
-        4
+        total_calls
     );
     assert!(
         body.blocks().any(|(_, block)| {
@@ -267,7 +285,7 @@ fn assert_selected_future_cleanup(session: &nocter_session::AnalyzedUnit) {
                 .map(|case| count_releases(case.target().block()))
                 .collect::<Vec<_>>();
             counts.sort_unstable();
-            counts == [0, 2]
+            counts == [0, selected_calls]
         }),
         "only the selected resource-owning case releases captures"
     );
@@ -277,10 +295,12 @@ fn assert_selected_future_cleanup(session: &nocter_session::AnalyzedUnit) {
 fn a_different_selected_target_cannot_use_arm64_darwin_primitive_drive_evidence() {
     let directory = TempPackage::new();
     copy_fixture(&directory);
-    directory.source(
-        "app/managed_deferred_failure/body.nct",
-        "see ./index.nct\nasync func main(): i32! { 0 }",
-    );
+    for module in ["managed_deferred_failure", "compound_deferred"] {
+        directory.source(
+            &format!("app/{module}/body.nct"),
+            "see ./index.nct\nasync func main(): i32! { 0 }",
+        );
+    }
     let (session, _) = analyze_package(&directory, CompilationTarget::X64Linux);
     let [diagnostic] = session.diagnostics() else {
         panic!("{:#?}", session.diagnostics());

@@ -753,13 +753,30 @@ impl Context<'_> {
                     input_owner == owner
                         && previous.is_none_or(|prior| prior > index)
                         && input.source.projections.is_empty()
-                        && input.disposal == super::Disposal::Error
-                        && self.primitive(input.source.data, RuntimePrimitive::Error),
+                        && self.matches_input_disposal(input.source.data, input.disposal),
                 )?;
                 previous = Some(index);
             }
         }
         Ok(())
+    }
+    fn matches_input_disposal(&self, data: RuntimeDataId, disposal: super::Disposal) -> bool {
+        matches!(
+            (disposal, self.program.runtime.types().get(data)),
+            (
+                super::Disposal::Error,
+                Some(RuntimeType::Primitive(RuntimePrimitive::Error))
+            ) | (
+                super::Disposal::Aggregate,
+                Some(
+                    RuntimeType::Aggregate
+                        | RuntimeType::FixedArray { .. }
+                        | RuntimeType::EmptyArray { .. }
+                        | RuntimeType::Optional(_)
+                        | RuntimeType::Fallible(_)
+                )
+            )
+        )
     }
     fn selected_drive(&self, drive: &super::SelectedDrive) -> Result<(), Failure> {
         self.future_cases(&drive.selector, drive.cases.iter().map(|case| case.tag))?;
