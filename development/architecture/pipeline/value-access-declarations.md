@@ -353,8 +353,11 @@ own lifecycle evidence. Body typing checks that `await` occurs in the nearest de
 consumes an owned operand. The typed expression exposes one future layer's output before an outer
 outcome operation. The control and resource analyses retain each empty activation's selected
 producer through ownership transfer. The drive consumes that receipt before execution and receives
-the output through the shared normal-result transition after execution. Unit acceptance currently
-diagnoses the missing physical drive and cancellation evidence at the source await.
+the output through the shared normal-result transition after execution. Unit acceptance qualifies
+non-waiting execution transitively through reached immediate bodies and local drives. A local drive
+can omit activation storage when every incoming receipt selects the same empty producer and the body
+has the checked backing and cleanup for this scope. An await requiring a runtime selector is
+diagnosed at its source.
 
 The shared `value-modules/query-session` corpus closes an explicit checked root through physical
 v2 package discovery, revision-owned analysis and session evidence before the existing instance,
@@ -376,8 +379,10 @@ repeat name lookup, signature compatibility, body checking, access proof or Copy
 source-level generic move remains selected even if its concrete named payload is Copy.
 
 One immutable instance arena closes root reachability; recursive keys are reserved before their
-edges are followed. Only reachable invocation commits add instances. Interrupted inputs lacking a
-witness therefore create no unbound executable edge. Source data IDs map once to concrete payload
+edges are followed. Reached invocation commits and qualified future drives add instances.
+A drive keeps its own original action and selected producer through instance closure. MIR can
+use the ordinary body ABI for a qualified non-suspending drive and pass its answer to the checked
+normal-result transition. Source data IDs map once to concrete payload
 obligations or checked unproduced structural contracts in the same declaration TypeAuthority.
 The accepted Unit owns that distinction; an unproduced structural shape has no payload, cleanup or
 environment to specialize. Checking rejects any reached value use of it before flow admission.
@@ -439,8 +444,8 @@ snapshot is distinct from its original source owner. These recipes imply no unwi
 cleanup guarantee. Final graph freeze compares every input/answer payload with the selected callee's
 concrete projections rather than inferring types or a result again.
 
-Only reachable invocation commits add edges. Uninvoked values/bindings and interrupted prepared
-prefixes retain payload/cleanup evidence without creating code instances. Source-selected generic
+Uninvoked values/bindings and interrupted prepared prefixes retain payload/cleanup evidence without
+creating code instances. Source-selected generic
 transfers do not become non-invalidating copies merely because concrete projection finds Copy.
 The physical executable consumer must lower these same frozen channels, body graphs, resource steps
 and normal adapter exits into environment/input/result realization. This graph grants no ABI,

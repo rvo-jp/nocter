@@ -36,9 +36,18 @@ func cancel(edit count: i32, first: bool): void {
     drop moved
 }
 
+async func child(): i32 {
+    tally(9) - 1
+}
+
+async func relay(): i32 {
+    let pending = child()
+    await pending^
+}
+
 async func main(): i32 {
     var count = 0
     cancel(count, true)
     cancel(count, false)
-    count + tally(9) - 1
+    count + await relay()
 }

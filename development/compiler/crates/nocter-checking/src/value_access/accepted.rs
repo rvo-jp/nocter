@@ -171,7 +171,18 @@ impl Unit {
     pub fn can_drive_without_suspension(&self, id: AccessCodeId) -> bool {
         self.deferred_drives.contains(&id)
     }
-    /// Whether this body's checked unstarted futures of this data have no represented storage.
+    /// Exact producer of a local empty activation with a qualified non-suspending drive.
+    #[must_use]
+    pub fn future_drive(
+        &self,
+        code: nocter_model::ValueCode,
+        result: nocter_model::AccessExpressionId,
+    ) -> Option<AccessCodeId> {
+        let producer = self.future_elisions.producer(code, result)?;
+        self.can_drive_without_suspension(producer)
+            .then_some(producer)
+    }
+    /// Whether this body's checked local futures of this data have no represented storage.
     #[must_use]
     pub fn elides_future_data(&self, code: nocter_model::ValueCode, data: TypeId) -> bool {
         self.future_elisions.contains(code, data)
@@ -873,7 +884,6 @@ pub(super) fn resolve_queries(
     let mut controls = queries
         .into_iter()
         .map(|(id, body)| {
-            deferred::require_await_execution(context, &body)?;
             deferred::require_local_activation(context, id)?;
             let control = flow::Control::prepare(Arc::new(body)).map_err(Failure::Integrity)?;
             Ok((id, control))

@@ -345,6 +345,15 @@ impl Builder<'_> {
             }))
         }
     }
+    fn drive(&mut self, result: AccessExpressionId) -> Result<Operation, Failure> {
+        let target = super::CallTarget::Body(self.drive_target()?);
+        let data = self.expression(result)?;
+        Ok(Operation::Call(Call {
+            target,
+            inputs: Box::new([]),
+            answer: self.snapshot(SlotKey::Answer(result), data)?,
+        }))
+    }
 
     fn prepare_argument(
         &mut self,
@@ -429,12 +438,11 @@ impl Builder<'_> {
                     .map(|operation| operation.into_iter().collect());
             }
             flow::Operation::CommitCall(id) => self.call(id)?,
+            flow::Operation::DriveFuture { result, .. } => self.drive(result)?,
             flow::Operation::ConstructFuture(id) if self.elides_future_expression(id) => {
                 return Ok(Box::new([]));
             }
-            flow::Operation::ConstructFuture(_) | flow::Operation::DriveFuture { .. } => {
-                return Err(self.invalid());
-            }
+            flow::Operation::ConstructFuture(_) => return Err(self.invalid()),
             flow::Operation::Bind { local, value } => {
                 let item = self
                     .checked

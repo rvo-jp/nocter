@@ -139,10 +139,16 @@ fn async_contracts_match_before_future_admission() {
 }
 
 #[test]
-fn await_without_execution_evidence_reports_the_current_await() {
+fn await_without_a_qualified_runtime_selector_reports_the_current_await() {
     let (_fixture, product) = Fixture::package(
         "see ./body.nct\nasync func run(): i32",
-        "async func child(): i32 { 42 }\nasync func run(): i32 { await child() }",
+        "func choice(): bool { true }\n\
+         async func first(): i32 { 12 }\n\
+         async func second(): i32 { 30 }\n\
+         async func run(): i32 {\n\
+            let pending = if choice() { first() } else { second() }\n\
+            await pending^\n\
+         }",
     );
     let analysis = analyze_unit_from_query(&product).unwrap();
     assert_eq!(analysis.status(), AnalyzedUnitStatus::CompilationFailed);
@@ -158,7 +164,7 @@ fn await_without_execution_evidence_reports_the_current_await() {
             .get(span.source())
             .unwrap()
             .text_at(span.range()),
-        Some("await child()")
+        Some("await pending^")
     );
 }
 

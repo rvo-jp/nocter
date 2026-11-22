@@ -2,9 +2,13 @@
 use super::{CallTarget, Failure, Instance, InstanceKey, InstanceProgram, invocation, projection};
 #[cfg(test)]
 mod tests;
-use nocter_checking::value_access::{accepted::Unit, flow::Operation};
+use nocter_checking::value_access::{
+    ValueSourceSlot,
+    accepted::Unit,
+    flow::{Location, Operation},
+};
 use nocter_constant_evaluation::state::WorkBudget;
-use nocter_model::{AccessCodeId, AccessInstanceId, ArenaBuilder};
+use nocter_model::{AccessCodeId, AccessExpressionId, AccessInstanceId, ArenaBuilder, ValueCode};
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
@@ -40,6 +44,20 @@ impl Builder {
         }
         CallTarget::Body(self.intern(frame.clone()))
     }
+    fn drive(
+        &mut self,
+        unit: &Unit,
+        owner: ValueCode,
+        result: AccessExpressionId,
+    ) -> Result<AccessInstanceId, Failure> {
+        let invalid = Failure::InvalidAcceptedUnit;
+        let producer = unit.future_drive(owner, result).ok_or(invalid)?;
+        let key = unit
+            .program()
+            .bind_code(producer.into(), [])
+            .map_err(|_| invalid)?;
+        Ok(self.intern(key))
+    }
     fn define(
         &mut self,
         unit: &Arc<Unit>,
@@ -67,13 +85,21 @@ impl Builder {
         let prepared = projection::prepared(unit, &key, work)?;
         let metadata = projection::metadata(unit, body, control)?;
         let mut invocations = BTreeSet::new();
+        let mut drives = BTreeMap::new();
         for (point, block) in body.graph().points().iter() {
             if !control.reachable(point) {
                 continue;
             }
-            for action in &block.actions {
-                if let Operation::CommitCall(call) = action.operation {
-                    invocations.insert(call);
+            for (action, event) in block.actions.iter().enumerate() {
+                match event.operation {
+                    Operation::CommitCall(call) => {
+                        invocations.insert(call);
+                    }
+                    Operation::DriveFuture { result, .. } => {
+                        let target = self.drive(unit, key.code(), result)?;
+                        drives.insert(Location { point, action }, target);
+                    }
+                    _ => {}
                 }
             }
         }
@@ -126,6 +152,7 @@ impl Builder {
             .ok_or(Failure::InvalidAcceptedUnit)?
             .definition = Some(Instance {
             calls,
+            drives,
             metadata,
             inputs,
             result,
@@ -199,12 +226,50 @@ pub(super) fn close(
                 }
             }
         }
+        validate_drives(&unit, &instances, instance)?;
     }
     Ok(InstanceProgram {
         unit,
         root,
         instances,
     })
+}
+
+fn validate_drives(
+    unit: &Unit,
+    instances: &nocter_model::Arena<AccessInstanceId, Instance>,
+    caller: &Instance,
+) -> Result<(), Failure> {
+    let invalid = Failure::InvalidAcceptedUnit;
+    let caller_body = unit.code_body(caller.key().code()).ok_or(invalid)?;
+    for (&at, &target) in &caller.drives {
+        let Operation::DriveFuture { result, .. } = caller_body
+            .graph()
+            .points()
+            .get(at.point)
+            .and_then(|point| point.actions.get(at.action))
+            .ok_or(invalid)?
+            .operation
+        else {
+            return Err(invalid);
+        };
+        let child = instances.get(target).ok_or(invalid)?;
+        let body = unit.code_body(child.key().code()).ok_or(invalid)?;
+        let receipt = caller
+            .definition(at, ValueSourceSlot::Expression(result))
+            .ok_or(invalid)?;
+        if body.typed().body().inputs().ordered().next().is_some()
+            || !child
+                .result()
+                .payload()
+                .ok_or(invalid)?
+                .instance()
+                .has_same_representation(unit.program(), receipt.instance())
+        {
+            return Err(invalid);
+        }
+    }
+    Ok(())
 }
 
 fn validate_edge(

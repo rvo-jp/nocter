@@ -18,9 +18,9 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Qualify a statically unique empty activation at each reached `await`. Follow the selected child
-through the existing non-waiting body analysis, and carry the resulting edge through target
-instantiation and native execution. Preserve the original control and cleanup of the enclosing body.
+Admit a local `future T` annotation over an existing checked activation through the same
+canonical type authority as headers. Verify that explicit and inferred bindings preserve the
+same ownership, drive and cancellation behavior before adding more activation representations.
 
 ## Remaining Contextual Representation Qualification
 
@@ -767,6 +767,10 @@ not a language restriction derived from the current realization boundary.
   actual producer from each incoming path, consume the activation before the drive, and receive its
   output only on completion. Verify a move from a join of two equal-typed producers without
   cancelling either alternative on its drive path.
+- [x] Execute a local `await` when every reached ownership alternative selects one empty,
+  non-suspending producer. Carry the exact edge through target instantiation and verify fresh and
+  moved activations in a native process, with unstarted cancellation in the same execution.
+  Diagnose an await that still requires a runtime selector at its original source.
 - [ ] Implement the [v2 lazy future contract](spec/language/asynchronous-computations.md), from
   source recognition and header matching through body/call typing, invocation/await, dependency
   extent, effects, cancellation, target representation and native entry driving.

@@ -30,6 +30,7 @@ pub type DataEvidence = nocter_checking::value_access::accepted::DataEvidence<Pa
 #[derive(Clone, Debug)]
 pub struct Instance {
     calls: BTreeMap<AccessExpressionId, Invocation>,
+    drives: BTreeMap<flow::Location, AccessInstanceId>,
     metadata: BTreeSet<DataInstanceKey>,
     inputs: BTreeMap<AccessLocalId, Payload>,
     result: DataEvidence,
@@ -50,6 +51,11 @@ impl Instance {
     #[must_use]
     pub const fn calls(&self) -> &BTreeMap<AccessExpressionId, Invocation> {
         &self.calls
+    }
+    /// Exact executable body of a reached, qualified local drive.
+    #[must_use]
+    pub fn drive(&self, at: flow::Location) -> Option<AccessInstanceId> {
+        self.drives.get(&at).copied()
     }
     /// Actual body input data keyed only by the original input local, without another input layout.
     #[must_use]

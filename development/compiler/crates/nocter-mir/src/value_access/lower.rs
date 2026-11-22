@@ -76,6 +76,11 @@ impl Builder<'_> {
     pub(super) fn invalid(&self) -> Failure {
         Failure::InvalidBody(self.id)
     }
+    pub(super) fn drive_target(&self) -> Result<AccessInstanceId, Failure> {
+        self.at
+            .and_then(|at| self.instance.drive(at))
+            .ok_or_else(|| self.invalid())
+    }
     pub(super) fn elides_future_expression(&self, id: AccessExpressionId) -> bool {
         self.checked
             .typed()

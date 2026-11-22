@@ -1,4 +1,4 @@
-//! Elision retains logical ownership and requires every actual future use to stay unstarted.
+//! Elide storage for local empty activations only after checking all actual uses.
 use super::{Failure, INVALID, reject};
 use crate::value_access::{
     flow::{
@@ -12,7 +12,13 @@ use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, Default)]
 pub(in crate::value_access::accepted) struct Elisions {
-    bodies: BTreeMap<ValueCode, BTreeSet<TypeId>>,
+    bodies: BTreeMap<ValueCode, Body>,
+}
+
+#[derive(Clone, Debug, Default)]
+struct Body {
+    data: BTreeSet<TypeId>,
+    drives: BTreeMap<nocter_model::AccessExpressionId, AccessCodeId>,
 }
 
 impl Elisions {
@@ -21,16 +27,22 @@ impl Elisions {
         code: ValueCode,
         data: TypeId,
     ) -> bool {
-        self.bodies
-            .get(&code)
-            .is_some_and(|set| set.contains(&data))
+        self.body(code).is_some_and(|set| set.contains(&data))
     }
 
     pub(in crate::value_access::accepted) fn body(
         &self,
         code: ValueCode,
     ) -> Option<&BTreeSet<TypeId>> {
-        self.bodies.get(&code)
+        self.bodies.get(&code).map(|body| &body.data)
+    }
+
+    pub(in crate::value_access::accepted) fn producer(
+        &self,
+        code: ValueCode,
+        result: nocter_model::AccessExpressionId,
+    ) -> Option<AccessCodeId> {
+        self.bodies.get(&code)?.drives.get(&result).copied()
     }
 
     pub(in crate::value_access::accepted) fn step(&self, code: ValueCode, step: &Step) -> bool {
@@ -44,7 +56,7 @@ impl Elisions {
         let bodies = bodies
             .into_iter()
             .try_fold(BTreeMap::new(), |mut all, body| {
-                if let Some(elided) = body_data(body, verified)? {
+                if let Some(elided) = inspect(body, verified)? {
                     all.insert(body.typed().code(), elided);
                 }
                 Ok::<_, Failure>(all)
@@ -53,11 +65,11 @@ impl Elisions {
     }
 }
 
-fn body_data(
+fn inspect(
     body: &flow::Query,
     verified: &results::Verified<'_, '_>,
-) -> Result<Option<BTreeSet<TypeId>>, Failure> {
-    let mut data = BTreeSet::new();
+) -> Result<Option<Body>, Failure> {
+    let mut found = Body::default();
     if !body.graph().points().iter().any(|(point, block)| {
         body.initialization().reachable(point)
             && block
@@ -91,7 +103,27 @@ fn body_data(
                         ) {
                             return Err(INVALID);
                         }
-                        data.insert(payload.data());
+                        if let Step::DriveFuture { source, .. } = step {
+                            let Operation::DriveFuture { future, result } = event.operation else {
+                                return Err(INVALID);
+                            };
+                            if *source != Holder::Expression(future).place() {
+                                return Err(INVALID);
+                            }
+                            if found
+                                .drives
+                                .insert(result, producer)
+                                .is_some_and(|previous| previous != producer)
+                            {
+                                return Err(reject(
+                                    verified,
+                                    body,
+                                    location,
+                                    "this await can drive different producers and needs a runtime selector",
+                                ));
+                            }
+                        }
+                        found.data.insert(payload.data());
                     } else if mentions_future(step) {
                         return Err(reject(
                             verified,
@@ -104,10 +136,10 @@ fn body_data(
             }
         }
     }
-    if data.is_empty() {
+    if found.data.is_empty() {
         return Err(INVALID);
     }
-    Ok(Some(data))
+    Ok(Some(found))
 }
 
 fn local_payload(step: &Step) -> Option<Payload> {
@@ -130,6 +162,11 @@ fn local_payload(step: &Step) -> Option<Payload> {
         }
         Step::Dispose { source, payload }
             if source.fields().is_root() && local(source.holder()) =>
+        {
+            *payload
+        }
+        Step::DriveFuture { source, payload }
+            if source.fields().is_root() && matches!(source.holder(), Holder::Expression(_)) =>
         {
             *payload
         }

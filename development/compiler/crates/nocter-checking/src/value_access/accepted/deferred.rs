@@ -1,4 +1,4 @@
-//! Non-waiting process drives over the original checked bodies and cleanup.
+//! Non-waiting drives over the original checked bodies and cleanup.
 use super::{BodyFailure, Failure, flow};
 use crate::value_access::{ExpressionKind, Rule, diagnostics, results};
 use flow::{
@@ -15,30 +15,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 mod elision;
 pub(super) use elision::Elisions;
-
-pub(super) fn require_await_execution(
-    context: &Context<'_>,
-    body: &crate::value_access::Query,
-) -> Result<(), Failure> {
-    if let Some((id, _)) = body
-        .body()
-        .expressions()
-        .iter()
-        .find(|(_, expression)| matches!(expression.kind, ExpressionKind::Await { .. }))
-    {
-        return Err(body_failure(
-            body.source_owner(),
-            diagnostics::query_rejection(
-                context,
-                body,
-                Some(id),
-                Rule::UnqualifiedFuture,
-                "await requires qualified future driving and cancellation",
-            ),
-        ));
-    }
-    Ok(())
-}
 
 pub(super) fn require_local_activation(
     context: &Context<'_>,
@@ -67,7 +43,7 @@ pub(super) fn qualify(
     elisions: &Elisions,
 ) -> Result<BTreeSet<AccessCodeId>, Failure> {
     let mut drives = BTreeSet::new();
-    let mut ordinary = BTreeSet::new();
+    let mut checked = BTreeSet::new();
     for (&root, body) in bodies {
         let ValueCodeRoot::Declaration(callable) = root else {
             continue;
@@ -76,7 +52,7 @@ pub(super) fn qualify(
             program.code_execution(callable),
             Some(CallableExecution::Deferred { .. })
         ) {
-            drive(program, bodies, verified, elisions, body, &mut ordinary)?;
+            drive(program, bodies, verified, elisions, body, &mut checked)?;
             drives.insert(callable);
         }
     }
@@ -114,14 +90,14 @@ fn drive(
     verified: &results::Verified<'_, '_>,
     elisions: &Elisions,
     body: &flow::Query,
-    ordinary: &mut BTreeSet<AccessCodeId>,
+    checked: &mut BTreeSet<AccessCodeId>,
 ) -> Result<(), Failure> {
     let callable = body.typed().source_owner();
     let mut examined = BTreeSet::new();
     let mut pending = vec![(callable, body)];
     let mut local_data = BTreeSet::new();
     while let Some((owner, body)) = pending.pop() {
-        if ordinary.contains(&owner) || !examined.insert(owner) {
+        if checked.contains(&owner) || !examined.insert(owner) {
             continue;
         }
         let query = body.typed();
@@ -137,9 +113,6 @@ fn drive(
                 }
                 for transition in transitions {
                     for resource in transition.steps() {
-                        if matches!(resource, Step::DriveFuture { .. }) {
-                            return Err(INVALID);
-                        }
                         if let Some(data) = backing_data(resource)
                             && !elisions.contains(query.code(), data)
                             && !local_backing(program, data, &mut local_data)
@@ -153,42 +126,46 @@ fn drive(
                         }
                     }
                 }
-                if let Some(call) = invocation(&step.operation) {
-                    let expression = query.body().expressions().get(call).ok_or(INVALID)?;
-                    let ExpressionKind::Call { target, .. } = expression.kind else {
-                        return Err(INVALID);
-                    };
-                    let selected = match (target, program.function_execution(target)) {
-                        (
-                            ValueFunctionOrigin::Declaration(id),
-                            Some(CallableExecution::Immediate),
-                        ) => bodies.get(&id.into()).map(|body| (id, body.as_ref())),
-                        _ => None,
-                    };
-                    let Some(selected) = selected else {
-                        return Err(reject(
+                if let Some(id) = selected(program, elisions, query, &step.operation)
+                    .transpose()
+                    .map_err(|message| reject(verified, body, location, message))?
+                {
+                    let target = bodies.get(&id.into()).ok_or_else(|| {
+                        reject(
                             verified,
                             body,
                             location,
-                            "the selected invocation has no verified non-waiting drive evidence",
-                        ));
-                    };
-                    pending.push(selected);
+                            "the selected operation has no checked body for non-waiting drive",
+                        )
+                    })?;
+                    pending.push((id, target.as_ref()));
                 }
             }
         }
     }
     // A cycle of local operations, with no source of external progress, can diverge. It cannot
     // wait for external progress. Cache only after its entire reachable graph is examined.
-    examined.remove(&callable);
-    ordinary.extend(examined);
+    checked.extend(examined);
     Ok(())
 }
 
 // A future operation must opt in after its suspension, activation and effects are qualified.
-fn invocation(operation: &Operation) -> Option<AccessExpressionId> {
+fn selected(
+    program: &Program,
+    elisions: &Elisions,
+    query: &crate::value_access::Query,
+    operation: &Operation,
+) -> Option<Result<AccessCodeId, &'static str>> {
     match *operation {
-        Operation::CommitCall(call) => Some(call),
+        Operation::CommitCall(call) => Some(
+            immediate_body(program, query, call)
+                .ok_or("the selected invocation has no verified non-waiting drive evidence"),
+        ),
+        Operation::DriveFuture { result, .. } => Some(
+            elisions
+                .producer(query.code(), result)
+                .ok_or("await requires qualified future driving and cancellation"),
+        ),
         Operation::IndexFailure(_)
         | Operation::BeginEvaluation(_)
         | Operation::EndEvaluation(_)
@@ -200,7 +177,6 @@ fn invocation(operation: &Operation) -> Option<AccessExpressionId> {
         | Operation::BooleanAnswer { .. }
         | Operation::PrepareArgument { .. }
         | Operation::ConstructFuture(_)
-        | Operation::DriveFuture { .. }
         | Operation::CancelCall { .. }
         | Operation::Bind { .. }
         | Operation::Assign { .. }
@@ -209,6 +185,20 @@ fn invocation(operation: &Operation) -> Option<AccessExpressionId> {
         | Operation::Drop(_)
         | Operation::StageReturn(_)
         | Operation::ExitScope { .. } => None,
+    }
+}
+
+fn immediate_body(
+    program: &Program,
+    query: &crate::value_access::Query,
+    call: AccessExpressionId,
+) -> Option<AccessCodeId> {
+    let ExpressionKind::Call { target, .. } = query.body().expressions().get(call)?.kind else {
+        return None;
+    };
+    match (target, program.function_execution(target)) {
+        (ValueFunctionOrigin::Declaration(id), Some(CallableExecution::Immediate)) => Some(id),
+        _ => None,
     }
 }
 
