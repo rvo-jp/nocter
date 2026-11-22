@@ -1,6 +1,6 @@
 //! Closed data shapes for storage, independent of access operations and physical placement.
-use nocter_declarations::value_access::{DataInstanceKey, Program};
-use nocter_model::{AccessInstanceId, TypeId};
+use nocter_declarations::value_access::{DataInstanceKey, PayloadSchema, Program};
+use nocter_model::{AccessInstanceId, BuiltinType, TypeId, ValueCode};
 use nocter_runtime_contract::{
     RuntimeAbiIdentity, RuntimeDataId, RuntimeEnvironment, RuntimeEnvironmentError,
     RuntimeTypeTableBuildError, RuntimeValueInput, RuntimeValueSignature,
@@ -121,8 +121,41 @@ pub fn prepare(
             shapes.intern(key.clone())?;
         }
     }
-    for key in additional {
+    for key in additional.into_iter().chain(failure_status(instances)?) {
         shapes.intern(key)?;
     }
     shapes.finish(abi)
+}
+
+fn failure_status(instances: &InstanceProgram) -> Result<Option<DataInstanceKey>, Failure> {
+    let root = instances.root();
+    let declarations = instances.unit().program();
+    let ValueCode::Declaration(code) = instances
+        .instances()
+        .get(root)
+        .ok_or(Failure::InvalidInstance(root))?
+        .key()
+        .code()
+    else {
+        return Err(Failure::InvalidInstance(root));
+    };
+    let result = declarations
+        .codes()
+        .get(code)
+        .ok_or(Failure::InvalidInstance(root))?
+        .result();
+    if !matches!(
+        declarations.data_schema(result),
+        Some(PayloadSchema::Fallible(_))
+    ) {
+        return Ok(None);
+    }
+    // The process wrapper needs a failure status even if the entry has no i32 payloads.
+    let data = declarations
+        .data_type(BuiltinType::I32)
+        .ok_or(Failure::InvalidInstance(root))?;
+    declarations
+        .instantiate_closed_data(data)
+        .map(Some)
+        .map_err(|_| Failure::InvalidPayload(data))
 }

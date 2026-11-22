@@ -1,11 +1,12 @@
 //! Physical v2 sources retain one checked authority through query, session and native consumers.
 use super::{TempPackage, execute_native_status};
-use nocter_compile_input::{ModuleIdentity, ToolchainInput};
+use nocter_compile_input::{ModuleIdentity, PrimitiveRoleLocator, ToolchainInput};
 use nocter_compiler_computation::{CompilerComputation, ValueAccessAnalysis};
 use nocter_discovery::DiscoveryRequest;
 use nocter_filesystem::SourceOverlay;
 use nocter_model::{CompilationTarget, ConstantValue, FrozenNode, PackageIdentity};
 use nocter_package::{PackageRootCatalog, ResolvedPackageGraph, ResolvedPackageSpec};
+use nocter_runtime_contract::PrimitiveRole;
 use nocter_session::{
     ExecutableSelectionError, ExecutableSelector, ValueAccessEntryError,
     select_value_access_executable,
@@ -13,9 +14,7 @@ use nocter_session::{
 use nocter_syntax::ParseGoal;
 use std::fs;
 
-#[test]
-fn physical_query_session_unit_executes_distinct_cross_module_capture_values() {
-    let directory = TempPackage::new();
+fn copy_fixture(directory: &TempPackage) {
     let fixture = nocter_test_support::repository_root()
         .join("development/compiler/tests/fixtures/value-modules/query-session");
     for relative in [
@@ -23,6 +22,8 @@ fn physical_query_session_unit_executes_distinct_cross_module_capture_values() {
         "app/body.nct",
         "app/math/index.nct",
         "app/math/body.nct",
+        "app/failure/index.nct",
+        "app/failure/body.nct",
         "std/index.nct",
     ] {
         directory.source(
@@ -30,42 +31,70 @@ fn physical_query_session_unit_executes_distinct_cross_module_capture_values() {
             &fs::read_to_string(fixture.join(relative)).unwrap(),
         );
     }
+    let trusted_errors = fixture.with_file_name("trusted-errors");
+    for module in ["error", "context"] {
+        let index = format!("{module}/index.nct");
+        directory.source(
+            &format!("std/{index}"),
+            &fs::read_to_string(trusted_errors.join(index)).unwrap(),
+        );
+    }
+}
+
+#[test]
+fn physical_query_session_unit_executes_selected_entries() {
+    let directory = TempPackage::new();
+    copy_fixture(&directory);
     let overlay = SourceOverlay::empty();
     let mut computation = CompilerComputation::new();
     let revision = computation.advance_sources(&overlay, 0).unwrap();
     let identity = |name: &str| PackageIdentity::new(format!("workspace:{name}"));
+    let std = identity("std");
+    let package = |name| {
+        ResolvedPackageSpec::new(
+            identity(name),
+            fs::canonicalize(directory.0.join(name)).unwrap(),
+        )
+    };
     let packages = {
         let mut provider = computation.source_syntax(&revision).unwrap();
         ResolvedPackageGraph::load_with_root_catalog(
-            ["app", "std"]
-                .into_iter()
-                .map(|name| {
-                    ResolvedPackageSpec::new(
-                        identity(name),
-                        fs::canonicalize(directory.0.join(name)).unwrap(),
-                    )
-                })
-                .collect(),
+            vec![
+                package("app").with_standard_dependency(std.clone()),
+                package("std"),
+            ],
             PackageRootCatalog::for_goal(overlay, ParseGoal::V2CoreUnit),
             revision.source_identity_domain(),
             &mut provider,
         )
         .unwrap()
     };
-    let std = identity("std");
     let request = DiscoveryRequest::declared(
         CompilationTarget::Arm64Darwin,
         packages,
         vec![
             ModuleIdentity::new(identity("app"), Vec::<&str>::new()),
             ModuleIdentity::new(identity("app"), ["math"]),
+            ModuleIdentity::new(identity("app"), ["failure"]),
         ],
         ToolchainInput::new(
             std.clone(),
-            ModuleIdentity::new(std, Vec::<&str>::new()),
+            ModuleIdentity::new(std.clone(), Vec::<&str>::new()),
             Vec::new(),
             Vec::new(),
-        ),
+        )
+        .with_primitive_roles(vec![
+            PrimitiveRoleLocator::new(
+                PrimitiveRole::NewError,
+                ModuleIdentity::new(std.clone(), ["error"]),
+                "operation",
+            ),
+            PrimitiveRoleLocator::new(
+                PrimitiveRole::ErrorContext,
+                ModuleIdentity::new(std, ["context"]),
+                "operation",
+            ),
+        ]),
     );
     let source = computation.discover(&revision, request).unwrap();
     let product = computation.analyze(&source).unwrap();
@@ -109,4 +138,21 @@ fn physical_query_session_unit_executes_distinct_cross_module_capture_values() {
         let image = crate::compile_value_access_image(executable).unwrap();
         execute_native_status(&image, &directory.0, &format!("image-{name}"), status);
     }
+    let failure =
+        select_value_access_executable(&session, &ExecutableSelector::named("failure")).unwrap();
+    let image = crate::compile_value_access_image(failure).unwrap();
+    assert_failure_report(&image, &directory.0);
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn assert_failure_report(image: &crate::NativeImage, root: &std::path::Path) {
+    let output = super::super::native_command(image, root, "image-failure")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert_eq!(output.stderr, b"failed: outer: leaf\n");
+}
+
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+fn assert_failure_report(_image: &crate::NativeImage, _root: &std::path::Path) {}

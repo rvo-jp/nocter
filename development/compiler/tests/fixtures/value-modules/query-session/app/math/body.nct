@@ -4,4 +4,4 @@ const func make(take value: i32): func(): i32 {
     (value^;) { value }
 }
 
-func main(): usize { 4294967313 }
+func main(): usize! { 4294967313 }

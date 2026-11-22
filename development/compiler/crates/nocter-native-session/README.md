@@ -9,9 +9,9 @@ return a complete native artifact or typed failure.
 
 The crate accepts either a query-backed released target request or a session-selected v2 package
 executable. It orchestrates backend stage contracts and owns output bytes and native test execution
-support. The v2 process wrapper currently supports immediate `void`, `i32`, and `usize` results on
-ARM64 Darwin. Fallible results have a distinct unsupported-wrapper error. It does not discover source, run semantic
-analysis, implement backend rules, select command-line policy, or publish filesystem artifacts.
+support. The [process-image handoff](../../../architecture/pipeline/value-access-declarations.md#common-machine-body-construction)
+defines which v2 entries reach native code. Source discovery, semantic analysis, backend rules,
+command-line policy and artifact publication belong to their respective stages.
 
 ## Internal Responsibilities
 
@@ -31,7 +31,8 @@ analysis, implement backend rules, select command-line policy, or publish filesy
   corpus selects same-named primitives from different logical modules and executes owned graph
   construction, context attachment and release, including qualified function-value calls.
   The query-session corpus additionally exercises the production v2 package selection and image
-  entry. The root and child module each declare their own `main` and execute the selected result.
+  entry. The root and child modules each declare their own `main` and execute the selected result.
+  A fallible entry with a contextual error verifies the process exit status and stderr bytes.
   Two same-code factory closures from a different module retain distinct captured values through
   required evaluation and native execution. Native compilation shares the query-owned checked Unit.
   A header-only query cannot replace source acceptance.

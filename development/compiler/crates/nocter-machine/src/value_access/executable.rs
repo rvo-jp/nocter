@@ -13,7 +13,7 @@ use crate::{
 };
 use nocter_mir::value_access as mir;
 use nocter_model::AccessInstanceId;
-use nocter_runtime_contract::{RuntimePrimitive, RuntimeType};
+use nocter_runtime_contract::RuntimeType;
 use std::collections::BTreeMap;
 
 struct Context<'a> {
@@ -80,20 +80,8 @@ pub(super) fn program(program: &mir::Program) -> Result<MachineProgram, Failure>
         .bodies()
         .get(&program.root())
         .ok_or(Failure::InvalidRoot)?;
-    if !source_root.inputs().is_empty()
-        || !matches!(
-            program
-                .runtime()
-                .types()
-                .get(source_root.signature().result()),
-            Some(
-                RuntimeType::Unit
-                    | RuntimeType::Primitive(
-                        RuntimePrimitive::Signed(32) | RuntimePrimitive::Usize
-                    )
-            )
-        )
-    {
+    let result = source_root.signature().result();
+    if !source_root.inputs().is_empty() || !body::valid_process_result(program, result) {
         return Err(Failure::InvalidRoot);
     }
     let layouts = prepare_layouts(program)?;
@@ -145,12 +133,7 @@ pub(super) fn program(program: &mir::Program) -> Result<MachineProgram, Failure>
         .get(&program.root())
         .ok_or(Failure::InvalidRoot)?;
     let process = MachineFunctionId::new(values.len());
-    values.push(body::process(
-        &context,
-        process,
-        entry,
-        source_root.signature().result(),
-    )?);
+    values.push(body::process(&context, process, entry, result)?);
     let functions = MachineTable::from_values(values);
     let contexts = crate::MachineContextPlans::build(&functions).map_err(Failure::Context)?;
     Ok(MachineProgram::new(crate::program::MachineProgramParts {

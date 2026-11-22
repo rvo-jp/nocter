@@ -20,7 +20,9 @@ mod callable_choices;
 mod calls;
 mod destruction;
 mod outcomes;
+mod process;
 pub(super) use destruction::build as cleanup;
+pub(super) use process::{build as process, valid_result as valid_process_result};
 mod remainder;
 mod repacking;
 mod repetition;
@@ -795,33 +797,4 @@ pub(super) fn source<'a>(
         MachineFunctionKind::Callable(context.abis[&instance].clone()),
         points[&source.entry()],
     )
-}
-
-pub(super) fn process(
-    context: &Context<'_>,
-    owner: MachineFunctionId,
-    entry: MachineFunctionId,
-    data: RuntimeDataId,
-) -> Result<MachineFunction, Failure> {
-    let mut builder = Builder::new(context, owner);
-    let value = builder.value(
-        data,
-        false,
-        MachineOperationKind::Call(MachineCall::new(
-            MachineCallTarget::Direct(entry),
-            [],
-            MachineCallAllocation::Inherit,
-            None,
-        )),
-    )?;
-    let result = if matches!(
-        context.program.runtime().types().get(data),
-        Some(RuntimeType::Unit)
-    ) {
-        None
-    } else {
-        Some(value)
-    };
-    builder.terminate(MachineTerminator::Exit(result))?;
-    builder.finish(MachineFunctionKind::ProcessRoot, MachineBlockId::new(0))
 }

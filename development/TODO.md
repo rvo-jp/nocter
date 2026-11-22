@@ -18,11 +18,10 @@ artifacts remain separately authorized actions, outside automatic completion of 
 
 ## Current Unit
 
-Complete the v2 process wrapper for fallible entry results. Use the selected package entry and
-the existing outcome layout, error reporting and release operations. Prove normal exit and
-reporting with real native package executions. Then connect the command path to the selected v2
-package and qualify async entries, process context, installed library and editor integration.
-Keep entry validation and target availability distinct from source checking.
+Connect the command path to the selected v2 package while sharing artifact planning, persistence
+and execution. Thread the selected grammar and trusted toolchain profile through package resolution
+before discovery. Then qualify async entries, process context, installed library and editor
+integration. Keep entry validation and target availability distinct from source checking.
 
 ## Remaining Contextual Representation Qualification
 
@@ -712,6 +711,10 @@ not a language restriction derived from the current realization boundary.
   Validate authored main contracts separately from backend availability. Qualify immediate
   void/i32/usize result handling and root/child package selection through the session. Native
   integration executes the selected i32 and wide usize results using the shared checked Unit.
+- [x] Adapt immediate fallible process outcomes through the shared Machine layout and native
+  error reporter. Qualify the wide success status, zero-byte `void` success, exact contextual
+  stderr and exit 1 in native processes. Verify that the failure arm reports and releases the same
+  error once and that invalid tags cannot take either exit arm.
 - [ ] Integrate v2 into the ordinary compiler/CLI and editor workflow with one semantic pipeline,
   current diagnostics, formatting, presentation and revision/source reuse. Remove transitional private
   handoffs when their production replacement is qualified; retain no competing semantic authority.

@@ -1,0 +1,7 @@
+use std/error as errors
+use std/context as contexts
+see ./index.nct
+
+func main(): void! {
+    throw contexts.operation(errors.operation("failed", "leaf"), "outer")
+}

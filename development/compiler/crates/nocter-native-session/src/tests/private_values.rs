@@ -47,6 +47,13 @@ fn private_structural_result_values_close_payloads_before_native_execution() {
 }
 
 #[test]
+fn private_fallible_void_entry_exits_without_a_success_payload() {
+    let image = compile("func run(): void! { () }");
+    let package = TempPackage::new();
+    execute_native_status(&image, &package.0, "fallible-void-success", 0);
+}
+
+#[test]
 fn private_type_and_value_names_select_independently_through_native_execution() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

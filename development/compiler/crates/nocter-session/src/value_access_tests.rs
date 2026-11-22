@@ -26,6 +26,14 @@ impl Fixture {
     }
 
     fn package(root: &str, body: &str) -> (Self, Arc<UnitAnalysisProduct>) {
+        Self::package_with_sources(root, body, &[])
+    }
+
+    fn package_with_sources(
+        root: &str,
+        body: &str,
+        sources: &[(&str, &str)],
+    ) -> (Self, Arc<UnitAnalysisProduct>) {
         let serial = NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed);
         let directory =
             std::env::temp_dir().join(format!("nocter-v2-session-{}-{serial}", std::process::id()));
@@ -46,6 +54,11 @@ impl Fixture {
             "#package: { name: \"std\", version: \"2.0.0\" }",
         )
         .unwrap();
+        for (relative, source) in sources {
+            let path = directory.join("app").join(relative);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, source).unwrap();
+        }
         let fixture = Self(fs::canonicalize(directory).unwrap());
         let overlay = SourceOverlay::empty();
         let mut computation = CompilerComputation::new();
@@ -239,4 +252,26 @@ fn package_entry_preserves_valid_results_and_target_selection() {
             ))
         ));
     }
+}
+
+#[test]
+fn reexported_namespace_with_main_does_not_supply_the_entry_contract() {
+    let (_fixture, product) = Fixture::package_with_sources(
+        "#executable: { name: \"app\" }\nuse ./helper as main",
+        "",
+        &[
+            ("helper/index.nct", "see ./body.nct\nfunc main(): i32"),
+            (
+                "helper/body.nct",
+                "see ./index.nct\nfunc main(): i32 { 42 }",
+            ),
+        ],
+    );
+    let analysis = analyze_unit_from_query(&product).unwrap();
+    assert_eq!(analysis.status(), AnalyzedUnitStatus::Complete);
+    assert!(analysis.diagnostics().is_empty());
+    assert!(matches!(
+        select_value_access_executable(&analysis, &ExecutableSelector::Only),
+        Err(ValueAccessEntryError::InvalidMain { executable, rule: None }) if &*executable == "app"
+    ));
 }

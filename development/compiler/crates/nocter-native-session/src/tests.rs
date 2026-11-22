@@ -218,16 +218,19 @@ fn module_roots(root: &Path) -> Vec<Vec<Box<str>>> {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn execute_native(image: &NativeImage, root: &Path, name: &str) -> std::process::ExitStatus {
+    native_command(image, root, name).status().unwrap()
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn native_command(image: &NativeImage, root: &Path, name: &str) -> std::process::Command {
     use std::os::unix::fs::PermissionsExt;
-    use std::process::Command;
 
     let executable = root.join(name);
     fs::write(&executable, image.bytes()).unwrap();
     fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
-    Command::new(&executable)
-        .current_dir(root)
-        .status()
-        .unwrap()
+    let mut command = std::process::Command::new(executable);
+    command.current_dir(root);
+    command
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]

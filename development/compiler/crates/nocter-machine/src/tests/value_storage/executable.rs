@@ -1,12 +1,64 @@
 use super::*;
 use crate::{
-    MachineFunctionKind, MachineOperationKind, MachineProgram, MachineValueCarrier,
+    MachineFunctionKind, MachineOperationKind, MachineOutcomeKind, MachineProgram,
+    MachineProgramRoot, MachineSwitchValue, MachineTerminator, MachineValueCarrier,
     MachineValueRepresentation,
 };
 use nocter_target_program::value_access::lifecycle;
 
 pub(super) fn compile(source: &str) -> MachineProgram {
     lower(source).unwrap()
+}
+
+#[test]
+fn fallible_process_root_reports_and_releases_only_the_failure_payload() {
+    let program = compile("func run(): void! { () }");
+    let MachineProgramRoot::Process { root, .. } = *program.root() else {
+        panic!("expected a process wrapper");
+    };
+    let body = program.function(root).unwrap().body();
+    let MachineTerminator::SwitchTag {
+        cases, fallback, ..
+    } = body.block(body.entry()).unwrap().terminator()
+    else {
+        panic!("a process outcome must dispatch on its tag");
+    };
+    let block_for = |tag| {
+        let case = cases
+            .iter()
+            .find(|case| case.value() == MachineSwitchValue::Tag(tag))
+            .unwrap();
+        body.block(case.target().block()).unwrap()
+    };
+    let outcome = MachineOutcomeKind::Fallible;
+    let success = block_for(outcome.primary_tag());
+    assert!(success.operations().is_empty());
+    assert_eq!(success.terminator(), &MachineTerminator::Exit(None));
+    let failure = block_for(outcome.alternate_tag());
+    let error_operations = failure
+        .operations()
+        .iter()
+        .filter_map(|&operation| {
+            let kind = body.operation(operation).unwrap().kind();
+            matches!(
+                kind,
+                MachineOperationKind::ReportError { .. }
+                    | MachineOperationKind::ReleaseError { .. }
+            )
+            .then_some(kind)
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        matches!(error_operations.as_slice(), [MachineOperationKind::ReportError { place: reported }, MachineOperationKind::ReleaseError { place: released }] if reported == released)
+    );
+    assert!(matches!(
+        failure.terminator(),
+        MachineTerminator::Exit(Some(_))
+    ));
+    assert_eq!(
+        body.block(fallback.block()).unwrap().terminator(),
+        &MachineTerminator::Unreachable
+    );
 }
 
 fn lower(source: &str) -> Result<MachineProgram, crate::value_access::ExecutableFailure> {
@@ -23,6 +75,7 @@ fn process_roots_reject_inputs_and_non_exit_results() {
     for source in [
         "func run(input: i32): i32 { input }",
         "func run(): bool { true }",
+        "func run(): bool! { true }",
     ] {
         assert!(matches!(
             lower(source),

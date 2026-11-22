@@ -586,9 +586,11 @@ a source ABI. Each action selects its alternative once by control flow before ei
 normal completion follows that selected continuation after the call. Cleanup of shared record
 schemas uses one helper per concrete data identity, not an expanded tree of field paths.
 
-The process-image entry admits a root with no inputs and an immediate `void`, `i32`, or `usize`
-result. Package selection validates the authored module entry independently of this wrapper's
-capabilities. Fallible and async process wrappers and the v2 public CLI remain unqualified. Callable bodies still preserve
+On ARM64 Darwin the process-image entry admits a root with no inputs and an immediate `void`, `i32`,
+or `usize` result, including the fallible forms. Its Machine wrapper reads the shared outcome tag,
+uses only the selected payload, and reports and releases a failure through the common error
+operations before exit. Package selection validates the authored module entry independently of
+the wrapper. Async entry and public CLI integration remain open. Callable bodies still preserve
 their full frozen input/result contracts. Native-session integration tests compile actual private
 source through checking, instances, lifecycle, MIR and these existing native consumers, then
 execute the images on ARM64 macOS. They cover scalar computation, scoped channels, control flow,

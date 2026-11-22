@@ -2,7 +2,7 @@
 use std::{fmt, sync::Arc};
 
 use nocter_target_program::{
-    ProcessResultContract, TargetUnavailable,
+    TargetUnavailable,
     value_access::{self, InstanceProgram, lifecycle},
 };
 
@@ -11,7 +11,6 @@ use crate::{NativeImage, NativeImageError, native::image_from_machine};
 #[derive(Debug)]
 pub enum ValueAccessImageError {
     Target(TargetUnavailable),
-    UnsupportedResult(ProcessResultContract),
     Instances(value_access::Failure),
     Lifecycle(lifecycle::Failure),
     Mir(nocter_mir::value_access::Failure),
@@ -23,12 +22,6 @@ impl fmt::Display for ValueAccessImageError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Target(error) => error.fmt(formatter),
-            Self::UnsupportedResult(result) => {
-                write!(
-                    formatter,
-                    "the v2 process wrapper does not yet support {result:?}"
-                )
-            }
             Self::Instances(error) => {
                 write!(formatter, "cannot specialize v2 executable: {error:?}")
             }
@@ -53,16 +46,12 @@ impl std::error::Error for ValueAccessImageError {
 /// Builds an image from the entry selected by the v2 package session.
 ///
 /// # Errors
-/// Rejects unimplemented targets or process results and preserves lowering failures from each stage.
+/// Rejects unimplemented targets and preserves lowering failures from each stage.
 pub fn compile_value_access_image(
     executable: nocter_session::ValueAccessExecutable<'_>,
 ) -> Result<NativeImage, ValueAccessImageError> {
     let abi =
         value_access::executable_abi(executable.target()).map_err(ValueAccessImageError::Target)?;
-    let result = executable.result();
-    if result.is_fallible() {
-        return Err(ValueAccessImageError::UnsupportedResult(result));
-    }
     let (unit, root) = executable.into_entry();
     let instances =
         InstanceProgram::prepare(unit, root).map_err(ValueAccessImageError::Instances)?;
